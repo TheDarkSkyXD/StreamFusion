@@ -173,11 +173,31 @@ function setupRequestInterceptors(): void {
           headers[cspKey] = cspValues.map((csp) => {
             // Add 'data:' to connect-src if not already present
             if (csp.includes("connect-src") && !csp.includes("data:")) {
+              if (csp.includes("connect-src")) {
+                return csp.replace("connect-src", "connect-src data: blob:");
+              }
               return csp.replace(/connect-src\s+([^;]+)/, "connect-src $1 data: blob:");
             }
             return csp;
           });
         }
+      }
+
+      // Strip 'Set-Cookie' header to prevent "Reading cookie in cross-site context" console spam
+      // and block 3rd party tracking cookies from video/API requests.
+      const url = details.url;
+      const shouldStripCookies =
+        url.includes("gql.twitch.tv") ||
+        url.includes("ttvnw.net") ||
+        url.includes("usher.ttvnw.net") ||
+        url.includes("api.twitch.tv");
+
+      if (shouldStripCookies) {
+        Object.keys(headers).forEach((key) => {
+          if (key.toLowerCase() === "set-cookie") {
+            delete headers[key];
+          }
+        });
       }
 
       callback({ responseHeaders: headers });
