@@ -210,7 +210,7 @@ app.on("ready", async () => {
   // Mark session as started (remove sentinel until clean shutdown)
   markSessionStarted();
 
-  // Initialize Core Services (Database & Storage) 
+  // Initialize Core Services (Database & Storage)
   // MUST be called after app path configuration and before IPC handlers
   dbService.initialize();
   storageService.initialize();

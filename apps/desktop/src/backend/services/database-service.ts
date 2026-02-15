@@ -62,7 +62,9 @@ export class DatabaseService {
     if (!hasSourceColumn && tableInfo.length > 0) {
       // Table exists but without source column — migrate
       console.debug("🔄 Migrating local_follows: adding source column...");
-      this.database.exec(`ALTER TABLE local_follows ADD COLUMN source TEXT NOT NULL DEFAULT 'guest'`);
+      this.database.exec(
+        `ALTER TABLE local_follows ADD COLUMN source TEXT NOT NULL DEFAULT 'guest'`
+      );
       // Drop old unique constraint and recreate with source
       // SQLite doesn't support DROP CONSTRAINT, so we recreate the table
       this.database.exec(`
@@ -123,7 +125,9 @@ export class DatabaseService {
   }
 
   set(key: string, value: any): void {
-    const stmt = this.database.prepare("INSERT OR REPLACE INTO key_value (key, value) VALUES (?, ?)");
+    const stmt = this.database.prepare(
+      "INSERT OR REPLACE INTO key_value (key, value) VALUES (?, ?)"
+    );
     stmt.run(key, JSON.stringify(value));
   }
 
@@ -225,7 +229,9 @@ export class DatabaseService {
    * Clear follows for a specific platform and source
    */
   clearFollowsByPlatformAndSource(platform: string, source: FollowSource): void {
-    const stmt = this.database.prepare("DELETE FROM local_follows WHERE platform = ? AND source = ?");
+    const stmt = this.database.prepare(
+      "DELETE FROM local_follows WHERE platform = ? AND source = ?"
+    );
     stmt.run(platform, source);
   }
 

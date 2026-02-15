@@ -10,7 +10,9 @@ export class TwitchRequestor {
 
   constructor() {
     if (!this.config.clientId) {
-      console.error("❌ TWITCH_CLIENT_ID is missing! Twitch API requests will fail. Check .env or build configuration.");
+      console.error(
+        "❌ TWITCH_CLIENT_ID is missing! Twitch API requests will fail. Check .env or build configuration."
+      );
     }
   }
 

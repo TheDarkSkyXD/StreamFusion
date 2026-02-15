@@ -1,6 +1,11 @@
 import { type BrowserWindow, ipcMain } from "electron";
-
-import type { AuthToken, KickUser, Platform, TwitchUser } from "../../../shared/auth-types";
+import type {
+  AuthToken,
+  KickUser,
+  LocalFollow,
+  Platform,
+  TwitchUser,
+} from "../../../shared/auth-types";
 import { type AuthStatus, IPC_CHANNELS } from "../../../shared/ipc-channels";
 import {
   authWindowManager,
@@ -13,7 +18,6 @@ import {
   validateOAuthConfig,
 } from "../../auth";
 import { storageService } from "../../services/storage-service";
-import type { LocalFollow } from "../../../shared/auth-types";
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   /**
@@ -53,13 +57,16 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
         // Import account follows as local follows
         for (const channel of allFollowed) {
-          storageService.addLocalFollow({
-            platform: "twitch",
-            channelId: channel.id,
-            channelName: channel.username,
-            displayName: channel.displayName,
-            profileImage: channel.avatarUrl,
-          } as Omit<LocalFollow, "id" | "followedAt">, "account");
+          storageService.addLocalFollow(
+            {
+              platform: "twitch",
+              channelId: channel.id,
+              channelName: channel.username,
+              displayName: channel.displayName,
+              profileImage: channel.avatarUrl,
+            } as Omit<LocalFollow, "id" | "followedAt">,
+            "account"
+          );
         }
         console.debug(`✅ Synced ${allFollowed.length} Twitch follows`);
       } else if (platform === "kick") {
@@ -71,13 +78,16 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
         // Import account follows as local follows
         for (const channel of allFollowed) {
-          storageService.addLocalFollow({
-            platform: "kick",
-            channelId: channel.id,
-            channelName: channel.username,
-            displayName: channel.displayName,
-            profileImage: channel.avatarUrl,
-          } as Omit<LocalFollow, "id" | "followedAt">, "account");
+          storageService.addLocalFollow(
+            {
+              platform: "kick",
+              channelId: channel.id,
+              channelName: channel.username,
+              displayName: channel.displayName,
+              profileImage: channel.avatarUrl,
+            } as Omit<LocalFollow, "id" | "followedAt">,
+            "account"
+          );
         }
         console.debug(`✅ Synced ${allFollowed.length} Kick follows`);
       }
@@ -256,7 +266,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
 
       // Sync local follows with account follows (background, non-blocking)
-      syncFollowsOnLogin(platform).catch(() => { });
+      syncFollowsOnLogin(platform).catch(() => {});
 
       // Notify renderer of successful auth
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
@@ -506,7 +516,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         }
 
         // Sync local follows with account follows (background, non-blocking)
-        syncFollowsOnLogin("twitch").catch(() => { });
+        syncFollowsOnLogin("twitch").catch(() => {});
 
         // Notify renderer
         safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {

@@ -7,17 +7,18 @@
  */
 
 import type { TwitchUser } from "../../../../shared/auth-types";
-import type { UnifiedCategory, UnifiedChannel, UnifiedClip, UnifiedStream, UnifiedVideo } from "../../unified/platform-types";
-
-import * as GqlClient from "./twitch-gql-client";
+import type {
+  UnifiedCategory,
+  UnifiedChannel,
+  UnifiedClip,
+  UnifiedStream,
+  UnifiedVideo,
+} from "../../unified/platform-types";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
+import * as GqlClient from "./twitch-gql-client";
 import { TwitchRequestor } from "./twitch-requestor";
-import type {
-  PaginatedResult,
-  PaginationOptions,
-  TwitchClientError,
-} from "./twitch-types";
+import type { PaginatedResult, PaginationOptions, TwitchClientError } from "./twitch-types";
 
 // Re-export types for backward compatibility
 export type { PaginationOptions, PaginatedResult, TwitchClientError };
@@ -93,9 +94,7 @@ class TwitchClient extends TwitchRequestor {
    * Get live streams by user logins (GQL - no auth needed)
    * Used for local follows / guest mode
    */
-  async getStreamsByLogins(
-    logins: string[]
-  ): Promise<PaginatedResult<UnifiedStream>> {
+  async getStreamsByLogins(logins: string[]): Promise<PaginatedResult<UnifiedStream>> {
     try {
       const streams = await GqlClient.gqlGetStreamsByLogins(logins);
       return { data: streams };

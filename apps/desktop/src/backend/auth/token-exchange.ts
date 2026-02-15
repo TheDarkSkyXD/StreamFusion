@@ -110,7 +110,7 @@ class TokenExchangeService {
    * If the worker injects valid credentials, the client just needs to make the request.
    * But currently Requestors check for tokens.
    * We should probably fetch the app token from the worker if needed, or rely on worker injection.
-   * 
+   *
    * Let's skip updating this specific method for a moment and focus on User Auth first,
    * as App Token flow on client with no secret is impossible without a proxy endpoint.
    */
@@ -118,8 +118,12 @@ class TokenExchangeService {
     // Since we moved secrets to the worker, the client can no longer independently generate App Tokens (Client Credentials).
     // If App Tokens are critical, we must add a /auth/twitch/app-token endpoint to the worker.
     // For now, fail gracefully.
-    console.error(`❌ Cannot get App Access Token for ${platform}: Client Secret is not available on client.`);
-    throw new Error("App Access Token flow not supported without Client Secret. Please use User Authentication.");
+    console.error(
+      `❌ Cannot get App Access Token for ${platform}: Client Secret is not available on client.`
+    );
+    throw new Error(
+      "App Access Token flow not supported without Client Secret. Please use User Authentication."
+    );
   }
 
   /**

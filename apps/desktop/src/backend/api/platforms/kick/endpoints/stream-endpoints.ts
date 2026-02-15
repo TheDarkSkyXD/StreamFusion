@@ -210,7 +210,8 @@ export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream
         channelId: livestream.channel_id.toString(),
         channelName: data.slug,
         channelDisplayName: data.user?.username || data.slug,
-        channelAvatar: data.user?.profile_picture || data.user?.profile_pic || data.user?.profilepic || "",
+        channelAvatar:
+          data.user?.profile_picture || data.user?.profile_pic || data.user?.profilepic || "",
         title: livestream.session_title || "",
         viewerCount: livestream.viewer_count ?? livestream.viewers ?? 0,
         thumbnailUrl: livestream.thumbnail?.url || "",
@@ -276,7 +277,7 @@ export async function getStreamBySlug(
       } else {
         console.warn(
           `[Kick] Public stream API mismatch: requested "${slug}", got "${publicStream.channelName}". ` +
-          `Trying authenticated API.`
+            `Trying authenticated API.`
         );
       }
     }
@@ -292,7 +293,7 @@ export async function getStreamBySlug(
     if (channel && channel.username.toLowerCase() !== normalizedSlug) {
       console.warn(
         `[Kick] Channel lookup mismatch: requested "${slug}", got "${channel.username}". ` +
-        `Rejecting to prevent identity confusion.`
+          `Rejecting to prevent identity confusion.`
       );
       return null;
     }
@@ -317,7 +318,7 @@ export async function getStreamBySlug(
           if (apiStream.broadcaster_user_id !== channelIdNum) {
             console.warn(
               `[Kick] Stream broadcaster ID mismatch: queried for ${channelIdNum}, ` +
-              `got ${apiStream.broadcaster_user_id}. Rejecting to prevent identity confusion.`
+                `got ${apiStream.broadcaster_user_id}. Rejecting to prevent identity confusion.`
             );
             return null;
           }
@@ -328,7 +329,7 @@ export async function getStreamBySlug(
           if (stream.channelName.toLowerCase() !== normalizedSlug) {
             console.warn(
               `[Kick] Stream channel name mismatch: requested "${slug}", ` +
-              `got "${stream.channelName}". Rejecting.`
+                `got "${stream.channelName}". Rejecting.`
             );
             return null;
           }
@@ -360,8 +361,8 @@ export async function getStreamBySlug(
                 } else {
                   console.warn(
                     `[Kick] User ID mismatch for stream ${slug}: ` +
-                    `fetched user ID ${user.user_id}, expected ${stream.channelId}. ` +
-                    `Skipping user data enrichment.`
+                      `fetched user ID ${user.user_id}, expected ${stream.channelId}. ` +
+                      `Skipping user data enrichment.`
                   );
                 }
               }
@@ -524,8 +525,7 @@ export async function getPublicTopStreams(
         item.categories?.[0]?.id ||
         ""
       ).toString();
-      const categoryName =
-        item.category?.name || item.categories?.[0]?.name || "";
+      const categoryName = item.category?.name || item.categories?.[0]?.name || "";
 
       streams.push({
         id: (item.id || item.session_id || "").toString(),

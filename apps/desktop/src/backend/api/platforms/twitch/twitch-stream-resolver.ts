@@ -40,9 +40,7 @@ export class TwitchStreamResolver {
   /**
    * Get playback URL for a VOD
    */
-  async getVodPlaybackUrl(
-    vodId: string
-  ): Promise<{ url: string; format: string }> {
+  async getVodPlaybackUrl(vodId: string): Promise<{ url: string; format: string }> {
     try {
       const token = await GqlClient.gqlGetVodAccessToken(vodId);
       const url = this.constructVodUrl(vodId, token.value, token.signature);
