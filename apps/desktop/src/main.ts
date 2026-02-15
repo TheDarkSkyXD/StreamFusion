@@ -15,12 +15,34 @@ import { app, BrowserWindow, Menu, session } from "electron";
 import { protocolHandler } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
 import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
+import { dbService } from "./backend/services/database-service";
 import { networkAdBlockService } from "./backend/services/network-adblock-service";
+import { storageService } from "./backend/services/storage-service";
 import { twitchManifestProxy } from "./backend/services/twitch-manifest-proxy";
 import { vaftPatternService } from "./backend/services/vaft-pattern-service";
 import { windowManager } from "./backend/window-manager";
 
+// Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
+// This allows external tools to connect to the running Electron app at ws://localhost:9222
+// In production builds (electron-forge package/make), NODE_ENV is typically "production"
+const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
+
+if (!isProduction) {
+  // Use a separate user data directory for development to allow running dev and prod simultaneously
+  const userDataPath = app.getPath("userData");
+  const devUserDataPath = `${userDataPath} (Dev)`;
+  app.setPath("userData", devUserDataPath);
+  console.debug(`📂 Development mode: User data path set to ${devUserDataPath}`);
+
+  app.commandLine.appendSwitch("remote-debugging-port", "9222");
+  console.debug("🔌 CDP remote debugging enabled on port 9222 for Playwright MCP");
+} else {
+  app.commandLine.appendSwitch("remote-debugging-port", "9005");
+  console.debug("🔌 CDP remote debugging enabled on port 9005 for Production");
+}
+
 // Sentinel file to track clean shutdown
+// explicit call to getPath to ensure we use the updated path if set above
 const CLEAN_SHUTDOWN_FILE = path.join(app.getPath("userData"), ".clean-shutdown");
 
 // ============================================================================
@@ -45,15 +67,6 @@ app.commandLine.appendSwitch("enable-features", "V8MemoryCage");
 
 // Disable accessibility runtime (saves ~10-20MB if not needed)
 app.commandLine.appendSwitch("disable-renderer-accessibility");
-
-// Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
-// This allows external tools to connect to the running Electron app at ws://localhost:9222
-// In production builds (electron-forge package/make), NODE_ENV is typically "production"
-const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
-if (!isProduction) {
-  app.commandLine.appendSwitch("remote-debugging-port", "9222");
-  console.debug("🔌 CDP remote debugging enabled on port 9222 for Playwright MCP");
-}
 
 /**
  * Check if the last shutdown was clean (sentinel file exists)
@@ -196,6 +209,11 @@ app.on("ready", async () => {
 
   // Mark session as started (remove sentinel until clean shutdown)
   markSessionStarted();
+
+  // Initialize Core Services (Database & Storage) 
+  // MUST be called after app path configuration and before IPC handlers
+  dbService.initialize();
+  storageService.initialize();
 
   // Register custom protocol handler for OAuth callbacks (streamstorm://)
   protocolHandler.registerProtocol();

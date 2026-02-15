@@ -164,11 +164,10 @@ export function registerStreamHandlers(): void {
 
       try {
         const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
-        const localFollows = storageService.getLocalFollows();
 
         // Twitch
         if (!params.platform || params.platform === "twitch") {
-          const localTwitch = localFollows.filter((f) => f.platform === "twitch");
+          const localTwitch = storageService.getActiveFollowsByPlatform("twitch");
           const twitchStreams: any[] = [];
           const seenIds = new Set<string>();
 
@@ -191,29 +190,23 @@ export function registerStreamHandlers(): void {
             }
           }
 
-          // 2. Local Follows (App Token / Public)
+          // 2. Local Follows (GQL - no auth needed, works for guests)
           if (localTwitch.length > 0) {
             try {
-              const idsToFetch = localTwitch.map((f) => f.channelId);
+              // Use channel logins (not IDs) so GQL can handle this without auth
+              const loginsToFetch = [...new Set(localTwitch.map((f) => f.channelName))];
 
-              if (idsToFetch.length > 0) {
-                const chunks = [];
-                for (let i = 0; i < idsToFetch.length; i += 100) {
-                  chunks.push(idsToFetch.slice(i, i + 100));
-                }
-
-                for (const chunk of chunks) {
-                  try {
-                    const localStreamsResult = await twitchClient.getStreamsByUserIds(chunk);
-                    localStreamsResult.data.forEach((s) => {
-                      if (!seenIds.has(s.id)) {
-                        twitchStreams.push(s);
-                        seenIds.add(s.id);
-                      }
-                    });
-                  } catch (e) {
-                    console.warn("Failed to fetch chunk of local twitch streams", e);
-                  }
+              if (loginsToFetch.length > 0) {
+                try {
+                  const localStreamsResult = await twitchClient.getStreamsByLogins(loginsToFetch);
+                  localStreamsResult.data.forEach((s) => {
+                    if (!seenIds.has(s.id)) {
+                      twitchStreams.push(s);
+                      seenIds.add(s.id);
+                    }
+                  });
+                } catch (e) {
+                  console.warn("Failed to fetch local twitch streams via GQL", e);
                 }
 
                 const existingTwitch = results.find((r) => r.platform === "twitch");
@@ -231,7 +224,7 @@ export function registerStreamHandlers(): void {
 
         // Kick
         if (!params.platform || params.platform === "kick") {
-          const localKick = localFollows.filter((f) => f.platform === "kick");
+          const localKick = storageService.getActiveFollowsByPlatform("kick");
           const kickStreams: any[] = [];
           const seenIds = new Set<string>();
 

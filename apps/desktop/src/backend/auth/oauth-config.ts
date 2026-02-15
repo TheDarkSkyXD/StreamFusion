@@ -14,9 +14,14 @@ import type { Platform } from "../../shared/auth-types";
 // For Confidential clients, client secret is required for Authorization Code Flow
 
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID || "";
-const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET || "";
+// Client secrets are now handled by the Cloudflare Worker
+const TWITCH_CLIENT_SECRET = "";
 const KICK_CLIENT_ID = process.env.KICK_CLIENT_ID || "";
-const KICK_CLIENT_SECRET = process.env.KICK_CLIENT_SECRET || "";
+const KICK_CLIENT_SECRET = "";
+
+// ========== Worker Configuration ==========
+
+export const WORKER_BASE_URL = "https://streamstorm.leveluptogetherbiz.workers.dev";
 
 // ========== Localhost Callback Configuration ==========
 // Twitch requires HTTPS for custom protocols but allows http://localhost
@@ -44,7 +49,7 @@ export interface OAuthConfig {
   clientSecret: string;
   authorizationEndpoint: string;
   tokenEndpoint: string;
-  revokeEndpoint?: string;
+  revokeEndpoint?: string; // Revoke endpoint usually remains direct unless we proxy it too
   scopes: string[];
   usesPkce: boolean;
 }
@@ -64,7 +69,7 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
   clientId: TWITCH_CLIENT_ID,
   clientSecret: TWITCH_CLIENT_SECRET,
   authorizationEndpoint: "https://id.twitch.tv/oauth2/authorize",
-  tokenEndpoint: "https://id.twitch.tv/oauth2/token",
+  tokenEndpoint: `${WORKER_BASE_URL}/auth/twitch/token`, // Worker endpoint
   revokeEndpoint: "https://id.twitch.tv/oauth2/revoke",
   scopes: [
     "user:read:email",
@@ -84,7 +89,7 @@ export const KICK_OAUTH_CONFIG: OAuthConfig = {
   clientId: KICK_CLIENT_ID,
   clientSecret: KICK_CLIENT_SECRET,
   authorizationEndpoint: "https://id.kick.com/oauth/authorize",
-  tokenEndpoint: "https://id.kick.com/oauth/token",
+  tokenEndpoint: `${WORKER_BASE_URL}/auth/kick/token`, // Worker endpoint
   revokeEndpoint: "https://id.kick.com/oauth/revoke",
   scopes: [
     "user:read", // View user information (username, streamer ID, etc.)

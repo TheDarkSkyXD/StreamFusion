@@ -41,10 +41,16 @@ const defaults: StorageSchema = {
 // ========== Storage Service Class ==========
 
 class StorageService {
-  private store: Store<StorageSchema>;
-  private isEncryptionAvailable: boolean;
+  private store: Store<StorageSchema> | null = null;
+  private isEncryptionAvailable = false;
 
   constructor() {
+    // Lazy initialization - call initialize() after app setup
+  }
+
+  initialize() {
+    if (this.store) return; // Already initialized
+
     this.store = new Store<StorageSchema>({
       name: "streamstorm-storage",
       defaults,
@@ -55,6 +61,13 @@ class StorageService {
     console.debug(
       `🔐 Storage service initialized. Encryption available: ${this.isEncryptionAvailable}`
     );
+  }
+
+  private get storeInstance(): Store<StorageSchema> {
+    if (!this.store) {
+      throw new Error("Storage not initialized. Call initialize() first.");
+    }
+    return this.store;
   }
 
   // ========== Token Management (Electron Store) ==========
@@ -94,9 +107,9 @@ class StorageService {
     const tokenString = JSON.stringify(token);
     const encrypted = this.encryptToken(tokenString);
 
-    const tokens = this.store.get("authTokens") || {};
+    const tokens = this.storeInstance.get("authTokens") || {};
     tokens[platform] = encrypted;
-    this.store.set("authTokens", tokens);
+    this.storeInstance.set("authTokens", tokens);
 
     console.debug(`✅ Token saved for ${platform}`);
   }
@@ -105,7 +118,7 @@ class StorageService {
    * Get an auth token for a platform
    */
   getToken(platform: Platform): AuthToken | null {
-    const tokens = this.store.get("authTokens") || {};
+    const tokens = this.storeInstance.get("authTokens") || {};
     const encrypted = tokens[platform];
 
     if (!encrypted) {
@@ -125,7 +138,7 @@ class StorageService {
    * Check if a token exists for a platform
    */
   hasToken(platform: Platform): boolean {
-    const tokens = this.store.get("authTokens") || {};
+    const tokens = this.storeInstance.get("authTokens") || {};
     return !!tokens[platform];
   }
 
@@ -150,9 +163,9 @@ class StorageService {
    * Clear token for a platform
    */
   clearToken(platform: Platform): void {
-    const tokens = this.store.get("authTokens") || {};
+    const tokens = this.storeInstance.get("authTokens") || {};
     delete tokens[platform];
-    this.store.set("authTokens", tokens);
+    this.storeInstance.set("authTokens", tokens);
     console.debug(`🗑️ Token cleared for ${platform}`);
   }
 
@@ -160,8 +173,8 @@ class StorageService {
    * Clear all tokens
    */
   clearAllTokens(): void {
-    this.store.set("authTokens", {});
-    this.store.set("appTokens", {});
+    this.storeInstance.set("authTokens", {});
+    this.storeInstance.set("appTokens", {});
     console.debug("🗑️ All tokens cleared");
   }
 
@@ -174,9 +187,9 @@ class StorageService {
     const tokenString = JSON.stringify(token);
     const encrypted = this.encryptToken(tokenString);
 
-    const tokens = this.store.get("appTokens") || {};
+    const tokens = this.storeInstance.get("appTokens") || {};
     tokens[platform] = encrypted;
-    this.store.set("appTokens", tokens);
+    this.storeInstance.set("appTokens", tokens);
 
     console.debug(`✅ App Token saved for ${platform}`);
   }
@@ -185,7 +198,7 @@ class StorageService {
    * Get an app token for a platform
    */
   getAppToken(platform: Platform): AuthToken | null {
-    const tokens = this.store.get("appTokens") || {};
+    const tokens = this.storeInstance.get("appTokens") || {};
     const encrypted = tokens[platform];
 
     if (!encrypted) {
@@ -224,66 +237,81 @@ class StorageService {
    * Save Twitch user data
    */
   saveTwitchUser(user: TwitchUser): void {
-    this.store.set("twitchUser", user);
+    this.storeInstance.set("twitchUser", user);
   }
 
   /**
    * Get Twitch user data
    */
   getTwitchUser(): TwitchUser | null {
-    return this.store.get("twitchUser") || null;
+    return this.storeInstance.get("twitchUser") || null;
   }
 
   /**
    * Clear Twitch user data
    */
   clearTwitchUser(): void {
-    this.store.set("twitchUser", null);
+    this.storeInstance.set("twitchUser", null);
   }
 
   /**
    * Save Kick user data
    */
   saveKickUser(user: KickUser): void {
-    this.store.set("kickUser", user);
+    this.storeInstance.set("kickUser", user);
   }
 
   /**
    * Get Kick user data
    */
   getKickUser(): KickUser | null {
-    return this.store.get("kickUser") || null;
+    return this.storeInstance.get("kickUser") || null;
   }
 
   /**
    * Clear Kick user data
    */
   clearKickUser(): void {
-    this.store.set("kickUser", null);
+    this.storeInstance.set("kickUser", null);
   }
 
   // ========== Local Follows Management (SQLite) ==========
 
   /**
-   * Get all local follows
+   * Get all local follows (both guest and account)
    */
   getLocalFollows(): LocalFollow[] {
-    return dbService.getAllFollows();
+    return dbService.getAllFollows(); // No store usage here
   }
 
   /**
-   * Get local follows for a specific platform
+   * Get local follows for a specific platform (all sources)
    */
   getLocalFollowsByPlatform(platform: Platform): LocalFollow[] {
     return dbService.getFollowsByPlatform(platform);
   }
 
   /**
-   * Add a local follow
+   * Get the "active" follows for a platform.
+   * If the user has logged in and account follows exist, return those.
+   * Otherwise, return guest follows.
    */
-  addLocalFollow(follow: Omit<LocalFollow, "id" | "followedAt">): LocalFollow {
-    const newFollow = dbService.addFollow(follow);
-    console.debug(`➕ Added local follow: ${follow.displayName}`);
+  getActiveFollowsByPlatform(platform: Platform): LocalFollow[] {
+    if (dbService.hasAccountFollows(platform)) {
+      return dbService.getFollowsByPlatformAndSource(platform, "account");
+    }
+    return dbService.getFollowsByPlatformAndSource(platform, "guest");
+  }
+
+  /**
+   * Add a local follow (guest source by default)
+   */
+  addLocalFollow(
+    follow: Omit<LocalFollow, "id" | "followedAt">,
+    source: "guest" | "account" = "guest"
+  ): LocalFollow {
+    const newFollow = dbService.addFollow(follow, source);
+    console.debug(`➕ Added ${source} follow: ${follow.displayName}`);
     return newFollow;
   }
 
@@ -302,16 +330,15 @@ class StorageService {
    * Update a local follow
    */
   updateLocalFollow(id: string, updates: Partial<LocalFollow>): LocalFollow | null {
-    // Since we didn't implement 'update' in dbService yet, we use a fetch-modify-save workflow
     const current = this.getLocalFollows().find((f) => f.id === id);
     if (!current) return null;
 
     const updated = { ...current, ...updates };
-    return dbService.addFollow(updated); // addFollow handles replace
+    return dbService.addFollow(updated);
   }
 
   /**
-   * Check if following a channel
+   * Check if following a channel (any source)
    */
   isFollowing(platform: Platform, channelId: string): boolean {
     return dbService.isFollowing(platform, channelId);
@@ -333,6 +360,22 @@ class StorageService {
   }
 
   /**
+   * Clear account follows for a platform (on logout → guest follows become active)
+   */
+  clearAccountFollows(platform: Platform): void {
+    dbService.clearFollowsByPlatformAndSource(platform, "account");
+    console.debug(`🗑️ Account follows cleared for ${platform}`);
+  }
+
+  /**
+   * Clear local follows for a specific platform (all sources)
+   */
+  clearLocalFollowsByPlatform(platform: Platform): void {
+    dbService.clearFollowsByPlatform(platform);
+    console.debug(`🗑️ Local follows cleared for ${platform}`);
+  }
+
+  /**
    * Clear all local follows
    */
   clearLocalFollows(): void {
@@ -340,13 +383,11 @@ class StorageService {
     console.debug("🗑️ All local follows cleared");
   }
 
-  // ========== Preferences Management (Electron Store) ==========
-
   /**
    * Get all preferences
    */
   getPreferences(): UserPreferences {
-    return this.store.get("preferences") || defaults.preferences;
+    return this.storeInstance.get("preferences") || defaults.preferences;
   }
 
   /**
@@ -355,7 +396,7 @@ class StorageService {
   updatePreferences(updates: Partial<UserPreferences>): UserPreferences {
     const current = this.getPreferences();
     const updated = { ...current, ...updates };
-    this.store.set("preferences", updated);
+    this.storeInstance.set("preferences", updated);
     return updated;
   }
 
@@ -363,7 +404,7 @@ class StorageService {
    * Reset preferences to defaults
    */
   resetPreferences(): void {
-    this.store.set("preferences", DEFAULT_USER_PREFERENCES);
+    this.storeInstance.set("preferences", DEFAULT_USER_PREFERENCES);
   }
 
   // ========== Window State Management (Electron Store) ==========
@@ -372,14 +413,14 @@ class StorageService {
    * Get window bounds
    */
   getWindowBounds(): StorageSchema["windowBounds"] {
-    return this.store.get("windowBounds") || DEFAULT_WINDOW_BOUNDS;
+    return this.storeInstance.get("windowBounds") || DEFAULT_WINDOW_BOUNDS;
   }
 
   /**
    * Save window bounds
    */
   saveWindowBounds(bounds: StorageSchema["windowBounds"]): void {
-    this.store.set("windowBounds", bounds);
+    this.storeInstance.set("windowBounds", bounds);
   }
 
   // ========== Generic Storage (Electron Store) ==========
@@ -388,28 +429,28 @@ class StorageService {
    * Get a value from storage
    */
   get<K extends keyof StorageSchema>(key: K): StorageSchema[K] {
-    return this.store.get(key);
+    return this.storeInstance.get(key);
   }
 
   /**
    * Set a value in storage
    */
   set<K extends keyof StorageSchema>(key: K, value: StorageSchema[K]): void {
-    this.store.set(key, value);
+    this.storeInstance.set(key, value);
   }
 
   /**
    * Delete a value from storage
    */
   delete<K extends keyof StorageSchema>(key: K): void {
-    this.store.delete(key);
+    this.storeInstance.delete(key);
   }
 
   /**
    * Clear all storage
    */
   clearAll(): void {
-    this.store.clear();
+    this.storeInstance.clear();
     // Also clear DB
     dbService.clearKeyValue(); // Though we aren't using this part anymore, good to be safe
     dbService.clearFollows();
@@ -420,7 +461,7 @@ class StorageService {
    * Get storage file path (for debugging)
    */
   getStorePath(): string {
-    return this.store.path;
+    return this.storeInstance.path;
   }
 }
 

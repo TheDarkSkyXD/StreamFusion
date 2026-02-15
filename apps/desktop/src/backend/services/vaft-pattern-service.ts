@@ -39,18 +39,13 @@ interface PatternStoreSchema {
 // ========== Pattern Service ==========
 
 class VaftPatternService {
-  private store: Store<PatternStoreSchema>;
+  private store: Store<PatternStoreSchema> | null = null;
   private updateTimer: ReturnType<typeof setInterval> | null = null;
   private lastCheckTime: number = 0;
   private isInitialized: boolean = false;
 
   constructor() {
-    this.store = new Store<PatternStoreSchema>({
-      name: "streamstorm-adblock-patterns",
-      defaults: {
-        adPatterns: DEFAULT_STORED_PATTERNS,
-      },
-    });
+    // Lazy initialization - call initialize() after app setup
   }
 
   // ========== Initialization ==========
@@ -63,6 +58,15 @@ class VaftPatternService {
     if (this.isInitialized) {
       console.debug("[VaftPatterns] Already initialized");
       return;
+    }
+
+    if (!this.store) {
+      this.store = new Store<PatternStoreSchema>({
+        name: "streamstorm-adblock-patterns",
+        defaults: {
+          adPatterns: DEFAULT_STORED_PATTERNS,
+        },
+      });
     }
 
     console.debug("[VaftPatterns] Initializing pattern service...");
@@ -84,6 +88,13 @@ class VaftPatternService {
     // Schedule periodic updates
     this.schedulePeriodicUpdates();
     this.isInitialized = true;
+  }
+
+  private get storeInstance(): Store<PatternStoreSchema> {
+    if (!this.store) {
+      throw new Error("VaftPatternService not initialized. Call initialize() first.");
+    }
+    return this.store;
   }
 
   /**
@@ -145,10 +156,10 @@ class VaftPatternService {
 
       if (patterns) {
         // Store the updated patterns
-        this.store.set("adPatterns", {
+        this.storeInstance.set("adPatterns", {
           patterns,
           lastChecked: new Date().toISOString(),
-          autoUpdateEnabled: this.store.get("adPatterns").autoUpdateEnabled,
+          autoUpdateEnabled: this.storeInstance.get("adPatterns").autoUpdateEnabled,
         });
 
         console.debug(`[VaftPatterns] Updated to version ${patterns.version}`);
@@ -309,7 +320,7 @@ class VaftPatternService {
    * Get stored patterns
    */
   getStoredPatterns(): StoredAdPatterns {
-    return this.store.get("adPatterns") || DEFAULT_STORED_PATTERNS;
+    return this.storeInstance.get("adPatterns") || DEFAULT_STORED_PATTERNS;
   }
 
   /**
@@ -376,7 +387,7 @@ class VaftPatternService {
    */
   setAutoUpdateEnabled(enabled: boolean): void {
     const stored = this.getStoredPatterns();
-    this.store.set("adPatterns", {
+    this.storeInstance.set("adPatterns", {
       ...stored,
       autoUpdateEnabled: enabled,
     });

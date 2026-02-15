@@ -5,8 +5,14 @@ import { storageService } from "../../../services/storage-service";
 import { TWITCH_API_BASE, type TwitchClientError } from "./twitch-types";
 
 export class TwitchRequestor {
-  private readonly baseUrl = TWITCH_API_BASE;
+  private readonly baseUrl = "https://streamstorm.leveluptogetherbiz.workers.dev/twitch";
   private config = getOAuthConfig("twitch");
+
+  constructor() {
+    if (!this.config.clientId) {
+      console.error("❌ TWITCH_CLIENT_ID is missing! Twitch API requests will fail. Check .env or build configuration.");
+    }
+  }
 
   // Retry configuration
   private readonly MAX_RETRIES = 3;
@@ -156,10 +162,12 @@ export class TwitchRequestor {
    * Uses Electron's net module for better network compatibility
    */
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    // Ensure we have a valid token (User or App)
+    // Only User Token is supported — App Token (Client Credentials) flow is
+    // intentionally disabled because client secrets live on the Cloudflare Worker
+    // and no /auth/twitch/app-token proxy endpoint has been created yet.
+    // Callers should use GQL-based methods for unauthenticated access.
     let accessToken: string | undefined;
 
-    // 1. Try User Token first
     const hasUserToken = await twitchAuthService.ensureValidToken();
     if (hasUserToken) {
       const userToken = storageService.getToken("twitch");
@@ -168,25 +176,14 @@ export class TwitchRequestor {
       }
     }
 
-    // 2. Fallback to App Token if no User Token
     if (!accessToken) {
-      const hasAppToken = await twitchAuthService.ensureAppToken();
-      if (hasAppToken) {
-        const appToken = storageService.getAppToken("twitch");
-        if (appToken) {
-          accessToken = appToken.accessToken;
-        }
-      }
-    }
-
-    if (!accessToken) {
-      throw new Error("Not authenticated with Twitch (no valid User or App token)");
+      throw new Error("Not authenticated with Twitch. Use GQL API for unauthenticated access.");
     }
 
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
-      "Client-Id": this.config.clientId,
+      // "Client-Id": this.config.clientId, // Handled by Worker Proxy
       "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
     };

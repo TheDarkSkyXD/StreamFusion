@@ -60,12 +60,8 @@ export function registerChannelHandlers(): void {
         let channel = null;
 
         if (params.platform === "twitch") {
-          // Get user first, then channel info
-          const users = await twitchClient.getUsersByLogin([params.username]);
-          if (users.length > 0) {
-            const channels = await twitchClient.getChannelsById([users[0].id]);
-            channel = channels[0] || null;
-          }
+          // Use GQL (no auth needed) for channel lookup by login
+          channel = await twitchClient.getChannelByLogin(params.username);
         } else if (params.platform === "kick") {
           channel = await kickClient.getChannel(params.username);
         }

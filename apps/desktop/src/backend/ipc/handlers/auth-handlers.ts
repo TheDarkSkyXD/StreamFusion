@@ -13,6 +13,7 @@ import {
   validateOAuthConfig,
 } from "../../auth";
 import { storageService } from "../../services/storage-service";
+import type { LocalFollow } from "../../../shared/auth-types";
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   /**
@@ -31,6 +32,58 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
     } catch {
       console.warn(`⚠️ Could not send to ${channel}: Window disposed`);
+    }
+  }
+
+  /**
+   * Sync local follows on login: replace guest follows for the platform
+   * with the account's actual followed channels.
+   * Runs in the background — does not block the login flow.
+   */
+  async function syncFollowsOnLogin(platform: Platform): Promise<void> {
+    try {
+      console.debug(`🔄 Syncing ${platform} follows after login...`);
+
+      if (platform === "twitch") {
+        const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
+        const allFollowed = await twitchClient.getAllFollowedChannels();
+
+        // Clear old account follows for this platform (guest follows stay intact)
+        storageService.clearAccountFollows("twitch");
+
+        // Import account follows as local follows
+        for (const channel of allFollowed) {
+          storageService.addLocalFollow({
+            platform: "twitch",
+            channelId: channel.id,
+            channelName: channel.username,
+            displayName: channel.displayName,
+            profileImage: channel.avatarUrl,
+          } as Omit<LocalFollow, "id" | "followedAt">, "account");
+        }
+        console.debug(`✅ Synced ${allFollowed.length} Twitch follows`);
+      } else if (platform === "kick") {
+        const { kickClient } = await import("../../api/platforms/kick/kick-client");
+        const allFollowed = await kickClient.getAllFollowedChannels();
+
+        // Clear old account follows for this platform (guest follows stay intact)
+        storageService.clearAccountFollows("kick");
+
+        // Import account follows as local follows
+        for (const channel of allFollowed) {
+          storageService.addLocalFollow({
+            platform: "kick",
+            channelId: channel.id,
+            channelName: channel.username,
+            displayName: channel.displayName,
+            profileImage: channel.avatarUrl,
+          } as Omit<LocalFollow, "id" | "followedAt">, "account");
+        }
+        console.debug(`✅ Synced ${allFollowed.length} Kick follows`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to sync ${platform} follows on login:`, error);
+      // Don't throw — this is non-critical and should not block the login
     }
   }
 
@@ -202,6 +255,9 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         }
       }
 
+      // Sync local follows with account follows (background, non-blocking)
+      syncFollowsOnLogin(platform).catch(() => { });
+
       // Notify renderer of successful auth
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
         platform,
@@ -271,6 +327,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     console.debug("🚪 Logging out from Twitch...");
     try {
       await twitchAuthService.logout();
+      // Clear account follows → guest follows become active again
+      storageService.clearAccountFollows("twitch");
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
         platform: "twitch",
         success: true,
@@ -325,8 +383,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async (_event, { platform }: { platform: Platform }) => {
     if (platform === "twitch") {
       await twitchAuthService.logout();
+      storageService.clearAccountFollows("twitch");
     } else if (platform === "kick") {
       await kickAuthService.logout();
+      storageService.clearAccountFollows("kick");
     }
 
     safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
@@ -342,6 +402,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     console.debug("🚪 Logging out from Kick...");
     try {
       await kickAuthService.logout();
+      // Clear account follows → guest follows become active again
+      storageService.clearAccountFollows("kick");
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
         platform: "kick",
         success: true,
@@ -442,6 +504,9 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         if (user) {
           storageService.saveTwitchUser(user);
         }
+
+        // Sync local follows with account follows (background, non-blocking)
+        syncFollowsOnLogin("twitch").catch(() => { });
 
         // Notify renderer
         safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {

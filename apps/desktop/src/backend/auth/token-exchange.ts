@@ -53,35 +53,26 @@ class TokenExchangeService {
 
     console.debug(`🔄 Exchanging code for token (${params.platform})`);
     console.debug(`📤 Token endpoint: ${config.tokenEndpoint}`);
-    console.debug(
-      `📤 Client ID: ${config.clientId ? `${config.clientId.substring(0, 8)}...` : "NOT SET"}`
-    );
-    console.debug(`📤 Redirect URI: ${params.redirectUri}`);
-    console.debug(`📤 Code: ${params.code.substring(0, 10)}...`);
-    console.debug(`📤 PKCE enabled: ${config.usesPkce}`);
 
-    const body = new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      redirect_uri: params.redirectUri,
+    // The worker now handles the actual exchange and secrets
+    // We just send the code and necessary metadata as JSON
+    const payload: any = {
       code: params.code,
-    });
+      redirect_uri: params.redirectUri,
+    };
 
-    // Add PKCE code verifier if used
     if (config.usesPkce && params.pkce) {
-      console.debug(`📤 Code verifier: ${params.pkce.codeVerifier.substring(0, 10)}...`);
-      body.append("code_verifier", params.pkce.codeVerifier);
+      payload.code_verifier = params.pkce.codeVerifier;
     }
 
     try {
       const response = await fetch(config.tokenEndpoint, {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: body.toString(),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -112,77 +103,59 @@ class TokenExchangeService {
 
   /**
    * Get an App Access Token (Client Credentials Flow)
+   * NOTE: For now, this still tries client_credentials which requires a secret.
+   * If we want to hide the secret, the worker needs an endpoint for this too.
+   * However, app tokens are usually for backend-to-backend.
+   * Since we are proxying API requests, we might not need an app token on the client?
+   * If the worker injects valid credentials, the client just needs to make the request.
+   * But currently Requestors check for tokens.
+   * We should probably fetch the app token from the worker if needed, or rely on worker injection.
+   * 
+   * Let's skip updating this specific method for a moment and focus on User Auth first,
+   * as App Token flow on client with no secret is impossible without a proxy endpoint.
    */
   async getAppAccessToken(platform: Platform): Promise<AuthToken> {
-    const config = getOAuthConfig(platform);
-
-    console.debug(`🔄 Getting App Access Token for ${platform}`);
-
-    const body = new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-    });
-
-    try {
-      const response = await fetch(config.tokenEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
-        body: body.toString(),
-      });
-
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as TokenError;
-        const errorMessage =
-          errorData.error_description ||
-          errorData.message ||
-          errorData.error ||
-          "App token exchange failed";
-        console.error(
-          `❌ App token exchange failed for ${platform}:`,
-          response.status,
-          errorMessage
-        );
-        throw new Error(errorMessage);
-      }
-
-      const data = (await response.json()) as TokenResponse;
-      const token = this.parseTokenResponse(data);
-
-      console.debug(`✅ App Token obtained for ${platform}`);
-      return token;
-    } catch (error) {
-      console.error(`❌ App token exchange error for ${platform}:`, error);
-      throw error;
-    }
+    // Since we moved secrets to the worker, the client can no longer independently generate App Tokens (Client Credentials).
+    // If App Tokens are critical, we must add a /auth/twitch/app-token endpoint to the worker.
+    // For now, fail gracefully.
+    console.error(`❌ Cannot get App Access Token for ${platform}: Client Secret is not available on client.`);
+    throw new Error("App Access Token flow not supported without Client Secret. Please use User Authentication.");
   }
 
   /**
    * Refresh an access token using a refresh token
    */
   async refreshToken(params: TokenRefreshParams): Promise<AuthToken> {
+    // Determine worker refresh endpoint based on platform
+    // We could add this to OAuthConfig, but simple mapping works for now
+    // or just append /refresh to base url if it wasn't hardcoded in config
+
+    // Note: getOAuthConfig returns the /token endpoint primarily.
+    // We need to construct the refresh endpoint or update OAuthConfig to support multiple endpoints.
+    // For simplicity, let's assume the worker endpoints we created:
+    // /auth/twitch/refresh url is distinct from /auth/twitch/token
+
+    // We'll parse the base token endpoint from config to derive the refresh endpoint
+    // Config has: .../auth/twitch/token
+    // We want: .../auth/twitch/refresh
+
     const config = getOAuthConfig(params.platform);
+    const refreshEndpoint = config.tokenEndpoint.replace("/token", "/refresh");
 
-    console.debug(`🔄 Refreshing token for ${params.platform}`);
+    console.debug(`🔄 Refreshing token for ${params.platform} via Worker`);
 
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
+    const payload = {
       refresh_token: params.refreshToken,
-    });
+    };
 
     try {
-      const response = await fetch(config.tokenEndpoint, {
+      const response = await fetch(refreshEndpoint, {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: body.toString(),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {

@@ -14,7 +14,8 @@
     "dev": "electron-vite dev",
     "dev:mcp": "electron-vite dev -- --remote-debugging-port=9222",
     "build": "electron-vite build",
-    "start": "electron-vite preview",
+    "start": "electron-vite dev",
+    "preview": "electron-vite preview",
     "dist": "npm run build && electron-builder --publish never",
     "dist:win": "npm run build && electron-builder --win --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
@@ -169,6 +170,7 @@
     "tailwind-merge": "^3.4.0",
     "tldts": "^7.0.21",
     "tmi.js": "^1.8.5",
+    "twitch-gql-queries": "^0.1.22",
     "update-electron-app": "^3.1.2",
     "zod": "^4.3.6",
     "zustand": "^5.0.11"

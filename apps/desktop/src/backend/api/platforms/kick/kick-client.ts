@@ -97,7 +97,7 @@ const kickRateLimiter = new KickRateLimiter();
 // ========== Kick API Client Class ==========
 
 class KickClient implements KickRequestor {
-  readonly baseUrl = KICK_API_BASE;
+  readonly baseUrl = "https://streamstorm.leveluptogetherbiz.workers.dev/kick";
 
   /**
    * Make an authenticated request to the official Kick Public API v1
@@ -328,13 +328,8 @@ class KickClient implements KickRequestor {
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       };
 
-      // Add Auth token if we have one (user or app)
-      // This might be what's needed for 403s on some assets
-      let token = kickAuthService.getAccessToken(); // Try user token first
-
-      if (!token) {
-        token = kickAuthService.getAppAccessToken();
-      }
+      // Add Auth token if we have one (user auth only — App Token flow is not available)
+      const token = kickAuthService.getAccessToken();
 
       if (token) {
         headers.Authorization = `Bearer ${token}`;
@@ -359,26 +354,20 @@ class KickClient implements KickRequestor {
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     let token: string | null = null;
-    let isAppToken = false;
+    const isAppToken = false;
 
-    // 1. Try User Token first
+    // Try User Token — App Token flow is intentionally skipped because
+    // client credentials live on the Cloudflare Worker and no
+    // /auth/kick/app-token proxy endpoint has been created yet.
+    // Callers should fall back to the public (no-auth) API when the user
+    // hasn't logged into Kick.
     if (kickAuthService.isAuthenticated()) {
       await kickAuthService.ensureValidToken();
       token = kickAuthService.getAccessToken();
     }
 
-    // 2. If no User Token, try App Token
     if (!token) {
-      const hasAppToken = await kickAuthService.ensureValidAppToken();
-      if (hasAppToken) {
-        token = kickAuthService.getAppAccessToken();
-        isAppToken = true;
-      }
-    }
-
-    if (!token) {
-      // If we still have no token, we can't make an official API request
-      throw new Error("Not authenticated with Kick (User or App)");
+      throw new Error("Not authenticated with Kick. Use the public API fallback.");
     }
 
     const headers: Record<string, string> = {

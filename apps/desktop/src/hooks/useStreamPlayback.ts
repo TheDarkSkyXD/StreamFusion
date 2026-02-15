@@ -95,23 +95,10 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
           const playbackUrl = result.data.url;
           const playbackFormat = result.data.format as "hls" | "dash" | "mp4";
 
-          // DEBUG: Log exactly what we're receiving and setting
-          console.log(
-            `[useStreamPlayback] 🔍 DEBUG - Raw result.data:`,
-            JSON.stringify(result.data, null, 2).substring(0, 500)
-          );
-          console.log(`[useStreamPlayback] 🔍 DEBUG - URL value:`, playbackUrl);
-          console.log(`[useStreamPlayback] 🔍 DEBUG - URL type:`, typeof playbackUrl);
-          console.log(`[useStreamPlayback] 🔍 DEBUG - Format:`, playbackFormat);
-
           const newPlayback = {
             url: playbackUrl,
             format: playbackFormat,
           };
-          console.log(
-            `[useStreamPlayback] 🔍 DEBUG - Setting playback:`,
-            JSON.stringify(newPlayback)
-          );
 
           setPlayback(newPlayback);
 

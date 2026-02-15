@@ -116,7 +116,7 @@ async function getChannelDisplayInfo(
     // Legacy API returns files.kick.com/... URLs which may return 403
     const result = {
       displayName: data.user?.username || slug,
-      avatar: data.user?.profile_picture || data.user?.profile_pic || "",
+      avatar: data.user?.profile_picture || data.user?.profile_pic || data.user?.profilepic || "",
     };
 
     // Cache the result
@@ -210,7 +210,7 @@ export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream
         channelId: livestream.channel_id.toString(),
         channelName: data.slug,
         channelDisplayName: data.user?.username || data.slug,
-        channelAvatar: data.user?.profile_picture || data.user?.profile_pic || "",
+        channelAvatar: data.user?.profile_picture || data.user?.profile_pic || data.user?.profilepic || "",
         title: livestream.session_title || "",
         viewerCount: livestream.viewer_count ?? livestream.viewers ?? 0,
         thumbnailUrl: livestream.thumbnail?.url || "",
@@ -276,7 +276,7 @@ export async function getStreamBySlug(
       } else {
         console.warn(
           `[Kick] Public stream API mismatch: requested "${slug}", got "${publicStream.channelName}". ` +
-            `Trying authenticated API.`
+          `Trying authenticated API.`
         );
       }
     }
@@ -292,7 +292,7 @@ export async function getStreamBySlug(
     if (channel && channel.username.toLowerCase() !== normalizedSlug) {
       console.warn(
         `[Kick] Channel lookup mismatch: requested "${slug}", got "${channel.username}". ` +
-          `Rejecting to prevent identity confusion.`
+        `Rejecting to prevent identity confusion.`
       );
       return null;
     }
@@ -317,7 +317,7 @@ export async function getStreamBySlug(
           if (apiStream.broadcaster_user_id !== channelIdNum) {
             console.warn(
               `[Kick] Stream broadcaster ID mismatch: queried for ${channelIdNum}, ` +
-                `got ${apiStream.broadcaster_user_id}. Rejecting to prevent identity confusion.`
+              `got ${apiStream.broadcaster_user_id}. Rejecting to prevent identity confusion.`
             );
             return null;
           }
@@ -328,7 +328,7 @@ export async function getStreamBySlug(
           if (stream.channelName.toLowerCase() !== normalizedSlug) {
             console.warn(
               `[Kick] Stream channel name mismatch: requested "${slug}", ` +
-                `got "${stream.channelName}". Rejecting.`
+              `got "${stream.channelName}". Rejecting.`
             );
             return null;
           }
@@ -360,8 +360,8 @@ export async function getStreamBySlug(
                 } else {
                   console.warn(
                     `[Kick] User ID mismatch for stream ${slug}: ` +
-                      `fetched user ID ${user.user_id}, expected ${stream.channelId}. ` +
-                      `Skipping user data enrichment.`
+                    `fetched user ID ${user.user_id}, expected ${stream.channelId}. ` +
+                    `Skipping user data enrichment.`
                   );
                 }
               }
@@ -489,7 +489,10 @@ export async function getPublicTopStreams(
 
     for (const item of rawList) {
       // Basic validation - handle different response structures
-      const slug = item.slug || item.channel?.slug || item.broadcaster_username;
+      // IMPORTANT: Prefer item.channel?.slug (the actual channel slug like "xqc")
+      // over item.slug which is the LIVESTREAM slug (UUID-prefixed, e.g., "f084f107-atl-w-...")
+      // The legacy endpoint kick.com/stream/livestreams/en returns item.slug as a livestream slug
+      const slug = item.channel?.slug || item.broadcaster_username || item.slug;
       if (!item || !slug) continue;
 
       // Extract thumbnail URL - different endpoints use different field structures
@@ -502,25 +505,43 @@ export async function getPublicTopStreams(
         "";
 
       // Extract avatar URL - different endpoints use different field structures
-      // IMPORTANT: Prefer official API field (profile_picture) over legacy (profile_pic)
+      // IMPORTANT: Prefer official API field (profile_picture) over legacy (profilepic/profile_pic)
       // Official API returns kick.com/img/... URLs which work directly
-      // Legacy API returns files.kick.com/... URLs which may return 403
+      // Legacy API returns files.kick.com/... URLs which may return 403 but still useful as fallback
       const avatarUrl =
         item.profile_picture || // Official API field (kick.com/img/... - works!)
         item.user?.profile_picture ||
         item.channel?.user?.profile_picture ||
+        item.channel?.user?.profilepic || // Legacy API field (no underscore!)
         item.user?.profile_pic || // Legacy API field (files.kick.com - may 403)
         item.channel?.user?.profile_pic ||
         "";
 
+      // Extract category - legacy endpoint nests categories in an array
+      const categoryId = (
+        item.category_id ||
+        item.category?.id ||
+        item.categories?.[0]?.id ||
+        ""
+      ).toString();
+      const categoryName =
+        item.category?.name || item.categories?.[0]?.name || "";
+
       streams.push({
         id: (item.id || item.session_id || "").toString(),
         platform: "kick",
-        channelId: (item.channel_id || item.broadcaster_user_id || item.user_id || "").toString(),
+        channelId: (
+          item.channel?.id ||
+          item.channel_id ||
+          item.broadcaster_user_id ||
+          item.channel?.user_id ||
+          item.user_id ||
+          ""
+        ).toString(),
         channelName: slug,
         channelDisplayName:
-          item.user?.username ||
           item.channel?.user?.username ||
+          item.user?.username ||
           item.broadcaster_display_name ||
           item.broadcaster_name ||
           item.broadcaster_username ||
@@ -534,8 +555,8 @@ export async function getPublicTopStreams(
         language: item.language || language,
         tags: item.custom_tags && item.custom_tags.length > 0 ? item.custom_tags : item.tags || [],
         isMature: item.is_mature ?? item.has_mature_content ?? false,
-        categoryId: (item.category_id || item.category?.id || "").toString(),
-        categoryName: item.category?.name || "",
+        categoryId,
+        categoryName,
       });
     }
 
@@ -671,9 +692,10 @@ export async function getTopStreams(
       data: streams,
     };
   } catch (error) {
-    console.warn(
-      "Failed to fetch Kick top streams via official API, falling back to public:",
-      error
+    // Unauthenticated or API error → use public (no-auth) API
+    console.debug(
+      "[Kick] Using public API for top streams (no user auth):",
+      error instanceof Error ? error.message : error
     );
     // Fallback to public API on error
     return getPublicTopStreams(options);

@@ -110,25 +110,19 @@ export function registerVideoHandlers(): void {
             return { success: false, error: "Video not found" };
           }
 
-          // Get user info for the channel
-          const users = await twitchClient.getUsersById([video.user_id]);
-          const user = users[0];
-
           return {
             success: true,
             data: {
               id: video.id,
               title: video.title,
-              channelId: video.user_id,
-              channelName: video.user_login,
-              channelDisplayName: video.user_name,
-              channelAvatar: user?.profileImageUrl || null,
-              views: video.view_count,
-              duration: formatTwitchDuration(video.duration),
-              createdAt: video.created_at,
-              thumbnailUrl: video.thumbnail_url
-                .replace("%{width}", "320")
-                .replace("%{height}", "180"),
+              channelId: video.channelId,
+              channelName: video.channelName,
+              channelDisplayName: video.channelDisplayName,
+              channelAvatar: video.channelAvatar || null,
+              views: video.viewCount,
+              duration: formatSeconds(video.duration),
+              createdAt: video.publishedAt,
+              thumbnailUrl: video.thumbnailUrl,
               description: video.description,
               type: video.type,
               platform: "twitch",
@@ -174,37 +168,25 @@ export function registerVideoHandlers(): void {
 
       try {
         if (params.platform === "twitch") {
-          let userId = params.channelId;
+          // Use GQL API (no auth required) — fetches videos by channel login
+          const channelLogin = params.channelName.toLowerCase();
+          console.debug(`[TwitchVideo] Fetching videos via GQL for channel: ${channelLogin}`);
 
-          if (!userId) {
-            // Fallback to lookup by name
-            console.debug(`[TwitchVideo] Fetching user for channel: ${params.channelName}`);
-            const users = await twitchClient.getUsersByLogin([params.channelName.toLowerCase()]);
-            if (!users.length) {
-              console.error(`[TwitchVideo] Channel not found: ${params.channelName}`);
-              throw new Error("Channel not found");
-            }
-            userId = users[0].id;
-          }
-
-          console.debug(`[TwitchVideo] Fetching videos for User ID: ${userId}`);
-
-          const videos = await twitchClient.getVideosByUser(userId, {
+          const videos = await twitchClient.getVideosByChannel(channelLogin, {
             first: params.limit,
             after: params.cursor,
-            // type: 'archive' // Removed to show all video types (uplods, highlights, archives)
           });
           console.debug(
-            `[TwitchVideo] Fetched ${videos.data.length} videos for ${params.channelName} (User ID: ${userId})`
+            `[TwitchVideo] Fetched ${videos.data.length} videos for ${channelLogin} (GQL)`
           );
 
-          // Sort by views if requested (Twitch API doesn't support views sort)
+          // Sort by views if requested
           let sortedVideos = videos.data;
           if (params.sort === "views") {
-            sortedVideos = [...videos.data].sort((a, b) => b.view_count - a.view_count);
+            sortedVideos = [...videos.data].sort((a, b) => b.viewCount - a.viewCount);
           }
 
-          // Resolve Game Info via GQL (since Helix videos endpoint doesn't return game_id)
+          // Resolve Game Info via GQL
           const videoIds = videos.data.map((v) => v.id);
           let gameMap: Record<string, { id: string; name: string }> = {};
 
@@ -216,26 +198,22 @@ export function registerVideoHandlers(): void {
             }
           }
 
-          // Fallback logic for game IDs if they somehow exist (e.g. from a different endpoint in future)
-          // This preserves the previous logic just in case, but prefers GQL result
-
           const mappedData = sortedVideos.map((v) => {
             const gqlGame = gameMap[v.id];
-            const gameName = gqlGame?.name || v.game_name;
-            const _gameId = gqlGame?.id || v.game_id;
+            const gameName = gqlGame?.name || "";
 
             return {
               id: v.id,
               title: v.title,
-              duration: formatTwitchDuration(v.duration),
-              views: v.view_count.toString(),
-              date: new Date(v.created_at).toISOString(),
-              created_at: v.created_at, // Raw ISO date
-              thumbnailUrl: v.thumbnail_url.replace("%{width}", "320").replace("%{height}", "180"),
+              duration: formatSeconds(v.duration),
+              views: v.viewCount.toString(),
+              date: new Date(v.publishedAt).toISOString(),
+              created_at: v.publishedAt,
+              thumbnailUrl: v.thumbnailUrl,
               platform: "twitch",
               gameName: gameName,
               category: gameName,
-              language: v.language,
+              language: "",
             };
           });
 
@@ -243,7 +221,7 @@ export function registerVideoHandlers(): void {
             success: true,
             data: mappedData,
             cursor: videos.cursor,
-            debug: `User ID: ${userId}, Count: ${videos.data.length}`,
+            debug: `Channel: ${channelLogin}, Count: ${videos.data.length}`,
           };
         } else if (params.platform === "kick") {
           const videos = await kickClient.getVideos(params.channelName, {
@@ -305,67 +283,44 @@ export function registerVideoHandlers(): void {
 
       try {
         if (params.platform === "twitch") {
-          let userId = params.channelId;
+          // Use GQL API (no auth required) — fetches clips by channel login
+          const channelLogin = params.channelName.toLowerCase();
 
-          if (!userId) {
-            const users = await twitchClient.getUsersByLogin([params.channelName.toLowerCase()]);
-            if (!users.length) throw new Error("Channel not found");
-            userId = users[0].id;
-          }
-
-          // Calculate started_at based on timeRange
-          let startedAt: string | undefined;
-          if (params.timeRange && params.timeRange !== "all") {
-            const now = new Date();
+          // Map timeRange to GQL filter format
+          let gqlFilter: string = "LAST_WEEK";
+          if (params.timeRange) {
             switch (params.timeRange) {
               case "day":
-                now.setDate(now.getDate() - 1);
+                gqlFilter = "LAST_DAY";
                 break;
               case "week":
-                now.setDate(now.getDate() - 7);
+                gqlFilter = "LAST_WEEK";
                 break;
               case "month":
-                now.setMonth(now.getMonth() - 1);
+                gqlFilter = "LAST_MONTH";
+                break;
+              case "all":
+                gqlFilter = "ALL_TIME";
                 break;
             }
-            startedAt = now.toISOString();
           }
 
           console.debug(
-            `[TwitchClip] Fetching clips for User ID: ${userId} with timeRange: ${params.timeRange || "all"} (startedAt: ${startedAt || "none"})`
+            `[TwitchClip] Fetching clips via GQL for channel: ${channelLogin} with filter: ${gqlFilter}`
           );
-          const clips = await twitchClient.getClipsByBroadcaster(userId, {
+          const clips = await twitchClient.getClipsByChannel(channelLogin, {
             first: params.limit,
             after: params.cursor,
-            started_at: startedAt,
+            filter: gqlFilter,
           });
           console.debug(
-            `[TwitchClip] Fetched ${clips.data.length} clips for ${params.channelName}`
+            `[TwitchClip] Fetched ${clips.data.length} clips for ${channelLogin} (GQL)`
           );
 
-          // Sort by views if requested (Twitch clips API doesn't support views sort for broadcaster endpoint)
+          // Sort by views if requested
           let sortedClips = clips.data;
           if (params.sort === "views") {
-            sortedClips = [...clips.data].sort((a, b) => b.view_count - a.view_count);
-          }
-
-          // Resolve Game IDs to Names
-          const gameIds = [...new Set(sortedClips.map((c) => c.game_id).filter((id) => id))];
-          let gameMap: Record<string, string> = {};
-
-          if (gameIds.length > 0) {
-            try {
-              const games = await twitchClient.getCategoriesByIds(gameIds);
-              gameMap = games.reduce(
-                (acc, game) => {
-                  acc[game.id] = game.name;
-                  return acc;
-                },
-                {} as Record<string, string>
-              );
-            } catch (err) {
-              console.error("[TwitchClip] Failed to resolve game names:", err);
-            }
+            sortedClips = [...clips.data].sort((a, b) => b.viewCount - a.viewCount);
           }
 
           return {
@@ -374,17 +329,16 @@ export function registerVideoHandlers(): void {
               id: c.id,
               title: c.title,
               duration: formatSeconds(c.duration),
-              views: c.view_count.toString(),
-              date: new Date(c.created_at).toISOString(),
-              created_at: c.created_at, // Raw ISO date
-              thumbnailUrl: c.thumbnail_url,
-              embedUrl: c.embed_url,
-              url: c.url,
+              views: c.viewCount.toString(),
+              date: new Date(c.createdAt).toISOString(),
+              created_at: c.createdAt,
+              thumbnailUrl: c.thumbnailUrl,
+              embedUrl: c.embedUrl,
+              url: c.clipUrl,
               platform: "twitch",
-              gameName: gameMap[c.game_id] || c.game_id || "",
-              language: c.language,
-              // VOD availability - empty string means VOD is no longer available
-              vodId: c.video_id || "",
+              gameName: c.gameName || "",
+              language: "",
+              vodId: "",
             })),
             cursor: clips.cursor,
           };

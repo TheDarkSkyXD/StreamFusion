@@ -23,13 +23,16 @@ export function registerStorageHandlers(): void {
 
   // ========== Local Follows ==========
   ipcMain.handle(IPC_CHANNELS.FOLLOWS_GET_ALL, () => {
-    return storageService.getLocalFollows();
+    // Return the active follows: account follows if logged in, guest follows if not
+    const twitch = storageService.getActiveFollowsByPlatform("twitch");
+    const kick = storageService.getActiveFollowsByPlatform("kick");
+    return [...twitch, ...kick];
   });
 
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_GET_BY_PLATFORM,
     (_event, { platform }: { platform: Platform }) => {
-      return storageService.getLocalFollowsByPlatform(platform);
+      return storageService.getActiveFollowsByPlatform(platform);
     }
   );
 
