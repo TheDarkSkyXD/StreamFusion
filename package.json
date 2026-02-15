@@ -5,7 +5,7 @@
         "apps/*"
     ],
     "scripts": {
-        "start": "npm start --workspace=streamstorm",
+        "start": "npm start --prefix apps/desktop",
         "desktop": "npm start --workspace=streamstorm",
         "build": "npm run build --workspace=streamstorm",
         "dist": "npm run dist --workspace=streamstorm",

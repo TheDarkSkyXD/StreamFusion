@@ -7,11 +7,11 @@
 
 import path from "node:path";
 
-import { BrowserWindow, globalShortcut, screen } from "electron";
+import { app, BrowserWindow, globalShortcut, screen } from "electron";
 
-// Vite globals (provided by Electron Forge's Vite plugin)
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
-declare const MAIN_WINDOW_VITE_NAME: string;
+// No longer using Electron Forge globals - electron-vite provides:
+//   - process.env.ELECTRON_RENDERER_URL (dev server URL in development)
+//   - __dirname points to out/main/ in production
 
 interface WindowBounds {
   x: number;
@@ -114,8 +114,8 @@ class WindowManager {
       titleBarStyle: "hidden",
       trafficLightPosition: { x: 12, y: 12 }, // macOS traffic lights position
       webPreferences: {
-        // Preload script is compiled to index.js in the same directory as main.js
-        preload: path.join(__dirname, "index.js"),
+        // electron-vite outputs preload to out/preload/index.js
+        preload: path.join(__dirname, "../preload/index.js"),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false, // Disabled to allow preload IPC
@@ -149,12 +149,12 @@ class WindowManager {
       this.mainWindow = null;
     });
 
-    // Load the app
-    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-      this.mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    // Load the app - electron-vite provides ELECTRON_RENDERER_URL in dev
+    if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+      this.mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
     } else {
       this.mainWindow.loadFile(
-        path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
+        path.join(__dirname, "../renderer/index.html")
       );
     }
 

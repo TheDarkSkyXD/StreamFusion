@@ -38,12 +38,12 @@
   "include": [
     "src/**/*",
     "tests/**/*",
-    "forge.config.ts",
-    "vite.*.ts"
+    "electron.vite.config.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
+    "out",
     ".vite"
   ]
 }
