@@ -5,7 +5,6 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-1.0.0--beta.1-blue.svg)](https://github.com/TheDarkSkyXD/StreamStorm/releases)
-![Build Status](https://img.shields.io/github/actions/workflow/status/TheDarkSkyXD/StreamStorm/build.yml?label=Build)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/TheDarkSkyXD/StreamStorm?label=CodeRabbit+Reviews&labelColor=171717&color=FF570A)
 
 **StreamStorm** is a unified, cross-platform desktop application designed to bring the best of **Twitch** and **Kick** live streaming into a single, cohesive interface. Built with modern web technologies and packaged via Electron, StreamStorm offers a lightweight, meaningful, and feature-rich viewing experience.
