@@ -153,9 +153,7 @@ class WindowManager {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
       this.mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
     } else {
-      this.mainWindow.loadFile(
-        path.join(__dirname, "../renderer/index.html")
-      );
+      this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
     }
 
     // Development only: Open DevTools and register shortcuts
