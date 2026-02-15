@@ -44,6 +44,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Rebuild native dependencies
+        run: npm run rebuild-deps -w streamstorm
+
+
 
 
       - name: Run typecheck

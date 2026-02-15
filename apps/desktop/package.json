@@ -10,7 +10,7 @@
   },
   "main": "./out/main/index.js",
   "scripts": {
-    "postinstall": "electron-builder install-app-deps",
+    "rebuild-deps": "electron-builder install-app-deps",
     "dev": "electron-vite dev",
     "dev:mcp": "electron-vite dev -- --remote-debugging-port=9222",
     "build": "electron-vite build",
