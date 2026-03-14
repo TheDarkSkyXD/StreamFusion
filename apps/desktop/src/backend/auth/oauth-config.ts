@@ -21,7 +21,7 @@ const KICK_CLIENT_SECRET = "";
 
 // ========== Worker Configuration ==========
 
-export const WORKER_BASE_URL = "https://streamstorm.leveluptogetherbiz.workers.dev";
+export const WORKER_BASE_URL = "https://streamforge.leveluptogetherbiz.workers.dev";
 
 // ========== Localhost Callback Configuration ==========
 // Twitch requires HTTPS for custom protocols but allows http://localhost
@@ -38,7 +38,7 @@ export function getRedirectUri(platform: Platform, port: number = DEFAULT_CALLBA
 
 // ========== Protocol Configuration (for fallback/future use) ==========
 
-export const PROTOCOL_SCHEME = "streamstorm";
+export const PROTOCOL_SCHEME = "streamforge";
 export const PROTOCOL_PREFIX = `${PROTOCOL_SCHEME}://`;
 
 // ========== OAuth Configuration Types ==========
