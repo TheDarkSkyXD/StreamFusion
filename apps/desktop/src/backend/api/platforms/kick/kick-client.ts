@@ -97,7 +97,7 @@ const kickRateLimiter = new KickRateLimiter();
 // ========== Kick API Client Class ==========
 
 class KickClient implements KickRequestor {
-  readonly baseUrl = "https://streamstorm.leveluptogetherbiz.workers.dev/kick";
+  readonly baseUrl = "https://streamforge.leveluptogetherbiz.workers.dev/kick";
 
   /**
    * Make an authenticated request to the official Kick Public API v1
