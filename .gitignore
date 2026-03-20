@@ -96,7 +96,7 @@ release/
 dist/
 
 # External Reference
-KickTalk-main/
+reference/
 
 .playwright-cli/
 .playwright/
