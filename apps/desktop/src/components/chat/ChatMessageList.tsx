@@ -27,14 +27,51 @@ export const ChatMessageList: React.FC = memo(() => {
   const setPaused = useChatStore((state) => state.setPaused);
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerRef = useRef<HTMLElement | null>(null);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [atBottom, setAtBottom] = useState(true);
+  // Set by wheel event when user scrolls up; cleared when list reaches bottom
+  const userScrolledUpRef = useRef(false);
+  // Set after wheel-up + atBottom=false confirmed; blocks followOutput from auto-scrolling
+  const pendingPauseRef = useRef(false);
 
   useEffect(() => {
+    // Reset pause state on mount so chat always starts flowing
+    if (pauseTimerRef.current) {
+      clearTimeout(pauseTimerRef.current);
+      pauseTimerRef.current = null;
+    }
+    userScrolledUpRef.current = false;
+    pendingPauseRef.current = false;
+    setPaused(false);
     return () => {
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
     };
+  }, [setPaused]);
+
+  // Wheel handler — marks when the user is intentionally scrolling up
+  const onWheelScroll = useCallback((e: Event) => {
+    if ((e as WheelEvent).deltaY < 0) {
+      userScrolledUpRef.current = true;
+    }
   }, []);
+
+  // Callback ref passed to Virtuoso's scrollerRef — attaches the wheel listener
+  // to the actual scroller DOM element once Virtuoso mounts it.
+  const scrollerCallbackRef = useCallback(
+    (el: HTMLElement | Window | null) => {
+      if (scrollerRef.current instanceof HTMLElement) {
+        scrollerRef.current.removeEventListener("wheel", onWheelScroll);
+      }
+      if (el instanceof HTMLElement) {
+        scrollerRef.current = el;
+        el.addEventListener("wheel", onWheelScroll, { passive: true });
+      } else {
+        scrollerRef.current = null;
+      }
+    },
+    [onWheelScroll]
+  );
 
   // Memoized item renderer - critical for performance
   const itemContent = useCallback((_index: number, message: ChatMessageType) => {
@@ -52,14 +89,19 @@ export const ChatMessageList: React.FC = memo(() => {
       setAtBottom(isAtBottom);
 
       if (isAtBottom) {
-        // Cancel any pending pause and immediately resume
+        // Reached bottom — clear all scroll-up tracking and resume
+        userScrolledUpRef.current = false;
+        pendingPauseRef.current = false;
         if (pauseTimerRef.current) {
           clearTimeout(pauseTimerRef.current);
           pauseTimerRef.current = null;
         }
         setPaused(false);
       } else {
-        // Debounce pause to avoid false triggers from Virtuoso layout flicker
+        // Left bottom — only pause when the user deliberately scrolled up (wheel detected).
+        // Layout flicker from rapid message flow never sets userScrolledUpRef, so it is ignored.
+        if (!userScrolledUpRef.current) return;
+        pendingPauseRef.current = true;
         if (pauseTimerRef.current) return;
         pauseTimerRef.current = setTimeout(() => {
           pauseTimerRef.current = null;
@@ -72,6 +114,8 @@ export const ChatMessageList: React.FC = memo(() => {
 
   // Scroll to bottom handler
   const scrollToBottom = useCallback(() => {
+    userScrolledUpRef.current = false;
+    pendingPauseRef.current = false;
     setPaused(false);
     setAtBottom(true);
     virtuosoRef.current?.scrollToIndex({
@@ -82,11 +126,12 @@ export const ChatMessageList: React.FC = memo(() => {
   }, [setPaused]);
 
   // followOutput controls auto-scroll behavior
-  // Returns 'auto' when not paused so new messages always scroll into view
-  // Returns false when paused (user scrolled up)
+  // Returns 'auto' when flowing; false when paused or user has started scrolling up.
   const followOutput = useCallback(
     (_isAtBottom: boolean) => {
-      return isPaused ? false : "auto";
+      // Block auto-scroll as soon as user starts scrolling up (pendingPause) or is paused.
+      if (isPaused || pendingPauseRef.current) return false;
+      return "auto";
     },
     [isPaused]
   );
@@ -100,7 +145,8 @@ export const ChatMessageList: React.FC = memo(() => {
         computeItemKey={computeItemKey}
         // Auto-scroll configuration
         followOutput={followOutput}
-        initialTopMostItemIndex={0}
+        initialTopMostItemIndex={messages.length > 0 ? messages.length - 1 : 0}
+        alignToBottom
         // Performance tuning
         // Low threshold for instant pause when scrolling up
         atBottomThreshold={20}
@@ -109,6 +155,7 @@ export const ChatMessageList: React.FC = memo(() => {
         defaultItemHeight={32} // Estimated row height
         // State handlers
         atBottomStateChange={handleAtBottomStateChange}
+        scrollerRef={scrollerCallbackRef}
         // Styling
         style={{
           height: "100%",
