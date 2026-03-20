@@ -63,6 +63,8 @@ interface UnifiedSearchInputProps {
   autoFocus?: boolean;
 }
 
+type SearchFilter = "all" | "channels" | "streams" | "categories";
+
 export function UnifiedSearchInput({
   platform,
   onSelectChannel,
@@ -78,12 +80,13 @@ export function UnifiedSearchInput({
 }: UnifiedSearchInputProps) {
   const [searchQuery, setSearchQuery] = React.useState(initialValue);
   const [isFocused, setIsFocused] = React.useState(false);
+  const [searchFilter, setSearchFilter] = React.useState<SearchFilter>("all");
   const internalInputRef = React.useRef<HTMLInputElement>(null);
   const inputRef = propInputRef || internalInputRef;
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const { history, addSearch, removeSearch } = useSearchHistory();
-  const debouncedQuery = useDebounce(searchQuery, 300);
+  const debouncedQuery = useDebounce(searchQuery, 100);
 
   const shouldFetch = debouncedQuery.length > 0;
 
@@ -178,6 +181,16 @@ export function UnifiedSearchInput({
     return { topMatches: top, otherMatches: others };
   }, [channels, searchQuery]);
 
+  // Apply filter to derived results
+  const filteredTopMatches =
+    searchFilter === "streams" ? topMatches.filter((c) => c.isLive) : topMatches;
+  const filteredOtherMatches =
+    searchFilter === "streams" ? otherMatches.filter((c) => c.isLive) : otherMatches;
+  const showChannelResults =
+    searchFilter === "all" || searchFilter === "channels" || searchFilter === "streams";
+  const showCategoryResults =
+    showCategories && (searchFilter === "all" || searchFilter === "categories");
+
   // Hide suggestions when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -211,6 +224,7 @@ export function UnifiedSearchInput({
 
   const handleClear = () => {
     setSearchQuery("");
+    setSearchFilter("all");
     inputRef.current?.focus();
   };
 
@@ -364,6 +378,27 @@ export function UnifiedSearchInput({
       {/* Suggestions Dropdown */}
       {showDropdown && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-[#0F0F12] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col max-h-[60vh] overflow-y-auto">
+          {/* FILTER TABS */}
+          {showSuggestions && (
+            <div className="flex gap-1.5 px-3 py-2 border-b border-[var(--color-border)]">
+              {(["all", "channels", "streams", "categories"] as SearchFilter[]).map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setSearchFilter(filter)}
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors capitalize",
+                    searchFilter === filter
+                      ? "bg-[var(--color-storm-primary)] text-white"
+                      : "bg-[var(--color-background-secondary)] text-[var(--color-foreground-muted)] hover:text-white"
+                  )}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* SEARCH HISTORY */}
           {showHistory && (
             <div className="py-2">
@@ -399,12 +434,12 @@ export function UnifiedSearchInput({
           )}
 
           {/* BEST MATCHES */}
-          {topMatches.length > 0 && (
+          {showChannelResults && filteredTopMatches.length > 0 && (
             <div className={cn("py-2", showHistory && "border-t border-[var(--color-border)]")}>
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-storm-primary)] uppercase tracking-wider flex items-center gap-2">
                 <LuSparkles size={12} /> Best Match
               </h3>
-              {topMatches.map((channel) => (
+              {filteredTopMatches.map((channel) => (
                 <ChannelItem
                   key={`${channel.platform}-${channel.id}`}
                   channel={channel}
@@ -415,17 +450,18 @@ export function UnifiedSearchInput({
           )}
 
           {/* OTHER CHANNELS SUGGESTIONS */}
-          {otherMatches.length > 0 && (
+          {showChannelResults && filteredOtherMatches.length > 0 && (
             <div
               className={cn(
                 "py-2",
-                (showHistory || topMatches.length > 0) && "border-t border-[var(--color-border)]"
+                (showHistory || filteredTopMatches.length > 0) &&
+                  "border-t border-[var(--color-border)]"
               )}
             >
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
                 <LuUser size={12} /> Channels
               </h3>
-              {otherMatches.map((channel) => (
+              {filteredOtherMatches.map((channel) => (
                 <ChannelItem
                   key={`${channel.platform}-${channel.id}`}
                   channel={channel}
@@ -436,7 +472,7 @@ export function UnifiedSearchInput({
           )}
 
           {/* CATEGORIES SUGGESTIONS */}
-          {showCategories && categories && categories.length > 0 && (
+          {showCategoryResults && categories && categories.length > 0 && (
             <div className={cn("py-2 border-t border-[var(--color-border)]")}>
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
                 <LuLayoutGrid size={12} /> Categories

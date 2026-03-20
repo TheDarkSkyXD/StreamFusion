@@ -30,6 +30,7 @@ export function useSearchChannels(query: string, platform?: Platform, limit: num
       return response.data as UnifiedChannel[];
     },
     enabled: !!query,
+    staleTime: 60_000,
   });
 }
 
@@ -44,6 +45,7 @@ export function useSearchCategories(query: string, platform?: Platform, limit: n
       return response.data as UnifiedCategory[];
     },
     enabled: !!query,
+    staleTime: 60_000,
   });
 }
 

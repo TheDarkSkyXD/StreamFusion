@@ -89,9 +89,9 @@ export const VideoCard = memo(function VideoCard({
 
         {/* Duration: Top Left */}
         <div
-          className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs font-medium ${video.isLive ? "bg-red-600 text-white" : "bg-black/80 text-white"}`}
+          className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs font-medium ${!routeAsVod ? "bg-red-600 text-white" : "bg-black/80 text-white"}`}
         >
-          {video.isLive ? "LIVE" : video.duration}
+          {!routeAsVod ? "LIVE" : video.duration}
         </div>
 
         {/* Sub Only Badge: Top Right - Keep for Twitch, move for Kick */}
@@ -109,7 +109,7 @@ export const VideoCard = memo(function VideoCard({
 
         {/* Date: Bottom Right */}
         <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
-          {video.isLive ? "Today" : formatTimeAgo(video.created_at || video.date)}
+          {!routeAsVod ? "Today" : formatTimeAgo(video.created_at || video.date)}
         </div>
 
         {/* Hover overlay - show lock for sub-only, play for regular */}
