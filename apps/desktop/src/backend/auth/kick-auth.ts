@@ -9,6 +9,8 @@
  * Uses the official Kick Public API v1: https://docs.kick.com/
  */
 
+import { EventEmitter } from "node:events";
+
 import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { storageService } from "../services/storage-service";
@@ -17,13 +19,17 @@ import { tokenExchangeService } from "./token-exchange";
 
 // ========== Kick Auth Service Class ==========
 
-class KickAuthService {
+class KickAuthService extends EventEmitter {
   private readonly platform: Platform = "kick";
 
+  /** Deduplicates concurrent refresh calls — set while a refresh is in flight */
+  private refreshPromise: Promise<AuthToken | null> | null = null;
+
   /**
-   * Refresh the access token using the refresh token
+   * Internal token refresh implementation.
+   * Clears auth state and emits 'session-expired' on permanent OAuth failure.
    */
-  async refreshToken(): Promise<AuthToken | null> {
+  private async _doRefresh(): Promise<AuthToken | null> {
     const currentToken = storageService.getToken(this.platform);
 
     if (!currentToken?.refreshToken) {
@@ -37,15 +43,37 @@ class KickAuthService {
         refreshToken: currentToken.refreshToken,
       });
 
-      // Save the new token
       storageService.saveToken(this.platform, newToken);
-
       console.debug("✅ Kick token refreshed successfully");
       return newToken;
     } catch (error) {
       console.error("❌ Kick token refresh failed:", error);
+
+      // Any server-side OAuth error (401 invalid/revoked/expired refresh token)
+      // means the stored credentials are permanently invalid. Clear them so the
+      // app doesn't keep silently falling back to the public API, and notify the
+      // renderer so the user can re-authenticate.
+      storageService.clearToken(this.platform);
+      storageService.clearKickUser();
+      this.emit("session-expired");
+      console.warn("⚠️ Kick session cleared — user must re-authenticate");
       return null;
     }
+  }
+
+  /**
+   * Refresh the access token using the refresh token.
+   * Concurrent callers share the same in-flight promise so Kick's OAuth 2.1
+   * refresh-token rotation is never triggered more than once at a time.
+   */
+  async refreshToken(): Promise<AuthToken | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+    this.refreshPromise = this._doRefresh().finally(() => {
+      this.refreshPromise = null;
+    });
+    return this.refreshPromise;
   }
 
   /**

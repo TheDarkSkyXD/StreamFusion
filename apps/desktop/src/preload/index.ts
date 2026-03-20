@@ -174,10 +174,19 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_FETCH_TWITCH_USER),
 
     // Kick operations
+    refreshKickToken: (): Promise<{ success: boolean; token?: AuthToken; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AUTH_REFRESH_KICK),
     logoutKick: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT_KICK),
     fetchKickUser: (): Promise<{ success: boolean; user?: KickUser; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_FETCH_KICK_USER),
+
+    // Listen for Kick session expiry pushed from the main process
+    onKickSessionExpired: (callback: () => void): (() => void) => {
+      const handler = () => callback();
+      ipcRenderer.on(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED, handler);
+    },
 
     // Auth status
     getStatus: (): Promise<AuthStatus> => ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_STATUS),

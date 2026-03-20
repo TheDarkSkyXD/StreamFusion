@@ -137,6 +137,38 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       }
 
+      // If Kick has a token but it's expired, try to refresh it.
+      // This handles the post-rename stale-credential case: tokens issued under
+      // the old worker client-id will be permanently invalid — the refresh will
+      // fail, kick-auth will clear storage and emit 'session-expired', which the
+      // renderer listener below will surface to the user.
+      if (status.kick.hasToken && status.kick.isExpired) {
+        console.debug("🔄 Kick token expired at startup, attempting auto-refresh...");
+        try {
+          const refreshResult = await window.electronAPI.auth.refreshKickToken();
+          if (refreshResult.success) {
+            console.debug("✅ Kick token refreshed at startup");
+            status = await window.electronAPI.auth.getStatus();
+          } else {
+            console.warn("⚠️ Kick token refresh failed at startup:", refreshResult.error);
+            // Tokens already cleared by the main process; update status
+            status = await window.electronAPI.auth.getStatus();
+            set({
+              error: {
+                code: "TOKEN_EXPIRED",
+                message: "Your Kick session has expired. Please reconnect your account.",
+                platform: "kick",
+              },
+            });
+          }
+        } catch (refreshError) {
+          console.error("❌ Kick token refresh error at startup:", refreshError);
+          await window.electronAPI.auth.clearToken("kick");
+          await window.electronAPI.auth.clearKickUser();
+          status = await window.electronAPI.auth.getStatus();
+        }
+      }
+
       // Load local follows
       const follows = await window.electronAPI.follows.getAll();
 
@@ -154,6 +186,23 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         initialized: true,
         // Don't clear error if it was set above
         error: get().error,
+      });
+
+      // Listen for runtime Kick session-expiry events pushed from the main process.
+      // This fires when a mid-session refresh fails (e.g. revoked refresh token).
+      // The listener is intentionally never unregistered — it lives for the app lifetime.
+      window.electronAPI.auth.onKickSessionExpired(() => {
+        console.warn("⚠️ Kick session expired at runtime — clearing state");
+        set({
+          kickUser: null,
+          kickConnected: false,
+          isGuest: !get().twitchUser,
+          error: {
+            code: "TOKEN_EXPIRED",
+            message: "Your Kick session has expired. Please reconnect your account.",
+            platform: "kick",
+          },
+        });
       });
     } catch (error) {
       console.error("Failed to initialize auth:", error);

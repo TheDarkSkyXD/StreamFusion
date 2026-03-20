@@ -388,6 +388,10 @@ class KickClient implements KickRequestor {
 
     const maxRetries = 3;
     let attempt = 0;
+    // Guard against double-refresh: ensureValidToken() above may have already
+    // refreshed the token. We allow exactly one additional refresh on 401 in
+    // case the token expired between the pre-flight check and the actual call.
+    let retriedOn401 = false;
 
     while (attempt <= maxRetries) {
       try {
@@ -446,18 +450,19 @@ class KickClient implements KickRequestor {
             console.warn("⚠️ Kick API forbidden - may need additional scopes or User Token");
           }
 
-          if (response.statusCode === 401) {
-            console.debug(`🔄 Kick ${isAppToken ? "App" : "User"} token expired, refreshing...`);
-
-            if (!isAppToken) {
-              // Only attempt refresh for user tokens for now
-              // App tokens are handled by ensureValidAppToken check at start of next call
-              const refreshed = await kickAuthService.refreshToken();
-              if (refreshed) {
-                // Recursive call with fresh token (count as new attempt set)
-                return this.request<T>(endpoint, options);
-              }
+          if (response.statusCode === 401 && !isAppToken && !retriedOn401) {
+            // Token may have expired between the pre-flight ensureValidToken() and
+            // the actual request. Attempt one refresh and update the Authorization
+            // header in-place — no recursive call to avoid infinite loops.
+            console.debug("🔄 Kick user token rejected (401), attempting one-shot refresh...");
+            retriedOn401 = true;
+            const refreshed = await kickAuthService.refreshToken();
+            if (refreshed) {
+              headers.Authorization = `Bearer ${refreshed.accessToken}`;
+              continue; // retry the same request with the new token
             }
+            // Refresh failed — kickAuthService already cleared state & emitted
+            // 'session-expired'. Fall through to throw below.
           }
 
           throw new Error(`Kick API error: ${response.statusCode}`);

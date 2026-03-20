@@ -78,6 +78,9 @@ export const IPC_CHANNELS = {
   // Auth - Status
   AUTH_GET_STATUS: "auth:get-status",
 
+  // Auth - Session Events (main → renderer push)
+  AUTH_KICK_SESSION_EXPIRED: "auth:kick-session-expired",
+
   // Local Follows
   FOLLOWS_GET_ALL: "follows:get-all",
   FOLLOWS_GET_BY_PLATFORM: "follows:get-by-platform",

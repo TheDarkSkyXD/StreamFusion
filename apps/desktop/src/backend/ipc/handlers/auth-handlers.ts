@@ -97,6 +97,13 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     }
   }
 
+  // ========== Kick Session Expiry (push event) ==========
+  // Forward the 'session-expired' event emitted by KickAuthService to the renderer
+  // so it can prompt the user to re-authenticate.
+  kickAuthService.on("session-expired", () => {
+    safeSend(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED);
+  });
+
   // ========== Auth - Token Management ==========
   ipcMain.handle(IPC_CHANNELS.AUTH_GET_TOKEN, (_event, { platform }: { platform: Platform }) => {
     return storageService.getToken(platform);
@@ -423,6 +430,24 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     } catch (error) {
       console.error("❌ Kick logout failed:", error);
       return { success: false, error: error instanceof Error ? error.message : "Logout failed" };
+    }
+  });
+
+  // Handle Kick token refresh
+  ipcMain.handle(IPC_CHANNELS.AUTH_REFRESH_KICK, async () => {
+    console.debug("🔄 Refreshing Kick token...");
+    try {
+      const token = await kickAuthService.refreshToken();
+      if (token) {
+        return { success: true, token };
+      }
+      return { success: false, error: "Token refresh failed" };
+    } catch (error) {
+      console.error("❌ Kick token refresh failed:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Token refresh failed",
+      };
     }
   });
 
