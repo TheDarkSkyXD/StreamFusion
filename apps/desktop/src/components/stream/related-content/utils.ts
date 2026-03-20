@@ -7,6 +7,8 @@ export function formatTimeAgo(dateString: string): string {
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+    if (seconds <= 0) return "Just now";
+
     let interval = seconds / 31536000;
     if (interval > 1) return `${Math.floor(interval)} years ago`;
 

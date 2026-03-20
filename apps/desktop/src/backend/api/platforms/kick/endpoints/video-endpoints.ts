@@ -1,3 +1,4 @@
+import { normalizeKickDate } from "../kick-transformers";
 import {
   KICK_LEGACY_API_V2_BASE,
   type PaginatedResult,
@@ -100,8 +101,8 @@ export async function getVideosByChannelSlug(
           title: v.session_title || v.title || `Stream ${v.id}`,
           duration: v.duration ? formatDuration(v.duration) : "0:00",
           views: (v.views || v.view_count || "0").toString(),
-          date: new Date(v.created_at).toISOString(),
-          created_at: v.created_at, // Raw ISO date for consistency
+          date: normalizeKickDate(v.created_at || v.start_time) || new Date().toISOString(),
+          created_at: normalizeKickDate(v.created_at || v.start_time) || new Date().toISOString(),
           thumbnailUrl:
             v.thumbnail?.src ||
             v.thumbnail?.url ||
