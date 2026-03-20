@@ -98,7 +98,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.24",
     "cross-env": "^10.1.0",
-    "electron": "35.7.5",
+    "electron": "41.0.3",
     "electron-builder": "^26.7.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-mcp-server": "^1.5.0",
