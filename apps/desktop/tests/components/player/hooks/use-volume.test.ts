@@ -124,10 +124,13 @@ describe("useVolume", () => {
     // Clear mock calls from initial mount
     mockSetVolume.mockClear();
 
-    // Simulate what HLS does: reset video.volume to 1.0 during init
-    // This triggers the volumechange event -> syncFromVideoElement
+    // Simulate HLS re-init: HLS.js resets video.volume to 1.0 during init,
+    // then the player's volumechange listener calls syncFromVideoElement
     act(() => {
-      result.current.syncFromVideoElement();
+      video.volume = 1.0; // HLS reset — fires volumechange via the setter
+    });
+    act(() => {
+      result.current.syncFromVideoElement(); // player's volumechange handler fires
     });
 
     // The store should NOT be overwritten with 100 if video.volume

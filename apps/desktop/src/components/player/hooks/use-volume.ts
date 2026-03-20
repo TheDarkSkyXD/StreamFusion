@@ -21,6 +21,7 @@ export function useVolume({
 }: UseVolumeOptions) {
   const { volume, isMuted: storeMuted, setVolume, setMuted, toggleMute } = useVolumeStore();
   const isFirstMount = useRef(true);
+  const isApplyingFromStore = useRef(false);
 
   // Calculate effective muted state (store preference OR forced override)
   const isEffectiveMuted = forcedMuted || storeMuted;
@@ -29,6 +30,13 @@ export function useVolume({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Block syncFromVideoElement during HLS init window to prevent
+    // HLS.js volume reset from corrupting the store
+    isApplyingFromStore.current = true;
+    const timer = setTimeout(() => {
+      isApplyingFromStore.current = false;
+    }, 100);
 
     video.volume = volume / 100;
 
@@ -46,7 +54,11 @@ export function useVolume({
     } else {
       video.muted = isEffectiveMuted;
     }
-  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted, watch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle volume change from UI
   const handleVolumeChange = useCallback(
@@ -96,6 +108,10 @@ export function useVolume({
   const syncFromVideoElement = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Ignore volumechange events fired during the HLS init window to prevent
+    // HLS.js volume reset from overwriting the user's stored preference
+    if (isApplyingFromStore.current) return;
 
     // Do not sync mute state if forced, as it doesn't reflect user preference
     if (!forcedMuted) {
