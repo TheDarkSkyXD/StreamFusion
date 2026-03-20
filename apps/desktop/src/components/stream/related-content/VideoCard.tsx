@@ -25,18 +25,22 @@ export const VideoCard = memo(function VideoCard({
   channelName,
   channelData,
 }: VideoCardProps) {
+  // A video with a source URL is a finished VOD regardless of isLive flag
+  // (Kick API keeps is_live=true briefly after stream ends)
+  const routeAsVod = !video.isLive || Boolean(video.source);
+
   const linkProps: any = {
-    to: video.isLive ? "/stream/$platform/$channel" : "/video/$platform/$videoId",
-    params: video.isLive
+    to: routeAsVod ? "/video/$platform/$videoId" : "/stream/$platform/$channel",
+    params: routeAsVod
       ? {
           platform: platform || "twitch",
-          channel: channelName,
+          videoId: video.id,
         }
       : {
           platform: platform || "twitch",
-          videoId: video.id,
+          channel: channelName,
         },
-    search: !video.isLive
+    search: routeAsVod
       ? {
           src: video.source || undefined,
           title: video.title,
@@ -54,7 +58,7 @@ export const VideoCard = memo(function VideoCard({
         }
       : undefined,
     onClick: () => {
-      if (video.isLive) {
+      if (!routeAsVod) {
         // Use setTimeout to ensure scroll happens after any potential navigation/render updates
         setTimeout(() => {
           const scrollContainer = document.getElementById("main-content-scroll-area");

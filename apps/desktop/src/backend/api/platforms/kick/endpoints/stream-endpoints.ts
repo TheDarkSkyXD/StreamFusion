@@ -299,6 +299,10 @@ export async function getStreamBySlug(
     }
 
     if (channel?.isLive) {
+      if (!client.isAuthenticated()) {
+        // Cannot fetch live details without auth; return null (stream offline from caller perspective)
+        return null;
+      }
       // Need to get full stream data from livestreams endpoint
       try {
         const channelIdNum = parseInt(channel.id, 10);
