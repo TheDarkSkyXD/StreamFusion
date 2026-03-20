@@ -36,7 +36,7 @@ export function PlayPauseButton({
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{isPlaying ? "LuPause (Space)" : "LuPlay (Space)"}</p>
+        <p>{isPlaying ? "Pause (Space)" : "Play (Space)"}</p>
       </TooltipContent>
     </Tooltip>
   );

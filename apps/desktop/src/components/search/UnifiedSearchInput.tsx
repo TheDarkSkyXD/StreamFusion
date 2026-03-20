@@ -69,7 +69,7 @@ export function UnifiedSearchInput({
   onSelectCategory,
   onSearch,
   showCategories = true,
-  placeholder = "LuSearch streams, channels, categories...",
+  placeholder = "Search streams, channels, categories...",
   className,
   inputClassName,
   initialValue = "",
