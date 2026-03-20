@@ -1,6 +1,6 @@
 {
     "$schema": "../../node_modules/wrangler/config-schema.json",
-    "name": "streamforge",
+    "name": "streamfusion",
     "main": "src/index.ts",
     "compatibility_date": "2024-02-15",
     "compatibility_flags": [

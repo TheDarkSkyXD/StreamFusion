@@ -21,7 +21,7 @@ const KICK_CLIENT_SECRET = "";
 
 // ========== Worker Configuration ==========
 
-export const WORKER_BASE_URL = "https://streamforge.leveluptogetherbiz.workers.dev";
+export const WORKER_BASE_URL = "https://streamfusion.leveluptogetherbiz.workers.dev";
 
 // ========== Localhost Callback Configuration ==========
 // Twitch requires HTTPS for custom protocols but allows http://localhost

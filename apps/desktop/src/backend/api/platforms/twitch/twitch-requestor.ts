@@ -5,7 +5,7 @@ import { storageService } from "../../../services/storage-service";
 import { TWITCH_API_BASE, type TwitchClientError } from "./twitch-types";
 
 export class TwitchRequestor {
-  private readonly baseUrl = "https://streamforge.leveluptogetherbiz.workers.dev/twitch";
+  private readonly baseUrl = "https://streamfusion.leveluptogetherbiz.workers.dev/twitch";
   private config = getOAuthConfig("twitch");
 
   constructor() {
