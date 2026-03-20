@@ -120,6 +120,7 @@ class WindowManager {
         nodeIntegration: false,
         sandbox: false, // Disabled to allow preload IPC
         webSecurity: false, // Allow CORS for video streams
+        backgroundThrottling: false, // Prevent Chromium from pausing media when window is minimized
       },
     });
 

@@ -1,5 +1,5 @@
 import type React from "react";
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { ChatMessage as ChatMessageType } from "../../shared/chat-types";
 import { useChatStore } from "../../store/chat-store";
@@ -27,7 +27,14 @@ export const ChatMessageList: React.FC = memo(() => {
   const setPaused = useChatStore((state) => state.setPaused);
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [atBottom, setAtBottom] = useState(true);
+
+  useEffect(() => {
+    return () => {
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    };
+  }, []);
 
   // Memoized item renderer - critical for performance
   const itemContent = useCallback((_index: number, message: ChatMessageType) => {
@@ -44,16 +51,23 @@ export const ChatMessageList: React.FC = memo(() => {
     (isAtBottom: boolean) => {
       setAtBottom(isAtBottom);
 
-      // Sync pause state with atBottom state
-      // When user scrolls up, pause auto-scroll
-      // When user scrolls back to bottom, resume auto-scroll
-      if (isAtBottom && isPaused) {
+      if (isAtBottom) {
+        // Cancel any pending pause and immediately resume
+        if (pauseTimerRef.current) {
+          clearTimeout(pauseTimerRef.current);
+          pauseTimerRef.current = null;
+        }
         setPaused(false);
-      } else if (!isAtBottom && !isPaused) {
-        setPaused(true);
+      } else {
+        // Debounce pause to avoid false triggers from Virtuoso layout flicker
+        if (pauseTimerRef.current) return;
+        pauseTimerRef.current = setTimeout(() => {
+          pauseTimerRef.current = null;
+          setPaused(true);
+        }, 200);
       }
     },
-    [isPaused, setPaused]
+    [setPaused]
   );
 
   // Scroll to bottom handler
@@ -68,14 +82,11 @@ export const ChatMessageList: React.FC = memo(() => {
   }, [setPaused]);
 
   // followOutput controls auto-scroll behavior
-  // Returns 'auto' when not paused (fast scroll to bottom on new messages)
-  // Returns false when paused to stop auto-scrolling
+  // Returns 'auto' when not paused so new messages always scroll into view
+  // Returns false when paused (user scrolled up)
   const followOutput = useCallback(
-    (isAtBottom: boolean) => {
-      // If paused (user scrolled up), don't follow
-      if (isPaused) return false;
-      // If at bottom, auto-scroll with new messages
-      return isAtBottom ? "auto" : false;
+    (_isAtBottom: boolean) => {
+      return isPaused ? false : "auto";
     },
     [isPaused]
   );

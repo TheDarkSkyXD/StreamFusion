@@ -63,7 +63,7 @@ export interface BackgroundThrottleState {
 export function useBackgroundThrottle({
   videoRef,
   enabled = true,
-  throttleAction = "pause",
+  throttleAction = "none",
   gracePeriod = 5000,
   trackWindowFocus = true,
   onThrottleChange,

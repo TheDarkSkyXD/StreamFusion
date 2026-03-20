@@ -130,6 +130,29 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
     isRetryingRef.current = false;
   }, [streamUrl]);
 
+  // Resume playback if Chromium auto-paused the video when the window was minimized
+  useEffect(() => {
+    let wasPlaying = false;
+
+    const handleVisibilityChange = () => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      if (document.hidden) {
+        wasPlaying = !video.paused;
+      } else if (wasPlaying) {
+        video.play().catch((e) => {
+          if (e.name !== "AbortError" && e.name !== "NotAllowedError") {
+            console.error("[TwitchPlayer] Failed to resume after window restore:", e);
+          }
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
   // Setup event listeners
   useEffect(() => {
     const video = videoRef.current;

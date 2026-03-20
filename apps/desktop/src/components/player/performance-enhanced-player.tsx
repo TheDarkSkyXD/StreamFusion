@@ -131,12 +131,12 @@ export function PerformanceEnhancedPlayer({
     qualities,
   });
 
-  // Video Lifecycle Hook
+  // Video Lifecycle Hook — always active for live streams; never let visibility pause playback
   useVideoLifecycle({
     videoRef,
     hlsRef,
     src: streamUrl,
-    isActive: isVisible,
+    isActive: true,
     preloadStrategy: "metadata",
   });
 
