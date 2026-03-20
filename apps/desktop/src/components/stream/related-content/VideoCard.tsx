@@ -25,9 +25,12 @@ export const VideoCard = memo(function VideoCard({
   channelName,
   channelData,
 }: VideoCardProps) {
-  // A video with a source URL is a finished VOD regardless of isLive flag
-  // (Kick API keeps is_live=true briefly after stream ends)
-  const routeAsVod = !video.isLive || Boolean(video.source);
+  // Route as VOD when:
+  // - not live, OR
+  // - live with a real duration AND a source URL (stream just ended; Kick keeps is_live=true briefly)
+  // A currently-live stream also has a source URL (live HLS), but its duration is "0:00",
+  // so we use duration !== "0:00" to distinguish a finished recording from an active stream.
+  const routeAsVod = !video.isLive || (Boolean(video.source) && video.duration !== "0:00");
 
   const linkProps: any = {
     to: routeAsVod ? "/video/$platform/$videoId" : "/stream/$platform/$channel",
@@ -89,9 +92,9 @@ export const VideoCard = memo(function VideoCard({
 
         {/* Duration: Top Left */}
         <div
-          className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs font-medium ${!routeAsVod ? "bg-red-600 text-white" : "bg-black/80 text-white"}`}
+          className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs font-medium ${video.isLive ? "bg-red-600 text-white" : "bg-black/80 text-white"}`}
         >
-          {!routeAsVod ? "LIVE" : video.duration}
+          {video.isLive ? "LIVE" : video.duration}
         </div>
 
         {/* Sub Only Badge: Top Right - Keep for Twitch, move for Kick */}
@@ -109,7 +112,7 @@ export const VideoCard = memo(function VideoCard({
 
         {/* Date: Bottom Right */}
         <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
-          {!routeAsVod ? "Today" : formatTimeAgo(video.created_at || video.date)}
+          {video.isLive ? "Today" : formatTimeAgo(video.created_at || video.date)}
         </div>
 
         {/* Hover overlay - show lock for sub-only, play for regular */}
