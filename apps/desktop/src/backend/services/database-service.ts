@@ -8,10 +8,6 @@ export type FollowSource = "guest" | "account";
 export class DatabaseService {
   private db: Database.Database | null = null;
 
-  constructor() {
-    // Lazy initialization - call initialize() after app setup
-  }
-
   initialize() {
     if (this.db) return; // Already initialized
 

@@ -58,7 +58,7 @@ export function useVolume({
     return () => {
       clearTimeout(timer);
     };
-  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted, watch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted]);
 
   // Handle volume change from UI
   const handleVolumeChange = useCallback(

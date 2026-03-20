@@ -44,10 +44,6 @@ class VaftPatternService {
   private lastCheckTime: number = 0;
   private isInitialized: boolean = false;
 
-  constructor() {
-    // Lazy initialization - call initialize() after app setup
-  }
-
   // ========== Initialization ==========
 
   /**

@@ -44,10 +44,6 @@ class StorageService {
   private store: Store<StorageSchema> | null = null;
   private isEncryptionAvailable = false;
 
-  constructor() {
-    // Lazy initialization - call initialize() after app setup
-  }
-
   initialize() {
     if (this.store) return; // Already initialized
 

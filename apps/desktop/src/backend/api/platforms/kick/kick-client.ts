@@ -23,12 +23,7 @@ import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
 import type { KickRequestor } from "./kick-requestor";
-import {
-  KICK_API_BASE,
-  type KickApiUser,
-  type PaginatedResult,
-  type PaginationOptions,
-} from "./kick-types";
+import type { KickApiUser, PaginatedResult, PaginationOptions } from "./kick-types";
 
 // ========== Global Rate Limiter ==========
 // Prevents 429 Too Many Requests by limiting request rate

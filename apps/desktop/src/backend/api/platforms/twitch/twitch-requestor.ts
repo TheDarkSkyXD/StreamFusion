@@ -2,7 +2,7 @@ import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import { storageService } from "../../../services/storage-service";
 
-import { TWITCH_API_BASE, type TwitchClientError } from "./twitch-types";
+import type { TwitchClientError } from "./twitch-types";
 
 export class TwitchRequestor {
   private readonly baseUrl = "https://streamfusion.leveluptogetherbiz.workers.dev/twitch";

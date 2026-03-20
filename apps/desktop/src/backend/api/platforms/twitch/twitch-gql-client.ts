@@ -23,7 +23,6 @@ import {
   type DirectoryPageGameData,
   type DirectoryPageGameStream,
   type FilterableVideoTowerVideosData,
-  type GetRawQueryReturnType,
   getQueryBowsePageAllDirectories,
   getQueryChannelRootAboutPanel,
   getQueryChannelShell,
