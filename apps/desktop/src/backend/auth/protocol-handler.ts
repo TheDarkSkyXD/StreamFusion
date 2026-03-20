@@ -1,7 +1,7 @@
 /**
  * Protocol Handler
  *
- * Handles the custom `streamstorm://` protocol for OAuth callbacks.
+ * Handles the custom `streamfusion://` protocol for OAuth callbacks.
  * Registers the protocol with the OS and captures OAuth redirects.
  */
 
@@ -41,8 +41,8 @@ class ProtocolHandler {
     }
 
     try {
-      // Register as the default protocol handler for streamstorm://
-      // This will handle URLs like streamstorm://auth/twitch/callback?code=xxx
+      // Register as the default protocol handler for streamfusion://
+      // This will handle URLs like streamfusion://auth/twitch/callback?code=xxx
       if (process.defaultApp) {
         // In development (running with electron .)
         if (process.argv.length >= 2) {
@@ -133,7 +133,7 @@ class ProtocolHandler {
     try {
       const parsed = new URL(url);
 
-      // Expected format: streamstorm://auth/{platform}/callback?code=xxx&state=xxx
+      // Expected format: streamfusion://auth/{platform}/callback?code=xxx&state=xxx
       const pathParts = parsed.pathname.split("/").filter(Boolean);
 
       if (pathParts.length < 2 || pathParts[0] !== "auth") {

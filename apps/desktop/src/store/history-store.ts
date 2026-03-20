@@ -65,7 +65,7 @@ export const useHistoryStore = create<HistoryState>()(
       },
     }),
     {
-      name: "streamstorm-history-store",
+      name: "streamfusion-history-store",
       version: 1,
     }
   )

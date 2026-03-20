@@ -10,7 +10,7 @@
 
 ## Overview
 
-This tracker monitors implementation of the unified chat system for StreamStorm, covering Twitch IRC, Kick WebSocket, emote systems, moderation tools, and chat customization.
+This tracker monitors implementation of the unified chat system for StreamFusion, covering Twitch IRC, Kick WebSocket, emote systems, moderation tools, and chat customization.
 
 ---
 

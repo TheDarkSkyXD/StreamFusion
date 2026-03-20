@@ -1,4 +1,4 @@
-# StreamStorm Application Icons
+# StreamFusion Application Icons
 
 This directory contains the application icons for different platforms.
 
@@ -13,7 +13,7 @@ This directory contains the application icons for different platforms.
 
 ## Icon Design Guidelines
 
-The StreamStorm icon should represent:
+The StreamFusion icon should represent:
 - ⚡ Lightning/storm theme
 - 🌩️ Cloud with lightning bolt
 - 🎮 Streaming/entertainment vibe

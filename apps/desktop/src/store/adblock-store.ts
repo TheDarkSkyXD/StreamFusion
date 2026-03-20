@@ -21,7 +21,7 @@ export const useAdBlockStore = create<AdBlockState>()(
       toggleAdBlock: () => set((state) => ({ enableAdBlock: !state.enableAdBlock })),
     }),
     {
-      name: "streamstorm-adblock",
+      name: "streamfusion-adblock",
     }
   )
 );

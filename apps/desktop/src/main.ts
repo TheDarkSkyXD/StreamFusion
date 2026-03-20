@@ -1,5 +1,5 @@
 /**
- * StreamStorm - Main Process Entry Point
+ * StreamFusion - Main Process Entry Point
  *
  * This is the Electron main process that handles window creation,
  * system integration, and IPC communication with the renderer.
@@ -40,6 +40,79 @@ if (!isProduction) {
   app.commandLine.appendSwitch("remote-debugging-port", "9005");
   console.debug("🔌 CDP remote debugging enabled on port 9005 for Production");
 }
+
+// Migrate userData from old "StreamStorm" or "StreamForge" directories to new "StreamFusion"
+// directory so existing users don't lose their database, settings, or preferences.
+// Checks StreamForge first (most recent previous name), then StreamStorm (original name).
+function migrateUserData(): void {
+  const newUserData = app.getPath("userData");
+
+  const candidates = [
+    newUserData.replace(/StreamFusion/g, "StreamForge"),
+    newUserData.replace(/StreamFusion/g, "StreamStorm"),
+  ];
+
+  for (const oldUserData of candidates) {
+    if (oldUserData === newUserData) continue;
+    if (!fs.existsSync(oldUserData)) continue;
+
+    try {
+      if (!fs.existsSync(newUserData)) {
+        fs.mkdirSync(newUserData, { recursive: true });
+      }
+
+      const files = fs.readdirSync(oldUserData);
+      for (const file of files) {
+        const src = path.join(oldUserData, file);
+        const dest = path.join(newUserData, file);
+        if (!fs.existsSync(dest)) {
+          fs.cpSync(src, dest, { recursive: true });
+        }
+      }
+      console.debug(`📦 Migrated user data from ${oldUserData} to ${newUserData}`);
+    } catch (e) {
+      console.warn("⚠️ Failed to migrate user data from old directory:", e);
+    }
+  }
+}
+
+/**
+ * Rename old "streamforge" and "streamstorm" files to "streamfusion" within the userData directory.
+ * Covers database files, electron-store config files, etc.
+ */
+function renameOldFiles(): void {
+  const userData = app.getPath("userData");
+  const renames: [string, string][] = [
+    // StreamForge → StreamFusion (previous name)
+    ["streamforge.db", "streamfusion.db"],
+    ["streamforge.db-wal", "streamfusion.db-wal"],
+    ["streamforge.db-shm", "streamfusion.db-shm"],
+    ["streamforge-storage.json", "streamfusion-storage.json"],
+    ["streamforge-adblock-patterns.json", "streamfusion-adblock-patterns.json"],
+    // StreamStorm → StreamFusion (original name, for users who skipped StreamForge)
+    ["streamstorm.db", "streamfusion.db"],
+    ["streamstorm.db-wal", "streamfusion.db-wal"],
+    ["streamstorm.db-shm", "streamfusion.db-shm"],
+    ["streamstorm-storage.json", "streamfusion-storage.json"],
+    ["streamstorm-adblock-patterns.json", "streamfusion-adblock-patterns.json"],
+  ];
+
+  for (const [oldName, newName] of renames) {
+    const oldPath = path.join(userData, oldName);
+    const newPath = path.join(userData, newName);
+    try {
+      if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+        fs.renameSync(oldPath, newPath);
+        console.debug(`📦 Renamed ${oldName} → ${newName}`);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Failed to rename ${oldName}:`, e);
+    }
+  }
+}
+
+migrateUserData();
+renameOldFiles();
 
 // Sentinel file to track clean shutdown
 // explicit call to getPath to ensure we use the updated path if set above
@@ -235,7 +308,7 @@ app.on("ready", async () => {
   dbService.initialize();
   storageService.initialize();
 
-  // Register custom protocol handler for OAuth callbacks (streamstorm://)
+  // Register custom protocol handler for OAuth callbacks (streamfusion://)
   protocolHandler.registerProtocol();
 
   // Initialize VAFT pattern service (auto-updates ad detection patterns)
@@ -255,7 +328,7 @@ app.on("ready", async () => {
   cosmeticInjectionService.injectIntoWindow(mainWindow);
 
   registerIpcHandlers(mainWindow);
-  console.debug("🌩️ StreamStorm main process started");
+  console.debug("🌩️ StreamFusion main process started");
 });
 
 app.on("window-all-closed", () => {

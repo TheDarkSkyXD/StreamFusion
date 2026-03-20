@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements the stream discovery and browsing functionality for StreamStorm, allowing users to find and explore content from both Twitch and Kick. It includes the home feed, category browsing, search functionality, and the following system—creating a unified content discovery experience across both platforms.
+This phase implements the stream discovery and browsing functionality for StreamFusion, allowing users to find and explore content from both Twitch and Kick. It includes the home feed, category browsing, search functionality, and the following system—creating a unified content discovery experience across both platforms.
 
 ---
 

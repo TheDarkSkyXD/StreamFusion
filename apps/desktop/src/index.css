@@ -1,10 +1,10 @@
-/* StreamStorm - TailwindCSS v4 Styles */
+/* StreamFusion - TailwindCSS v4 Styles */
 
 @import 'tailwindcss';
 
 /* Custom Theme Configuration */
 @theme {
-  /* StreamStorm Brand Colors */
+  /* StreamFusion Brand Colors */
   --color-storm-primary: #ffffff;
   --color-storm-secondary: #a3a3a3;
   --color-storm-accent: #dc143c;

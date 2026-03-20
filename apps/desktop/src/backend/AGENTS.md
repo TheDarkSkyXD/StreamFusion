@@ -20,7 +20,7 @@ backend/
 │   ├── twitch-auth.ts       # Twitch OAuth2
 │   ├── kick-auth.ts         # Kick OAuth2
 │   ├── device-code-flow.ts  # Twitch DCF (TV-style)
-│   └── protocol-handler.ts  # streamstorm:// handler
+│   └── protocol-handler.ts  # streamfusion:// handler
 ├── api/                     # Platform clients
 │   └── platforms/           # (see platforms/AGENTS.md)
 └── services/

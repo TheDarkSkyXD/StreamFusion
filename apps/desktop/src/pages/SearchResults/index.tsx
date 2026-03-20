@@ -103,7 +103,7 @@ export function SearchPage() {
             <path d="m21 21-4.3-4.3" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Search StreamStorm</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Search StreamFusion</h2>
         <p className="text-[var(--color-foreground-secondary)] max-w-sm">
           Search for your favorite channels, streams, and categories across Twitch and Kick.
         </p>

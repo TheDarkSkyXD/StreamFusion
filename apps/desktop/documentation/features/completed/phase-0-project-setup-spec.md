@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This phase establishes the foundational architecture for StreamStorm, a cross-platform Electron desktop application for unified Twitch and Kick streaming. It covers project scaffolding, core dependencies, build configuration, and the fundamental application framework that all subsequent features will build upon.
+This phase establishes the foundational architecture for StreamFusion, a cross-platform Electron desktop application for unified Twitch and Kick streaming. It covers project scaffolding, core dependencies, build configuration, and the fundamental application framework that all subsequent features will build upon.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ This phase establishes the foundational architecture for StreamStorm, a cross-pl
 ### Project Structure
 
 ```
-streamstorm/
+streamfusion/
 ├── .github/                    # GitHub workflows and templates
 │   ├── workflows/             # CI/CD pipelines
 │   └── ISSUE_TEMPLATE/        # Issue templates
@@ -202,7 +202,7 @@ streamstorm/
     theme: {
       extend: {
         colors: {
-          // StreamStorm brand colors
+          // StreamFusion brand colors
           'storm-primary': '#6366f1',
           'storm-secondary': '#8b5cf6',
           'storm-accent': '#06b6d4',

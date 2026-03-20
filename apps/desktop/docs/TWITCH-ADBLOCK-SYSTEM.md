@@ -22,7 +22,7 @@
 
 ## Executive Summary
 
-StreamStorm implements a sophisticated **multi-layer ad-blocking system** for Twitch live streams. The system operates at three distinct levels:
+StreamFusion implements a sophisticated **multi-layer ad-blocking system** for Twitch live streams. The system operates at three distinct levels:
 
 1. **Network Layer** (Main Process) - Blocks ad-related URLs before they reach the app
 2. **Manifest Proxy Layer** (Main Process) - Intercepts and processes HLS playlists at the Electron session level
@@ -145,7 +145,7 @@ https://d2nvs31859zcd8.cloudfront.net/ad/segment2.ts
 
 ## Ad-Blocking Techniques
 
-StreamStorm employs multiple techniques in a layered approach:
+StreamFusion employs multiple techniques in a layered approach:
 
 ### 1. Network-Level Blocking
 
@@ -210,7 +210,7 @@ When requesting a stream, you must obtain an **access token** from Twitch's GQL 
 
 ```mermaid
 sequenceDiagram
-    participant App as StreamStorm
+    participant App as StreamFusion
     participant GQL as gql.twitch.tv
     participant Usher as usher.ttvnw.net
 
@@ -435,14 +435,14 @@ interface AdBlockState {
 }
 ```
 
-Persisted to localStorage under key `streamstorm-adblock`.
+Persisted to localStorage under key `streamfusion-adblock`.
 
 ---
 
 ## File Structure
 
 ```
-StreamStorm/
+StreamFusion/
 ├── src/
 │   ├── main.ts                                    # Electron entry, registers interceptors
 │   │
@@ -629,7 +629,7 @@ const DEFAULT_ADBLOCK_CONFIG: AdBlockConfig = {
 
 1. **Check if ad-blocking is enabled**
    - Settings > Ad Block toggle
-   - `localStorage.getItem('streamstorm-adblock')`
+   - `localStorage.getItem('streamfusion-adblock')`
 
 2. **Check manifest proxy**
    - Look for `[ManifestProxy]` logs in main process

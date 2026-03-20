@@ -1,12 +1,12 @@
 {
-  "name": "streamstorm",
-  "productName": "StreamStorm",
+  "name": "streamfusion",
+  "productName": "StreamFusion",
   "version": "1.0.0-beta.1",
   "description": "A unified desktop app for viewing Twitch and Kick streams",
-  "author": "StreamStorm",
+  "author": "StreamFusion",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TheDarkSkyXD/StreamStorm.git"
+    "url": "https://github.com/TheDarkSkyXD/StreamFusion.git"
   },
   "main": "./out/main/index.js",
   "scripts": {
@@ -34,8 +34,8 @@
     "bundle:analyze": "cross-env ANALYZE=true npm run build"
   },
   "build": {
-    "appId": "com.streamstorm.app",
-    "productName": "StreamStorm",
+    "appId": "com.streamfusion.app",
+    "productName": "StreamFusion",
     "directories": {
       "output": "release"
     },
@@ -61,7 +61,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "deleteAppDataOnUninstall": true,
-      "shortcutName": "StreamStorm"
+      "shortcutName": "StreamFusion"
     },
     "linux": {
       "target": "AppImage",

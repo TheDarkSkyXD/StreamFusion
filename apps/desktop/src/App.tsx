@@ -18,7 +18,7 @@ function App() {
         <AuthProvider
           fallback={
             <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
-              Loading StreamStorm...
+              Loading StreamFusion...
             </div>
           }
         >

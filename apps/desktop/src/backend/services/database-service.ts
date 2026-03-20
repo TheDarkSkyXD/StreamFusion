@@ -16,7 +16,7 @@ export class DatabaseService {
     if (this.db) return; // Already initialized
 
     const userDataPath = app.getPath("userData");
-    const dbPath = path.join(userDataPath, "streamstorm.db");
+    const dbPath = path.join(userDataPath, "streamfusion.db");
 
     // Ensure directory exists
     const dbDir = path.dirname(dbPath);

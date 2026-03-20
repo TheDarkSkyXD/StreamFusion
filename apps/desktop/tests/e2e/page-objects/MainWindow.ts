@@ -1,7 +1,7 @@
 /**
  * Main Window Page Object
  * 
- * Provides a clean API for interacting with StreamStorm's main window.
+ * Provides a clean API for interacting with StreamFusion's main window.
  * Use this in tests to keep selectors and interactions organized.
  */
 import { Page, Locator } from '@playwright/test';

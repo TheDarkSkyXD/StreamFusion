@@ -10,7 +10,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // StreamStorm Brand Colors
+        // StreamFusion Brand Colors
         storm: {
           primary: '#ffffff',
           secondary: '#a3a3a3',

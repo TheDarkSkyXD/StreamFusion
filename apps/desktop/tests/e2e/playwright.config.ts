@@ -1,5 +1,5 @@
 /**
- * Playwright Configuration for StreamStorm Electron App
+ * Playwright Configuration for StreamFusion Electron App
  * 
  * This config enables testing the Electron app using Playwright.
  * The app must be built first with `npm run package` before running tests.
@@ -10,14 +10,14 @@ import path from 'path';
 // Path to the built Electron executable
 const getElectronPath = () => {
     const platform = process.platform;
-    const basePath = path.join(__dirname, '../../out/StreamStorm-win32-x64');
+    const basePath = path.join(__dirname, '../../out/StreamFusion-win32-x64');
 
     if (platform === 'win32') {
-        return path.join(basePath, 'streamstorm.exe');
+        return path.join(basePath, 'streamfusion.exe');
     } else if (platform === 'darwin') {
-        return path.join(__dirname, '../../out/StreamStorm-darwin-x64/StreamStorm.app/Contents/MacOS/StreamStorm');
+        return path.join(__dirname, '../../out/StreamFusion-darwin-x64/StreamFusion.app/Contents/MacOS/StreamFusion');
     } else {
-        return path.join(__dirname, '../../out/StreamStorm-linux-x64/streamstorm');
+        return path.join(__dirname, '../../out/StreamFusion-linux-x64/streamfusion');
     }
 };
 

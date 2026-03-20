@@ -36,7 +36,7 @@ export function TopNavBar({ className }: TopNavBarProps) {
           to="/"
           className="text-xl font-bold text-white tracking-tight hover:opacity-90 transition-opacity"
         >
-          StreamStorm
+          StreamFusion
         </Link>
       </div>
 

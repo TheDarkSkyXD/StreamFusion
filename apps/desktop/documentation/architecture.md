@@ -1,4 +1,4 @@
-# StreamStorm Architecture Guide
+# StreamFusion Architecture Guide
 
 **Document Name:** Project Architecture Reference  
 **Date:** December 7, 2025  
@@ -9,7 +9,7 @@
 
 ## Overview
 
-StreamStorm uses a **feature-based architecture** with **platform abstraction** to support multiple streaming platforms (Twitch, Kick, and future platforms) without code duplication.
+StreamFusion uses a **feature-based architecture** with **platform abstraction** to support multiple streaming platforms (Twitch, Kick, and future platforms) without code duplication.
 
 ---
 
@@ -44,7 +44,7 @@ src/
 │   ├── auth/                        # Authentication Module
 │   │   ├── index.ts
 │   │   ├── oauth-config.ts          # OAuth configs + PKCE helpers
-│   │   ├── protocol-handler.ts      # streamstorm:// protocol
+│   │   ├── protocol-handler.ts      # streamfusion:// protocol
 │   │   ├── auth-window.ts           # BrowserWindow for OAuth
 │   │   ├── token-exchange.ts        # Code → Token exchange
 │   │   ├── twitch-auth.ts           # Twitch auth service (Phase 1.3)

@@ -414,7 +414,7 @@ export function SettingsPage() {
                   <LuRocket className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">StreamStorm</h3>
+                  <h3 className="text-xl font-bold text-white">StreamFusion</h3>
                   <div className="flex items-center justify-center gap-2 mt-1">
                     <p className="text-zinc-500">
                       v{versionInfo?.version ?? appVersion ?? "0.1.0"}

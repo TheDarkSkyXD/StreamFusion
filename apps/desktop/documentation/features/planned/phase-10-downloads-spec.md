@@ -21,7 +21,7 @@ This phase implements the functionality to download VODs (Videos on Demand) and 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                       StreamStorm Downloads                      │
+│                       StreamFusion Downloads                      │
 │                                                                  │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │                    Downloads UI                           │  │
@@ -140,7 +140,7 @@ This phase implements the functionality to download VODs (Videos on Demand) and 
   - On click, trigger `showSaveDialog` via IPC.
   - Pass selected path to `addDownload` action.
 - [ ] **10.3.4** Integrate Local Player for Completed Downloads
-  - Allow user to click a completed item to play it within StreamStorm (or open in system default player).
+  - Allow user to click a completed item to play it within StreamFusion (or open in system default player).
 
 #### Verification
 

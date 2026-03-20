@@ -7,7 +7,7 @@ This document summarizes the Electron-specific performance optimizations impleme
 ### 1. 🎯 Menu.setApplicationMenu(null) - Main Process
 **File:** `src/main.ts`
 
-Since StreamStorm uses a custom frameless window with its own title bar, the default Electron application menu was never visible but was still being created and consuming memory. Setting it to `null` at app startup eliminates this overhead.
+Since StreamFusion uses a custom frameless window with its own title bar, the default Electron application menu was never visible but was still being created and consuming memory. Setting it to `null` at app startup eliminates this overhead.
 
 **Benefits:**
 - Reduced memory usage (~1-2MB depending on menu complexity)

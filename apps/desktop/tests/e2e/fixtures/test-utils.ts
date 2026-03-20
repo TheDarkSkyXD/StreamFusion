@@ -1,5 +1,5 @@
 /**
- * Test Utilities for StreamStorm E2E Tests
+ * Test Utilities for StreamFusion E2E Tests
  * 
  * Helper functions for common testing operations.
  */

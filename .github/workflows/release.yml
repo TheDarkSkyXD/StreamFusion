@@ -45,7 +45,7 @@ jobs:
         run: npm ci
 
       - name: Rebuild native dependencies
-        run: npm run rebuild-deps -w streamstorm
+        run: npm run rebuild-deps -w streamfusion
 
 
 
@@ -55,13 +55,13 @@ jobs:
 
       - name: Build and package
         run: |
-          npm run build --workspace=streamstorm
+          npm run build --workspace=streamfusion
           cd apps/desktop && npx electron-builder --publish never --${{ matrix.arch }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: streamstorm-${{ matrix.platform }}-${{ matrix.arch }}
+          name: streamfusion-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
             apps/desktop/release/*.exe
             apps/desktop/release/*.dmg
@@ -108,27 +108,27 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: StreamStorm v${{ steps.version.outputs.version }}
+          name: StreamFusion v${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
           generate_release_notes: true
           files: release-assets/*
 
           body: |
-            ## StreamStorm v${{ steps.version.outputs.version }}
-            
+            ## StreamFusion v${{ steps.version.outputs.version }}
+
             ### Downloads
-            
+
             | Platform | File |
             |----------|------|
-            | Windows | `StreamStorm-${{ steps.version.outputs.version }}-Setup.exe` |
-            | macOS (Intel) | `StreamStorm-${{ steps.version.outputs.version }}-x64.dmg` |
-            | macOS (Apple Silicon) | `StreamStorm-${{ steps.version.outputs.version }}-arm64.dmg` |
+            | Windows | `StreamFusion-${{ steps.version.outputs.version }}-Setup.exe` |
+            | macOS (Intel) | `StreamFusion-${{ steps.version.outputs.version }}-x64.dmg` |
+            | macOS (Apple Silicon) | `StreamFusion-${{ steps.version.outputs.version }}-arm64.dmg` |
 
-            
+
             ### Auto-Update
-            
-            If you already have StreamStorm installed, you'll receive this update automatically.
+
+            If you already have StreamFusion installed, you'll receive this update automatically.
             Go to **Settings > Updates** to check for updates manually.
             
             ---

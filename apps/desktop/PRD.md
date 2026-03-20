@@ -1,4 +1,4 @@
-# StreamStorm: Product Requirements Document (PRD)
+# StreamFusion: Product Requirements Document (PRD)
 
 **Version:** 1.0
 **Date:** May 29, 2025
@@ -51,11 +51,11 @@
 
 ### 1.1. Purpose
 
-This Product Requirements Document (PRD) outlines the vision, features, and technical specifications for StreamStorm, a desktop application designed for viewing live streams and video content from Twitch and Kick.com. It serves as a comprehensive guide for the development team, stakeholders, and designers, ensuring a shared understanding of the project's goals, requirements, and constraints.
+This Product Requirements Document (PRD) outlines the vision, features, and technical specifications for StreamFusion, a desktop application designed for viewing live streams and video content from Twitch and Kick.com. It serves as a comprehensive guide for the development team, stakeholders, and designers, ensuring a shared understanding of the project's goals, requirements, and constraints.
 
 ### 1.2. Project Overview
 
-StreamStorm aims to be a high-performance, feature-rich Electron application that provides a unified and enhanced viewing experience for users of both Twitch and Kick streaming platforms. It caters to both casual viewers and power users, offering features like multi-stream viewing, guest access with local follows, platform-integrated chat, customizable notifications, and a clean, intuitive user interface with light and dark modes. The application prioritizes performance, especially minimizing RAM and CPU usage, to handle multiple streams efficiently.
+StreamFusion aims to be a high-performance, feature-rich Electron application that provides a unified and enhanced viewing experience for users of both Twitch and Kick streaming platforms. It caters to both casual viewers and power users, offering features like multi-stream viewing, guest access with local follows, platform-integrated chat, customizable notifications, and a clean, intuitive user interface with light and dark modes. The application prioritizes performance, especially minimizing RAM and CPU usage, to handle multiple streams efficiently.
 
 ### 1.3. Goals and Objectives
 
@@ -100,7 +100,7 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 *   Broadcasting/Streaming capabilities.
 *   Direct peer-to-peer features beyond basic social elements mentioned.
 *   Integration with unofficial APIs or third-party services not explicitly mentioned.
-*   Monetization features (ads, subscriptions within StreamStorm itself).
+*   Monetization features (ads, subscriptions within StreamFusion itself).
 *   Features requiring payment or violating platform Terms of Service.
 *   Advanced video editing or creation tools.
 
@@ -176,11 +176,11 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 **Actor:** Casual Viewer (Alex)
 
 **Preconditions:**
-- StreamStorm is installed and running
+- StreamFusion is installed and running
 - User has not logged into any platform accounts
 
 **Main Flow:**
-1. User opens StreamStorm application
+1. User opens StreamFusion application
 2. User is presented with the home screen showing popular streams from both Twitch and Kick
 3. User browses categories or uses search to find specific content
 4. User clicks on a stream to watch
@@ -204,11 +204,11 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 **Actor:** Power User (Taylor)
 
 **Preconditions:**
-- StreamStorm is installed and running
+- StreamFusion is installed and running
 - User is logged into their platform accounts (optional)
 
 **Main Flow:**
-1. User opens StreamStorm application
+1. User opens StreamFusion application
 2. User navigates to their followed channels or browses for content
 3. User selects the first stream to watch
 4. User clicks "Add Stream" or opens a new panel in multi-view mode
@@ -234,16 +234,16 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 **Actor:** Power User (Taylor)
 
 **Preconditions:**
-- StreamStorm is installed and running
+- StreamFusion is installed and running
 - User has existing accounts on Twitch and/or Kick
 
 **Main Flow:**
-1. User opens StreamStorm application
+1. User opens StreamFusion application
 2. User navigates to settings or profile section
 3. User selects "Connect Account" for desired platform
 4. OAuth authentication flow begins in a secure window
-5. User logs in with platform credentials and authorizes StreamStorm
-6. Authentication completes and user returns to StreamStorm
+5. User logs in with platform credentials and authorizes StreamFusion
+6. Authentication completes and user returns to StreamFusion
 7. User's followed channels, subscriptions, and account details are synced
 8. User can now participate in chat and access platform-specific features
 
@@ -264,10 +264,10 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 **Actor:** Content Explorer (Jordan)
 
 **Preconditions:**
-- StreamStorm is installed and running
+- StreamFusion is installed and running
 
 **Main Flow:**
-1. User opens StreamStorm application
+1. User opens StreamFusion application
 2. User navigates to the discovery section
 3. User browses categories, trending streams, or recommended content
 4. User applies filters (viewer count, language, platform, etc.)
@@ -291,7 +291,7 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 **Actor:** Power User (Taylor)
 
 **Preconditions:**
-- StreamStorm is installed and running
+- StreamFusion is installed and running
 - User is authenticated with relevant platform(s)
 - User has appropriate permissions (for moderation)
 
@@ -320,7 +320,7 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 **Actor:** Any User
 
 **Preconditions:**
-- StreamStorm is installed and running
+- StreamFusion is installed and running
 
 **Main Flow:**
 1. User navigates to a channel or VOD section
@@ -346,7 +346,7 @@ StreamStorm aims to be a high-performance, feature-rich Electron application tha
 **Actor:** Power User (Taylor)
 
 **Preconditions:**
-- StreamStorm is installed and running
+- StreamFusion is installed and running
 - User has followed channels (locally or via authentication)
 
 **Main Flow:**
@@ -960,7 +960,7 @@ The application shall follow a modular file structure that separates concerns an
 
 **TECH-2.1: Root Structure**
 ```
-streamstorm/
+streamfusion/
 ├── .github/                    # GitHub workflows and templates
 ├── .vscode/                    # VS Code configuration
 ├── assets/                     # Static assets

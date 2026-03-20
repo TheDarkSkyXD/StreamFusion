@@ -1,4 +1,4 @@
-# StreamStorm Development Roadmap
+# StreamFusion Development Roadmap
 
 **Document Name:** Master Implementation Plan  
 **Date:** December 7, 2025  
@@ -8,7 +8,7 @@
 
 ## Overview
 
-This document provides a high-level roadmap for StreamStorm development, linking to detailed phase specifications.
+This document provides a high-level roadmap for StreamFusion development, linking to detailed phase specifications.
 
 ---
 

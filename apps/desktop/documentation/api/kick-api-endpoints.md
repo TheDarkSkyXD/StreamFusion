@@ -141,7 +141,7 @@ Kick enforces strict hotlinking protection on its media CDNs. Browsers/Electron 
 | `m3u8.kick.com` | HLS Manifests | CORS | Normal CORS handling |
 
 ### ✅ How to Access Media
-In StreamStorm, use the **Image Proxy**:
+In StreamFusion, use the **Image Proxy**:
 
 ```typescript
 // Renderer

@@ -31,7 +31,7 @@ export function TitleBar({ className }: TitleBarProps) {
       <div className="flex items-center gap-2 px-4">
         {/* Spacer for macOS traffic lights */}
         {isMac && <div className="w-16" />}
-        <span className="text-xs font-semibold text-[var(--color-foreground)]">🌩️ StreamStorm</span>
+        <span className="text-xs font-semibold text-[var(--color-foreground)]">🌩️ StreamFusion</span>
       </div>
 
       {/* Right side - Window controls (Windows/Linux only) */}

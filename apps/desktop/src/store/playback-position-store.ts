@@ -113,7 +113,7 @@ export const usePlaybackPositionStore = create<PlaybackPositionState>()(
       },
     }),
     {
-      name: "streamstorm-playback-positions",
+      name: "streamfusion-playback-positions",
       version: 1,
     }
   )

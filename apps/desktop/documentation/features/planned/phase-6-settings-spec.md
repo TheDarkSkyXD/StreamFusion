@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements the comprehensive settings system for StreamStorm, including application settings, platform-specific configurations, keyboard shortcuts, and data management.
+This phase implements the comprehensive settings system for StreamFusion, including application settings, platform-specific configurations, keyboard shortcuts, and data management.
 
 ---
 

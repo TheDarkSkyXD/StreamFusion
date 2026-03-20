@@ -73,8 +73,8 @@ Phase 1 implements authentication for Twitch and Kick platforms with OAuth, plus
   - PKCE helper functions (code verifier, code challenge)
 
 - [x] **1.2.2** Register custom protocol handler (`src/backend/auth/protocol-handler.ts`)
-  - `streamstorm://` protocol registration
-  - Handle `streamstorm://auth/twitch/callback` and `streamstorm://auth/kick/callback`
+  - `streamfusion://` protocol registration
+  - Handle `streamfusion://auth/twitch/callback` and `streamfusion://auth/kick/callback`
   - Windows, macOS, Linux support
   - Parse callback URL for auth code
 
@@ -93,14 +93,14 @@ Phase 1 implements authentication for Twitch and Kick platforms with OAuth, plus
 
 ```
 User clicks login → Open BrowserWindow → User approves → 
-Redirect to streamstorm://auth/[platform]/callback?code=xxx →
+Redirect to streamfusion://auth/[platform]/callback?code=xxx →
 Capture via protocol handler → Exchange code for tokens →
 Store tokens securely → Update UI
 ```
 
 ### Verification Checklist
 
-- [x] Custom protocol `streamstorm://` is registered on app startup
+- [x] Custom protocol `streamfusion://` is registered on app startup
 - [x] Auth windows open with correct OAuth URL
 - [x] OAuth redirects are captured via protocol handler
 - [x] Auth code is successfully parsed from callback URL
@@ -486,7 +486,7 @@ Phase 1 is complete when:
 
 - Need to register app with Twitch Developer Console (dev.twitch.tv)
 - Need to register app with Kick Developer Portal
-- Custom protocol `streamstorm://` needs to be registered with OS ✅ Done
+- Custom protocol `streamfusion://` needs to be registered with OS ✅ Done
 - safeStorage API requires app to be packaged for full encryption
 - In dev mode, tokens are base64 encoded (not fully encrypted)
 - **No external auth libraries needed** - using direct OAuth with BrowserWindow
@@ -495,7 +495,7 @@ Phase 1 is complete when:
 
 - **18:53** - Started Phase 1.2 implementation
 - **18:54** - Created `src/backend/auth/oauth-config.ts` with PKCE helpers
-- **18:55** - Created `src/backend/auth/protocol-handler.ts` for streamstorm:// protocol
+- **18:55** - Created `src/backend/auth/protocol-handler.ts` for streamfusion:// protocol
 - **18:56** - Created `src/backend/auth/auth-window.ts` for OAuth popups
 - **18:57** - Created `src/backend/auth/token-exchange.ts` for code-to-token exchange
 - **18:58** - Created `src/backend/auth/index.ts` module export

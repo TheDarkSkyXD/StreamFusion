@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements platform-specific features that are unique to Twitch or Kick, ensuring users get the full platform experience within StreamStorm.
+This phase implements platform-specific features that are unique to Twitch or Kick, ensuring users get the full platform experience within StreamFusion.
 
 ---
 

@@ -272,7 +272,7 @@ export function GuestWelcomeBanner({ onDismiss, className = "" }: GuestWelcomeBa
     >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-white mb-1">Welcome to StreamStorm! 👋</h3>
+          <h3 className="text-lg font-semibold text-white mb-1">Welcome to StreamFusion! 👋</h3>
           <p className="text-sm text-[var(--color-foreground-muted)]">
             Connect your Twitch or Kick account to unlock all features like chat, follows sync, and
             more.

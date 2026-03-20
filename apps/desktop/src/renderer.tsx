@@ -1,5 +1,5 @@
 /**
- * StreamStorm - Renderer Process Entry Point
+ * StreamFusion - Renderer Process Entry Point
  *
  * This file bootstraps the React application in the Electron renderer process.
  */
@@ -9,6 +9,10 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App";
 import "./index.css";
+import { migrateLocalStorage } from "./lib/migrate-localstorage";
+
+// Migrate old "streamstorm-*" localStorage keys to "streamfusion-*" (one-time, before stores init)
+migrateLocalStorage();
 
 const container = document.getElementById("root");
 
@@ -24,4 +28,4 @@ root.render(
   </React.StrictMode>
 );
 
-console.debug("🌩️ StreamStorm is running in renderer process");
+console.debug("🌩️ StreamFusion is running in renderer process");

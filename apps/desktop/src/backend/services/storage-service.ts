@@ -52,7 +52,7 @@ class StorageService {
     if (this.store) return; // Already initialized
 
     this.store = new Store<StorageSchema>({
-      name: "streamstorm-storage",
+      name: "streamfusion-storage",
       defaults,
     });
 

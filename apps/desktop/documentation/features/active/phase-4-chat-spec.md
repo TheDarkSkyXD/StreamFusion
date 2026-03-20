@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements the unified chat system for StreamStorm, enabling users to view and interact with chat from both Twitch and Kick streams. It includes chat rendering, message sending (for authenticated users), emote support, moderation tools, and chat customization options.
+This phase implements the unified chat system for StreamFusion, enabling users to view and interact with chat from both Twitch and Kick streams. It includes chat rendering, message sending (for authenticated users), emote support, moderation tools, and chat customization options.
 
 ---
 
@@ -21,7 +21,7 @@ This phase implements the unified chat system for StreamStorm, enabling users to
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                       StreamStorm Chat                           │
+│                       StreamFusion Chat                           │
 │                                                                  │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │                    Chat UI Layer                           │  │

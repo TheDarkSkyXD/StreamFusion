@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements advanced features that enhance the StreamStorm experience beyond the core MVP, including stream translation, closed captioning, analytics, and social features.
+This phase implements advanced features that enhance the StreamFusion experience beyond the core MVP, including stream translation, closed captioning, analytics, and social features.
 
 ---
 

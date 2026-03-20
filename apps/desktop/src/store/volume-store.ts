@@ -32,7 +32,7 @@ export const useVolumeStore = create<VolumeState>()(
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
     }),
     {
-      name: "streamstorm-volume",
+      name: "streamfusion-volume",
       version: 1,
     }
   )

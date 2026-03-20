@@ -57,7 +57,7 @@ A feature moves through three stages. Maintain structure and naming throughout.
 
 ## Development Roadmap
 
-The StreamStorm project follows a phased implementation approach. All phase specifications are located in `/documentation/features/planned/`:
+The StreamFusion project follows a phased implementation approach. All phase specifications are located in `/documentation/features/planned/`:
 
 | Phase | Focus Area | Spec File |
 |-------|------------|-----------|

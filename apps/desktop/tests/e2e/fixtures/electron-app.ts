@@ -1,7 +1,7 @@
 /**
  * Electron App Test Fixture
  * 
- * Provides fixtures for launching and interacting with the StreamStorm Electron app.
+ * Provides fixtures for launching and interacting with the StreamFusion Electron app.
  * Exposes both the ElectronApplication instance and the main window Page.
  */
 import { test as base, ElectronApplication, Page } from '@playwright/test';
@@ -27,11 +27,11 @@ function getAppPath(): string {
     if (isPackaged) {
         // Packaged app paths
         if (platform === 'win32') {
-            return path.join(rootDir, 'out/StreamStorm-win32-x64/streamstorm.exe');
+            return path.join(rootDir, 'out/StreamFusion-win32-x64/streamfusion.exe');
         } else if (platform === 'darwin') {
-            return path.join(rootDir, 'out/StreamStorm-darwin-x64/StreamStorm.app/Contents/MacOS/StreamStorm');
+            return path.join(rootDir, 'out/StreamFusion-darwin-x64/StreamFusion.app/Contents/MacOS/StreamFusion');
         } else {
-            return path.join(rootDir, 'out/StreamStorm-linux-x64/streamstorm');
+            return path.join(rootDir, 'out/StreamFusion-linux-x64/streamfusion');
         }
     } else {
         // Development mode - use electron directly with the main entry

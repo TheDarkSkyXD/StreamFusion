@@ -97,3 +97,6 @@ dist/
 
 # External Reference
 KickTalk-main/
+
+.playwright-cli/
+.playwright/

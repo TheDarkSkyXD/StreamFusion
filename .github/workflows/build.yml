@@ -53,7 +53,7 @@ jobs:
         run: npm ci
 
       - name: Rebuild native dependencies
-        run: npm run rebuild-deps -w streamstorm
+        run: npm run rebuild-deps -w streamfusion
 
       - name: Build
         run: npm run dist
@@ -63,7 +63,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: streamstorm-${{ matrix.platform }}
+          name: streamfusion-${{ matrix.platform }}
           path: apps/desktop/release/**/*
           retention-days: 7
 

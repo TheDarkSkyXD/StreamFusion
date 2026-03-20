@@ -68,7 +68,7 @@ export const useAppStore = create<AppState>()(
       clearStreams: () => set({ activeStreams: [] }),
     }),
     {
-      name: "streamstorm-app-store",
+      name: "streamfusion-app-store",
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
         userPrefersSidebarCollapsed: state.userPrefersSidebarCollapsed,

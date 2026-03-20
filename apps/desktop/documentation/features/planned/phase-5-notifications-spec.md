@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements the notification system for StreamStorm, allowing users to receive desktop notifications when followed channels go live, as well as in-app alerts for various events.
+This phase implements the notification system for StreamFusion, allowing users to receive desktop notifications when followed channels go live, as well as in-app alerts for various events.
 
 ---
 

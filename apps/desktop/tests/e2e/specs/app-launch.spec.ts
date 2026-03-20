@@ -1,5 +1,5 @@
 /**
- * StreamStorm App Launch Tests
+ * StreamFusion App Launch Tests
  * 
  * Basic tests to verify the Electron app launches correctly
  * and the main UI is accessible.
@@ -30,8 +30,8 @@ test.describe('App Launch', () => {
 
     test('should have correct window title', async ({ mainWindow }) => {
         const title = await mainWindow.title();
-        // StreamStorm should be in the title (adjust based on actual title)
-        expect(title.toLowerCase()).toContain('streamstorm');
+        // StreamFusion should be in the title (adjust based on actual title)
+        expect(title.toLowerCase()).toContain('streamfusion');
     });
 
     test('should render the sidebar', async ({ mainWindow }) => {
@@ -80,6 +80,6 @@ test.describe('IPC Communication', () => {
         });
 
         console.log(`App name: ${name}`);
-        expect(name.toLowerCase()).toContain('streamstorm');
+        expect(name.toLowerCase()).toContain('streamfusion');
     });
 });

@@ -2,7 +2,7 @@
 
 ## Summary
 
-This document outlines the performance optimizations applied to StreamStorm's chat system based on the analysis of KickTalk-main. These changes significantly reduce RAM usage and improve rendering performance.
+This document outlines the performance optimizations applied to StreamFusion's chat system based on the analysis of KickTalk-main. These changes significantly reduce RAM usage and improve rendering performance.
 
 ## Key Changes
 

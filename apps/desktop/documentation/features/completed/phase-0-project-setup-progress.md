@@ -80,7 +80,7 @@ The workflow at `.github/workflows/build.yml`:
 ## Final Project Structure
 
 ```
-StreamStorm/
+StreamFusion/
 ├── .github/
 │   └── workflows/
 │       └── build.yml          # CI/CD workflow
@@ -166,7 +166,7 @@ StreamStorm/
 
 ## Ready for Phase 1!
 
-The StreamStorm application foundation is complete:
+The StreamFusion application foundation is complete:
 
 ✅ Modern Electron + React architecture  
 ✅ Type-safe IPC communication  

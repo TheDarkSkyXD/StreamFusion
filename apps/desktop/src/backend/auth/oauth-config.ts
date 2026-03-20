@@ -38,7 +38,7 @@ export function getRedirectUri(platform: Platform, port: number = DEFAULT_CALLBA
 
 // ========== Protocol Configuration (for fallback/future use) ==========
 
-export const PROTOCOL_SCHEME = "streamforge";
+export const PROTOCOL_SCHEME = "streamfusion";
 export const PROTOCOL_PREFIX = `${PROTOCOL_SCHEME}://`;
 
 // ========== OAuth Configuration Types ==========

@@ -55,7 +55,7 @@ jobs:
         run: npm ci
 
       - name: Rebuild native dependencies
-        run: npm run rebuild-deps -w streamstorm
+        run: npm run rebuild-deps -w streamfusion
 
 
 
@@ -65,13 +65,13 @@ jobs:
 
       - name: Build and package
         run: |
-          npm run build --workspace=streamstorm
+          npm run build --workspace=streamfusion
           cd apps/desktop && npx electron-builder --publish never --${{ matrix.arch }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: streamstorm-prerelease-${{ matrix.platform }}-${{ matrix.arch }}
+          name: streamfusion-prerelease-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
             apps/desktop/release/*.exe
             apps/desktop/release/*.dmg
@@ -132,38 +132,38 @@ jobs:
       - name: Create Pre-Release
         uses: softprops/action-gh-release@v2
         with:
-          name: StreamStorm v${{ steps.version.outputs.version }} (${{ steps.prerelease_type.outputs.type }})
+          name: StreamFusion v${{ steps.version.outputs.version }} (${{ steps.prerelease_type.outputs.type }})
           draft: false
           prerelease: true
           generate_release_notes: true
           files: release-assets/*
 
           body: |
-            ## StreamStorm v${{ steps.version.outputs.version }} - ${{ steps.prerelease_type.outputs.type }}
-            
+            ## StreamFusion v${{ steps.version.outputs.version }} - ${{ steps.prerelease_type.outputs.type }}
+
             > **Warning**: This is a pre-release version. It may contain bugs or incomplete features.
             > Only install if you want to help test new features before they're released.
-            
+
             ### How to Get Pre-releases
-            
+
             To receive pre-release updates automatically:
-            1. Open StreamStorm
+            1. Open StreamFusion
             2. Go to **Settings > Updates**
             3. Enable **"Allow Pre-release Updates"**
-            
+
             ### Downloads
-            
+
             | Platform | File |
             |----------|------|
-            | Windows | `StreamStorm-${{ steps.version.outputs.version }}-Setup.exe` |
-            | macOS (Intel) | `StreamStorm-${{ steps.version.outputs.version }}-x64.dmg` |
-            | macOS (Apple Silicon) | `StreamStorm-${{ steps.version.outputs.version }}-arm64.dmg` |
-            
+            | Windows | `StreamFusion-${{ steps.version.outputs.version }}-Setup.exe` |
+            | macOS (Intel) | `StreamFusion-${{ steps.version.outputs.version }}-x64.dmg` |
+            | macOS (Apple Silicon) | `StreamFusion-${{ steps.version.outputs.version }}-arm64.dmg` |
+
             ---
-            
+
             ### Feedback
-            
-            Found a bug? Please [open an issue](https://github.com/TheDarkSkyXD/StreamStorm/issues/new) with details.
+
+            Found a bug? Please [open an issue](https://github.com/TheDarkSkyXD/StreamFusion/issues/new) with details.
             
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

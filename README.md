@@ -1,13 +1,13 @@
-# StreamStorm
+# StreamFusion
 
-![StreamStorm Banner](https://via.placeholder.com/1200x300?text=StreamStorm)
+![StreamFusion Banner](https://via.placeholder.com/1200x300?text=StreamFusion)
 <!-- You can replace the placeholder image above with a real banner or logo once available -->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.0--beta.1-blue.svg)](https://github.com/TheDarkSkyXD/StreamStorm/releases)
-![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/TheDarkSkyXD/StreamStorm?label=CodeRabbit+Reviews&labelColor=171717&color=FF570A)
+[![Version](https://img.shields.io/badge/version-1.0.0--beta.1-blue.svg)](https://github.com/TheDarkSkyXD/StreamFusion/releases)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/TheDarkSkyXD/StreamFusion?label=CodeRabbit+Reviews&labelColor=171717&color=FF570A)
 
-**StreamStorm** is a unified, cross-platform desktop application designed to bring the best of **Twitch** and **Kick** live streaming into a single, cohesive interface. Built with modern web technologies and packaged via Electron, StreamStorm offers a lightweight, meaningful, and feature-rich viewing experience.
+**StreamFusion** is a unified, cross-platform desktop application designed to bring the best of **Twitch** and **Kick** live streaming into a single, cohesive interface. Built with modern web technologies and packaged via Electron, StreamFusion offers a lightweight, meaningful, and feature-rich viewing experience.
 
 ## ✨ Features
 
@@ -21,7 +21,7 @@
 
 ## 🛠 Tech Stack
 
-StreamStorm is built as a monorepo using **npm workspaces**, leveraging a powerful modern stack:
+StreamFusion is built as a monorepo using **npm workspaces**, leveraging a powerful modern stack:
 
 - **Core Framework**: [Electron](https://www.electronjs.org/) & [React](https://reactjs.org/)
 - **Build Tooling**: [Vite](https://vitejs.dev/) & [Electron-Vite](https://electron-vite.org/)
@@ -38,7 +38,7 @@ StreamStorm is built as a monorepo using **npm workspaces**, leveraging a powerf
 This project is organized as a monorepo:
 
 ```bash
-StreamStorm/
+StreamFusion/
 ├── apps/
 │   ├── desktop/       # Main Electron application source code
 
@@ -60,8 +60,8 @@ Ensure you have the following installed:
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/TheDarkSkyXD/StreamStorm.git
-    cd StreamStorm
+    git clone https://github.com/TheDarkSkyXD/StreamFusion.git
+    cd StreamFusion
     ```
 
 2.  **Install dependencies**:
@@ -82,7 +82,7 @@ npm start
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to check out the [issues](https://github.com/TheDarkSkyXD/StreamStorm/issues) page if you want to contribute.
+Contributions are welcome! Please feel free to check out the [issues](https://github.com/TheDarkSkyXD/StreamFusion/issues) page if you want to contribute.
 
 1.  Fork the repository.
 2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
@@ -95,8 +95,8 @@ Contributions are welcome! Please feel free to check out the [issues](https://gi
 This project uses **Biome** for fast linting and formatting.
 
 - Check for errors: `npm run lint`
-- Auto-fix errors: `npm run lint:fix --workspace=streamstorm`
-- Format code: `npm run format --workspace=streamstorm`
+- Auto-fix errors: `npm run lint:fix --workspace=streamfusion`
+- Format code: `npm run format --workspace=streamfusion`
 
 ## 📝 License
 
@@ -104,4 +104,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 📬 Contact
 
-Project Link: [https://github.com/TheDarkSkyXD/StreamStorm](https://github.com/TheDarkSkyXD/StreamStorm)
+Project Link: [https://github.com/TheDarkSkyXD/StreamFusion](https://github.com/TheDarkSkyXD/StreamFusion)

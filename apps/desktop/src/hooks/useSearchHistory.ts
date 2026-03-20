@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "streamstorm_search_history";
+const STORAGE_KEY = "streamfusion_search_history";
 const MAX_HISTORY_ITEMS = 10;
 
 export function useSearchHistory() {

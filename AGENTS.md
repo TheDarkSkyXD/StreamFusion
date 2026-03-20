@@ -6,12 +6,12 @@
 
 ## OVERVIEW
 
-StreamStorm is an Electron desktop app for viewing Twitch and Kick streams. Built with React 19, Vite 7, TypeScript 5.6, Zustand 5, TanStack Query/Router, Tailwind 4, and HLS.js.
+StreamFusion is an Electron desktop app for viewing Twitch and Kick streams. Built with React 19, Vite 7, TypeScript 5.6, Zustand 5, TanStack Query/Router, Tailwind 4, and HLS.js.
 
 ## STRUCTURE
 
 ```
-StreamStorm/
+StreamFusion/
 ├── src/
 │   ├── main.ts              # Electron main process entry
 │   ├── preload/             # IPC bridge (contextBridge)
@@ -97,7 +97,7 @@ StreamStorm/
 App writes `.clean-shutdown` file on exit. On startup, if missing, clears cache to prevent corruption.
 
 ### Custom Protocol
-`streamstorm://` registered for OAuth callbacks.
+`streamfusion://` registered for OAuth callbacks.
 
 ### Kick CDN Headers
 Request interceptor adds `Referer: https://kick.com/` for Kick image domains.
@@ -234,7 +234,7 @@ osv-scanner -r .
 
 ### Integration with This Project
 
-**For StreamStorm dependencies**, always:
+**For StreamFusion dependencies**, always:
 1. Check the package on https://osv.dev/list?ecosystem=npm&q=PACKAGE_NAME
 2. Query the API for the specific version
 3. If vulnerable, find and use the latest safe version

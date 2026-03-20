@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements the authentication system for StreamStorm, enabling users to connect their Twitch and Kick accounts via OAuth. It also establishes the guest mode with local storage for preferences and followed channels, creating a flexible user experience that works with or without platform authentication.
+This phase implements the authentication system for StreamFusion, enabling users to connect their Twitch and Kick accounts via OAuth. It also establishes the guest mode with local storage for preferences and followed channels, creating a flexible user experience that works with or without platform authentication.
 
 ---
 
@@ -23,7 +23,7 @@ This phase implements the authentication system for StreamStorm, enabling users 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        StreamStorm                               │
+│                        StreamFusion                               │
 │  ┌───────────────┐    ┌────────────────┐    ┌───────────────┐  │
 │  │ Guest Mode    │    │   Direct OAuth │    │ Authenticated │  │
 │  │ - Local Store │ ──▶│   (PKCE)       │──▶ │    Mode       │  │
@@ -159,7 +159,7 @@ This phase implements the authentication system for StreamStorm, enabling users 
   export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
     platform: 'twitch',
     clientId: process.env.TWITCH_CLIENT_ID,
-    redirectUri: 'streamstorm://auth/twitch/callback',
+    redirectUri: 'streamfusion://auth/twitch/callback',
     scopes: ['user:read:follows', 'user:read:email'],
     usesPkce: true,
   };
@@ -167,7 +167,7 @@ This phase implements the authentication system for StreamStorm, enabling users 
   export const KICK_OAUTH_CONFIG: OAuthConfig = {
     platform: 'kick',
     clientId: process.env.KICK_CLIENT_ID,
-    redirectUri: 'streamstorm://auth/kick/callback',
+    redirectUri: 'streamfusion://auth/kick/callback',
     scopes: ['user:read', 'channel:read'],
     usesPkce: true,
   };
@@ -181,7 +181,7 @@ This phase implements the authentication system for StreamStorm, enabling users 
   ```typescript
   // src/backend/auth/protocol-handler.ts
   export function registerProtocolHandler() {
-    app.setAsDefaultProtocolClient('streamstorm');
+    app.setAsDefaultProtocolClient('streamfusion');
     
     app.on('open-url', (event, url) => {
       handleAuthCallback(url);
@@ -210,7 +210,7 @@ This phase implements the authentication system for StreamStorm, enabling users 
 
 #### Verification
 
-- [ ] Custom protocol `streamstorm://` is registered
+- [ ] Custom protocol `streamfusion://` is registered
 - [ ] Auth windows open correctly
 - [ ] OAuth redirects are captured
 

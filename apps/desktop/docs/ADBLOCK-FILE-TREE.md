@@ -1,11 +1,11 @@
-# StreamStorm Ad-Blocking System - File Tree
+# StreamFusion Ad-Blocking System - File Tree
 
 > Complete listing of all files and paths related to the Twitch ad-blocking system.
 
 ## Directory Structure
 
 ```
-StreamStorm/
+StreamFusion/
 │
 ├── docs/                                         # Documentation
 │   ├── TWITCH-ADBLOCK-SYSTEM.md                 # Main documentation
@@ -224,7 +224,7 @@ StreamStorm/
 │   │       │   ├── setEnableAdBlock(enabled)
 │   │       │   └── toggleAdBlock()
 │   │       ├── useAdBlockStore hook
-│   │       ├── Persisted to: 'streamstorm-adblock'
+│   │       ├── Persisted to: 'streamfusion-adblock'
 │   │       └── Size: 28 lines
 │   │
 │   ├── hooks/                                    # React Hooks

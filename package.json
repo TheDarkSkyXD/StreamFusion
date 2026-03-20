@@ -1,19 +1,19 @@
 {
-    "name": "streamstorm-monorepo",
+    "name": "streamfusion-monorepo",
     "private": true,
     "workspaces": [
         "apps/*"
     ],
     "scripts": {
         "start": "npm start --prefix apps/desktop",
-        "desktop": "npm start --workspace=streamstorm",
-        "build": "npm run build --workspace=streamstorm",
-        "dist": "npm run dist --workspace=streamstorm",
-        "dist:win": "npm run dist:win --workspace=streamstorm",
-        "dist:mac": "npm run dist:mac --workspace=streamstorm",
-        "dist:linux": "npm run dist:linux --workspace=streamstorm",
-        "lint": "npm run lint --workspace=streamstorm",
-        "test": "npm test --workspace=streamstorm",
-        "typecheck": "npm run typecheck --workspace=streamstorm"
+        "desktop": "npm start --workspace=streamfusion",
+        "build": "npm run build --workspace=streamfusion",
+        "dist": "npm run dist --workspace=streamfusion",
+        "dist:win": "npm run dist:win --workspace=streamfusion",
+        "dist:mac": "npm run dist:mac --workspace=streamfusion",
+        "dist:linux": "npm run dist:linux --workspace=streamfusion",
+        "lint": "npm run lint --workspace=streamfusion",
+        "test": "npm test --workspace=streamfusion",
+        "typecheck": "npm run typecheck --workspace=streamfusion"
     }
 }

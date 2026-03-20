@@ -49,7 +49,7 @@ const TWITCH_SCRIPTLETS = `
       Object.defineProperty(obj, prop, {
         configurable: true,
         get: function() {
-          throw new ReferenceError('Blocked by StreamStorm AdBlock');
+          throw new ReferenceError('Blocked by StreamFusion AdBlock');
         },
         set: function() {}
       });

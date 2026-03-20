@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-This phase implements the core stream viewing experience for StreamStorm, including the unified video player, multi-stream viewing with up to 6 simultaneous streams, theater/fullscreen modes, picture-in-picture, and stream popout functionality. The focus is on performance optimization to ensure smooth playback while minimizing resource consumption.
+This phase implements the core stream viewing experience for StreamFusion, including the unified video player, multi-stream viewing with up to 6 simultaneous streams, theater/fullscreen modes, picture-in-picture, and stream popout functionality. The focus is on performance optimization to ensure smooth playback while minimizing resource consumption.
 
 ---
 
@@ -21,7 +21,7 @@ This phase implements the core stream viewing experience for StreamStorm, includ
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      StreamStorm Player                          │
+│                      StreamFusion Player                          │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │                    React Player UI                         │  │
 │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐  │  │

@@ -36,7 +36,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       <DialogContent className="sm:max-w-md bg-[var(--color-background-elevated)] border-[var(--color-border)]">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl font-bold text-white">
-            Welcome to StreamStorm
+            Welcome to StreamFusion
           </DialogTitle>
           <DialogDescription className="text-center text-[var(--color-foreground-muted)]">
             Connect your accounts to access all features

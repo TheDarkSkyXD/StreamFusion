@@ -105,7 +105,7 @@ describe('cosmetic-injection-service', () => {
         { cssOrigin: 'user' }
       );
       expect(mockWindow.webContents.executeJavaScript).toHaveBeenCalledWith(
-        expect.stringContaining('StreamStorm AdBlock'),
+        expect.stringContaining('StreamFusion AdBlock'),
         true
       );
     });
@@ -225,6 +225,6 @@ describe('Scriptlet Content', () => {
     
     expect(scriptArg).toContain('abortOnPropertyRead');
     expect(scriptArg).toContain('Object.defineProperty');
-    expect(scriptArg).toContain('StreamStorm AdBlock');
+    expect(scriptArg).toContain('StreamFusion AdBlock');
   });
 });
