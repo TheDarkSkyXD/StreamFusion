@@ -89,7 +89,9 @@ export async function getVideosByChannelSlug(
     }
 
     return {
-      data: videos.map((v: any) => {
+      data: videos
+        .filter((v: any) => !v.deleted_at && !v.video?.deleted_at)
+        .map((v: any) => {
         // A VOD without a source URL is subscriber-only content
         const hasSource = Boolean(v.source);
         const isSubOnly = !hasSource && !v.is_live;
