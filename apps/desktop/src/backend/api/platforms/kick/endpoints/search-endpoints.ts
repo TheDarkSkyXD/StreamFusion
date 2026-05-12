@@ -116,7 +116,7 @@ export async function searchChannels(
           const timeout = setTimeout(() => {
             request.abort();
             resolve(null);
-          }, 3000);
+          }, 1500);
 
           request.on("response", (response: any) => {
             let body = "";
@@ -301,49 +301,10 @@ export async function searchChannels(
     console.warn("Failed to fetch top streams for search fallback", e);
   }
 
-  // 5. Quick live status verification for channels without confirmed live status
-  // For channels that were found through Step 2 (search API), their isLive is false by default
-  // Check the top few results to get accurate live status
-  try {
-    const channelsToCheck = Array.from(results.values())
-      .filter((c) => !c.isLive) // Only check channels that aren't already confirmed live
-      .slice(0, 5); // Only check top 5 to keep it fast
-
-    if (channelsToCheck.length > 0) {
-      console.debug(
-        `[KickSearch] Step 5: Verifying live status for ${channelsToCheck.length} channels`
-      );
-
-      // Check in parallel with timeout
-      const liveChecks = await Promise.allSettled(
-        channelsToCheck.map(async (channel) => {
-          try {
-            const publicChannel = await getPublicChannel(channel.username);
-            return {
-              username: channel.username.toLowerCase(),
-              isLive: publicChannel?.isLive || false,
-            };
-          } catch {
-            return { username: channel.username.toLowerCase(), isLive: false };
-          }
-        })
-      );
-
-      // Update live status for verified channels
-      for (const result of liveChecks) {
-        if (result.status === "fulfilled" && result.value.isLive) {
-          const key = result.value.username;
-          const existing = results.get(key);
-          if (existing) {
-            results.set(key, { ...existing, isLive: true });
-            console.debug(`[KickSearch] Step 5: Confirmed ${key} is LIVE`);
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("[KickSearch] Step 5: Error verifying live status", e);
-  }
+  // Live status is set authoritatively downstream in
+  // verifyAndEnrichKickChannels (search-handlers.ts) via the batched
+  // /channels?slug[]=... call, so an extra round of getPublicChannel calls
+  // here would just open more BrowserWindows for data we're about to refetch.
 
   const finalResults = Array.from(results.values());
   console.debug(`[KickSearch] Final results for "${query}": ${finalResults.length} channels`);

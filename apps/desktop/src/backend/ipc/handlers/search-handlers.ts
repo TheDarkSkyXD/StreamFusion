@@ -128,91 +128,120 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
 const kickChannelDataCache = new Map<string, { data: any | null; timestamp: number }>();
 
 /**
- * Verify Kick channels exist and fetch their avatar URLs and follower counts
- * Returns a Map of username -> enriched channel data with avatars and follower counts
+ * Verify Kick channels exist and enrich them with avatar/follower data.
+ *
+ * Authenticated path (fast): one batched `/channels?slug[]=...` call (up to 50 slugs)
+ * plus one batched `/users?id[]=...` call for avatars. No BrowserWindow.
+ *
+ * Unauthenticated path (defer): return inputs unchanged. The hidden-BrowserWindow
+ * `getPublicChannel` route serialises behind a global mutex (see
+ * channel-endpoints.ts:_browserWindowMutex) which would re-introduce the 10-100s
+ * worst case. The frontend lazy-loads avatars on hover/mount, so deferring here
+ * only costs us avatars+follower counts in the initial dropdown for logged-out users.
  */
 async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string, any>> {
-  const { getPublicChannel } = await import("../../api/platforms/kick/endpoints/channel-endpoints");
+  const { kickClient } = await import("../../api/platforms/kick/kick-client");
+  const { getChannelsBySlugs } = await import(
+    "../../api/platforms/kick/endpoints/channel-endpoints"
+  );
+  const { getUsersById } = await import("../../api/platforms/kick/endpoints/user-endpoints");
 
   const enrichedChannels = new Map<string, any>();
   const slugsToFetch: { slug: string; originalChannel: any }[] = [];
   const now = Date.now();
 
-  // Check cache first
   for (const channel of channels) {
     const slugLower = channel.username.toLowerCase();
-    const cached = kickChannelDataCache.get(slugLower);
 
+    // Skip channels already enriched by upstream search steps (Step 4 top-streams
+    // fuzzy match populates avatarUrl + isLive). Saves an API round trip.
+    if (channel.avatarUrl && channel.followerCount !== undefined) {
+      enrichedChannels.set(slugLower, channel);
+      continue;
+    }
+
+    const cached = kickChannelDataCache.get(slugLower);
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       if (cached.data) {
-        // Merge cached data (with avatar, live status, and follower count) into the channel
         enrichedChannels.set(slugLower, {
           ...channel,
           avatarUrl: cached.data.avatarUrl || channel.avatarUrl || "",
           displayName: cached.data.displayName || channel.displayName,
           isVerified: cached.data.isVerified || channel.isVerified,
-          isLive: cached.data.isLive, // Use authoritative live status from cache
+          isLive: cached.data.isLive,
           followerCount: cached.data.followerCount,
         });
       }
-      // If cached.data is null, channel doesn't exist - skip it
+      // cached.data === null → channel known-deleted, skip.
     } else {
       slugsToFetch.push({ slug: channel.username, originalChannel: channel });
     }
   }
 
-  // Fetch uncached channels via API (parallel with limit)
-  if (slugsToFetch.length > 0) {
-    // Limit concurrent requests to avoid overwhelming the API
-    const concurrencyLimit = 5;
+  if (slugsToFetch.length === 0) {
+    return enrichedChannels;
+  }
 
-    for (let i = 0; i < slugsToFetch.length; i += concurrencyLimit) {
-      const batch = slugsToFetch.slice(i, i + concurrencyLimit);
+  // Unauthenticated: pass through. Frontend hover/mount hooks will lazy-load.
+  if (!kickClient.isAuthenticated()) {
+    for (const { slug, originalChannel } of slugsToFetch) {
+      enrichedChannels.set(slug.toLowerCase(), originalChannel);
+    }
+    return enrichedChannels;
+  }
 
-      try {
-        const results = await Promise.allSettled(batch.map((item) => getPublicChannel(item.slug)));
+  try {
+    const slugs = slugsToFetch.map((item) => item.slug);
+    const fetched = await getChannelsBySlugs(kickClient, slugs);
+    const fetchedBySlug = new Map(fetched.map((c) => [c.username.toLowerCase(), c]));
 
-        for (let j = 0; j < batch.length; j++) {
-          const { slug, originalChannel } = batch[j];
-          const slugLower = slug.toLowerCase();
-          const result = results[j];
+    const userIds = fetched
+      .map((c) => parseInt(c.id, 10))
+      .filter((id) => !Number.isNaN(id));
+    const users = userIds.length > 0 ? await getUsersById(kickClient, userIds) : [];
+    const userById = new Map(users.map((u) => [u.user_id.toString(), u]));
 
-          if (result.status === "fulfilled" && result.value !== null) {
-            const fetchedChannel = result.value;
+    for (const { slug, originalChannel } of slugsToFetch) {
+      const slugLower = slug.toLowerCase();
+      const fetchedChannel = fetchedBySlug.get(slugLower);
 
-            // Cache the fetched channel data
-            kickChannelDataCache.set(slugLower, {
-              data: fetchedChannel,
-              timestamp: now,
-            });
-
-            // Merge fetched data (with avatar and follower count) into the original channel
-            enrichedChannels.set(slugLower, {
-              ...originalChannel,
-              avatarUrl: fetchedChannel.avatarUrl || originalChannel.avatarUrl || "",
-              displayName: fetchedChannel.displayName || originalChannel.displayName,
-              isVerified: fetchedChannel.isVerified || originalChannel.isVerified,
-              isLive: fetchedChannel.isLive, // Use authoritative live status
-              followerCount: fetchedChannel.followerCount,
-            });
-          } else {
-            // Channel doesn't exist - cache as null
-            kickChannelDataCache.set(slugLower, {
-              data: null,
-              timestamp: now,
-            });
-            console.debug(
-              `[ChannelVerify] Kick channel "${slug}" does not exist (deleted account)`
-            );
-          }
-        }
-      } catch (error) {
-        console.warn("[ChannelVerify] Failed to fetch Kick channels batch:", error);
-        // On error, include original channels without enrichment
-        for (const { slug, originalChannel } of batch) {
-          enrichedChannels.set(slug.toLowerCase(), originalChannel);
-        }
+      if (!fetchedChannel) {
+        kickChannelDataCache.set(slugLower, { data: null, timestamp: now });
+        console.debug(
+          `[ChannelVerify] Kick channel "${slug}" does not exist (deleted account)`
+        );
+        continue;
       }
+
+      const user = userById.get(fetchedChannel.id);
+      const avatarUrl = user?.profile_picture || fetchedChannel.avatarUrl || "";
+      const displayName = user?.name || fetchedChannel.displayName || originalChannel.displayName;
+
+      const merged = {
+        ...originalChannel,
+        avatarUrl: avatarUrl || originalChannel.avatarUrl || "",
+        displayName,
+        isVerified: fetchedChannel.isVerified || originalChannel.isVerified,
+        isLive: fetchedChannel.isLive,
+        followerCount: fetchedChannel.followerCount,
+      };
+
+      kickChannelDataCache.set(slugLower, {
+        data: {
+          avatarUrl: merged.avatarUrl,
+          displayName: merged.displayName,
+          isVerified: merged.isVerified,
+          isLive: merged.isLive,
+          followerCount: merged.followerCount,
+        },
+        timestamp: now,
+      });
+      enrichedChannels.set(slugLower, merged);
+    }
+  } catch (error) {
+    console.warn("[ChannelVerify] Failed to fetch Kick channels batch:", error);
+    for (const { slug, originalChannel } of slugsToFetch) {
+      enrichedChannels.set(slug.toLowerCase(), originalChannel);
     }
   }
 
@@ -259,6 +288,7 @@ export function registerSearchHandlers(): void {
         platform?: Platform;
         liveOnly?: boolean;
         limit?: number;
+        after?: string;
       }
     ) => {
       const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
@@ -273,14 +303,15 @@ export function registerSearchHandlers(): void {
         const shouldEnrich = true;
 
         // Create search promises for parallel execution
-        const searchPromises: Promise<{ platform: Platform; data: any[] }>[] = [];
+        const searchPromises: Promise<{ platform: Platform; data: any[]; cursor?: string }>[] = [];
 
         // Twitch search
         if (!params.platform || params.platform === "twitch") {
           searchPromises.push(
             (async () => {
               const result = await twitchClient.searchChannels(params.query, {
-                first: params.limit || 20,
+                first: params.limit || 50,
+                after: params.after,
                 liveOnly: params.liveOnly,
               });
 
@@ -300,7 +331,7 @@ export function registerSearchHandlers(): void {
                 channels = await filterVerifiedChannels(channels, "twitch");
               }
 
-              return { platform: "twitch" as Platform, data: channels };
+              return { platform: "twitch" as Platform, data: channels, cursor: result.cursor };
             })().catch((err) => {
               console.warn("⚠️ Failed to search Twitch channels:", err);
               return { platform: "twitch" as Platform, data: [] };
@@ -308,8 +339,8 @@ export function registerSearchHandlers(): void {
           );
         }
 
-        // Kick search
-        if (!params.platform || params.platform === "kick") {
+        // Kick search — only on first page (Kick has no cursor-based pagination)
+        if ((!params.platform || params.platform === "kick") && !params.after) {
           searchPromises.push(
             (async () => {
               console.debug(`[SearchHandler] Searching Kick for "${params.query}"`);
@@ -384,13 +415,15 @@ export function registerSearchHandlers(): void {
             return 0;
           });
 
+          const twitchCursor = results.find((r) => r.platform === "twitch")?.cursor;
           console.debug(
-            `[SearchHandler] Returning ${allChannels.length} channels (limit: ${params.limit})`
+            `[SearchHandler] Returning ${allChannels.length} channels (cursor: ${twitchCursor ?? "none"})`
           );
-          return { success: true, data: allChannels };
+          return { success: true, data: allChannels, cursor: twitchCursor };
         }
 
-        return { success: true, ...results[0] };
+        const { platform: _p, ...rest } = results[0];
+        return { success: true, ...rest };
       } catch (error) {
         console.error("❌ Failed to search channels:", error);
         return { success: false, error: error instanceof Error ? error.message : "Search failed" };
