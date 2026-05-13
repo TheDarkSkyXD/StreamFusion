@@ -155,7 +155,7 @@ export function FollowingPage() {
   ]);
 
   return (
-    <div className="p-6 h-full flex flex-col gap-6">
+    <div className="px-6 pt-6 h-full flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <LuHeart className="fill-red-500 text-red-500" />
