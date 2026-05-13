@@ -100,3 +100,4 @@ reference/
 
 .playwright-cli/
 .playwright/
+.playwright-mcp/
