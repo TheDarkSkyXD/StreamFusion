@@ -93,14 +93,18 @@ export async function getAllTopCategories(client: TwitchRequestor): Promise<Unif
     allCategories.push(...result.data);
     cursor = result.cursor;
 
-    // No more pages = done
-    if (!cursor || result.data.length < perPage) {
+    // Helix /games/top returns `pagination.cursor` only while more pages
+    // exist, so the cursor alone is authoritative. Do NOT short-circuit on
+    // `data.length < perPage`: Helix occasionally returns a partial page in
+    // the middle of the list (post-cap filtering), and bailing on that
+    // truncated the long tail of categories.
+    if (!cursor || result.data.length === 0) {
       break;
     }
 
-    // Safety valve: stop at 2000 (Twitch has ~1500 categories)
-    if (allCategories.length >= 2000) {
-      console.warn("⚠️ Twitch category fetch hit safety limit (2000)");
+    // Safety valve to prevent runaway loops if the API misbehaves.
+    if (allCategories.length >= 5000) {
+      console.warn("⚠️ Twitch category fetch hit safety limit (5000)");
       break;
     }
   }

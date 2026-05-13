@@ -1,6 +1,5 @@
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
-import { storageService } from "../../../services/storage-service";
 
 import type { TwitchClientError } from "./twitch-types";
 
@@ -168,15 +167,7 @@ export class TwitchRequestor {
     // intentionally disabled because client secrets live on the Cloudflare Worker
     // and no /auth/twitch/app-token proxy endpoint has been created yet.
     // Callers should use GQL-based methods for unauthenticated access.
-    let accessToken: string | undefined;
-
-    const hasUserToken = await twitchAuthService.ensureValidToken();
-    if (hasUserToken) {
-      const userToken = storageService.getToken("twitch");
-      if (userToken) {
-        accessToken = userToken.accessToken;
-      }
-    }
+    const accessToken = await twitchAuthService.getValidAccessToken();
 
     if (!accessToken) {
       throw new Error("Not authenticated with Twitch. Use GQL API for unauthenticated access.");

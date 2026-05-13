@@ -247,13 +247,17 @@ class TwitchClient extends TwitchRequestor {
   }
 
   /**
-   * Get category/game by ID
-   * Uses GQL search as a fallback strategy
+   * Get category/game by ID. Prefers GQL (works without auth); falls back to Helix
+   * if GQL fails for any reason and we happen to have an app token.
    */
   async getCategoryById(id: string): Promise<UnifiedCategory | null> {
-    // GQL doesn't have a direct getById — fall back to Helix for this
-    const CategoryEndpoints = await import("./endpoints/category-endpoints");
-    return CategoryEndpoints.getCategoryById(this, id);
+    try {
+      return await GqlClient.gqlGetCategoryById(id);
+    } catch (error) {
+      console.warn("GQL getCategoryById failed, falling back to Helix:", error);
+      const CategoryEndpoints = await import("./endpoints/category-endpoints");
+      return CategoryEndpoints.getCategoryById(this, id);
+    }
   }
 
   /**

@@ -27,15 +27,37 @@ export interface TwitchAuthSession {
   createdAt: number;
 }
 
+// Single-flight refresh guard. When a quiet token expiry leaves N concurrent
+// IPC requests pending and they all hit 401 at once, each caller would
+// otherwise kick off its own refresh — multiplying load on the Twitch auth
+// endpoint, burning 401-retry budget, and potentially racing rotated refresh
+// tokens. While a refresh is in flight, subsequent callers `await` the same
+// promise. The new token is persisted to storage inside the promise chain so
+// waiters see the fresh token via `storageService.getToken` after they resume.
+let _refreshInFlight: Promise<AuthToken | null> | null = null;
+
 // ========== Twitch Auth Service Class ==========
 
 class TwitchAuthService {
   private readonly platform: Platform = "twitch";
 
   /**
-   * Refresh the access token using the refresh token
+   * Refresh the access token using the refresh token. Concurrent callers share
+   * a single in-flight refresh — see `_refreshInFlight` above.
    */
   async refreshToken(): Promise<AuthToken | null> {
+    if (_refreshInFlight) {
+      return _refreshInFlight;
+    }
+    _refreshInFlight = this._performRefresh();
+    try {
+      return await _refreshInFlight;
+    } finally {
+      _refreshInFlight = null;
+    }
+  }
+
+  private async _performRefresh(): Promise<AuthToken | null> {
     const currentToken = storageService.getToken(this.platform);
 
     if (!currentToken?.refreshToken) {
@@ -91,6 +113,19 @@ class TwitchAuthService {
     }
 
     return true;
+  }
+
+  /**
+   * Get a currently-valid access token string, refreshing if needed.
+   * Single-pass equivalent of ensureValidToken() + storageService.getToken()
+   * for callers that just need the string. Returns null if no token.
+   * (Sibling sync getAccessToken() below returns the cached token without refreshing.)
+   */
+  async getValidAccessToken(): Promise<string | null> {
+    const ok = await this.ensureValidToken();
+    if (!ok) return null;
+    const token = storageService.getToken(this.platform);
+    return token?.accessToken ?? null;
   }
 
   /**

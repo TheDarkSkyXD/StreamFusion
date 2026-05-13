@@ -71,6 +71,17 @@ export interface UnifiedCategory {
   boxArtUrl: string;
   igdbId?: string;
   viewerCount?: number; // Total viewers for the category (if available)
+  // Curated tags ("FPS", "Casual", "IRL", …). Kick surfaces these in
+  // /private/v1/categories; Twitch doesn't include any on /games/top, so for
+  // Twitch-only entries this is empty until the per-card lazy fetch fills it.
+  tags?: string[];
+  // Twitch-only: URL slug (e.g. "just-chatting"). Required by the
+  // DirectoryPage_Game persisted query, which keys off slug not numeric id.
+  slug?: string;
+  // Set by the frontend merge in useTopCategories when the same category exists
+  // on both platforms — lets CategoryDetail skip a brittle runtime name-search.
+  crossPlatformId?: string;
+  crossPlatformName?: string;
 }
 
 // ========== User Types ==========

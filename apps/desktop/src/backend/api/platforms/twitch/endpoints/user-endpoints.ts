@@ -181,10 +181,12 @@ export async function getFollowerCounts(
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
 
-  // Twitch API doesn't support batch follower count requests
-  // We need to make individual requests, but we can do them in parallel
-  // Limit concurrent requests to avoid rate limiting
-  const concurrencyLimit = 10;
+  // Twitch API doesn't support batch follower count requests.
+  // We make individual requests in parallel, capped at a concurrency limit.
+  // Helix /channels/followers consumes 1 rate-limit point per call;
+  // per-token bucket is 800/min, so 25 concurrent is well within budget.
+  // The 429 retry path in twitch-requestor absorbs any overshoot.
+  const concurrencyLimit = 25;
 
   for (let i = 0; i < broadcasterIds.length; i += concurrencyLimit) {
     const batch = broadcasterIds.slice(i, i + concurrencyLimit);

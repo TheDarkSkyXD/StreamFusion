@@ -20,14 +20,12 @@ import {
   type ChannelRootAboutPanelData,
   type ChannelShellData,
   type ClipsCardsUserData,
-  type DirectoryPageGameData,
   type DirectoryPageGameStream,
   type FilterableVideoTowerVideosData,
   getQueryBowsePageAllDirectories,
   getQueryChannelRootAboutPanel,
   getQueryChannelShell,
   getQueryClipsCardsUser,
-  getQueryDirectoryPageGame,
   getQueryFilterableVideoTowerVideos,
   getQueryGetUserId,
   getQueryPlaybackAccessToken,
@@ -57,7 +55,14 @@ import type {
 import type { PaginatedResult, PaginationOptions } from "./twitch-types";
 
 const GQL_ENDPOINT = "https://gql.twitch.tv/gql";
-const GQL_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+// Anonymous public-data Client-Id. Twitch's web Client-Id (kimne78…) pairs
+// with an integrity token in real browser traffic — without it, anonymous
+// requests (especially persisted queries) trip the integrity check. The
+// Android-app Client-Id (same one Xtra uses) doesn't enforce that pairing,
+// so it's the right default for every anonymous GQL call in this client.
+// (The playback / ad-block / manifest-proxy paths still use the web ID
+// because they simulate the web client with paired Client-Integrity headers.)
+const GQL_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const MAX_QUERIES_PER_REQUEST = 35;
 
 /**
@@ -84,6 +89,32 @@ async function gqlRequest<T extends readonly any[]>(queries: [...T]): Promise<an
     throw new Error(`GQL request failed: ${res.status} ${res.statusText}`);
   }
 
+  return res.json();
+}
+
+/**
+ * POST a single persisted query (not an array). Twitch's pre-registered
+ * persisted queries bypass the integrity check that blocks paginated
+ * anonymous raw queries.
+ */
+async function sendPersistedQuery<T>(
+  operationName: string,
+  sha256Hash: string,
+  variables: Record<string, unknown>
+): Promise<{ data?: T; errors?: { message: string }[] }> {
+  const body = {
+    operationName,
+    variables,
+    extensions: { persistedQuery: { version: 1, sha256Hash } },
+  };
+  const res = await fetch(GQL_ENDPOINT, {
+    method: "POST",
+    headers: { "Client-Id": GQL_CLIENT_ID, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`GQL request failed: ${res.status} ${res.statusText}`);
+  }
   return res.json();
 }
 
@@ -121,10 +152,262 @@ function transformGqlStream(
 // PUBLIC DATA ACCESS (No API Key Required)
 // ============================================================
 
+// Process-lifetime cache: gameId → slug. Populated on first lookup of a
+// category that didn't already arrive with a slug (e.g. deep-link / page reload).
+const gameSlugCache = new Map<string, string>();
+
 /**
- * Get top streams across all categories or filtered by a specific game slug.
- * Uses DirectoryPage_Game GQL query for category-filtered streams,
- * or a raw "BrowsePage" style query for general top streams.
+ * Resolve a numeric Twitch game ID → URL slug. The DirectoryPage_Game
+ * persisted query keys off slug, not id, so we need this one-time lookup
+ * before paginating. Result is cached for the process lifetime.
+ */
+async function resolveGameSlugById(gameId: string): Promise<string | null> {
+  const cached = gameSlugCache.get(gameId);
+  if (cached) return cached;
+
+  const query = `query GetGameSlug($id: ID!) { game(id: $id) { slug } }`;
+  const [res] = (await gqlRequest([
+    getRawQuery<{ game: { slug: string } | null }>({ query, variables: { id: gameId } }),
+  ])) as [{ data: { game: { slug: string } | null } }];
+
+  const slug = res.data?.game?.slug;
+  if (slug) gameSlugCache.set(gameId, slug);
+  return slug ?? null;
+}
+
+/**
+ * Fetch Twitch category-level content tags. Single raw GQL request — the
+ * Helix /games/top response doesn't carry tags, so this is the only way to
+ * surface them.
+ */
+export async function gqlGetGameMetadata(gameId: string): Promise<{ tags: string[] } | null> {
+  const query = `query GameMetadata($id: ID!) {
+    game(id: $id) {
+      id
+      tags(tagType: CONTENT) {
+        id
+        localizedName
+      }
+    }
+  }`;
+
+  try {
+    const [res] = (await gqlRequest([
+      getRawQuery<{
+        game: null | {
+          id: string;
+          tags: { id: string; localizedName: string | null }[] | null;
+        };
+      }>({ query, variables: { id: gameId } }),
+    ])) as [
+      {
+        data: {
+          game: null | {
+            tags: { id: string; localizedName: string | null }[] | null;
+          };
+        };
+      },
+    ];
+
+    const game = res.data?.game;
+    if (!game) return null;
+
+    const tags = (game.tags || [])
+      .map((t) => t.localizedName?.trim() || "")
+      .filter((s) => s.length > 0);
+    return { tags };
+  } catch (err) {
+    console.warn(`[Twitch] gqlGetGameMetadata failed for ${gameId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Fetch streams for a category via the `DirectoryPage_Game` persisted query
+ * (same hash + variable shape Xtra uses). Persisted queries bypass the
+ * integrity check that blocks paginated anonymous raw queries — which is why
+ * this path scales past the ~100-stream wall the raw-query path hits.
+ */
+export async function gqlGetGameStreamsBySlug(
+  slug: string,
+  options: { first?: number; after?: string; language?: string } = {}
+): Promise<PaginatedResult<UnifiedStream>> {
+  const limit = Math.min(options.first ?? 30, 30);
+  const res = await sendPersistedQuery<{
+    game: null | {
+      streams: null | {
+        edges: { cursor: string | null; node: DirectoryPageGameStream }[];
+        pageInfo: { hasNextPage: boolean };
+      };
+    };
+  }>(
+    "DirectoryPage_Game",
+    "76cb069d835b8a02914c08dc42c421d0dafda8af5b113a3f19141824b901402f",
+    {
+      cursor: options.after ?? null,
+      imageWidth: 50,
+      includeCostreaming: true,
+      limit,
+      options: {
+        // Twitch's `Language` GraphQL enum uses uppercase 2-letter codes
+        // (EN, ES, FR, …); sending lowercase ISO codes fails enum validation
+        // and the server returns zero streams.
+        broadcasterLanguages: options.language ? [options.language.toUpperCase()] : [],
+        freeformTags: [],
+        sort: "VIEWER_COUNT",
+      },
+      slug,
+      sortTypeIsRecency: false,
+    }
+  );
+
+  if (res.errors?.length) {
+    // PersistedQueryNotFound = Twitch retired the hash. Surface loud so we notice.
+    const msg = res.errors.map((e) => e.message).join(", ");
+    throw new Error(`DirectoryPage_Game persisted query failed: ${msg}`);
+  }
+
+  const conn = res.data?.game?.streams;
+  if (!conn) return { data: [] };
+
+  const streams = conn.edges.map((e) => transformGqlStream(e.node));
+  const lastCursor = conn.edges[conn.edges.length - 1]?.cursor;
+  return {
+    data: streams,
+    cursor: conn.pageInfo.hasNextPage ? (lastCursor ?? undefined) : undefined,
+  };
+}
+
+/**
+ * Get streams for a single game/category by ID, with cursor-based pagination.
+ *
+ * Primary path: resolve gameId → slug, then call `DirectoryPage_Game`
+ * (persisted query). Bypasses the integrity check that caps the raw path.
+ * Fallback: the raw `game(id:).streams` query (hits the ~100-stream wall but
+ * works as a last resort if the persisted hash gets retired).
+ */
+export async function gqlGetStreamsByGameId(
+  gameId: string,
+  options: { first?: number; after?: string; language?: string; slug?: string } = {}
+): Promise<PaginatedResult<UnifiedStream>> {
+  const slug = options.slug ?? (await resolveGameSlugById(gameId));
+  if (slug) {
+    try {
+      return await gqlGetGameStreamsBySlug(slug, options);
+    } catch (err) {
+      console.warn("⚠️ DirectoryPage_Game persisted query failed, falling back to raw:", err);
+    }
+  }
+  return gqlGetStreamsByGameIdRaw(gameId, options);
+}
+
+/**
+ * Raw-query fallback for {@link gqlGetStreamsByGameId}. Works for the first
+ * page (and ~100 streams total) but anonymous paginated raw queries trip
+ * Twitch's "failed integrity check" — which we swallow here as end-of-stream
+ * since this is the last-resort path.
+ */
+async function gqlGetStreamsByGameIdRaw(
+  gameId: string,
+  options: { first?: number; after?: string; language?: string } = {}
+): Promise<PaginatedResult<UnifiedStream>> {
+  // Twitch's `Game.streams(first:)` field is capped at 100 per request.
+  // Going above this triggers "argument 'first' value must be between 1 and 100".
+  const first = Math.min(options.first || 20, 100);
+
+  const query = `
+    query GetStreamsByGameId($id: ID!, $first: Int!, $after: Cursor, $options: GameStreamOptions) {
+      game(id: $id) {
+        id
+        streams(first: $first, after: $after, options: $options) {
+          edges {
+            cursor
+            node {
+              id
+              title
+              viewersCount
+              previewImageURL(width: 440, height: 248)
+              type
+              broadcaster {
+                id
+                login
+                displayName
+                profileImageURL(width: 70)
+                primaryColorHex
+                roles { isPartner __typename }
+                __typename
+              }
+              freeformTags { id name __typename }
+              game {
+                id
+                boxArtURL
+                name
+                displayName
+                slug
+                __typename
+              }
+              previewThumbnailProperties { blurReason __typename }
+              __typename
+            }
+            __typename
+          }
+          pageInfo { hasNextPage __typename }
+          __typename
+        }
+        __typename
+      }
+    }
+  `;
+
+  type StreamsByGameIdData = {
+    game: null | {
+      id: string;
+      streams: null | {
+        edges: { cursor: string; node: DirectoryPageGameStream; __typename: string }[];
+        pageInfo: { hasNextPage: boolean };
+      };
+    };
+  };
+
+  const [response] = (await gqlRequest([
+    getRawQuery<StreamsByGameIdData>({
+      query,
+      variables: {
+        id: gameId,
+        first,
+        after: options.after || null,
+        options: {
+          sort: "VIEWER_COUNT",
+          // See gqlGetGameStreamsBySlug — Twitch's Language enum is uppercase.
+          ...(options.language
+            ? { broadcasterLanguages: [options.language.toUpperCase()] }
+            : {}),
+        },
+      },
+    }),
+  ])) as [{ data: StreamsByGameIdData; errors?: any[] }];
+
+  if (response.errors) {
+    // "failed integrity check" is Twitch's expected response to paginated
+    // anonymous raw queries (after: <cursor>). Treat it as end-of-stream
+    // instead of logging noise.
+    const messages = response.errors.map((e: any) => e.message).join(", ");
+    if (!messages.includes("failed integrity check")) {
+      console.warn("⚠️ [GQL] GetStreamsByGameId query errors:", messages);
+    }
+  }
+
+  const streamsConn = response.data?.game?.streams;
+  if (!streamsConn) return { data: [] };
+
+  const streams = streamsConn.edges.map((edge) => transformGqlStream(edge.node));
+  const lastCursor = streamsConn.edges[streamsConn.edges.length - 1]?.cursor;
+  const cursor = streamsConn.pageInfo.hasNextPage ? lastCursor || undefined : undefined;
+  return { data: streams, cursor };
+}
+
+/**
+ * Get top streams across all categories or filtered by a specific game ID.
  */
 export async function gqlGetTopStreams(
   options: PaginationOptions & { gameId?: string; language?: string } = {}
@@ -132,32 +415,11 @@ export async function gqlGetTopStreams(
   const limit = options.first || 20;
 
   if (options.gameId) {
-    // Use DirectoryPage_Game for category-specific streams
-    // We need the game slug, but we have a game ID — use a raw query to handle this
-    const [response] = (await gqlRequest([
-      getQueryDirectoryPageGame({
-        slug: options.gameId, // This could be slug or ID; we'll handle both
-        options: {
-          sort: "VIEWER_COUNT",
-          recommendationsContext: { platform: "web" },
-          ...(options.language ? { broadcasterLanguages: [options.language] } : {}),
-        },
-        sortTypeIsRecency: false,
-        limit,
-        includeIsDJ: false,
-      }),
-    ])) as [{ data: DirectoryPageGameData }];
-
-    const game = response.data?.game;
-    if (!game) return { data: [] };
-
-    const streams = game.streams.edges.map((edge) => transformGqlStream(edge.node));
-
-    const lastCursor = game.streams.edges[game.streams.edges.length - 1]?.cursor;
-    return {
-      data: streams,
-      cursor: game.streams.pageInfo.hasNextPage ? lastCursor || undefined : undefined,
-    };
+    return gqlGetStreamsByGameId(options.gameId, {
+      first: limit,
+      after: options.after,
+      language: options.language,
+    });
   }
 
   // For general top streams without a category filter, we use a raw query
@@ -216,11 +478,12 @@ export async function gqlGetTopStreams(
     };
   };
 
+  // Twitch GQL caps `streams(first:)` at 30. Clamp to avoid argument-range errors.
   const [response] = (await gqlRequest([
     getRawQuery<TopStreamsData>({
       query,
       variables: {
-        limit,
+        limit: Math.min(limit, 30),
         cursor: options.after || null,
       },
     }),
@@ -363,7 +626,6 @@ export async function gqlGetTopCategories(
       limit,
       options: {
         sort: "VIEWER_COUNT",
-        recommendationsContext: { platform: "web" },
       },
       cursor: options.after || null,
     }),
@@ -376,6 +638,7 @@ export async function gqlGetTopCategories(
     id: edge.node.id,
     platform: "twitch" as const,
     name: edge.node.displayName || edge.node.name,
+    slug: edge.node.slug,
     boxArtUrl: edge.node.avatarURL.replace("{width}", "285").replace("{height}", "380"),
     viewerCount: edge.node.viewersCount ?? undefined,
   }));
@@ -404,14 +667,75 @@ export async function gqlGetAllTopCategories(): Promise<UnifiedCategory[]> {
     allCategories.push(...result.data);
     cursor = result.cursor;
 
-    if (!cursor || result.data.length < perPage) break;
-    if (allCategories.length >= 2000) {
-      console.warn("⚠️ Twitch GQL category fetch hit safety limit (2000)");
+    // End-of-list is signalled by the cursor alone — `gqlGetTopCategories`
+    // already maps `pageInfo.hasNextPage === false` to `cursor: undefined`.
+    // Do NOT short-circuit on `data.length < perPage`: Twitch's
+    // BrowsePage_AllDirectories regularly returns fewer items than `limit`
+    // (mature/restricted/region filtering happens after the page-size cap)
+    // even when `hasNextPage` is true, which used to terminate the loop
+    // after the first short page and miss the long tail of categories.
+    if (!cursor || result.data.length === 0) break;
+    if (allCategories.length >= 5000) {
+      console.warn("⚠️ Twitch GQL category fetch hit safety limit (5000)");
       break;
     }
   }
 
   return allCategories;
+}
+
+/**
+ * Get a single category/game by ID via GQL (unauthenticated).
+ * Twitch GQL exposes a top-level `game(id:)` resolver.
+ */
+export async function gqlGetCategoryById(id: string): Promise<UnifiedCategory | null> {
+  const query = `
+    query GetGameById($id: ID!) {
+      game(id: $id) {
+        id
+        name
+        displayName
+        slug
+        boxArtURL
+        viewersCount
+        __typename
+      }
+    }
+  `;
+
+  type GameByIdData = {
+    game: null | {
+      id: string;
+      name: string;
+      displayName: string | null;
+      slug: string | null;
+      boxArtURL: string;
+      viewersCount: number | null;
+    };
+  };
+
+  const [response] = (await gqlRequest([
+    getRawQuery<GameByIdData>({ query, variables: { id } }),
+  ])) as [{ data: GameByIdData; errors?: any[] }];
+
+  if (response.errors) {
+    console.warn(
+      "⚠️ [GQL] GetGameById query errors:",
+      response.errors.map((e: any) => e.message).join(", ")
+    );
+  }
+
+  const game = response.data?.game;
+  if (!game) return null;
+
+  return {
+    id: game.id,
+    platform: "twitch",
+    name: game.displayName || game.name,
+    slug: game.slug ?? undefined,
+    boxArtUrl: game.boxArtURL.replace("{width}", "285").replace("{height}", "380"),
+    viewerCount: game.viewersCount ?? undefined,
+  };
 }
 
 /**
