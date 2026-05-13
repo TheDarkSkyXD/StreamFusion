@@ -39,6 +39,13 @@ class EmoteManager extends EventEmitter {
   private channelAccessOrder: string[] = [];
   /** Cleanup interval timer */
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Single-flight dedup for per-provider channel fetches. When two consumers
+   * (e.g. two multistream tiles on the same channel) load simultaneously, the
+   * second sees the in-flight promise and awaits it instead of firing a
+   * parallel provider fetch. Keyed by `channel:${provider}:${channelId}`.
+   */
+  private channelEmoteInFlight: Map<string, Promise<Emote[]>> = new Map();
 
   constructor(config: Partial<EmoteManagerConfig> = {}) {
     super();
@@ -47,6 +54,9 @@ class EmoteManager extends EventEmitter {
     // Start periodic cleanup if in browser
     if (typeof window !== "undefined") {
       this.startCleanupTimer();
+      // Stop the timer on page unload so it doesn't keep running in a
+      // detached context after a renderer reload.
+      window.addEventListener("beforeunload", () => this.stopCleanupTimer());
     }
   }
 
@@ -200,10 +210,27 @@ class EmoteManager extends EventEmitter {
             return { provider: name, emotes: cached, fromCache: true };
           }
 
-          const emotes = await provider.fetchChannelEmotes(channelId, channelName, platform);
+          // Single-flight: dedupe concurrent fetches for the same cacheKey.
+          let pending = this.channelEmoteInFlight.get(cacheKey);
+          if (!pending) {
+            pending = (async () => {
+              const emotes = await provider.fetchChannelEmotes(channelId, channelName, platform);
+              this.cacheEmotes(cacheKey, emotes, channelId);
+              this.emit("emotesFetched", name, false, channelId);
+              return emotes;
+            })();
+            this.channelEmoteInFlight.set(cacheKey, pending);
+            // Always clear in-flight slot — success or failure — so a transient
+            // error doesn't poison subsequent attempts.
+            pending.finally(() => {
+              if (this.channelEmoteInFlight.get(cacheKey) === pending) {
+                this.channelEmoteInFlight.delete(cacheKey);
+              }
+            });
+          }
+
+          const emotes = await pending;
           channelMap.set(name, emotes);
-          this.cacheEmotes(cacheKey, emotes, channelId);
-          this.emit("emotesFetched", name, false, channelId);
           return { provider: name, emotes, fromCache: false };
         } catch (error) {
           // Channel emotes failing is not critical - just log it

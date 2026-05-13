@@ -7,7 +7,7 @@
 
 import path from "node:path";
 
-import { app, BrowserWindow, globalShortcut, screen } from "electron";
+import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
 // No longer using Electron Forge globals - electron-vite provides:
 //   - process.env.ELECTRON_RENDERER_URL (dev server URL in development)
@@ -156,6 +156,12 @@ class WindowManager {
     } else {
       this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
     }
+
+    // Ensure any target="_blank" navigations open in the system browser
+    this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url);
+      return { action: "deny" };
+    });
 
     // Development only: Open DevTools and register shortcuts
     if (this.isDev) {

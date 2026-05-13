@@ -35,6 +35,19 @@ export function initializeEmoteProviders(): void {
   emoteManager.registerProvider(sevenTVEmoteProvider);
 }
 
+let emoteProvidersInitialized = false;
+
+/**
+ * Idempotent variant of initializeEmoteProviders for use from feature mount
+ * points (e.g. ChatPanel). Pages with no chat (Home, Categories) don't pay
+ * the cost of loading + registering 5 providers at app boot.
+ */
+export function ensureEmoteProvidersInitialized(): void {
+  if (emoteProvidersInitialized) return;
+  emoteProvidersInitialized = true;
+  initializeEmoteProviders();
+}
+
 /**
  * Configure Twitch provider with credentials and initialize
  * @param clientId - Twitch Client ID

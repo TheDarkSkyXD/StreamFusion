@@ -43,6 +43,10 @@ const defaults: StorageSchema = {
 class StorageService {
   private store: Store<StorageSchema> | null = null;
   private isEncryptionAvailable = false;
+  // In-memory cache of decrypted auth tokens. Avoids a safeStorage.decryptString()
+  // call (DPAPI on Windows) on every API call. Lifetime = process lifetime,
+  // invalidated by saveToken / clearToken / clearAllTokens.
+  private tokenCache = new Map<Platform, AuthToken>();
 
   initialize() {
     if (this.store) return; // Already initialized
@@ -106,6 +110,7 @@ class StorageService {
     const tokens = this.storeInstance.get("authTokens") || {};
     tokens[platform] = encrypted;
     this.storeInstance.set("authTokens", tokens);
+    this.tokenCache.set(platform, token);
 
     console.debug(`✅ Token saved for ${platform}`);
   }
@@ -114,6 +119,9 @@ class StorageService {
    * Get an auth token for a platform
    */
   getToken(platform: Platform): AuthToken | null {
+    const cached = this.tokenCache.get(platform);
+    if (cached) return cached;
+
     const tokens = this.storeInstance.get("authTokens") || {};
     const encrypted = tokens[platform];
 
@@ -123,7 +131,9 @@ class StorageService {
 
     try {
       const tokenString = this.decryptToken(encrypted);
-      return JSON.parse(tokenString) as AuthToken;
+      const token = JSON.parse(tokenString) as AuthToken;
+      this.tokenCache.set(platform, token);
+      return token;
     } catch (error) {
       console.error(`Failed to decrypt token for ${platform}:`, error);
       return null;
@@ -162,6 +172,7 @@ class StorageService {
     const tokens = this.storeInstance.get("authTokens") || {};
     delete tokens[platform];
     this.storeInstance.set("authTokens", tokens);
+    this.tokenCache.delete(platform);
     console.debug(`🗑️ Token cleared for ${platform}`);
   }
 
@@ -171,6 +182,7 @@ class StorageService {
   clearAllTokens(): void {
     this.storeInstance.set("authTokens", {});
     this.storeInstance.set("appTokens", {});
+    this.tokenCache.clear();
     console.debug("🗑️ All tokens cleared");
   }
 

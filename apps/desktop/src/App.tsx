@@ -1,16 +1,12 @@
 import { RouterProvider } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { initializeEmoteProviders } from "@/backend/services/emotes";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/providers/query-provider";
 import { router } from "@/routes/router";
 
 function App() {
-  useEffect(() => {
-    // Initialize emote providers (register them with manager)
-    initializeEmoteProviders();
-  }, []);
+  // Emote providers are registered lazily on first ChatPanel mount via
+  // ensureEmoteProvidersInitialized() — Home/Categories don't pay the cost.
 
   return (
     <QueryProvider>
