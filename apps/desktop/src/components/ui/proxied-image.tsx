@@ -1,28 +1,21 @@
 /**
  * ProxiedImage Component
  *
- * Fetches images through Electron's main process to bypass CORS restrictions.
- * Shows skeleton loading while fetching URL, falls back to a placeholder if the image fails to load.
+ * Renders an <img> for remote images. For Kick CDN URLs (which require special
+ * Referer/Origin headers to bypass hotlinking protection), the src is rewritten
+ * to a kick-image://image?u=<base64url> URL handled by the custom protocol in
+ * the main process. That lets Chromium use its native disk + decoded-bitmap
+ * cache instead of holding a multi-MB base64 data URL per visible image in
+ * renderer JS memory.
  */
 
-import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Skeleton } from "./skeleton";
+import { cn } from "@/lib/utils";
 
-// Domains that require IPC proxying (image fetched in main process, returned as base64)
-//
-// Kick CDN domains require the IPC proxy because:
-// 1. files.kick.com and images.kick.com have strict hotlinking protection
-// 2. Electron's request interceptor (onBeforeSendHeaders) doesn't reliably set Referer headers
-// 3. The IPC proxy uses Electron's net.request which can set headers properly
-//
-// Kick image URL patterns:
-// - files.kick.com: Profile pictures, emotes, banners (legacy)
-// - images.kick.com: Thumbnails, video previews
-// - kick.com/img/: Official API profile pictures
-//
-// @see src/backend/ipc/handlers/system-handlers.ts
+const KICK_IMAGE_SCHEME = "kick-image";
+
+// Domains that require proxying through kick-image:// (Referer/Origin needed).
 const PROXY_REQUIRED_DOMAINS: string[] = ["files.kick.com", "images.kick.com"];
 
 // Additional URL patterns that require proxying (checked against full URL)
@@ -30,27 +23,36 @@ const PROXY_REQUIRED_PATTERNS: RegExp[] = [
   /^https?:\/\/(www\.)?kick\.com\/img\//i, // kick.com/img/... URLs from official API
 ];
 
-/**
- * Check if a URL requires proxying
- */
 function needsProxy(url: string): boolean {
   try {
     const parsed = new URL(url);
 
-    // Check against domain list
     const domainMatch = PROXY_REQUIRED_DOMAINS.some(
       (domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
     );
     if (domainMatch) return true;
 
-    // Check against URL pattern list
-    const patternMatch = PROXY_REQUIRED_PATTERNS.some((pattern) => pattern.test(url));
-    if (patternMatch) return true;
-
-    return false;
+    return PROXY_REQUIRED_PATTERNS.some((pattern) => pattern.test(url));
   } catch {
     return false;
   }
+}
+
+function toBase64Url(value: string): string {
+  // btoa accepts only Latin-1 bytes; encode as UTF-8 first so Kick CDN URLs
+  // with non-ASCII characters round-trip safely.
+  const utf8 = String.fromCharCode(...new TextEncoder().encode(value));
+  return btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function resolveSrc(src: string | undefined | null): string | null {
+  if (!src || src.trim() === "") return null;
+  if (src.startsWith("data:")) return src;
+  if (!src.startsWith("http")) return null;
+  if (needsProxy(src)) {
+    return `${KICK_IMAGE_SCHEME}://image?u=${toBase64Url(src)}`;
+  }
+  return src;
 }
 
 interface ProxiedImageProps {
@@ -59,13 +61,24 @@ interface ProxiedImageProps {
   className?: string;
   fallback?: React.ReactNode;
   fallbackClassName?: string;
-  /** Optional class name for the skeleton loader. Defaults to className if not provided. */
+  /** Kept for backward compatibility; placeholder is now drawn on the <img>. */
   skeletonClassName?: string;
   /**
-   * Native lazy loading attribute. Defaults to 'lazy' for performance.
-   * Use 'eager' for above-the-fold images that should load immediately.
+   * Native lazy loading attribute. Defaults to "lazy" for off-screen images.
+   * Use "eager" for above-the-fold images that should load immediately.
    */
   loading?: "lazy" | "eager";
+  /**
+   * Intrinsic image dimensions. Recommended for grid cards/avatars so Chromium
+   * can reserve layout space (no CLS) and defer offscreen decode.
+   */
+  width?: number;
+  height?: number;
+  /**
+   * Fires when the image fails to load. Use to hide host UI for permanently
+   * broken URLs (e.g. purged Kick VOD thumbnails).
+   */
+  onProxyError?: () => void;
 }
 
 export function ProxiedImage({
@@ -74,147 +87,80 @@ export function ProxiedImage({
   className = "",
   fallback,
   fallbackClassName = "",
-  skeletonClassName,
-  loading = "lazy", // OPTIMIZATION: Default to lazy loading for off-screen images
+  loading = "lazy",
+  width,
+  height,
+  onProxyError,
 }: ProxiedImageProps) {
-  // The resolved image source (either direct URL or proxied data URL)
-  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
-  // Whether we're currently resolving/fetching the image URL
-  const [isResolving, setIsResolving] = useState(true);
-  // Whether there was an error (no src, invalid URL, or failed to proxy/load)
+  const resolvedSrc = useMemo(() => resolveSrc(src), [src]);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const seenSrcRef = useRef<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
-  // Whether to show skeleton (delayed to avoid flash for instant resolution)
-  const [showSkeleton, setShowSkeleton] = useState(false);
 
+  // Reset load state when the underlying src actually changes. A bare
+  // useEffect([resolvedSrc]) would also fire on initial mount and override the
+  // ref-callback's cache-hit detection below, leaving cached images stuck on
+  // the animate-pulse placeholder forever (no fresh onLoad would fire to
+  // recover, since the image is already complete).
   useEffect(() => {
-    let cancelled = false;
-    let skeletonTimer: ReturnType<typeof setTimeout> | null = null;
-
-    async function resolveImageSrc() {
-      setIsResolving(true);
+    if (seenSrcRef.current !== null && seenSrcRef.current !== resolvedSrc) {
+      setIsLoaded(false);
       setHasError(false);
-      setResolvedSrc(null);
-      setShowSkeleton(false);
-
-      // Show skeleton after 100ms delay (avoids flash for instant loads)
-      skeletonTimer = setTimeout(() => {
-        if (!cancelled) {
-          setShowSkeleton(true);
-        }
-      }, 100);
-
-      // If no src provided, show fallback
-      if (!src || src.trim() === "") {
-        setIsResolving(false);
-        setHasError(true);
-        return;
-      }
-
-      // If it's already a data URL, use it directly
-      if (src.startsWith("data:")) {
-        if (!cancelled) {
-          setResolvedSrc(src);
-          setIsResolving(false);
-        }
-        return;
-      }
-
-      // If it's not an http(s) URL, show fallback
-      if (!src.startsWith("http")) {
-        setIsResolving(false);
-        setHasError(true);
-        return;
-      }
-
-      // If the URL doesn't need proxying, use it directly
-      if (!needsProxy(src)) {
-        if (!cancelled) {
-          setResolvedSrc(src);
-          setIsResolving(false);
-        }
-        return;
-      }
-
-      // URL needs to be proxied through Electron
-      try {
-        if (!window.electronAPI?.proxyImage) {
-          throw new Error("Electron API not available");
-        }
-
-        const proxiedUrl = await window.electronAPI.proxyImage(src);
-
-        if (cancelled) return;
-
-        if (proxiedUrl) {
-          setResolvedSrc(proxiedUrl);
-        } else {
-          setHasError(true);
-        }
-      } catch (error) {
-        if (cancelled) return;
-        console.error("[ProxiedImage] Failed to proxy image:", error);
-        setHasError(true);
-      } finally {
-        if (!cancelled) {
-          setIsResolving(false);
-        }
-      }
     }
+    seenSrcRef.current = resolvedSrc;
+  }, [resolvedSrc]);
 
-    resolveImageSrc();
-
-    return () => {
-      cancelled = true;
-      if (skeletonTimer) {
-        clearTimeout(skeletonTimer);
-      }
-    };
-  }, [src]);
-
-  // Handle img element error (image failed to load after we had the URL)
-  const handleImgError = () => {
-    setHasError(true);
-  };
-
-  // Show fallback when there's an error (image unavailable)
-  if (hasError) {
-    if (fallback) {
-      return <>{fallback}</>;
+  // Cache hits can fire <img>'s load event before React attaches the handler,
+  // leaving isLoaded stuck at false. Detect via the ref callback (which runs
+  // during commit) so the placeholder doesn't flash for cached images.
+  const setImgRef = useCallback((el: HTMLImageElement | null) => {
+    imgRef.current = el;
+    if (el?.complete && el.naturalWidth > 0) {
+      setIsLoaded(true);
     }
-    // Default fallback: first letter of alt text
+  }, []);
+
+  if (!resolvedSrc || hasError) {
+    if (fallback) return <>{fallback}</>;
     const initial = alt ? alt.charAt(0).toUpperCase() : "?";
     return (
       <div
-        className={`flex items-center justify-center bg-secondary text-lg font-bold ${fallbackClassName || className}`}
+        className={cn(
+          "flex items-center justify-center bg-secondary text-lg font-bold",
+          fallbackClassName || className
+        )}
       >
         {initial}
       </div>
     );
   }
 
-  // Show skeleton while resolving URL (only after 100ms delay)
-  if (isResolving) {
-    if (showSkeleton) {
-      return <Skeleton className={skeletonClassName || className} />;
-    }
-    // Before 100ms delay, render nothing to avoid flash
-    return null;
-  }
-
-  // We have the resolved URL - render the image directly
-  // The browser will handle caching and loading animation natively
-  if (resolvedSrc) {
-    return (
-      <img
-        src={resolvedSrc}
-        alt={alt}
-        className={className}
-        loading={loading} // Native lazy loading - defers off-screen images
-        onError={handleImgError}
-      />
-    );
-  }
-
-  // Fallback case (shouldn't normally reach here)
-  return null;
+  // Important: do NOT hide the <img> with display:none / `hidden` while it
+  // is loading. The browser's lazy-load IntersectionObserver needs the img
+  // to occupy layout, otherwise it never intersects the viewport, never
+  // loads, and onLoad never fires — leaving every off-screen avatar /
+  // thumbnail stuck on a placeholder. Instead we paint a pulsing placeholder
+  // background ON the <img> itself; the image content draws over it once
+  // the network response arrives.
+  return (
+    <img
+      ref={setImgRef}
+      src={resolvedSrc}
+      alt={alt}
+      className={cn(
+        !isLoaded && "animate-pulse bg-[var(--color-background-elevated)]",
+        className
+      )}
+      loading={loading}
+      decoding="async"
+      {...(width !== undefined ? { width } : {})}
+      {...(height !== undefined ? { height } : {})}
+      onLoad={() => setIsLoaded(true)}
+      onError={() => {
+        setHasError(true);
+        onProxyError?.();
+      }}
+    />
+  );
 }
