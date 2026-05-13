@@ -516,6 +516,26 @@ https://d2vjef5jvl6bfs.cloudfront.net/ad/long-seg-${i}.ts`;
   });
 });
 
+// Playlist that mirrors real Twitch ad delivery: PROGRAM-DATE-TIME covers the
+// live segment, then a DISCONTINUITY tag introduces the stitched ad break.
+// The stripper resets its "live scope" on DISCONTINUITY, so segments after it
+// land in the ad-segment cache. Without the DISCONTINUITY (which the broader
+// PREROLL_AD_PLAYLIST fixture intentionally omits to test other paths), every
+// segment is treated as live and the cache stays empty.
+const CACHE_TEST_PLAYLIST = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:12345
+#EXT-X-PROGRAM-DATE-TIME:2024-01-01T12:00:00.000Z
+#EXTINF:2.000,live
+https://video-edge-abc.sfo03.abs.hls.ttvnw.net/v1/segment/CpAF-12344.ts
+#EXT-X-DISCONTINUITY
+#EXT-X-DATERANGE:ID="stitched-ad-1234",CLASS="twitch-stitched-ad",START-DATE="2024-01-01T12:00:00.000Z",DURATION=30.000,X-TV-TWITCH-AD-URL="https://ads.twitch.tv/track/preroll"
+#EXTINF:2.000,stitched
+https://d2vjef5jvl6bfs.cloudfront.net/ad/cache-seg-1.ts
+#EXTINF:2.000,stitched
+https://d2vjef5jvl6bfs.cloudfront.net/ad/cache-seg-2.ts`;
+
 describe('Ad Segment Cache Management', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -537,11 +557,11 @@ describe('Ad Segment Cache Management', () => {
     // Process ad playlist to cache segments
     await processMediaPlaylist(
       'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
-      PREROLL_AD_PLAYLIST
+      CACHE_TEST_PLAYLIST
     );
 
-    // Ad segments should be cached
-    const isAd = isAdSegment('https://d2vjef5jvl6bfs.cloudfront.net/ad/preroll-seg-1.ts');
+    // Ad segments after the DISCONTINUITY should be cached
+    const isAd = isAdSegment('https://d2vjef5jvl6bfs.cloudfront.net/ad/cache-seg-1.ts');
     expect(isAd).toBe(true);
   });
 

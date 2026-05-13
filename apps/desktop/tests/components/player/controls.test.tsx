@@ -6,6 +6,12 @@ import { QualitySelector } from '@/components/player/quality-selector';
 import { QualityLevel } from '@/components/player/types';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+// Icons come from `react-icons/lu`, which renders raw SVG without a
+// `.lucide-*` class. We differentiate icons by inner SVG element type:
+//   LuPlay   → 1 <polygon>
+//   LuPause  → 2 <rect>
+//   LuVolume2 → 3 <path>, 0 <line>
+//   LuVolumeX → 1 <path>, 2 <line>
 describe('Player Controls', () => {
     describe('PlayPauseButton', () => {
         it('should render play icon when paused', () => {
@@ -14,7 +20,7 @@ describe('Player Controls', () => {
                     <PlayPauseButton isPlaying={false} onToggle={vi.fn()} />
                 </TooltipProvider>
             );
-            expect(container.querySelector('.lucide-play')).toBeInTheDocument();
+            expect(container.querySelector('svg polygon')).toBeInTheDocument();
         });
 
         it('should render pause icon when playing', () => {
@@ -23,7 +29,7 @@ describe('Player Controls', () => {
                     <PlayPauseButton isPlaying={true} onToggle={vi.fn()} />
                 </TooltipProvider>
             );
-            expect(container.querySelector('.lucide-pause')).toBeInTheDocument();
+            expect(container.querySelectorAll('svg rect').length).toBe(2);
         });
 
         it('should call onToggle when clicked', () => {
@@ -45,7 +51,9 @@ describe('Player Controls', () => {
                     <VolumeControl volume={80} muted={false} onVolumeChange={vi.fn()} onMuteToggle={vi.fn()} />
                 </TooltipProvider>
             );
-            expect(container.querySelector('.lucide-volume-2')).toBeInTheDocument();
+            // Volume2 has no <line> elements (VolumeX has 2).
+            expect(container.querySelectorAll('svg line').length).toBe(0);
+            expect(container.querySelector('svg path')).toBeInTheDocument();
         });
 
         it('should render muted state', () => {
@@ -54,7 +62,8 @@ describe('Player Controls', () => {
                     <VolumeControl volume={80} muted={true} onVolumeChange={vi.fn()} onMuteToggle={vi.fn()} />
                 </TooltipProvider>
             );
-            expect(container.querySelector('.lucide-volume-x')).toBeInTheDocument();
+            // VolumeX has the two crossed <line>s on top of the speaker path.
+            expect(container.querySelectorAll('svg line').length).toBe(2);
         });
 
         it('should call onMuteToggle when button clicked', () => {

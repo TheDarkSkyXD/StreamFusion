@@ -75,7 +75,6 @@ export const ClipCard = memo(function ClipCard({
             alt={clip.channelName || channelData?.displayName || channelName}
             platform={platform}
             size="w-9 h-9"
-            showBadge={false}
           />
         </div>
 

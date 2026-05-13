@@ -43,8 +43,8 @@ export default {
         },
         // Tag Colors
         tag: {
-          DEFAULT: '#35353b',
-          hover: '#45454b',
+          DEFAULT: '#4a4d55',
+          hover: '#5a5d66',
           text: '#efeff1',
         },
         // UI Colors

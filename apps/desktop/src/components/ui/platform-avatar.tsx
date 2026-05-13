@@ -7,7 +7,6 @@ interface PlatformAvatarProps {
   platform: "twitch" | "kick";
   size?: string; // e.g., "w-10 h-10" or "w-16 h-16"
   className?: string;
-  showBadge?: boolean;
   isLive?: boolean;
   liveStatusType?: "dot" | "badge";
   disablePlatformBorder?: boolean;
@@ -19,39 +18,12 @@ export function PlatformAvatar({
   platform,
   size = "w-10 h-10",
   className,
-  showBadge = true,
   isLive = false,
   liveStatusType = "dot",
   disablePlatformBorder = false,
 }: PlatformAvatarProps) {
-  // Platform specific styles
-  const styles = {
-    twitch: {
-      badgeBg: "bg-[#9146FF]",
-      badgeText: "text-white",
-      badgeLabel: "T",
-      ring: "ring-[#9146FF]",
-    },
-    kick: {
-      badgeBg: "bg-[#53FC18]",
-      badgeText: "text-black",
-      badgeLabel: "K",
-      ring: "ring-[#53FC18]",
-    },
-  };
-
-  const platformStyle = styles[platform] || styles.twitch;
-
-  // Extract width value to calculate badge size roughly (or just use fixed sizes)
-  // A heuristic for badge size based on avatar size class could be useful,
-  // but for now let's use a reasonable default relative to the container.
-  // Actually, fixed sizes based on specific classes might be safer if passed in.
-  // Let's assume standard tailwind classes.
-
   const isLarge = size.includes("w-16") || size.includes("w-20") || size.includes("w-24");
-  const badgeSize = isLarge ? "w-5 h-5 text-[10px]" : "w-4 h-4 text-[8px]";
   const badgeOffset = isLarge ? "-bottom-1 -right-1" : "-bottom-0.5 -right-0.5";
-  const borderSize = isLarge ? "border-2" : "border-[1.5px]";
 
   return (
     <div className={cn("relative shrink-0 rounded-full", size, className)}>
@@ -88,12 +60,8 @@ export function PlatformAvatar({
         />
       </div>
 
-      {/* Live Indicator (overrides badge usually, or sits alongside?) 
-                In SearchResults: Red dot bottom-right.
-                In StreamCard: "LIVE" text top-left (on thumbnail).
-            */}
-      {isLive ? (
-        liveStatusType === "badge" ? (
+      {isLive &&
+        (liveStatusType === "badge" ? (
           <div
             className={cn(
               "absolute -bottom-2.5 left-1/2 -translate-x-1/2 rounded border-[3px] flex items-center justify-center font-bold px-1.5 py-0.5 text-[10px] leading-none",
@@ -112,24 +80,7 @@ export function PlatformAvatar({
               isLarge ? "w-4 h-4" : "w-3 h-3"
             )}
           />
-        )
-      ) : (
-        showBadge &&
-        platform !== "twitch" && (
-          <div
-            className={cn(
-              "absolute rounded-full border-[var(--color-background)] flex items-center justify-center font-bold select-none",
-              badgeOffset,
-              badgeSize,
-              borderSize,
-              platformStyle.badgeBg,
-              platformStyle.badgeText
-            )}
-          >
-            {platformStyle.badgeLabel}
-          </div>
-        )
-      )}
+        ))}
     </div>
   );
 }

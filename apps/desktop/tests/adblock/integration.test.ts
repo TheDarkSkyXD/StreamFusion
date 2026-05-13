@@ -487,9 +487,27 @@ describe('Integration: Ad Segment Caching', () => {
   });
 
   it('should cache ad segment URLs during stripping', async () => {
+    // The fixture-level PREROLL_AD_PLAYLIST omits DISCONTINUITY; without it the
+    // stripper keeps treating every segment as live (PROGRAM-DATE-TIME scope).
+    // Real Twitch ad playlists have DISCONTINUITY before stitched ads — mirror
+    // that here so the cache actually picks up the ad URLs.
+    const CACHE_TEST_PLAYLIST = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:12340
+#EXT-X-PROGRAM-DATE-TIME:2024-01-01T11:59:50.000Z
+#EXTINF:2.000,live
+https://video-edge-abc.sfo03.abs.hls.ttvnw.net/v1/segment/CpAF-12339.ts
+#EXT-X-DISCONTINUITY
+#EXT-X-DATERANGE:ID="stitched-ad-preroll-001",CLASS="twitch-stitched-ad",START-DATE="2024-01-01T11:59:50.000Z",DURATION=30.000,X-TV-TWITCH-AD-URL="https://ads.twitch.tv/track/preroll"
+#EXTINF:2.000,stitched
+https://d2vjef5jvl6bfs.cloudfront.net/preroll/seg-0001.ts
+#EXTINF:2.000,stitched
+https://d2vjef5jvl6bfs.cloudfront.net/preroll/seg-0002.ts`;
+
     await processMediaPlaylist(
       'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
-      PREROLL_AD_PLAYLIST
+      CACHE_TEST_PLAYLIST
     );
 
     // Ad segments should be cached

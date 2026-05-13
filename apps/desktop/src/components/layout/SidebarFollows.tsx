@@ -195,7 +195,6 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                       alt={stream.channelDisplayName}
                       platform={stream.platform}
                       size="w-8 h-8"
-                      showBadge={false}
                       className={cn(
                         "ring-2 ring-transparent transition-all",
                         "grayscale-0", // Live is always colored
@@ -259,7 +258,6 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                     alt={channel.displayName}
                     platform={channel.platform}
                     size="w-8 h-8"
-                    showBadge={false}
                     className="grayscale group-hover:grayscale-0 transition-all"
                   />
 

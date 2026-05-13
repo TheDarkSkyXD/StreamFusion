@@ -1,6 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import type { Platform } from "../shared/auth-types";
+
 /**
  * Merge class names with Tailwind CSS classes
  * Uses clsx for conditional classes and tailwind-merge to avoid conflicts
@@ -70,16 +72,40 @@ export function formatDuration(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+// Curated equivalences for category names that differ between platforms.
+// Symmetric names (e.g. "IRL" on both, "Grand Theft Auto V" on both) don't
+// need entries — they match automatically via lowercase comparison.
+// Add a row here only when the two platforms call the same thing different things.
+const CATEGORY_EQUIVALENCES: Array<{ key: string; twitch: string; kick: string }> = [
+  { key: "slots", twitch: "Slots & Casino", kick: "Slots" },
+  { key: "grand-theft-auto-v", twitch: "Grand Theft Auto V", kick: "Grand Theft Auto V (GTA)" },
+  { key: "counter-strike", twitch: "Counter-Strike", kick: "Counter-Strike 2" },
+  { key: "black-desert", twitch: "Black Desert", kick: "Black Desert Online" },
+];
+
+const NAME_TO_KEY = new Map<string, string>();
+for (const e of CATEGORY_EQUIVALENCES) {
+  NAME_TO_KEY.set(e.twitch.toLowerCase(), e.key);
+  NAME_TO_KEY.set(e.kick.toLowerCase(), e.key);
+}
+
 /**
- * Normalize category name for cross-platform comparison
- * Handles special cases like "Slots" vs "Slots & Casino"
+ * Normalize category name to a canonical key for cross-platform comparison.
+ * Asymmetric pairs (e.g. Twitch "Slots & Casino" ↔ Kick "Slots") map to a shared
+ * key via CATEGORY_EQUIVALENCES; everything else falls back to lowercase.
  */
 export function normalizeCategoryName(name: string): string {
-  const key = name.toLowerCase().trim();
-  if (key === "slots" || key === "slots & casino") {
-    return "@@slots@@";
-  }
-  return key;
+  const lower = name.toLowerCase().trim();
+  return NAME_TO_KEY.get(lower) ?? lower;
+}
+
+/**
+ * Given a canonical key, return the preferred display name on the target platform,
+ * or null if no curated equivalence exists for that key.
+ */
+export function getEquivalentCategoryName(key: string, platform: Platform): string | null {
+  const entry = CATEGORY_EQUIVALENCES.find((e) => e.key === key);
+  return entry ? entry[platform] : null;
 }
 
 /**

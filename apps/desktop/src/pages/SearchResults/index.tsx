@@ -240,7 +240,6 @@ export function SearchPage() {
                     platform={channel.platform}
                     size="w-24 h-24"
                     className="transition-transform group-hover:scale-105"
-                    showBadge={false}
                   />
                   <div
                     className={cn(
@@ -289,7 +288,6 @@ export function SearchPage() {
                     platform={channel.platform}
                     size="w-20 h-20"
                     className="ring-2 ring-transparent group-hover:ring-[var(--color-primary)] transition-all"
-                    showBadge={false}
                   />
                   <div
                     className={cn(
