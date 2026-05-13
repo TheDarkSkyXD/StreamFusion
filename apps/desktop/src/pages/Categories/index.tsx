@@ -1,55 +1,25 @@
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { LuSearch } from "react-icons/lu";
 
 import { VirtualizedCategoryGrid } from "@/components/discovery/virtualized-category-grid";
 import { useTopCategories } from "@/hooks/queries/useCategories";
 
-// Initial categories to display, then load more on scroll
-const INITIAL_DISPLAY_COUNT = 30;
-const LOAD_MORE_COUNT = 10;
-const DISPLAY_COUNT_KEY = "categories-display-count";
-
 export function CategoriesPage() {
-  // Fetch ALL categories (cached, deduped with Twitch priority)
+  // Fetch ALL categories (cached, deduped with Twitch priority).
+  // The list comes back fully — the grid is virtualized, so we hand the entire
+  // filtered list straight to it and let windowing handle render perf.
   const { data: categories, isLoading } = useTopCategories();
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Restore displayCount from sessionStorage for scroll position persistence
-  const [displayCount, setDisplayCount] = useState(() => {
-    const saved = sessionStorage.getItem(DISPLAY_COUNT_KEY);
-    return saved ? Math.max(INITIAL_DISPLAY_COUNT, parseInt(saved, 10)) : INITIAL_DISPLAY_COUNT;
-  });
-
-  // Save displayCount to sessionStorage when it changes
-  useEffect(() => {
-    sessionStorage.setItem(DISPLAY_COUNT_KEY, String(displayCount));
-  }, [displayCount]);
-
-  // Memoize filtered results for performance
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) return categories || [];
     const query = searchQuery.toLowerCase();
     return categories?.filter((category) => category.name.toLowerCase().includes(query)) || [];
   }, [categories, searchQuery]);
 
-  // Progressive display: show only displayCount categories
-  const displayedCategories = useMemo(() => {
-    return filteredCategories.slice(0, displayCount);
-  }, [filteredCategories, displayCount]);
-
-  // Check if there are more categories to load
-  const hasNextPage = displayCount < filteredCategories.length;
-
-  // Load more handler
-  const handleLoadMore = useCallback(() => {
-    setDisplayCount((prev) => Math.min(prev + LOAD_MORE_COUNT, filteredCategories.length));
-  }, [filteredCategories.length]);
-
-  // Reset display count when search query changes
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
-    setDisplayCount(INITIAL_DISPLAY_COUNT);
   }, []);
 
   return (
@@ -81,10 +51,8 @@ export function CategoriesPage() {
 
       <div className="mt-2 flex-1 min-h-0">
         <VirtualizedCategoryGrid
-          categories={displayedCategories}
+          categories={filteredCategories}
           isLoading={isLoading}
-          hasNextPage={hasNextPage}
-          onLoadMore={handleLoadMore}
           skeletonCount={7}
           scrollKey="categories-page"
           emptyMessage={

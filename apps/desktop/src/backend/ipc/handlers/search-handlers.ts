@@ -37,6 +37,19 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
   const { getFollowerCounts } = await import("../../api/platforms/twitch/endpoints/user-endpoints");
 
   const enrichedChannels = new Map<string, any>();
+
+  // GQL search (used by twitchClient.searchChannels) already returns avatar,
+  // displayName, and followerCount for unauthenticated callers. The Helix
+  // enrichment path below requires a user token, so calling it without auth
+  // throws "Not authenticated with Twitch" for every search keystroke. Short-
+  // circuit and pass channels through unchanged when we don't have auth.
+  if (!twitchClient.isAuthenticated()) {
+    for (const channel of channels) {
+      enrichedChannels.set(channel.username.toLowerCase(), channel);
+    }
+    return enrichedChannels;
+  }
+
   const loginsToFetch: { login: string; originalChannel: any }[] = [];
   const now = Date.now();
 
@@ -223,7 +236,9 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
         displayName,
         isVerified: fetchedChannel.isVerified || originalChannel.isVerified,
         isLive: fetchedChannel.isLive,
-        followerCount: fetchedChannel.followerCount,
+        // /public/v1/channels doesn't return follower counts, so prefer whatever
+        // the upstream search step (kick.com/api/search) populated.
+        followerCount: fetchedChannel.followerCount ?? originalChannel.followerCount,
       };
 
       kickChannelDataCache.set(slugLower, {

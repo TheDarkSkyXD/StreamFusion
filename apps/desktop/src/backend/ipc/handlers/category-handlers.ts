@@ -115,6 +115,47 @@ export function registerCategoryHandlers(): void {
   );
 
   /**
+   * Per-card Twitch tag fetch (single raw GQL query against `Game.tags`).
+   *
+   * Twitch's Helix /games/top response doesn't carry tags, so we lazy-load
+   * them per-card on render. The virtualized grid only mounts visible cards,
+   * so the fan-out is bounded. Kick is intentionally not routed here — its
+   * tags already travel on the category object via the bulk
+   * /private/v1/categories fetch.
+   */
+  ipcMain.handle(
+    IPC_CHANNELS.CATEGORIES_GET_METADATA,
+    async (
+      _event,
+      params: {
+        platform: Platform;
+        categoryId: string;
+        slug?: string;
+      }
+    ) => {
+      try {
+        if (params.platform === "twitch") {
+          const { gqlGetGameMetadata } = await import(
+            "../../api/platforms/twitch/twitch-gql-client"
+          );
+          const meta = await gqlGetGameMetadata(params.categoryId);
+          return { success: true, data: { tags: meta?.tags ?? [] } };
+        }
+        // Kick tags ride on the category object from the bulk list endpoint,
+        // so this handler is a no-op for Kick. The hook also gates on
+        // platform === "twitch", so this branch is just a safety net.
+        return { success: true, data: { tags: undefined } };
+      } catch (error) {
+        console.error("❌ Failed to get category metadata:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to fetch metadata",
+        };
+      }
+    }
+  );
+
+  /**
    * Search categories
    */
   ipcMain.handle(
@@ -125,26 +166,29 @@ export function registerCategoryHandlers(): void {
         query: string;
         platform?: Platform;
         limit?: number;
+        after?: string;
       }
     ) => {
       const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        const results: { platform: Platform; data: any[] }[] = [];
+        const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
 
         if (!params.platform || params.platform === "twitch") {
           try {
             const result = await twitchClient.searchCategories(params.query, {
               first: params.limit || 20,
+              after: params.after,
             });
-            results.push({ platform: "twitch", data: result.data });
+            results.push({ platform: "twitch", data: result.data, cursor: result.cursor });
           } catch (err) {
             console.warn("⚠️ Failed to search Twitch categories:", err);
           }
         }
 
-        if (!params.platform || params.platform === "kick") {
+        // Kick categories don't support cursor pagination — only fetch on first page
+        if ((!params.platform || params.platform === "kick") && !params.after) {
           try {
             const result = await kickClient.searchCategories(params.query);
             results.push({ platform: "kick", data: result.data });
@@ -155,10 +199,12 @@ export function registerCategoryHandlers(): void {
 
         if (!params.platform) {
           const allCategories = results.flatMap((r) => r.data);
-          return { success: true, data: allCategories };
+          const twitchCursor = results.find((r) => r.platform === "twitch")?.cursor;
+          return { success: true, data: allCategories, cursor: twitchCursor };
         }
 
-        return { success: true, ...results[0] };
+        const { platform: _p, ...rest } = results[0] ?? { data: [] };
+        return { success: true, ...rest };
       } catch (error) {
         console.error("❌ Failed to search categories:", error);
         return { success: false, error: error instanceof Error ? error.message : "Search failed" };

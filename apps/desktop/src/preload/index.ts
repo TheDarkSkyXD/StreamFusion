@@ -242,6 +242,8 @@ const electronAPI = {
       platform?: Platform;
       limit?: number;
       cursor?: string;
+      categoryName?: string;
+      language?: string;
     }): Promise<{ success: boolean; data?: any[]; cursor?: string; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.STREAMS_GET_BY_CATEGORY, params),
 
@@ -284,8 +286,19 @@ const electronAPI = {
       query: string;
       platform?: Platform;
       limit?: number;
-    }): Promise<{ success: boolean; data?: any[]; error?: string }> =>
+      after?: string;
+    }): Promise<{ success: boolean; data?: any[]; cursor?: string; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_SEARCH, params),
+
+    getMetadata: (params: {
+      platform: Platform;
+      categoryId: string;
+      slug?: string;
+    }): Promise<{
+      success: boolean;
+      data?: { tags?: string[]; streamCount: number; streamCountExact: boolean };
+      error?: string;
+    }> => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_GET_METADATA, params),
   },
 
   // ========== Discovery: Search ==========
@@ -295,7 +308,8 @@ const electronAPI = {
       platform?: Platform;
       liveOnly?: boolean;
       limit?: number;
-    }): Promise<{ success: boolean; data?: any[]; error?: string }> =>
+      after?: string;
+    }): Promise<{ success: boolean; data?: any[]; cursor?: string; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.SEARCH_CHANNELS, params),
 
     all: (params: {

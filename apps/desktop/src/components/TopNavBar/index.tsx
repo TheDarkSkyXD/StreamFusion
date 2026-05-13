@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { memo } from "react";
 import { LuMenu } from "react-icons/lu";
 
 import { ProfileDropdown } from "@/components/auth";
@@ -12,9 +13,13 @@ interface TopNavBarProps {
   className?: string;
 }
 
-export function TopNavBar({ className }: TopNavBarProps) {
-  // App state for sidebar
-  const { sidebarCollapsed, setSidebarCollapsed } = useAppStore();
+export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) {
+  // Use individual selectors so this component re-renders only when these
+  // two values change — destructuring the full store subscribed to every
+  // mutation (theater toggle, etc.) and caused 30s viewer-count polls to
+  // re-render the nav chrome unnecessarily.
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
 
   return (
     <div
@@ -42,7 +47,7 @@ export function TopNavBar({ className }: TopNavBarProps) {
 
       {/* Center - Search */}
       <div className="flex items-center justify-center w-full">
-        <SearchBar />
+        <SearchBar className="max-w-[420px]" />
       </div>
 
       {/* Right side - Notifications + User */}
@@ -55,4 +60,4 @@ export function TopNavBar({ className }: TopNavBarProps) {
       </div>
     </div>
   );
-}
+});

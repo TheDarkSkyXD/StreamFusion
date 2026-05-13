@@ -72,25 +72,60 @@ export function VirtualizedCategoryGrid({
   const totalRows = Math.ceil(categories.length / itemsPerRow);
   const totalHeight = totalRows * rowHeight;
 
-  // Update visible range on scroll and trigger load more when near bottom
+  // Volatile deps for the scroll handler are stored in refs so the handler
+  // identity stays stable and the scroll listener doesn't re-attach on every
+  // load-more / categories.length change.
+  const scrollStateRef = useRef({
+    rowHeight,
+    overscan,
+    itemsPerRow,
+    categoriesLength: categories.length,
+    hasNextPage,
+    isFetchingNextPage,
+    onLoadMore,
+  });
+  useEffect(() => {
+    scrollStateRef.current = {
+      rowHeight,
+      overscan,
+      itemsPerRow,
+      categoriesLength: categories.length,
+      hasNextPage,
+      isFetchingNextPage,
+      onLoadMore,
+    };
+  }, [rowHeight, overscan, itemsPerRow, categories.length, hasNextPage, isFetchingNextPage, onLoadMore]);
+
+  // Update visible range on scroll and trigger load more when near bottom.
+  // Empty dep array — reads volatile values from scrollStateRef.current.
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
+
+    const {
+      rowHeight: rh,
+      overscan: ov,
+      itemsPerRow: ipr,
+      categoriesLength,
+      hasNextPage: hnp,
+      isFetchingNextPage: ifp,
+      onLoadMore: olm,
+    } = scrollStateRef.current;
 
     const scrollTop = containerRef.current.scrollTop;
     const clientHeight = containerRef.current.clientHeight;
     const scrollHeight = containerRef.current.scrollHeight;
 
-    const startRow = Math.floor(scrollTop / rowHeight);
-    const endRow = Math.ceil((scrollTop + clientHeight) / rowHeight);
+    const startRow = Math.floor(scrollTop / rh);
+    const endRow = Math.ceil((scrollTop + clientHeight) / rh);
 
-    const startIndex = Math.max(0, (startRow - overscan) * itemsPerRow);
-    const endIndex = Math.min(categories.length, (endRow + overscan) * itemsPerRow);
+    const startIndex = Math.max(0, (startRow - ov) * ipr);
+    const endIndex = Math.min(categoriesLength, (endRow + ov) * ipr);
 
     setVisibleRange((prev) => {
       // Only update if changed significantly to avoid excessive rerenders
       if (
-        Math.abs(prev.start - startIndex) > itemsPerRow ||
-        Math.abs(prev.end - endIndex) > itemsPerRow
+        Math.abs(prev.start - startIndex) > ipr ||
+        Math.abs(prev.end - endIndex) > ipr
       ) {
         return { start: startIndex, end: endIndex };
       }
@@ -99,25 +134,12 @@ export function VirtualizedCategoryGrid({
 
     // Trigger load more when scrolled near bottom (within 2 rows)
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const loadMoreThreshold = rowHeight * 2;
+    const loadMoreThreshold = rh * 2;
 
-    if (
-      distanceFromBottom < loadMoreThreshold &&
-      hasNextPage &&
-      !isFetchingNextPage &&
-      onLoadMore
-    ) {
-      onLoadMore();
+    if (distanceFromBottom < loadMoreThreshold && hnp && !ifp && olm) {
+      olm();
     }
-  }, [
-    rowHeight,
-    overscan,
-    itemsPerRow,
-    categories.length,
-    hasNextPage,
-    isFetchingNextPage,
-    onLoadMore,
-  ]);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -127,6 +149,12 @@ export function VirtualizedCategoryGrid({
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  // Re-run handleScroll once when categories.length grows so visibleRange
+  // expands without waiting for the next scroll event.
+  useEffect(() => {
+    handleScroll();
+  }, [categories.length, itemsPerRow, handleScroll]);
 
   // Scroll position persistence - restore on mount, save on scroll
   const hasRestoredScroll = useRef(false);

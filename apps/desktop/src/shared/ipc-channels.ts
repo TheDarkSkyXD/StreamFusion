@@ -113,6 +113,7 @@ export const IPC_CHANNELS = {
   CATEGORIES_GET_TOP: "categories:get-top",
   CATEGORIES_GET_BY_ID: "categories:get-by-id",
   CATEGORIES_SEARCH: "categories:search",
+  CATEGORIES_GET_METADATA: "categories:get-metadata",
 
   // ========== Discovery: Search ==========
   SEARCH_CHANNELS: "search:channels",
