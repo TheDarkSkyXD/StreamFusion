@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { UnifiedStream } from "@/backend/api/unified/platform-types";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
@@ -16,42 +16,95 @@ interface StreamCardProps {
   showCategory?: boolean;
 }
 
+// Hover-debounce window: long enough that wheel-scrolling past cards doesn't
+// trigger prefetches, short enough that intentional hovers still warm the
+// cache before the user clicks.
+const HOVER_PREFETCH_DELAY_MS = 150;
+
+// Module-scope singleton — Intl.DisplayNames is expensive to construct.
+const LANGUAGE_DISPLAY_NAMES = new Intl.DisplayNames(["en"], { type: "language" });
+
 // Memoize StreamCard to prevent re-renders when grid updates but individual stream hasn't changed
 export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCardProps) => {
   const PlatformIcon = stream.platform === "twitch" ? TwitchIcon : KickIcon;
   const platformColor = stream.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
 
   const queryClient = useQueryClient();
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Prefetch channel and stream data on hover for instant navigation
-  const handleMouseEnter = () => {
-    // Prefetch channel data
-    queryClient.prefetchQuery({
-      queryKey: CHANNEL_KEYS.byUsername(stream.channelName, stream.platform),
-      queryFn: async () => {
-        const response = await window.electronAPI.channels.getByUsername({
-          username: stream.channelName,
-          platform: stream.platform,
-        });
-        if (response.error) throw new Error(response.error);
-        return response.data;
-      },
-      staleTime: 1000 * 60 * 5, // 5 minutes
-    });
+  const handleMouseEnter = useCallback(() => {
+    if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
+    prefetchTimerRef.current = setTimeout(() => {
+      queryClient.prefetchQuery({
+        queryKey: CHANNEL_KEYS.byUsername(stream.channelName, stream.platform),
+        queryFn: async () => {
+          const response = await window.electronAPI.channels.getByUsername({
+            username: stream.channelName,
+            platform: stream.platform,
+          });
+          if (response.error) throw new Error(response.error);
+          return response.data;
+        },
+        staleTime: 1000 * 60 * 5,
+      });
 
-    // Prefetch stream data
-    queryClient.prefetchQuery({
-      queryKey: STREAM_KEYS.byChannel(stream.channelName, stream.platform),
-      queryFn: async () => {
-        const response = await window.electronAPI.streams.getByChannel({
-          username: stream.channelName,
-          platform: stream.platform,
-        });
-        if (response.error) throw new Error(response.error);
-        return response.data;
-      },
-    });
-  };
+      queryClient.prefetchQuery({
+        queryKey: STREAM_KEYS.byChannel(stream.channelName, stream.platform),
+        queryFn: async () => {
+          const response = await window.electronAPI.streams.getByChannel({
+            username: stream.channelName,
+            platform: stream.platform,
+          });
+          if (response.error) throw new Error(response.error);
+          return response.data;
+        },
+      });
+    }, HOVER_PREFETCH_DELAY_MS);
+  }, [queryClient, stream.channelName, stream.platform]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
+    };
+  }, []);
+
+  const displayTags = useMemo<string[] | null>(() => {
+    const tags: string[] = [];
+
+    if (stream.language) {
+      const langName = LANGUAGE_DISPLAY_NAMES.of(stream.language) || stream.language;
+      tags.push(langName);
+    }
+
+    if (stream.tags && stream.tags.length > 0) {
+      const langLower = stream.language?.toLowerCase();
+      const langNameLower = tags[0]?.toLowerCase();
+      for (const tag of stream.tags) {
+        const t = tag.toLowerCase();
+        if (t !== langLower && t !== langNameLower) {
+          tags.push(tag);
+        }
+      }
+    }
+
+    if (tags.length === 0) return null;
+
+    let totalChars = 0;
+    const checkCount = Math.min(tags.length, 3);
+    for (let i = 0; i < checkCount; i++) {
+      totalChars += tags[i].length;
+    }
+
+    const maxTags = totalChars > 24 ? 3 : 4;
+    return tags.slice(0, maxTags);
+  }, [stream.language, stream.tags]);
 
   return (
     <Link
@@ -60,6 +113,7 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
       search={{ tab: "videos" }}
       className="block group"
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <Card className="h-full border-transparent bg-transparent hover:bg-[var(--color-background-secondary)] transition-colors duration-200 overflow-hidden group-hover:ring-1 group-hover:ring-[var(--color-border)]">
         {/* Thumbnail Section */}
@@ -104,7 +158,6 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
               alt={stream.channelDisplayName}
               platform={stream.platform}
               size="w-10 h-10"
-              showBadge={true}
             />
           </div>
 
@@ -124,57 +177,18 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
               </span>
             </div>
             {/* Tags */}
-            {(() => {
-              // Prepare tags list
-              const displayTags: string[] = [];
-
-              // Add language tag first if valid
-              if (stream.language) {
-                const langName =
-                  new Intl.DisplayNames(["en"], { type: "language" }).of(stream.language) ||
-                  stream.language;
-                displayTags.push(langName);
-              }
-
-              // Add other tags, filtering out duplicates (case-insensitive check against language)
-              if (stream.tags && stream.tags.length > 0) {
-                const langLower = stream.language?.toLowerCase();
-                const langNameLower = displayTags[0]?.toLowerCase();
-                stream.tags.forEach((tag) => {
-                  // Don't add if it's the same as the language code or name
-                  if (tag.toLowerCase() !== langLower && tag.toLowerCase() !== langNameLower) {
-                    displayTags.push(tag);
-                  }
-                });
-              }
-
-              if (displayTags.length === 0) return null;
-
-              // Calculate limit based on length
-              // Heuristic: Check length of first 3 tags
-              let totalChars = 0;
-              const checkCount = Math.min(displayTags.length, 3);
-              for (let i = 0; i < checkCount; i++) {
-                totalChars += displayTags[i].length;
-              }
-
-              // If tags are "long" (avg > 8 chars or total > 24), limit to 3. Else 4.
-              const maxTags = totalChars > 24 ? 3 : 4;
-              const finalTags = displayTags.slice(0, maxTags);
-
-              return (
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {finalTags.map((tag, index) => (
-                    <span
-                      key={`${tag}-${index}`}
-                      className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#35353b] text-white hover:bg-[#45454b] transition-colors whitespace-nowrap"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              );
-            })()}
+            {displayTags && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {displayTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors whitespace-nowrap"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -58,7 +58,7 @@ export function useVolume({
     return () => {
       clearTimeout(timer);
     };
-  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted]);
+  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted, watch]);
 
   // Handle volume change from UI
   const handleVolumeChange = useCallback(

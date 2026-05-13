@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { LuLock, LuPlay, LuSparkles } from "react-icons/lu";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
@@ -25,6 +25,11 @@ export const VideoCard = memo(function VideoCard({
   channelName,
   channelData,
 }: VideoCardProps) {
+  // Hide the entire card when the proxied thumbnail comes back null (Kick CDN
+  // 403 for pruned VOD media). Backend filters most of these out via is_pruned,
+  // but legacy/stale records can still slip through.
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
   // Route as VOD when:
   // - not live, OR
   // - live with a real duration AND a source URL (stream just ended; Kick keeps is_live=true briefly)
@@ -75,6 +80,10 @@ export const VideoCard = memo(function VideoCard({
 
   const categoryName = video.category || video.gameName;
 
+  if (thumbnailFailed) {
+    return null;
+  }
+
   return (
     <Card className="overflow-hidden border border-transparent bg-[var(--color-background-secondary)] hover:border-[var(--color-border)] transition-colors h-full group flex flex-col">
       {/* Thumbnail Section */}
@@ -87,6 +96,7 @@ export const VideoCard = memo(function VideoCard({
             src={video.thumbnailUrl}
             alt={video.title}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onProxyError={() => setThumbnailFailed(true)}
           />
         )}
 
@@ -135,7 +145,6 @@ export const VideoCard = memo(function VideoCard({
             alt={video.channelName || channelData?.displayName || channelName}
             platform={platform}
             size="w-9 h-9"
-            showBadge={false}
           />
         </div>
 

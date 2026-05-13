@@ -200,7 +200,10 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
       }
     };
 
-    const interval = setInterval(updateUptime, 250); // Higher frequency for smoother UI
+    // 500 ms (2 Hz) — uptime/seekable granularity is user-perceptible at ~1 s,
+    // 4 Hz wasted budget on seekable.end() reads + math. React 18 auto-batches
+    // the three setState calls within this callback into one render per tick.
+    const interval = setInterval(updateUptime, 500);
     return () => clearInterval(interval);
   }, [startedAt, isPlaying]);
 

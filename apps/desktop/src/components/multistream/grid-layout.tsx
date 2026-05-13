@@ -92,6 +92,7 @@ export function MultiStreamGrid() {
                   onRemove={() => removeStream(stream.id)}
                   onFocus={() => {}}
                   isFocused={true}
+                  slotIndex={0}
                 />
               ))}
           </div>
@@ -99,7 +100,7 @@ export function MultiStreamGrid() {
           <div className="flex-1 min-h-[150px] flex overflow-x-auto overflow-y-hidden border-t border-[var(--color-border)] bg-[var(--color-background-secondary)] p-1 gap-1">
             {streams
               .filter((s) => s.id !== focusedStreamId)
-              .map((stream) => (
+              .map((stream, sideRailIndex) => (
                 <div key={stream.id} className="aspect-video h-full shrink-0">
                   <StreamSlot
                     streamId={stream.id}
@@ -109,6 +110,11 @@ export function MultiStreamGrid() {
                     onRemove={() => removeStream(stream.id)}
                     onFocus={() => setFocusedStream(stream.id)}
                     isFocused={false}
+                    // +1 so the side-rail slots stagger after the focused slot
+                    slotIndex={sideRailIndex + 1}
+                    // Side rail scrolls horizontally — defer mount of off-screen
+                    // slots until they scroll into view.
+                    lazyMount
                   />
                 </div>
               ))}
@@ -118,7 +124,7 @@ export function MultiStreamGrid() {
         // Grid Mode with wrapped DndContext
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={streams.map((s) => s.id)} strategy={rectSortingStrategy}>
-            {streams.map((stream) => (
+            {streams.map((stream, index) => (
               <SortableStreamSlot
                 key={stream.id}
                 id={stream.id}
@@ -135,6 +141,7 @@ export function MultiStreamGrid() {
                   }
                 }}
                 isFocused={focusedStreamId === stream.id && false}
+                slotIndex={index}
               />
             ))}
           </SortableContext>

@@ -112,14 +112,14 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
             <>
               {/* Language Tag */}
               {stream.language && (
-                <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#35353b] text-white hover:bg-[#45454b] transition-colors cursor-default">
+                <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
                   {new Intl.DisplayNames(["en"], { type: "language" }).of(stream.language) ||
                     stream.language.toUpperCase()}
                 </span>
               )}
               {/* Mature Content Tag */}
               {stream.isMature && (
-                <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#35353b] text-white hover:bg-[#45454b] transition-colors cursor-default">
+                <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
                   18+
                 </span>
               )}
@@ -143,7 +143,7 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
                     .map((tag, index) => (
                       <span
                         key={`${tag}-${index}`}
-                        className="text-xs px-3 py-1 rounded-full font-bold bg-[#35353b] text-white hover:bg-[#45454b] transition-colors cursor-default"
+                        className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default"
                       >
                         {tag}
                       </span>

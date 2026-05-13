@@ -11,7 +11,9 @@ import { HlsPlayer } from "@/components/player/hls-player";
 import { TwitchHlsPlayer } from "@/components/player/twitch/twitch-hls-player";
 import type { PlayerError } from "@/components/player/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { cn } from "@/lib/utils";
+import type { Platform } from "@/shared/auth-types";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { usePipStore } from "@/store/pip-store";
 
@@ -21,6 +23,8 @@ import { useVolume } from "./hooks/use-volume";
 const MINI_PLAYER_WIDTH = 400;
 const MINI_PLAYER_HEIGHT = 225;
 const PADDING = 16;
+// Max URL-refresh attempts before giving up and closing PiP
+const MAX_REFRESH_ATTEMPTS = 2;
 
 export function MiniPlayer() {
   const navigate = useNavigate();
@@ -35,11 +39,25 @@ export function MiniPlayer() {
   // Determine if this is a Twitch stream that needs ad-blocking
   const isTwitchStream = currentStream?.platform === "twitch";
 
+  // Fetch a fresh playback URL for the mini player. The URL stored in the pip
+  // store is a snapshot from when the user was on the stream page; its JWT
+  // token expires after ~30-90 minutes. We refetch independently so the mini
+  // player can survive past that expiry. When the mini player is hidden (no
+  // currentStream, or user is on the stream page) we pass an empty channel
+  // name which short-circuits the fetch.
+  const platform = (currentStream?.platform ?? "kick") as Platform;
+  const channelName = !isOnStreamPage && currentStream ? currentStream.channelName : "";
+  const { playback, reload, reloadAttempts } = useStreamPlayback(platform, channelName);
+
+  // Prefer the freshly-fetched URL; fall back to the snapshot until the first
+  // fetch resolves so playback starts as quickly as possible.
+  const streamUrl = playback?.url || currentStream?.streamUrl || "";
+
   // Persistent volume
   const { isMuted, handleToggleMute, syncFromVideoElement, volume, handleVolumeChange } = useVolume(
     {
       videoRef: videoRef as React.RefObject<HTMLVideoElement>,
-      watch: currentStream?.streamUrl,
+      watch: streamUrl,
     }
   );
 
@@ -69,10 +87,10 @@ export function MiniPlayer() {
     return () => window.removeEventListener("resize", updatePosition);
   }, []);
 
-  // Reset error state when stream changes
+  // Reset error state whenever a fresh URL arrives (e.g. after a reload())
   useEffect(() => {
-    setHasError(false);
-  }, []);
+    if (streamUrl) setHasError(false);
+  }, [streamUrl]);
 
   // Dragging handlers
   const handleMouseDown = useCallback(
@@ -168,14 +186,30 @@ export function MiniPlayer() {
 
   const handleError = useCallback(
     (error: PlayerError) => {
-      console.error("[MiniPlayer] Error:", error);
+      // Treat 403/404/token-expired errors as a stale URL first: ask the
+      // backend for a fresh playback URL and let HlsPlayer re-init. Only after
+      // MAX_REFRESH_ATTEMPTS exhausted do we assume the stream is truly gone.
+      const isRefreshable =
+        error.code === "STREAM_OFFLINE" ||
+        error.code === "TOKEN_EXPIRED" ||
+        error.code === "NO_FRAGMENTS" ||
+        error.shouldRefresh === true;
+
+      if (isRefreshable && reloadAttempts < MAX_REFRESH_ATTEMPTS) {
+        console.debug(
+          `[MiniPlayer] ${error.code} - refreshing URL (attempt ${reloadAttempts + 1}/${MAX_REFRESH_ATTEMPTS})`
+        );
+        reload();
+        return;
+      }
+
+      console.error("[MiniPlayer] Error (refresh exhausted):", error);
       setHasError(true);
-      // Close PiP if stream goes offline
       if (error.code === "STREAM_OFFLINE") {
         closePip();
       }
     },
-    [closePip]
+    [closePip, reload, reloadAttempts]
   );
 
   // Don't render if not active or no stream
@@ -205,11 +239,11 @@ export function MiniPlayer() {
     >
       {/* Video Player - Use TwitchHlsPlayer for Twitch (ad-blocking), HlsPlayer for others */}
       {!hasError &&
-        currentStream.streamUrl &&
+        streamUrl &&
         (isTwitchStream ? (
           <TwitchHlsPlayer
             ref={videoRef}
-            src={currentStream.streamUrl}
+            src={streamUrl}
             channelName={currentStream.channelName}
             enableAdBlock={storeEnableAdBlock}
             muted={isMuted}
@@ -223,7 +257,7 @@ export function MiniPlayer() {
         ) : (
           <HlsPlayer
             ref={videoRef}
-            src={currentStream.streamUrl}
+            src={streamUrl}
             muted={isMuted}
             volume={volume / 100}
             autoPlay={true}

@@ -1,5 +1,5 @@
 import { useParams } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatPanel } from "@/components/chat";
 
 import { KickLivePlayer } from "@/components/player/kick";
@@ -43,6 +43,11 @@ export function StreamPage() {
   // Chat Resizing Logic
   const [chatWidth, setChatWidth] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
+  // Mirror isResizing into a ref so the global mousemove/mouseup handlers
+  // can read the current value without becoming new function identities on
+  // each toggle. Lets the listener-attach effect run once per drag start
+  // instead of every render.
+  const isResizingRef = useRef(false);
 
   // Theater Mode Logic - synced with app store for sidebar auto-collapse
   const { isTheaterModeActive: isTheater, setTheaterModeActive } = useAppStore();
@@ -136,6 +141,7 @@ export function StreamPage() {
   // Determine if stream is truly live - allow playback if URL exists (optimistic) or confirmed live
   // This allows the player to start buffering while metadata is still fetching
   const isStreamLive = Boolean(streamData?.startedAt);
+  const hasPlayback = Boolean(playback?.url);
   const effectiveStreamUrl = playback?.url || (isStreamLive && playback?.url ? playback.url : "");
 
   // PiP Store Integration - Track when viewing a live stream
@@ -205,38 +211,37 @@ export function StreamPage() {
   }, [isStreamLive, effectiveStreamUrl, channelData, pipStreamInfo, setCurrentStream]);
 
   const startResizing = useCallback(() => {
+    isResizingRef.current = true;
     setIsResizing(true);
     // Disable iframe pointer events globally to prevent capturing mouse events during drag
     document.body.style.userSelect = "none";
   }, []);
 
+  // Stable callbacks: read isResizing via ref so identity never changes.
+  const resize = useCallback((mouseMoveEvent: MouseEvent) => {
+    if (!isResizingRef.current) return;
+    const newWidth = window.innerWidth - mouseMoveEvent.clientX;
+    if (newWidth > 200 && newWidth < 600) {
+      setChatWidth(newWidth);
+    }
+  }, []);
+
   const stopResizing = useCallback(() => {
+    isResizingRef.current = false;
     setIsResizing(false);
     document.body.style.userSelect = "";
   }, []);
 
-  const resize = useCallback(
-    (mouseMoveEvent: MouseEvent) => {
-      if (isResizing) {
-        const newWidth = window.innerWidth - mouseMoveEvent.clientX;
-        // Min 200px, Max 600px
-        if (newWidth > 200 && newWidth < 600) {
-          setChatWidth(newWidth);
-        }
-      }
-    },
-    [isResizing]
-  );
-
   useEffect(() => {
-    if (isResizing) {
-      window.addEventListener("mousemove", resize);
-      window.addEventListener("mouseup", stopResizing);
-    }
+    if (!isResizing) return;
+    window.addEventListener("mousemove", resize);
+    window.addEventListener("mouseup", stopResizing);
     return () => {
       window.removeEventListener("mousemove", resize);
       window.removeEventListener("mouseup", stopResizing);
     };
+    // resize/stopResizing are stable (useCallback deps: []) so the effect
+    // only re-runs when isResizing actually toggles.
   }, [isResizing, resize, stopResizing]);
 
   return (
@@ -342,11 +347,16 @@ export function StreamPage() {
                 </div>
               </div>
             )}
-            {/* Show offline screen when stream is confirmed offline (data loaded but not live) */}
+            {/* Show offline screen only when we have NO working playback URL.
+                The metadata fetch (streamData) can time out independently of the
+                playback fetch; if HLS is loaded and playing, trust that signal —
+                the HLS player will surface a `playerError` if the stream actually
+                ends mid-watch, which triggers the dedicated overlay above. */}
             {!isPlaybackLoading &&
               !isChannelLoading &&
               !isStreamLoading &&
               !isStreamLive &&
+              !hasPlayback &&
               !playerError && (
                 <div className="absolute inset-0 z-20 overflow-hidden">
                   {/* Background: Offline banner if available, otherwise blurred avatar or gradient */}

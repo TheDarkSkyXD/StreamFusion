@@ -1,4 +1,5 @@
 import type React from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuGripVertical, LuMessageSquare, LuVolume2, LuVolumeX, LuX } from "react-icons/lu";
 
 import { KickLivePlayer } from "@/components/player/kick";
@@ -11,6 +12,13 @@ import { cn } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
 import { useMultiStreamStore } from "@/store/multistream-store";
 
+// Stagger initial HLS.js mount per slot so 6 concurrent decoder allocations
+// don't all hit the GPU at once (the same load profile that previously crashed
+// the GPU process with exit_code=34). Each slot waits slotIndex * delay before
+// starting its first fetch.
+const STAGGER_DELAY_MS = 350;
+const VISIBILITY_THRESHOLD = 0.25;
+
 interface StreamSlotProps {
   streamId: string;
   platform: Platform;
@@ -20,6 +28,18 @@ interface StreamSlotProps {
   onFocus: () => void;
   isFocused: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
+  /**
+   * Initial position in the multistream grid. Captured on first mount only —
+   * reorders don't re-stagger an already-mounted slot.
+   */
+  slotIndex?: number;
+  /**
+   * Defer first mount until the slot is at least 25% on-screen. Used for
+   * focus-mode side-rail slots which may scroll horizontally off-screen. Once
+   * mounted, scrolling out of view does NOT pause or unmount — only the FIRST
+   * mount waits for visibility.
+   */
+  lazyMount?: boolean;
 }
 
 export function StreamSlot({
@@ -31,9 +51,49 @@ export function StreamSlot({
   onFocus,
   isFocused,
   dragHandleProps,
+  slotIndex = 0,
+  lazyMount = false,
 }: StreamSlotProps) {
   const { toggleMute, setChatStream, chatStreamId } = useMultiStreamStore();
-  const { playback, isLoading, reload } = useStreamPlayback(platform, channelName);
+
+  // Capture initial slotIndex so reorders don't re-trigger the stagger for an
+  // already-mounted slot — the value is read once and never tracks prop updates.
+  const initialSlotIndexRef = useRef(slotIndex);
+  const [isStaggerReady, setIsStaggerReady] = useState(() => slotIndex === 0);
+  const [isVisible, setIsVisible] = useState(() => !lazyMount);
+  const slotRootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (isStaggerReady) return;
+    const timer = setTimeout(
+      () => setIsStaggerReady(true),
+      initialSlotIndexRef.current * STAGGER_DELAY_MS
+    );
+    return () => clearTimeout(timer);
+  }, [isStaggerReady]);
+
+  useEffect(() => {
+    if (!lazyMount || isVisible) return;
+    const node = slotRootRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: VISIBILITY_THRESHOLD }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [lazyMount, isVisible]);
+
+  const isMountReady = isStaggerReady && isVisible;
+  // Passing an empty identifier short-circuits the playback fetch — both the
+  // IPC round-trip and HLS.js init are deferred until the slot is ready.
+  const effectiveChannelName = isMountReady ? channelName : "";
+  const { playback, isLoading, reload } = useStreamPlayback(platform, effectiveChannelName);
 
   // Fetch channel data to get offline banner, avatar, and display name
   const { data: channelData } = useChannelByUsername(channelName, platform);
@@ -42,6 +102,7 @@ export function StreamSlot({
 
   return (
     <div
+      ref={slotRootRef}
       className={cn(
         "relative w-full h-full bg-black group border-2 transition-colors",
         isFocused
@@ -123,7 +184,25 @@ export function StreamSlot({
 
       {/* Video Player - Only render when we have a valid playback URL */}
       <div className="w-full h-full">
-        {playback?.url ? (
+        {!isMountReady ? (
+          // Stagger placeholder — skeleton with channel label so the wait is
+          // clearly a loading state, not a broken/blank slot.
+          <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-zinc-900 to-black">
+            <div className="absolute inset-0 animate-pulse bg-[var(--color-background-elevated)]/20" />
+            <div className="relative z-10 flex flex-col items-center text-center px-4">
+              {channelData?.avatarUrl && (
+                <img
+                  src={channelData.avatarUrl}
+                  alt=""
+                  className="w-12 h-12 rounded-full mb-3 opacity-60"
+                />
+              )}
+              <p className="text-white/60 text-xs">
+                Loading {channelData?.displayName || channelName}…
+              </p>
+            </div>
+          </div>
+        ) : playback?.url ? (
           // Stream is live - render the player
           platform === "kick" ? (
             <KickLivePlayer

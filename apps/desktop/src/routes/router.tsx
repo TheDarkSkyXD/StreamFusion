@@ -77,10 +77,16 @@ const categoriesRoute = createRoute({
   component: withSuspense(CategoriesPage),
 });
 
-// Category detail page
+// Category detail page.
+// `otherId` is the other-platform category id when known up-front (the merged
+// list captures it during dedup so this page can fetch cross-platform streams
+// without a name-based runtime search).
 const categoryDetailRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/categories/$platform/$categoryId",
+  validateSearch: (search: Record<string, unknown>): { otherId?: string } => ({
+    otherId: typeof search.otherId === "string" ? search.otherId : undefined,
+  }),
   component: withSuspense(CategoryDetailPage),
 });
 
@@ -98,9 +104,10 @@ const searchRoute = createRoute({
 const streamRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/stream/$platform/$channel",
-  validateSearch: (search: Record<string, unknown>): { tab: "home" | "videos" | "clips" } => ({
-    tab: (search.tab as "home" | "videos" | "clips") || "home",
-  }),
+  validateSearch: (search: Record<string, unknown>): { tab?: "home" | "videos" | "clips" } => {
+    const tab = search.tab;
+    return tab === "home" || tab === "videos" || tab === "clips" ? { tab } : {};
+  },
   component: withSuspense(StreamPage),
 });
 

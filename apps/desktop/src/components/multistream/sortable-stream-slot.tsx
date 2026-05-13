@@ -13,6 +13,7 @@ interface SortableStreamSlotProps {
   onRemove: () => void;
   onFocus: () => void;
   isFocused: boolean;
+  slotIndex?: number;
 }
 
 export function SortableStreamSlot({
@@ -23,6 +24,7 @@ export function SortableStreamSlot({
   onRemove,
   onFocus,
   isFocused,
+  slotIndex,
 }: SortableStreamSlotProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -45,6 +47,7 @@ export function SortableStreamSlot({
         onRemove={onRemove}
         onFocus={onFocus}
         isFocused={isFocused}
+        slotIndex={slotIndex}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>

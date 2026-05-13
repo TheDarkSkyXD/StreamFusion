@@ -32,10 +32,17 @@ export function useInfiniteTopStreams(platform?: Platform, limit: number = 20) {
 export function useInfiniteStreamsByCategory(
   categoryId: string,
   platform?: Platform,
-  limit: number = 20
+  limit: number = 20,
+  categoryName?: string,
+  language?: string
 ) {
   return useInfiniteQuery({
-    queryKey: [...STREAM_KEYS.byCategory(categoryId, platform), "infinite"],
+    queryKey: [
+      ...STREAM_KEYS.byCategory(categoryId, platform),
+      "infinite",
+      categoryName,
+      language,
+    ],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await window.electronAPI.streams.getByCategory({
@@ -43,6 +50,8 @@ export function useInfiniteStreamsByCategory(
         platform,
         limit,
         cursor: pageParam,
+        categoryName,
+        language,
       });
 
       if (response.error) {
@@ -55,7 +64,9 @@ export function useInfiniteStreamsByCategory(
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: !!categoryId,
+    // categoryName lets the Kick path slug-guess when the numeric id is unknown,
+    // so enable the query when either a real id OR a name is available.
+    enabled: !!categoryId || !!categoryName,
   });
 }
 

@@ -26,8 +26,7 @@ export function registerStreamHandlers(): void {
       try {
         const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
 
-        // Fetch from Twitch if no platform specified or platform is twitch
-        if (!params.platform || params.platform === "twitch") {
+        const fetchTwitch = async () => {
           try {
             const twitchResult = await twitchClient.getTopStreams({
               first: params.limit || 20,
@@ -43,10 +42,9 @@ export function registerStreamHandlers(): void {
           } catch (err) {
             console.warn("⚠️ Failed to fetch Twitch top streams:", err);
           }
-        }
+        };
 
-        // Fetch from Kick if no platform specified or platform is kick
-        if (!params.platform || params.platform === "kick") {
+        const fetchKick = async () => {
           try {
             const kickResult = await kickClient.getTopStreams({
               limit: params.limit || 20,
@@ -61,6 +59,16 @@ export function registerStreamHandlers(): void {
           } catch (err) {
             console.warn("⚠️ Failed to fetch Kick top streams:", err);
           }
+        };
+
+        // Run both platform fetches in parallel when no filter is given.
+        // Per-platform try/catch above means allSettled is never needed for error containment.
+        if (!params.platform) {
+          await Promise.all([fetchTwitch(), fetchKick()]);
+        } else if (params.platform === "twitch") {
+          await fetchTwitch();
+        } else if (params.platform === "kick") {
+          await fetchKick();
         }
 
         // Merge and sort by viewer count if fetching from both platforms
@@ -83,6 +91,10 @@ export function registerStreamHandlers(): void {
 
   /**
    * Get streams by category
+   *
+   * `categoryName` (optional) lets the Kick lookup fall back to a slug-based
+   * fetch when the numeric id doesn't resolve — required for cross-platform
+   * browsing where a Twitch category needs to find its Kick counterpart by name.
    */
   ipcMain.handle(
     IPC_CHANNELS.STREAMS_GET_BY_CATEGORY,
@@ -93,6 +105,8 @@ export function registerStreamHandlers(): void {
         platform?: Platform;
         limit?: number;
         cursor?: string;
+        categoryName?: string;
+        language?: string;
       }
     ) => {
       const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
@@ -101,32 +115,44 @@ export function registerStreamHandlers(): void {
       try {
         const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
 
-        if (!params.platform || params.platform === "twitch") {
+        const fetchTwitch = async () => {
           try {
             const result = await twitchClient.getTopStreams({
               first: params.limit || 20,
               after: params.cursor,
               gameId: params.categoryId,
+              language: params.language,
             });
             results.push({ platform: "twitch", data: result.data, cursor: result.cursor });
           } catch (err) {
             console.warn("⚠️ Failed to fetch Twitch streams by category:", err);
           }
-        }
+        };
 
-        if (!params.platform || params.platform === "kick") {
+        const fetchKick = async () => {
           try {
             const result = await kickClient.getStreamsByCategory(params.categoryId, {
               limit: params.limit || 20,
+              cursor: params.cursor,
+              categoryName: params.categoryName,
+              language: params.language,
             });
             results.push({
               platform: "kick",
               data: result.data,
-              cursor: result.nextPage?.toString(),
+              cursor: result.cursor ?? result.nextPage?.toString(),
             });
           } catch (err) {
             console.warn("⚠️ Failed to fetch Kick streams by category:", err);
           }
+        };
+
+        if (!params.platform) {
+          await Promise.all([fetchTwitch(), fetchKick()]);
+        } else if (params.platform === "twitch") {
+          await fetchTwitch();
+        } else if (params.platform === "kick") {
+          await fetchKick();
         }
 
         if (!params.platform) {
@@ -135,11 +161,21 @@ export function registerStreamHandlers(): void {
           return { success: true, data: allStreams };
         }
 
-        return { success: true, ...results[0] };
+        // Single-platform request: always return a consistent shape even when
+        // the platform fetch failed (results is empty). Avoid `...results[0]`
+        // collapsing to `{success: true}` with no `data` field.
+        const first = results[0];
+        return {
+          success: true,
+          platform: first?.platform ?? params.platform,
+          data: first?.data ?? [],
+          cursor: first?.cursor,
+        };
       } catch (error) {
         console.error("❌ Failed to get streams by category:", error);
         return {
           success: false,
+          data: [],
           error: error instanceof Error ? error.message : "Failed to fetch streams",
         };
       }
@@ -165,8 +201,7 @@ export function registerStreamHandlers(): void {
       try {
         const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
 
-        // Twitch
-        if (!params.platform || params.platform === "twitch") {
+        const fetchTwitchFollowed = async () => {
           const localTwitch = storageService.getActiveFollowsByPlatform("twitch");
           const twitchStreams: any[] = [];
           const seenIds = new Set<string>();
@@ -220,10 +255,9 @@ export function registerStreamHandlers(): void {
               console.warn("⚠️ Failed to fetch Twitch local followed streams:", err);
             }
           }
-        }
+        };
 
-        // Kick
-        if (!params.platform || params.platform === "kick") {
+        const fetchKickFollowed = async () => {
           const localKick = storageService.getActiveFollowsByPlatform("kick");
           const kickStreams: any[] = [];
           const seenIds = new Set<string>();
@@ -249,40 +283,36 @@ export function registerStreamHandlers(): void {
           if (localKick.length > 0) {
             const uniqueSlugs = [...new Set(localKick.map((f) => f.channelName))];
 
-            // Throttle requests to avoid 429 (Kick API is sensitive to parallel bursts)
-            // We process in small chunks with delays
-            const localResults: any[] = [];
-            const CHUNK_SIZE = 3;
+            // Concurrency is already capped at 4 by acquireKickRequestSlot() inside
+            // getPublicStreamBySlug — chunking on top of that just added ~500 ms of
+            // sleep between batches of 3 (≈2 s for a 15-follow user) on every 60 s
+            // poll, with no extra 429 protection beyond what the semaphore + the
+            // in-flight dedupe + failure cache already provide.
+            const settled = await Promise.allSettled(
+              uniqueSlugs.map((slug) => kickClient.getPublicStreamBySlug(slug))
+            );
 
-            for (let i = 0; i < uniqueSlugs.length; i += CHUNK_SIZE) {
-              const chunk = uniqueSlugs.slice(i, i + CHUNK_SIZE);
-              // console.log(`[Kick] Fetching chunk ${i / CHUNK_SIZE + 1} of local follows...`);
-
-              const chunkPromises = chunk.map((slug) => kickClient.getPublicStreamBySlug(slug));
-              const chunkResults = await Promise.allSettled(chunkPromises);
-              chunkResults.forEach((result) => {
-                if (result.status === "fulfilled" && result.value) {
-                  localResults.push(result.value);
-                } else if (result.status === "rejected") {
-                  console.warn("Failed to fetch Kick stream:", result.reason);
+            for (const result of settled) {
+              if (result.status === "fulfilled") {
+                if (result.value && !seenIds.has(result.value.id)) {
+                  kickStreams.push(result.value);
+                  seenIds.add(result.value.id);
                 }
-              });
-
-              // Delay between chunks if there are more
-              if (i + CHUNK_SIZE < uniqueSlugs.length) {
-                await new Promise((resolve) => setTimeout(resolve, 500));
+              } else {
+                console.warn("Failed to fetch Kick stream:", result.reason);
               }
             }
-
-            localResults.forEach((s) => {
-              if (s && !seenIds.has(s.id)) {
-                kickStreams.push(s);
-                seenIds.add(s.id);
-              }
-            });
           }
 
           results.push({ platform: "kick", data: kickStreams });
+        };
+
+        if (!params.platform) {
+          await Promise.all([fetchTwitchFollowed(), fetchKickFollowed()]);
+        } else if (params.platform === "twitch") {
+          await fetchTwitchFollowed();
+        } else if (params.platform === "kick") {
+          await fetchKickFollowed();
         }
 
         if (!params.platform) {

@@ -414,14 +414,14 @@ export function VideoPage() {
                   <div className="flex flex-wrap gap-2 mt-3">
                     {/* Language Tag */}
                     {displayLanguage && (
-                      <span className="text-xs px-3 py-1 rounded-full font-medium bg-[#35353b] text-[#efeff1] hover:bg-[#45454b] transition-colors cursor-default">
+                      <span className="text-xs px-3 py-1 rounded-full font-medium bg-[#4a4d55] text-[#efeff1] hover:bg-[#5a5d66] transition-colors cursor-default">
                         {new Intl.DisplayNames(["en"], { type: "language" }).of(displayLanguage) ||
                           displayLanguage.toUpperCase()}
                       </span>
                     )}
                     {/* Mature Content Tag */}
                     {displayIsMature && (
-                      <span className="text-xs px-3 py-1 rounded-full font-medium bg-[#35353b] text-[#efeff1] hover:bg-[#45454b] transition-colors cursor-default">
+                      <span className="text-xs px-3 py-1 rounded-full font-medium bg-[#4a4d55] text-[#efeff1] hover:bg-[#5a5d66] transition-colors cursor-default">
                         18+
                       </span>
                     )}
@@ -430,7 +430,7 @@ export function VideoPage() {
                       displayTags.map((tag: string, index: number) => (
                         <span
                           key={`${tag}-${index}`}
-                          className="text-xs px-3 py-1 rounded-full font-medium bg-[#35353b] text-[#efeff1] hover:bg-[#45454b] transition-colors cursor-default"
+                          className="text-xs px-3 py-1 rounded-full font-medium bg-[#4a4d55] text-[#efeff1] hover:bg-[#5a5d66] transition-colors cursor-default"
                         >
                           {tag}
                         </span>

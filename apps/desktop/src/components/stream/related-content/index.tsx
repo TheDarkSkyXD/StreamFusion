@@ -25,7 +25,27 @@ export function RelatedContent({
   channelData,
   onClipSelectionChange,
 }: RelatedContentProps) {
-  const { tab: activeTab } = useSearch({ from: "/_app/stream/$platform/$channel" });
+  const { tab: urlTab } = useSearch({ from: "/_app/stream/$platform/$channel" });
+  const [savedTab, setSavedTab] = useState<"home" | "videos" | "clips">(() => {
+    try {
+      const s = localStorage.getItem("stream-tab-preference");
+      return s === "home" || s === "videos" || s === "clips" ? s : "home";
+    } catch {
+      return "home";
+    }
+  });
+  const activeTab = urlTab ?? savedTab;
+
+  useEffect(() => {
+    if (!urlTab) return;
+    setSavedTab(urlTab);
+    try {
+      localStorage.setItem("stream-tab-preference", urlTab);
+    } catch (error) {
+      console.warn("Failed to save stream tab preference:", error);
+    }
+  }, [urlTab]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [videos, setVideos] = useState<VideoOrClip[]>([]);
   const [clips, setClips] = useState<VideoOrClip[]>([]);

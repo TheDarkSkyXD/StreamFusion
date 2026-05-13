@@ -1,14 +1,14 @@
 import { Link, useLocation } from "@tanstack/react-router";
+import {
+  Download as LuDownload,
+  Grid3x3 as LuGrid3X3,
+  Heart as LuHeart,
+  History as LuHistory,
+  House as LuHouse,
+  LayoutDashboard as LuLayoutDashboard,
+} from "lucide-react";
 import type React from "react";
 import { IoMdSettings } from "react-icons/io";
-import {
-  LuDownload,
-  LuGrid3X3,
-  LuHeart,
-  LuHistory,
-  LuHouse,
-  LuLayoutDashboard,
-} from "react-icons/lu";
 
 import { MiniPlayer } from "@/components/player/mini-player";
 import { useAuthInitialize } from "@/hooks/useAuth";

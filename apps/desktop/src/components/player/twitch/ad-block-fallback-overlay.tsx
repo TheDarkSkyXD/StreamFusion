@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 import type { AdBlockStatus } from "@/shared/adblock-types";
 
 interface AdBlockFallbackOverlayProps {
@@ -15,29 +13,7 @@ interface AdBlockFallbackOverlayProps {
  * The overlay code is preserved in case it's needed for debugging or
  * if users want to opt-in to see ad blocking status in the future.
  */
-export function AdBlockFallbackOverlay({ status, channelName }: AdBlockFallbackOverlayProps) {
-  const [elapsed, setElapsed] = useState(0);
-
-  // Update elapsed time counter
-  useEffect(() => {
-    if (!status.adStartTime) {
-      setElapsed(0);
-      return;
-    }
-
-    // Calculate initial elapsed
-    setElapsed(Math.floor((Date.now() - status.adStartTime) / 1000));
-
-    // Update every second
-    const interval = setInterval(() => {
-      if (status.adStartTime) {
-        setElapsed(Math.floor((Date.now() - status.adStartTime) / 1000));
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [status.adStartTime]);
-
+export function AdBlockFallbackOverlay(_props: AdBlockFallbackOverlayProps) {
   // DISABLED: We want seamless ad blocking without visual interruption
   // The stream should continue playing as if ads don't exist
   // Keep overlay hidden - ads are blocked at network/HLS level

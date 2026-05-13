@@ -132,6 +132,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       // Track event handlers for cleanup (used by native HLS and standard playback)
       let handleLoadedMetadata: (() => void) | null = null;
       let handleError: ((e: Event) => void) | null = null;
+      let handlePlayReset: (() => void) | null = null;
       // Heartbeat interval for fast offline detection (cleaned up in effect cleanup)
       let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
       // Memory cleanup interval for long-running streams (cleaned up in effect cleanup)
@@ -504,6 +505,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           fragErrorCount = 0; // Reset error count on success
         });
 
+        // Reset fragment timer on play so we don't false-positive immediately after resuming from pause
+        handlePlayReset = () => {
+          lastFragLoadedTime = Date.now();
+        };
+        video.addEventListener("play", handlePlayReset);
+
         // Track fragment load errors (may indicate token expiration)
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.details === "fragLoadError" && !data.fatal) {
@@ -537,6 +544,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           heartbeatInterval = setInterval(() => {
             if (!isEffectActive || !hls) {
               if (heartbeatInterval) clearInterval(heartbeatInterval);
+              return;
+            }
+
+            // Skip fragment timeout checks while paused — no new fragments is expected
+            if (video && video.paused) {
+              lastFragLoadedTime = Date.now(); // Reset timer so we don't false-positive on resume
               return;
             }
 
@@ -734,6 +747,21 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
           if (handleError) {
             currentVideo.removeEventListener("error", handleError);
+          }
+          if (handlePlayReset) {
+            currentVideo.removeEventListener("play", handlePlayReset);
+          }
+
+          // Force Chromium to release the underlying media decoder + GPU
+          // buffers. hls.destroy() drops the JS HLS state but the <video>
+          // element holds onto decoded frames until src is cleared and
+          // load() resets the resource. Frees 5-20 MB per stream nav.
+          try {
+            currentVideo.pause();
+            currentVideo.removeAttribute("src");
+            currentVideo.load();
+          } catch {
+            // Element may already be torn down in StrictMode — ignore.
           }
         }
       };

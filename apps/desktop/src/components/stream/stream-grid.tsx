@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import type { UnifiedStream } from "@/backend/api/unified/platform-types";
 import { getStreamElementKey } from "@/lib/id-utils";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,14 @@ export function StreamGrid({
   className,
   skeletons = 8,
 }: StreamGridProps) {
+  // Only stagger-animate the first batch of cards. New cards added via infinite
+  // scroll mount without animation — the slide-up on 30 cards at once reads as
+  // a "bounce" during pagination.
+  const animatedInitialRef = useRef(false);
+  const hasStreams = !!streams && streams.length > 0;
+  const shouldStagger = hasStreams && !animatedInitialRef.current;
+  if (hasStreams) animatedInitialRef.current = true;
+
   if (isLoading) {
     return (
       <div
@@ -48,7 +58,7 @@ export function StreamGrid({
     <div
       className={cn(
         "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4",
-        "stagger-container", // CSS-based stagger animation
+        shouldStagger && "stagger-container",
         className
       )}
     >
