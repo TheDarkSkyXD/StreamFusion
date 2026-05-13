@@ -11,7 +11,7 @@
  * - Platform-aware sending
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { BsEmojiSmile, BsReplyFill, BsSend, BsXLg } from "react-icons/bs";
 import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
@@ -94,7 +94,7 @@ function parseCommand(message: string): ParsedCommand | null {
 
 // ========== Component ==========
 
-export const ChatInput: React.FC<ChatInputProps> = ({
+export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   channel,
   platform,
   chatroomId,
@@ -103,7 +103,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   canSend = true,
   disabled = false,
   className = "",
-}) => {
+}, ref) => {
   // State
   const [message, setMessage] = useState("");
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -237,7 +237,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   );
 
   // Handle reply
-  const _handleReply = useCallback((msg: ChatMessage) => {
+  const handleReply = useCallback((msg: ChatMessage) => {
     setReply({
       messageId: msg.id,
       username: msg.username,
@@ -248,6 +248,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     // Focus input
     inputRef.current?.focus();
   }, []);
+
+  useImperativeHandle(ref, () => ({ replyTo: handleReply }), [handleReply]);
 
   const clearReply = useCallback(() => {
     setReply(null);
@@ -485,7 +487,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {error && <div className="absolute -bottom-6 left-0 text-xs text-red-500">{error}</div>}
     </div>
   );
-};
+});
+
+ChatInput.displayName = "ChatInput";
 
 // Export a method type for external reply triggering
 export type ChatInputHandle = {

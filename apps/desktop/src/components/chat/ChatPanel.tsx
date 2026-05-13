@@ -1,5 +1,9 @@
 import type React from "react";
+import { useEffect } from "react";
+
+import { ensureEmoteProvidersInitialized } from "../../backend/services/emotes";
 import type { ChatPlatform } from "../../shared/chat-types";
+
 import { KickChat } from "./kick/KickChat";
 import { TwitchChat } from "./twitch/TwitchChat";
 
@@ -23,6 +27,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   channelId,
   subscriberBadges,
 }) => {
+  // Register emote providers lazily — chat is the only consumer, so pages
+  // without chat (Home, Categories, …) don't pay the cost at app boot.
+  useEffect(() => {
+    ensureEmoteProvidersInitialized();
+  }, []);
+
   // Note: Global emotes are loaded by child components (TwitchChat/KickChat)
   // after they configure their respective providers with credentials
 

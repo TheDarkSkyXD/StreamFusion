@@ -71,7 +71,8 @@ export type MessageType =
   | "notice"
   | "subscription"
   | "raid"
-  | "bits";
+  | "bits"
+  | "ban";
 
 /** A fragment of message content */
 export type ContentFragment =
@@ -129,6 +130,13 @@ export interface ChatMessage {
   replyTo?: ReplyInfo;
   /** Bits amount if this is a bits message */
   bits?: number;
+  /** Ban/timeout info for ban-type messages */
+  banInfo?: {
+    bannedUsername: string;
+    bannedByUsername?: string;
+    lastMessage?: string;
+    duration?: number;
+  };
 }
 
 // ========== User Notice Types ==========
@@ -166,6 +174,7 @@ export interface ClearChat {
   /** If present, only this user's messages should be cleared */
   targetUserId?: string;
   targetUsername?: string;
+  bannedByUsername?: string;
   /** Timeout duration in seconds (if timeout, not ban) */
   duration?: number;
   /** If true, this is a full chat clear */
@@ -198,6 +207,38 @@ export interface ChatConnectionStatus {
   connectedAt?: Date;
 }
 
+// ========== Kick-specific Event Types ==========
+
+export interface KickPinnedMessage {
+  message: {
+    id: string;
+    content: string;
+    created_at: string;
+    sender: {
+      username: string;
+      identity: { color: string };
+    };
+  };
+  pinned_by: {
+    username: string;
+    identity: { color: string };
+  };
+  finish_at?: string;
+}
+
+export interface KickPollOption {
+  id: number;
+  label: string;
+  votes: number;
+}
+
+export interface KickPoll {
+  title: string;
+  options: KickPollOption[];
+  remaining: number;
+  duration: number;
+}
+
 // ========== Chat Service Events ==========
 
 export interface ChatServiceEvents {
@@ -207,4 +248,7 @@ export interface ChatServiceEvents {
   messageDeleted: (deletion: MessageDeletion) => void;
   connectionStateChange: (status: ChatConnectionStatus) => void;
   error: (error: Error) => void;
+  pinnedMessage: (msg: KickPinnedMessage) => void;
+  pinnedMessageCleared: () => void;
+  pollUpdate: (poll: KickPoll) => void;
 }

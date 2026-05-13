@@ -13,6 +13,8 @@ import type {
   ChatConnectionState,
   ChatConnectionStatus,
   ChatServiceEvents,
+  KickPinnedMessage,
+  KickPoll,
 } from "../../../shared/chat-types";
 // Removed storageService import
 
@@ -368,9 +370,11 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       // Unbind ALL connection handlers
       this.pusher.connection.unbind_all();
 
-      // Unsubscribe from all channels
+      // Unsubscribe from all channels (and drop their per-channel handlers
+      // so closures don't outlive the Pusher socket).
       for (const [_slug, info] of this.channels) {
         if (info.pusherChannel) {
+          info.pusherChannel.unbind_all();
           this.pusher.unsubscribe(`chatrooms.${info.chatroomId}.v2`);
           this.pusher.unsubscribe(`chatrooms.${info.chatroomId}`);
         }
@@ -467,7 +471,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     }
 
     if (this.pusher && channelInfo.pusherChannel) {
-      // Unsubscribe from both channels we subscribed to
+      // setupChannelEventHandlers() binds 14 event handlers on the Pusher
+      // channel object. unsubscribe() removes the subscription but Pusher
+      // retains the callbacks in its internal registry, leaking closures
+      // (with references to this, channelSlug, the emitter) on every
+      // channel switch. unbind_all() drops them.
+      channelInfo.pusherChannel.unbind_all();
+
       const v2ChannelName = `chatrooms.${channelInfo.chatroomId}.v2`;
       const baseChannelName = `chatrooms.${channelInfo.chatroomId}`;
       this.pusher.unsubscribe(v2ChannelName);
@@ -713,18 +723,27 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       this.emit("userNotice", notice);
     });
 
-    // Pinned message events (optional - can be expanded later)
-    pusherChannel.bind("App\\Events\\PinnedMessageCreatedEvent", (_data: unknown) => {
+    // Pinned message events
+    pusherChannel.bind("App\\Events\\PinnedMessageCreatedEvent", (data: unknown) => {
       this.log(`Pinned message created in ${channelSlug}`);
+      const pin = data as KickPinnedMessage;
+      if (pin?.message) {
+        this.emit("pinnedMessage", pin);
+      }
     });
 
     pusherChannel.bind("App\\Events\\PinnedMessageDeletedEvent", (_data: unknown) => {
       this.log(`Pinned message deleted in ${channelSlug}`);
+      this.emit("pinnedMessageCleared");
     });
 
-    // Poll update event (optional - can be expanded later)
-    pusherChannel.bind("App\\Events\\PollUpdateEvent", (_data: unknown) => {
+    // Poll update event
+    pusherChannel.bind("App\\Events\\PollUpdateEvent", (data: unknown) => {
       this.log(`Poll updated in ${channelSlug}`);
+      const poll = data as KickPoll;
+      if (poll?.title) {
+        this.emit("pollUpdate", poll);
+      }
     });
 
     // Subscription states

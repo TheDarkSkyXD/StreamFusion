@@ -84,6 +84,8 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
       }
     }, [onClick, emote]);
 
+    // Capture position once on hover-enter — tooltip is anchored, doesn't follow the cursor.
+    // Previously onMouseMove fired ~60 Hz allocating a fresh {x,y} object per frame.
     const handleMouseEnter = useCallback(
       (e: React.MouseEvent) => {
         if (showTooltip) {
@@ -93,10 +95,6 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
       },
       [showTooltip]
     );
-
-    const handleMouseMove = useCallback((e: React.MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    }, []);
 
     const handleMouseLeave = useCallback(() => {
       setShowTooltipState(false);
@@ -129,7 +127,6 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
           className={`relative inline-flex items-center ${onClick ? "cursor-pointer" : ""} ${className}`}
           style={zeroWidthStyles}
           onMouseEnter={handleMouseEnter}
-          onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
         >

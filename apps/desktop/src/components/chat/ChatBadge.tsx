@@ -22,13 +22,11 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
   const [showTooltip, setShowTooltip] = useState(false);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
 
+  // Capture position once on hover-enter — tooltip is anchored, doesn't follow the cursor.
+  // Previously onMouseMove fired ~60 Hz allocating a fresh {x,y} object per frame.
   const handleMouseEnter = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
     setShowTooltip(true);
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    setMousePos({ x: e.clientX, y: e.clientY });
   }, []);
 
   const handleMouseLeave = useCallback(() => {
@@ -55,7 +53,6 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
         loading="lazy"
         className="h-4 w-auto inline-block align-middle mr-1 cursor-pointer"
         onMouseEnter={handleMouseEnter}
-        onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       />
 

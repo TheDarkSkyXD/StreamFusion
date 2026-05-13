@@ -7,6 +7,7 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-types";
 import type { ChatPlatform } from "../../shared/chat-types";
 import { useEmoteStore } from "../../store/emote-store";
@@ -82,19 +83,22 @@ export const EmotePicker: React.FC<EmotePickerProps> = ({
   const availableTabs = useMemo(() => getTabsForPlatform(platform), [platform]);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const {
-    recentEmotes,
-    favoriteEmotes,
-    addRecentEmote,
-    toggleFavorite,
-    isFavorite,
-    searchEmotes,
-    getEmotesByProvider,
-    isLoading,
-    globalEmotesLoaded,
-    loadedChannels,
-    activeChannelId,
-  } = useEmoteStore();
+  const { recentEmotes, favoriteEmotes, isLoading, activeChannelId, loadedChannels, globalEmotesLoaded } =
+    useEmoteStore(
+      useShallow((state) => ({
+        recentEmotes: state.recentEmotes,
+        favoriteEmotes: state.favoriteEmotes,
+        isLoading: state.isLoading,
+        activeChannelId: state.activeChannelId,
+        loadedChannels: state.loadedChannels,
+        globalEmotesLoaded: state.globalEmotesLoaded,
+      }))
+    );
+  const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
+  const toggleFavorite = useEmoteStore((state) => state.toggleFavorite);
+  const isFavorite = useEmoteStore((state) => state.isFavorite);
+  const searchEmotes = useEmoteStore((state) => state.searchEmotes);
+  const getEmotesByProvider = useEmoteStore((state) => state.getEmotesByProvider);
 
   // Focus search input when opened
   useEffect(() => {
@@ -137,10 +141,18 @@ export const EmotePicker: React.FC<EmotePickerProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // Get emotes for current tab
-  const emotesByProvider = useMemo(() => getEmotesByProvider(), [getEmotesByProvider]);
+  // Get emotes for current tab. Depends on emote-manager state — tracked via
+  // store fields that change when emotes load/unload (activeChannelId / loadedChannels / globalEmotesLoaded).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const emotesByProvider = useMemo(() => getEmotesByProvider(), [
+    activeChannelId,
+    loadedChannels,
+    globalEmotesLoaded,
+  ]);
 
-  // Get displayed emotes based on active tab and search
+  // Get displayed emotes based on active tab and search. searchEmotes() and getEmotesByProvider()
+  // are stable store-action refs (Zustand v5); we deliberately depend on the underlying state instead.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const displayedEmotes = useMemo(() => {
     // If searching, return search results
     if (searchQuery.trim()) {
@@ -166,7 +178,16 @@ export const EmotePicker: React.FC<EmotePickerProps> = ({
       default:
         return [];
     }
-  }, [activeTab, searchQuery, recentEmotes, favoriteEmotes, emotesByProvider, searchEmotes]);
+  }, [
+    activeTab,
+    searchQuery,
+    recentEmotes,
+    favoriteEmotes,
+    emotesByProvider,
+    activeChannelId,
+    loadedChannels,
+    globalEmotesLoaded,
+  ]);
 
   // Handle emote selection
   const handleEmoteClick = useCallback(

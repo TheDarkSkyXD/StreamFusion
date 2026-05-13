@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { BsGear, BsX } from "react-icons/bs";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
 import { initializeTwitchEmotes } from "../../../backend/services/emotes";
 import type {
@@ -22,20 +23,22 @@ export interface TwitchChatProps {
 }
 
 export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) => {
-  // Chat store
-  const {
-    addMessage,
-    updateConnectionStatus,
-    clearMessages,
-    deleteMessage,
-    deleteMessagesByUser,
-    connectionStatus,
-  } = useChatStore();
+  // Chat store — subscribe only to fields read in render; actions have stable refs.
+  const connectionStatus = useChatStore((state) => state.connectionStatus);
+  const addMessage = useChatStore((state) => state.addMessage);
+  const updateConnectionStatus = useChatStore((state) => state.updateConnectionStatus);
+  const clearMessages = useChatStore((state) => state.clearMessages);
+  const deleteMessage = useChatStore((state) => state.deleteMessage);
+  const deleteMessagesByUser = useChatStore((state) => state.deleteMessagesByUser);
 
-  const { loadGlobalEmotes, loadChannelEmotes, setActiveChannel, unloadChannelEmotes } =
-    useEmoteStore();
+  // Emote store — actions only; no render-time data needed here.
+  const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
+  const loadChannelEmotes = useEmoteStore((state) => state.loadChannelEmotes);
+  const setActiveChannel = useEmoteStore((state) => state.setActiveChannel);
+  const unloadChannelEmotes = useEmoteStore((state) => state.unloadChannelEmotes);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [showChatSettings, setShowChatSettings] = useState(false);
 
   // Track current channel for cleanup
   // Initialize with null so we know when it's the first connection (and clear previous messages)
@@ -260,31 +263,52 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
       if (clear.isClearAll) {
         clearMessages(clear.platform);
+        addMessage({
+          id: crypto.randomUUID(),
+          platform: clear.platform,
+          type: "system",
+          channel: clear.channel,
+          userId: "system",
+          username: "System",
+          displayName: "System",
+          color: "#808080",
+          badges: [],
+          content: [{ type: "text", content: "Chat was cleared" }],
+          rawContent: "Chat was cleared",
+          timestamp: clear.timestamp,
+          isDeleted: false,
+          isHighlighted: true,
+          isAction: false,
+        });
       } else if (clear.targetUserId) {
+        const { messages } = useChatStore.getState();
+        const lastMsg = [...messages]
+          .reverse()
+          .find((m) => m.userId === clear.targetUserId && m.type === "message");
         deleteMessagesByUser(clear.targetUserId);
+        addMessage({
+          id: crypto.randomUUID(),
+          platform: clear.platform,
+          type: "ban",
+          channel: clear.channel,
+          userId: "system",
+          username: "System",
+          displayName: "System",
+          color: "#808080",
+          badges: [],
+          content: [],
+          rawContent: "",
+          timestamp: clear.timestamp,
+          isDeleted: false,
+          isHighlighted: false,
+          isAction: false,
+          banInfo: {
+            bannedUsername: clear.targetUsername ?? clear.targetUserId,
+            lastMessage: lastMsg?.rawContent,
+            duration: clear.duration,
+          },
+        });
       }
-
-      const actionText = clear.isClearAll
-        ? "Chat was cleared"
-        : `${clear.targetUsername} was ${clear.duration ? `timed out for ${clear.duration}s` : "banned"}`;
-
-      addMessage({
-        id: crypto.randomUUID(),
-        platform: clear.platform,
-        type: "system",
-        channel: clear.channel,
-        userId: "system",
-        username: "System",
-        displayName: "System",
-        color: "#808080",
-        badges: [],
-        content: [{ type: "text", content: actionText }],
-        rawContent: actionText,
-        timestamp: clear.timestamp,
-        isDeleted: false,
-        isHighlighted: true,
-        isAction: false,
-      });
     };
 
     const handleMessageDeleted = (deletion: MessageDeletion) => {
@@ -322,15 +346,45 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       </div>
 
       <div className="flex-1 min-h-0 relative">
-        <ChatMessageList />
+        <ChatMessageList key={`twitch-${channel}`} />
       </div>
 
-      <div className="p-3 border-t border-[var(--color-border)]">
-        <ChatInput
-          platform="twitch"
-          channel={channel}
-          canSend={isAuthenticated && connectionStatus.twitch.state === "connected"}
-        />
+      <div className="border-t border-[var(--color-border)]">
+        {showChatSettings && (
+          <div className="p-2 border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => clearMessages()}
+              className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+            >
+              Clear local chat
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowChatSettings(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              <BsX size={16} />
+            </button>
+          </div>
+        )}
+        <div className="p-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowChatSettings((v) => !v)}
+            className="text-gray-400 hover:text-white flex-shrink-0"
+            title="Chat settings"
+          >
+            <BsGear size={16} />
+          </button>
+          <div className="flex-1">
+            <ChatInput
+              platform="twitch"
+              channel={channel}
+              canSend={isAuthenticated && connectionStatus.twitch.state === "connected"}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

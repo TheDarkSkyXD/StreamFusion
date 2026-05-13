@@ -150,6 +150,14 @@ export type KickEventType =
   | "App\\Events\\PinnedMessageCreatedEvent"
   | "App\\Events\\PinnedMessageDeletedEvent";
 
+// ========== Hot-path Regexes (module-scope to avoid per-message allocation) ==========
+// All carry /g — callers use `.matchAll()` (or `.replace()` for KICK_EMOTE_REGEX)
+// so `lastIndex` state is not shared across invocations.
+
+const KICK_EMOTE_REGEX = /\[emote:(\d+):([^\]]+)\]/g;
+const URL_REGEX = /https?:\/\/[^\s]+/g;
+const MENTION_REGEX = /@(\w+)/g;
+
 // ========== Default Colors ==========
 
 const DEFAULT_COLORS = [
@@ -212,9 +220,10 @@ function parseKickBadges(badges: KickBadge[], subscriberBadges?: SubscriberBadge
     // Custom Subscriber Badge Logic - channel-specific badges from API
     if (badge.type === "subscriber" && subscriberBadges?.length) {
       const months = badge.count || 0;
-      // Sort descending by months, find first badge where user months >= badge months
+      // Sort descending by months, find first badge where user months >= badge months.
+      // toSorted() returns a copy — callers must not have their input mutated.
       const match = subscriberBadges
-        .sort((a, b) => b.months - a.months)
+        .toSorted((a, b) => b.months - a.months)
         .find((b) => months >= b.months);
 
       if (match) {
@@ -240,54 +249,32 @@ function parseKickBadges(badges: KickBadge[], subscriberBadges?: SubscriberBadge
  */
 function parseKickEmotes(content: string): { cleanContent: string; fragments: ContentFragment[] } {
   const fragments: ContentFragment[] = [];
-  const emoteRegex = /\[emote:(\d+):([^\]]+)\]/g;
+
+  // matchAll() avoids the shared-lastIndex hazard of reusing a module-scope /g regex.
+  const matches = Array.from(content.matchAll(KICK_EMOTE_REGEX));
 
   let lastIndex = 0;
-  let match;
-  let cleanContent = content;
+  for (const m of matches) {
+    const start = m.index ?? 0;
+    const end = start + m[0].length;
 
-  // First pass: collect all emote positions
-  const emotePositions: Array<{
-    match: string;
-    id: string;
-    name: string;
-    start: number;
-    end: number;
-  }> = [];
-
-  while ((match = emoteRegex.exec(content)) !== null) {
-    emotePositions.push({
-      match: match[0],
-      id: match[1],
-      name: match[2],
-      start: match.index,
-      end: match.index + match[0].length,
-    });
-  }
-
-  // Build fragments
-  lastIndex = 0;
-  for (const emote of emotePositions) {
-    // Add text before emote
-    if (lastIndex < emote.start) {
-      const textBefore = content.substring(lastIndex, emote.start);
+    if (lastIndex < start) {
+      const textBefore = content.substring(lastIndex, start);
       if (textBefore) {
         fragments.push(...parseTextFragment(textBefore));
       }
     }
 
-    // Add emote fragment
     fragments.push({
       type: "emote",
-      id: emote.id,
-      name: emote.name,
-      url: getKickEmoteUrl(emote.id),
+      id: m[1],
+      name: m[2],
+      url: getKickEmoteUrl(m[1]),
     });
 
-    lastIndex = emote.end;
+    lastIndex = end;
   }
 
-  // Add remaining text
   if (lastIndex < content.length) {
     const remainingText = content.substring(lastIndex);
     if (remainingText) {
@@ -295,8 +282,9 @@ function parseKickEmotes(content: string): { cleanContent: string; fragments: Co
     }
   }
 
-  // Clean content for raw display
-  cleanContent = content.replace(emoteRegex, (_, __, name) => name);
+  // Clean content for raw display — .replace() with /g regex is safe (it iterates
+  // internally without sharing lastIndex state to the caller).
+  const cleanContent = content.replace(KICK_EMOTE_REGEX, (_, __, name) => name);
 
   // If no emotes found, parse the whole content as text
   if (fragments.length === 0 && content) {
@@ -319,12 +307,8 @@ function getKickEmoteUrl(emoteId: string): string {
 function parseTextFragment(text: string): ContentFragment[] {
   const fragments: ContentFragment[] = [];
 
-  // URL regex
-  const urlRegex = /https?:\/\/[^\s]+/g;
-  // Mention regex
-  const mentionRegex = /@(\w+)/g;
-
-  // Combined parsing - find all special tokens
+  // Combined parsing - find all special tokens.
+  // matchAll() avoids the shared-lastIndex hazard of reusing module-scope /g regexes.
   const tokens: Array<{
     type: "url" | "mention";
     value: string;
@@ -333,25 +317,24 @@ function parseTextFragment(text: string): ContentFragment[] {
     username?: string;
   }> = [];
 
-  // Find URLs
-  let match;
-  while ((match = urlRegex.exec(text)) !== null) {
+  for (const m of text.matchAll(URL_REGEX)) {
+    const start = m.index ?? 0;
     tokens.push({
       type: "url",
-      value: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
+      value: m[0],
+      start,
+      end: start + m[0].length,
     });
   }
 
-  // Find mentions
-  while ((match = mentionRegex.exec(text)) !== null) {
+  for (const m of text.matchAll(MENTION_REGEX)) {
+    const start = m.index ?? 0;
     tokens.push({
       type: "mention",
-      value: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-      username: match[1],
+      value: m[0],
+      start,
+      end: start + m[0].length,
+      username: m[1],
     });
   }
 
@@ -505,6 +488,7 @@ export function parseKickUserBanned(event: KickUserBannedEvent, channel: string)
     channel,
     targetUserId: event.user.id.toString(),
     targetUsername: event.user.username,
+    bannedByUsername: event.banned_by?.username,
     duration: event.permanent ? undefined : (event.duration ?? 0) * 60, // Convert minutes to seconds
     isClearAll: false,
     timestamp: new Date(),

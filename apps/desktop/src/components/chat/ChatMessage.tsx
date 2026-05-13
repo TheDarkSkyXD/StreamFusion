@@ -1,5 +1,6 @@
 import type React from "react";
 import { memo, useMemo } from "react";
+import { BsReplyFill } from "react-icons/bs";
 import type { ChatMessage as ChatMessageType, ContentFragment } from "../../shared/chat-types";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
@@ -8,6 +9,30 @@ import { Username } from "./Username";
 interface ChatMessageProps {
   message: ChatMessageType;
   style?: React.CSSProperties;
+  onReply?: (message: ChatMessageType) => void;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  return `${Math.floor(seconds / 3600)}h`;
+}
+
+// Content-derived keys preserve child state across deletions/edits.
+function fragmentKey(fragment: ContentFragment, index: number): string {
+  switch (fragment.type) {
+    case "emote":
+      return `e:${fragment.id}:${index}`;
+    case "mention":
+      return `m:${fragment.username}:${index}`;
+    case "link":
+      return `l:${index}:${fragment.url.slice(0, 24)}`;
+    case "cheermote":
+      return `c:${fragment.id}:${fragment.bits}:${index}`;
+    case "text":
+    default:
+      return `t:${index}:${(fragment as { content?: string }).content?.slice(0, 12) ?? ""}`;
+  }
 }
 
 /**
@@ -16,8 +41,35 @@ interface ChatMessageProps {
  * Uses React.memo to prevent unnecessary re-renders when message data hasn't changed.
  * Timestamp is memoized to avoid recalculating on every render.
  */
-export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, onReply }) => {
   const isDeleted = message.isDeleted;
+
+  if (message.type === "ban" && message.banInfo) {
+    const { bannedUsername, bannedByUsername, lastMessage, duration } = message.banInfo;
+    const actionText = duration ? `timed out for ${formatDuration(duration)}` : "permanently banned";
+    return (
+      <div
+        className="mx-2 my-1 px-3 py-2 rounded-md border border-red-500/30 bg-red-950/40 text-sm"
+        style={style}
+      >
+        <div className="flex items-start gap-2">
+          <span className="text-red-400 flex-shrink-0">🚫</span>
+          <div className="min-w-0">
+            <span className="font-bold text-red-400">{bannedUsername}</span>
+            <span className="text-gray-300"> was {actionText}</span>
+            {bannedByUsername && (
+              <span className="text-gray-400"> by {bannedByUsername}</span>
+            )}
+            {lastMessage && (
+              <div className="text-gray-500 italic text-xs mt-0.5 truncate">
+                Last: {lastMessage}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isDeleted) {
     return (
@@ -29,7 +81,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style })
 
   return (
     <div
-      className={`px-4 py-1 text-sm hover:bg-white/5 leading-[1.4] ${message.isHighlighted ? "bg-purple-500/10 border-l-2 border-purple-500" : ""}`}
+      className={`group relative px-4 py-1 text-sm hover:bg-white/5 leading-[1.4] ${message.isHighlighted ? "bg-purple-500/10 border-l-2 border-purple-500" : ""}`}
       style={style}
     >
       <div className="break-words">
@@ -72,10 +124,26 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style })
           style={message.isAction ? { color: message.color } : undefined}
         >
           {message.content.map((fragment, index) => (
-            <MessageFragment key={index} fragment={fragment} platform={message.platform} />
+            <MessageFragment
+              key={fragmentKey(fragment, index)}
+              fragment={fragment}
+              platform={message.platform}
+            />
           ))}
         </span>
       </div>
+
+      {/* Reply button — Kick only, visible on hover */}
+      {onReply && message.platform === "kick" && message.type === "message" && (
+        <button
+          type="button"
+          onClick={() => onReply(message)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-opacity"
+          title="Reply"
+        >
+          <BsReplyFill size={13} />
+        </button>
+      )}
     </div>
   );
 });
@@ -126,9 +194,11 @@ const MessageFragment: React.FC<{ fragment: ContentFragment; platform: "twitch" 
         return (
           <a
             href={fragment.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:underline break-all"
+            onClick={(e) => {
+              e.preventDefault();
+              window.electronAPI.openExternal(fragment.url);
+            }}
+            className="text-blue-400 hover:underline break-all cursor-pointer"
           >
             {fragment.text}
           </a>
