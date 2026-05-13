@@ -226,10 +226,6 @@ const electronAPI = {
   showNotification: (title: string, body: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATION_SHOW, { title, body }),
 
-  // ========== Image Proxy (CORS bypass) ==========
-  proxyImage: (url: string): Promise<string | null> =>
-    ipcRenderer.invoke(IPC_CHANNELS.IMAGE_PROXY, { url }),
-
   // ========== Discovery: Streams ==========
   streams: {
     getTop: (params?: {

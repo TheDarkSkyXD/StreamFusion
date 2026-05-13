@@ -22,6 +22,11 @@ import * as SearchEndpoints from "./endpoints/search-endpoints";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
+import {
+  acquireKickRequestSlot,
+  isNetworkLikelyDown,
+  recordTransientNetworkError,
+} from "./kick-network-health";
 import type { KickRequestor } from "./kick-requestor";
 import type { KickApiUser, PaginatedResult, PaginationOptions } from "./kick-types";
 
@@ -89,6 +94,21 @@ class KickRateLimiter {
 // Singleton rate limiter for all Kick API requests
 const kickRateLimiter = new KickRateLimiter();
 
+// ========== Image fetch dedupe + negative cache ==========
+// Renderer often double-fetches the same URL (StrictMode, remounts, two cards
+// for the same VOD), so we share the in-flight promise across concurrent calls.
+// Kick's S3-backed CDN returns AccessDenied for purged VOD thumbnails — those
+// URLs will never succeed, so we negative-cache 4xx responses to skip the round
+// trip on re-renders. Transient errors (timeouts, network) stay uncached.
+export interface KickImageBytes {
+  buffer: Buffer;
+  contentType: string;
+}
+
+const _imageInFlight = new Map<string, Promise<KickImageBytes | null>>();
+const _imageNegativeCache = new Map<string, number>();
+const _IMAGE_NEG_CACHE_TTL_MS = 10 * 60 * 1000;
+
 // ========== Kick API Client Class ==========
 
 class KickClient implements KickRequestor {
@@ -106,93 +126,101 @@ class KickClient implements KickRequestor {
    * Make an HTTP request using Electron's net module
    * Uses Chromium's networking stack which handles IPv6-only domains (like api.kick.com) properly
    */
-  private electronRequest<T>(
+  private async electronRequest<T>(
     url: string,
     method: string,
     headers: Record<string, string>,
     body?: string
   ): Promise<{ data: T; statusCode: number; responseHeaders: Record<string, string> }> {
-    return new Promise((resolve, reject) => {
-      const { net } = require("electron");
+    // Cap concurrent Kick `net.request` calls so authenticated traffic can't
+    // pile on top of the public-API fetches (followed-streams refresh, display
+    // name enrichment, image proxy) and oversubscribe the network service.
+    const releaseSlot = await acquireKickRequestSlot();
+    try {
+      return await new Promise((resolve, reject) => {
+        const { net } = require("electron");
 
-      const request = net.request({
-        method,
-        url,
-      });
+        const request = net.request({
+          method,
+          url,
+        });
 
-      // Set headers
-      for (const [key, value] of Object.entries(headers)) {
-        request.setHeader(key, value);
-      }
-
-      // Track completion
-      let completed = false;
-
-      // Timeout after 30 seconds
-      const timeout = setTimeout(() => {
-        if (completed) return;
-        completed = true;
-        request.abort();
-        reject(new Error("Request timeout after 30s"));
-      }, 30000);
-
-      request.on("response", (response: any) => {
-        let responseBody = "";
-        const responseHeaders: Record<string, string> = {};
-
-        // Collect response headers
-        if (response.headers) {
-          for (const [key, value] of Object.entries(response.headers)) {
-            responseHeaders[key.toLowerCase()] = Array.isArray(value)
-              ? value[0]
-              : (value as string);
-          }
+        // Set headers
+        for (const [key, value] of Object.entries(headers)) {
+          request.setHeader(key, value);
         }
 
-        response.on("data", (chunk: Buffer) => {
-          responseBody += chunk.toString();
-        });
+        // Track completion
+        let completed = false;
 
-        response.on("end", () => {
+        // Timeout after 30 seconds
+        const timeout = setTimeout(() => {
           if (completed) return;
           completed = true;
-          clearTimeout(timeout);
-          try {
-            const data = responseBody ? JSON.parse(responseBody) : null;
-            resolve({
-              data: data as T,
-              statusCode: response.statusCode,
-              responseHeaders,
-            });
-          } catch (_e) {
-            reject(new Error(`Failed to parse JSON response: ${responseBody.substring(0, 200)}`));
+          request.abort();
+          reject(new Error("Request timeout after 30s"));
+        }, 30000);
+
+        request.on("response", (response: any) => {
+          let responseBody = "";
+          const responseHeaders: Record<string, string> = {};
+
+          // Collect response headers
+          if (response.headers) {
+            for (const [key, value] of Object.entries(response.headers)) {
+              responseHeaders[key.toLowerCase()] = Array.isArray(value)
+                ? value[0]
+                : (value as string);
+            }
           }
+
+          response.on("data", (chunk: Buffer) => {
+            responseBody += chunk.toString();
+          });
+
+          response.on("end", () => {
+            if (completed) return;
+            completed = true;
+            clearTimeout(timeout);
+            try {
+              const data = responseBody ? JSON.parse(responseBody) : null;
+              resolve({
+                data: data as T,
+                statusCode: response.statusCode,
+                responseHeaders,
+              });
+            } catch (_e) {
+              reject(new Error(`Failed to parse JSON response: ${responseBody.substring(0, 200)}`));
+            }
+          });
+
+          response.on("error", (error: Error) => {
+            if (completed) return;
+            completed = true;
+            clearTimeout(timeout);
+            reject(error);
+          });
         });
 
-        response.on("error", (error: Error) => {
+        request.on("error", (error: Error) => {
           if (completed) return;
           completed = true;
           clearTimeout(timeout);
           reject(error);
         });
+
+        // Send body if present
+        if (body) {
+          const contentLength = Buffer.byteLength(body, "utf8");
+          request.setHeader("Content-Length", contentLength.toString());
+          request.write(body);
+        }
+
+        request.end();
       });
-
-      request.on("error", (error: Error) => {
-        if (completed) return;
-        completed = true;
-        clearTimeout(timeout);
-        reject(error);
-      });
-
-      // Send body if present
-      if (body) {
-        const contentLength = Buffer.byteLength(body, "utf8");
-        request.setHeader("Content-Length", contentLength.toString());
-        request.write(body);
-      }
-
-      request.end();
-    });
+    } finally {
+      releaseSlot();
+    }
   }
 
   // Lazy-initialized direct session for CDN requests (bypasses proxy)
@@ -237,113 +265,153 @@ class KickClient implements KickRequestor {
     // Get direct session to bypass proxy
     const directSession = await this.getCdnSession();
 
-    return new Promise((resolve, reject) => {
-      const { net } = require("electron");
+    // A grid of channel cards on the discover page can fire 20-50 image
+    // proxy requests simultaneously. Share the same global slot so they
+    // can't fully starve API traffic.
+    const releaseSlot = await acquireKickRequestSlot();
+    try {
+      return await new Promise<{ buffer: Buffer; statusCode: number; contentType: string }>(
+        (resolve, reject) => {
+          const { net } = require("electron");
 
-      const request = net.request({
-        method: "GET",
-        url,
-        session: directSession, // Use direct session (no proxy)
-        useSessionCookies: false, // Don't send cookies to avoid 403 errors
-      });
-
-      for (const [key, value] of Object.entries(headers)) {
-        request.setHeader(key, value);
-      }
-
-      let completed = false;
-
-      // Timeout
-      const timeout = setTimeout(() => {
-        if (completed) return;
-        completed = true;
-        request.abort();
-        reject(new Error("Request timeout"));
-      }, 15000);
-
-      request.on("response", (response: any) => {
-        if (response.statusCode !== 200) {
-          if (completed) return;
-          completed = true;
-          clearTimeout(timeout);
-          reject(new Error(`HTTP ${response.statusCode}`));
-          return;
-        }
-
-        const chunks: Buffer[] = [];
-        const contentType = response.headers["content-type"]?.[0] || "image/jpeg";
-
-        response.on("data", (chunk: Buffer) => {
-          chunks.push(chunk);
-        });
-
-        response.on("end", () => {
-          if (completed) return;
-          completed = true;
-          clearTimeout(timeout);
-          const buffer = Buffer.concat(chunks);
-          resolve({
-            buffer,
-            statusCode: response.statusCode,
-            contentType,
+          const request = net.request({
+            method: "GET",
+            url,
+            session: directSession, // Use direct session (no proxy)
+            useSessionCookies: false, // Don't send cookies to avoid 403 errors
           });
-        });
 
-        response.on("error", (error: Error) => {
-          if (completed) return;
-          completed = true;
-          clearTimeout(timeout);
-          reject(error);
-        });
-      });
+          for (const [key, value] of Object.entries(headers)) {
+            request.setHeader(key, value);
+          }
 
-      request.on("error", (error: Error) => {
-        if (completed) return;
-        completed = true;
-        clearTimeout(timeout);
-        reject(error);
-      });
+          let completed = false;
 
-      request.end();
-    });
+          // Timeout
+          const timeout = setTimeout(() => {
+            if (completed) return;
+            completed = true;
+            request.abort();
+            reject(new Error("Request timeout"));
+          }, 15000);
+
+          request.on("response", (response: any) => {
+            if (response.statusCode !== 200) {
+              if (completed) return;
+              completed = true;
+              clearTimeout(timeout);
+              reject(new Error(`HTTP ${response.statusCode}`));
+              return;
+            }
+
+            const chunks: Buffer[] = [];
+            const contentType = response.headers["content-type"]?.[0] || "image/jpeg";
+
+            response.on("data", (chunk: Buffer) => {
+              chunks.push(chunk);
+            });
+
+            response.on("end", () => {
+              if (completed) return;
+              completed = true;
+              clearTimeout(timeout);
+              const buffer = Buffer.concat(chunks);
+              resolve({
+                buffer,
+                statusCode: response.statusCode,
+                contentType,
+              });
+            });
+
+            response.on("error", (error: Error) => {
+              if (completed) return;
+              completed = true;
+              clearTimeout(timeout);
+              reject(error);
+            });
+          });
+
+          request.on("error", (error: Error) => {
+            if (completed) return;
+            completed = true;
+            clearTimeout(timeout);
+            reject(error);
+          });
+
+          request.end();
+        }
+      );
+    } finally {
+      releaseSlot();
+    }
   }
 
   /**
-   * Fetch an image provided a URL and return it as a base64 data URL
-   * Uses the same network stack and headers as other Kick requests
+   * Fetch an image provided a URL and return the raw bytes + content type.
+   * Uses the same network stack and headers as other Kick requests.
+   * Used by the kick-image:// protocol handler to stream bytes back to the
+   * renderer without the ~33% inflation of base64 data-URL encoding.
    */
-  async fetchImage(url: string): Promise<string | null> {
-    try {
-      // 1. Setup headers exactly like browser requests for CDN compatibility
-      const headers: Record<string, string> = {
-        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        // CRITICAL: User-Agent is REQUIRED for Cloudflare/CDN to not return 403
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      };
-
-      // Add Auth token if we have one (user auth only — App Token flow is not available)
-      const token = kickAuthService.getAccessToken();
-
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
+  async fetchImageBytes(url: string): Promise<KickImageBytes | null> {
+    const negExpiry = _imageNegativeCache.get(url);
+    if (negExpiry !== undefined) {
+      if (Date.now() < negExpiry) {
+        return null;
       }
+      _imageNegativeCache.delete(url);
+    }
 
-      // Important: Referer/Origin for Hotlinking protection
-      headers.Referer = "https://kick.com/";
-      headers.Origin = "https://kick.com";
-      headers["Sec-Fetch-Dest"] = "image";
-      headers["Sec-Fetch-Mode"] = "no-cors";
-      headers["Sec-Fetch-Site"] = "cross-site";
-
-      const { buffer, contentType } = await this.electronRequestBinary(url, headers);
-
-      const base64 = buffer.toString("base64");
-      return `data:${contentType};base64,${base64}`;
-    } catch (error) {
-      console.warn(`[KickClient] Failed to fetch image ${url}:`, error);
+    if (isNetworkLikelyDown()) {
       return null;
+    }
+
+    const inFlight = _imageInFlight.get(url);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const promise = (async (): Promise<KickImageBytes | null> => {
+      try {
+        const headers: Record<string, string> = {
+          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        };
+
+        const token = kickAuthService.getAccessToken();
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        headers.Referer = "https://kick.com/";
+        headers.Origin = "https://kick.com";
+        headers["Sec-Fetch-Dest"] = "image";
+        headers["Sec-Fetch-Mode"] = "no-cors";
+        headers["Sec-Fetch-Site"] = "cross-site";
+
+        const { buffer, contentType } = await this.electronRequestBinary(url, headers);
+        return { buffer, contentType };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isPermanent = /^HTTP 4\d{2}$/.test(message);
+        if (isPermanent) {
+          _imageNegativeCache.set(url, Date.now() + _IMAGE_NEG_CACHE_TTL_MS);
+        } else {
+          recordTransientNetworkError(message);
+        }
+        const isQuiet = isPermanent || isNetworkLikelyDown();
+        const log = isQuiet ? console.debug : console.warn;
+        log(`[KickClient] Image fetch failed (${message}): ${url}`);
+        return null;
+      }
+    })();
+
+    _imageInFlight.set(url, promise);
+    try {
+      return await promise;
+    } finally {
+      _imageInFlight.delete(url);
     }
   }
 
@@ -470,6 +538,10 @@ class KickClient implements KickRequestor {
           throw error;
         }
 
+        // Feed net::ERR_* into the health tracker so concurrent callers learn
+        // about the outage and bail out of their own retry loops.
+        recordTransientNetworkError(error?.message || String(error));
+
         // Network errors - log and throw
         console.error(`❌ Kick API request failed: ${endpoint}`, error);
         throw error;
@@ -578,10 +650,13 @@ class KickClient implements KickRequestor {
   /**
    * Get streams by category
    * https://docs.kick.com/apis/livestreams - GET /public/v1/livestreams?category_id=:id
+   *
+   * Pass `categoryName` to enable the slug-guess fallback for cross-platform
+   * lookups where the Kick numeric id may not resolve to live streams.
    */
   async getStreamsByCategory(
     categoryId: string,
-    options: PaginationOptions = {}
+    options: PaginationOptions & { categoryName?: string; language?: string } = {}
   ): Promise<PaginatedResult<UnifiedStream>> {
     return StreamEndpoints.getStreamsByCategory(this, categoryId, options);
   }

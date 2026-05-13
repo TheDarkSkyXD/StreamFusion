@@ -37,13 +37,29 @@ export async function getVideosByChannelSlug(
       request.setHeader("Referer", "https://kick.com/");
       request.setHeader("X-Requested-With", "XMLHttpRequest");
 
+      // Without this, hung connections wait ~21s for Chromium's TCP timeout
+      // before surfacing as ERR_CONNECTION_TIMED_OUT, blocking the Videos tab.
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        request.abort();
+        reject(new Error("Request timeout"));
+      }, 5000);
+
       request.on("response", (response: any) => {
         if (response.statusCode === 404) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           resolve([]);
           return;
         }
 
         if (response.statusCode !== 200) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           reject(new Error(`Status ${response.statusCode}`));
           return;
         }
@@ -54,6 +70,9 @@ export async function getVideosByChannelSlug(
         });
 
         response.on("end", () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           try {
             resolve(JSON.parse(body));
           } catch (_e) {
@@ -64,6 +83,9 @@ export async function getVideosByChannelSlug(
       });
 
       request.on("error", (error: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         reject(error);
       });
 
@@ -90,7 +112,19 @@ export async function getVideosByChannelSlug(
 
     return {
       data: videos
-        .filter((v: any) => !v.deleted_at && !v.video?.deleted_at)
+        // Drop unplayable records: streamer-deleted (deleted_at), platform-pruned
+        // (is_pruned — Kick purges old VOD media but the API record persists), and
+        // private (is_private). These return thumbnail 403s from images.kick.com
+        // and would render as broken cards. Sub-only VODs are NOT filtered here —
+        // they keep is_pruned=false/is_private=false; they're identified later via
+        // the !source heuristic and rendered with a sub-only badge.
+        .filter(
+          (v: any) =>
+            !v.deleted_at &&
+            !v.video?.deleted_at &&
+            !v.video?.is_pruned &&
+            !v.video?.is_private
+        )
         .map((v: any) => {
         // A VOD without a source URL is subscriber-only content
         const hasSource = Boolean(v.source);

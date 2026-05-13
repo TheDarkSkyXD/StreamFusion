@@ -10,10 +10,14 @@ import "dotenv/config";
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { app, BrowserWindow, Menu, session } from "electron";
+import { app, BrowserWindow, Menu, protocol, session } from "electron";
 
 import { protocolHandler } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
+import {
+  KICK_IMAGE_SCHEME,
+  registerKickImageProtocol,
+} from "./backend/protocols/kick-image-protocol";
 import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
 import { dbService } from "./backend/services/database-service";
 import { networkAdBlockService } from "./backend/services/network-adblock-service";
@@ -23,7 +27,6 @@ import { vaftPatternService } from "./backend/services/vaft-pattern-service";
 import { windowManager } from "./backend/window-manager";
 
 // Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
-// This allows external tools to connect to the running Electron app at ws://localhost:9222
 // In production builds (electron-forge package/make), NODE_ENV is typically "production"
 const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
 
@@ -34,8 +37,18 @@ if (!isProduction) {
   app.setPath("userData", devUserDataPath);
   console.debug(`📂 Development mode: User data path set to ${devUserDataPath}`);
 
-  app.commandLine.appendSwitch("remote-debugging-port", "9222");
-  console.debug("🔌 CDP remote debugging enabled on port 9222 for Playwright MCP");
+  // Default to 9231 — the port this project is registered under in the
+  // debug-electron MCP as `streamforge-monorepo`, so `npm start` is
+  // discoverable out of the box. Skip the override if the CLI already
+  // passed `--remote-debugging-port` (e.g. `dev:mcp` forces 9222 for
+  // Playwright tooling) — appendSwitch would otherwise clobber it.
+  const hasCliPort = process.argv.some((a) => a.startsWith("--remote-debugging-port"));
+  if (!hasCliPort) {
+    app.commandLine.appendSwitch("remote-debugging-port", "9231");
+    console.debug("🔌 CDP remote debugging enabled on port 9231 for debug-electron MCP");
+  } else {
+    console.debug("🔌 CDP remote debugging using port from CLI args");
+  }
 } else {
   app.commandLine.appendSwitch("remote-debugging-port", "9005");
   console.debug("🔌 CDP remote debugging enabled on port 9005 for Production");
@@ -140,6 +153,21 @@ app.commandLine.appendSwitch("enable-features", "V8MemoryCage");
 
 // Disable accessibility runtime (saves ~10-20MB if not needed)
 app.commandLine.appendSwitch("disable-renderer-accessibility");
+
+// Register kick-image:// as a privileged scheme so the renderer can use it
+// in <img src> for Kick CDN thumbnails/avatars. Must happen before app.ready.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: KICK_IMAGE_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      stream: true,
+    },
+  },
+]);
 
 /**
  * Check if the last shutdown was clean (sentinel file exists)
@@ -311,6 +339,9 @@ app.on("ready", async () => {
   // Register custom protocol handler for OAuth callbacks (streamfusion://)
   protocolHandler.registerProtocol();
 
+  // Register kick-image:// streaming image protocol (replaces base64 IPC proxy)
+  registerKickImageProtocol();
+
   // Initialize VAFT pattern service (auto-updates ad detection patterns)
   vaftPatternService.initialize().catch((error) => {
     console.warn("[Main] VAFT pattern service initialization error:", error);
@@ -366,11 +397,22 @@ app.on("child-process-gone", (_event, details) => {
   console.warn(`[Main] Child process gone: type=${details.type}, reason=${details.reason}`);
 
   if (details.type === "GPU") {
-    // GPU process crash - Chromium will auto-restart it
+    // GPU process crash - Chromium will auto-restart it.
+    // The network service typically follows the GPU down on Windows, so
+    // pre-emptively pause Kick retries to avoid hammering the recovering
+    // services with a thundering-herd of net::ERR_FAILED retries.
     console.warn("[Main] GPU process crashed - Chromium will auto-restart");
+    void import("./backend/api/platforms/kick/kick-network-health").then((m) =>
+      m.recordServiceCrash("GPU crash")
+    );
   } else if (details.type === "Utility") {
-    // Utility process (e.g. network service) - usually auto-restarts
+    // Utility process (e.g. network service) - usually auto-restarts.
+    // Mark Kick traffic unhealthy so in-flight retry loops bail out fast
+    // instead of cascading ERR_FAILED across every followed channel.
     console.warn("[Main] Utility process crashed");
+    void import("./backend/api/platforms/kick/kick-network-health").then((m) =>
+      m.recordServiceCrash("Utility crash")
+    );
   }
   // Note: Renderer crashes are handled by 'render-process-gone' on webContents
   // We log here for telemetry but don't need manual recovery for renderers

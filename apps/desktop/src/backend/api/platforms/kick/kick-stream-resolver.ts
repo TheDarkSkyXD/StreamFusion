@@ -92,8 +92,22 @@ export class KickStreamResolver {
       request.setHeader("Referer", "https://kick.com/");
       request.setHeader("X-Requested-With", "XMLHttpRequest");
 
+      // Without this, the player hangs ~21s on Chromium's TCP timeout per
+      // attempt; getStreamPlaybackUrl's 2-retry loop on top would mean ~42s
+      // before the user sees an error.
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        request.abort();
+        reject(new Error("Request timeout"));
+      }, 5000);
+
       request.on("response", (response: any) => {
         if (response.statusCode === 404) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           const contextInfo = context ? ` for ${context}` : "";
           reject(
             new Error(
@@ -104,6 +118,9 @@ export class KickStreamResolver {
         }
 
         if (response.statusCode !== 200) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           reject(new Error(`Kick API error: ${response.statusCode}`));
           return;
         }
@@ -114,6 +131,9 @@ export class KickStreamResolver {
         });
 
         response.on("end", () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           try {
             resolve(JSON.parse(body) as T);
           } catch (_e) {
@@ -123,6 +143,9 @@ export class KickStreamResolver {
       });
 
       request.on("error", (error: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         reject(error);
       });
 

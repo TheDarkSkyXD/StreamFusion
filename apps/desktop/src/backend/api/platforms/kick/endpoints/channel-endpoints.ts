@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 
 import type { UnifiedChannel } from "../../../unified/platform-types";
+import { isNetworkLikelyDown } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
 import { KICK_LEGACY_API_V2_BASE, type KickApiChannel, type KickApiResponse } from "../kick-types";
@@ -169,14 +170,102 @@ export async function getChannelsBySlugs(
   }
 }
 
+// In-flight dedupe: search fans out 5 concurrent calls per batch, hover prefetch
+// + sidebar refetch + channel page open can all race for the same slug. Without
+// this every caller spins up its own BrowserWindow.
+const _publicChannelInFlight = new Map<string, Promise<UnifiedChannel | null>>();
+
+// Failure-only negative cache. The positive `_channelCache` lives in
+// `getChannel`, but direct callers of `getPublicChannel` (search-endpoints,
+// search-handlers' verifyAndEnrichKickChannels) bypass it — and nothing was
+// caching failures, so a single unreachable slug would re-open a BrowserWindow
+// on every hover/refetch.
+const _publicChannelFailureCache = new Map<string, number>();
+// Warn-once: first failure per slug logs at `warn`, subsequent failures at
+// `debug` until a success clears the flag. Keeps repeat-failure spam out of
+// the log without hiding the initial signal.
+const _publicChannelWarnedSlugs = new Set<string>();
+const PUBLIC_CHANNEL_FAILURE_TTL_MS = 5 * 60 * 1000;
+const PUBLIC_CHANNEL_LOAD_TIMEOUT_MS = 10000;
+
+// Serialise BrowserWindow creation. Each hidden window spins up a fresh
+// Chromium renderer + GPU context — opening 5 at once (search-handlers'
+// batch-of-5 verification) is the single largest GPU-load spike under the
+// app's control and a likely trigger for the `exit_code=34` GPU crash that
+// then drags Chromium's network service down with it. With CHUNK_SIZE=3 in
+// followed-streams firing concurrently with a 5-channel search batch, we
+// can easily have 8 simultaneous renderer subprocess starts. One at a time
+// keeps total memory + GPU pressure flat; the search-verification path that
+// previously took ~10s now takes longer per-batch, but search is a rare
+// user action and a crash mid-search is far worse for UX than a slower
+// result list.
+let _browserWindowMutex: Promise<void> = Promise.resolve();
+function acquireBrowserWindowSlot(): Promise<() => void> {
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const wait = _browserWindowMutex.then(() => release);
+  _browserWindowMutex = _browserWindowMutex.then(() => next);
+  return wait;
+}
+
 /**
  * Get channel info using the public/legacy API (No Auth Required)
  * GET https://kick.com/api/v1/channels/:slug
  *
  * Uses a hidden Electron BrowserWindow to bypass Cloudflare/WAF 403 protections.
+ * Concurrent calls for the same slug share an in-flight promise (only one
+ * BrowserWindow per slug at a time), and persistent failures are negative-cached
+ * for `PUBLIC_CHANNEL_FAILURE_TTL_MS` so the 60s `useFollowedStreams` /
+ * channel-hover prefetch loops don't keep re-opening windows for unreachable
+ * slugs.
  */
 export async function getPublicChannel(slug: string): Promise<UnifiedChannel | null> {
+  const key = slug.toLowerCase().trim();
+
+  const failExpiry = _publicChannelFailureCache.get(key);
+  if (failExpiry !== undefined) {
+    if (Date.now() < failExpiry) return null;
+    _publicChannelFailureCache.delete(key);
+  }
+
+  const inFlight = _publicChannelInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const promise = _doFetchPublicChannel(slug, key);
+  _publicChannelInFlight.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    _publicChannelInFlight.delete(key);
+  }
+}
+
+async function _doFetchPublicChannel(
+  slug: string,
+  key: string
+): Promise<UnifiedChannel | null> {
+  // Skip the BrowserWindow round-trip if the network service is currently
+  // crashed/restarting. loadURL would just time out, and a hidden window is
+  // an expensive resource (renderer + GPU + network partition) — exactly the
+  // load profile that triggered the cascade in the first place.
+  if (isNetworkLikelyDown()) return null;
+
+  // Wait for our turn so only one hidden BrowserWindow exists at a time.
+  // This is the single biggest GPU-load lever in the codebase.
+  const releaseSlot = await acquireBrowserWindowSlot();
+
+  // Re-check after acquiring the slot — the network may have crashed while
+  // we were queued behind another caller's 10s load timeout.
+  if (isNetworkLikelyDown()) {
+    releaseSlot();
+    return null;
+  }
+
   let win: BrowserWindow | null = null;
+  let failed = true;
+  let networkBlip = false;
   try {
     const url = `${KICK_LEGACY_API_V2_BASE}/channels/${slug}`;
 
@@ -193,10 +282,9 @@ export async function getPublicChannel(slug: string): Promise<UnifiedChannel | n
     });
 
     // Set a timeout for page load
-    const loadTimeout = 15000; // 15 seconds
     const loadPromise = win.loadURL(url);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Page load timeout")), loadTimeout)
+      setTimeout(() => reject(new Error("Page load timeout")), PUBLIC_CHANNEL_LOAD_TIMEOUT_MS)
     );
 
     await Promise.race([loadPromise, timeoutPromise]);
@@ -285,6 +373,8 @@ export async function getPublicChannel(slug: string): Promise<UnifiedChannel | n
       chatroomKeys: data.chatroom ? Object.keys(data.chatroom) : "N/A",
     });
 
+    failed = false;
+    _publicChannelWarnedSlugs.delete(key);
     return {
       id: userId.toString(),
       platform: "kick",
@@ -326,9 +416,21 @@ export async function getPublicChannel(slug: string): Promise<UnifiedChannel | n
       subscriberBadges: data.subscriber_badges,
     };
   } catch (error) {
-    console.warn(`Failed to fetch public Kick channel ${slug} via Window:`, error);
+    // If the network service crashed mid-load, the failure isn't this slug's
+    // fault — don't penalise it with a 5-minute lockout. Re-check after the
+    // failure since the crash event may have fired during loadURL.
+    networkBlip = isNetworkLikelyDown();
+    if (_publicChannelWarnedSlugs.has(key) || networkBlip) {
+      console.debug(`Failed to fetch public Kick channel ${slug} via Window:`, error);
+    } else {
+      console.warn(`Failed to fetch public Kick channel ${slug} via Window:`, error);
+      _publicChannelWarnedSlugs.add(key);
+    }
     return null;
   } finally {
+    if (failed && !networkBlip) {
+      _publicChannelFailureCache.set(key, Date.now() + PUBLIC_CHANNEL_FAILURE_TTL_MS);
+    }
     if (win) {
       try {
         win.destroy();
@@ -336,5 +438,8 @@ export async function getPublicChannel(slug: string): Promise<UnifiedChannel | n
         // ignore
       }
     }
+    // Release AFTER destroying the window so the next caller starts from a
+    // clean slate (Chromium reclaims renderer + GPU before the next opens).
+    releaseSlot();
   }
 }

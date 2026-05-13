@@ -116,11 +116,16 @@ export function transformKickLivestream(livestream: KickApiLivestream): UnifiedS
  * Endpoint: GET /public/v1/categories
  */
 export function transformKickCategory(category: KickApiCategory): UnifiedCategory {
+  const tags = Array.isArray(category.tags)
+    ? category.tags.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+    : [];
   return {
     id: category.id.toString(),
     platform: "kick",
     name: category.name,
     boxArtUrl: category.thumbnail || "",
+    tags: tags.length > 0 ? tags : undefined,
+    viewerCount: typeof category.viewer_count === "number" ? category.viewer_count : undefined,
   };
 }
 

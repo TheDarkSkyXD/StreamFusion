@@ -45,16 +45,27 @@ export async function searchChannels(
     // - Otherwise, keep existing live status (don't let Step 4 override with isLive: true)
     const isLive = isAuthoritativeSource ? newChannel.isLive : existing.isLive;
 
+    // Preserve enrichment fields across sources: a channel that appears in
+    // Step 2 (has follower count, no avatar) and Step 4 (has avatar, no
+    // follower count) would otherwise lose follower count when we pick the
+    // avatar-bearing side. Prefer whichever side actually populated it.
+    const followerCount = existing.followerCount ?? newChannel.followerCount;
+
     // Always prefer the entry with an avatar, but keep the authoritative live status
     if (hasAvatar(newChannel) && !hasAvatar(existing)) {
-      return { ...newChannel, isLive };
+      return { ...newChannel, isLive, followerCount };
     }
     // If existing has avatar but new doesn't, keep existing but merge avatar if new has one
     if (hasAvatar(existing)) {
-      return { ...existing, isLive };
+      return { ...existing, isLive, followerCount };
     }
     // Neither has avatar, keep existing with merged data
-    return { ...existing, isLive, avatarUrl: newChannel.avatarUrl || existing.avatarUrl };
+    return {
+      ...existing,
+      isLive,
+      avatarUrl: newChannel.avatarUrl || existing.avatarUrl,
+      followerCount,
+    };
   };
 
   // 1. Try exact slug match (Public API - No Auth)
@@ -112,11 +123,18 @@ export async function searchChannels(
           request.setHeader("Origin", "https://kick.com");
           request.setHeader("X-Requested-With", "XMLHttpRequest");
 
-          // Set a timeout for short queries
+          // Kick's search endpoint typically responds in ~3s (Cloudflare adds
+          // 1-2s on top of the API). The previous 1500ms cap meant the request
+          // was aborted before any data arrived, which made search fall back
+          // to Step 4 (top-streams fuzzy match) only — and Step 4 has no
+          // follower counts. 6000ms covers the observed p99 latency while
+          // still bounding worst-case wait. Failed status codes still resolve
+          // immediately via the `response.on("end")` path, so this only kicks
+          // in for genuinely slow/hanging requests.
           const timeout = setTimeout(() => {
             request.abort();
             resolve(null);
-          }, 1500);
+          }, 6000);
 
           request.on("response", (response: any) => {
             let body = "";
@@ -223,6 +241,15 @@ export async function searchChannels(
 
         if (channelSlug) {
           const key = channelSlug.toLowerCase();
+          // /api/search returns followers_count on every channel; the official
+          // /public/v1/channels endpoint does not, so this is the only batched
+          // source for unauthenticated Kick search.
+          const rawFollowers =
+            typeof item.followers_count === "number"
+              ? item.followers_count
+              : typeof item.followersCount === "number"
+                ? item.followersCount
+                : undefined;
           const newChannel: UnifiedChannel = {
             id: channelId || `kick-${channelSlug}`,
             platform: "kick",
@@ -232,11 +259,15 @@ export async function searchChannels(
             avatarUrl,
             bannerUrl: "",
             bio: "",
-            // Set isLive to false for search API results (stale data)
-            // Only authoritative sources (Step 1 getPublicChannel, Step 4 top streams) set true
-            isLive: false,
+            // /api/search exposes the channel's live state. Previously this was
+            // hard-coded to false to avoid trusting "stale" values, but combined
+            // with the merge-keeps-existing rule that meant Step 2 silently
+            // clobbered Step 4's isLive: true for currently-live channels. The
+            // search API agrees with /livestreams in practice, so we read it.
+            isLive: typeof item.isLive === "boolean" ? item.isLive : false,
             isVerified: item.verified || item.is_verified || false,
             isPartner: false,
+            followerCount: rawFollowers,
           };
 
           // Note: The Kick search API doesn't include avatars - they're only available

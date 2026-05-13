@@ -35,13 +35,29 @@ export async function getClipsByChannelSlug(
       request.setHeader("Referer", "https://kick.com/");
       request.setHeader("X-Requested-With", "XMLHttpRequest");
 
+      // Without this, hung connections wait ~21s for Chromium's TCP timeout
+      // before surfacing as ERR_CONNECTION_TIMED_OUT, blocking the Clips tab.
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        request.abort();
+        reject(new Error("Request timeout"));
+      }, 5000);
+
       request.on("response", (response: any) => {
         if (response.statusCode === 404) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           resolve({ clips: [] });
           return;
         }
 
         if (response.statusCode !== 200) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           reject(new Error(`Status ${response.statusCode}`));
           return;
         }
@@ -52,6 +68,9 @@ export async function getClipsByChannelSlug(
         });
 
         response.on("end", () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           try {
             resolve(JSON.parse(body));
           } catch (_e) {
@@ -62,6 +81,9 @@ export async function getClipsByChannelSlug(
       });
 
       request.on("error", (error: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         reject(error);
       });
 

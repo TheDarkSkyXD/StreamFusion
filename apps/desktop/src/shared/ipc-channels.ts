@@ -102,9 +102,6 @@ export const IPC_CHANNELS = {
   // Notifications
   NOTIFICATION_SHOW: "notification:show",
 
-  // Image Proxy (bypass CORS for external images)
-  IMAGE_PROXY: "image:proxy",
-
   // ========== Discovery: Streams ==========
   STREAMS_GET_TOP: "streams:get-top",
   STREAMS_GET_BY_CATEGORY: "streams:get-by-category",
