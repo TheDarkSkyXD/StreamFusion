@@ -508,20 +508,84 @@ export async function gqlGetTopStreams(
   };
 }
 
+// Persisted StreamMetadata doesn't carry freeformTags or broadcastSettings.language,
+// so we fetch them via a raw user(login:) side query and merge by login.
+const STREAM_TAGS_AND_LANGUAGE_QUERY = `query StreamTagsAndLanguage($login: String!) {
+  user(login: $login) {
+    stream { freeformTags { id name } }
+    broadcastSettings { language }
+  }
+}`;
+
+type StreamTagsAndLanguageData = {
+  user: null | {
+    stream: null | { freeformTags: { id: string; name: string }[] | null };
+    broadcastSettings: null | { language: string | null };
+  };
+};
+
+function getRawTagsAndLanguageQuery(login: string) {
+  return getRawQuery<StreamTagsAndLanguageData>({
+    query: STREAM_TAGS_AND_LANGUAGE_QUERY,
+    variables: { login },
+  });
+}
+
+function extractTagsAndLanguage(data: StreamTagsAndLanguageData | undefined): {
+  tags: string[];
+  language: string;
+} {
+  const user = data?.user;
+  const tags = user?.stream?.freeformTags?.map((t) => t.name) ?? [];
+  // broadcastSettings.language is uppercase BCP-47 (e.g. "EN"); downstream code
+  // expects lowercase to match Helix's "en".
+  const language = (user?.broadcastSettings?.language ?? "").toLowerCase();
+  return { tags, language };
+}
+
+async function getTagsAndLanguageByLogins(
+  logins: string[]
+): Promise<Map<string, { tags: string[]; language: string }>> {
+  const result = new Map<string, { tags: string[]; language: string }>();
+  if (logins.length === 0) return result;
+
+  try {
+    const queries = logins.map((login) => getRawTagsAndLanguageQuery(login));
+    for (let i = 0; i < queries.length; i += MAX_QUERIES_PER_REQUEST) {
+      const batch = queries.slice(i, i + MAX_QUERIES_PER_REQUEST);
+      const responses = (await gqlRequest(batch)) as { data: StreamTagsAndLanguageData }[];
+      for (let j = 0; j < responses.length; j++) {
+        result.set(logins[i + j], extractTagsAndLanguage(responses[j].data));
+      }
+    }
+  } catch (err) {
+    // Best-effort enrichment: if the side query fails the caller still gets
+    // streams (with empty tags/language), matching pre-fix behavior.
+    console.warn("[Twitch] getTagsAndLanguageByLogins failed:", err);
+  }
+  return result;
+}
+
 /**
  * Get stream by channel login (check if live + metadata)
  */
 export async function gqlGetStreamByLogin(login: string): Promise<UnifiedStream | null> {
-  const [streamMeta, viewCount] = (await gqlRequest([
+  const [streamMeta, viewCount, tagsLang] = (await gqlRequest([
     getQueryStreamMetadata({ channelLogin: login, includeIsDJ: false }),
     getQueryUseViewCount({ channelLogin: login }),
-  ])) as [{ data: StreamMetadataData }, { data: UseViewCountData }];
+    getRawTagsAndLanguageQuery(login),
+  ])) as [
+    { data: StreamMetadataData },
+    { data: UseViewCountData },
+    { data: StreamTagsAndLanguageData },
+  ];
 
   const user = streamMeta.data?.user;
   if (!user?.stream) return null;
 
   const stream = user.stream;
   const viewers = viewCount.data?.user?.stream?.viewersCount ?? 0;
+  const { tags, language } = extractTagsAndLanguage(tagsLang.data);
 
   return {
     id: stream.id,
@@ -535,8 +599,8 @@ export async function gqlGetStreamByLogin(login: string): Promise<UnifiedStream 
     thumbnailUrl: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${login}-440x248.jpg`,
     isLive: stream.type === "live",
     startedAt: stream.createdAt || null,
-    language: "",
-    tags: [],
+    language,
+    tags,
     categoryId: stream.game?.id,
     categoryName: stream.game?.name,
   };
@@ -554,6 +618,7 @@ export async function gqlGetStreamsByLogins(logins: string[]): Promise<UnifiedSt
 
   // Chunk into batches of MAX_QUERIES_PER_REQUEST
   const results: UnifiedStream[] = [];
+  const allLiveLogins: string[] = [];
   for (let i = 0; i < queries.length; i += MAX_QUERIES_PER_REQUEST) {
     const batch = queries.slice(i, i + MAX_QUERIES_PER_REQUEST);
     const responses = (await gqlRequest(batch)) as { data: UseLiveData }[];
@@ -606,6 +671,21 @@ export async function gqlGetStreamsByLogins(logins: string[]): Promise<UnifiedSt
             categoryName: user.stream.game?.name,
           });
         }
+      }
+
+      allLiveLogins.push(...liveLogins);
+    }
+  }
+
+  // Persisted StreamMetadata doesn't include freeformTags or
+  // broadcastSettings.language — fetch them via a raw side query and merge by login.
+  if (allLiveLogins.length > 0) {
+    const tagsLangByLogin = await getTagsAndLanguageByLogins(allLiveLogins);
+    for (const stream of results) {
+      const extra = tagsLangByLogin.get(stream.channelName);
+      if (extra) {
+        stream.tags = extra.tags;
+        stream.language = extra.language;
       }
     }
   }

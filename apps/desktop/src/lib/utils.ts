@@ -72,6 +72,28 @@ export function formatDuration(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+// Module-scope singleton — Intl.DisplayNames is expensive to construct.
+const LANGUAGE_DISPLAY_NAMES = new Intl.DisplayNames(["en"], { type: "language" });
+
+/**
+ * Render a language label in consistent Title Case regardless of input format.
+ * Handles BCP-47 codes from Twitch ("en" → "English") and full words from Kick
+ * ("english" → "English"), so the chip reads the same on every surface.
+ */
+export function formatLanguageLabel(lang: string | null | undefined): string {
+  if (!lang) return "";
+  // BCP-47 code path (e.g. "en", "es"): try Intl, accept only if it actually resolved.
+  if (lang.length <= 3) {
+    try {
+      const resolved = LANGUAGE_DISPLAY_NAMES.of(lang);
+      if (resolved && resolved.toLowerCase() !== lang.toLowerCase()) return resolved;
+    } catch {
+      // Structurally invalid BCP-47 tag — fall through to title case.
+    }
+  }
+  return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
+}
+
 // Curated equivalences for category names that differ between platforms.
 // Symmetric names (e.g. "IRL" on both, "Grand Theft Auto V" on both) don't
 // need entries — they match automatically via lowercase comparison.

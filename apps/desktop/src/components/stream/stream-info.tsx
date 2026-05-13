@@ -7,7 +7,7 @@ import { FollowButton } from "@/components/ui/follow-button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatUptime, formatViewerCount } from "@/lib/utils";
+import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
 
 /**
  * Isolated uptime counter component to prevent re-rendering parent every second
@@ -113,8 +113,7 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
               {/* Language Tag */}
               {stream.language && (
                 <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
-                  {new Intl.DisplayNames(["en"], { type: "language" }).of(stream.language) ||
-                    stream.language.toUpperCase()}
+                  {formatLanguageLabel(stream.language)}
                 </span>
               )}
               {/* Mature Content Tag */}
@@ -129,9 +128,7 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
                 (() => {
                   // Get the display name of the stream's language to filter duplicates
                   const languageDisplayName = stream.language
-                    ? new Intl.DisplayNames(["en"], { type: "language" })
-                        .of(stream.language)
-                        ?.toLowerCase()
+                    ? formatLanguageLabel(stream.language).toLowerCase()
                     : null;
 
                   return stream.tags

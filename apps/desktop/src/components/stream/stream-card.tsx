@@ -9,7 +9,7 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
-import { formatViewerCount } from "@/lib/utils";
+import { formatLanguageLabel, formatViewerCount } from "@/lib/utils";
 
 interface StreamCardProps {
   stream: UnifiedStream;
@@ -20,9 +20,6 @@ interface StreamCardProps {
 // trigger prefetches, short enough that intentional hovers still warm the
 // cache before the user clicks.
 const HOVER_PREFETCH_DELAY_MS = 150;
-
-// Module-scope singleton — Intl.DisplayNames is expensive to construct.
-const LANGUAGE_DISPLAY_NAMES = new Intl.DisplayNames(["en"], { type: "language" });
 
 // Memoize StreamCard to prevent re-renders when grid updates but individual stream hasn't changed
 export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCardProps) => {
@@ -79,8 +76,7 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
     const tags: string[] = [];
 
     if (stream.language) {
-      const langName = LANGUAGE_DISPLAY_NAMES.of(stream.language) || stream.language;
-      tags.push(langName);
+      tags.push(formatLanguageLabel(stream.language));
     }
 
     if (stream.tags && stream.tags.length > 0) {
