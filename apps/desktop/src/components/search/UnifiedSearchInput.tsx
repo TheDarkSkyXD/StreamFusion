@@ -4,10 +4,11 @@ import { LuClock, LuFilter, LuLayoutGrid, LuSearch, LuSparkles, LuUser, LuX } fr
 
 import type { UnifiedCategory, UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { ProxiedImage } from "@/components/ui/proxied-image";
+import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
 import { useSearchCategories, useSearchChannels } from "@/hooks/queries/useSearch";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCategoryName, pickWinner } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
 
 interface UnifiedSearchInputProps {
@@ -119,6 +120,22 @@ export function UnifiedSearchInput({
     () => categoriesInfiniteData?.pages.flatMap((p) => p.data) ?? [],
     [categoriesInfiniteData]
   );
+
+  // Categories are universal across platforms — collapse cross-platform duplicates
+  // by normalized name so "Just Chatting" doesn't appear twice. The link target is
+  // canonical regardless of which side we keep (useUnifiedCategoryLink resolves it).
+  const dedupedCategories = React.useMemo(() => {
+    if (!categories.length) return [];
+    const byKey = new Map<string, UnifiedCategory>();
+    for (const category of categories) {
+      const key = normalizeCategoryName(category.name);
+      const existing = byKey.get(key);
+      if (!existing || category.platform === pickWinner(key)) {
+        byKey.set(key, category);
+      }
+    }
+    return Array.from(byKey.values());
+  }, [categories]);
 
   // Filter history based on query and platform?
   // History currently stores just strings. We can't easily filter by platform unless we store platform in history.
@@ -296,6 +313,57 @@ export function UnifiedSearchInput({
       return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K followers`;
     }
     return `${count} followers`;
+  };
+
+  // Helper to render category items. Extracted so each call can invoke
+  // useUnifiedCategoryLink — that resolves the canonical cross-platform target
+  // so a click here lands on the same merged Categories page as the grid does.
+  const CategoryItem = ({
+    category,
+    onClick,
+  }: {
+    category: UnifiedCategory;
+    onClick: (c: UnifiedCategory, e: React.MouseEvent) => void;
+  }) => {
+    const { linkPlatform, linkCategoryId, otherId } = useUnifiedCategoryLink(
+      category.platform,
+      category.id,
+      category.name
+    );
+    const Wrapper = onSelectCategory ? "div" : Link;
+    const linkProps = onSelectCategory
+      ? {}
+      : {
+          to: "/categories/$platform/$categoryId",
+          params: { platform: linkPlatform, categoryId: linkCategoryId },
+          search: otherId ? { otherId } : {},
+        };
+
+    return (
+      // @ts-expect-error - Link props vs div props complexity
+      <Wrapper
+        {...linkProps}
+        onClick={(e: React.MouseEvent) => onClick(category, e)}
+        className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
+      >
+        {category.boxArtUrl ? (
+          <img
+            src={category.boxArtUrl}
+            alt={category.name}
+            className="w-6 h-8 rounded object-cover"
+          />
+        ) : (
+          <div className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center">
+            <LuLayoutGrid size={14} className="text-white/50" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
+            {category.name}
+          </p>
+        </div>
+      </Wrapper>
+    );
   };
 
   // Helper to render channel items
@@ -561,50 +629,18 @@ export function UnifiedSearchInput({
           )}
 
           {/* CATEGORIES SUGGESTIONS */}
-          {showCategoryResults && (categories.length > 0 || categoriesLoading) && (
+          {showCategoryResults && (dedupedCategories.length > 0 || categoriesLoading) && (
             <div className={cn("py-2 border-t border-[var(--color-border)]")}>
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
                 <LuLayoutGrid size={12} /> Categories
               </h3>
-              {categories.map((category) => {
-                const Wrapper = onSelectCategory ? "div" : Link;
-                const linkProps = onSelectCategory
-                  ? {}
-                  : {
-                      to: "/categories/$platform/$categoryId",
-                      params: { platform: category.platform, categoryId: category.id },
-                    };
-
-                return (
-                  // @ts-expect-error
-                  <Wrapper
-                    key={`${category.platform}-${category.id}`}
-                    {...linkProps}
-                    onClick={(e: React.MouseEvent) => handleCategoryClick(category, e)}
-                    className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
-                  >
-                    {category.boxArtUrl ? (
-                      <img
-                        src={category.boxArtUrl}
-                        alt={category.name}
-                        className="w-6 h-8 rounded object-cover"
-                      />
-                    ) : (
-                      <div className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center">
-                        <LuLayoutGrid size={14} className="text-white/50" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
-                        {category.name}
-                      </p>
-                      <div className="flex items-center gap-2 text-xs text-[var(--color-foreground-muted)]">
-                        {!platform && <span className="capitalize">{category.platform}</span>}
-                      </div>
-                    </div>
-                  </Wrapper>
-                );
-              })}
+              {dedupedCategories.map((category) => (
+                <CategoryItem
+                  key={`${category.platform}-${category.id}`}
+                  category={category}
+                  onClick={handleCategoryClick}
+                />
+              ))}
               {/* Initial loading skeletons */}
               {categoriesLoading &&
                 Array.from({ length: 4 }).map((_, i) => (

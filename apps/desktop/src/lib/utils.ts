@@ -131,6 +131,16 @@ export function getEquivalentCategoryName(key: string, platform: Platform): stri
 }
 
 /**
+ * Single source of truth for the cross-platform merge rule: Twitch wins by
+ * default, Kick wins for Slots (better metadata). Mirrors the merge in
+ * useTopCategories — anywhere the same decision needs to happen at a single
+ * call site (e.g. resolving a canonical link before navigation), use this.
+ */
+export function pickWinner(key: string): Platform {
+  return key === "slots" ? "kick" : "twitch";
+}
+
+/**
  * Format uptime from a startedAt ISO date string to HH:MM:SS format
  * e.g. "2025-12-10T21:00:00Z" -> "1:15:33" if stream has been live for 1 hour, 15 mins, 33 secs
  */

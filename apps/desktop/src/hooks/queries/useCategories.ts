@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { UnifiedCategory } from "../../backend/api/unified/platform-types";
-import { normalizeCategoryName } from "../../lib/utils";
+import { getEquivalentCategoryName, normalizeCategoryName, pickWinner } from "../../lib/utils";
 import type { Platform } from "../../shared/auth-types";
 
 // Minimal interface for stream data needed for category aggregation
@@ -174,6 +174,82 @@ export function useTopCategories(platform?: Platform) {
     // Refetch when window regains focus (user may have been away)
     refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * Resolve a category reference (source platform + id + name) to the canonical
+ * cross-platform link destination used by the Categories page — so a click on
+ * a stream-page category badge lands on the same merged page as a click on the
+ * Categories grid.
+ *
+ * Two-tier lookup: first the cached top-categories merge (free), then a
+ * targeted `categories.search` against the other platform (one IPC). Falls
+ * back to the source unchanged for platform-exclusive categories. Matches by
+ * normalized name — Kick ids vary across auth states, name is the actual
+ * cross-platform key.
+ *
+ * Shares its query key (`["category-match", key, otherPlatform]`) with
+ * CategoryDetailPage's fallback search so a visit in either direction primes
+ * the other.
+ */
+export function useUnifiedCategoryLink(
+  platform: Platform,
+  categoryId: string,
+  categoryName: string
+): { linkPlatform: Platform; linkCategoryId: string; otherId?: string } {
+  const queryClient = useQueryClient();
+  const otherPlatform: Platform = platform === "twitch" ? "kick" : "twitch";
+  const key = categoryName ? normalizeCategoryName(categoryName) : null;
+
+  // Warm path: the Categories grid has already merged Twitch+Kick into a single
+  // entry per normalized name, with the cross-platform id stashed on the winner.
+  const cachedEntry =
+    key !== null
+      ? queryClient
+          .getQueryData<UnifiedCategory[]>(CATEGORY_KEYS.top(undefined))
+          ?.find((c) => normalizeCategoryName(c.name) === key)
+      : undefined;
+
+  // Cold path: search the other platform for a name match. Disabled when the
+  // warm path already resolved or when we have nothing to look up.
+  const { data: searched } = useQuery({
+    queryKey: ["category-match", key, otherPlatform],
+    queryFn: async () => {
+      const searchQuery =
+        (key && getEquivalentCategoryName(key, otherPlatform)) ?? categoryName;
+      const response = await window.electronAPI.categories.search({
+        query: searchQuery,
+        platform: otherPlatform,
+        limit: 10,
+      });
+      const candidates = (response.data as UnifiedCategory[]) || [];
+      return candidates.find((c) => normalizeCategoryName(c.name) === key) || null;
+    },
+    enabled: !!key && !!categoryId && !cachedEntry,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  if (!categoryId || key === null) {
+    return { linkPlatform: platform, linkCategoryId: categoryId };
+  }
+
+  if (cachedEntry) {
+    return {
+      linkPlatform: cachedEntry.platform,
+      linkCategoryId: cachedEntry.id,
+      otherId: cachedEntry.crossPlatformId,
+    };
+  }
+
+  if (searched) {
+    const winner = pickWinner(key);
+    if (winner === platform) {
+      return { linkPlatform: platform, linkCategoryId: categoryId, otherId: searched.id };
+    }
+    return { linkPlatform: otherPlatform, linkCategoryId: searched.id, otherId: categoryId };
+  }
+
+  return { linkPlatform: platform, linkCategoryId: categoryId };
 }
 
 export function useCategoryById(categoryId: string, platform: Platform) {

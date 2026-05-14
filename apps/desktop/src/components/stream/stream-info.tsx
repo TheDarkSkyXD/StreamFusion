@@ -7,6 +7,7 @@ import { FollowButton } from "@/components/ui/follow-button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
 import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
 
 /**
@@ -38,6 +39,19 @@ interface StreamInfoProps {
 }
 
 export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
+  // Resolve canonical cross-platform link target so clicking the badge lands on
+  // the same merged Categories page as clicking the same category in the grid
+  // (e.g. Kick IRL → /categories/twitch/<twitch-id>?otherId=<kick-id>).
+  // Safe defaults during loading: the hook returns source values when inputs
+  // are empty and the actual Link only renders when categoryId is set.
+  const sourceCategoryId = stream?.categoryId ?? channel?.categoryId ?? "";
+  const sourceCategoryName = stream?.categoryName ?? channel?.categoryName ?? "";
+  const { linkPlatform, linkCategoryId, otherId } = useUnifiedCategoryLink(
+    channel?.platform ?? "twitch",
+    sourceCategoryId,
+    sourceCategoryName
+  );
+
   if (isLoading || !channel) {
     return (
       <div className="flex justify-between items-start gap-4 animate-pulse">
@@ -90,13 +104,11 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
         </p>
         <div className="text-[var(--color-foreground-muted)] text-sm capitalize flex flex-wrap items-center gap-2 mt-1">
           {/* Use stream category if live, otherwise fall back to channel's last known category */}
-          {stream?.categoryId || channel.categoryId ? (
+          {linkCategoryId ? (
             <Link
               to="/categories/$platform/$categoryId"
-              params={{
-                platform: channel.platform,
-                categoryId: (stream?.categoryId || channel.categoryId)!,
-              }}
+              params={{ platform: linkPlatform, categoryId: linkCategoryId }}
+              search={otherId ? { otherId } : {}}
               className={`${channel.platform === "twitch" ? "text-[#9146FF] hover:text-[#9146FF]/80" : "text-[#53FC18] hover:text-[#53FC18]/80"} font-semibold hover:underline cursor-pointer transition-colors`}
             >
               {stream?.categoryName || channel.categoryName || "Variety"}

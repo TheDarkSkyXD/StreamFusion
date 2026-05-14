@@ -47,7 +47,13 @@ export function CategoryDetailPage() {
   // Skipped entirely when `otherId` is provided via URL — that path is faster
   // and more reliable (works for unauthenticated users on niche categories).
   const { data: otherCategoryFromSearch } = useQuery({
-    queryKey: ["category-match", category?.name, otherPlatform],
+    // Keyed by normalized name so stream-page badge clicks (which use the same
+    // hook → same key) share this cache and don't refetch.
+    queryKey: [
+      "category-match",
+      category?.name ? normalizeCategoryName(category.name) : null,
+      otherPlatform,
+    ],
     queryFn: async () => {
       if (!category?.name) return null;
       const normalizedKey = normalizeCategoryName(category.name);
