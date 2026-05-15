@@ -465,6 +465,12 @@ export function parseKickSubscription(event: KickSubscriptionEvent, channel: str
  * Parse a Kick gifted subscription event into our UserNotice format
  */
 export function parseKickGiftedSub(event: KickGiftedSubEvent, channel: string): UserNotice {
+  const count = event.gifted_usernames.length;
+  const systemMessage =
+    count === 1
+      ? `${event.gifter_username} gifted a subscription to ${event.gifted_usernames[0]}!`
+      : `${event.gifter_username} gifted ${count} subscriptions!`;
+
   return {
     id: crypto.randomUUID(),
     platform: "kick",
@@ -473,9 +479,9 @@ export function parseKickGiftedSub(event: KickGiftedSubEvent, channel: string): 
     userId: "",
     username: event.gifter_username.toLowerCase(),
     displayName: event.gifter_username,
-    systemMessage: `${event.gifter_username} gifted ${event.gifted_usernames.length} subscription(s)!`,
+    systemMessage,
     timestamp: new Date(),
-    giftCount: event.gifted_usernames.length,
+    giftCount: count,
   };
 }
 
