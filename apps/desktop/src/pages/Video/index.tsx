@@ -1,14 +1,15 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { LuCircleAlert, LuHeart, LuHeartCrack, LuLock } from "react-icons/lu";
+import { useEffect, useState } from "react";
+import { LuCircleAlert, LuHeart, LuLock } from "react-icons/lu";
 
 import { KickVodPlayer } from "@/components/player/kick";
 import { TwitchVodPlayer } from "@/components/player/twitch";
 import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { VideoCard } from "@/components/stream/related-content/VideoCard";
 import { Button } from "@/components/ui/button";
+import { FollowButton } from "@/components/ui/follow-button";
+import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import type { Platform } from "@/shared/auth-types";
-import { useFollowStore } from "@/store/follow-store";
 import { useHistoryStore } from "@/store/history-store";
 
 interface VideoMetadata {
@@ -77,8 +78,6 @@ export function VideoPage() {
   // Check if this is a subscriber-only VOD
   const isSubOnly = passedIsSubOnly === true;
 
-  const [isHoveringFollow, setIsHoveringFollow] = useState(false);
-  const { isFollowing: checkIsFollowing, toggleFollow } = useFollowStore();
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
@@ -250,23 +249,11 @@ export function VideoPage() {
       : "—";
   const category = videoMetadata?.category || passedCategory;
 
-  // Create channel object for follow store
-  const channelForFollow = useMemo(
-    () => ({
-      id: channelName, // Use username as ID to match follow store format
-      platform: platform as Platform,
-      username: channelName,
-      displayName: channelDisplayName,
-      avatarUrl: channelAvatar || "",
-      isLive: false,
-      isVerified: false,
-      isPartner: false,
-    }),
-    [platform, channelName, channelDisplayName, channelAvatar]
-  );
-
-  // Check if channel is being followed using the store
-  const isFollowing = checkIsFollowing(channelForFollow.id);
+  // Fetch the canonical channel so FollowButton stores the platform-numeric id,
+  // not the slug — keeps follow keys consistent with the Stream page and avoids
+  // ghost-unfollow / duplicate-follow rows when the same channel is followed
+  // from different surfaces.
+  const { data: channelData } = useChannelByUsername(channelName, platform as Platform);
 
   // Fetch related videos based on channelName
   useEffect(() => {
@@ -294,17 +281,6 @@ export function VideoPage() {
 
     if (channelName) fetchRelated();
   }, [platform, channelName]);
-
-  const getFollowButtonStyles = () => {
-    if (isFollowing) {
-      return "bg-neutral-800 hover:bg-neutral-700 border-transparent border";
-    }
-    if (platform === "twitch")
-      return "bg-[#9146FF] hover:bg-[#9146FF]/90 text-white border-transparent";
-    if (platform === "kick")
-      return "bg-[#53FC18] hover:bg-[#53FC18]/90 text-black border-transparent";
-    return "bg-primary text-primary-foreground";
-  };
 
   return (
     <div className="h-full flex overflow-hidden">
@@ -440,29 +416,18 @@ export function VideoPage() {
               })()}
             </div>
             <div className="flex gap-4">
-              <Button
-                className={`rounded-full font-bold transition-all gap-2 ${isFollowing ? "w-10 h-10 p-0" : "min-w-[100px]"} ${getFollowButtonStyles()}`}
-                size="sm"
-                onClick={() => toggleFollow(channelForFollow)}
-                onMouseEnter={() => setIsHoveringFollow(true)}
-                onMouseLeave={() => setIsHoveringFollow(false)}
-              >
-                {isFollowing ? (
-                  isHoveringFollow ? (
-                    <LuHeartCrack className="w-5 h-5 text-red-500" strokeWidth={3} />
-                  ) : (
-                    <LuHeart className="w-5 h-5 fill-current text-white" strokeWidth={3} />
-                  )
-                ) : (
-                  <>
-                    <LuHeart
-                      className={`w-4 h-4 ${isHoveringFollow ? "fill-current" : ""}`}
-                      strokeWidth={3}
-                    />{" "}
-                    Follow
-                  </>
-                )}
-              </Button>
+              {channelData ? (
+                <FollowButton channel={channelData} size="sm" />
+              ) : (
+                <Button
+                  className="rounded-full font-bold gap-2 min-w-[100px] bg-neutral-800 text-white"
+                  size="sm"
+                  disabled
+                >
+                  <LuHeart className="w-4 h-4" strokeWidth={3} />
+                  Follow
+                </Button>
+              )}
               <Link
                 to="/stream/$platform/$channel"
                 params={{ platform: platform || "twitch", channel: channelName }}
