@@ -54,19 +54,20 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
 
     try {
       const backendFollows = await window.electronAPI.follows.getAll();
-      // Bridge by slug too — backend rows for old Kick follows carry the
-      // user_id in channelId, while followToRemove.id may be the fresh
-      // channel.id. The slug (channelName / username) is stable across both.
+      // Remove every matching row, not just the first — users who hit the
+      // original cross-page bug can have two rows for the same channel
+      // (legacy user_id + fresh channel.id). Removing only one leaves the
+      // survivor to be re-mapped on the next hydrate().
       const slug = followToRemove.username?.toLowerCase();
-      const match = backendFollows.find(
+      const matches = backendFollows.filter(
         (f) =>
           f.platform === followToRemove.platform &&
           (f.channelId === followToRemove.id ||
             (!!slug && f.channelName?.toLowerCase() === slug))
       );
 
-      if (match) {
-        await window.electronAPI.follows.remove(match.id);
+      for (const m of matches) {
+        await window.electronAPI.follows.remove(m.id);
       }
     } catch (err) {
       console.error("Failed to remove follow from backend:", err);

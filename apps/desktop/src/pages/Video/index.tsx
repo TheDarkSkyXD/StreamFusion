@@ -1,11 +1,12 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LuCircleAlert, LuHeart, LuLock } from "react-icons/lu";
+import { LuCircleAlert, LuLock } from "react-icons/lu";
 
 import { KickVodPlayer } from "@/components/player/kick";
 import { TwitchVodPlayer } from "@/components/player/twitch";
 import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { VideoCard } from "@/components/stream/related-content/VideoCard";
+import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
@@ -249,11 +250,29 @@ export function VideoPage() {
       : "—";
   const category = videoMetadata?.category || passedCategory;
 
-  // Fetch the canonical channel so FollowButton stores the platform-numeric id,
-  // not the slug — keeps follow keys consistent with the Stream page and avoids
-  // ghost-unfollow / duplicate-follow rows when the same channel is followed
-  // from different surfaces.
-  const { data: channelData } = useChannelByUsername(channelName, platform as Platform);
+  // Fetch the canonical channel so FollowButton stores the platform-numeric id
+  // (not the slug) — keeps follow keys consistent with the Stream page. Guard
+  // the "channel" fallback at line 219 so the hook doesn't fire a real request
+  // for an unrelated channel while metadata is still loading.
+  const { data: channelData } = useChannelByUsername(
+    channelName !== "channel" ? channelName : "",
+    platform as Platform
+  );
+
+  // Render the real FollowButton immediately by falling back to a channel
+  // synthesized from route + search params. Once useChannelByUsername resolves
+  // we swap to channelData so writes carry the canonical id. channelsMatch
+  // bridges the two via slug, so follow-state reads stay correct across both.
+  const channelForFollow: UnifiedChannel = channelData ?? {
+    id: "",
+    platform: platform as Platform,
+    username: channelName,
+    displayName: channelDisplayName,
+    avatarUrl: channelAvatar || "",
+    isLive: false,
+    isVerified: false,
+    isPartner: false,
+  };
 
   // Fetch related videos based on channelName
   useEffect(() => {
@@ -416,18 +435,7 @@ export function VideoPage() {
               })()}
             </div>
             <div className="flex gap-4">
-              {channelData ? (
-                <FollowButton channel={channelData} size="sm" />
-              ) : (
-                <Button
-                  className="rounded-full font-bold gap-2 min-w-[100px] bg-neutral-800 text-white"
-                  size="sm"
-                  disabled
-                >
-                  <LuHeart className="w-4 h-4" strokeWidth={3} />
-                  Follow
-                </Button>
-              )}
+              <FollowButton channel={channelForFollow} size="sm" />
               <Link
                 to="/stream/$platform/$channel"
                 params={{ platform: platform || "twitch", channel: channelName }}

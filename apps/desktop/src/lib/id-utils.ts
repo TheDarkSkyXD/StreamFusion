@@ -114,32 +114,3 @@ export function channelsMatch(
   return false;
 }
 
-/**
- * Checks if a channel matches a given key.
- * The key can be in several formats:
- * - Platform-aware: "twitch-12345" or "kick-xqc"
- * - Legacy (just ID): "12345" - will match any platform with that ID
- * - Username: "xqc" - will match any platform with that username
- *
- * For new code, always use platform-aware keys for precise matching.
- */
-export function channelMatchesKey(
-  channel: Pick<UnifiedChannel, "platform" | "id" | "username">,
-  key: string
-): boolean {
-  // Try platform-aware match first (preferred)
-  if (getChannelKey(channel) === key) return true;
-
-  // Try platform-username match
-  if (channel.username && getChannelNameKey(channel.platform, channel.username) === key) {
-    return true;
-  }
-
-  // Legacy fallback: match by ID only (not recommended, but needed for backward compatibility)
-  if (channel.id === key) return true;
-
-  // Legacy fallback: match by username (case-insensitive)
-  if (channel.username?.toLowerCase() === key?.toLowerCase()) return true;
-
-  return false;
-}
