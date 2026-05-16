@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import type { Platform } from "@/shared/auth-types";
+import { useFollowStore } from "@/store/follow-store";
 import { useHistoryStore } from "@/store/history-store";
 
 interface VideoMetadata {
@@ -217,6 +218,10 @@ export function VideoPage() {
 
   // Use fetched data or passed data or fallbacks
   const videoTitle = videoMetadata?.title || passedTitle || "Loading...";
+  // Track placeholder state separately so guards don't compare against a magic
+  // string — a real Kick user named "channel" would otherwise be trapped in
+  // placeholder-forever state with useChannelByUsername never firing.
+  const hasResolvedChannelName = !!videoMetadata?.channelName || !!passedChannelName;
   const channelName = videoMetadata?.channelName || passedChannelName || "channel";
   const channelDisplayName =
     videoMetadata?.channelDisplayName || passedChannelDisplayName || passedChannelName || "Channel";
@@ -251,11 +256,11 @@ export function VideoPage() {
   const category = videoMetadata?.category || passedCategory;
 
   // Fetch the canonical channel so FollowButton stores the platform-numeric id
-  // (not the slug) — keeps follow keys consistent with the Stream page. Guard
-  // the "channel" fallback at line 219 so the hook doesn't fire a real request
-  // for an unrelated channel while metadata is still loading.
+  // (not the slug) — keeps follow keys consistent with the Stream page. Skip
+  // the fetch while channelName is still in placeholder state so we don't fire
+  // a real request for an unrelated channel.
   const { data: channelData } = useChannelByUsername(
-    channelName !== "channel" ? channelName : "",
+    hasResolvedChannelName ? channelName : "",
     platform as Platform
   );
 
@@ -274,10 +279,21 @@ export function VideoPage() {
     isPartner: false,
   };
 
+  // When the canonical channel resolves, migrate any in-memory follow row
+  // that was written with channelId: "" (the synthesized-fallback case where
+  // the user clicked Follow before useChannelByUsername returned). Idempotent
+  // — no-ops when no stale row exists.
+  const upgradeFollowIfNeeded = useFollowStore((s) => s.upgradeFollowIfNeeded);
+  useEffect(() => {
+    if (channelData?.id) {
+      upgradeFollowIfNeeded(channelData);
+    }
+  }, [channelData, upgradeFollowIfNeeded]);
+
   // Fetch related videos based on channelName
   useEffect(() => {
     const fetchRelated = async () => {
-      if (!platform || !channelName || channelName === "channel") return;
+      if (!platform || !hasResolvedChannelName) return;
 
       setIsRelatedLoading(true);
       try {
@@ -298,8 +314,8 @@ export function VideoPage() {
       }
     };
 
-    if (channelName) fetchRelated();
-  }, [platform, channelName]);
+    if (hasResolvedChannelName) fetchRelated();
+  }, [platform, channelName, hasResolvedChannelName]);
 
   return (
     <div className="h-full flex overflow-hidden">
