@@ -34,6 +34,7 @@ StreamFusion/
 │   ├── pages/               # Route components
 │   └── shared/              # Cross-process types, IPC channels
 ├── documentation/           # Feature specs, roadmap (has own AGENTS.md)
+├── docs/solutions/          # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
 ├── forge.config.ts          # Electron Forge packaging
 ├── vite.*.config.ts         # Vite configs (main/preload/renderer)
 └── tailwind.config.js       # Brand colors, theme tokens
