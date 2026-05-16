@@ -95,6 +95,26 @@ export function isSameChannel(
 }
 
 /**
+ * Match two channels as "the same" across views, robust to platforms that
+ * expose multiple internal IDs for the same broadcaster. Kick has both a
+ * `user_id` and a `channel.id` — older follow rows stored the former, fresh
+ * API lookups return the latter, and the two numbers don't bridge. Matching
+ * on (platform AND id) OR (platform AND username) is enough because the slug
+ * is stable across the schema.
+ */
+export function channelsMatch(
+  a: Pick<UnifiedChannel, "platform" | "id" | "username">,
+  b: Pick<UnifiedChannel, "platform" | "id" | "username">
+): boolean {
+  if (a.platform !== b.platform) return false;
+  if (a.id && b.id && a.id === b.id) return true;
+  if (a.username && b.username && a.username.toLowerCase() === b.username.toLowerCase()) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Checks if a channel matches a given key.
  * The key can be in several formats:
  * - Platform-aware: "twitch-12345" or "kick-xqc"

@@ -3,7 +3,6 @@ import { LuHeart, LuHeartCrack } from "react-icons/lu";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { Button } from "@/components/ui/button";
-import { getChannelKey } from "@/lib/id-utils";
 import { cn } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
 import { useFollowStore } from "@/store/follow-store";
@@ -16,8 +15,7 @@ interface FollowButtonProps {
 
 export function FollowButton({ channel, className, size = "sm" }: FollowButtonProps) {
   const { isFollowing: isFollowingStore, toggleFollow } = useFollowStore();
-  // Use platform-aware key for checking follow status
-  const isFollowing = isFollowingStore(getChannelKey(channel));
+  const isFollowing = isFollowingStore(channel);
   const [isHovering, setIsHovering] = useState(false);
 
   const platform = channel.platform as Platform;

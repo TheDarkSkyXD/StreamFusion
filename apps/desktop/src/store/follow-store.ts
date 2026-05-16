@@ -1,13 +1,13 @@
 import { create } from "zustand";
 
 import type { UnifiedChannel } from "../backend/api/unified/platform-types";
-import { channelMatchesKey, getChannelKey } from "../lib/id-utils";
+import { channelsMatch } from "../lib/id-utils";
 
 interface FollowState {
   localFollows: UnifiedChannel[];
   followChannel: (channel: UnifiedChannel) => void;
-  unfollowChannel: (channelKey: string) => void;
-  isFollowing: (channelKey: string) => boolean;
+  unfollowChannel: (channel: UnifiedChannel) => void;
+  isFollowing: (channel: UnifiedChannel) => boolean;
   toggleFollow: (channel: UnifiedChannel) => void;
   hydrate: () => Promise<void>;
 }
@@ -16,10 +16,11 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
   localFollows: [],
   followChannel: async (channel) => {
     const currentFollows = get().localFollows;
-    const channelKey = getChannelKey(channel);
 
-    // Check if already following using platform-aware key
-    if (currentFollows.some((c) => getChannelKey(c) === channelKey)) return;
+    // Dedupe by platform + (id OR username) so a stale row with a different
+    // numeric id (e.g. legacy Kick user_id) doesn't get duplicated by a fresh
+    // follow keyed on the canonical channel.id.
+    if (currentFollows.some((c) => channelsMatch(c, channel))) return;
 
     // Optimistic update
     set({ localFollows: [...currentFollows, channel] });
@@ -39,28 +40,29 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
       set({ localFollows: currentFollows });
     }
   },
-  unfollowChannel: async (channelKey) => {
+  unfollowChannel: async (channel) => {
     const currentFollows = get().localFollows;
 
-    // Find channel using flexible matching (supports both new and legacy keys)
-    const followToRemove = currentFollows.find((c) => channelMatchesKey(c, channelKey));
+    const followToRemove = currentFollows.find((c) => channelsMatch(c, channel));
     if (!followToRemove) {
-      console.warn(`[FollowStore] No channel found matching key: ${channelKey}`);
+      console.warn("[FollowStore] No channel found matching:", channel);
       return;
     }
 
-    // Remove optimistically using platform-aware comparison
-    const updatedFollows = currentFollows.filter(
-      (c) => getChannelKey(c) !== getChannelKey(followToRemove)
-    );
+    const updatedFollows = currentFollows.filter((c) => !channelsMatch(c, followToRemove));
     set({ localFollows: updatedFollows });
 
-    // Sync to backend
     try {
       const backendFollows = await window.electronAPI.follows.getAll();
-      // Match by platform AND channelId for precision
+      // Bridge by slug too — backend rows for old Kick follows carry the
+      // user_id in channelId, while followToRemove.id may be the fresh
+      // channel.id. The slug (channelName / username) is stable across both.
+      const slug = followToRemove.username?.toLowerCase();
       const match = backendFollows.find(
-        (f) => f.platform === followToRemove.platform && f.channelId === followToRemove.id
+        (f) =>
+          f.platform === followToRemove.platform &&
+          (f.channelId === followToRemove.id ||
+            (!!slug && f.channelName?.toLowerCase() === slug))
       );
 
       if (match) {
@@ -68,21 +70,17 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
       }
     } catch (err) {
       console.error("Failed to remove follow from backend:", err);
-      // Rollback
       set({ localFollows: currentFollows });
     }
   },
-  isFollowing: (channelKey) => {
+  isFollowing: (channel) => {
     const follows = get().localFollows;
-    // Use flexible matching that supports both platform-aware keys and legacy formats
-    return follows.some((c) => channelMatchesKey(c, channelKey));
+    return follows.some((c) => channelsMatch(c, channel));
   },
   toggleFollow: (channel) => {
     const { isFollowing, followChannel, unfollowChannel } = get();
-    // Use platform-aware key for checking and unfollowing
-    const channelKey = getChannelKey(channel);
-    if (isFollowing(channelKey)) {
-      unfollowChannel(channelKey);
+    if (isFollowing(channel)) {
+      unfollowChannel(channel);
     } else {
       followChannel(channel);
     }
