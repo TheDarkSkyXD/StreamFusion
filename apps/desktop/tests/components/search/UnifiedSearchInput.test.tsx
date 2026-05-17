@@ -79,10 +79,12 @@ function makeChannels(count: number, prefix = 'ch') {
 function resetSearchMock() {
   searchMockState.channelsData = { pages: [] };
   searchMockState.channelsHasNextPage = false;
-  searchMockState.channelsFetchNextPage = vi.fn();
+  // Mirror useInfiniteQuery's contract: fetchNextPage returns a Promise.
+  // The dropdown's scroll-latch uses .finally() on the result.
+  searchMockState.channelsFetchNextPage = vi.fn(() => Promise.resolve());
   searchMockState.categoriesData = { pages: [] };
   searchMockState.categoriesHasNextPage = false;
-  searchMockState.categoriesFetchNextPage = vi.fn();
+  searchMockState.categoriesFetchNextPage = vi.fn(() => Promise.resolve());
 }
 
 describe('UnifiedSearchInput', () => {

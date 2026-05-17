@@ -249,22 +249,26 @@ export async function gqlGetGameStreamsBySlug(
         pageInfo: { hasNextPage: boolean };
       };
     };
-  }>("DirectoryPage_Game", "76cb069d835b8a02914c08dc42c421d0dafda8af5b113a3f19141824b901402f", {
-    cursor: options.after ?? null,
-    imageWidth: 50,
-    includeCostreaming: true,
-    limit,
-    options: {
-      // Twitch's `Language` GraphQL enum uses uppercase 2-letter codes
-      // (EN, ES, FR, …); sending lowercase ISO codes fails enum validation
-      // and the server returns zero streams.
-      broadcasterLanguages: options.language ? [options.language.toUpperCase()] : [],
-      freeformTags: [],
-      sort: "VIEWER_COUNT",
-    },
-    slug,
-    sortTypeIsRecency: false,
-  });
+  }>(
+    "DirectoryPage_Game",
+    "76cb069d835b8a02914c08dc42c421d0dafda8af5b113a3f19141824b901402f",
+    {
+      cursor: options.after ?? null,
+      imageWidth: 50,
+      includeCostreaming: true,
+      limit,
+      options: {
+        // Twitch's `Language` GraphQL enum uses uppercase 2-letter codes
+        // (EN, ES, FR, …); sending lowercase ISO codes fails enum validation
+        // and the server returns zero streams.
+        broadcasterLanguages: options.language ? [options.language.toUpperCase()] : [],
+        freeformTags: [],
+        sort: "VIEWER_COUNT",
+      },
+      slug,
+      sortTypeIsRecency: false,
+    }
+  );
 
   if (res.errors?.length) {
     // PersistedQueryNotFound = Twitch retired the hash. Surface loud so we notice.
@@ -384,7 +388,9 @@ async function gqlGetStreamsByGameIdRaw(
         options: {
           sort: "VIEWER_COUNT",
           // See gqlGetGameStreamsBySlug — Twitch's Language enum is uppercase.
-          ...(options.language ? { broadcasterLanguages: [options.language.toUpperCase()] } : {}),
+          ...(options.language
+            ? { broadcasterLanguages: [options.language.toUpperCase()] }
+            : {}),
         },
       },
     }),
@@ -912,8 +918,14 @@ function transformSearchChannel(ch: SearchChannelEdgeItem): UnifiedChannel {
  */
 async function gqlSearchChannelsLoadMore(
   query: string,
-  after: string,
-  first: number | undefined
+  // `_after` and `_first` are intentionally unused — kept on the signature
+  // so callers treat this like a paginated helper and the cursor-no-advance
+  // guard in gqlSearchChannels can compare server cursor against the
+  // original input. Twitch's searchFor.channels connection doesn't accept
+  // cursor or first as arguments (see comment below), so nothing useful
+  // can be forwarded from these.
+  _after: string,
+  _first: number | undefined
 ): Promise<{ data: UnifiedChannel[]; cursor: string | undefined; errors?: { message: string }[] }> {
   // Empirically discovered constraints (see SearchChannels query errors when
   // probing this against gql.twitch.tv): searchFor requires a non-null
@@ -965,22 +977,9 @@ async function gqlSearchChannelsLoadMore(
     };
   };
 
-  // `first` and `after` are not honored by this connection — kept on the
-  // function signature so callers (and the cursor-no-advance guard) treat the
-  // result like a paginated response. The cursor-no-advance guard in
-  // gqlSearchChannels detects that Twitch ignored `after` and reports
-  // end-of-list, which keeps the dropdown's near-bottom scroll handler from
-  // looping fetchNextPage forever.
-  void first;
-
   const [response] = (await gqlRequest([
     getRawQuery<LoadMoreData>({ query: rawQuery, variables: { query, platform: "web" } }),
   ])) as [{ data?: LoadMoreData; errors?: { message: string }[] }];
-
-  // After param is intentionally not sent — server doesn't accept it on this
-  // connection — but we still pass it through so the cursor-no-advance guard
-  // can compare server cursor against it.
-  void after;
 
   const channelsConn = response.data?.searchFor?.channels;
   const channels = (channelsConn?.edges ?? []).map((edge) => transformSearchChannel(edge.item));
@@ -1041,31 +1040,51 @@ export async function gqlSearchChannels(
 
   const { isIntegrityRejected } = processGqlSearchErrors("SearchChannels", errors);
 
-  return buildPaginatedResult(channels, returnedCursor, options.after, isIntegrityRejected);
+  return buildPaginatedResult(
+    "SearchChannels",
+    channels,
+    returnedCursor,
+    options.after,
+    isIntegrityRejected
+  );
 }
 
 /**
  * Apply the three loop-stop guards (integrity rejection, empty page,
  * cursor-no-advance) and tag the result with an `endReason` when the
  * cursor is dropped. Single seam keeps channels and categories in lock-
- * step, and makes the precedence visible: integrity > empty > no-advance.
+ * step, and makes the precedence visible: integrity > empty > exhausted >
+ * no-advance.
+ *
+ * Each end-of-list branch emits a `console.debug` with the context label
+ * and reason. Anyone debugging "why did pagination stop at page N?" gets
+ * a footprint in the dev console without parsing the call stack — the
+ * `endReason` field on the return is the durable signal, the log is the
+ * ad-hoc one.
  */
 function buildPaginatedResult<T>(
+  context: string,
   data: T[],
   returnedCursor: string | undefined,
   inputCursor: string | undefined,
   isIntegrityRejected: boolean
 ): PaginatedResult<T> {
   if (isIntegrityRejected) {
+    console.debug(`[GQL] ${context} end-of-list: integrity-rejected`);
     return { data, cursor: undefined, endReason: "integrity-rejected" };
   }
   if (data.length === 0) {
+    console.debug(`[GQL] ${context} end-of-list: empty-page`);
     return { data, cursor: undefined, endReason: "empty-page" };
   }
   if (!returnedCursor) {
+    console.debug(`[GQL] ${context} end-of-list: exhausted (server returned no cursor)`);
     return { data, cursor: undefined, endReason: "exhausted" };
   }
   if (returnedCursor === inputCursor) {
+    console.debug(
+      `[GQL] ${context} end-of-list: cursor-no-advance (server echoed input cursor ${returnedCursor})`
+    );
     return { data, cursor: undefined, endReason: "cursor-no-advance" };
   }
   return { data, cursor: returnedCursor };
@@ -1095,8 +1114,11 @@ function transformSearchGame(game: SearchGameEdgeItem): UnifiedCategory {
  */
 async function gqlSearchCategoriesLoadMore(
   query: string,
-  after: string,
-  first: number | undefined
+  // See gqlSearchChannelsLoadMore — `_after` and `_first` are intentionally
+  // unused but kept on the signature for caller symmetry with the
+  // cursor-no-advance guard at the wrapper layer.
+  _after: string,
+  _first: number | undefined
 ): Promise<{
   data: UnifiedCategory[];
   cursor: string | undefined;
@@ -1139,9 +1161,6 @@ async function gqlSearchCategoriesLoadMore(
       };
     };
   };
-
-  void first;
-  void after;
 
   const [response] = (await gqlRequest([
     getRawQuery<LoadMoreData>({ query: rawQuery, variables: { query, platform: "web" } }),
@@ -1189,7 +1208,13 @@ export async function gqlSearchCategories(
 
   const { isIntegrityRejected } = processGqlSearchErrors("SearchCategories", errors);
 
-  return buildPaginatedResult(categories, returnedCursor, options.after, isIntegrityRejected);
+  return buildPaginatedResult(
+    "SearchCategories",
+    categories,
+    returnedCursor,
+    options.after,
+    isIntegrityRejected
+  );
 }
 
 /**

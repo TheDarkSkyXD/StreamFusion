@@ -100,6 +100,20 @@ export function UnifiedSearchInput({
 
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
+  // Synchronous in-flight latch for the near-bottom scroll handler. Under
+  // fast scroll (touchpad inertia, mouse wheel), the browser can fire several
+  // scroll events in the same task tick before React commits the next render
+  // that flips channelsFetchingNextPage / categoriesFetchingNextPage to true.
+  // Without this latch, all of those events read the stale `false` and race
+  // to call fetchMoreChannels/Categories. React Query's internal fetch
+  // dedupe currently absorbs the duplicate calls, but the !fetchingNextPage
+  // gate in the handler is doing less than it appears; this latch makes the
+  // mutual exclusion observable at the event-time scope.
+  const fetchInFlightRef = React.useRef<{ channels: boolean; categories: boolean }>({
+    channels: false,
+    categories: false,
+  });
+
   // Pass platform to hooks - higher limit to show results from both platforms
   const {
     data: channelsInfiniteData,
@@ -363,6 +377,19 @@ export function UnifiedSearchInput({
     isFocused && searchQuery.length > 0 && (hasResults || channelsLoading || categoriesLoading);
   const showDropdown = showHistory || showSuggestions;
 
+  // capReached uses the raw pre-filter row count (channels.length +
+  // categories.length), not the post-filter visible count. Flipping the
+  // platform or live-only filter can drop the visible row count below 100,
+  // but the cap stays in force — otherwise auto-fetch would resume past
+  // the intended ceiling on every filter change. Infinite-query data only
+  // grows within a single query, so the current render's raw count is also
+  // the peak.
+  const rawRowCount = channels.length + categories.length;
+  const capReached = rawRowCount >= DROPDOWN_RESULT_CAP;
+  const hasMoreResults =
+    (showChannelResults && channelsHasNextPage) || (showCategoryResults && categoriesHasNextPage);
+  const capReachedWithMore = capReached && hasMoreResults;
+
   // Helper to format follower count
   const formatFollowerCount = (count: number | undefined): string | null => {
     if (count === undefined || count === null) return null;
@@ -578,194 +605,196 @@ export function UnifiedSearchInput({
       </div>
 
       {/* Suggestions Dropdown */}
-      {(() => {
-        if (!showDropdown) return null;
+      {showDropdown && (
+        <div
+          ref={dropdownRef}
+          onScroll={(e) => {
+            // Stop auto-fetching once the dropdown has rendered the cap, OR
+            // once we've detected dedup-absorption (Twitch re-serving the
+            // same channels under a fresh cursor). `absorbed` is set inside
+            // a useEffect, so we read it from the ref at event time — a
+            // closure capture would see the pre-effect value from the
+            // render that built this handler.
+            if (capReached || queryStateRef.current.absorbed) return;
+            const el = e.currentTarget;
+            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+            if (!nearBottom) return;
 
-        // capReached uses the raw pre-filter row count (channels.length +
-        // categories.length), not the post-filter visible count. Flipping
-        // the platform or live-only filter can drop the visible row count
-        // below 100, but the cap stays in force — otherwise auto-fetch
-        // would resume past the intended ceiling on every filter change.
-        // Infinite-query data only grows within a single query, so the
-        // current render's raw count is also the peak.
-        const rawRowCount = channels.length + categories.length;
-        const capReached = rawRowCount >= DROPDOWN_RESULT_CAP;
-        const hasMoreResults =
-          (showChannelResults && channelsHasNextPage) ||
-          (showCategoryResults && categoriesHasNextPage);
-        const capReachedWithMore = capReached && hasMoreResults;
+            const latch = fetchInFlightRef.current;
+            if (
+              showChannelResults &&
+              channelsHasNextPage &&
+              !channelsFetchingNextPage &&
+              !latch.channels
+            ) {
+              latch.channels = true;
+              // Wrap in Promise.resolve so the latch releases even when the
+              // caller returns a non-Promise (e.g. older React Query mocks
+              // in tests, or future variants that complete synchronously).
+              Promise.resolve(fetchMoreChannels()).finally(() => {
+                latch.channels = false;
+              });
+            }
+            if (
+              showCategoryResults &&
+              categoriesHasNextPage &&
+              !categoriesFetchingNextPage &&
+              !latch.categories
+            ) {
+              latch.categories = true;
+              Promise.resolve(fetchMoreCategories()).finally(() => {
+                latch.categories = false;
+              });
+            }
+          }}
+          className="absolute top-full left-0 right-0 mt-2 bg-[#0F0F12] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col max-h-[60vh] overflow-y-auto"
+        >
+          {/* SEARCH HISTORY */}
+          {showHistory && (
+            <div className="py-2">
+              {filteredHistory.map((term) => (
+                <div
+                  key={term}
+                  className="flex items-center justify-between px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
+                  onClick={() => executeSearch(term)}
+                >
+                  <div className="flex items-center gap-3 text-white/50 group-hover:text-white transition-colors">
+                    <LuClock size={16} />
+                    <span className="font-medium text-sm text-white/70 group-hover:text-white">
+                      {term}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSearch(term);
+                      }}
+                      className="p-1 text-white/50 hover:text-red-500 transition-colors"
+                      title="Remove from history"
+                      type="button"
+                    >
+                      <LuX size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-        return (
-          <div
-            ref={dropdownRef}
-            onScroll={(e) => {
-              // Stop auto-fetching once the dropdown has rendered the cap, OR
-              // once we've detected dedup-absorption (Twitch re-serving the
-              // same channels under a fresh cursor). `absorbed` is set inside
-              // a useEffect, so we read it from the ref at event time — a
-              // closure capture would see the pre-effect value from the
-              // render that built this handler.
-              if (capReached || queryStateRef.current.absorbed) return;
-              const el = e.currentTarget;
-              const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
-              if (nearBottom) {
-                if (showChannelResults && channelsHasNextPage && !channelsFetchingNextPage) {
-                  fetchMoreChannels();
-                }
-                if (showCategoryResults && categoriesHasNextPage && !categoriesFetchingNextPage) {
-                  fetchMoreCategories();
-                }
-              }
-            }}
-            className="absolute top-full left-0 right-0 mt-2 bg-[#0F0F12] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col max-h-[60vh] overflow-y-auto"
-          >
-            {/* SEARCH HISTORY */}
-            {showHistory && (
-              <div className="py-2">
-                {filteredHistory.map((term) => (
-                  <div
-                    key={term}
-                    className="flex items-center justify-between px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
-                    onClick={() => executeSearch(term)}
-                  >
-                    <div className="flex items-center gap-3 text-white/50 group-hover:text-white transition-colors">
-                      <LuClock size={16} />
-                      <span className="font-medium text-sm text-white/70 group-hover:text-white">
-                        {term}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeSearch(term);
-                        }}
-                        className="p-1 text-white/50 hover:text-red-500 transition-colors"
-                        title="Remove from history"
-                        type="button"
-                      >
-                        <LuX size={14} />
-                      </button>
+          {/* BEST MATCHES */}
+          {showChannelResults && filteredTopMatches.length > 0 && (
+            <div className={cn("py-2", showHistory && "border-t border-[var(--color-border)]")}>
+              <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-storm-primary)] uppercase tracking-wider flex items-center gap-2">
+                <LuSparkles size={12} /> Best Match
+              </h3>
+              {filteredTopMatches.map((channel) => (
+                <ChannelItem
+                  key={`${channel.platform}-${channel.id}`}
+                  channel={channel}
+                  onClick={handleChannelClick}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* OTHER CHANNELS SUGGESTIONS */}
+          {showChannelResults && (filteredOtherMatches.length > 0 || channelsLoading) && (
+            <div
+              className={cn(
+                "py-2",
+                (showHistory || filteredTopMatches.length > 0) &&
+                  "border-t border-[var(--color-border)]"
+              )}
+            >
+              <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
+                <LuUser size={12} /> Channels
+              </h3>
+              {filteredOtherMatches.map((channel) => (
+                <ChannelItem
+                  key={`${channel.platform}-${channel.id}`}
+                  channel={channel}
+                  onClick={handleChannelClick}
+                />
+              ))}
+              {/* Initial loading skeletons */}
+              {channelsLoading &&
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 bg-zinc-800 rounded w-28" />
+                      <div className="h-2.5 bg-zinc-800 rounded w-20" />
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* BEST MATCHES */}
-            {showChannelResults && filteredTopMatches.length > 0 && (
-              <div className={cn("py-2", showHistory && "border-t border-[var(--color-border)]")}>
-                <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-storm-primary)] uppercase tracking-wider flex items-center gap-2">
-                  <LuSparkles size={12} /> Best Match
-                </h3>
-                {filteredTopMatches.map((channel) => (
-                  <ChannelItem
-                    key={`${channel.platform}-${channel.id}`}
-                    channel={channel}
-                    onClick={handleChannelClick}
-                  />
+              {/* Load-more skeletons */}
+              {channelsFetchingNextPage &&
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={`next-${i}`}
+                    className="flex items-center gap-3 px-4 py-2 animate-pulse"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 bg-zinc-800 rounded w-28" />
+                      <div className="h-2.5 bg-zinc-800 rounded w-20" />
+                    </div>
+                  </div>
                 ))}
-              </div>
-            )}
+            </div>
+          )}
 
-            {/* OTHER CHANNELS SUGGESTIONS */}
-            {showChannelResults && (filteredOtherMatches.length > 0 || channelsLoading) && (
-              <div
-                className={cn(
-                  "py-2",
-                  (showHistory || filteredTopMatches.length > 0) &&
-                    "border-t border-[var(--color-border)]"
-                )}
+          {/* CATEGORIES SUGGESTIONS */}
+          {showCategoryResults && (dedupedCategories.length > 0 || categoriesLoading) && (
+            <div className={cn("py-2 border-t border-[var(--color-border)]")}>
+              <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
+                <LuLayoutGrid size={12} /> Categories
+              </h3>
+              {dedupedCategories.map((category) => (
+                <CategoryItem
+                  key={`${category.platform}-${category.id}`}
+                  category={category}
+                  onClick={handleCategoryClick}
+                />
+              ))}
+              {/* Initial loading skeletons */}
+              {categoriesLoading &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
+                    <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
+                    <div className="h-3 bg-zinc-800 rounded w-24" />
+                  </div>
+                ))}
+              {/* Load-more skeletons */}
+              {categoriesFetchingNextPage &&
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={`next-${i}`}
+                    className="flex items-center gap-3 px-4 py-2 animate-pulse"
+                  >
+                    <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
+                    <div className="h-3 bg-zinc-800 rounded w-24" />
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {onSearch && searchQuery.length > 0 && (
+            <div className="p-2 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]/50">
+              <button
+                onClick={() => executeSearch(searchQuery)}
+                className="w-full py-2 text-sm font-bold text-[var(--color-storm-primary)] hover:underline flex items-center justify-center gap-1"
               >
-                <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
-                  <LuUser size={12} /> Channels
-                </h3>
-                {filteredOtherMatches.map((channel) => (
-                  <ChannelItem
-                    key={`${channel.platform}-${channel.id}`}
-                    channel={channel}
-                    onClick={handleChannelClick}
-                  />
-                ))}
-                {/* Initial loading skeletons */}
-                {channelsLoading &&
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
-                      <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 bg-zinc-800 rounded w-28" />
-                        <div className="h-2.5 bg-zinc-800 rounded w-20" />
-                      </div>
-                    </div>
-                  ))}
-                {/* Load-more skeletons */}
-                {channelsFetchingNextPage &&
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <div
-                      key={`next-${i}`}
-                      className="flex items-center gap-3 px-4 py-2 animate-pulse"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 bg-zinc-800 rounded w-28" />
-                        <div className="h-2.5 bg-zinc-800 rounded w-20" />
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )}
-
-            {/* CATEGORIES SUGGESTIONS */}
-            {showCategoryResults && (dedupedCategories.length > 0 || categoriesLoading) && (
-              <div className={cn("py-2 border-t border-[var(--color-border)]")}>
-                <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
-                  <LuLayoutGrid size={12} /> Categories
-                </h3>
-                {dedupedCategories.map((category) => (
-                  <CategoryItem
-                    key={`${category.platform}-${category.id}`}
-                    category={category}
-                    onClick={handleCategoryClick}
-                  />
-                ))}
-                {/* Initial loading skeletons */}
-                {categoriesLoading &&
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
-                      <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
-                      <div className="h-3 bg-zinc-800 rounded w-24" />
-                    </div>
-                  ))}
-                {/* Load-more skeletons */}
-                {categoriesFetchingNextPage &&
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <div
-                      key={`next-${i}`}
-                      className="flex items-center gap-3 px-4 py-2 animate-pulse"
-                    >
-                      <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
-                      <div className="h-3 bg-zinc-800 rounded w-24" />
-                    </div>
-                  ))}
-              </div>
-            )}
-
-            {onSearch && searchQuery.length > 0 && (
-              <div className="p-2 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]/50">
-                <button
-                  onClick={() => executeSearch(searchQuery)}
-                  className="w-full py-2 text-sm font-bold text-[var(--color-storm-primary)] hover:underline flex items-center justify-center gap-1"
-                >
-                  <LuSearch size={14} />
-                  {capReachedWithMore
-                    ? `Show more results for "${searchQuery}"`
-                    : `See all results for "${searchQuery}"`}
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+                <LuSearch size={14} />
+                {capReachedWithMore
+                  ? `Show more results for "${searchQuery}"`
+                  : `See all results for "${searchQuery}"`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
