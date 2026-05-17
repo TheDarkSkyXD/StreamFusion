@@ -240,26 +240,22 @@ export async function gqlGetGameStreamsBySlug(
         pageInfo: { hasNextPage: boolean };
       };
     };
-  }>(
-    "DirectoryPage_Game",
-    "76cb069d835b8a02914c08dc42c421d0dafda8af5b113a3f19141824b901402f",
-    {
-      cursor: options.after ?? null,
-      imageWidth: 50,
-      includeCostreaming: true,
-      limit,
-      options: {
-        // Twitch's `Language` GraphQL enum uses uppercase 2-letter codes
-        // (EN, ES, FR, …); sending lowercase ISO codes fails enum validation
-        // and the server returns zero streams.
-        broadcasterLanguages: options.language ? [options.language.toUpperCase()] : [],
-        freeformTags: [],
-        sort: "VIEWER_COUNT",
-      },
-      slug,
-      sortTypeIsRecency: false,
-    }
-  );
+  }>("DirectoryPage_Game", "76cb069d835b8a02914c08dc42c421d0dafda8af5b113a3f19141824b901402f", {
+    cursor: options.after ?? null,
+    imageWidth: 50,
+    includeCostreaming: true,
+    limit,
+    options: {
+      // Twitch's `Language` GraphQL enum uses uppercase 2-letter codes
+      // (EN, ES, FR, …); sending lowercase ISO codes fails enum validation
+      // and the server returns zero streams.
+      broadcasterLanguages: options.language ? [options.language.toUpperCase()] : [],
+      freeformTags: [],
+      sort: "VIEWER_COUNT",
+    },
+    slug,
+    sortTypeIsRecency: false,
+  });
 
   if (res.errors?.length) {
     // PersistedQueryNotFound = Twitch retired the hash. Surface loud so we notice.
@@ -379,9 +375,7 @@ async function gqlGetStreamsByGameIdRaw(
         options: {
           sort: "VIEWER_COUNT",
           // See gqlGetGameStreamsBySlug — Twitch's Language enum is uppercase.
-          ...(options.language
-            ? { broadcasterLanguages: [options.language.toUpperCase()] }
-            : {}),
+          ...(options.language ? { broadcasterLanguages: [options.language.toUpperCase()] } : {}),
         },
       },
     }),
@@ -819,91 +813,331 @@ export async function gqlGetCategoryById(id: string): Promise<UnifiedCategory | 
 }
 
 /**
- * Search for channels via GQL
+ * Filter Twitch GQL response errors. `"failed integrity check"` is Twitch's
+ * expected rejection for anonymous paginated raw queries — treat it as a
+ * legitimate end-of-list signal rather than logging noise. Surface every
+ * other error via console.warn so dev sees it.
+ */
+function processGqlSearchErrors(
+  context: string,
+  errors: { message: string }[] | undefined
+): { isIntegrityRejected: boolean } {
+  if (!errors || errors.length === 0) return { isIntegrityRejected: false };
+
+  const messages = errors.map((e) => e.message).join(", ");
+  if (messages.includes("failed integrity check")) {
+    return { isIntegrityRejected: true };
+  }
+
+  console.warn(`⚠️ [GQL] ${context} query errors:`, messages);
+  return { isIntegrityRejected: false };
+}
+
+type SearchChannelEdgeItem =
+  SearchResultsPageSearchResultsData["searchFor"]["channels"]["edges"][number]["item"];
+
+function transformSearchChannel(ch: SearchChannelEdgeItem): UnifiedChannel {
+  return {
+    id: ch.id,
+    platform: "twitch" as const,
+    username: ch.login,
+    displayName: ch.displayName,
+    avatarUrl: ch.profileImageURL || "",
+    bio: ch.description || undefined,
+    isLive: !!ch.stream,
+    isVerified: ch.roles?.isPartner || false,
+    isPartner: ch.roles?.isPartner || false,
+    followerCount: ch.followers?.totalCount ?? undefined,
+    lastStreamTitle: ch.broadcastSettings?.title || undefined,
+    ...(ch.stream
+      ? {
+          categoryId: ch.stream.game?.id,
+          categoryName: ch.stream.game?.displayName || ch.stream.game?.name,
+        }
+      : {}),
+  } satisfies UnifiedChannel;
+}
+
+/**
+ * Raw-GQL LoadMore for channels — used only on page 2+ (when `after` is set).
+ *
+ * Twitch's bundled `SearchResultsPage_SearchResults` persisted op ignores
+ * cursor input (it re-serves page 1 with the same cursor every call), so
+ * pagination requires a hand-written query. The persisted op is used on
+ * page 1 (no `after`); this helper takes over for page 2+.
+ *
+ * Anonymous paginated raw queries are sometimes rejected with
+ * "failed integrity check" depending on Twitch's enforcement at that moment.
+ * That's caught upstream and reported as end-of-list.
+ */
+async function gqlSearchChannelsLoadMore(
+  query: string,
+  after: string,
+  first: number | undefined
+): Promise<{ data: UnifiedChannel[]; cursor: string | undefined; errors?: { message: string }[] }> {
+  // Empirically discovered constraints (see SearchChannels query errors when
+  // probing this against gql.twitch.tv): searchFor requires a non-null
+  // platform argument, the channels connection does NOT accept cursor/first
+  // arguments, and edge.item is a `SearchForItem` union — concrete fields
+  // must be selected through an inline fragment on the channel branch.
+  const rawQuery = `
+    query SearchResultsPageLoadMoreChannels($query: String!, $platform: String!) {
+      searchFor(userQuery: $query, platform: $platform, options: {targets: [{index: CHANNEL}]}) {
+        channels {
+          cursor
+          edges {
+            trackingID
+            item {
+              ... on User {
+                id
+                login
+                displayName
+                profileImageURL(width: 70)
+                description
+                stream {
+                  id
+                  game { id displayName name __typename }
+                  __typename
+                }
+                followers { totalCount __typename }
+                roles { isPartner __typename }
+                broadcastSettings { title __typename }
+                __typename
+              }
+            }
+            __typename
+          }
+          totalMatches
+          __typename
+        }
+        __typename
+      }
+    }
+  `;
+
+  type LoadMoreData = {
+    searchFor: null | {
+      channels: null | {
+        cursor: string | null;
+        edges: { trackingID: string; item: SearchChannelEdgeItem; __typename: string }[];
+        totalMatches: number;
+      };
+    };
+  };
+
+  // `first` and `after` are not honored by this connection — kept on the
+  // function signature so callers (and the cursor-no-advance guard) treat the
+  // result like a paginated response. The cursor-no-advance guard in
+  // gqlSearchChannels detects that Twitch ignored `after` and reports
+  // end-of-list, which keeps the dropdown's near-bottom scroll handler from
+  // looping fetchNextPage forever.
+  void first;
+
+  const [response] = (await gqlRequest([
+    getRawQuery<LoadMoreData>({ query: rawQuery, variables: { query, platform: "web" } }),
+  ])) as [{ data?: LoadMoreData; errors?: { message: string }[] }];
+
+  // After param is intentionally not sent — server doesn't accept it on this
+  // connection — but we still pass it through so the cursor-no-advance guard
+  // can compare server cursor against it.
+  void after;
+
+  const channelsConn = response.data?.searchFor?.channels;
+  const channels = (channelsConn?.edges ?? []).map((edge) => transformSearchChannel(edge.item));
+  const returnedCursor = channelsConn?.cursor || undefined;
+
+  return { data: channels, cursor: returnedCursor, errors: response.errors };
+}
+
+/**
+ * Search for channels via GQL.
+ *
+ * Page 1 uses the bundled `SearchResultsPage_SearchResults` persisted query
+ * (known-good for anonymous reads). Page 2+ uses a raw GQL LoadMore query
+ * because the persisted op ignores cursor input.
+ *
+ * Three guards prevent the dropdown's near-bottom scroll handler from looping
+ * fetchNextPage forever:
+ * - Cursor-no-advance: server returns the same cursor we sent → end-of-list.
+ * - Integrity-check rejection: anonymous paginated raw query was rejected → end-of-list.
+ * - Empty page: no edges returned → end-of-list.
  */
 export async function gqlSearchChannels(
   query: string,
   options: PaginationOptions & { liveOnly?: boolean } = {}
 ): Promise<PaginatedResult<UnifiedChannel>> {
-  const [response] = (await gqlRequest([
-    getQuerySearchResultsPageSearchResults({
+  let channels: UnifiedChannel[];
+  let returnedCursor: string | undefined;
+  let errors: { message: string }[] | undefined;
+
+  if (options.after) {
+    const result = await gqlSearchChannelsLoadMore(query, options.after, options.first);
+    channels = result.data;
+    returnedCursor = result.cursor;
+    errors = result.errors;
+  } else {
+    const variables: Record<string, unknown> = {
       query,
       includeIsDJ: false,
-    }),
-  ])) as [{ data: SearchResultsPageSearchResultsData }];
+    };
+    if (options.first) variables.first = options.first;
 
-  const searchData = response.data?.searchFor;
-  if (!searchData) return { data: [] };
+    const [response] = (await gqlRequest([
+      getQuerySearchResultsPageSearchResults(
+        variables as unknown as Parameters<typeof getQuerySearchResultsPageSearchResults>[0]
+      ),
+    ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: { message: string }[] }];
 
-  let channels = searchData.channels.edges.map((edge) => {
-    const ch = edge.item;
-    return {
-      id: ch.id,
-      platform: "twitch" as const,
-      username: ch.login,
-      displayName: ch.displayName,
-      avatarUrl: ch.profileImageURL || "",
-      bio: ch.description || undefined,
-      isLive: !!ch.stream,
-      isVerified: ch.roles?.isPartner || false,
-      isPartner: ch.roles?.isPartner || false,
-      followerCount: ch.followers?.totalCount ?? undefined,
-      lastStreamTitle: ch.broadcastSettings?.title || undefined,
-      // If live, include stream info
-      ...(ch.stream
-        ? {
-            categoryId: ch.stream.game?.id,
-            categoryName: ch.stream.game?.displayName || ch.stream.game?.name,
-          }
-        : {}),
-    } satisfies UnifiedChannel;
-  });
+    const searchData = response.data?.searchFor;
+    channels = (searchData?.channels.edges ?? []).map((edge) => transformSearchChannel(edge.item));
+    returnedCursor = searchData?.channels.cursor || undefined;
+    errors = response.errors;
+  }
 
-  // Filter live-only if requested
   if (options.liveOnly) {
     channels = channels.filter((ch) => ch.isLive);
   }
 
+  const { isIntegrityRejected } = processGqlSearchErrors("SearchChannels", errors);
+
+  const cursorAdvanced =
+    !isIntegrityRejected &&
+    !!returnedCursor &&
+    returnedCursor !== options.after &&
+    channels.length > 0;
+
   return {
     data: channels,
-    cursor: searchData.channels.cursor || undefined,
+    cursor: cursorAdvanced ? returnedCursor : undefined,
+  };
+}
+
+type SearchGameEdgeItem =
+  SearchResultsPageSearchResultsData["searchFor"]["games"]["edges"][number]["item"];
+
+function transformSearchGame(game: SearchGameEdgeItem): UnifiedCategory {
+  return {
+    id: game.id,
+    platform: "twitch" as const,
+    name: game.displayName || game.name,
+    boxArtUrl: game.boxArtURL.replace("{width}", "285").replace("{height}", "380"),
+    viewerCount: game.viewersCount ?? undefined,
   };
 }
 
 /**
- * Search for categories via GQL
+ * Raw-GQL LoadMore for categories — used only on page 2+ (when `after` is set).
+ * Mirrors gqlSearchChannelsLoadMore against the games connection.
+ */
+async function gqlSearchCategoriesLoadMore(
+  query: string,
+  after: string,
+  first: number | undefined
+): Promise<{
+  data: UnifiedCategory[];
+  cursor: string | undefined;
+  errors?: { message: string }[];
+}> {
+  // Same schema constraints as gqlSearchChannelsLoadMore — see comment there.
+  const rawQuery = `
+    query SearchResultsPageLoadMoreGames($query: String!, $platform: String!) {
+      searchFor(userQuery: $query, platform: $platform, options: {targets: [{index: GAME}]}) {
+        games {
+          cursor
+          edges {
+            trackingID
+            item {
+              ... on Game {
+                id
+                name
+                displayName
+                boxArtURL
+                viewersCount
+                __typename
+              }
+            }
+            __typename
+          }
+          totalMatches
+          __typename
+        }
+        __typename
+      }
+    }
+  `;
+
+  type LoadMoreData = {
+    searchFor: null | {
+      games: null | {
+        cursor: string | null;
+        edges: { trackingID: string; item: SearchGameEdgeItem; __typename: string }[];
+        totalMatches: number;
+      };
+    };
+  };
+
+  void first;
+  void after;
+
+  const [response] = (await gqlRequest([
+    getRawQuery<LoadMoreData>({ query: rawQuery, variables: { query, platform: "web" } }),
+  ])) as [{ data?: LoadMoreData; errors?: { message: string }[] }];
+
+  const gamesConn = response.data?.searchFor?.games;
+  const categories = (gamesConn?.edges ?? []).map((edge) => transformSearchGame(edge.item));
+  const returnedCursor = gamesConn?.cursor || undefined;
+
+  return { data: categories, cursor: returnedCursor, errors: response.errors };
+}
+
+/**
+ * Search for categories via GQL. Same pagination shape as `gqlSearchChannels`:
+ * page 1 via persisted query, page 2+ via raw-GQL LoadMore, three guards.
  */
 export async function gqlSearchCategories(
   query: string,
-  _options: PaginationOptions = {}
+  options: PaginationOptions = {}
 ): Promise<PaginatedResult<UnifiedCategory>> {
-  const [response] = (await gqlRequest([
-    getQuerySearchResultsPageSearchResults({
+  let categories: UnifiedCategory[];
+  let returnedCursor: string | undefined;
+  let errors: { message: string }[] | undefined;
+
+  if (options.after) {
+    const result = await gqlSearchCategoriesLoadMore(query, options.after, options.first);
+    categories = result.data;
+    returnedCursor = result.cursor;
+    errors = result.errors;
+  } else {
+    const variables: Record<string, unknown> = {
       query,
-      options: {
-        targets: [{ index: "GAME" }],
-      },
+      options: { targets: [{ index: "GAME" }] },
       includeIsDJ: false,
-    }),
-  ])) as [{ data: SearchResultsPageSearchResultsData }];
-
-  const searchData = response.data?.searchFor;
-  if (!searchData) return { data: [] };
-
-  const categories: UnifiedCategory[] = searchData.games.edges.map((edge) => {
-    const game = edge.item;
-    return {
-      id: game.id,
-      platform: "twitch" as const,
-      name: game.displayName || game.name,
-      boxArtUrl: game.boxArtURL.replace("{width}", "285").replace("{height}", "380"),
-      viewerCount: game.viewersCount ?? undefined,
     };
-  });
+    if (options.first) variables.first = options.first;
+
+    const [response] = (await gqlRequest([
+      getQuerySearchResultsPageSearchResults(
+        variables as unknown as Parameters<typeof getQuerySearchResultsPageSearchResults>[0]
+      ),
+    ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: { message: string }[] }];
+
+    const searchData = response.data?.searchFor;
+    categories = (searchData?.games.edges ?? []).map((edge) => transformSearchGame(edge.item));
+    returnedCursor = searchData?.games.cursor || undefined;
+    errors = response.errors;
+  }
+
+  const { isIntegrityRejected } = processGqlSearchErrors("SearchCategories", errors);
+
+  const cursorAdvanced =
+    !isIntegrityRejected &&
+    !!returnedCursor &&
+    returnedCursor !== options.after &&
+    categories.length > 0;
 
   return {
     data: categories,
-    cursor: searchData.games.cursor || undefined,
+    cursor: cursorAdvanced ? returnedCursor : undefined,
   };
 }
 

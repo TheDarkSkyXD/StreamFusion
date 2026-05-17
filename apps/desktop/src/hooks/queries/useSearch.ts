@@ -45,7 +45,12 @@ export function useSearchChannels(query: string, platform?: Platform, limit: num
       }
       return { data: (response.data ?? []) as UnifiedChannel[], cursor: response.cursor };
     },
-    getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
+    // Twitch GQL keeps returning a cursor even when a page is empty after the
+    // verify/dedupe filter, which makes hasNextPage stuck-true and produces a
+    // skeleton-flicker loop in the dropdown's onScroll near-bottom handler.
+    // Treat an empty page as end-of-list regardless of cursor.
+    getNextPageParam: (lastPage) =>
+      lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
     enabled: !!query,
     staleTime: 60_000,
   });
@@ -68,7 +73,8 @@ export function useSearchCategories(query: string, platform?: Platform, limit: n
       }
       return { data: (response.data ?? []) as UnifiedCategory[], cursor: response.cursor };
     },
-    getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
     enabled: !!query,
     staleTime: 60_000,
   });

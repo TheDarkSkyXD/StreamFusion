@@ -66,6 +66,11 @@ interface UnifiedSearchInputProps {
 
 type SearchFilter = "all" | "channels" | "streams" | "categories";
 
+// Hard cap on how many combined channel + category rows the dropdown will
+// auto-fetch via infinite scroll. Past this, the bottom CTA routes to the
+// full Search Results page so the dropdown stays a quick-glance affordance.
+const DROPDOWN_RESULT_CAP = 100;
+
 export function UnifiedSearchInput({
   platform,
   onSelectChannel,
@@ -518,161 +523,185 @@ export function UnifiedSearchInput({
       </div>
 
       {/* Suggestions Dropdown */}
-      {showDropdown && (
-        <div
-          ref={dropdownRef}
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
-            if (nearBottom) {
-              if (showChannelResults && channelsHasNextPage && !channelsFetchingNextPage) {
-                fetchMoreChannels();
-              }
-              if (showCategoryResults && categoriesHasNextPage && !categoriesFetchingNextPage) {
-                fetchMoreCategories();
-              }
-            }
-          }}
-          className="absolute top-full left-0 right-0 mt-2 bg-[#0F0F12] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col max-h-[60vh] overflow-y-auto"
-        >
-          {/* SEARCH HISTORY */}
-          {showHistory && (
-            <div className="py-2">
-              {filteredHistory.map((term) => (
-                <div
-                  key={term}
-                  className="flex items-center justify-between px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
-                  onClick={() => executeSearch(term)}
-                >
-                  <div className="flex items-center gap-3 text-white/50 group-hover:text-white transition-colors">
-                    <LuClock size={16} />
-                    <span className="font-medium text-sm text-white/70 group-hover:text-white">
-                      {term}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeSearch(term);
-                      }}
-                      className="p-1 text-white/50 hover:text-red-500 transition-colors"
-                      title="Remove from history"
-                      type="button"
-                    >
-                      <LuX size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      {(() => {
+        if (!showDropdown) return null;
 
-          {/* BEST MATCHES */}
-          {showChannelResults && filteredTopMatches.length > 0 && (
-            <div className={cn("py-2", showHistory && "border-t border-[var(--color-border)]")}>
-              <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-storm-primary)] uppercase tracking-wider flex items-center gap-2">
-                <LuSparkles size={12} /> Best Match
-              </h3>
-              {filteredTopMatches.map((channel) => (
-                <ChannelItem
-                  key={`${channel.platform}-${channel.id}`}
-                  channel={channel}
-                  onClick={handleChannelClick}
-                />
-              ))}
-            </div>
-          )}
+        const combinedRenderedCount =
+          filteredTopMatches.length + filteredOtherMatches.length + dedupedCategories.length;
+        const hasMoreResults =
+          (showChannelResults && channelsHasNextPage) ||
+          (showCategoryResults && categoriesHasNextPage);
+        const capReached = combinedRenderedCount >= DROPDOWN_RESULT_CAP;
+        const capReachedWithMore = capReached && hasMoreResults;
 
-          {/* OTHER CHANNELS SUGGESTIONS */}
-          {showChannelResults && (filteredOtherMatches.length > 0 || channelsLoading) && (
-            <div
-              className={cn(
-                "py-2",
-                (showHistory || filteredTopMatches.length > 0) &&
-                  "border-t border-[var(--color-border)]"
-              )}
-            >
-              <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
-                <LuUser size={12} /> Channels
-              </h3>
-              {filteredOtherMatches.map((channel) => (
-                <ChannelItem
-                  key={`${channel.platform}-${channel.id}`}
-                  channel={channel}
-                  onClick={handleChannelClick}
-                />
-              ))}
-              {/* Initial loading skeletons */}
-              {channelsLoading &&
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
-                    <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-3 bg-zinc-800 rounded w-28" />
-                      <div className="h-2.5 bg-zinc-800 rounded w-20" />
+        return (
+          <div
+            ref={dropdownRef}
+            onScroll={(e) => {
+              // Stop auto-fetching once the dropdown has rendered the cap;
+              // the bottom CTA routes the user to the full Search Results page
+              // for deeper browsing.
+              if (capReached) return;
+              const el = e.currentTarget;
+              const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+              if (nearBottom) {
+                if (showChannelResults && channelsHasNextPage && !channelsFetchingNextPage) {
+                  fetchMoreChannels();
+                }
+                if (showCategoryResults && categoriesHasNextPage && !categoriesFetchingNextPage) {
+                  fetchMoreCategories();
+                }
+              }
+            }}
+            className="absolute top-full left-0 right-0 mt-2 bg-[#0F0F12] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col max-h-[60vh] overflow-y-auto"
+          >
+            {/* SEARCH HISTORY */}
+            {showHistory && (
+              <div className="py-2">
+                {filteredHistory.map((term) => (
+                  <div
+                    key={term}
+                    className="flex items-center justify-between px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
+                    onClick={() => executeSearch(term)}
+                  >
+                    <div className="flex items-center gap-3 text-white/50 group-hover:text-white transition-colors">
+                      <LuClock size={16} />
+                      <span className="font-medium text-sm text-white/70 group-hover:text-white">
+                        {term}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeSearch(term);
+                        }}
+                        className="p-1 text-white/50 hover:text-red-500 transition-colors"
+                        title="Remove from history"
+                        type="button"
+                      >
+                        <LuX size={14} />
+                      </button>
                     </div>
                   </div>
                 ))}
-              {/* Load-more skeletons */}
-              {channelsFetchingNextPage &&
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={`next-${i}`} className="flex items-center gap-3 px-4 py-2 animate-pulse">
-                    <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-3 bg-zinc-800 rounded w-28" />
-                      <div className="h-2.5 bg-zinc-800 rounded w-20" />
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* CATEGORIES SUGGESTIONS */}
-          {showCategoryResults && (dedupedCategories.length > 0 || categoriesLoading) && (
-            <div className={cn("py-2 border-t border-[var(--color-border)]")}>
-              <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
-                <LuLayoutGrid size={12} /> Categories
-              </h3>
-              {dedupedCategories.map((category) => (
-                <CategoryItem
-                  key={`${category.platform}-${category.id}`}
-                  category={category}
-                  onClick={handleCategoryClick}
-                />
-              ))}
-              {/* Initial loading skeletons */}
-              {categoriesLoading &&
-                Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
-                    <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
-                    <div className="h-3 bg-zinc-800 rounded w-24" />
-                  </div>
+            {/* BEST MATCHES */}
+            {showChannelResults && filteredTopMatches.length > 0 && (
+              <div className={cn("py-2", showHistory && "border-t border-[var(--color-border)]")}>
+                <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-storm-primary)] uppercase tracking-wider flex items-center gap-2">
+                  <LuSparkles size={12} /> Best Match
+                </h3>
+                {filteredTopMatches.map((channel) => (
+                  <ChannelItem
+                    key={`${channel.platform}-${channel.id}`}
+                    channel={channel}
+                    onClick={handleChannelClick}
+                  />
                 ))}
-              {/* Load-more skeletons */}
-              {categoriesFetchingNextPage &&
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={`next-${i}`} className="flex items-center gap-3 px-4 py-2 animate-pulse">
-                    <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
-                    <div className="h-3 bg-zinc-800 rounded w-24" />
-                  </div>
-                ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          {onSearch && searchQuery.length > 0 && (
-            <div className="p-2 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]/50">
-              <button
-                onClick={() => executeSearch(searchQuery)}
-                className="w-full py-2 text-sm font-bold text-[var(--color-storm-primary)] hover:underline flex items-center justify-center gap-1"
+            {/* OTHER CHANNELS SUGGESTIONS */}
+            {showChannelResults && (filteredOtherMatches.length > 0 || channelsLoading) && (
+              <div
+                className={cn(
+                  "py-2",
+                  (showHistory || filteredTopMatches.length > 0) &&
+                    "border-t border-[var(--color-border)]"
+                )}
               >
-                <LuSearch size={14} />
-                See all results for "{searchQuery}"
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+                <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
+                  <LuUser size={12} /> Channels
+                </h3>
+                {filteredOtherMatches.map((channel) => (
+                  <ChannelItem
+                    key={`${channel.platform}-${channel.id}`}
+                    channel={channel}
+                    onClick={handleChannelClick}
+                  />
+                ))}
+                {/* Initial loading skeletons */}
+                {channelsLoading &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
+                      <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 bg-zinc-800 rounded w-28" />
+                        <div className="h-2.5 bg-zinc-800 rounded w-20" />
+                      </div>
+                    </div>
+                  ))}
+                {/* Load-more skeletons */}
+                {channelsFetchingNextPage &&
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={`next-${i}`}
+                      className="flex items-center gap-3 px-4 py-2 animate-pulse"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 bg-zinc-800 rounded w-28" />
+                        <div className="h-2.5 bg-zinc-800 rounded w-20" />
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* CATEGORIES SUGGESTIONS */}
+            {showCategoryResults && (dedupedCategories.length > 0 || categoriesLoading) && (
+              <div className={cn("py-2 border-t border-[var(--color-border)]")}>
+                <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
+                  <LuLayoutGrid size={12} /> Categories
+                </h3>
+                {dedupedCategories.map((category) => (
+                  <CategoryItem
+                    key={`${category.platform}-${category.id}`}
+                    category={category}
+                    onClick={handleCategoryClick}
+                  />
+                ))}
+                {/* Initial loading skeletons */}
+                {categoriesLoading &&
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2 animate-pulse">
+                      <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
+                      <div className="h-3 bg-zinc-800 rounded w-24" />
+                    </div>
+                  ))}
+                {/* Load-more skeletons */}
+                {categoriesFetchingNextPage &&
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={`next-${i}`}
+                      className="flex items-center gap-3 px-4 py-2 animate-pulse"
+                    >
+                      <div className="w-6 h-8 rounded bg-zinc-800 shrink-0" />
+                      <div className="h-3 bg-zinc-800 rounded w-24" />
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {onSearch && searchQuery.length > 0 && (
+              <div className="p-2 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]/50">
+                <button
+                  onClick={() => executeSearch(searchQuery)}
+                  className="w-full py-2 text-sm font-bold text-[var(--color-storm-primary)] hover:underline flex items-center justify-center gap-1"
+                >
+                  <LuSearch size={14} />
+                  {capReachedWithMore
+                    ? `Show more results for "${searchQuery}"`
+                    : `See all results for "${searchQuery}"`}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
