@@ -18,10 +18,15 @@ import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as GqlClient from "./twitch-gql-client";
 import { TwitchRequestor } from "./twitch-requestor";
-import type { PaginatedResult, PaginationOptions, TwitchClientError } from "./twitch-types";
+import type {
+  PaginatedResult,
+  PaginationEndReason,
+  PaginationOptions,
+  TwitchClientError,
+} from "./twitch-types";
 
 // Re-export types for backward compatibility
-export type { PaginationOptions, PaginatedResult, TwitchClientError };
+export type { PaginationOptions, PaginatedResult, PaginationEndReason, TwitchClientError };
 
 // ========== Twitch API Client Class ==========
 

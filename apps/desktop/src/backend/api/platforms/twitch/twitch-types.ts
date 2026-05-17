@@ -184,12 +184,36 @@ export interface PaginationOptions {
  * defensive end-of-list (integrity rejection, cursor-no-advance,
  * empty-page) for telemetry, dev logging, or optional UI hints.
  *
+ * **Branches** (mutually exclusive — exactly one is set per dropped cursor):
  * - `exhausted`: server returned no cursor — natural end of results.
  * - `cursor-no-advance`: server returned the same cursor we sent — schema
  *   doesn't honor pagination on this connection, or rate-limited us.
- * - `integrity-rejected`: GQL response contained an integrity-check error
- *   (Twitch's anonymous-paginated-query rejection mode).
- * - `empty-page`: server returned `data: []` — end of meaningful results.
+ * - `integrity-rejected`: at least one GQL error matched the integrity
+ *   signal (Twitch's anonymous-paginated-query rejection mode). NOTE: the
+ *   accompanying `data` array may be empty OR may contain partial rows —
+ *   integrity rejection co-occurring with `data: []` is reported as
+ *   `integrity-rejected` (see precedence below), not `empty-page`.
+ * - `empty-page`: server returned `data: []` with no integrity rejection —
+ *   end of meaningful results.
+ *
+ * **Precedence** (when multiple conditions hold simultaneously):
+ * 1. `integrity-rejected` — wins over everything; the server actively
+ *    refused this page, so the data shape (empty or partial) is moot.
+ * 2. `empty-page` — server returned no rows but no integrity error.
+ * 3. `exhausted` — server returned rows but no continuation cursor.
+ * 4. `cursor-no-advance` — server returned rows AND a cursor, but the
+ *    cursor matches the input — caller-recognized server stagnation.
+ *
+ * **Current consumers** (intentionally narrow):
+ * - In-process: `buildPaginatedResult` emits a `console.debug` with the
+ *   branch label, and unit tests assert the branch on each return.
+ * - Out-of-process: NONE. The IPC handler at `search-handlers.ts`
+ *   intentionally does not forward `endReason`; the brainstorm decision
+ *   was to keep failures silent at the UI layer (no "results may be
+ *   limited" hint). The field exists in case that decision is revisited
+ *   or a telemetry surface is added later. Adding a consumer should
+ *   thread this through the IPC response — not surface from a different
+ *   in-renderer source.
  */
 export type PaginationEndReason =
   | "exhausted"
@@ -202,6 +226,17 @@ export interface PaginatedResult<T> {
   cursor?: string;
   total?: number;
   endReason?: PaginationEndReason;
+}
+
+/**
+ * Shape of a single error entry in a Twitch GQL response. Used by the
+ * search guards (processGqlSearchErrors) and the LoadMore helpers — both
+ * consume `extensions.code` to detect the "INTEGRITY_FAILED" envelope
+ * Twitch sometimes returns instead of the message-string match.
+ */
+export interface GqlError {
+  message: string;
+  extensions?: { code?: string };
 }
 
 export interface TwitchClientError {

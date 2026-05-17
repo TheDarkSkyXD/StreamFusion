@@ -153,7 +153,10 @@ export function UnifiedSearchInput({
     absorbed: boolean;
   }>({ query: "", seenIds: new Set(), lastRawCount: 0, absorbed: false });
 
-  React.useEffect(() => {
+  // useLayoutEffect (not useEffect) — must run before the absorption-
+  // detection layout effect below in declaration order so the reset
+  // clears state before the same render's data is processed.
+  React.useLayoutEffect(() => {
     if (queryStateRef.current.query !== debouncedQuery) {
       queryStateRef.current = {
         query: debouncedQuery,
@@ -161,10 +164,23 @@ export function UnifiedSearchInput({
         lastRawCount: 0,
         absorbed: false,
       };
+      // Also reset the in-flight scroll-handler latch. Otherwise an orphan
+      // fetch from the old query (still pending) keeps the latch true and
+      // silently blocks the first scroll-driven fetchNextPage on the new
+      // query until the orphan's .finally fires.
+      fetchInFlightRef.current.channels = false;
+      fetchInFlightRef.current.categories = false;
     }
   }, [debouncedQuery]);
 
-  React.useEffect(() => {
+  // useLayoutEffect (not useEffect) is load-bearing here. A regular
+  // useEffect runs AFTER paint, leaving a window between commit-finishes
+  // and effect-runs during which the scroll handler can already fire and
+  // read a stale `absorbed=false` for a page that should have been
+  // detected as absorbed. useLayoutEffect runs synchronously after DOM
+  // mutations but before paint and before any browser-queued scroll event
+  // for this commit, closing the lag window.
+  React.useLayoutEffect(() => {
     const state = queryStateRef.current;
     if (state.query !== debouncedQuery) return;
 
@@ -628,12 +644,19 @@ export function UnifiedSearchInput({
               !latch.channels
             ) {
               latch.channels = true;
-              // Wrap in Promise.resolve so the latch releases even when the
-              // caller returns a non-Promise (e.g. older React Query mocks
-              // in tests, or future variants that complete synchronously).
-              Promise.resolve(fetchMoreChannels()).finally(() => {
+              // try/catch + Promise.resolve guards two failure modes:
+              // (1) the caller throws synchronously — without try/catch the
+              //     throw escapes before .finally is attached and the latch
+              //     stays true forever; (2) the caller returns a non-Promise
+              //     value — Promise.resolve normalizes it so .finally always
+              //     fires asynchronously.
+              try {
+                Promise.resolve(fetchMoreChannels()).finally(() => {
+                  latch.channels = false;
+                });
+              } catch {
                 latch.channels = false;
-              });
+              }
             }
             if (
               showCategoryResults &&
@@ -642,9 +665,13 @@ export function UnifiedSearchInput({
               !latch.categories
             ) {
               latch.categories = true;
-              Promise.resolve(fetchMoreCategories()).finally(() => {
+              try {
+                Promise.resolve(fetchMoreCategories()).finally(() => {
+                  latch.categories = false;
+                });
+              } catch {
                 latch.categories = false;
-              });
+              }
             }
           }}
           className="absolute top-full left-0 right-0 mt-2 bg-[#0F0F12] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col max-h-[60vh] overflow-y-auto"

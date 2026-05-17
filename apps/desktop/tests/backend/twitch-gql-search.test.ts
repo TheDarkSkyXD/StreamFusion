@@ -231,6 +231,56 @@ describe("gqlSearchChannels — safety properties", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
+  it("integrity-check matcher does NOT false-positive on schema errors mentioning 'integrity'", async () => {
+    // Schema error like "Cannot query field 'clientIntegrity'" contains
+    // the substring "integrity" but is not an integrity rejection — it's a
+    // schema mismatch the dev needs to see via console.warn.
+    stubFetchOnce(
+      fetchMock,
+      makeChannelsResponse({
+        cursor: "MjA=",
+        count: 5,
+        errors: [{ message: "Cannot query field 'clientIntegrity' on type 'User'" }],
+      })
+    );
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+
+    // Not classified as integrity rejection → falls through to normal warning
+    // path; the page's actual data is preserved and the cursor advances normally.
+    expect(result.data).toHaveLength(5);
+    expect(result.cursor).toBe("MjA=");
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("mixed errors envelope (integrity + unrelated) — flags integrity AND warns about the unrelated error", async () => {
+    // Twitch can return multiple errors in one envelope. The integrity flag
+    // must still fire (so the loop terminates), but the unrelated error
+    // must NOT be silently swallowed — it deserves a console.warn so dev
+    // sees the schema/server issue alongside the rate-limit rejection.
+    stubFetchOnce(
+      fetchMock,
+      makeChannelsResponse({
+        cursor: "MjA=",
+        count: 0,
+        errors: [
+          { message: "failed integrity check" },
+          { message: "Unexpected internal server error" },
+        ],
+      })
+    );
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+
+    expect(result.cursor).toBeUndefined();
+    expect(result.endReason).toBe("integrity-rejected");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("SearchChannels"),
+      expect.stringContaining("Unexpected internal server error")
+    );
+    // The integrity error itself should NOT appear in the warn payload.
+    const warnArgs = warnSpy.mock.calls[0]?.[1] as string | undefined;
+    expect(warnArgs).not.toMatch(/integrity/i);
+  });
+
   it("endReason — set to 'cursor-no-advance' when server echoes the input cursor", async () => {
     stubFetchOnce(fetchMock, makeChannelsResponse({ cursor: "MTA=", count: 3 }));
     const result = await gqlSearchChannels("ninja", { after: "MTA=" });
@@ -358,5 +408,50 @@ describe("gqlSearchCategories — safety properties", () => {
     expect(body).toContain("persistedQuery");
     expect(body).toContain("sha256Hash");
     expect(body).not.toContain("SearchResultsPageLoadMoreGames");
+  });
+
+  // endReason parity with the channels suite. Both functions route through
+  // the same `buildPaginatedResult` seam, but the categories context label
+  // (`SearchCategories`) and the `games` branch of the connection are
+  // distinct code paths — these tests pin the contract per branch.
+
+  it("endReason — set to 'cursor-no-advance' when server echoes the input cursor", async () => {
+    stubFetchOnce(fetchMock, makeCategoriesResponse({ cursor: "MjA=", count: 3 }));
+    const result = await gqlSearchCategories("chess", { after: "MjA=" });
+    expect(result.cursor).toBeUndefined();
+    expect(result.endReason).toBe("cursor-no-advance");
+  });
+
+  it("endReason — set to 'empty-page' when server returns zero edges", async () => {
+    stubFetchOnce(fetchMock, makeCategoriesResponse({ cursor: "NTA=", count: 0 }));
+    const result = await gqlSearchCategories("chess", { after: "MjA=" });
+    expect(result.endReason).toBe("empty-page");
+  });
+
+  it("endReason — set to 'integrity-rejected' when integrity check fires", async () => {
+    stubFetchOnce(
+      fetchMock,
+      makeCategoriesResponse({
+        cursor: "NTA=",
+        count: 0,
+        errors: [{ message: "failed integrity check" }],
+      })
+    );
+    const result = await gqlSearchCategories("chess", { after: "MjA=" });
+    expect(result.endReason).toBe("integrity-rejected");
+  });
+
+  it("endReason — set to 'exhausted' when server returns data but no cursor", async () => {
+    stubFetchOnce(fetchMock, makeCategoriesResponse({ cursor: null, count: 5 }));
+    const result = await gqlSearchCategories("chess", { after: "MjA=" });
+    expect(result.cursor).toBeUndefined();
+    expect(result.endReason).toBe("exhausted");
+  });
+
+  it("endReason — undefined on a successful advance (cursor returned)", async () => {
+    stubFetchOnce(fetchMock, makeCategoriesResponse({ cursor: "NTA=", count: 5 }));
+    const result = await gqlSearchCategories("chess", { after: "MjA=" });
+    expect(result.cursor).toBe("NTA=");
+    expect(result.endReason).toBeUndefined();
   });
 });

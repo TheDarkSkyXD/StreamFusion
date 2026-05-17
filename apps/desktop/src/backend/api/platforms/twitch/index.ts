@@ -7,6 +7,7 @@
 // Client (hybrid GQL + Helix)
 export {
   type PaginatedResult,
+  type PaginationEndReason,
   type PaginationOptions,
   type TwitchClientError,
   twitchClient,

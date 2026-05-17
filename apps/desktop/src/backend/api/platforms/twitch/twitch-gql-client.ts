@@ -52,7 +52,7 @@ import type {
   UnifiedStream,
   UnifiedVideo,
 } from "../../unified/platform-types";
-import type { PaginatedResult, PaginationOptions } from "./twitch-types";
+import type { GqlError, PaginatedResult, PaginationOptions } from "./twitch-types";
 
 const GQL_ENDPOINT = "https://gql.twitch.tv/gql";
 // Anonymous public-data Client-Id. Twitch's web Client-Id (kimne78…) pairs
@@ -109,7 +109,7 @@ async function sendPersistedQuery<T>(
   operationName: string,
   sha256Hash: string,
   variables: Record<string, unknown>
-): Promise<{ data?: T; errors?: { message: string }[] }> {
+): Promise<{ data?: T; errors?: GqlError[] }> {
   const body = {
     operationName,
     variables,
@@ -827,21 +827,43 @@ export async function gqlGetCategoryById(id: string): Promise<UnifiedCategory | 
   };
 }
 
-type GqlError = { message: string; extensions?: { code?: string } };
+/**
+ * Test whether a single GQL error is the integrity-rejection signal.
+ *
+ * Twitch's wording is inconsistent across endpoints and deploys, but every
+ * integrity rejection co-occurs `integrity` with one of `check` / `failed` /
+ * `rejected` in the message, OR carries an `extensions.code` containing
+ * `INTEGRITY`. Bare substring `integrity` is too broad — it false-positives
+ * on schema errors like `"Cannot query field 'clientIntegrity' on type 'User'"`
+ * or `"Variable $integrityToken is not defined"`, which would silently kill
+ * pagination AND short-circuit the dev `console.warn` for the real error.
+ *
+ * Variants this matches (verified against observed Twitch wordings):
+ * - `"failed integrity check"`, `"Failed Integrity Check"`, `"FAILED_INTEGRITY_CHECK"`
+ * - `"integrity check failed"`, `"integrity check rejected"`
+ * - `{ message: "Bad Request", extensions: { code: "INTEGRITY_FAILED" } }`
+ * - `{ message: "Forbidden", extensions: { code: "INTEGRITY_REJECTED" } }`
+ *
+ * Does NOT match: `"Cannot query field 'integrity' on ..."`, `"Variable $integrity ..."`.
+ */
+function isIntegrityRejectionError(err: GqlError): boolean {
+  const code = err.extensions?.code ?? "";
+  if (code.toUpperCase().includes("INTEGRITY")) return true;
+
+  const msg = err.message.toLowerCase();
+  if (!msg.includes("integrity")) return false;
+  return msg.includes("check") || msg.includes("failed") || msg.includes("rejected");
+}
 
 /**
- * Filter Twitch GQL response errors. `"failed integrity check"` is Twitch's
- * expected rejection for anonymous paginated raw queries — treat it as a
- * legitimate end-of-list signal rather than logging noise.
+ * Classify a Twitch GQL response's `errors[]` array. Integrity rejection is
+ * Twitch's expected response to anonymous paginated raw queries — treat it as
+ * end-of-list rather than logging noise. Other errors get a `console.warn`
+ * so dev sees them.
  *
- * Twitch's wording is inconsistent across endpoints and deploys, so the
- * matcher is case-insensitive against the substring "integrity" and ALSO
- * inspects each error's `extensions.code` for an `INTEGRITY` discriminator.
- * Variants observed in the wild: "failed integrity check",
- * "Failed Integrity Check", "FAILED_INTEGRITY_CHECK", "integrity check failed",
- * and the newer envelope `{ message: "Bad Request", extensions: { code: "INTEGRITY_FAILED" } }`.
- *
- * Surface every other error via console.warn so dev sees it.
+ * Per-error classification means a mixed envelope (one integrity error AND
+ * one unrelated error) still reports the unrelated one through `console.warn`
+ * instead of silently swallowing it behind the integrity flag.
  */
 function processGqlSearchErrors(
   context: string,
@@ -849,19 +871,17 @@ function processGqlSearchErrors(
 ): { isIntegrityRejected: boolean } {
   if (!errors || errors.length === 0) return { isIntegrityRejected: false };
 
-  const messages = errors.map((e) => e.message).join(", ");
-  const codes = errors
-    .map((e) => e.extensions?.code ?? "")
-    .filter((c) => c.length > 0)
-    .join(", ");
-  const lowered = `${messages} ${codes}`.toLowerCase();
+  const integrityErrors = errors.filter(isIntegrityRejectionError);
+  const otherErrors = errors.filter((e) => !isIntegrityRejectionError(e));
 
-  if (lowered.includes("integrity")) {
-    return { isIntegrityRejected: true };
+  if (otherErrors.length > 0) {
+    console.warn(
+      `⚠️ [GQL] ${context} query errors:`,
+      otherErrors.map((e) => e.message).join(", ")
+    );
   }
 
-  console.warn(`⚠️ [GQL] ${context} query errors:`, messages);
-  return { isIntegrityRejected: false };
+  return { isIntegrityRejected: integrityErrors.length > 0 };
 }
 
 // Narrowed to only the fields transformSearchChannel reads. The persisted
@@ -926,7 +946,7 @@ async function gqlSearchChannelsLoadMore(
   // can be forwarded from these.
   _after: string,
   _first: number | undefined
-): Promise<{ data: UnifiedChannel[]; cursor: string | undefined; errors?: { message: string }[] }> {
+): Promise<{ data: UnifiedChannel[]; cursor: string | undefined; errors?: GqlError[] }> {
   // Empirically discovered constraints (see SearchChannels query errors when
   // probing this against gql.twitch.tv): searchFor requires a non-null
   // platform argument, the channels connection does NOT accept cursor/first
@@ -979,7 +999,7 @@ async function gqlSearchChannelsLoadMore(
 
   const [response] = (await gqlRequest([
     getRawQuery<LoadMoreData>({ query: rawQuery, variables: { query, platform: "web" } }),
-  ])) as [{ data?: LoadMoreData; errors?: { message: string }[] }];
+  ])) as [{ data?: LoadMoreData; errors?: GqlError[] }];
 
   const channelsConn = response.data?.searchFor?.channels;
   const channels = (channelsConn?.edges ?? []).map((edge) => transformSearchChannel(edge.item));
@@ -1024,7 +1044,7 @@ export async function gqlSearchChannels(
         query,
         includeIsDJ: false,
       }),
-    ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: { message: string }[] }];
+    ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: GqlError[] }];
 
     const searchData = response.data?.searchFor;
     channels = (searchData?.channels?.edges ?? []).map((edge) =>
@@ -1122,7 +1142,7 @@ async function gqlSearchCategoriesLoadMore(
 ): Promise<{
   data: UnifiedCategory[];
   cursor: string | undefined;
-  errors?: { message: string }[];
+  errors?: GqlError[];
 }> {
   // Same schema constraints as gqlSearchChannelsLoadMore — see comment there.
   const rawQuery = `
@@ -1164,7 +1184,7 @@ async function gqlSearchCategoriesLoadMore(
 
   const [response] = (await gqlRequest([
     getRawQuery<LoadMoreData>({ query: rawQuery, variables: { query, platform: "web" } }),
-  ])) as [{ data?: LoadMoreData; errors?: { message: string }[] }];
+  ])) as [{ data?: LoadMoreData; errors?: GqlError[] }];
 
   const gamesConn = response.data?.searchFor?.games;
   const categories = (gamesConn?.edges ?? []).map((edge) => transformSearchGame(edge.item));
@@ -1198,7 +1218,7 @@ export async function gqlSearchCategories(
         options: { targets: [{ index: "GAME" }] },
         includeIsDJ: false,
       }),
-    ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: { message: string }[] }];
+    ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: GqlError[] }];
 
     const searchData = response.data?.searchFor;
     categories = (searchData?.games?.edges ?? []).map((edge) => transformSearchGame(edge.item));
