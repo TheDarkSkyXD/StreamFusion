@@ -64,6 +64,13 @@ const GQL_ENDPOINT = "https://gql.twitch.tv/gql";
 // because they simulate the web client with paired Client-Integrity headers.)
 const GQL_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const MAX_QUERIES_PER_REQUEST = 35;
+// Hard timeout on every gql.twitch.tv POST. Without this, a hung Twitch
+// endpoint freezes pagination indefinitely — React Query's isFetchingNextPage
+// stays true, the dropdown's skeleton flickers stick, and stale queries
+// accumulate hung promises in the main process. AbortSignal.timeout throws
+// a DOMException("TimeoutError") on expiry, which propagates as a normal
+// fetch rejection — useInfiniteQuery surfaces it as query error.
+const GQL_REQUEST_TIMEOUT_MS = 10_000;
 
 /**
  * Custom gqlRequest that works within Electron (uses global fetch).
@@ -83,6 +90,7 @@ async function gqlRequest<T extends readonly any[]>(queries: [...T]): Promise<an
       "Content-Type": "application/json",
     },
     body: JSON.stringify(queries),
+    signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -111,6 +119,7 @@ async function sendPersistedQuery<T>(
     method: "POST",
     headers: { "Client-Id": GQL_CLIENT_ID, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`GQL request failed: ${res.status} ${res.statusText}`);
@@ -976,21 +985,22 @@ export async function gqlSearchChannels(
     returnedCursor = result.cursor;
     errors = result.errors;
   } else {
-    const variables: Record<string, unknown> = {
-      query,
-      includeIsDJ: false,
-    };
-    if (options.first) variables.first = options.first;
-
+    // `first` and `after` are deliberately not forwarded on page 1: the
+    // persisted op resolves server-side by SHA and ignores variables not
+    // declared in the persisted document, so injecting them is a no-op
+    // that also disables type-checking on the call.
     const [response] = (await gqlRequest([
-      getQuerySearchResultsPageSearchResults(
-        variables as unknown as Parameters<typeof getQuerySearchResultsPageSearchResults>[0]
-      ),
+      getQuerySearchResultsPageSearchResults({
+        query,
+        includeIsDJ: false,
+      }),
     ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: { message: string }[] }];
 
     const searchData = response.data?.searchFor;
-    channels = (searchData?.channels.edges ?? []).map((edge) => transformSearchChannel(edge.item));
-    returnedCursor = searchData?.channels.cursor || undefined;
+    channels = (searchData?.channels?.edges ?? []).map((edge) =>
+      transformSearchChannel(edge.item)
+    );
+    returnedCursor = searchData?.channels?.cursor || undefined;
     errors = response.errors;
   }
 
@@ -1108,22 +1118,18 @@ export async function gqlSearchCategories(
     returnedCursor = result.cursor;
     errors = result.errors;
   } else {
-    const variables: Record<string, unknown> = {
-      query,
-      options: { targets: [{ index: "GAME" }] },
-      includeIsDJ: false,
-    };
-    if (options.first) variables.first = options.first;
-
+    // See note in gqlSearchChannels: persisted op ignores unlisted variables.
     const [response] = (await gqlRequest([
-      getQuerySearchResultsPageSearchResults(
-        variables as unknown as Parameters<typeof getQuerySearchResultsPageSearchResults>[0]
-      ),
+      getQuerySearchResultsPageSearchResults({
+        query,
+        options: { targets: [{ index: "GAME" }] },
+        includeIsDJ: false,
+      }),
     ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: { message: string }[] }];
 
     const searchData = response.data?.searchFor;
-    categories = (searchData?.games.edges ?? []).map((edge) => transformSearchGame(edge.item));
-    returnedCursor = searchData?.games.cursor || undefined;
+    categories = (searchData?.games?.edges ?? []).map((edge) => transformSearchGame(edge.item));
+    returnedCursor = searchData?.games?.cursor || undefined;
     errors = response.errors;
   }
 

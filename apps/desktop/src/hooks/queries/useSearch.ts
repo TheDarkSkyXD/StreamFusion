@@ -73,6 +73,11 @@ export function useSearchCategories(query: string, platform?: Platform, limit: n
       }
       return { data: (response.data ?? []) as UnifiedCategory[], cursor: response.cursor };
     },
+    // Mirrors the empty-page guard in useSearchChannels above. Backend
+    // gqlSearchCategories already nulls the cursor on an empty page, but
+    // this hook-level guard also covers post-fetch dedupe paths (cross-
+    // platform category collapsing in the dropdown) where the backend
+    // can't see the post-filter emptiness.
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
     enabled: !!query,

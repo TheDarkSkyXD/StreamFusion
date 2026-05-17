@@ -148,6 +148,12 @@ function stubFetchOnce(fetchMock: FetchMock, body: unknown) {
   } as Response);
 }
 
+function lastFetchBody(fetchMock: FetchMock): string {
+  const call = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+  const init = call?.[1] as { body?: string } | undefined;
+  return init?.body ?? "";
+}
+
 describe("gqlSearchChannels — safety properties", () => {
   let fetchMock: FetchMock;
   let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -163,12 +169,20 @@ describe("gqlSearchChannels — safety properties", () => {
     warnSpy.mockRestore();
   });
 
-  it("happy path — returns data + advanced cursor on page 2", async () => {
+  it("happy path — page 2 hits the raw-GQL LoadMore query (not the persisted op) and returns advanced cursor", async () => {
     stubFetchOnce(fetchMock, makeChannelsResponse({ cursor: "MjA=", count: 5 }));
     const result = await gqlSearchChannels("ninja", { after: "MTA=" });
 
     expect(result.data).toHaveLength(5);
     expect(result.cursor).toBe("MjA=");
+
+    // Path-discrimination: the page-2 request must hit the raw-GQL LoadMore
+    // query body. If a refactor routes after-bearing calls back through the
+    // persisted op, the skeleton-flicker bug returns silently — this guard
+    // catches that regression.
+    const body = lastFetchBody(fetchMock);
+    expect(body).toContain("SearchResultsPageLoadMoreChannels");
+    expect(body).not.toContain("persistedQuery");
   });
 
   it("cursor-no-advance guard — returns cursor: undefined when server returns same cursor as input", async () => {
@@ -201,7 +215,7 @@ describe("gqlSearchChannels — safety properties", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("other GraphQL errors — returns cursor: undefined AND warns so dev sees the problem", async () => {
+  it("other GraphQL errors — warns with SearchChannels context label AND the propagated error message", async () => {
     stubFetchOnce(
       fetchMock,
       makeChannelsResponse({
@@ -213,20 +227,25 @@ describe("gqlSearchChannels — safety properties", () => {
     const result = await gqlSearchChannels("ninja", { after: "MTA=" });
 
     expect(result.cursor).toBeUndefined();
-    expect(warnSpy).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("SearchChannels"),
+      expect.stringContaining("Unexpected server error")
+    );
   });
 
-  it("page 1 (no after) returns the server cursor so page 2 can be attempted via raw GQL", async () => {
-    // Page 1 returns the server's cursor so the React Query infinite hook can
-    // call fetchNextPage with after=<cursor>, which routes through the raw-GQL
-    // LoadMore branch on the second call. If raw GQL fails or the cursor doesn't
-    // advance, the guards report end-of-list. Page 1 itself must hand off the
-    // cursor for that handoff to be possible.
+  it("page 1 (no after) hits the persisted query and returns the server cursor for page-2 hand-off", async () => {
     stubFetchOnce(fetchMock, makeChannelsResponse({ cursor: "MTA=", count: 10 }));
     const result = await gqlSearchChannels("ninja");
 
     expect(result.data).toHaveLength(10);
     expect(result.cursor).toBe("MTA=");
+
+    // Path-discrimination: page 1 must use the persisted op (known-good for
+    // anonymous reads); raw-GQL is reserved for page 2+.
+    const body = lastFetchBody(fetchMock);
+    expect(body).toContain("persistedQuery");
+    expect(body).toContain("sha256Hash");
+    expect(body).not.toContain("SearchResultsPageLoadMoreChannels");
   });
 });
 
@@ -245,12 +264,16 @@ describe("gqlSearchCategories — safety properties", () => {
     warnSpy.mockRestore();
   });
 
-  it("happy path — returns data + advanced cursor on page 2", async () => {
+  it("happy path — page 2 hits the raw-GQL LoadMore query (not the persisted op) and returns advanced cursor", async () => {
     stubFetchOnce(fetchMock, makeCategoriesResponse({ cursor: "NTA=", count: 4 }));
     const result = await gqlSearchCategories("chess", { after: "MjA=" });
 
     expect(result.data).toHaveLength(4);
     expect(result.cursor).toBe("NTA=");
+
+    const body = lastFetchBody(fetchMock);
+    expect(body).toContain("SearchResultsPageLoadMoreGames");
+    expect(body).not.toContain("persistedQuery");
   });
 
   it("cursor-no-advance guard — returns cursor: undefined when server returns same cursor as input", async () => {
@@ -283,11 +306,34 @@ describe("gqlSearchCategories — safety properties", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("page 1 (no after) returns the server cursor so page 2 can be attempted via raw GQL", async () => {
+  it("other GraphQL errors — warns with SearchCategories context label AND the propagated error message", async () => {
+    stubFetchOnce(
+      fetchMock,
+      makeCategoriesResponse({
+        cursor: "NTA=",
+        count: 0,
+        errors: [{ message: "Unexpected server error" }],
+      })
+    );
+    const result = await gqlSearchCategories("chess", { after: "MjA=" });
+
+    expect(result.cursor).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("SearchCategories"),
+      expect.stringContaining("Unexpected server error")
+    );
+  });
+
+  it("page 1 (no after) hits the persisted query and returns the server cursor for page-2 hand-off", async () => {
     stubFetchOnce(fetchMock, makeCategoriesResponse({ cursor: "MjA=", count: 10 }));
     const result = await gqlSearchCategories("chess");
 
     expect(result.data).toHaveLength(10);
     expect(result.cursor).toBe("MjA=");
+
+    const body = lastFetchBody(fetchMock);
+    expect(body).toContain("persistedQuery");
+    expect(body).toContain("sha256Hash");
+    expect(body).not.toContain("SearchResultsPageLoadMoreGames");
   });
 });
