@@ -821,20 +821,36 @@ export async function gqlGetCategoryById(id: string): Promise<UnifiedCategory | 
   };
 }
 
+type GqlError = { message: string; extensions?: { code?: string } };
+
 /**
  * Filter Twitch GQL response errors. `"failed integrity check"` is Twitch's
  * expected rejection for anonymous paginated raw queries — treat it as a
- * legitimate end-of-list signal rather than logging noise. Surface every
- * other error via console.warn so dev sees it.
+ * legitimate end-of-list signal rather than logging noise.
+ *
+ * Twitch's wording is inconsistent across endpoints and deploys, so the
+ * matcher is case-insensitive against the substring "integrity" and ALSO
+ * inspects each error's `extensions.code` for an `INTEGRITY` discriminator.
+ * Variants observed in the wild: "failed integrity check",
+ * "Failed Integrity Check", "FAILED_INTEGRITY_CHECK", "integrity check failed",
+ * and the newer envelope `{ message: "Bad Request", extensions: { code: "INTEGRITY_FAILED" } }`.
+ *
+ * Surface every other error via console.warn so dev sees it.
  */
 function processGqlSearchErrors(
   context: string,
-  errors: { message: string }[] | undefined
+  errors: GqlError[] | undefined
 ): { isIntegrityRejected: boolean } {
   if (!errors || errors.length === 0) return { isIntegrityRejected: false };
 
   const messages = errors.map((e) => e.message).join(", ");
-  if (messages.includes("failed integrity check")) {
+  const codes = errors
+    .map((e) => e.extensions?.code ?? "")
+    .filter((c) => c.length > 0)
+    .join(", ");
+  const lowered = `${messages} ${codes}`.toLowerCase();
+
+  if (lowered.includes("integrity")) {
     return { isIntegrityRejected: true };
   }
 
@@ -842,8 +858,23 @@ function processGqlSearchErrors(
   return { isIntegrityRejected: false };
 }
 
-type SearchChannelEdgeItem =
-  SearchResultsPageSearchResultsData["searchFor"]["channels"]["edges"][number]["item"];
+// Narrowed to only the fields transformSearchChannel reads. The persisted
+// op returns the full SearchResultsPageChannel (a superset), but the raw-GQL
+// LoadMore inline fragment selects exactly this shape — declaring the
+// narrowing explicitly keeps the LoadMore response type honest about what's
+// actually fetched. Exported so test fixtures can satisfy the same contract.
+export type SearchChannelEdgeItem = Pick<
+  SearchResultsPageSearchResultsData["searchFor"]["channels"]["edges"][number]["item"],
+  | "id"
+  | "login"
+  | "displayName"
+  | "profileImageURL"
+  | "description"
+  | "stream"
+  | "followers"
+  | "roles"
+  | "broadcastSettings"
+>;
 
 function transformSearchChannel(ch: SearchChannelEdgeItem): UnifiedChannel {
   return {
@@ -1010,20 +1041,43 @@ export async function gqlSearchChannels(
 
   const { isIntegrityRejected } = processGqlSearchErrors("SearchChannels", errors);
 
-  const cursorAdvanced =
-    !isIntegrityRejected &&
-    !!returnedCursor &&
-    returnedCursor !== options.after &&
-    channels.length > 0;
-
-  return {
-    data: channels,
-    cursor: cursorAdvanced ? returnedCursor : undefined,
-  };
+  return buildPaginatedResult(channels, returnedCursor, options.after, isIntegrityRejected);
 }
 
-type SearchGameEdgeItem =
-  SearchResultsPageSearchResultsData["searchFor"]["games"]["edges"][number]["item"];
+/**
+ * Apply the three loop-stop guards (integrity rejection, empty page,
+ * cursor-no-advance) and tag the result with an `endReason` when the
+ * cursor is dropped. Single seam keeps channels and categories in lock-
+ * step, and makes the precedence visible: integrity > empty > no-advance.
+ */
+function buildPaginatedResult<T>(
+  data: T[],
+  returnedCursor: string | undefined,
+  inputCursor: string | undefined,
+  isIntegrityRejected: boolean
+): PaginatedResult<T> {
+  if (isIntegrityRejected) {
+    return { data, cursor: undefined, endReason: "integrity-rejected" };
+  }
+  if (data.length === 0) {
+    return { data, cursor: undefined, endReason: "empty-page" };
+  }
+  if (!returnedCursor) {
+    return { data, cursor: undefined, endReason: "exhausted" };
+  }
+  if (returnedCursor === inputCursor) {
+    return { data, cursor: undefined, endReason: "cursor-no-advance" };
+  }
+  return { data, cursor: returnedCursor };
+}
+
+// See SearchChannelEdgeItem note — the LoadMore inline fragment on Game
+// selects only these fields, so the local narrowing matches reality.
+// Exported so test fixtures can satisfy the same contract.
+export type SearchGameEdgeItem = Pick<
+  SearchResultsPageSearchResultsData["searchFor"]["games"]["edges"][number]["item"],
+  "id" | "name" | "displayName" | "boxArtURL" | "viewersCount"
+>;
 
 function transformSearchGame(game: SearchGameEdgeItem): UnifiedCategory {
   return {
@@ -1135,16 +1189,7 @@ export async function gqlSearchCategories(
 
   const { isIntegrityRejected } = processGqlSearchErrors("SearchCategories", errors);
 
-  const cursorAdvanced =
-    !isIntegrityRejected &&
-    !!returnedCursor &&
-    returnedCursor !== options.after &&
-    categories.length > 0;
-
-  return {
-    data: categories,
-    cursor: cursorAdvanced ? returnedCursor : undefined,
-  };
+  return buildPaginatedResult(categories, returnedCursor, options.after, isIntegrityRejected);
 }
 
 /**

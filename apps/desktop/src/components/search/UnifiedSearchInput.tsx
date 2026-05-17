@@ -126,6 +126,61 @@ export function UnifiedSearchInput({
     [categoriesInfiniteData]
   );
 
+  // Dedup-absorption detector. Twitch can re-serve the same channels under
+  // a fresh cursor on every LoadMore call, which the GQL-layer
+  // cursor-no-advance guard cannot catch (returned cursor != input cursor).
+  // When a fetched page adds zero net new unique IDs at the UI layer, the
+  // dedup absorbed every row — treat that as end-of-list and stop calling
+  // fetchNextPage. Cross-render state, reset when the query changes.
+  const queryStateRef = React.useRef<{
+    query: string;
+    seenIds: Set<string>;
+    lastRawCount: number;
+    absorbed: boolean;
+  }>({ query: "", seenIds: new Set(), lastRawCount: 0, absorbed: false });
+
+  React.useEffect(() => {
+    if (queryStateRef.current.query !== debouncedQuery) {
+      queryStateRef.current = {
+        query: debouncedQuery,
+        seenIds: new Set(),
+        lastRawCount: 0,
+        absorbed: false,
+      };
+    }
+  }, [debouncedQuery]);
+
+  React.useEffect(() => {
+    const state = queryStateRef.current;
+    if (state.query !== debouncedQuery) return;
+
+    const rawCount = channels.length + categories.length;
+    let newCount = 0;
+    for (const c of channels) {
+      const key = `ch-${c.platform}-${c.id}`;
+      if (!state.seenIds.has(key)) {
+        state.seenIds.add(key);
+        newCount++;
+      }
+    }
+    for (const cat of categories) {
+      const key = `cat-${cat.platform}-${cat.id}`;
+      if (!state.seenIds.has(key)) {
+        state.seenIds.add(key);
+        newCount++;
+      }
+    }
+
+    // Absorption fires when a new page arrived (raw count grew past the
+    // last-known count) but added zero net new uniques. Initial mount sees
+    // rawCount > 0 with newCount === rawCount (everything new), so this
+    // correctly doesn't fire on first data arrival.
+    if (rawCount > state.lastRawCount && newCount === 0) {
+      state.absorbed = true;
+    }
+    state.lastRawCount = rawCount;
+  }, [channels, categories, debouncedQuery]);
+
   // Categories are universal across platforms — collapse cross-platform duplicates
   // by normalized name so "Just Chatting" doesn't appear twice. The link target is
   // canonical regardless of which side we keep (useUnifiedCategoryLink resolves it).
@@ -526,22 +581,31 @@ export function UnifiedSearchInput({
       {(() => {
         if (!showDropdown) return null;
 
-        const combinedRenderedCount =
-          filteredTopMatches.length + filteredOtherMatches.length + dedupedCategories.length;
+        // capReached uses the raw pre-filter row count (channels.length +
+        // categories.length), not the post-filter visible count. Flipping
+        // the platform or live-only filter can drop the visible row count
+        // below 100, but the cap stays in force — otherwise auto-fetch
+        // would resume past the intended ceiling on every filter change.
+        // Infinite-query data only grows within a single query, so the
+        // current render's raw count is also the peak.
+        const rawRowCount = channels.length + categories.length;
+        const capReached = rawRowCount >= DROPDOWN_RESULT_CAP;
         const hasMoreResults =
           (showChannelResults && channelsHasNextPage) ||
           (showCategoryResults && categoriesHasNextPage);
-        const capReached = combinedRenderedCount >= DROPDOWN_RESULT_CAP;
         const capReachedWithMore = capReached && hasMoreResults;
 
         return (
           <div
             ref={dropdownRef}
             onScroll={(e) => {
-              // Stop auto-fetching once the dropdown has rendered the cap;
-              // the bottom CTA routes the user to the full Search Results page
-              // for deeper browsing.
-              if (capReached) return;
+              // Stop auto-fetching once the dropdown has rendered the cap, OR
+              // once we've detected dedup-absorption (Twitch re-serving the
+              // same channels under a fresh cursor). `absorbed` is set inside
+              // a useEffect, so we read it from the ref at event time — a
+              // closure capture would see the pre-effect value from the
+              // render that built this handler.
+              if (capReached || queryStateRef.current.absorbed) return;
               const el = e.currentTarget;
               const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
               if (nearBottom) {

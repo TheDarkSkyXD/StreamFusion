@@ -178,10 +178,30 @@ export interface PaginationOptions {
   ended_at?: string; // ISO timestamp
 }
 
+/**
+ * Why pagination ended for this page. Populated only when `cursor` is
+ * undefined. Callers can distinguish a clean exhaustion from a
+ * defensive end-of-list (integrity rejection, cursor-no-advance,
+ * empty-page) for telemetry, dev logging, or optional UI hints.
+ *
+ * - `exhausted`: server returned no cursor — natural end of results.
+ * - `cursor-no-advance`: server returned the same cursor we sent — schema
+ *   doesn't honor pagination on this connection, or rate-limited us.
+ * - `integrity-rejected`: GQL response contained an integrity-check error
+ *   (Twitch's anonymous-paginated-query rejection mode).
+ * - `empty-page`: server returned `data: []` — end of meaningful results.
+ */
+export type PaginationEndReason =
+  | "exhausted"
+  | "cursor-no-advance"
+  | "integrity-rejected"
+  | "empty-page";
+
 export interface PaginatedResult<T> {
   data: T[];
   cursor?: string;
   total?: number;
+  endReason?: PaginationEndReason;
 }
 
 export interface TwitchClientError {

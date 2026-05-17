@@ -3,18 +3,39 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   gqlSearchCategories,
   gqlSearchChannels,
+  type SearchChannelEdgeItem,
+  type SearchGameEdgeItem,
 } from "@/backend/api/platforms/twitch/twitch-gql-client";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
+// Fixtures use `satisfies` against the narrowed contracts the production
+// transforms read. If a future change widens what `transformSearchChannel` /
+// `transformSearchGame` need, the corresponding type widens and the fixture
+// becomes a compile error here — preventing the kind of silent test-vs-real
+// drift the unit suite is supposed to catch.
+type ResponseBody<TKey extends "channels" | "games", TItem> = {
+  data: {
+    searchFor: {
+      [K in "channels" | "games"]: {
+        cursor: string | null;
+        edges: K extends TKey
+          ? { trackingID: string; item: TItem; __typename: "SearchForEdge" }[]
+          : never[];
+      };
+    };
+  };
+  errors?: { message: string; extensions?: { code?: string } }[];
+};
+
 function makeChannelsResponse(opts: {
   cursor: string | null;
   count: number;
-  errors?: { message: string }[];
-}) {
+  errors?: { message: string; extensions?: { code?: string } }[];
+}): ResponseBody<"channels", SearchChannelEdgeItem> {
   const edges = Array.from({ length: opts.count }, (_, i) => ({
     trackingID: `tracking-${i}`,
-    __typename: "SearchForEdge",
+    __typename: "SearchForEdge" as const,
     item: {
       id: `id-${i}`,
       login: `channel${i}`,
@@ -22,121 +43,49 @@ function makeChannelsResponse(opts: {
       profileImageURL: "",
       description: "",
       stream: null,
-      followers: { totalCount: 0 },
-      roles: { isPartner: false, __typename: "UserRoles" },
-      broadcastSettings: { title: "" },
-    },
+      followers: { totalCount: 0, __typename: "FollowerConnection" as const },
+      roles: { isPartner: false, __typename: "UserRoles" as const },
+      broadcastSettings: { id: `bs-${i}`, title: "", __typename: "BroadcastSettings" as const },
+    } satisfies SearchChannelEdgeItem,
   }));
 
-  const body: Record<string, unknown> = {
+  return {
     data: {
       searchFor: {
-        banners: null,
-        channels: {
-          cursor: opts.cursor,
-          edges,
-          score: null,
-          totalMatches: 100,
-          __typename: "SearchForResultUsers",
-        },
-        channelsWithTag: {
-          cursor: null,
-          edges: [],
-          score: null,
-          totalMatches: 0,
-          __typename: "SearchForResultUsers",
-        },
-        games: {
-          cursor: null,
-          edges: [],
-          score: null,
-          totalMatches: 0,
-          __typename: "SearchForResultGames",
-        },
-        videos: {
-          cursor: null,
-          edges: [],
-          score: null,
-          totalMatches: 0,
-          __typename: "SearchForResultVideos",
-        },
-        relatedLiveChannels: {
-          edges: [],
-          score: null,
-          __typename: "SearchForResultRelatedLiveChannels",
-        },
-        __typename: "SearchFor",
+        channels: { cursor: opts.cursor, edges },
+        games: { cursor: null, edges: [] },
       },
     },
+    ...(opts.errors ? { errors: opts.errors } : {}),
   };
-
-  if (opts.errors) body.errors = opts.errors;
-
-  return body;
 }
 
 function makeCategoriesResponse(opts: {
   cursor: string | null;
   count: number;
-  errors?: { message: string }[];
-}) {
+  errors?: { message: string; extensions?: { code?: string } }[];
+}): ResponseBody<"games", SearchGameEdgeItem> {
   const edges = Array.from({ length: opts.count }, (_, i) => ({
     trackingID: `tracking-${i}`,
-    __typename: "SearchForEdge",
+    __typename: "SearchForEdge" as const,
     item: {
       id: `game-${i}`,
       name: `game${i}`,
       displayName: `Game ${i}`,
       boxArtURL: "https://example/{width}x{height}.jpg",
       viewersCount: 0,
-    },
+    } satisfies SearchGameEdgeItem,
   }));
 
-  const body: Record<string, unknown> = {
+  return {
     data: {
       searchFor: {
-        banners: null,
-        channels: {
-          cursor: null,
-          edges: [],
-          score: null,
-          totalMatches: 0,
-          __typename: "SearchForResultUsers",
-        },
-        channelsWithTag: {
-          cursor: null,
-          edges: [],
-          score: null,
-          totalMatches: 0,
-          __typename: "SearchForResultUsers",
-        },
-        games: {
-          cursor: opts.cursor,
-          edges,
-          score: null,
-          totalMatches: 50,
-          __typename: "SearchForResultGames",
-        },
-        videos: {
-          cursor: null,
-          edges: [],
-          score: null,
-          totalMatches: 0,
-          __typename: "SearchForResultVideos",
-        },
-        relatedLiveChannels: {
-          edges: [],
-          score: null,
-          __typename: "SearchForResultRelatedLiveChannels",
-        },
-        __typename: "SearchFor",
+        channels: { cursor: null, edges: [] },
+        games: { cursor: opts.cursor, edges },
       },
     },
+    ...(opts.errors ? { errors: opts.errors } : {}),
   };
-
-  if (opts.errors) body.errors = opts.errors;
-
-  return body;
 }
 
 function stubFetchOnce(fetchMock: FetchMock, body: unknown) {
@@ -246,6 +195,80 @@ describe("gqlSearchChannels — safety properties", () => {
     expect(body).toContain("persistedQuery");
     expect(body).toContain("sha256Hash");
     expect(body).not.toContain("SearchResultsPageLoadMoreChannels");
+  });
+
+  it("integrity-check guard matches case variants — 'Failed Integrity Check', 'FAILED_INTEGRITY_CHECK', 'integrity check failed' all suppress the cursor without warning", async () => {
+    const variants = [
+      "Failed Integrity Check",
+      "FAILED_INTEGRITY_CHECK",
+      "integrity check failed",
+    ];
+    for (const message of variants) {
+      fetchMock.mockClear();
+      warnSpy.mockClear();
+      stubFetchOnce(
+        fetchMock,
+        makeChannelsResponse({ cursor: "MjA=", count: 0, errors: [{ message }] })
+      );
+      const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+      expect(result.cursor, `variant: ${message}`).toBeUndefined();
+      expect(warnSpy, `variant: ${message}`).not.toHaveBeenCalled();
+    }
+  });
+
+  it("integrity-check guard matches extensions.code envelope — { message: 'Bad Request', extensions: { code: 'INTEGRITY_FAILED' } }", async () => {
+    stubFetchOnce(
+      fetchMock,
+      makeChannelsResponse({
+        cursor: "MjA=",
+        count: 0,
+        errors: [{ message: "Bad Request", extensions: { code: "INTEGRITY_FAILED" } }],
+      })
+    );
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+
+    expect(result.cursor).toBeUndefined();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("endReason — set to 'cursor-no-advance' when server echoes the input cursor", async () => {
+    stubFetchOnce(fetchMock, makeChannelsResponse({ cursor: "MTA=", count: 3 }));
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+    expect(result.cursor).toBeUndefined();
+    expect(result.endReason).toBe("cursor-no-advance");
+  });
+
+  it("endReason — set to 'empty-page' when server returns zero edges", async () => {
+    stubFetchOnce(fetchMock, makeChannelsResponse({ cursor: "MjA=", count: 0 }));
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+    expect(result.endReason).toBe("empty-page");
+  });
+
+  it("endReason — set to 'integrity-rejected' when integrity check fires", async () => {
+    stubFetchOnce(
+      fetchMock,
+      makeChannelsResponse({
+        cursor: "MjA=",
+        count: 0,
+        errors: [{ message: "failed integrity check" }],
+      })
+    );
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+    expect(result.endReason).toBe("integrity-rejected");
+  });
+
+  it("endReason — set to 'exhausted' when server returns data but no cursor", async () => {
+    stubFetchOnce(fetchMock, makeChannelsResponse({ cursor: null, count: 5 }));
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+    expect(result.cursor).toBeUndefined();
+    expect(result.endReason).toBe("exhausted");
+  });
+
+  it("endReason — undefined on a successful advance (cursor returned)", async () => {
+    stubFetchOnce(fetchMock, makeChannelsResponse({ cursor: "MjA=", count: 5 }));
+    const result = await gqlSearchChannels("ninja", { after: "MTA=" });
+    expect(result.cursor).toBe("MjA=");
+    expect(result.endReason).toBeUndefined();
   });
 });
 

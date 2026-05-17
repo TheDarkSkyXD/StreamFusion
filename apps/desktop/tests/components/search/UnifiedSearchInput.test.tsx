@@ -1,4 +1,4 @@
-import { fireEvent } from '@testing-library/react';
+import { act, fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders, routerMock, screen } from '../../test-utils';
@@ -189,5 +189,36 @@ describe('UnifiedSearchInput — dropdown 100-cap and Show more CTA', () => {
     fireEvent.scroll(scrollable);
 
     expect(searchMockState.channelsFetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops auto-fetching after dedup absorbs a page (zero net new unique IDs on a new page)', async () => {
+    // Page 1: 30 unique channels.
+    const page1 = makeChannels(30);
+    searchMockState.channelsData = { pages: [{ data: page1 }] };
+    searchMockState.channelsHasNextPage = true;
+
+    const { rerender } = renderWithProviders(<UnifiedSearchInput initialValue="ninja" />);
+    fireEvent.focus(screen.getByRole('textbox'));
+
+    // Simulate page 2 arriving with the exact same IDs — Twitch re-serving
+    // the same channels under a fresh cursor. The GQL-layer cursor-no-advance
+    // guard cannot detect this (the cursor advanced); the UI-layer dedup
+    // absorbs everything; without the absorption guard the dropdown would
+    // keep firing fetchMoreChannels indefinitely.
+    await act(async () => {
+      searchMockState.channelsData = { pages: [{ data: page1 }, { data: page1 }] };
+      rerender(<UnifiedSearchInput initialValue="ninja" />);
+    });
+
+    const scrollable = document.querySelector('div.overflow-y-auto') as HTMLElement | null;
+    expect(scrollable).not.toBeNull();
+    if (!scrollable) return;
+
+    Object.defineProperty(scrollable, 'scrollHeight', { value: 2000, configurable: true });
+    Object.defineProperty(scrollable, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(scrollable, 'scrollTop', { value: 1700, configurable: true });
+    fireEvent.scroll(scrollable);
+
+    expect(searchMockState.channelsFetchNextPage).not.toHaveBeenCalled();
   });
 });
