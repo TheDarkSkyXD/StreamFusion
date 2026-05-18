@@ -11,6 +11,12 @@
  * Twitch's `force_verify=true` is already set on the auth URL, so the
  * consent screen always renders.
  *
+ * U5 — the dialog now reads the `missingScopes` payload off the store and
+ * renders one human-readable row per scope so the user sees exactly what
+ * the action they just tried needs. One consent round-trip covers every
+ * missing scope; on success the registered `onReconnected` callback fires
+ * once so the action can retry itself.
+ *
  * Mounted once at the app root by AuthProvider.
  */
 
@@ -28,21 +34,49 @@ import {
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
+/**
+ * Human-readable descriptions for every Twitch scope the app might ask the
+ * user to re-consent to. Unknown scopes fall back to their raw id at render
+ * time — kept here (not in the store) so the store stays dumb.
+ */
+const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  // Pin-path scopes (U7).
+  "user:read:moderated_channels": "See which channels you moderate",
+  "moderator:manage:chat_messages": "Pin, unpin, and delete chat messages",
+  // Channel-management console scopes (U4).
+  "moderator:manage:banned_users": "Time out, ban, and unban users",
+  "moderator:manage:shield_mode": "Toggle Shield Mode",
+  "moderator:manage:automod": "Approve or deny AutoMod-held messages",
+  "moderator:manage:automod_settings": "Edit AutoMod severity settings",
+  "moderator:read:chat_messages": "Receive AutoMod-held messages",
+  "channel:manage:raids": "Start and cancel raids",
+  "channel:manage:moderators": "Add and remove moderators",
+  "channel:manage:vips": "Add and remove VIPs",
+  "channel:manage:predictions": "Create, lock, and resolve predictions",
+  "channel:manage:polls": "Create and terminate polls",
+  "channel:edit:commercial": "Start commercial breaks",
+  "user:manage:whispers": "Send whispers",
+};
+
 export function ReconnectForModDialog() {
   const isOpen = useReconnectDialogStore((state) => state.isOpen);
+  const missingScopes = useReconnectDialogStore((state) => state.missingScopes);
   const close = useReconnectDialogStore((state) => state.close);
+  const fireReconnected = useReconnectDialogStore((state) => state.fireReconnected);
   const logoutTwitch = useAuthStore((state) => state.logoutTwitch);
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loading = useAuthStore((state) => state.twitchLoading);
 
   const handleReconnect = async () => {
-    close();
     try {
       await logoutTwitch();
       await loginTwitch();
+      // Success: fire the retry callback exactly once, then close.
+      fireReconnected();
+      close();
     } catch (error) {
-      // Login flow surfaces its own error UI via useAuthStore.error; nothing
-      // to add here.
+      // Failure: keep the dialog open so the user can retry. No behavior
+      // change vs the pre-U5 path beyond not auto-closing on error.
       console.error("Reconnect for mod scopes failed:", error);
     }
   };
@@ -56,11 +90,26 @@ export function ReconnectForModDialog() {
             Reconnect for mod features
           </DialogTitle>
           <DialogDescription className="text-[var(--color-foreground-muted)] pt-2">
-            Pinning and unpinning Twitch messages from StreamForge requires
-            additional permissions. Click <strong>Reconnect</strong> to grant
-            them — you'll be redirected through Twitch's login briefly.
+            This action needs additional permissions on your Twitch account.
+            Click <strong>Reconnect</strong> to grant them — you'll be
+            redirected through Twitch's login briefly.
           </DialogDescription>
         </DialogHeader>
+
+        {missingScopes.length > 0 && (
+          <ul className="py-4 space-y-2">
+            {missingScopes.map((scope) => (
+              <li
+                key={scope}
+                className="flex items-start gap-2 text-sm text-[var(--color-foreground)]"
+                data-scope={scope}
+              >
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[var(--color-storm-primary)] shrink-0" />
+                <span>{SCOPE_DESCRIPTIONS[scope] ?? scope}</span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <DialogFooter className="pt-6 gap-2">
           <Button variant="outline" onClick={close} disabled={loading}>

@@ -515,7 +515,18 @@ export function ChatSimTool() {
           </label>
         </div>
         <div style={buttonRowStyle}>
-          <PillButton onClick={openReconnectDialog}>show reconnect dialog</PillButton>
+          <PillButton
+            onClick={() =>
+              openReconnectDialog({
+                missingScopes: [
+                  "user:read:moderated_channels",
+                  "moderator:manage:chat_messages",
+                ],
+              })
+            }
+          >
+            show reconnect dialog
+          </PillButton>
         </div>
       </section>
 

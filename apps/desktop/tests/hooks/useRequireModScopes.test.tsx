@@ -33,7 +33,7 @@ function installElectronAPIMock(tokenScope: string[] | null) {
 
 beforeEach(() => {
   // Reset zustand stores between tests.
-  useReconnectDialogStore.setState({ isOpen: false });
+  useReconnectDialogStore.setState({ isOpen: false, missingScopes: [], onReconnected: null });
 });
 
 afterEach(() => {
@@ -144,6 +144,35 @@ describe("useRequireModScopes", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(useReconnectDialogStore.getState().isOpen).toBe(false);
     result.current.promptReconnect();
-    expect(useReconnectDialogStore.getState().isOpen).toBe(true);
+    const state = useReconnectDialogStore.getState();
+    expect(state.isOpen).toBe(true);
+    // No-arg call defaults to the prior two-scope pin-path list.
+    expect(state.missingScopes).toEqual([
+      "user:read:moderated_channels",
+      "moderator:manage:chat_messages",
+    ]);
+  });
+
+  it("promptReconnect forwards explicit missingScopes + onReconnected callback", async () => {
+    useAuthStore.setState({ twitchUser: null });
+    installElectronAPIMock([]);
+
+    const onReconnected = vi.fn();
+    const { result } = renderHook(() => useRequireModScopes());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    result.current.promptReconnect({
+      missingScopes: ["channel:manage:raids", "channel:manage:polls"],
+      onReconnected,
+    });
+
+    const state = useReconnectDialogStore.getState();
+    expect(state.isOpen).toBe(true);
+    expect(state.missingScopes).toEqual(["channel:manage:raids", "channel:manage:polls"]);
+    expect(state.onReconnected).toBeTypeOf("function");
+
+    // The registered callback fires exactly once via fireReconnected.
+    state.fireReconnected();
+    expect(onReconnected).toHaveBeenCalledTimes(1);
   });
 });
