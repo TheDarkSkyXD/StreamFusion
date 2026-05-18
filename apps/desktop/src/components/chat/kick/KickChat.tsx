@@ -1,8 +1,13 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
+import {
+  pinKickMessage,
+  unpinKickMessage,
+} from "../../../backend/api/platforms/kick/kick-pin-mutations";
 import { kickChatService } from "../../../backend/services/chat/kick-chat";
 import { initializeKickEmotes } from "../../../backend/services/emotes";
+import { useIsKickMod } from "../../../hooks/useIsKickMod";
 import type {
   ChatConnectionStatus,
   ChatMessage,
@@ -12,6 +17,7 @@ import type {
   NormalizedPinnedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
+import { useAuthStore } from "../../../store/auth-store";
 import { useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
 import { useRenderCount } from "../../dev/use-render-count";
@@ -19,6 +25,7 @@ import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedKickChatHistory } from "./kick-chat-history";
+import { KickPinMessageDialog } from "./KickPinMessageDialog";
 
 export interface KickChatProps {
   /** Channel name (slug) to join */
@@ -66,6 +73,13 @@ export const KickChat: React.FC<KickChatProps> = ({
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
   const [isPinExpanded, setIsPinExpanded] = useState(false);
+  // Mod-action state (mirrors TwitchChat). Kick has no scope-reconnect flow
+  // — perm checks happen server-side on the v2 pinned-message endpoint —
+  // so we just gate the UI on broadcaster-of-self via useIsKickMod.
+  const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
+  const [pinDialogBusy, setPinDialogBusy] = useState(false);
+  const isMod = useIsKickMod(channel);
+  const kickUser = useAuthStore((state) => state.kickUser);
   const [activePoll, setActivePoll] = useState<KickPoll | null>(null);
   const [showPoll, setShowPoll] = useState(true);
   const [isPollExpanded, setIsPollExpanded] = useState(false);
@@ -455,10 +469,31 @@ export const KickChat: React.FC<KickChatProps> = ({
       {pinnedMessage && showPinned && (
         <PinnedMessageBanner
           pin={pinnedMessage}
-          role="viewer"
+          role={isMod ? "mod" : "viewer"}
           isExpanded={isPinExpanded}
           onExpandToggle={() => setIsPinExpanded((v) => !v)}
           onDismiss={() => setShowPinned(false)}
+          onUnpin={
+            isMod
+              ? async () => {
+                  try {
+                    const token = await window.electronAPI.auth.getToken("kick");
+                    if (!token?.accessToken) return;
+                    const result = await unpinKickMessage(channel, token.accessToken);
+                    if (result.ok) {
+                      // Optimistic clear. The PinnedMessageDeletedEvent
+                      // from Pusher will fire shortly after Kick processes
+                      // the unpin and confirms the local state.
+                      setPinnedMessage(null);
+                    }
+                  } catch (error) {
+                    if (process.env.NODE_ENV !== "production") {
+                      console.error("Kick unpin failed:", error);
+                    }
+                  }
+                }
+              : undefined
+          }
           // Hide Reply for guests — same logic as TwitchChat: the action
           // drafts an @mention into the chat input, which guests can't send.
           onReply={
@@ -480,8 +515,53 @@ export const KickChat: React.FC<KickChatProps> = ({
       )}
 
       <div className="flex-1 min-h-0 relative">
-        <ChatMessageList key={`kick-${channel}-${chatroomId}`} onReply={handleReply} />
+        <ChatMessageList
+          key={`kick-${channel}-${chatroomId}`}
+          onReply={handleReply}
+          onPin={isMod ? (message) => setPinDialogMessage(message) : undefined}
+        />
       </div>
+
+      {/* Kick pin duration picker. Channel slug + chatroomId are required by
+       *  the v2 pinned-message endpoint; we only render the dialog when both
+       *  are known, which is true any time a KickChat is mounted. */}
+      {pinDialogMessage && chatroomId ? (
+        <KickPinMessageDialog
+          open={!!pinDialogMessage}
+          onOpenChange={(open) => {
+            if (!open) setPinDialogMessage(null);
+          }}
+          messagePreview={pinDialogMessage.rawContent || ""}
+          busy={pinDialogBusy}
+          onConfirm={async (durationSeconds) => {
+            setPinDialogBusy(true);
+            try {
+              const token = await window.electronAPI.auth.getToken("kick");
+              if (!token?.accessToken || !kickUser) return;
+              const result = await pinKickMessage({
+                channelSlug: channel,
+                messageId: pinDialogMessage.id,
+                chatroomId,
+                content: pinDialogMessage.rawContent,
+                sender: {
+                  id: kickUser.id,
+                  username: kickUser.username,
+                  slug: kickUser.slug,
+                },
+                durationSeconds,
+                accessToken: token.accessToken,
+              });
+              if (result.ok) {
+                setPinDialogMessage(null);
+              }
+              // Failures leave the dialog open so the user can retry; a
+              // toast/error surface is a future follow-up.
+            } finally {
+              setPinDialogBusy(false);
+            }
+          }}
+        />
+      ) : null}
 
       <div className="border-t border-[var(--color-border)]">
         {showChatSettings && (

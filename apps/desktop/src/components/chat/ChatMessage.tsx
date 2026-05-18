@@ -148,9 +148,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, o
           <BsReplyFill size={13} />
         </button>
       )}
-      {/* Pin button — Twitch mod-only, visible on hover. TwitchChat passes
-       *  onPin only when useIsTwitchMod(channelId) is true. */}
-      {onPin && message.platform === "twitch" && message.type === "message" && (
+      {/* Pin button — mod-only, visible on hover. TwitchChat and KickChat
+       *  pass onPin only when their respective useIsMod hook returns true. */}
+      {onPin && message.type === "message" && (
         <button
           type="button"
           onClick={() => onPin(message)}
