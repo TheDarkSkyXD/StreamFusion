@@ -53,6 +53,7 @@ import { ChatMessageList } from "../ChatMessageList";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
+import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 
 export interface TwitchChatProps {
@@ -493,16 +494,24 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     deleteMessagesByUser,
   ]);
 
-  return (
-    <UserPopoutProvider>
-    <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
-      <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between">
-        <h2 className="font-semibold flex items-center gap-2">
-          <span className="text-white">Chat</span>
-        </h2>
-        <div className="flex space-x-2">{/* Status indicators can go here */}</div>
-      </div>
+  // U19 — visible tabs based on role. Viewer = chat only (the component
+  // suppresses the strip), mod = chat + automod + modlog, broadcaster adds
+  // engagement. The broadcaster check is approximate per the plan: Twitch's
+  // broadcaster id IS the user id, so user.id === channelId is sufficient.
+  const isCurrentUserBroadcaster = !!twitchUser && twitchUser.id === channelId;
+  const visibleTabs: ChatPanelTabId[] = ["chat"];
+  if (isMod) {
+    visibleTabs.push("automod", "modlog");
+  }
+  if (isCurrentUserBroadcaster) {
+    visibleTabs.push("engagement");
+  }
 
+  // U19 — Chat-tab body. Keeps the existing pinned banner / mod strip /
+  // message list / input footer wiring intact. The mod-action and pin
+  // dialogs stay outside the tab so they overlay regardless of tab.
+  const chatBody = (
+    <div className="flex flex-col h-full w-full">
       {pinnedMessage && showPinned && (
         <PinnedMessageBanner
           pin={pinnedMessage}
@@ -631,6 +640,63 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           }
         />
       </div>
+
+      <div className="border-t border-[var(--color-border)]">
+        {showChatSettings && (
+          <div className="p-2 border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => clearMessages()}
+              className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+            >
+              Clear local chat
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowChatSettings(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              <BsX size={16} />
+            </button>
+          </div>
+        )}
+        <div className="p-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowChatSettings((v) => !v)}
+            className="text-gray-400 hover:text-white flex-shrink-0"
+            title="Chat settings"
+          >
+            <BsGear size={16} />
+          </button>
+          <div className="flex-1">
+            <ChatInput
+              ref={chatInputRef}
+              platform="twitch"
+              channel={channel}
+              canSend={isAuthenticated && isTwitchConnected}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <UserPopoutProvider>
+    <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
+      <ChatPanelTabs visibleTabs={visibleTabs}>
+        {{
+          chat: chatBody,
+          automod: (
+            <div className="p-4 text-gray-400">AutoMod queue — coming in U20/U21</div>
+          ),
+          modlog: <div className="p-4 text-gray-400">Mod log — coming in U22</div>,
+          engagement: (
+            <div className="p-4 text-gray-400">Engagement — coming in U24</div>
+          ),
+        }}
+      </ChatPanelTabs>
 
       {/* U11/U13/U15 — Generic mod-action confirm dialog. Branches on the
        *  pendingModAction `kind` so message-scoped actions (Timeout/Ban/...) and
@@ -1068,45 +1134,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           }}
         />
       ) : null}
-
-      <div className="border-t border-[var(--color-border)]">
-        {showChatSettings && (
-          <div className="p-2 border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => clearMessages()}
-              className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
-            >
-              Clear local chat
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowChatSettings(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              <BsX size={16} />
-            </button>
-          </div>
-        )}
-        <div className="p-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowChatSettings((v) => !v)}
-            className="text-gray-400 hover:text-white flex-shrink-0"
-            title="Chat settings"
-          >
-            <BsGear size={16} />
-          </button>
-          <div className="flex-1">
-            <ChatInput
-              ref={chatInputRef}
-              platform="twitch"
-              channel={channel}
-              canSend={isAuthenticated && isTwitchConnected}
-            />
-          </div>
-        </div>
-      </div>
     </div>
     </UserPopoutProvider>
   );
