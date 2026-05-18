@@ -41,6 +41,8 @@ import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedKickChatHistory } from "./kick-chat-history";
 import { KickPinMessageDialog } from "./KickPinMessageDialog";
 import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
+import { KickAutoModTab } from "../mod/tabs/KickAutoModTab";
+import { ModLogTab } from "../mod/tabs/ModLogTab";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 
 export interface KickChatProps {
@@ -671,10 +673,20 @@ export const KickChat: React.FC<KickChatProps> = ({
       <ChatPanelTabs visibleTabs={visibleTabs}>
         {{
           chat: chatBody,
-          automod: (
-            <div className="p-4 text-gray-400">AutoMod queue — coming in U20/U21</div>
+          automod: channelId && chatroomId ? (
+            <KickAutoModTab
+              channelId={channelId}
+              channelSlug={channel}
+              chatroomId={chatroomId}
+            />
+          ) : (
+            <div className="p-4 text-gray-400">No channel selected.</div>
           ),
-          modlog: <div className="p-4 text-gray-400">Mod log — coming in U22</div>,
+          modlog: channelId ? (
+            <ModLogTab channelId={channelId} />
+          ) : (
+            <div className="p-4 text-gray-400">No channel selected.</div>
+          ),
         }}
       </ChatPanelTabs>
 

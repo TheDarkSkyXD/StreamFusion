@@ -38,14 +38,20 @@ vi.mock('@/hooks/useIsTwitchMod', () => ({
   useIsTwitchMod: () => true,
 }));
 
-vi.mock('@/store/auth-store', () => ({
-  useAuthStore: (selector?: (s: unknown) => unknown) => {
-    const state = {
-      twitchUser: { id: 'mod-1', login: 'modder', displayName: 'Modder' },
-    };
+vi.mock('@/store/auth-store', () => {
+  const state = {
+    twitchUser: { id: 'mod-1', login: 'modder', displayName: 'Modder' },
+  };
+  const useAuthStore = (selector?: (s: unknown) => unknown) => {
     return selector ? selector(state) : state;
-  },
-}));
+  };
+  // useTwitchEventSub (mounted via TwitchAutoModTab in U20) calls
+  // useAuthStore.getState() — provide a static version so the new mod tabs
+  // don't crash the existing TwitchChat tests.
+  (useAuthStore as unknown as { getState: () => unknown }).getState = () =>
+    state;
+  return { useAuthStore };
+});
 
 vi.mock('@/backend/services/chat/twitch-chat', () => ({
   twitchChatService: {
