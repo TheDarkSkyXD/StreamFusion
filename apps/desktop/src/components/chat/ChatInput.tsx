@@ -17,14 +17,9 @@ import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
 import type { Emote } from "../../backend/services/emotes/emote-types";
 import type { ChatMessage, ChatPlatform } from "../../shared/chat-types";
-import { useChatStore } from "../../store/chat-store";
 import { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
 import { EmotePicker } from "./EmotePicker";
-import {
-  MentionAutocomplete,
-  type RecentChatter,
-  useMentionAutocomplete,
-} from "./MentionAutocomplete";
+import { MentionAutocomplete, useMentionAutocomplete } from "./MentionAutocomplete";
 
 // ========== Types ==========
 
@@ -116,34 +111,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Store
-  const { messages } = useChatStore();
-
   // Autocomplete hooks
   const emoteAutocomplete = useEmoteAutocomplete();
   const mentionAutocomplete = useMentionAutocomplete();
-
-  // Extract recent chatters from messages
-  const recentChatters: RecentChatter[] = React.useMemo(() => {
-    const chatterMap = new Map<string, RecentChatter>();
-
-    // Go through messages in reverse to get most recent first
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg.type !== "message" || msg.platform !== platform) continue;
-
-      if (!chatterMap.has(msg.username)) {
-        chatterMap.set(msg.username, {
-          username: msg.username,
-          displayName: msg.displayName,
-          color: msg.color,
-          lastSeen: msg.timestamp,
-        });
-      }
-    }
-
-    return Array.from(chatterMap.values());
-  }, [messages, platform]);
 
   // Handle input change
   const handleInputChange = useCallback(
@@ -249,7 +219,31 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
     inputRef.current?.focus();
   }, []);
 
-  useImperativeHandle(ref, () => ({ replyTo: handleReply }), [handleReply]);
+  const mentionUser = useCallback((username: string) => {
+    // Prepend "@username " into the input — used by the pinned-message Reply
+    // action, which doesn't have a full ChatMessage to wire IRC reply-to
+    // threading against (the underlying message may have aged out of
+    // retention). Behavior is intentionally simple: drop a mention prefix
+    // at the start of whatever the user has typed and focus the input.
+    setMessage((prev) => {
+      const mention = `@${username} `;
+      return prev.startsWith(mention) ? prev : `${mention}${prev}`;
+    });
+    setTimeout(() => {
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const pos = el.value.length;
+        el.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({ replyTo: handleReply, mentionUser }),
+    [handleReply, mentionUser],
+  );
 
   const clearReply = useCallback(() => {
     setReply(null);
@@ -443,7 +437,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
             onSelect={handleMentionSelect}
             onClose={mentionAutocomplete.deactivate}
             isActive={mentionAutocomplete.isActive}
-            recentChatters={recentChatters}
+            platform={platform}
           />
         </div>
 
@@ -491,9 +485,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
 
 ChatInput.displayName = "ChatInput";
 
-// Export a method type for external reply triggering
+// Export a method type for external reply / mention triggering
 export type ChatInputHandle = {
   replyTo: (message: ChatMessage) => void;
+  /** Prepend "@username " into the input and focus it. Used by the
+   *  pinned-message Reply action where IRC reply-to threading isn't needed. */
+  mentionUser: (username: string) => void;
 };
 
 export default ChatInput;

@@ -126,6 +126,8 @@ export interface ChatMessage {
   isHighlighted: boolean;
   /** Whether this is a /me action message */
   isAction: boolean;
+  /** True for messages seeded from the v2 history endpoint on join — rendered dimmer than live chat. */
+  isHistorical?: boolean;
   /** Reply information if this is a reply */
   replyTo?: ReplyInfo;
   /** Bits amount if this is a bits message */
@@ -209,6 +211,16 @@ export interface ChatConnectionStatus {
 
 // ========== Kick-specific Event Types ==========
 
+/** Raw badge shape carried inside a Kick Pusher payload. Mirrors the
+ *  `KickBadge` type used by `kick-parser.ts` for live chat messages —
+ *  pinned-message events on Kick use the same `sender.identity` envelope, so
+ *  badges arrive alongside the username and color. */
+export interface KickPinnedMessageBadge {
+  type: string; // 'subscriber' | 'moderator' | 'broadcaster' | 'vip' | 'og' | 'founder' | 'verified' | ...
+  text: string;
+  count?: number; // Sub-month count for subscriber tiers
+}
+
 export interface KickPinnedMessage {
   message: {
     id: string;
@@ -216,14 +228,62 @@ export interface KickPinnedMessage {
     created_at: string;
     sender: {
       username: string;
-      identity: { color: string };
+      identity: {
+        color: string;
+        badges?: KickPinnedMessageBadge[];
+      };
     };
   };
   pinned_by: {
     username: string;
-    identity: { color: string };
+    identity: {
+      color: string;
+      badges?: KickPinnedMessageBadge[];
+    };
   };
   finish_at?: string;
+}
+
+// ========== Normalized Pinned Message ==========
+
+/**
+ * Platform-agnostic pinned-message payload consumed by the shared
+ * PinnedMessageBanner. Twitch and Kick services normalize their raw payloads
+ * to this shape before emitting `pinnedMessage`.
+ */
+export interface NormalizedPinnedMessage {
+  platform: ChatPlatform;
+  /** Underlying chat-message id (used for optimistic reconciliation and
+   *  message-level operations like Reply). */
+  messageId: string;
+  /** The PinnedChatMessage record id (Twitch's outer pin record). Used by
+   *  the Twitch unpin mutation, which takes the pin id, not the message id.
+   *  Null when not known (e.g. Kick payloads, dev simulator). */
+  pinRecordId: string | null;
+  author: {
+    username: string;
+    displayName: string;
+    color: string;
+    /** Inline badges to render next to the sender username in the
+     *  expanded card's attribution row. Empty array when none are known. */
+    badges: ChatBadge[];
+  };
+  content: ContentFragment[];
+  /** Moderator/broadcaster who created the pin. Null when unknown. */
+  pinnedBy: {
+    username: string;
+    color: string;
+    /** Inline badges to render before the username (e.g. Broadcaster).
+     *  Empty array when none are known. */
+    badges: ChatBadge[];
+  } | null;
+  /** ISO timestamp the pin was created. */
+  pinnedAt: string;
+  /** ISO timestamp the original chat message was sent. Used by the expanded
+   *  card's sender-attribution row ("sent at HH:MM PM"). Null when unknown. */
+  sentAt: string | null;
+  /** ISO timestamp the pin auto-expires, or null when pinned indefinitely. */
+  expiresAt: string | null;
 }
 
 export interface KickPollOption {
@@ -248,7 +308,7 @@ export interface ChatServiceEvents {
   messageDeleted: (deletion: MessageDeletion) => void;
   connectionStateChange: (status: ChatConnectionStatus) => void;
   error: (error: Error) => void;
-  pinnedMessage: (msg: KickPinnedMessage) => void;
+  pinnedMessage: (msg: NormalizedPinnedMessage) => void;
   pinnedMessageCleared: () => void;
   pollUpdate: (poll: KickPoll) => void;
 }

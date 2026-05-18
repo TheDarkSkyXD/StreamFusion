@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { ChatMessage as ChatMessageType } from "../../shared/chat-types";
 import { useChatStore } from "../../store/chat-store";
+import { useRenderCount } from "../dev/use-render-count";
 import { ChatMessage } from "./ChatMessage";
 
 // Pause only on confirmed user intent: a wheel-up event (deltaY < 0) followed
@@ -14,9 +15,13 @@ const MemoizedChatMessage = memo(ChatMessage);
 
 interface ChatMessageListProps {
   onReply?: (message: ChatMessageType) => void;
+  /** Optional pin action — when provided, a hover Pin button is rendered on
+   *  Twitch chat messages. Latest-ref pattern below keeps itemContent stable. */
+  onPin?: (message: ChatMessageType) => void;
 }
 
-export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({ onReply }) => {
+export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({ onReply, onPin }) => {
+  useRenderCount("ChatMessageList");
   const messages = useChatStore((state) => state.messages);
   const isPaused = useChatStore((state) => state.isPaused);
   const setPaused = useChatStore((state) => state.setPaused);
@@ -26,6 +31,26 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({ onReply }
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userScrolledUpRef = useRef(false);
   const pendingPauseRef = useRef(false);
+
+  // Latest-ref pattern: keep `itemContent`'s identity stable across renders so
+  // Virtuoso doesn't see it change (which would unmount/remount rows). A
+  // future caller passing an unstable `onReply` would otherwise defeat
+  // MemoizedChatMessage entirely.
+  const onReplyRef = useRef(onReply);
+  useEffect(() => {
+    onReplyRef.current = onReply;
+  }, [onReply]);
+  const handleReply = useCallback((message: ChatMessageType) => {
+    onReplyRef.current?.(message);
+  }, []);
+  // Same latest-ref pattern for onPin so itemContent's identity stays stable.
+  const onPinRef = useRef(onPin);
+  useEffect(() => {
+    onPinRef.current = onPin;
+  }, [onPin]);
+  const handlePin = useCallback((message: ChatMessageType) => {
+    onPinRef.current?.(message);
+  }, []);
 
   // Count of messages added while paused — shown in the banner's hover state.
   // Length-delta is approximate when the store trims, but display caps at "20+".
@@ -79,9 +104,14 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({ onReply }
 
   const itemContent = useCallback(
     (_index: number, message: ChatMessageType) => (
-      <MemoizedChatMessage key={message.id} message={message} onReply={onReply} />
+      <MemoizedChatMessage
+        key={message.id}
+        message={message}
+        onReply={handleReply}
+        onPin={onPin ? handlePin : undefined}
+      />
     ),
-    [onReply],
+    [handleReply, handlePin, onPin],
   );
 
   const computeItemKey = useCallback(

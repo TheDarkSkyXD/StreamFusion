@@ -211,7 +211,7 @@ export interface SubscriberBadge {
  * Map Kick badges to our unified ChatBadge format
  * Uses bundled local badge assets - no external CDN required
  */
-function parseKickBadges(badges: KickBadge[], subscriberBadges?: SubscriberBadge[]): ChatBadge[] {
+export function parseKickBadges(badges: KickBadge[], subscriberBadges?: SubscriberBadge[]): ChatBadge[] {
   return badges.map((badge) => {
     // Use bundled badge assets (embedded as data URIs)
     let imageUrl = getBundledBadgeUrl(badge.type) || "";

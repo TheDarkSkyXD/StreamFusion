@@ -7,29 +7,49 @@ import type {
   ChatConnectionStatus,
   ChatMessage,
   ClearChat,
-  KickPinnedMessage,
   KickPoll,
   MessageDeletion,
+  NormalizedPinnedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
 import { useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
+import { useRenderCount } from "../../dev/use-render-count";
 import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
+import { PinnedMessageBanner } from "../PinnedMessageBanner";
+import { seedKickChatHistory } from "./kick-chat-history";
 
 export interface KickChatProps {
-  /** Channel name to join */
+  /** Channel name (slug) to join */
   channel: string;
+  /** Kick channel's internal db id — required for the v2 /messages history fetch. */
+  channelId?: string;
   /** Chatroom ID (required for Kick) */
   chatroomId?: number;
   /** Subscriber badges for the channel (for badge rendering) */
   subscriberBadges?: any[];
 }
 
-export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscriberBadges }) => {
+export const KickChat: React.FC<KickChatProps> = ({
+  channel,
+  channelId,
+  chatroomId,
+  subscriberBadges,
+}) => {
+  useRenderCount("KickChat");
   // Chat store — subscribe only to fields read in render; actions have stable refs.
-  const connectionStatus = useChatStore((state) => state.connectionStatus);
+  // Narrow to a boolean so Pusher heartbeats / disconnect-state churn don't re-render
+  // the whole chat subtree on every tick.
+  const isKickConnected = useChatStore(
+    (state) => state.connectionStatus.kick.state === "connected"
+  );
   const addMessage = useChatStore((state) => state.addMessage);
+  // Batched path for the high-volume live message stream. System / connect
+  // / clear / ban events still go through addMessage so they're applied
+  // immediately and preserve total ordering with batched chat.
+  const addMessageBatched = useChatStore((state) => state.addMessageBatched);
+  const prependMessages = useChatStore((state) => state.prependMessages);
   const updateConnectionStatus = useChatStore((state) => state.updateConnectionStatus);
   const clearMessages = useChatStore((state) => state.clearMessages);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
@@ -43,13 +63,20 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [showChatSettings, setShowChatSettings] = useState(false);
-  const [pinnedMessage, setPinnedMessage] = useState<KickPinnedMessage | null>(null);
+  const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
   const [isPinExpanded, setIsPinExpanded] = useState(false);
   const [activePoll, setActivePoll] = useState<KickPoll | null>(null);
   const [showPoll, setShowPoll] = useState(true);
   const [isPollExpanded, setIsPollExpanded] = useState(false);
   const chatInputRef = useRef<ChatInputHandle>(null);
+  // Tracks the 15 s "auto-dismiss ended poll" timeout so we can cancel it on a
+  // follow-up poll or on unmount — otherwise setActivePoll fires on a stale tree.
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Latest subscriber badges, mirrored from the prop so the history-fetch
+  // closure can resolve badge images without re-running the connection effect
+  // every time the badges prop updates.
+  const subscriberBadgesRef = useRef(subscriberBadges);
 
   // Track current channel for cleanup
   // Initialize with null so we know when it's the first connection (and clear previous messages)
@@ -77,24 +104,11 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
         // Acquire a reference to the service (for multiview support)
         kickChatService.acquire();
 
-        // System message: Connecting
-        addMessage({
-          id: crypto.randomUUID(),
-          platform: "kick",
-          type: "system",
-          channel: channel,
-          userId: "system",
-          username: "System",
-          displayName: "System",
-          color: "#808080",
-          badges: [],
-          content: [{ type: "text", content: "Connecting to channel..." }],
-          rawContent: "Connecting to channel...",
-          timestamp: new Date(),
-          isDeleted: false,
-          isHighlighted: true,
-          isAction: false,
-        });
+        // The "Connecting to channel..." / "Connected to the channel" lines
+        // mark the start of the LIVE session — they're injected below, after
+        // the historical-message seed completes, so the final order in the
+        // chat reads chronologically: [history] [Connecting] [Connected]
+        // [live...].
 
         const kickToken = await window.electronAPI.auth.getToken("kick");
 
@@ -127,13 +141,14 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
 
         if (!isMounted) return;
 
-        // Identify channel ID for emotes
-        // Use chatroomId if available, otherwise channel slug
-        const channelId = chatroomId ? chatroomId.toString() : channel;
+        // Identify channel ID for emotes (separate from the broadcaster
+        // channelId prop, which is used by the v2 history endpoint).
+        // Use chatroomId if available, otherwise channel slug.
+        const emoteChannelId = chatroomId ? chatroomId.toString() : channel;
 
-        if (isMounted && channelId) {
-          setActiveChannel(channelId);
-          await loadChannelEmotes(channelId, channel, "kick");
+        if (isMounted && emoteChannelId) {
+          setActiveChannel(emoteChannelId);
+          await loadChannelEmotes(emoteChannelId, channel, "kick");
         } else if (isMounted) {
           setActiveChannel(null);
         }
@@ -141,9 +156,51 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
         if (!isMounted) return;
 
         if (channel && chatroomId) {
+          // 1. Pull recent chat history into the store FIRST so it sits above
+          //    the live-session markers. The v2 fetch happens before Pusher
+          //    is subscribed (joinChannel below), so there's no race with
+          //    live messages.
+          if (channelId) {
+            await seedKickChatHistory({
+              channelId,
+              channel,
+              isMounted: () => isMounted,
+              prependMessages,
+              subscriberBadges: subscriberBadgesRef.current,
+              onPinnedMessage: (pin) => {
+                setPinnedMessage(pin);
+                setShowPinned(true);
+                setIsPinExpanded(false);
+              },
+            });
+            if (!isMounted) return;
+          }
+
+          // 2. Mark the start of the live session.
+          addMessage({
+            id: crypto.randomUUID(),
+            platform: "kick",
+            type: "system",
+            channel: channel,
+            userId: "system",
+            username: "System",
+            displayName: "System",
+            color: "#808080",
+            badges: [],
+            content: [{ type: "text", content: "Connecting to channel..." }],
+            rawContent: "Connecting to channel...",
+            timestamp: new Date(),
+            isDeleted: false,
+            isHighlighted: true,
+            isAction: false,
+          });
+
+          // 3. Subscribe to Pusher; live messages start flowing after this.
           await kickChatService.joinChannel(channel, chatroomId);
 
-          // System message: Connected
+          if (!isMounted) return;
+
+          // 4. Confirm the live session is up.
           addMessage({
             id: crypto.randomUUID(),
             platform: "kick",
@@ -181,16 +238,20 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
         kickChatService.release(currentChannelRef.current.channel);
 
         // Memory cleanup: unload channel emotes to free RAM
-        const channelId = currentChannelRef.current.chatroomId
+        const emoteChannelId = currentChannelRef.current.chatroomId
           ? currentChannelRef.current.chatroomId.toString()
           : currentChannelRef.current.channel;
-        unloadChannelEmotes(channelId);
+        unloadChannelEmotes(emoteChannelId);
         setActiveChannel(null);
       }
+      // Drop any queued message batches + their timers. Today batching is off
+      // by default so this is a no-op, but it plugs the leak if it's enabled later.
+      useChatStore.getState().cleanupBatching();
       currentChannelRef.current = null;
     };
   }, [
     channel,
+    channelId,
     chatroomId,
     clearMessages,
     loadGlobalEmotes,
@@ -198,22 +259,34 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
     setActiveChannel,
     unloadChannelEmotes,
     addMessage,
+    prependMessages,
   ]);
 
   // Separate effect for updating subscriber badges without triggering reconnection
   // This is intentionally separate from the connection effect to prevent badge updates
   // from causing the chat to disconnect and reconnect
   useEffect(() => {
+    subscriberBadgesRef.current = subscriberBadges;
     if (channel && subscriberBadges && subscriberBadges.length > 0) {
       kickChatService.setChannelBadges(channel, subscriberBadges);
     }
   }, [channel, subscriberBadges]);
 
+  // Reset pin state on channel change. Without this, switching from a
+  // channel-with-pin to a channel-without-pin leaves the previous banner
+  // stuck on screen — the next pin event won't fire to clear it, and the
+  // local pinnedMessage state is keyed only to the React tree, not the channel.
+  useEffect(() => {
+    setPinnedMessage(null);
+    setShowPinned(true);
+    setIsPinExpanded(false);
+  }, [channel]);
+
   // Event Listeners
   useEffect(() => {
     const handleMessage = (message: ChatMessage) => {
       if (message.platform === "kick") {
-        addMessage(message);
+        addMessageBatched(message, "kick");
       }
     };
 
@@ -307,7 +380,7 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
       console.error("Kick Chat Error:", error);
     };
 
-    const handlePinnedMessage = (msg: KickPinnedMessage) => {
+    const handlePinnedMessage = (msg: NormalizedPinnedMessage) => {
       setPinnedMessage(msg);
       setShowPinned(true);
       setIsPinExpanded(false);
@@ -321,8 +394,13 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
       setActivePoll(poll);
       setShowPoll(true);
       if (poll.remaining <= 0) {
-        // Auto-dismiss after result_display_duration or 15s
-        setTimeout(() => setActivePoll(null), 15000);
+        // Auto-dismiss after result_display_duration or 15 s. Cancel any prior
+        // pending dismissal first so back-to-back polls don't stack timeouts.
+        if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = setTimeout(() => {
+          pollTimeoutRef.current = null;
+          setActivePoll(null);
+        }, 15000);
       }
     };
 
@@ -346,8 +424,19 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
       kickChatService.off("pinnedMessage", handlePinnedMessage);
       kickChatService.off("pinnedMessageCleared", handlePinnedMessageCleared);
       kickChatService.off("pollUpdate", handlePollUpdate);
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
+      }
     };
-  }, [addMessage, updateConnectionStatus, clearMessages, deleteMessage, deleteMessagesByUser]);
+  }, [
+    addMessage,
+    addMessageBatched,
+    updateConnectionStatus,
+    clearMessages,
+    deleteMessage,
+    deleteMessagesByUser,
+  ]);
 
   const handleReply = useCallback((message: ChatMessage) => {
     chatInputRef.current?.replyTo(message);
@@ -364,11 +453,19 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
 
       {/* Pinned Message Banner */}
       {pinnedMessage && showPinned && (
-        <KickPinnedMessageBanner
+        <PinnedMessageBanner
           pin={pinnedMessage}
+          role="viewer"
           isExpanded={isPinExpanded}
-          onToggleExpand={() => setIsPinExpanded((v) => !v)}
+          onExpandToggle={() => setIsPinExpanded((v) => !v)}
           onDismiss={() => setShowPinned(false)}
+          // Hide Reply for guests — same logic as TwitchChat: the action
+          // drafts an @mention into the chat input, which guests can't send.
+          onReply={
+            isAuthenticated
+              ? () => chatInputRef.current?.mentionUser(pinnedMessage.author.username)
+              : undefined
+          }
         />
       )}
 
@@ -420,7 +517,7 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
               platform="kick"
               channel={channel}
               chatroomId={chatroomId}
-              canSend={isAuthenticated && connectionStatus.kick.state === "connected"}
+              canSend={isAuthenticated && isKickConnected}
             />
           </div>
         </div>
@@ -430,75 +527,6 @@ export const KickChat: React.FC<KickChatProps> = ({ channel, chatroomId, subscri
 };
 
 // ========== Sub-components ==========
-
-interface KickPinnedMessageBannerProps {
-  pin: KickPinnedMessage;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-  onDismiss: () => void;
-}
-
-const KickPinnedMessageBanner: React.FC<KickPinnedMessageBannerProps> = ({
-  pin,
-  isExpanded,
-  onToggleExpand,
-  onDismiss,
-}) => {
-  const sender = pin.message.sender;
-  const pinnedBy = pin.pinned_by;
-
-  return (
-    <div className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] text-sm">
-      <div className="flex items-start justify-between px-3 pt-2 pb-1 gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-gray-400 text-xs">Sent by</span>
-            <span
-              className="font-semibold text-xs"
-              style={{ color: sender.identity.color || "#53FC18" }}
-            >
-              {sender.username}
-            </span>
-          </div>
-          <p
-            className={`text-white text-xs mt-0.5 ${isExpanded ? "" : "truncate"}`}
-          >
-            {pin.message.content}
-          </p>
-          {isExpanded && pinnedBy && (
-            <p className="text-gray-500 text-xs mt-1">
-              Pinned by{" "}
-              <span style={{ color: pinnedBy.identity.color || "#53FC18" }}>
-                {pinnedBy.username}
-              </span>
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
-            title={isExpanded ? "Collapse" : "Expand"}
-          >
-            <BsChevronDown
-              size={12}
-              style={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
-            />
-          </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
-            title="Dismiss"
-          >
-            <BsX size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 interface KickPollWidgetProps {
   poll: KickPoll;

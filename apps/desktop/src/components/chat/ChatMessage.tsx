@@ -1,6 +1,6 @@
 import type React from "react";
 import { memo, useMemo } from "react";
-import { BsReplyFill } from "react-icons/bs";
+import { BsPinAngleFill, BsReplyFill } from "react-icons/bs";
 import type { ChatMessage as ChatMessageType, ContentFragment } from "../../shared/chat-types";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
@@ -10,6 +10,10 @@ interface ChatMessageProps {
   message: ChatMessageType;
   style?: React.CSSProperties;
   onReply?: (message: ChatMessageType) => void;
+  /** Optional pin action — when provided, a hover Pin button is rendered on
+   *  Twitch chat messages. TwitchChat passes this only when the signed-in
+   *  user moderates the current channel. */
+  onPin?: (message: ChatMessageType) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -41,7 +45,7 @@ function fragmentKey(fragment: ContentFragment, index: number): string {
  * Uses React.memo to prevent unnecessary re-renders when message data hasn't changed.
  * Timestamp is memoized to avoid recalculating on every render.
  */
-export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, onReply }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, onReply, onPin }) => {
   const isDeleted = message.isDeleted;
 
   if (message.type === "ban" && message.banInfo) {
@@ -81,7 +85,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, o
 
   return (
     <div
-      className={`group relative px-4 py-1 text-sm hover:bg-white/5 leading-[1.4] ${message.isHighlighted ? "bg-purple-500/10 border-l-2 border-purple-500" : ""}`}
+      className={`group relative px-4 py-1 text-sm hover:bg-white/5 leading-[1.4] ${message.isHighlighted ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
       style={style}
     >
       <div className="break-words">
@@ -142,6 +146,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, o
           title="Reply"
         >
           <BsReplyFill size={13} />
+        </button>
+      )}
+      {/* Pin button — Twitch mod-only, visible on hover. TwitchChat passes
+       *  onPin only when useIsTwitchMod(channelId) is true. */}
+      {onPin && message.platform === "twitch" && message.type === "message" && (
+        <button
+          type="button"
+          onClick={() => onPin(message)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-opacity"
+          title="Pin message"
+          aria-label="Pin message"
+        >
+          <BsPinAngleFill size={13} />
         </button>
       )}
     </div>

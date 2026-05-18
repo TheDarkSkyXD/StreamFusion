@@ -75,7 +75,12 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
     "user:read:email",
     "user:read:follows",
     "user:read:subscriptions",
-    // Add more scopes as needed for features
+    // Mod surface (U7): required for pin/unpin actions and the mod-channels cache.
+    // The Cloudflare Worker scope allow-list (streamfusion.leveluptogetherbiz.workers.dev)
+    // must be updated in lockstep — adding scopes here without the Worker
+    // update causes the token exchange to reject the new scope set.
+    "user:read:moderated_channels",
+    "moderator:manage:chat_messages",
   ],
   usesPkce: true,
 };

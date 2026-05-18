@@ -15,6 +15,7 @@ import type {
   ChatServiceEvents,
   KickPinnedMessage,
   KickPoll,
+  NormalizedPinnedMessage,
 } from "../../../shared/chat-types";
 // Removed storageService import
 
@@ -27,6 +28,7 @@ import {
   type KickMessageDeletedEvent,
   type KickSubscriptionEvent,
   type KickUserBannedEvent,
+  parseKickBadges,
   parseKickChatCleared,
   parseKickChatMessage,
   parseKickGiftedSub,
@@ -36,6 +38,53 @@ import {
   parseKickUserBanned,
   type SubscriberBadge,
 } from "./kick-parser";
+
+/**
+ * Convert a raw Kick pinned-message Pusher payload into the platform-agnostic
+ * NormalizedPinnedMessage shape used by the shared PinnedMessageBanner.
+ *
+ * Kick's pinned-message body is plain text (no emote/mention parsing on the
+ * Pusher event), so content is emitted as a single text fragment. If Kick ever
+ * adds rich content to the pin payload, parse it here before constructing the
+ * fragment list.
+ */
+export function kickPinToNormalized(pin: KickPinnedMessage): NormalizedPinnedMessage {
+  // Kick's pin Pusher payload carries badges inside `sender.identity.badges`
+  // and `pinned_by.identity.badges` — same shape as live chat messages. Map
+  // through the same parser the rest of the Kick chat code uses, so the
+  // shared PinnedMessageBanner gets the broadcaster / moderator / sub / VIP
+  // / verified / OG / founder badges that twitch-style users expect.
+  // No `subscriberBadges` argument is passed: the Pusher event doesn't
+  // include channel-specific subscriber-tier data, so we fall back to the
+  // global bundled assets for subscriber tiers.
+  return {
+    platform: "kick",
+    messageId: pin.message.id,
+    // Kick doesn't separate pin record id from chat message id — they're
+    // the same thing on Kick's side. Use the message id for both.
+    pinRecordId: pin.message.id,
+    author: {
+      username: pin.message.sender.username,
+      displayName: pin.message.sender.username,
+      color: pin.message.sender.identity.color,
+      badges: parseKickBadges(pin.message.sender.identity.badges ?? []),
+    },
+    content: [{ type: "text", content: pin.message.content }],
+    pinnedBy: pin.pinned_by
+      ? {
+          username: pin.pinned_by.username,
+          color: pin.pinned_by.identity.color,
+          badges: parseKickBadges(pin.pinned_by.identity.badges ?? []),
+        }
+      : null,
+    pinnedAt: pin.message.created_at,
+    // Kick doesn't separate "pinned at" from "message sent at" — use the
+    // same `created_at` for both so the expanded card can still render
+    // a sender-attribution timestamp.
+    sentAt: pin.message.created_at,
+    expiresAt: pin.finish_at ?? null,
+  };
+}
 
 // NOTE: getPublicChannel was removed because it imports Electron-only modules (BrowserWindow)
 // Subscriber badges must now be provided by the caller via setChannelBadges()
@@ -728,7 +777,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       this.log(`Pinned message created in ${channelSlug}`);
       const pin = data as KickPinnedMessage;
       if (pin?.message) {
-        this.emit("pinnedMessage", pin);
+        this.emit("pinnedMessage", kickPinToNormalized(pin));
       }
     });
 
