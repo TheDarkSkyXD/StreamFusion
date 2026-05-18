@@ -31,11 +31,24 @@ const electronAPI = {
   maximizeWindow: (): void => ipcRenderer.send(IPC_CHANNELS.WINDOW_MAXIMIZE),
   closeWindow: (): void => ipcRenderer.send(IPC_CHANNELS.WINDOW_CLOSE),
   isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED),
+  toggleDevTools: (): void => ipcRenderer.send(IPC_CHANNELS.WINDOW_TOGGLE_DEV_TOOLS),
   onMaximizeChange: (callback: (isMaximized: boolean) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, isMaximized: boolean) =>
       callback(isMaximized);
     ipcRenderer.on(IPC_CHANNELS.WINDOW_ON_MAXIMIZE_CHANGE, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.WINDOW_ON_MAXIMIZE_CHANGE, handler);
+  },
+
+  // ========== App Shutdown ==========
+  /**
+   * Subscribe to the main-process `before-quit` push. The renderer should
+   * tear down expensive resources (chat sockets, batching timers) ASAP so
+   * main isn't waiting on its 3s hard-kill timer.
+   */
+  onBeforeQuit: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.APP_BEFORE_QUIT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.APP_BEFORE_QUIT, handler);
   },
 
   // ========== Theme ==========
@@ -434,6 +447,56 @@ const electronAPI = {
       clipUrl?: string;
     }): Promise<{ success: boolean; data?: { url: string; format: string }; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL, params),
+  },
+
+  // ========== Chat ==========
+  chat: {
+    /**
+     * Kick chat history snapshot used to seed the message list on join.
+     * `channelId` is the Kick channel's internal db id (already surfaced as
+     * `UnifiedChannel.id` via getPublicChannel). Returns null data on
+     * Cloudflare challenge / network failure — treat that as "no history".
+     */
+    getKickHistory: (params: {
+      channelId: string;
+    }): Promise<{
+      success: boolean;
+      data?: {
+        messages: Array<{
+          id: string;
+          chatroom_id: number;
+          content: string;
+          type: string;
+          created_at: string;
+          sender: {
+            id: number;
+            username: string;
+            slug: string;
+            identity: {
+              color: string;
+              badges: Array<{ type: string; text: string; count?: number }>;
+            };
+          };
+          metadata: string | null;
+        }>;
+        pinnedMessage: unknown | null;
+      } | null;
+      error?: string;
+    }> => ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_KICK_HISTORY, params),
+
+    /**
+     * Twitch chat history snapshot via recent-messages.robotty.de. Returns raw
+     * IRC frames the renderer parses with `parseRawTwitchIrcLine`. Returns
+     * null data on network failure / service outage — treat that as "no
+     * history" and fall back to live-only.
+     */
+    getTwitchHistory: (params: {
+      channel: string;
+    }): Promise<{
+      success: boolean;
+      data?: { rawMessages: string[] } | null;
+      error?: string;
+    }> => ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY, params),
   },
 
   // ========== Ad Blocking ==========

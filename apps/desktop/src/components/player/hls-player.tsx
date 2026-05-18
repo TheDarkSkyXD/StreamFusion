@@ -606,8 +606,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         });
 
         // === PERIODIC MEMORY CLEANUP FOR LONG-RUNNING STREAMS ===
-        // Every 10 minutes: reset to live edge and trigger browser GC
-        // This prevents the slow memory creep that eventually OOM-kills renderers after 2-6 hours
+        // Every 30 minutes: reset to live edge and trigger browser GC. This
+        // is the safety valve that prevented OOM crashes at 2-6 hours before
+        // the targeted backBufferLength toggle existed; cadence is loosened
+        // from 10 → 30 min because the chat-store trim and badge cache both
+        // reduce upstream allocation pressure. --expose-gc itself stays on
+        // (see main.ts) so the safety net is intact.
         const memoryCleanupInterval = setInterval(
           () => {
             if (!isEffectActive || !hls) {
@@ -643,8 +647,8 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               console.debug("[HLS] Cleanup error (non-fatal):", e);
             }
           },
-          10 * 60 * 1000
-        ); // Every 10 minutes
+          30 * 60 * 1000
+        ); // Every 30 minutes
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
         console.debug("Using native HLS");
@@ -756,12 +760,20 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           // buffers. hls.destroy() drops the JS HLS state but the <video>
           // element holds onto decoded frames until src is cleared and
           // load() resets the resource. Frees 5-20 MB per stream nav.
-          try {
-            currentVideo.pause();
-            currentVideo.removeAttribute("src");
-            currentVideo.load();
-          } catch {
-            // Element may already be torn down in StrictMode — ignore.
+          //
+          // Skipped during app shutdown: Chromium frees everything when the
+          // process dies, and walking these synchronously can wedge the
+          // close path on a heap-pressured renderer.
+          const isShuttingDown =
+            (window as unknown as { __shuttingDown?: boolean }).__shuttingDown === true;
+          if (!isShuttingDown) {
+            try {
+              currentVideo.pause();
+              currentVideo.removeAttribute("src");
+              currentVideo.load();
+            } catch {
+              // Element may already be torn down in StrictMode — ignore.
+            }
           }
         }
       };

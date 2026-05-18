@@ -200,7 +200,7 @@ const PUBLIC_CHANNEL_LOAD_TIMEOUT_MS = 10000;
 // user action and a crash mid-search is far worse for UX than a slower
 // result list.
 let _browserWindowMutex: Promise<void> = Promise.resolve();
-function acquireBrowserWindowSlot(): Promise<() => void> {
+export function acquireBrowserWindowSlot(): Promise<() => void> {
   let release!: () => void;
   const next = new Promise<void>((resolve) => {
     release = resolve;
@@ -358,7 +358,14 @@ async function _doFetchPublicChannel(
       lastStreamTitle = data.previous_livestreams[0]?.session_title;
     }
 
-    const userId = data.user_id || data.id;
+    // Prefer `data.id` (the channel's internal db id) over `data.user_id`.
+    // The two are NOT the same for many Kick channels — `data.id` aligns with
+    // the official API's `broadcaster_user_id`, and only it is accepted by the
+    // legacy v2 endpoints that key by channel (notably
+    // `/api/v2/channels/{id}/messages` and `/api/v2/channels/{id}/livestream`).
+    // The previous `data.user_id || data.id` fallback surfaced a different
+    // numeric id that silently failed against those endpoints.
+    const userId = data.id || data.user_id;
     if (!userId) {
       console.warn(`[KickChannel] Missing user_id/id for ${slug}`);
       return null;

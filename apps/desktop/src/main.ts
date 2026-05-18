@@ -10,7 +10,7 @@ import "dotenv/config";
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { app, BrowserWindow, Menu, protocol, session } from "electron";
+import { app, BrowserWindow, globalShortcut, Menu, protocol, session } from "electron";
 
 import { protocolHandler } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
@@ -24,7 +24,13 @@ import { networkAdBlockService } from "./backend/services/network-adblock-servic
 import { storageService } from "./backend/services/storage-service";
 import { twitchManifestProxy } from "./backend/services/twitch-manifest-proxy";
 import { vaftPatternService } from "./backend/services/vaft-pattern-service";
+import {
+  markCleanShutdown,
+  markSessionStarted,
+  wasCleanShutdown,
+} from "./backend/shutdown-marker";
 import { windowManager } from "./backend/window-manager";
+import { IPC_CHANNELS } from "./shared/ipc-channels";
 
 // Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
 // In production builds (electron-forge package/make), NODE_ENV is typically "production"
@@ -127,10 +133,6 @@ function renameOldFiles(): void {
 migrateUserData();
 renameOldFiles();
 
-// Sentinel file to track clean shutdown
-// explicit call to getPath to ensure we use the updated path if set above
-const CLEAN_SHUTDOWN_FILE = path.join(app.getPath("userData"), ".clean-shutdown");
-
 // ============================================================================
 // CRASH-RESISTANT RUNTIME FLAGS
 // Must be set before app.whenReady() for long-running HLS stream stability.
@@ -169,42 +171,6 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-/**
- * Check if the last shutdown was clean (sentinel file exists)
- * If not, the app likely crashed and cache may be corrupted
- */
-function wasCleanShutdown(): boolean {
-  try {
-    return fs.existsSync(CLEAN_SHUTDOWN_FILE);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Mark the current session as running (remove sentinel)
- * Sentinel will be written back on clean shutdown
- */
-function markSessionStarted(): void {
-  try {
-    if (fs.existsSync(CLEAN_SHUTDOWN_FILE)) {
-      fs.unlinkSync(CLEAN_SHUTDOWN_FILE);
-    }
-  } catch (e) {
-    console.warn("⚠️ Failed to remove clean shutdown marker:", e);
-  }
-}
-
-/**
- * Mark the session as cleanly shutdown (write sentinel)
- */
-function markCleanShutdown(): void {
-  try {
-    fs.writeFileSync(CLEAN_SHUTDOWN_FILE, new Date().toISOString());
-  } catch (e) {
-    console.warn("⚠️ Failed to write clean shutdown marker:", e);
-  }
-}
 
 /**
  * Setup request interceptors for Kick CDN domains that require special headers
@@ -359,6 +325,18 @@ app.on("ready", async () => {
   cosmeticInjectionService.injectIntoWindow(mainWindow);
 
   registerIpcHandlers(mainWindow);
+
+  // Global force-quit shortcut: runs in main process, so it works even when
+  // the renderer is at 100% CPU and can't dispatch its own X-button click.
+  // Documented in README as the user's manual escape hatch.
+  globalShortcut.register("CommandOrControl+Shift+Q", () => {
+    console.warn("[Main] Force-quit shortcut pressed");
+    markCleanShutdown();
+    const win = windowManager.getMainWindow();
+    if (win && !win.isDestroyed()) win.destroy();
+    app.exit(0);
+  });
+
   console.debug("🌩️ StreamFusion main process started");
 });
 
@@ -376,9 +354,50 @@ app.on("activate", () => {
   }
 });
 
-// Mark clean shutdown before quitting
-app.on("before-quit", () => {
+// Hardened before-quit: mark cleanly, signal renderer to fast-teardown, then
+// hard-kill if it doesn't finish in 3s. Without the timeout, an HLS buffer
+// destroy + chat-service teardown on a heap-pressured renderer can wedge the
+// quit path for tens of seconds and the user has to force-kill from the OS.
+let isQuitting = false;
+app.on("before-quit", (event) => {
+  if (isQuitting) return;
+  isQuitting = true;
+  // `use-resume-playback.ts` saves position every 30s and on pause; chat is
+  // ephemeral; window state saves synchronously in mainWindow.on('close').
+  // Worst-case loss from this path is the last 30s of playback position.
   markCleanShutdown();
+
+  const win = windowManager.getMainWindow();
+  if (!win || win.isDestroyed()) return;
+
+  event.preventDefault();
+  try {
+    win.webContents.send(IPC_CHANNELS.APP_BEFORE_QUIT);
+  } catch {
+    // Renderer already gone — nothing to signal.
+  }
+
+  const killTimer = setTimeout(() => {
+    console.warn("[Main] Renderer didn't quit within 3s — force-destroying");
+    if (!win.isDestroyed()) win.destroy();
+    app.exit(0);
+  }, 3000);
+
+  win.once("closed", () => {
+    clearTimeout(killTimer);
+    app.exit(0);
+  });
+});
+
+// Release any global shortcuts before the app exits. Required by Electron
+// docs even though our process is about to die — keeps the OS shortcut
+// table clean if Electron's exit lingers.
+app.on("will-quit", () => {
+  try {
+    globalShortcut.unregisterAll();
+  } catch {
+    // Best-effort.
+  }
 });
 
 // Security: Prevent new window creation from renderer

@@ -11,6 +11,7 @@ import { registerAdBlockHandlers } from "./ipc/handlers/adblock-handlers";
 import { registerAuthHandlers } from "./ipc/handlers/auth-handlers";
 import { registerCategoryHandlers } from "./ipc/handlers/category-handlers";
 import { registerChannelHandlers } from "./ipc/handlers/channel-handlers";
+import { registerChatHandlers } from "./ipc/handlers/chat-handlers";
 import { registerSearchHandlers } from "./ipc/handlers/search-handlers";
 import { registerStorageHandlers } from "./ipc/handlers/storage-handlers";
 import { registerStreamHandlers } from "./ipc/handlers/stream-handlers";
@@ -27,6 +28,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerCategoryHandlers();
   registerSearchHandlers();
   registerChannelHandlers();
+  registerChatHandlers();
   registerVideoHandlers();
   registerAdBlockHandlers(mainWindow);
   registerUpdateHandlers(mainWindow);

@@ -1,8 +1,8 @@
+import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize, LuRadio } from "react-icons/lu";
 
-import { formatDuration } from "@/lib/utils";
-
+import { useRenderCount } from "../../dev/use-render-count";
 import { Button } from "../../ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { PlayPauseButton } from "../play-pause-button";
@@ -10,7 +10,7 @@ import { SettingsMenu } from "../settings-menu";
 import type { QualityLevel } from "../types";
 import { VolumeControl } from "../volume-control";
 
-import { KickProgressBar } from "./kick-progress-bar";
+import { KickProgressBar, type KickProgressBarHandle } from "./kick-progress-bar";
 
 const TheaterOutlineIcon = ({ className }: { className?: string }) => (
   <svg
@@ -73,12 +73,10 @@ interface KickLivePlayerControlsProps {
   onToggleTheater?: () => void;
   onTogglePip?: () => void;
 
-  currentTime?: number;
-  duration?: number;
   onSeek?: (time: number) => void;
-  buffered?: TimeRanges;
-  seekableRange?: { start: number; end: number } | null;
   onGoLive?: () => void;
+  /** Imperative handle the parent forwards to `UptimeReadout` for DOM updates. */
+  progressBarRef?: React.Ref<KickProgressBarHandle>;
 
   // Playback Speed
   playbackRate?: number;
@@ -86,6 +84,7 @@ interface KickLivePlayerControlsProps {
 }
 
 export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
+  useRenderCount("KickLivePlayerControls");
   const {
     isPlaying,
     isLoading,
@@ -102,12 +101,9 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
     onToggleFullscreen,
     onToggleTheater,
     onTogglePip,
-    currentTime = 0,
-    duration = 0,
     onSeek,
-    buffered,
-    seekableRange,
     onGoLive,
+    progressBarRef,
   } = props;
 
   const [isVisible, setIsVisible] = useState(true);
@@ -132,9 +128,6 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
   const handleGoLive = () => {
     if (onGoLive) {
       onGoLive();
-    } else if (onSeek && duration > 0) {
-      // Seek to live edge
-      onSeek(duration);
     }
   };
 
@@ -247,11 +240,8 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
             onMouseLeave={handleControlsLeave}
           >
             <KickProgressBar
-              currentTime={currentTime}
-              duration={duration}
+              ref={progressBarRef}
               onSeek={onSeek}
-              buffered={buffered}
-              seekableRange={seekableRange}
               isLive={isAtLiveEdge}
             />
           </div>
@@ -280,29 +270,21 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
               </div>
             )}
 
-            {/* Show timestamp and Go Back Live button when behind live */}
+            {/* "Go Live" button — wired only if a future revival of DVR sets isBehindLive */}
             {isBehindLive && (
-              <>
-                {/* How far behind we are */}
-                <div className="text-white text-2xl font-bold ml-2 select-none">
-                  -{formatDuration(duration - currentTime)}
-                </div>
-
-                {/* Go Back Live Button */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2 text-black font-bold text-xs uppercase tracking-wider px-3 py-1 rounded hover:opacity-90 cursor-pointer"
-                  style={{ backgroundColor: kickGreen }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGoLive();
-                  }}
-                >
-                  <LuRadio className="w-4 h-4 mr-1" />
-                  Go Live
-                </Button>
-              </>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-2 text-black font-bold text-xs uppercase tracking-wider px-3 py-1 rounded hover:opacity-90 cursor-pointer"
+                style={{ backgroundColor: kickGreen }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleGoLive();
+                }}
+              >
+                <LuRadio className="w-4 h-4 mr-1" />
+                Go Live
+              </Button>
             )}
           </div>
 

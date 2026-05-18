@@ -445,7 +445,7 @@ export function StreamPage() {
         <ChatPanel
           initialPlatform={platform as "twitch" | "kick"}
           initialChannel={channelName}
-          channelId={platform === "twitch" ? channelData?.id : undefined}
+          channelId={channelData?.id}
           chatroomId={platform === "kick" ? channelData?.chatroomId : undefined}
           subscriberBadges={memoizedSubscriberBadges}
         />

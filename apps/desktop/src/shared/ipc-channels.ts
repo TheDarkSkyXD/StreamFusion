@@ -21,6 +21,13 @@ export const IPC_CHANNELS = {
   APP_GET_NAME: "app:get-name",
   APP_QUIT: "app:quit",
   APP_RELAUNCH: "app:relaunch",
+  /**
+   * Main → renderer push fired at the start of `app.before-quit`. The
+   * renderer responds with an aggressive teardown (drop chat sockets, stop
+   * batching) so the close path doesn't wait on graceful WebSocket teardowns
+   * or chat-store cleanup. Main hard-kills 3s later either way.
+   */
+  APP_BEFORE_QUIT: "app:before-quit",
 
   // Window management
   WINDOW_MINIMIZE: "window:minimize",
@@ -28,6 +35,7 @@ export const IPC_CHANNELS = {
   WINDOW_CLOSE: "window:close",
   WINDOW_IS_MAXIMIZED: "window:is-maximized",
   WINDOW_ON_MAXIMIZE_CHANGE: "window:on-maximize-change",
+  WINDOW_TOGGLE_DEV_TOOLS: "window:toggle-dev-tools",
 
   // Theme
   THEME_GET: "theme:get",
@@ -135,6 +143,10 @@ export const IPC_CHANNELS = {
 
   // ========== VOD Lookup (for clip-to-VOD navigation) ==========
   VIDEOS_GET_BY_LIVESTREAM_ID: "videos:get-by-livestream-id",
+
+  // ========== Chat ==========
+  CHAT_GET_KICK_HISTORY: "chat:get-kick-history",
+  CHAT_GET_TWITCH_HISTORY: "chat:get-twitch-history",
 
   // ========== Network Ad Blocking ==========
   ADBLOCK_GET_STATUS: "adblock:get-status",

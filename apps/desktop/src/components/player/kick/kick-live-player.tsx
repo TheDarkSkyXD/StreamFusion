@@ -2,6 +2,7 @@ import type Hls from "hls.js";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useRenderCount } from "@/components/dev/use-render-count";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 
 import { HlsPlayer } from "../hls-player";
@@ -14,6 +15,8 @@ import { useVolume } from "../hooks/use-volume";
 import type { Platform, PlayerError, QualityLevel } from "../types";
 
 import { KickLivePlayerControls } from "./kick-live-player-controls";
+import type { KickProgressBarHandle } from "./kick-progress-bar";
+import { UptimeReadout } from "./uptime-readout";
 
 // Maximum auto-retry attempts before showing error to user
 const MAX_AUTO_RETRY_ATTEMPTS = 2;
@@ -42,6 +45,7 @@ export interface KickLivePlayerProps {
 }
 
 export function KickLivePlayer(props: KickLivePlayerProps) {
+  useRenderCount("KickLivePlayer");
   const {
     streamUrl,
     poster,
@@ -64,6 +68,10 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const progressBarRef = useRef<KickProgressBarHandle>(null);
+  // Mirrors the most recent currentTime value computed by `UptimeReadout` so
+  // `handleSeek` can read fresh state without depending on it for re-renders.
+  const currentTimeRef = useRef(0);
 
   // Persistent volume
   const { volume, isMuted, handleVolumeChange, handleToggleMute, syncFromVideoElement } = useVolume(
@@ -95,10 +103,6 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
   const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
   const [currentQualityId, setCurrentQualityId] = useState<string>("auto");
   const [isLoading, setIsLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [buffered, setBuffered] = useState<TimeRanges | undefined>(undefined);
-  const [seekableRange, setSeekableRange] = useState<{ start: number; end: number } | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [hasError, setHasError] = useState(false);
 
@@ -145,69 +149,8 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-  // Uptime Calculation Effect
-  useEffect(() => {
-    if (!startedAt || !isPlaying) return;
-
-    const updateUptime = () => {
-      const now = Date.now();
-      const start = new Date(startedAt).getTime();
-      const uptime = (now - start) / 1000;
-      const video = videoRef.current;
-
-      // Set duration to uptime (growing constantly)
-      setDuration(uptime);
-
-      if (hlsRef.current?.playingDate) {
-        // Precise absolute time from HLS Program Date Time
-        const current = (hlsRef.current.playingDate.getTime() - start) / 1000;
-        setCurrentTime(current);
-
-        // Calculate seekable range in uptime coordinates
-        if (video && video.seekable.length > 0) {
-          const seekableStartVideo = video.seekable.start(0);
-          const seekableEndVideo = video.seekable.end(video.seekable.length - 1);
-          const currentVideo = video.currentTime;
-
-          // Offset: currentUptime - currentVideoTime
-          const offset = current - currentVideo;
-
-          const calculatedStart = seekableStartVideo + offset;
-          const calculatedEnd = seekableEndVideo + offset;
-
-          setSeekableRange({
-            start: calculatedStart,
-            end: calculatedEnd,
-          });
-        }
-      } else if (video && video.seekable.length > 0) {
-        // Fallback: Estimate time based on "Live Edge" assumption
-        // We assume video.seekable.end() is "Now" (uptime)
-        const seekableEnd = video.seekable.end(video.seekable.length - 1);
-        const secondsFromLive = seekableEnd - video.currentTime;
-        const current = Math.max(0, uptime - secondsFromLive);
-        setCurrentTime(current);
-
-        // In this fallback model, seekable.end maps to uptime
-        // So seekable.start maps to uptime - (seekable.end - seekable.start)
-        const windowDuration = seekableEnd - video.seekable.start(0);
-        const calculatedStart = Math.max(0, uptime - windowDuration);
-
-        setSeekableRange({
-          start: calculatedStart,
-          end: uptime,
-        });
-      }
-    };
-
-    // 500 ms (2 Hz) — uptime/seekable granularity is user-perceptible at ~1 s,
-    // 4 Hz wasted budget on seekable.end() reads + math. React 18 auto-batches
-    // the three setState calls within this callback into one render per tick.
-    const interval = setInterval(updateUptime, 500);
-    return () => clearInterval(interval);
-  }, [startedAt, isPlaying]);
-
-  // Setup event listeners
+  // Setup event listeners (play/pause/loading/playbackRate). Time updates are
+  // handled by `UptimeReadout` writing directly to the progress bar's DOM.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -219,20 +162,6 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
     };
     const handleWait = () => setIsLoading(true);
     const handlePlaying = () => setIsLoading(false);
-    // We use the interval above for time updates when startedAt is present
-    const handleTimeUpdate = () => {
-      if (!startedAt) {
-        setCurrentTime(video.currentTime);
-      }
-    };
-    const handleDurationChange = () => {
-      // For live streams, duration might be Infinity or a large number
-      const dur = video.duration;
-      if (!startedAt && Number.isFinite(dur) && dur > 0) {
-        setDuration(dur);
-      }
-    };
-    const handleProgress = () => setBuffered(video.buffered);
     const handleRateChange = () => setPlaybackRate(video.playbackRate);
 
     video.addEventListener("play", handlePlay);
@@ -240,9 +169,6 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
     video.addEventListener("volumechange", handleVideoVolumeChange);
     video.addEventListener("waiting", handleWait);
     video.addEventListener("playing", handlePlaying);
-    video.addEventListener("timeupdate", handleTimeUpdate);
-    video.addEventListener("durationchange", handleDurationChange);
-    video.addEventListener("progress", handleProgress);
     video.addEventListener("ratechange", handleRateChange);
 
     return () => {
@@ -251,12 +177,9 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
       video.removeEventListener("volumechange", handleVideoVolumeChange);
       video.removeEventListener("waiting", handleWait);
       video.removeEventListener("playing", handlePlaying);
-      video.removeEventListener("timeupdate", handleTimeUpdate);
-      video.removeEventListener("durationchange", handleDurationChange);
-      video.removeEventListener("progress", handleProgress);
       video.removeEventListener("ratechange", handleRateChange);
     };
-  }, [startedAt, syncFromVideoElement]);
+  }, [syncFromVideoElement]);
 
   // Volume initialization is handled by useVolume hook
 
@@ -296,10 +219,8 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
       if (startedAt) {
         // Delta Seeking: Calculate difference from current UI time
         // usage: targetTime is "seconds since stream start"
-        // currentTime is "seconds since stream start" (state)
-
-        // We recalculate precise currentTime here just in case state is stale
-        let currentStreamTime = currentTime;
+        // currentTimeRef tracks the latest UI time written by UptimeReadout
+        let currentStreamTime = currentTimeRef.current;
 
         // If we have HLS playingDate, use it for base truth
         if (hlsRef.current?.playingDate) {
@@ -336,7 +257,7 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
         video.currentTime = targetTime;
       }
     },
-    [startedAt, currentTime]
+    [startedAt]
   );
 
   const handlePlaybackRateChange = useCallback((rate: number) => {
@@ -469,6 +390,16 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
         </div>
       )}
 
+      {/* Drives the 1Hz uptime tick without re-rendering the player tree. */}
+      <UptimeReadout
+        startedAt={startedAt}
+        isPlaying={isPlaying}
+        videoRef={videoRef}
+        hlsRef={hlsRef}
+        progressBarRef={progressBarRef}
+        currentTimeRef={currentTimeRef}
+      />
+
       {/* Controls Overlay - Live stream with DVR progress bar */}
       {streamUrl && !hasError && (
         <KickLivePlayerControls
@@ -487,11 +418,8 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
           onToggleTheater={onToggleTheater}
           isTheater={isTheater}
           onTogglePip={togglePipHandler}
-          currentTime={currentTime}
-          duration={duration}
-          seekableRange={seekableRange}
           onSeek={handleSeek}
-          buffered={buffered}
+          progressBarRef={progressBarRef}
           playbackRate={playbackRate}
           onPlaybackRateChange={handlePlaybackRateChange}
         />

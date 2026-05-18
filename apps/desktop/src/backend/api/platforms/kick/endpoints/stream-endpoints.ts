@@ -73,13 +73,18 @@ setInterval(
         _displayNameCache.delete(key);
       }
     }
-    // Also enforce max size by removing oldest entries
-    if (_displayNameCache.size > MAX_CACHE_SIZE) {
-      const entries = Array.from(_displayNameCache.entries()).sort(
-        (a, b) => a[1].timestamp - b[1].timestamp
-      );
-      const toRemove = entries.slice(0, _displayNameCache.size - MAX_CACHE_SIZE);
-      toRemove.forEach(([key]) => _displayNameCache.delete(key));
+    // Enforce max size via FIFO. `_displayNameCache.set()` only fires on miss
+    // (never on a fresh-hit refresh), so JS Map insertion order ≈ first-seen
+    // order ≈ oldest-first. Iterator delete is O(k) where k = overflow count,
+    // versus the previous O(n log n) Array.from + sort.
+    const overflow = _displayNameCache.size - MAX_CACHE_SIZE;
+    if (overflow > 0) {
+      const iter = _displayNameCache.keys();
+      for (let i = 0; i < overflow; i++) {
+        const next = iter.next();
+        if (next.done) break;
+        _displayNameCache.delete(next.value);
+      }
     }
   },
   1000 * 60 * 5

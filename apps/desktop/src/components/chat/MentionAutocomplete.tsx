@@ -7,6 +7,8 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ChatPlatform } from "../../shared/chat-types";
+import { useChatStore } from "../../store/chat-store";
 
 interface MentionAutocompleteProps {
   /** Current input value */
@@ -19,13 +21,17 @@ interface MentionAutocompleteProps {
   onClose: () => void;
   /** Whether autocomplete is active */
   isActive: boolean;
-  /** List of recent chatters to suggest */
-  recentChatters: RecentChatter[];
+  /** Platform to filter chatters by */
+  platform: ChatPlatform;
   /** Maximum number of suggestions to show */
   maxSuggestions?: number;
   /** Minimum characters after trigger before showing suggestions */
   minChars?: number;
 }
+
+// Max messages to scan when building the chatter list. Caps per-tick work below
+// the chat-store's MESSAGE_LIMIT_NORMAL.
+const RECENT_CHATTER_SCAN_LIMIT = 100;
 
 export interface RecentChatter {
   /** Username (login) */
@@ -50,12 +56,36 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   onSelect,
   onClose,
   isActive,
-  recentChatters,
+  platform,
   maxSuggestions = 8,
   minChars = 0,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Snapshot the chatter list once when the popup activates, then keep it
+  // stable until the popup closes. Subscribing to chat messages while typing
+  // an @ would re-run this scan on every inbound message, which is exactly
+  // what we are trying to avoid for high-volume chats.
+  const recentChatters: RecentChatter[] = useMemo(() => {
+    if (!isActive) return [];
+    const messages = useChatStore.getState().messages;
+    const chatterMap = new Map<string, RecentChatter>();
+    const start = Math.max(0, messages.length - RECENT_CHATTER_SCAN_LIMIT);
+    for (let i = messages.length - 1; i >= start; i--) {
+      const msg = messages[i];
+      if (msg.type !== "message" || msg.platform !== platform) continue;
+      if (!chatterMap.has(msg.username)) {
+        chatterMap.set(msg.username, {
+          username: msg.username,
+          displayName: msg.displayName,
+          color: msg.color,
+          lastSeen: msg.timestamp,
+        });
+      }
+    }
+    return Array.from(chatterMap.values());
+  }, [isActive, platform]);
 
   // Find the current autocomplete match (text after @)
   const match = useMemo((): AutocompleteMatch | null => {
@@ -131,49 +161,62 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     setSelectedIndex(0);
   }, []);
 
-  // Handle keyboard navigation
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!isActive || suggestions.length === 0) return;
+  // Latest-ref pattern: hold mutable values the listener reads in a single
+  // ref so the registration effect can depend on `isActive` only. Without
+  // this, every keystroke that mutates suggestions/selectedIndex/match would
+  // recreate handleKeyDown and force document-level listener churn.
+  const latestRef = useRef({
+    suggestions,
+    selectedIndex,
+    match,
+    onSelect,
+    onClose,
+  });
+  latestRef.current = { suggestions, selectedIndex, match, onSelect, onClose };
+
+  // Register keyboard handler exactly once per active session.
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handler = (e: KeyboardEvent) => {
+      const {
+        suggestions: curSuggestions,
+        selectedIndex: curIndex,
+        match: curMatch,
+        onSelect: curOnSelect,
+        onClose: curOnClose,
+      } = latestRef.current;
+      if (curSuggestions.length === 0) return;
 
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+          setSelectedIndex((prev) => (prev < curSuggestions.length - 1 ? prev + 1 : 0));
           break;
 
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : curSuggestions.length - 1));
           break;
 
         case "Tab":
         case "Enter":
-          if (match && suggestions[selectedIndex]) {
+          if (curMatch && curSuggestions[curIndex]) {
             e.preventDefault();
-            onSelect(suggestions[selectedIndex].username, match.startPos, match.endPos);
+            curOnSelect(curSuggestions[curIndex].username, curMatch.startPos, curMatch.endPos);
           }
           break;
 
         case "Escape":
           e.preventDefault();
-          onClose();
+          curOnClose();
           break;
       }
-    },
-    [isActive, suggestions, selectedIndex, match, onSelect, onClose]
-  );
-
-  // Register keyboard handler
-  useEffect(() => {
-    if (isActive) {
-      document.addEventListener("keydown", handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isActive, handleKeyDown]);
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isActive]);
 
   // Scroll selected item into view
   useEffect(() => {

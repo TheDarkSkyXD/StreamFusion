@@ -86,6 +86,15 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
     return mainWindow?.isMaximized() ?? false;
   });
 
+  // Renderer-triggered DevTools toggle. Dev-only — guarded so a tampered
+  // renderer can't pop DevTools in a packaged build.
+  ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_DEV_TOOLS, () => {
+    if (process.env.NODE_ENV === "production") return;
+    const wc = mainWindow?.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    wc.toggleDevTools();
+  });
+
   // Send maximize change events to renderer
   mainWindow?.on("maximize", () => {
     safeSend(IPC_CHANNELS.WINDOW_ON_MAXIMIZE_CHANGE, true);

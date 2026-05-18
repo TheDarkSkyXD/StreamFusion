@@ -62,4 +62,40 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ---
 
+## 5. Use Compound Engineering For The Development Process
+
+**The compound-engineering plugin is the default workflow for non-trivial work on this repo.**
+
+Route work through the `/ce-*` slash commands rather than hand-rolling each step:
+
+- **Set product direction:** `/ce-strategy`
+- **Generate / evaluate ideas:** `/ce-ideate`
+- **Explore and shape scope into requirements:** `/ce-brainstorm`
+- **Turn an idea into a detailed plan:** `/ce-plan`
+- **Execute the plan with task tracking + worktrees:** `/ce-work` (or `/lfg` for the full hands-off plan → work → review → commit → PR → CI loop)
+- **Debug failures by root cause:** `/ce-debug`
+- **Multi-agent code review before merging:** `/ce-code-review`
+- **Capture learnings after solving something tricky:** `/ce-compound`
+- **Usage / performance pulse over a time window:** `/ce-product-pulse`
+- **Initialize the plugin in a new project:** `/ce-setup`
+
+Trivial one-line fixes, lookups, and questions do not need to route through these commands — use judgment.
+
+### If the plugin is missing
+
+If the `/ce-*` commands are not available in the current session, the user does not have the plugin installed. Tell them:
+
+> The compound-engineering plugin isn't installed. It's at https://github.com/EveryInc/compound-engineering-plugin. In Claude Code, run:
+>
+> ```
+> /plugin marketplace add EveryInc/compound-engineering-plugin
+> /plugin install compound-engineering
+> ```
+>
+> Want me to walk you through it?
+
+If they're on a different harness (Cursor, Codex, GitHub Copilot CLI, Factory Droid, Qwen Code), fetch the README at the repo URL and follow the documented install steps for that environment — don't guess install commands.
+
+---
+
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

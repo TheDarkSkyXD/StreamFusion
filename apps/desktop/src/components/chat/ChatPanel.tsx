@@ -1,8 +1,9 @@
 import type React from "react";
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 
 import { ensureEmoteProvidersInitialized } from "../../backend/services/emotes";
 import type { ChatPlatform } from "../../shared/chat-types";
+import { useRenderCount } from "../dev/use-render-count";
 
 import { KickChat } from "./kick/KickChat";
 import { TwitchChat } from "./twitch/TwitchChat";
@@ -20,13 +21,17 @@ export interface ChatPanelProps {
   subscriberBadges?: any[];
 }
 
-export const ChatPanel: React.FC<ChatPanelProps> = ({
+// Memoized: combined with the narrowed connectionStatus selectors in
+// KickChat/TwitchChat, this prevents the chat subtree from reconciling on
+// every 30s `useStreams` refetch in the parent Stream page.
+export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
   initialPlatform = "twitch",
   initialChannel = "",
   chatroomId,
   channelId,
   subscriberBadges,
-}) => {
+}) {
+  useRenderCount("ChatPanel");
   // Register emote providers lazily — chat is the only consumer, so pages
   // without chat (Home, Categories, …) don't pay the cost at app boot.
   useEffect(() => {
@@ -40,6 +45,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return (
       <KickChat
         channel={initialChannel}
+        channelId={channelId}
         chatroomId={chatroomId}
         subscriberBadges={subscriberBadges}
       />
@@ -47,4 +53,4 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }
 
   return <TwitchChat channel={initialChannel} channelId={channelId} />;
-};
+});

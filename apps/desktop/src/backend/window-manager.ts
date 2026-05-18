@@ -9,6 +9,8 @@ import path from "node:path";
 
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
+import { markCleanShutdown } from "./shutdown-marker";
+
 // No longer using Electron Forge globals - electron-vite provides:
 //   - process.env.ELECTRON_RENDERER_URL (dev server URL in development)
 //   - __dirname points to out/main/ in production
@@ -59,9 +61,17 @@ function ensureWindowIsVisible(bounds: WindowBounds): WindowBounds {
   return bounds;
 }
 
+// 8s is opinionated: short enough that a frozen renderer doesn't keep the
+// user staring at a hung X-button click, long enough that a legitimate slow
+// operation (DB migration, large emote cache decode) on a slow machine
+// shouldn't trip it. Bump if false-positives appear in dev.
+const UNRESPONSIVE_FORCE_QUIT_MS = 8000;
+
 class WindowManager {
   private mainWindow: BrowserWindow | null = null;
   private isDev = process.env.NODE_ENV !== "production";
+  /** Tracks the auto-quit timer started by the `unresponsive` listener. */
+  private unresponsiveTimer: NodeJS.Timeout | null = null;
 
   /**
    * Register DevTools keyboard shortcuts (development only)
@@ -144,9 +154,45 @@ class WindowManager {
       }
     });
 
+    // Auto-force-close when the renderer stops responding to input. This is
+    // the primary fix for the "click X, nothing happens, force-quit from the
+    // OS" failure mode: the click never reaches main because the renderer's
+    // event loop is wedged at 100% CPU. Electron's `unresponsive` event
+    // fires when the renderer hasn't responded to input pings within ~30s,
+    // so we layer a shorter 8s timer on top — if it doesn't recover, mark
+    // cleanly (preserves cache on next launch) and destroy.
+    this.mainWindow.on("unresponsive", () => {
+      console.warn(
+        `[WindowManager] Renderer unresponsive — starting ${UNRESPONSIVE_FORCE_QUIT_MS}ms force-quit timer`
+      );
+      if (this.unresponsiveTimer) clearTimeout(this.unresponsiveTimer);
+      this.unresponsiveTimer = setTimeout(() => {
+        console.warn(
+          `[WindowManager] Renderer still unresponsive after ${UNRESPONSIVE_FORCE_QUIT_MS}ms — force-destroying`
+        );
+        markCleanShutdown();
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.destroy();
+        }
+        app.exit(0);
+      }, UNRESPONSIVE_FORCE_QUIT_MS);
+    });
+
+    this.mainWindow.on("responsive", () => {
+      if (this.unresponsiveTimer) {
+        clearTimeout(this.unresponsiveTimer);
+        this.unresponsiveTimer = null;
+        console.debug("[WindowManager] Renderer recovered before force-close timer");
+      }
+    });
+
     // Handle window closed
     this.mainWindow.on("closed", () => {
       this.unregisterDevToolsShortcuts();
+      if (this.unresponsiveTimer) {
+        clearTimeout(this.unresponsiveTimer);
+        this.unresponsiveTimer = null;
+      }
       this.mainWindow = null;
     });
 

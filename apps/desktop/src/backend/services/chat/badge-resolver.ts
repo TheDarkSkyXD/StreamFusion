@@ -33,6 +33,14 @@ interface TwitchBadgesResponse {
 
 const TWITCH_API_BASE = "https://api.twitch.tv/helix";
 const BADGE_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+// Cap on per-channel badge entries kept in memory. Without this, broadcasters
+// watched and abandoned during a long session stay cached forever; eviction is
+// insertion-order (oldest-first) since JS Map preserves insertion order.
+const MAX_CHANNEL_BADGES = 20;
+// Cap on resolveBadges cache entries. Each entry is a tuple of (cache-key-string,
+// resolved badges array). Soft cap with `clear()` overflow keeps the worst-case
+// memory bounded without paying per-entry LRU bookkeeping.
+const RESOLVE_CACHE_MAX_SIZE = 5000;
 
 // ========== BadgeResolver Class ==========
 
@@ -46,6 +54,15 @@ export class BadgeResolver {
   /** Timestamps for cache invalidation */
   private globalBadgesLoadedAt: number = 0;
   private channelBadgesLoadedAt: Map<string, number> = new Map();
+
+  /**
+   * Per-resolve result cache. Most chat messages have small, repeating badge
+   * sets (e.g. moderator + subscriber:6), so a key→resolved-array map collapses
+   * thousands of allocations per minute on busy channels into Map.get() lookups.
+   * Returning the same array reference also helps `ChatMessage` memoization
+   * stability across renders for repeat posters.
+   */
+  private resolveCache: Map<string, ChatBadge[]> = new Map();
 
   // ========== Loading Methods ==========
 
@@ -62,6 +79,8 @@ export class BadgeResolver {
       const badges = await this.fetchBadges("/chat/badges/global", token, clientId);
       this.globalBadges = this.transformBadges(badges);
       this.globalBadgesLoadedAt = Date.now();
+      // New badge data invalidates any previously-cached resolutions.
+      this.resolveCache.clear();
       console.debug(`✅ Loaded ${this.globalBadges.size} global badge sets`);
     } catch (error) {
       console.error("❌ Failed to load global badges:", error);
@@ -90,6 +109,14 @@ export class BadgeResolver {
       );
       this.channelBadges.set(broadcasterId, this.transformBadges(badges));
       this.channelBadgesLoadedAt.set(broadcasterId, Date.now());
+      while (this.channelBadges.size > MAX_CHANNEL_BADGES) {
+        const oldestKey = this.channelBadges.keys().next().value;
+        if (!oldestKey) break;
+        this.channelBadges.delete(oldestKey);
+        this.channelBadgesLoadedAt.delete(oldestKey);
+      }
+      // New badge data invalidates any previously-cached resolutions.
+      this.resolveCache.clear();
       console.debug(
         `✅ Loaded ${this.channelBadges.get(broadcasterId)?.size ?? 0} badge sets for channel ${broadcasterId}`
       );
@@ -101,10 +128,36 @@ export class BadgeResolver {
   // ========== Resolution Methods ==========
 
   /**
-   * Resolve a list of badge identifiers to full badge data
+   * Resolve a list of badge identifiers to full badge data.
+   *
+   * Hits a per-key result cache so repeated badge sets (the common case in
+   * busy chats — moderators, regular subs, broadcasters) reuse the same
+   * resolved array instead of allocating a fresh one per inbound message.
    */
   resolveBadges(badges: ChatBadge[], broadcasterId?: string): ChatBadge[] {
-    return badges.map((badge) => this.resolveBadge(badge, broadcasterId));
+    if (badges.length === 0) return badges;
+
+    const key = this.makeResolveCacheKey(badges, broadcasterId);
+    const cached = this.resolveCache.get(key);
+    if (cached) return cached;
+
+    const resolved = badges.map((badge) => this.resolveBadge(badge, broadcasterId));
+
+    if (this.resolveCache.size >= RESOLVE_CACHE_MAX_SIZE) {
+      this.resolveCache.clear();
+    }
+    this.resolveCache.set(key, resolved);
+    return resolved;
+  }
+
+  private makeResolveCacheKey(badges: ChatBadge[], broadcasterId?: string): string {
+    const broadcaster = broadcasterId ?? "global";
+    let parts = "";
+    for (let i = 0; i < badges.length; i++) {
+      if (i > 0) parts += "|";
+      parts += `${badges[i].setId}:${badges[i].version}`;
+    }
+    return `${broadcaster}|${parts}`;
   }
 
   /**
@@ -239,6 +292,7 @@ export class BadgeResolver {
     this.channelBadges.clear();
     this.globalBadgesLoadedAt = 0;
     this.channelBadgesLoadedAt.clear();
+    this.resolveCache.clear();
   }
 }
 
