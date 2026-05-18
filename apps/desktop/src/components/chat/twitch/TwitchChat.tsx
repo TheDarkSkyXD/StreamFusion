@@ -8,10 +8,15 @@ import {
 } from "../../../backend/api/platforms/twitch/twitch-gql-pin-mutations";
 import {
   banUser,
+  clearChat as clearChatHelix,
   deleteChatMessage,
   type HelixModResult,
+  runCommercial,
+  setShieldMode,
+  startRaid,
   timeoutUser,
   unbanUser,
+  updateChatSettings,
 } from "../../../backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
 import {
@@ -21,8 +26,16 @@ import {
 import { initializeTwitchEmotes } from "../../../backend/services/emotes";
 import { useIsTwitchMod } from "../../../hooks/useIsTwitchMod";
 import { useRequireModScopes } from "../../../hooks/useRequireModScopes";
+import { InlineModStrip, type InlineModAction } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
+import {
+  appendRecentRaid,
+  RaidTargetPicker,
+  type RaidTarget,
+} from "../mod/RaidTargetPicker";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
+import { useChatRoomState } from "../../../hooks/useChatRoomState";
+import { useRoomStateStore } from "../../../store/room-state-store";
 import { useAuthStore } from "../../../store/auth-store";
 import type {
   ChatConnectionStatus,
@@ -47,6 +60,30 @@ export interface TwitchChatProps {
   /** Channel ID (broadcaster ID) */
   channelId?: string;
 }
+
+/** U13/U15 — widened mod-action state. `messageScoped` covers U11's hover
+ *  toolbar (Timeout/Ban/Unban/Delete). `stripChatMode` covers the four
+ *  chat-mode toggles (slow / followers / subscribers / emote). `strip`
+ *  covers the one-shot icons + Shield. */
+type PendingTwitchModAction =
+  | {
+      kind: "messageScoped";
+      message: ChatMessage;
+      actionType: Extract<ModActionType, "timeout" | "ban" | "unban" | "delete">;
+    }
+  | {
+      kind: "stripChatMode";
+      modeKind: "slow-mode" | "followers-only" | "subscribers-only" | "emote-only";
+      currentlyActive: boolean;
+    }
+  | {
+      kind: "strip";
+      actionType: Extract<
+        ModActionType,
+        "clear" | "raid" | "commercial" | "shield" | "shieldOff" | "uniqueChat"
+      >;
+      currentlyActive?: boolean;
+    };
 
 /** Human-readable timeout duration (toast label). Mirrors the small helper
  *  in ChatMessage.tsx; inlined here rather than exported to keep U11's
@@ -92,13 +129,17 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
   // U11 — generic mod-action confirm dialog state (Timeout/Ban/Unban/Delete).
-  // Lives alongside the pin dialog rather than consolidated into it (plan
-  // decision #12 defers the consolidation).
-  const [pendingModAction, setPendingModAction] = useState<{
-    message: ChatMessage;
-    actionType: Extract<ModActionType, "timeout" | "ban" | "unban" | "delete">;
-  } | null>(null);
+  // U13/U15 widened the union to include strip-driven actions which carry no
+  // chat message. The dialog branches on `kind` to render the correct preview
+  // and slot.
+  const [pendingModAction, setPendingModAction] = useState<PendingTwitchModAction | null>(
+    null,
+  );
   const [modActionBusy, setModActionBusy] = useState(false);
+  // Optimistic local copy of the channel's chat-room state (U14). Reads + writes
+  // flow through useRoomStateStore; the hook auto-fills DEFAULT_ROOM_STATE.
+  const roomState = useChatRoomState("twitch", channelId ?? null);
+  const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
 
   // Mod-role gating for Pin/Unpin actions. Both hooks return safe defaults
   // when the user isn't signed in or doesn't moderate the current channel.
@@ -509,6 +550,55 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         />
       )}
 
+      {/* U13 — Inline mod strip. Rendered between the pinned banner and the
+       *  message list. Twitch-broadcaster sees raid + commercial too. */}
+      {isMod && hasModScopes && channelId && twitchUser ? (
+        <InlineModStrip
+          platform="twitch"
+          isBroadcaster={twitchUser.id === channelId}
+          channelId={channelId}
+          channelSlug={channel}
+          roomState={roomState}
+          onActionClick={(action: InlineModAction) => {
+            switch (action.kind) {
+              case "slow-mode":
+              case "followers-only":
+              case "subscribers-only":
+              case "emote-only":
+                setPendingModAction({
+                  kind: "stripChatMode",
+                  modeKind: action.kind,
+                  currentlyActive: action.currentlyActive,
+                });
+                return;
+              case "clear":
+                setPendingModAction({ kind: "strip", actionType: "clear" });
+                return;
+              case "raid":
+                setPendingModAction({ kind: "strip", actionType: "raid" });
+                return;
+              case "unique-chat":
+                setPendingModAction({
+                  kind: "strip",
+                  actionType: "uniqueChat",
+                  currentlyActive: action.currentlyActive,
+                });
+                return;
+              case "commercial":
+                setPendingModAction({ kind: "strip", actionType: "commercial" });
+                return;
+              case "shield":
+                setPendingModAction({
+                  kind: "strip",
+                  actionType: action.currentlyActive ? "shieldOff" : "shield",
+                  currentlyActive: action.currentlyActive,
+                });
+                return;
+            }
+          }}
+        />
+      ) : null}
+
       <div className="flex-1 min-h-0 relative">
         <ChatMessageList
           key={`twitch-${channel}`}
@@ -529,132 +619,405 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           // dialog. The scope-gate fires inside onConfirm (not at click-time)
           // so the dialog opens immediately for the moderator regardless of
           // whether a token refresh is pending.
-          onTimeout={isMod ? (message) => setPendingModAction({ message, actionType: "timeout" }) : undefined}
-          onBan={isMod ? (message) => setPendingModAction({ message, actionType: "ban" }) : undefined}
-          onUnban={isMod ? (message) => setPendingModAction({ message, actionType: "unban" }) : undefined}
-          onDelete={isMod ? (message) => setPendingModAction({ message, actionType: "delete" }) : undefined}
+          onTimeout={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "timeout" }) : undefined}
+          onBan={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "ban" }) : undefined}
+          onUnban={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "unban" }) : undefined}
+          onDelete={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "delete" }) : undefined}
           selfUserId={twitchUser?.id}
         />
       </div>
 
-      {/* U11 — Generic Timeout/Ban/Unban/Delete confirm dialog. The pin
-       *  dialog stays separate (plan decision #12). */}
+      {/* U11/U13/U15 — Generic mod-action confirm dialog. Branches on the
+       *  pendingModAction `kind` so message-scoped actions (Timeout/Ban/...) and
+       *  strip-scoped actions (clear/raid/shield/chat-modes) all flow through
+       *  the same surface. The pin dialog stays separate (plan decision #12). */}
       {pendingModAction && channelId && twitchUser ? (
-        <ModActionConfirmDialog
-          open={!!pendingModAction}
-          onOpenChange={(open) => {
-            if (!open) setPendingModAction(null);
-          }}
-          actionType={pendingModAction.actionType}
-          targetPreview={
-            <div>
-              <div className="line-clamp-2">{pendingModAction.message.rawContent || ""}</div>
-              <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
-                from @{pendingModAction.message.username}
+        (() => {
+          const action = pendingModAction;
+          // Choose actionType for the dialog copy lookup. Chat-mode toggles
+          // reuse a single actionType per kind regardless of on/off — only
+          // shield has an explicit shieldOff variant for CTA clarity.
+          let actionType: ModActionType;
+          let targetPreview: React.ReactNode;
+          if (action.kind === "messageScoped") {
+            actionType = action.actionType;
+            targetPreview = (
+              <div>
+                <div className="line-clamp-2">{action.message.rawContent || ""}</div>
+                <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
+                  from @{action.message.username}
+                </div>
               </div>
-            </div>
-          }
-          busy={modActionBusy}
-          extraSlot={
-            pendingModAction.actionType === "timeout"
-              ? ({ onDataChange, disabled }) => (
-                  <TimeoutDurationPicker
-                    disabled={disabled}
-                    onChange={(s) => onDataChange({ durationSeconds: s })}
-                  />
-                )
-              : undefined
-          }
-          onConfirm={async (extraData) => {
-            if (!pendingModAction) return;
-            const action = pendingModAction;
-            const runAction = async (accessToken: string): Promise<HelixModResult<unknown>> => {
-              const ctx = {
-                accessToken,
-                broadcasterId: channelId,
-                moderatorId: twitchUser.id,
-              };
-              switch (action.actionType) {
-                case "ban":
-                  return banUser({ ...ctx, userId: action.message.userId });
-                case "timeout": {
-                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
-                  return timeoutUser({ ...ctx, userId: action.message.userId, durationSeconds: seconds });
-                }
-                case "unban":
-                  return unbanUser({ ...ctx, userId: action.message.userId });
-                case "delete":
-                  return deleteChatMessage({ ...ctx, messageId: action.message.id });
-              }
+            );
+          } else if (action.kind === "stripChatMode") {
+            // The four chat-mode toggles reuse the dialog with a clarifying
+            // preview rather than separate `*Off` action types. Per-mode copy
+            // routes through a small lookup table.
+            const COPY: Record<
+              typeof action.modeKind,
+              { type: ModActionType; on: string; off: string }
+            > = {
+              "slow-mode": {
+                type: "timeout",
+                on: "Turn ON slow mode",
+                off: "Turn OFF slow mode",
+              },
+              "followers-only": {
+                type: "uniqueChat", // reuse a Twitch-purple variant for the lookup; preview text carries the real wording
+                on: "Turn ON followers-only mode",
+                off: "Turn OFF followers-only mode",
+              },
+              "subscribers-only": {
+                type: "uniqueChat",
+                on: "Turn ON subscribers-only mode",
+                off: "Turn OFF subscribers-only mode",
+              },
+              "emote-only": {
+                type: "uniqueChat",
+                on: "Turn ON emote-only mode",
+                off: "Turn OFF emote-only mode",
+              },
             };
-            setModActionBusy(true);
-            try {
-              const token = await window.electronAPI.auth.getToken("twitch");
-              if (!token?.accessToken) {
-                setPendingModAction(null);
-                toast.error("Sign in to Twitch to take this action");
-                return;
+            const entry = COPY[action.modeKind];
+            actionType = entry.type;
+            targetPreview = (
+              <div className="text-sm font-medium">
+                {action.currentlyActive ? entry.off : entry.on}
+              </div>
+            );
+          } else if (action.actionType === "raid") {
+            actionType = "raid";
+            targetPreview = (
+              <div className="text-sm text-[var(--color-foreground-muted)]">
+                Pick a channel to send your viewers to.
+              </div>
+            );
+          } else {
+            actionType = action.actionType;
+            targetPreview = (
+              <div className="text-sm">
+                {action.actionType === "clear"
+                  ? "Clear chat for everyone in this channel"
+                  : action.actionType === "commercial"
+                  ? "Run a commercial on this channel"
+                  : action.actionType === "shield"
+                  ? "Enable Shield Mode on this channel"
+                  : action.actionType === "shieldOff"
+                  ? "Disable Shield Mode on this channel"
+                  : action.actionType === "uniqueChat"
+                  ? action.currentlyActive
+                    ? "Turn OFF unique-chat mode"
+                    : "Turn ON unique-chat mode"
+                  : ""}
+              </div>
+            );
+          }
+
+          const needsTimeoutSlot =
+            action.kind === "messageScoped" && action.actionType === "timeout";
+          const needsSlowModeSlot =
+            action.kind === "stripChatMode" &&
+            action.modeKind === "slow-mode" &&
+            !action.currentlyActive;
+          const needsFollowersSlot =
+            action.kind === "stripChatMode" &&
+            action.modeKind === "followers-only" &&
+            !action.currentlyActive;
+          const needsRaidSlot =
+            action.kind === "strip" && action.actionType === "raid";
+
+          return (
+            <ModActionConfirmDialog
+              open={!!pendingModAction}
+              onOpenChange={(open) => {
+                if (!open) setPendingModAction(null);
+              }}
+              actionType={actionType}
+              targetPreview={targetPreview}
+              busy={modActionBusy}
+              extraSlot={
+                needsTimeoutSlot
+                  ? ({ onDataChange, disabled }) => (
+                      <TimeoutDurationPicker
+                        disabled={disabled}
+                        onChange={(s) => onDataChange({ durationSeconds: s })}
+                      />
+                    )
+                  : needsSlowModeSlot
+                  ? ({ onDataChange, disabled }) => (
+                      <TimeoutDurationPicker
+                        disabled={disabled}
+                        onChange={(s) => onDataChange({ durationSeconds: s })}
+                      />
+                    )
+                  : needsFollowersSlot
+                  ? ({ onDataChange, disabled }) => (
+                      <TimeoutDurationPicker
+                        disabled={disabled}
+                        onChange={(s) => onDataChange({ durationSeconds: s })}
+                      />
+                    )
+                  : needsRaidSlot
+                  ? ({ onDataChange, disabled }) => (
+                      <RaidTargetPicker
+                        selfBroadcasterId={twitchUser.id}
+                        disabled={disabled}
+                        onChange={(target) => onDataChange(target)}
+                      />
+                    )
+                  : undefined
               }
-              const result = await runAction(token.accessToken);
-              const username = action.message.username;
-              if (result.ok) {
-                setPendingModAction(null);
-                if (action.actionType === "ban") toast.success(`Banned ${username}`);
-                else if (action.actionType === "unban") toast.success(`Unbanned ${username}`);
-                else if (action.actionType === "delete") toast.success("Deleted message");
-                else {
-                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
-                  toast.success(`Timed out ${username} for ${formatTimeoutLabel(seconds)}`);
-                }
-                return;
-              }
-              if (result.kind === "missing-scopes") {
-                setPendingModAction(null);
-                promptReconnect({
-                  missingScopes: result.missingScopes,
-                  onReconnected: async () => {
-                    const fresh = await window.electronAPI.auth.getToken("twitch");
-                    if (!fresh?.accessToken) return;
-                    const retry = await runAction(fresh.accessToken);
-                    if (retry.ok) {
+              onConfirm={async (extraData) => {
+                if (!pendingModAction) return;
+                const runMessageAction = async (
+                  accessToken: string,
+                ): Promise<HelixModResult<unknown>> => {
+                  if (action.kind !== "messageScoped") {
+                    throw new Error("unreachable");
+                  }
+                  const ctx = {
+                    accessToken,
+                    broadcasterId: channelId,
+                    moderatorId: twitchUser.id,
+                  };
+                  switch (action.actionType) {
+                    case "ban":
+                      return banUser({ ...ctx, userId: action.message.userId });
+                    case "timeout": {
+                      const seconds =
+                        (extraData as { durationSeconds?: number } | undefined)
+                          ?.durationSeconds ?? 600;
+                      return timeoutUser({
+                        ...ctx,
+                        userId: action.message.userId,
+                        durationSeconds: seconds,
+                      });
+                    }
+                    case "unban":
+                      return unbanUser({ ...ctx, userId: action.message.userId });
+                    case "delete":
+                      return deleteChatMessage({
+                        ...ctx,
+                        messageId: action.message.id,
+                      });
+                  }
+                };
+
+                const runStripAction = async (
+                  accessToken: string,
+                ): Promise<HelixModResult<unknown>> => {
+                  const ctx = {
+                    accessToken,
+                    broadcasterId: channelId,
+                    moderatorId: twitchUser.id,
+                  };
+                  if (action.kind === "strip") {
+                    switch (action.actionType) {
+                      case "clear":
+                        return clearChatHelix(ctx);
+                      case "raid": {
+                        const target = extraData as RaidTarget | null | undefined;
+                        if (!target) {
+                          return {
+                            ok: false,
+                            kind: "network",
+                            message: "Pick a target channel first",
+                          };
+                        }
+                        return startRaid({
+                          accessToken,
+                          fromBroadcasterId: channelId,
+                          toBroadcasterId: target.broadcasterId,
+                        });
+                      }
+                      case "commercial":
+                        return runCommercial({
+                          accessToken,
+                          broadcasterId: channelId,
+                          length: 60,
+                        });
+                      case "shield":
+                        return setShieldMode({ ...ctx, active: true });
+                      case "shieldOff":
+                        return setShieldMode({ ...ctx, active: false });
+                      case "uniqueChat":
+                        return updateChatSettings({
+                          ...ctx,
+                          settings: {
+                            unique_chat_mode: !action.currentlyActive,
+                          },
+                        });
+                    }
+                  }
+                  if (action.kind === "stripChatMode") {
+                    const turnOn = !action.currentlyActive;
+                    switch (action.modeKind) {
+                      case "slow-mode": {
+                        const seconds = turnOn
+                          ? (extraData as { durationSeconds?: number } | undefined)
+                              ?.durationSeconds ?? 30
+                          : undefined;
+                        return updateChatSettings({
+                          ...ctx,
+                          settings: {
+                            slow_mode: turnOn,
+                            slow_mode_wait_time: turnOn ? seconds ?? 30 : null,
+                          },
+                        });
+                      }
+                      case "followers-only": {
+                        const seconds = turnOn
+                          ? (extraData as { durationSeconds?: number } | undefined)
+                              ?.durationSeconds ?? 600
+                          : undefined;
+                        // Twitch wants follower_mode_duration in MINUTES.
+                        const minutes = turnOn
+                          ? Math.max(0, Math.floor((seconds ?? 600) / 60))
+                          : undefined;
+                        return updateChatSettings({
+                          ...ctx,
+                          settings: {
+                            follower_mode: turnOn,
+                            follower_mode_duration: turnOn ? minutes ?? 10 : null,
+                          },
+                        });
+                      }
+                      case "subscribers-only":
+                        return updateChatSettings({
+                          ...ctx,
+                          settings: { subscriber_mode: turnOn },
+                        });
+                      case "emote-only":
+                        return updateChatSettings({
+                          ...ctx,
+                          settings: { emote_mode: turnOn },
+                        });
+                    }
+                  }
+                  throw new Error("unreachable");
+                };
+
+                const runAction =
+                  action.kind === "messageScoped" ? runMessageAction : runStripAction;
+
+                setModActionBusy(true);
+                try {
+                  const token = await window.electronAPI.auth.getToken("twitch");
+                  if (!token?.accessToken) {
+                    setPendingModAction(null);
+                    toast.error("Sign in to Twitch to take this action");
+                    return;
+                  }
+                  const result = await runAction(token.accessToken);
+                  if (result.ok) {
+                    // Optimistic room-state writeback so the strip flips its
+                    // toggles immediately. The Helix call has already
+                    // succeeded — TODO(U14.1) will replace this with the
+                    // ROOMSTATE event from twitch-chat.
+                    if (action.kind === "stripChatMode") {
+                      const turnOn = !action.currentlyActive;
+                      const seconds = turnOn
+                        ? (extraData as { durationSeconds?: number } | undefined)
+                            ?.durationSeconds ?? 30
+                        : null;
+                      if (action.modeKind === "slow-mode") {
+                        updateRoomState("twitch", channelId, {
+                          slowMode: turnOn ? seconds ?? 30 : null,
+                        });
+                      } else if (action.modeKind === "followers-only") {
+                        const minutes = turnOn
+                          ? Math.max(0, Math.floor((seconds ?? 600) / 60))
+                          : null;
+                        updateRoomState("twitch", channelId, {
+                          followersOnly: turnOn ? minutes ?? 10 : null,
+                        });
+                      } else if (action.modeKind === "subscribers-only") {
+                        updateRoomState("twitch", channelId, {
+                          subscribersOnly: turnOn,
+                        });
+                      } else if (action.modeKind === "emote-only") {
+                        updateRoomState("twitch", channelId, { emoteOnly: turnOn });
+                      }
+                    } else if (action.kind === "strip") {
+                      if (action.actionType === "shield") {
+                        updateRoomState("twitch", channelId, { shieldMode: true });
+                      } else if (action.actionType === "shieldOff") {
+                        updateRoomState("twitch", channelId, { shieldMode: false });
+                      } else if (action.actionType === "uniqueChat") {
+                        updateRoomState("twitch", channelId, {
+                          uniqueChat: !action.currentlyActive,
+                        });
+                      } else if (action.actionType === "raid") {
+                        const target = extraData as RaidTarget | null | undefined;
+                        if (target) {
+                          void appendRecentRaid(twitchUser.id, target);
+                        }
+                      }
+                    }
+
+                    setPendingModAction(null);
+                    if (action.kind === "messageScoped") {
+                      const username = action.message.username;
                       if (action.actionType === "ban") toast.success(`Banned ${username}`);
                       else if (action.actionType === "unban") toast.success(`Unbanned ${username}`);
                       else if (action.actionType === "delete") toast.success("Deleted message");
                       else {
-                        const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
-                        toast.success(`Timed out ${username} for ${formatTimeoutLabel(seconds)}`);
+                        const seconds =
+                          (extraData as { durationSeconds?: number } | undefined)
+                            ?.durationSeconds ?? 600;
+                        toast.success(
+                          `Timed out ${username} for ${formatTimeoutLabel(seconds)}`,
+                        );
                       }
+                    } else if (action.kind === "strip") {
+                      toast.success("Done");
                     } else {
-                      toast.error("Action still failed after reconnect", {
-                        description: retry.message,
-                      });
+                      toast.success("Chat mode updated");
                     }
-                  },
-                });
-                return;
-              }
-              if (result.kind === "forbidden") {
-                // Leave dialog open for one retry — KickTalk parity.
-                toast.error("Action forbidden", { description: result.message });
-                return;
-              }
-              if (result.kind === "rate-limited") {
-                const retry = result.retryAfterSeconds;
-                toast.error(
-                  retry !== null ? `Rate-limited, retry in ${retry}s` : "Rate-limited, retry shortly",
-                );
-                return;
-              }
-              // unauthorized / not-found / network — close + toast.
-              setPendingModAction(null);
-              toast.error("Couldn't complete action", {
-                description: result.message ?? result.kind,
-              });
-            } finally {
-              setModActionBusy(false);
-            }
-          }}
-        />
+                    return;
+                  }
+
+                  if (result.kind === "missing-scopes") {
+                    setPendingModAction(null);
+                    promptReconnect({
+                      missingScopes: result.missingScopes,
+                      onReconnected: async () => {
+                        const fresh = await window.electronAPI.auth.getToken("twitch");
+                        if (!fresh?.accessToken) return;
+                        const retry = await runAction(fresh.accessToken);
+                        if (retry.ok) toast.success("Action completed");
+                        else
+                          toast.error("Action still failed after reconnect", {
+                            description: retry.message,
+                          });
+                      },
+                    });
+                    return;
+                  }
+                  if (result.kind === "forbidden") {
+                    toast.error("Action forbidden", { description: result.message });
+                    return;
+                  }
+                  if (result.kind === "rate-limited") {
+                    const retry = result.retryAfterSeconds;
+                    toast.error(
+                      retry !== null
+                        ? `Rate-limited, retry in ${retry}s`
+                        : "Rate-limited, retry shortly",
+                    );
+                    return;
+                  }
+                  setPendingModAction(null);
+                  toast.error("Couldn't complete action", {
+                    description: result.message ?? result.kind,
+                  });
+                } finally {
+                  setModActionBusy(false);
+                }
+              }}
+            />
+          );
+        })()
       ) : null}
 
       {/* Pin duration picker — opens when a mod clicks the hover Pin button

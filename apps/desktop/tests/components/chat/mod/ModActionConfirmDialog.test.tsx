@@ -55,6 +55,12 @@ const ACTION_COPY: Array<{
     descriptionFragment: "strict moderation preset",
   },
   {
+    actionType: "shieldOff",
+    title: "Disable Shield Mode",
+    confirmLabel: "Disable Shield Mode",
+    descriptionFragment: "Lift Shield Mode",
+  },
+  {
     actionType: "commercial",
     title: "Start commercial",
     confirmLabel: "Start commercial",

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   banKickUser,
   deleteKickMessage,
+  setKickChatMode,
   timeoutKickUser,
   unbanKickUser,
   type KickModResult,
@@ -31,8 +32,11 @@ import { useEmoteStore } from "../../../store/emote-store";
 import { useRenderCount } from "../../dev/use-render-count";
 import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
+import { InlineModStrip, type InlineModAction } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
+import { useChatRoomState } from "../../../hooks/useChatRoomState";
+import { useRoomStateStore } from "../../../store/room-state-store";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedKickChatHistory } from "./kick-chat-history";
 import { KickPinMessageDialog } from "./KickPinMessageDialog";
@@ -47,6 +51,21 @@ export interface KickChatProps {
   /** Subscriber badges for the channel (for badge rendering) */
   subscriberBadges?: any[];
 }
+
+/** U13 — Kick has no raid/commercial/shield/unique-chat. The strip only fires
+ *  four chat-mode toggles and a local clear. */
+type PendingKickModAction =
+  | {
+      kind: "messageScoped";
+      message: ChatMessage;
+      actionType: Extract<ModActionType, "timeout" | "ban" | "unban" | "delete">;
+    }
+  | {
+      kind: "stripChatMode";
+      modeKind: "slow-mode" | "followers-only" | "subscribers-only" | "emote-only";
+      currentlyActive: boolean;
+    }
+  | { kind: "strip"; actionType: "clear" };
 
 /** Human-readable timeout duration (toast label). Inlined to keep U11's
  *  surface-area minimal (see TwitchChat.tsx for the same helper). */
@@ -97,13 +116,17 @@ export const KickChat: React.FC<KickChatProps> = ({
   // so we just gate the UI on broadcaster-of-self via useIsKickMod.
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
-  // U11 — generic Timeout/Ban/Unban/Delete dialog state, mirrors TwitchChat.
-  const [pendingModAction, setPendingModAction] = useState<{
-    message: ChatMessage;
-    actionType: Extract<ModActionType, "timeout" | "ban" | "unban" | "delete">;
-  } | null>(null);
+  // U11/U13 — generic mod-action dialog state. Widened in U13 to cover the
+  // strip's chat-mode toggles + local clear.
+  const [pendingModAction, setPendingModAction] = useState<PendingKickModAction | null>(
+    null,
+  );
   const [modActionBusy, setModActionBusy] = useState(false);
   const isMod = useIsKickMod(channel);
+  // Optimistic per-channel chat-room state (U14).
+  const kickRoomKey = channelId ?? (chatroomId ? String(chatroomId) : "");
+  const roomState = useChatRoomState("kick", kickRoomKey || null);
+  const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
   const kickUser = useAuthStore((state) => state.kickUser);
   const [activePoll, setActivePoll] = useState<KickPoll | null>(null);
   const [showPoll, setShowPoll] = useState(true);
@@ -539,139 +562,307 @@ export const KickChat: React.FC<KickChatProps> = ({
         />
       )}
 
+      {/* U13 — Inline mod strip. Kick exposes only the 4 chat-mode toggles
+       *  plus a local clear. Broadcaster check is unused since Kick has no
+       *  raid/commercial. */}
+      {isMod && kickRoomKey ? (
+        <InlineModStrip
+          platform="kick"
+          isBroadcaster={false}
+          channelId={kickRoomKey}
+          channelSlug={channel}
+          roomState={roomState}
+          onActionClick={(action: InlineModAction) => {
+            switch (action.kind) {
+              case "slow-mode":
+              case "followers-only":
+              case "subscribers-only":
+              case "emote-only":
+                setPendingModAction({
+                  kind: "stripChatMode",
+                  modeKind: action.kind,
+                  currentlyActive: action.currentlyActive,
+                });
+                return;
+              case "clear":
+                setPendingModAction({ kind: "strip", actionType: "clear" });
+                return;
+              // Twitch-only actions never reach here — the strip hides them.
+              default:
+                return;
+            }
+          }}
+        />
+      ) : null}
+
       <div className="flex-1 min-h-0 relative">
         <ChatMessageList
           key={`kick-${channel}-${chatroomId}`}
           onReply={handleReply}
           onPin={isMod ? (message) => setPinDialogMessage(message) : undefined}
-          onTimeout={isMod ? (message) => setPendingModAction({ message, actionType: "timeout" }) : undefined}
-          onBan={isMod ? (message) => setPendingModAction({ message, actionType: "ban" }) : undefined}
-          onUnban={isMod ? (message) => setPendingModAction({ message, actionType: "unban" }) : undefined}
-          onDelete={isMod ? (message) => setPendingModAction({ message, actionType: "delete" }) : undefined}
+          onTimeout={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "timeout" }) : undefined}
+          onBan={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "ban" }) : undefined}
+          onUnban={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "unban" }) : undefined}
+          onDelete={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "delete" }) : undefined}
           selfUserId={kickUser ? String(kickUser.id) : undefined}
         />
       </div>
 
-      {/* U11 — Generic mod-action confirm dialog for Kick. The pin dialog
+      {/* U11/U13 — Generic mod-action confirm dialog for Kick. The pin dialog
        *  stays separate (plan decision #12). Kick has no scope-reconnect
        *  flow, so the result branches are simpler than Twitch's. */}
       {pendingModAction ? (
-        <ModActionConfirmDialog
-          open={!!pendingModAction}
-          onOpenChange={(open) => {
-            if (!open) setPendingModAction(null);
-          }}
-          actionType={pendingModAction.actionType}
-          targetPreview={
-            <div>
-              <div className="line-clamp-2">{pendingModAction.message.rawContent || ""}</div>
-              <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
-                from @{pendingModAction.message.username}
+        (() => {
+          const action = pendingModAction;
+          let actionType: ModActionType;
+          let targetPreview: React.ReactNode;
+          if (action.kind === "messageScoped") {
+            actionType = action.actionType;
+            targetPreview = (
+              <div>
+                <div className="line-clamp-2">{action.message.rawContent || ""}</div>
+                <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
+                  from @{action.message.username}
+                </div>
               </div>
-            </div>
+            );
+          } else if (action.kind === "stripChatMode") {
+            // Re-use a Twitch-purple variant for the look; preview text carries
+            // the real wording (Kick has its own copy needs but we share the
+            // single dialog body to keep the surface minimal).
+            actionType = "uniqueChat";
+            const LABEL: Record<typeof action.modeKind, [string, string]> = {
+              "slow-mode": ["Turn ON slow mode", "Turn OFF slow mode"],
+              "followers-only": [
+                "Turn ON followers-only mode",
+                "Turn OFF followers-only mode",
+              ],
+              "subscribers-only": [
+                "Turn ON subscribers-only mode",
+                "Turn OFF subscribers-only mode",
+              ],
+              "emote-only": ["Turn ON emote-only mode", "Turn OFF emote-only mode"],
+            };
+            const [on, off] = LABEL[action.modeKind];
+            targetPreview = (
+              <div className="text-sm font-medium">
+                {action.currentlyActive ? off : on}
+              </div>
+            );
+          } else {
+            actionType = "clear";
+            targetPreview = (
+              <div className="text-sm">Clear chat for everyone in this channel</div>
+            );
           }
-          busy={modActionBusy}
-          extraSlot={
-            pendingModAction.actionType === "timeout"
-              ? ({ onDataChange, disabled }) => (
-                  <TimeoutDurationPicker
-                    disabled={disabled}
-                    onChange={(s) => onDataChange({ durationSeconds: s })}
-                  />
-                )
-              : undefined
-          }
-          onConfirm={async (extraData) => {
-            if (!pendingModAction) return;
-            const action = pendingModAction;
-            setModActionBusy(true);
-            try {
-              const token = await window.electronAPI.auth.getToken("kick");
-              if (!token?.accessToken) {
-                setPendingModAction(null);
-                toast.error("Sign in to Kick to take this action");
-                return;
+
+          const needsTimeoutSlot =
+            action.kind === "messageScoped" && action.actionType === "timeout";
+          const needsSlowSlot =
+            action.kind === "stripChatMode" &&
+            action.modeKind === "slow-mode" &&
+            !action.currentlyActive;
+          const needsFollowersSlot =
+            action.kind === "stripChatMode" &&
+            action.modeKind === "followers-only" &&
+            !action.currentlyActive;
+
+          return (
+            <ModActionConfirmDialog
+              open={!!pendingModAction}
+              onOpenChange={(open) => {
+                if (!open) setPendingModAction(null);
+              }}
+              actionType={actionType}
+              targetPreview={targetPreview}
+              busy={modActionBusy}
+              extraSlot={
+                needsTimeoutSlot || needsSlowSlot || needsFollowersSlot
+                  ? ({ onDataChange, disabled }) => (
+                      <TimeoutDurationPicker
+                        disabled={disabled}
+                        onChange={(s) => onDataChange({ durationSeconds: s })}
+                      />
+                    )
+                  : undefined
               }
-              let result: KickModResult;
-              const username = action.message.username;
-              switch (action.actionType) {
-                case "ban":
-                  result = await banKickUser({
-                    channelSlug: channel,
-                    username,
-                    accessToken: token.accessToken,
-                  });
-                  break;
-                case "timeout": {
-                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
-                  // Kick's API takes `duration` in MINUTES; our picker emits
-                  // seconds. The "10s" preset would round down to 0 minutes
-                  // via integer division; Kick rejects that, so we clamp the
-                  // floor to 1 minute. Documented because Kick doesn't
-                  // support sub-minute timeouts and this is the least
-                  // surprising fallback for the moderator.
-                  const minutes = Math.max(1, Math.floor(seconds / 60));
-                  result = await timeoutKickUser({
-                    channelSlug: channel,
-                    username,
-                    duration: minutes,
-                    accessToken: token.accessToken,
-                  });
-                  break;
-                }
-                case "unban":
-                  result = await unbanKickUser({
-                    channelSlug: channel,
-                    username,
-                    accessToken: token.accessToken,
-                  });
-                  break;
-                case "delete":
-                  if (chatroomId === undefined) {
+              onConfirm={async (extraData) => {
+                if (!pendingModAction) return;
+                setModActionBusy(true);
+                try {
+                  // Local-only clear: no API call, no token needed.
+                  if (action.kind === "strip" && action.actionType === "clear") {
+                    clearMessages();
                     setPendingModAction(null);
-                    toast.error("Couldn't delete message", { description: "Chatroom not loaded" });
+                    toast.success("Cleared local chat");
                     return;
                   }
-                  result = await deleteKickMessage({
-                    chatroomId,
-                    messageId: action.message.id,
-                    accessToken: token.accessToken,
+                  const token = await window.electronAPI.auth.getToken("kick");
+                  if (!token?.accessToken) {
+                    setPendingModAction(null);
+                    toast.error("Sign in to Kick to take this action");
+                    return;
+                  }
+                  let result: KickModResult;
+                  if (action.kind === "stripChatMode") {
+                    const turnOn = !action.currentlyActive;
+                    const seconds =
+                      (extraData as { durationSeconds?: number } | undefined)
+                        ?.durationSeconds ?? 30;
+                    if (action.modeKind === "slow-mode") {
+                      result = await setKickChatMode({
+                        channelSlug: channel,
+                        accessToken: token.accessToken,
+                        update: {
+                          slowMode: { enabled: turnOn, seconds: turnOn ? seconds : 0 },
+                        },
+                      });
+                    } else if (action.modeKind === "followers-only") {
+                      const minutes = Math.max(0, Math.floor(seconds / 60));
+                      result = await setKickChatMode({
+                        channelSlug: channel,
+                        accessToken: token.accessToken,
+                        update: {
+                          followersOnly: {
+                            enabled: turnOn,
+                            minutes: turnOn ? minutes : 0,
+                          },
+                        },
+                      });
+                    } else if (action.modeKind === "subscribers-only") {
+                      result = await setKickChatMode({
+                        channelSlug: channel,
+                        accessToken: token.accessToken,
+                        update: { subscribersOnly: { enabled: turnOn } },
+                      });
+                    } else {
+                      result = await setKickChatMode({
+                        channelSlug: channel,
+                        accessToken: token.accessToken,
+                        update: { emoteOnly: { enabled: turnOn } },
+                      });
+                    }
+                    if (result.ok) {
+                      if (kickRoomKey) {
+                        if (action.modeKind === "slow-mode") {
+                          updateRoomState("kick", kickRoomKey, {
+                            slowMode: turnOn ? seconds : null,
+                          });
+                        } else if (action.modeKind === "followers-only") {
+                          const minutes = Math.max(0, Math.floor(seconds / 60));
+                          updateRoomState("kick", kickRoomKey, {
+                            followersOnly: turnOn ? minutes : null,
+                          });
+                        } else if (action.modeKind === "subscribers-only") {
+                          updateRoomState("kick", kickRoomKey, {
+                            subscribersOnly: turnOn,
+                          });
+                        } else {
+                          updateRoomState("kick", kickRoomKey, { emoteOnly: turnOn });
+                        }
+                      }
+                      setPendingModAction(null);
+                      toast.success("Chat mode updated");
+                      return;
+                    }
+                  } else if (action.kind === "messageScoped") {
+                    const username = action.message.username;
+                    let messageResult: KickModResult;
+                    switch (action.actionType) {
+                      case "ban":
+                        messageResult = await banKickUser({
+                          channelSlug: channel,
+                          username,
+                          accessToken: token.accessToken,
+                        });
+                        break;
+                      case "timeout": {
+                        const seconds =
+                          (extraData as { durationSeconds?: number } | undefined)
+                            ?.durationSeconds ?? 600;
+                        // Kick's API takes `duration` in MINUTES; our picker
+                        // emits seconds. The "10s" preset would round down to
+                        // 0 minutes via integer division; Kick rejects that,
+                        // so we clamp the floor to 1 minute.
+                        const minutes = Math.max(1, Math.floor(seconds / 60));
+                        messageResult = await timeoutKickUser({
+                          channelSlug: channel,
+                          username,
+                          duration: minutes,
+                          accessToken: token.accessToken,
+                        });
+                        break;
+                      }
+                      case "unban":
+                        messageResult = await unbanKickUser({
+                          channelSlug: channel,
+                          username,
+                          accessToken: token.accessToken,
+                        });
+                        break;
+                      case "delete":
+                        if (chatroomId === undefined) {
+                          setPendingModAction(null);
+                          toast.error("Couldn't delete message", {
+                            description: "Chatroom not loaded",
+                          });
+                          return;
+                        }
+                        messageResult = await deleteKickMessage({
+                          chatroomId,
+                          messageId: action.message.id,
+                          accessToken: token.accessToken,
+                        });
+                        break;
+                    }
+                    result = messageResult;
+                    if (result.ok) {
+                      setPendingModAction(null);
+                      if (action.actionType === "ban")
+                        toast.success(`Banned ${username}`);
+                      else if (action.actionType === "unban")
+                        toast.success(`Unbanned ${username}`);
+                      else if (action.actionType === "delete")
+                        toast.success("Deleted message");
+                      else {
+                        const seconds =
+                          (extraData as { durationSeconds?: number } | undefined)
+                            ?.durationSeconds ?? 600;
+                        toast.success(
+                          `Timed out ${username} for ${formatTimeoutLabel(seconds)}`,
+                        );
+                      }
+                      return;
+                    }
+                  } else {
+                    // Unreachable — clear branch returned earlier.
+                    return;
+                  }
+
+                  if (result.kind === "forbidden") {
+                    toast.error("Action forbidden", { description: result.message });
+                    return;
+                  }
+                  if (result.kind === "rate-limited") {
+                    const retry = result.retryAfterSeconds;
+                    toast.error(
+                      retry !== null
+                        ? `Rate-limited, retry in ${retry}s`
+                        : "Rate-limited, retry shortly",
+                    );
+                    return;
+                  }
+                  setPendingModAction(null);
+                  toast.error("Couldn't complete action", {
+                    description: result.message ?? result.kind,
                   });
-                  break;
-              }
-              if (result.ok) {
-                setPendingModAction(null);
-                if (action.actionType === "ban") toast.success(`Banned ${username}`);
-                else if (action.actionType === "unban") toast.success(`Unbanned ${username}`);
-                else if (action.actionType === "delete") toast.success("Deleted message");
-                else {
-                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
-                  toast.success(`Timed out ${username} for ${formatTimeoutLabel(seconds)}`);
+                } finally {
+                  setModActionBusy(false);
                 }
-                return;
-              }
-              if (result.kind === "forbidden") {
-                // Leave dialog open for one retry — KickTalk parity.
-                toast.error("Action forbidden", { description: result.message });
-                return;
-              }
-              if (result.kind === "rate-limited") {
-                const retry = result.retryAfterSeconds;
-                toast.error(
-                  retry !== null ? `Rate-limited, retry in ${retry}s` : "Rate-limited, retry shortly",
-                );
-                return;
-              }
-              // unauthenticated / not-found / network / unknown — close + toast.
-              setPendingModAction(null);
-              toast.error("Couldn't complete action", {
-                description: result.message ?? result.kind,
-              });
-            } finally {
-              setModActionBusy(false);
-            }
-          }}
-        />
+              }}
+            />
+          );
+        })()
       ) : null}
 
       {/* Kick pin duration picker. Channel slug + chatroomId are required by

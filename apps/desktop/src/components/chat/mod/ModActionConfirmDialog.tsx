@@ -46,6 +46,7 @@ export type ModActionType =
   | "raid"
   | "clear"
   | "shield"
+  | "shieldOff"
   | "commercial"
   | "uniqueChat";
 
@@ -127,6 +128,15 @@ const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
     confirmLabel: "Enable Shield Mode",
     busyLabel: "Enabling…",
     confirmClass: TWITCH_PURPLE,
+  },
+  shieldOff: {
+    icon: <LuShield className="w-5 h-5 text-amber-500" />,
+    title: "Disable Shield Mode",
+    description:
+      "Lift Shield Mode and return chat to its normal moderation settings.",
+    confirmLabel: "Disable Shield Mode",
+    busyLabel: "Disabling…",
+    confirmClass: WARNING_AMBER,
   },
   commercial: {
     icon: <LuMegaphone className="w-5 h-5 text-[var(--color-storm-primary)]" />,
