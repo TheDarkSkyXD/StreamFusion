@@ -1,7 +1,40 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installElectronAPIMock } from '../../test-utils';
+
+// U11 — capture ChatMessageList callbacks so tests can simulate toolbar clicks.
+const lastListProps: {
+  onBan?: (m: unknown) => void;
+  onTimeout?: (m: unknown) => void;
+  onUnban?: (m: unknown) => void;
+  onDelete?: (m: unknown) => void;
+  selfUserId?: string;
+} = {};
+const banKickUserMock = vi.fn();
+const timeoutKickUserMock = vi.fn();
+const unbanKickUserMock = vi.fn();
+const deleteKickMessageMock = vi.fn();
+
+vi.mock('@/backend/api/platforms/kick/kick-mod-mutations', () => ({
+  banKickUser: (...args: unknown[]) => banKickUserMock(...args),
+  timeoutKickUser: (...args: unknown[]) => timeoutKickUserMock(...args),
+  unbanKickUser: (...args: unknown[]) => unbanKickUserMock(...args),
+  deleteKickMessage: (...args: unknown[]) => deleteKickMessageMock(...args),
+}));
+
+vi.mock('@/hooks/useIsKickMod', () => ({
+  useIsKickMod: () => true,
+}));
+
+vi.mock('@/store/auth-store', () => ({
+  useAuthStore: (selector?: (s: unknown) => unknown) => {
+    const state = {
+      kickUser: { id: 42, username: 'modder', slug: 'modder' },
+    };
+    return selector ? selector(state) : state;
+  },
+}));
 
 vi.mock('@/backend/services/chat/kick-chat', () => ({
   kickChatService: {
@@ -66,7 +99,14 @@ vi.mock('@/store/emote-store', () => {
 });
 
 vi.mock('@/components/chat/ChatMessageList', () => ({
-  ChatMessageList: () => <div data-testid="message-list">messages</div>,
+  ChatMessageList: (props: typeof lastListProps) => {
+    lastListProps.onBan = props.onBan;
+    lastListProps.onTimeout = props.onTimeout;
+    lastListProps.onUnban = props.onUnban;
+    lastListProps.onDelete = props.onDelete;
+    lastListProps.selfUserId = props.selfUserId;
+    return <div data-testid="message-list">messages</div>;
+  },
 }));
 
 const chatInputProps: { canSend?: boolean } = {};
@@ -81,10 +121,20 @@ import { KickChat } from '@/components/chat/kick/KickChat';
 
 describe('KickChat', () => {
   beforeEach(() => {
-    installElectronAPIMock();
+    const api = installElectronAPIMock();
+    api.auth.getToken = vi.fn(async () => ({ accessToken: 'kick-tok' }));
     storeState.connectionStatus.kick.state = 'disconnected';
     storeState.connectionStatus.twitch.state = 'disconnected';
     chatInputProps.canSend = undefined;
+    lastListProps.onBan = undefined;
+    lastListProps.onTimeout = undefined;
+    lastListProps.onUnban = undefined;
+    lastListProps.onDelete = undefined;
+    lastListProps.selfUserId = undefined;
+    banKickUserMock.mockReset();
+    timeoutKickUserMock.mockReset();
+    unbanKickUserMock.mockReset();
+    deleteKickMessageMock.mockReset();
   });
 
   it('renders message list and chat input', () => {
@@ -110,5 +160,45 @@ describe('KickChat', () => {
     expect(chatInputProps.canSend).toBe(false);
 
     unmount();
+  });
+
+  // ---------- U11 — Kick mod-action seconds→minutes conversion ----------
+  const fakeMessage = {
+    id: 'k-msg-1',
+    username: 'baduser',
+    userId: 'kuser-9',
+    rawContent: 'kspam',
+  } as const;
+
+  it('Confirming a Timeout dialog calls timeoutKickUser with duration in minutes', async () => {
+    timeoutKickUserMock.mockResolvedValue({ ok: true });
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    act(() => {
+      lastListProps.onTimeout?.(fakeMessage);
+    });
+    // TimeoutDurationPicker defaults to 10 minutes (600s) → 10 minutes after
+    // the seconds→minutes conversion in KickChat.
+    fireEvent.click(screen.getByRole('button', { name: /^Time out$/ }));
+    await waitFor(() => expect(timeoutKickUserMock).toHaveBeenCalledTimes(1));
+    expect(timeoutKickUserMock).toHaveBeenCalledWith({
+      channelSlug: 'xqc',
+      username: 'baduser',
+      duration: 10,
+      accessToken: 'kick-tok',
+    });
+  });
+
+  it('The 10s preset is clamped to 1 minute before calling Kick (sub-minute not supported)', async () => {
+    timeoutKickUserMock.mockResolvedValue({ ok: true });
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    act(() => {
+      lastListProps.onTimeout?.(fakeMessage);
+    });
+    // Click the "10s" chip — the dialog's TimeoutDurationPicker renders 6 chips.
+    fireEvent.click(screen.getByRole('button', { name: /^10s$/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Time out$/ }));
+    await waitFor(() => expect(timeoutKickUserMock).toHaveBeenCalledTimes(1));
+    // 10 seconds / 60 → 0 minutes; Math.max(1, …) clamps to 1.
+    expect(timeoutKickUserMock.mock.calls[0][0]).toMatchObject({ duration: 1 });
   });
 });

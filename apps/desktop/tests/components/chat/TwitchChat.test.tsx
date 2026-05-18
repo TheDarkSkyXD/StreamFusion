@@ -1,7 +1,51 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installElectronAPIMock } from '../../test-utils';
+
+// U11 — capture the latest ChatMessageList props so tests can simulate a
+// toolbar click without rendering the full message virtuoso.
+const lastListProps: {
+  onBan?: (m: unknown) => void;
+  onTimeout?: (m: unknown) => void;
+  onUnban?: (m: unknown) => void;
+  onDelete?: (m: unknown) => void;
+  selfUserId?: string;
+} = {};
+// Helper mocks must be hoisted, but referenced module-locally in tests too.
+const banUserMock = vi.fn();
+const timeoutUserMock = vi.fn();
+const unbanUserMock = vi.fn();
+const deleteChatMessageMock = vi.fn();
+
+vi.mock('@/backend/api/platforms/twitch/twitch-helix-moderation-mutations', () => ({
+  banUser: (...args: unknown[]) => banUserMock(...args),
+  timeoutUser: (...args: unknown[]) => timeoutUserMock(...args),
+  unbanUser: (...args: unknown[]) => unbanUserMock(...args),
+  deleteChatMessage: (...args: unknown[]) => deleteChatMessageMock(...args),
+}));
+
+const promptReconnectMock = vi.fn();
+vi.mock('@/hooks/useRequireModScopes', () => ({
+  useRequireModScopes: () => ({
+    hasModScopes: true,
+    loading: false,
+    promptReconnect: promptReconnectMock,
+  }),
+}));
+
+vi.mock('@/hooks/useIsTwitchMod', () => ({
+  useIsTwitchMod: () => true,
+}));
+
+vi.mock('@/store/auth-store', () => ({
+  useAuthStore: (selector?: (s: unknown) => unknown) => {
+    const state = {
+      twitchUser: { id: 'mod-1', login: 'modder', displayName: 'Modder' },
+    };
+    return selector ? selector(state) : state;
+  },
+}));
 
 vi.mock('@/backend/services/chat/twitch-chat', () => ({
   twitchChatService: {
@@ -66,7 +110,14 @@ vi.mock('@/store/emote-store', () => {
 });
 
 vi.mock('@/components/chat/ChatMessageList', () => ({
-  ChatMessageList: () => <div data-testid="message-list">messages</div>,
+  ChatMessageList: (props: typeof lastListProps) => {
+    lastListProps.onBan = props.onBan;
+    lastListProps.onTimeout = props.onTimeout;
+    lastListProps.onUnban = props.onUnban;
+    lastListProps.onDelete = props.onDelete;
+    lastListProps.selfUserId = props.selfUserId;
+    return <div data-testid="message-list">messages</div>;
+  },
 }));
 
 const chatInputProps: { canSend?: boolean } = {};
@@ -81,10 +132,22 @@ import { TwitchChat } from '@/components/chat/twitch/TwitchChat';
 
 describe('TwitchChat', () => {
   beforeEach(() => {
-    installElectronAPIMock();
+    const api = installElectronAPIMock();
+    // Provide a Twitch token so the U11 onConfirm path doesn't early-out.
+    api.auth.getToken = vi.fn(async () => ({ accessToken: 'tok', scope: [] }));
     storeState.connectionStatus.kick.state = 'disconnected';
     storeState.connectionStatus.twitch.state = 'disconnected';
     chatInputProps.canSend = undefined;
+    lastListProps.onBan = undefined;
+    lastListProps.onTimeout = undefined;
+    lastListProps.onUnban = undefined;
+    lastListProps.onDelete = undefined;
+    lastListProps.selfUserId = undefined;
+    banUserMock.mockReset();
+    timeoutUserMock.mockReset();
+    unbanUserMock.mockReset();
+    deleteChatMessageMock.mockReset();
+    promptReconnectMock.mockReset();
   });
 
   it('renders message list and chat input', () => {
@@ -106,5 +169,58 @@ describe('TwitchChat', () => {
     expect(chatInputProps.canSend).toBe(false);
 
     unmount();
+  });
+
+  // ---------- U11 — mod-action mutation wiring ----------
+  const fakeMessage = {
+    id: 'msg-42',
+    username: 'baduser',
+    userId: 'user-99',
+    rawContent: 'spam spam spam',
+  } as const;
+
+  it('Ban toolbar click opens the ModActionConfirmDialog', () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    expect(lastListProps.onBan).toBeTypeOf('function');
+    act(() => {
+      lastListProps.onBan?.(fakeMessage);
+    });
+    expect(screen.getByRole('heading', { name: /^Ban user$/ })).toBeInTheDocument();
+  });
+
+  it('Confirming the Ban dialog calls banUser with the correct args', async () => {
+    banUserMock.mockResolvedValue({ ok: true, payload: {} });
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    act(() => {
+      lastListProps.onBan?.(fakeMessage);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Ban user$/ }));
+    await waitFor(() => expect(banUserMock).toHaveBeenCalledTimes(1));
+    expect(banUserMock).toHaveBeenCalledWith({
+      accessToken: 'tok',
+      broadcasterId: 'ninja-id',
+      moderatorId: 'mod-1',
+      userId: 'user-99',
+    });
+  });
+
+  it('A missing-scopes result fires promptReconnect with the listed scopes', async () => {
+    banUserMock.mockResolvedValue({
+      ok: false,
+      kind: 'missing-scopes',
+      message: 'Missing scope: moderator:manage:banned_users',
+      missingScopes: ['moderator:manage:banned_users'],
+    });
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    act(() => {
+      lastListProps.onBan?.(fakeMessage);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Ban user$/ }));
+    await waitFor(() => expect(promptReconnectMock).toHaveBeenCalledTimes(1));
+    expect(promptReconnectMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missingScopes: ['moderator:manage:banned_users'],
+      }),
+    );
   });
 });

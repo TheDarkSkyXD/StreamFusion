@@ -6,6 +6,13 @@ import {
   pinChatMessage,
   unpinChatMessage,
 } from "../../../backend/api/platforms/twitch/twitch-gql-pin-mutations";
+import {
+  banUser,
+  deleteChatMessage,
+  type HelixModResult,
+  timeoutUser,
+  unbanUser,
+} from "../../../backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
 import {
   startTwitchPinPolling,
@@ -14,6 +21,9 @@ import {
 import { initializeTwitchEmotes } from "../../../backend/services/emotes";
 import { useIsTwitchMod } from "../../../hooks/useIsTwitchMod";
 import { useRequireModScopes } from "../../../hooks/useRequireModScopes";
+import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
+import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
+import { useAuthStore } from "../../../store/auth-store";
 import type {
   ChatConnectionStatus,
   ChatMessage,
@@ -36,6 +46,16 @@ export interface TwitchChatProps {
   channel: string;
   /** Channel ID (broadcaster ID) */
   channelId?: string;
+}
+
+/** Human-readable timeout duration (toast label). Mirrors the small helper
+ *  in ChatMessage.tsx; inlined here rather than exported to keep U11's
+ *  surface-area minimal per the plan's "Do NOT modify ChatMessage.tsx" rule. */
+function formatTimeoutLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
 }
 
 export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) => {
@@ -71,11 +91,23 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // Mod-action state (U8): the message currently queued for the Pin dialog.
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
+  // U11 — generic mod-action confirm dialog state (Timeout/Ban/Unban/Delete).
+  // Lives alongside the pin dialog rather than consolidated into it (plan
+  // decision #12 defers the consolidation).
+  const [pendingModAction, setPendingModAction] = useState<{
+    message: ChatMessage;
+    actionType: Extract<ModActionType, "timeout" | "ban" | "unban" | "delete">;
+  } | null>(null);
+  const [modActionBusy, setModActionBusy] = useState(false);
 
   // Mod-role gating for Pin/Unpin actions. Both hooks return safe defaults
   // when the user isn't signed in or doesn't moderate the current channel.
   const isMod = useIsTwitchMod(channelId);
   const { hasModScopes, promptReconnect } = useRequireModScopes();
+  // Moderator's own Twitch user id — required for every Helix mod-action call
+  // as the `moderator_id` query param. Pulled from the auth store rather than
+  // re-fetched per call.
+  const twitchUser = useAuthStore((state) => state.twitchUser);
 
   // Track current channel for cleanup
   // Initialize with null so we know when it's the first connection (and clear previous messages)
@@ -493,8 +525,137 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                 }
               : undefined
           }
+          // U11 — Timeout / Ban / Unban / Delete just open the generic confirm
+          // dialog. The scope-gate fires inside onConfirm (not at click-time)
+          // so the dialog opens immediately for the moderator regardless of
+          // whether a token refresh is pending.
+          onTimeout={isMod ? (message) => setPendingModAction({ message, actionType: "timeout" }) : undefined}
+          onBan={isMod ? (message) => setPendingModAction({ message, actionType: "ban" }) : undefined}
+          onUnban={isMod ? (message) => setPendingModAction({ message, actionType: "unban" }) : undefined}
+          onDelete={isMod ? (message) => setPendingModAction({ message, actionType: "delete" }) : undefined}
+          selfUserId={twitchUser?.id}
         />
       </div>
+
+      {/* U11 — Generic Timeout/Ban/Unban/Delete confirm dialog. The pin
+       *  dialog stays separate (plan decision #12). */}
+      {pendingModAction && channelId && twitchUser ? (
+        <ModActionConfirmDialog
+          open={!!pendingModAction}
+          onOpenChange={(open) => {
+            if (!open) setPendingModAction(null);
+          }}
+          actionType={pendingModAction.actionType}
+          targetPreview={
+            <div>
+              <div className="line-clamp-2">{pendingModAction.message.rawContent || ""}</div>
+              <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
+                from @{pendingModAction.message.username}
+              </div>
+            </div>
+          }
+          busy={modActionBusy}
+          extraSlot={
+            pendingModAction.actionType === "timeout"
+              ? ({ onDataChange, disabled }) => (
+                  <TimeoutDurationPicker
+                    disabled={disabled}
+                    onChange={(s) => onDataChange({ durationSeconds: s })}
+                  />
+                )
+              : undefined
+          }
+          onConfirm={async (extraData) => {
+            if (!pendingModAction) return;
+            const action = pendingModAction;
+            const runAction = async (accessToken: string): Promise<HelixModResult<unknown>> => {
+              const ctx = {
+                accessToken,
+                broadcasterId: channelId,
+                moderatorId: twitchUser.id,
+              };
+              switch (action.actionType) {
+                case "ban":
+                  return banUser({ ...ctx, userId: action.message.userId });
+                case "timeout": {
+                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
+                  return timeoutUser({ ...ctx, userId: action.message.userId, durationSeconds: seconds });
+                }
+                case "unban":
+                  return unbanUser({ ...ctx, userId: action.message.userId });
+                case "delete":
+                  return deleteChatMessage({ ...ctx, messageId: action.message.id });
+              }
+            };
+            setModActionBusy(true);
+            try {
+              const token = await window.electronAPI.auth.getToken("twitch");
+              if (!token?.accessToken) {
+                setPendingModAction(null);
+                toast.error("Sign in to Twitch to take this action");
+                return;
+              }
+              const result = await runAction(token.accessToken);
+              const username = action.message.username;
+              if (result.ok) {
+                setPendingModAction(null);
+                if (action.actionType === "ban") toast.success(`Banned ${username}`);
+                else if (action.actionType === "unban") toast.success(`Unbanned ${username}`);
+                else if (action.actionType === "delete") toast.success("Deleted message");
+                else {
+                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
+                  toast.success(`Timed out ${username} for ${formatTimeoutLabel(seconds)}`);
+                }
+                return;
+              }
+              if (result.kind === "missing-scopes") {
+                setPendingModAction(null);
+                promptReconnect({
+                  missingScopes: result.missingScopes,
+                  onReconnected: async () => {
+                    const fresh = await window.electronAPI.auth.getToken("twitch");
+                    if (!fresh?.accessToken) return;
+                    const retry = await runAction(fresh.accessToken);
+                    if (retry.ok) {
+                      if (action.actionType === "ban") toast.success(`Banned ${username}`);
+                      else if (action.actionType === "unban") toast.success(`Unbanned ${username}`);
+                      else if (action.actionType === "delete") toast.success("Deleted message");
+                      else {
+                        const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
+                        toast.success(`Timed out ${username} for ${formatTimeoutLabel(seconds)}`);
+                      }
+                    } else {
+                      toast.error("Action still failed after reconnect", {
+                        description: retry.message,
+                      });
+                    }
+                  },
+                });
+                return;
+              }
+              if (result.kind === "forbidden") {
+                // Leave dialog open for one retry — KickTalk parity.
+                toast.error("Action forbidden", { description: result.message });
+                return;
+              }
+              if (result.kind === "rate-limited") {
+                const retry = result.retryAfterSeconds;
+                toast.error(
+                  retry !== null ? `Rate-limited, retry in ${retry}s` : "Rate-limited, retry shortly",
+                );
+                return;
+              }
+              // unauthorized / not-found / network — close + toast.
+              setPendingModAction(null);
+              toast.error("Couldn't complete action", {
+                description: result.message ?? result.kind,
+              });
+            } finally {
+              setModActionBusy(false);
+            }
+          }}
+        />
+      ) : null}
 
       {/* Pin duration picker — opens when a mod clicks the hover Pin button
        *  on a chat message. On confirm, fires the GQL pinChatMessage mutation

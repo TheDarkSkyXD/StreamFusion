@@ -1,6 +1,14 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
+import { toast } from "sonner";
+import {
+  banKickUser,
+  deleteKickMessage,
+  timeoutKickUser,
+  unbanKickUser,
+  type KickModResult,
+} from "../../../backend/api/platforms/kick/kick-mod-mutations";
 import {
   pinKickMessage,
   unpinKickMessage,
@@ -23,6 +31,8 @@ import { useEmoteStore } from "../../../store/emote-store";
 import { useRenderCount } from "../../dev/use-render-count";
 import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
+import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
+import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedKickChatHistory } from "./kick-chat-history";
 import { KickPinMessageDialog } from "./KickPinMessageDialog";
@@ -36,6 +46,15 @@ export interface KickChatProps {
   chatroomId?: number;
   /** Subscriber badges for the channel (for badge rendering) */
   subscriberBadges?: any[];
+}
+
+/** Human-readable timeout duration (toast label). Inlined to keep U11's
+ *  surface-area minimal (see TwitchChat.tsx for the same helper). */
+function formatTimeoutLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
 }
 
 export const KickChat: React.FC<KickChatProps> = ({
@@ -78,6 +97,12 @@ export const KickChat: React.FC<KickChatProps> = ({
   // so we just gate the UI on broadcaster-of-self via useIsKickMod.
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
+  // U11 — generic Timeout/Ban/Unban/Delete dialog state, mirrors TwitchChat.
+  const [pendingModAction, setPendingModAction] = useState<{
+    message: ChatMessage;
+    actionType: Extract<ModActionType, "timeout" | "ban" | "unban" | "delete">;
+  } | null>(null);
+  const [modActionBusy, setModActionBusy] = useState(false);
   const isMod = useIsKickMod(channel);
   const kickUser = useAuthStore((state) => state.kickUser);
   const [activePoll, setActivePoll] = useState<KickPoll | null>(null);
@@ -519,8 +544,135 @@ export const KickChat: React.FC<KickChatProps> = ({
           key={`kick-${channel}-${chatroomId}`}
           onReply={handleReply}
           onPin={isMod ? (message) => setPinDialogMessage(message) : undefined}
+          onTimeout={isMod ? (message) => setPendingModAction({ message, actionType: "timeout" }) : undefined}
+          onBan={isMod ? (message) => setPendingModAction({ message, actionType: "ban" }) : undefined}
+          onUnban={isMod ? (message) => setPendingModAction({ message, actionType: "unban" }) : undefined}
+          onDelete={isMod ? (message) => setPendingModAction({ message, actionType: "delete" }) : undefined}
+          selfUserId={kickUser ? String(kickUser.id) : undefined}
         />
       </div>
+
+      {/* U11 — Generic mod-action confirm dialog for Kick. The pin dialog
+       *  stays separate (plan decision #12). Kick has no scope-reconnect
+       *  flow, so the result branches are simpler than Twitch's. */}
+      {pendingModAction ? (
+        <ModActionConfirmDialog
+          open={!!pendingModAction}
+          onOpenChange={(open) => {
+            if (!open) setPendingModAction(null);
+          }}
+          actionType={pendingModAction.actionType}
+          targetPreview={
+            <div>
+              <div className="line-clamp-2">{pendingModAction.message.rawContent || ""}</div>
+              <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
+                from @{pendingModAction.message.username}
+              </div>
+            </div>
+          }
+          busy={modActionBusy}
+          extraSlot={
+            pendingModAction.actionType === "timeout"
+              ? ({ onDataChange, disabled }) => (
+                  <TimeoutDurationPicker
+                    disabled={disabled}
+                    onChange={(s) => onDataChange({ durationSeconds: s })}
+                  />
+                )
+              : undefined
+          }
+          onConfirm={async (extraData) => {
+            if (!pendingModAction) return;
+            const action = pendingModAction;
+            setModActionBusy(true);
+            try {
+              const token = await window.electronAPI.auth.getToken("kick");
+              if (!token?.accessToken) {
+                setPendingModAction(null);
+                toast.error("Sign in to Kick to take this action");
+                return;
+              }
+              let result: KickModResult;
+              const username = action.message.username;
+              switch (action.actionType) {
+                case "ban":
+                  result = await banKickUser({
+                    channelSlug: channel,
+                    username,
+                    accessToken: token.accessToken,
+                  });
+                  break;
+                case "timeout": {
+                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
+                  // Kick's API takes `duration` in MINUTES; our picker emits
+                  // seconds. The "10s" preset would round down to 0 minutes
+                  // via integer division; Kick rejects that, so we clamp the
+                  // floor to 1 minute. Documented because Kick doesn't
+                  // support sub-minute timeouts and this is the least
+                  // surprising fallback for the moderator.
+                  const minutes = Math.max(1, Math.floor(seconds / 60));
+                  result = await timeoutKickUser({
+                    channelSlug: channel,
+                    username,
+                    duration: minutes,
+                    accessToken: token.accessToken,
+                  });
+                  break;
+                }
+                case "unban":
+                  result = await unbanKickUser({
+                    channelSlug: channel,
+                    username,
+                    accessToken: token.accessToken,
+                  });
+                  break;
+                case "delete":
+                  if (chatroomId === undefined) {
+                    setPendingModAction(null);
+                    toast.error("Couldn't delete message", { description: "Chatroom not loaded" });
+                    return;
+                  }
+                  result = await deleteKickMessage({
+                    chatroomId,
+                    messageId: action.message.id,
+                    accessToken: token.accessToken,
+                  });
+                  break;
+              }
+              if (result.ok) {
+                setPendingModAction(null);
+                if (action.actionType === "ban") toast.success(`Banned ${username}`);
+                else if (action.actionType === "unban") toast.success(`Unbanned ${username}`);
+                else if (action.actionType === "delete") toast.success("Deleted message");
+                else {
+                  const seconds = (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
+                  toast.success(`Timed out ${username} for ${formatTimeoutLabel(seconds)}`);
+                }
+                return;
+              }
+              if (result.kind === "forbidden") {
+                // Leave dialog open for one retry — KickTalk parity.
+                toast.error("Action forbidden", { description: result.message });
+                return;
+              }
+              if (result.kind === "rate-limited") {
+                const retry = result.retryAfterSeconds;
+                toast.error(
+                  retry !== null ? `Rate-limited, retry in ${retry}s` : "Rate-limited, retry shortly",
+                );
+                return;
+              }
+              // unauthenticated / not-found / network / unknown — close + toast.
+              setPendingModAction(null);
+              toast.error("Couldn't complete action", {
+                description: result.message ?? result.kind,
+              });
+            } finally {
+              setModActionBusy(false);
+            }
+          }}
+        />
+      ) : null}
 
       {/* Kick pin duration picker. Channel slug + chatroomId are required by
        *  the v2 pinned-message endpoint; we only render the dialog when both

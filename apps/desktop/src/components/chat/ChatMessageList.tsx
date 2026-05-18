@@ -18,9 +18,26 @@ interface ChatMessageListProps {
   /** Optional pin action — when provided, a hover Pin button is rendered on
    *  Twitch chat messages. Latest-ref pattern below keeps itemContent stable. */
   onPin?: (message: ChatMessageType) => void;
+  /** Optional mod-action callbacks. When provided, hover buttons render
+   *  per-message (see ChatMessage.tsx). Same latest-ref pattern as onPin so
+   *  Virtuoso's itemContent identity stays stable. */
+  onTimeout?: (message: ChatMessageType) => void;
+  onBan?: (message: ChatMessageType) => void;
+  onUnban?: (message: ChatMessageType) => void;
+  onDelete?: (message: ChatMessageType) => void;
+  /** Signed-in user's platform user id; used to hide self-mod buttons. */
+  selfUserId?: string;
 }
 
-export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({ onReply, onPin }) => {
+export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
+  onReply,
+  onPin,
+  onTimeout,
+  onBan,
+  onUnban,
+  onDelete,
+  selfUserId,
+}) => {
   useRenderCount("ChatMessageList");
   const messages = useChatStore((state) => state.messages);
   const isPaused = useChatStore((state) => state.isPaused);
@@ -50,6 +67,38 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({ onReply, 
   }, [onPin]);
   const handlePin = useCallback((message: ChatMessageType) => {
     onPinRef.current?.(message);
+  }, []);
+  // Mod-action callbacks — mirror the onPin latest-ref pattern. itemContent's
+  // dependency array tracks only the on*-flags (truthy/falsy), not the
+  // callbacks themselves, so a parent re-render that swaps the callback
+  // identity doesn't unmount/remount every row.
+  const onTimeoutRef = useRef(onTimeout);
+  useEffect(() => {
+    onTimeoutRef.current = onTimeout;
+  }, [onTimeout]);
+  const handleTimeout = useCallback((message: ChatMessageType) => {
+    onTimeoutRef.current?.(message);
+  }, []);
+  const onBanRef = useRef(onBan);
+  useEffect(() => {
+    onBanRef.current = onBan;
+  }, [onBan]);
+  const handleBan = useCallback((message: ChatMessageType) => {
+    onBanRef.current?.(message);
+  }, []);
+  const onUnbanRef = useRef(onUnban);
+  useEffect(() => {
+    onUnbanRef.current = onUnban;
+  }, [onUnban]);
+  const handleUnban = useCallback((message: ChatMessageType) => {
+    onUnbanRef.current?.(message);
+  }, []);
+  const onDeleteRef = useRef(onDelete);
+  useEffect(() => {
+    onDeleteRef.current = onDelete;
+  }, [onDelete]);
+  const handleDelete = useCallback((message: ChatMessageType) => {
+    onDeleteRef.current?.(message);
   }, []);
 
   // Count of messages added while paused — shown in the banner's hover state.
@@ -109,9 +158,27 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({ onReply, 
         message={message}
         onReply={handleReply}
         onPin={onPin ? handlePin : undefined}
+        onTimeout={onTimeout ? handleTimeout : undefined}
+        onBan={onBan ? handleBan : undefined}
+        onUnban={onUnban ? handleUnban : undefined}
+        onDelete={onDelete ? handleDelete : undefined}
+        selfUserId={selfUserId}
       />
     ),
-    [handleReply, handlePin, onPin],
+    [
+      handleReply,
+      handlePin,
+      onPin,
+      handleTimeout,
+      onTimeout,
+      handleBan,
+      onBan,
+      handleUnban,
+      onUnban,
+      handleDelete,
+      onDelete,
+      selfUserId,
+    ],
   );
 
   const computeItemKey = useCallback(
