@@ -7,7 +7,7 @@ topic: channel-management-console
 
 ## Summary
 
-A unified channel-management console layered onto StreamForge that serves both **moderators** and **broadcasters** across five surfaces: a per-message hover toolbar (Timeout / Ban / Unban / Delete), an inline strip above the chat tabs for channel-mode toggles and one-shot actions, a username-click user popout with profile + per-user mod history + quick actions, chat-panel tabs (Chat / AutoMod / Mod log + Engagement on Twitch when broadcaster), and a `/mod` top-level route for per-channel mod settings and cross-channel banned-user search. Kick gets a from-scratch AutoMod implementation (keyword + 4-severity-tier filters) because Kick has no native AutoMod system. Persistent state (mod log, AutoMod config, allow-lists) lives in a new local SQLite store fed by Twitch EventSub + Helix.
+A unified channel-management console layered onto StreamForge that serves both **moderators** and **broadcasters** across five surfaces: a per-message hover toolbar (Timeout / Ban / Unban / Delete), an inline strip above the chat tabs for channel-mode toggles and one-shot actions, a username-click user popout with profile + per-user mod history + quick actions, chat-panel tabs (Chat / AutoMod / Mod log + Engagement on Twitch when broadcaster), and a `/mod` top-level route for per-channel mod settings and cross-channel banned-user search. Kick gets a from-scratch AutoMod implementation (keyword + 4-severity-tier filters) because Kick has no native AutoMod system. Persistent state (mod log, AutoMod config, allow-lists, Streamlabs tokens) extends the existing local SQLite layer (`apps/desktop/src/backend/services/database-service.ts`) fed by Twitch EventSub + Helix. Giveaways ship as an in-house keyword-based picker (both platforms) plus an optional Streamlabs OAuth integration; StreamElements is explicitly excluded since the service is winding down in 2026.
 
 ---
 
@@ -135,10 +135,10 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 - R37. The Engagement tab SHALL contain three sections: **Predictions**, **Polls**, **Giveaways**.
 - R38. Predictions SHALL support the full Twitch lifecycle: create (title + 2-10 outcome labels + window duration 1s-1800s), monitor live (channel points totals per outcome update live), Lock, Resolve (pick winning outcome), Cancel. Active prediction state SHALL bootstrap on tab open via Helix `GET /predictions`.
 - R39. Polls SHALL support the full Twitch lifecycle: create (title + 2-5 choices + window duration + channel-points-voting + bits-voting toggles), monitor live, Terminate early, Archive after completion. Active poll state SHALL bootstrap on tab open via Helix `GET /polls`.
-- R40. Giveaways SHALL ship in two flavors, both usable from the Engagement tab: **in-house chat-keyword giveaway** and **third-party connector** (Streamlabs and StreamElements).
+- R40. Giveaways SHALL ship in two flavors, both usable from the Engagement tab: **in-house chat-keyword giveaway** and **third-party connector** (Streamlabs). StreamElements is explicitly excluded — the service is winding down as of 2026 and is not a viable integration target.
 - R41. The in-house giveaway SHALL: accept a keyword (default `!enter`) + duration + optional eligibility filters (followers-only, subscribers-only, minimum-account-age); listen to incoming chat for matching messages from eligible users; de-duplicate entries per user; on countdown end pick N random winners (default 1); announce the winner(s) in chat; allow a re-roll if a winner is unresponsive within a configurable window.
 - R42. The in-house giveaway SHALL work on both Twitch and Kick (the chat-listening path already exists in both `twitch-chat.ts` and `kick-chat.ts`).
-- R43. Streamlabs and StreamElements integration SHALL be opt-in (no auto-connect). Each requires its own OAuth flow stored alongside the existing Twitch + Kick auth-store entries. When connected, the Giveaways section SHALL surface the third-party service's giveaway tools (start, end, redraw) inline.
+- R43. Streamlabs integration SHALL be opt-in (no auto-connect). It requires its own OAuth flow stored alongside the existing Twitch + Kick auth-store entries. When connected, the Giveaways section SHALL surface Streamlabs's giveaway tools (start, end, redraw) inline.
 - R44. All Engagement actions (start prediction, terminate poll, end giveaway, third-party draws) SHALL write a mod-log entry tagged with the action type and the broadcaster as the actor.
 
 **/mod top-level route**
@@ -152,12 +152,12 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 
 - R49. The OAuth-config scope list SHALL be expanded to include every scope required by the surfaces above: `moderator:manage:banned_users`, `moderator:manage:chat_messages` (already present), `moderator:manage:shield_mode`, `moderator:manage:automod`, `moderator:manage:automod_settings`, `moderator:read:chat_messages`, `moderator:read:moderated_channels` (already present), `channel:manage:raids`, `channel:manage:moderators`, `channel:manage:vips`, `channel:manage:predictions`, `channel:manage:polls`, `channel:edit:commercial`, `user:manage:whispers`.
 - R50. When a token is missing any scope required by an action the user attempts, the existing lazy `ReconnectForModDialog` SHALL fire with a list of **all** currently-missing scopes (not just the one the attempted action needs). This batches re-consent into a single OAuth round-trip rather than one prompt per action.
-- R51. Streamlabs and StreamElements OAuth flows SHALL be independent of the Twitch + Kick auth-store entries and SHALL never block Twitch / Kick mod actions when disconnected.
+- R51. The Streamlabs OAuth flow SHALL be independent of the Twitch + Kick auth-store entries and SHALL never block Twitch / Kick mod actions when disconnected.
 
 **Cross-cutting**
 
 - R52. Mod-action failures SHALL surface via sonner toast (success: silent; failure: toast at bottom-right with action name + reason). Auth failures (401, 403 missing-scope) SHALL additionally trigger the reconnect-dialog flow per R50.
-- R53. The console SHALL introduce a new local SQLite storage layer (used for: mod log per R34, Kick AutoMod config per R31, Streamlabs/SE tokens per R51, retention settings per R35). This is the first persistent local store in the app aside from the existing zustand+localStorage stores.
+- R53. The console SHALL extend the existing local SQLite storage layer (`apps/desktop/src/backend/services/database-service.ts`, currently used for `key_value` + `local_follows` tables) with new tables for: mod log per R34, Kick AutoMod config per R31, Streamlabs tokens per R51 (encrypted via the existing `safeStorage`-backed token path), and retention settings per R35.
 - R54. The console SHALL introduce a new Twitch EventSub WebSocket subsystem alongside the existing tmi.js IRC connection (used for: `channel.moderate` events per R33, `automod.message.hold` per R27). EventSub subscription lifecycle SHALL be tied to the active chat channel(s).
 - R55. Performance: opening the chat panel on a slow channel SHALL NOT regress beyond +50ms p95 due to mod-console scaffolding (toolbar gating, EventSub bootstrap, mod-log read). Background scaffolding for non-mods SHALL be skipped entirely when `useIsTwitchMod` / `useIsKickMod` return false.
 
@@ -216,7 +216,7 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 - **Toolbar shows on the signed-in user's own messages.** Self-target was deliberately NOT added to the hide list (the user can ban or delete their own messages). Broadcaster, other mods, and staff/admin badges ARE hidden.
 - **Build Kick AutoMod from scratch with keyword + 4-severity-tier filters.** Chose Twitch parity over scope discipline; we are inventing a feature Kick does not offer. Lists are per-channel and persisted locally.
 - **Persistent mod log via EventSub + Helix + local SQLite.** Chose history retention over session-only in-memory log. Introduces the first persistent local store beyond zustand+localStorage.
-- **In-house giveaway plus Streamlabs / StreamElements connectors, not either-or.** Chose maximum flexibility for broadcasters. In-house works on both platforms; 3rd-party connectors are Twitch-only and opt-in.
+- **In-house giveaway plus Streamlabs connector, not either-or.** Chose flexibility for broadcasters: in-house works on both platforms, Streamlabs is opt-in (Twitch-only). StreamElements is explicitly excluded — the service is winding down in 2026.
 - **Sonner library for toasts.** Resolves the existing `TwitchChat.tsx:527` "toast/error surface is a future follow-up" TODO with a single Toaster mount in `App.tsx`.
 - **All OAuth scopes added in one batch, with batched reconnect-dialog.** Chose one consent screen over scope-on-first-use. The reconnect dialog will list all currently-missing scopes for the actions visible in the active console, not just one.
 - **Hybrid surface layout.** Chat-panel tabs handle channel-scoped persistent surfaces (AutoMod, Mod log, Engagement). Inline strip above tabs handles channel-scoped one-shot actions + chat-mode toggles. Username popout handles per-user context. `/mod` top-level route handles cross-channel settings + search.
@@ -233,7 +233,7 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 - Kick's chatroom Pusher events expose enough mod-action signal to populate the Kick side of the mod log. Where they do not, the Kick mod log will reflect only actions taken from inside StreamForge (locally-originated, locally-logged).
 - The `react-icons` package already in the app contains the gavel, hourglass, circle-slash, and trash icons needed for the new toolbar (otherwise a separate icon-asset decision is needed).
 - Sonner is a viable library for this codebase (no React-version conflicts, no peer-dep issues with existing Radix usage).
-- Streamlabs and StreamElements public OAuth APIs remain stable enough to integrate against. If either deprecates or paywalls their API, the corresponding connector becomes deferred — in-house giveaways still ship.
+- Streamlabs's public OAuth API remains stable enough to integrate against. If it deprecates or paywalls, the connector becomes deferred — in-house giveaways still ship.
 - SQLite via better-sqlite3 (main-process) is the assumed persistence layer; planning may switch to IndexedDB (renderer-only) if main-process IPC overhead is a concern. Either way, the schema is owned by this brainstorm.
 - The signed-in user's broadcaster identity for a channel is detectable from existing auth-store data (the user's slug/username matches the channel's slug). The detection logic already exists in `useIsKickMod` for Kick; Twitch needs the equivalent.
 
@@ -248,12 +248,12 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 ### Deferred to Planning
 
 - [Affects R30, R31][Technical] Exact Kick AutoMod evaluation pipeline (where in the kick-chat IPC flow the keyword check runs — pre-emit vs post-emit) and how holds back-fill into the AutoMod queue if the chat connection drops mid-evaluation.
-- [Affects R34, R53][Technical] SQLite via better-sqlite3 vs IndexedDB. better-sqlite3 is faster and Node-native but requires main-process IPC for every read/write; IndexedDB is renderer-only but slower for the mod-log search use case in R47.
+- [Affects R34, R53][Technical] SQLite-vs-IndexedDB was resolved during planning research: better-sqlite3 is already a dependency (v11.8.1) and `apps/desktop/src/backend/services/database-service.ts` already provides the schema/migration pattern. The plan will extend that service rather than introduce a new persistence layer.
 - [Affects R47][Needs research] Helix `/moderation/bans` rate-limit and pagination behavior across N moderated channels. The cross-channel banned-user search may need throttling or per-channel parallelism limits.
 - [Affects R49, R50][Technical] Whether `user:manage:whispers` is needed at all given Twitch's increasing anti-spam restrictions on whisper. If the API surface is effectively unusable for new apps, drop the scope and the Whisper button from R18.
 - [Affects R54][Technical] Twitch EventSub WebSocket connection topology — one shared connection across all channels the user views vs one per channel. Twitch limits subscriptions per WebSocket; the choice affects multistream behavior.
 - [Affects R38, R39, R44][Needs research] Whether channel-points balances and bits totals on active polls/predictions need their own EventSub subscription for live updates, or whether Helix polling at a sensible cadence is sufficient.
 - [Affects R29, R41][Technical] OS-notification rate-limiting strategy (debounce / coalesce / drop) for AutoMod-heavy channels where holds may fire faster than a human can review.
 - [Affects R45, R47][Needs research] Whether the existing `useModeratedChannels` cache refresh cadence is fast enough for `/mod` to feel current after a new mod-promotion happens off-app, or whether `/mod` needs its own refresh trigger.
-- [Affects R51][Needs research] Streamlabs and StreamElements OAuth scope requirements + their token-rotation behavior. Determines whether the Worker pass-through pattern works for both.
+- [Affects R51][Needs research] Streamlabs OAuth scope requirements + token-rotation behavior. Determines whether the Worker pass-through pattern works for it.
 - [Affects R55][Technical] Whether to lazy-mount the EventSub subsystem (mount on first mod-tab open) or eager-mount it (mount when any moderated channel chat connects). Affects p95 chat-open regression budget.
