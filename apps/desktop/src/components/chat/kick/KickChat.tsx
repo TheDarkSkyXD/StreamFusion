@@ -40,6 +40,7 @@ import { useRoomStateStore } from "../../../store/room-state-store";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedKickChatHistory } from "./kick-chat-history";
 import { KickPinMessageDialog } from "./KickPinMessageDialog";
+import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 
 export interface KickChatProps {
   /** Channel name (slug) to join */
@@ -505,6 +506,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   }, []);
 
   return (
+    <UserPopoutProvider>
     <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
       <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between">
         <h2 className="font-semibold flex items-center gap-2">
@@ -605,6 +607,15 @@ export const KickChat: React.FC<KickChatProps> = ({
           onUnban={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "unban" }) : undefined}
           onDelete={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "delete" }) : undefined}
           selfUserId={kickUser ? String(kickUser.id) : undefined}
+          currentChannelContext={
+            kickRoomKey
+              ? {
+                  channelId: kickRoomKey,
+                  channelSlug: channel,
+                  kickChatroomId: chatroomId,
+                }
+              : undefined
+          }
         />
       </div>
 
@@ -946,6 +957,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         </div>
       </div>
     </div>
+    </UserPopoutProvider>
   );
 };
 

@@ -53,6 +53,7 @@ import { ChatMessageList } from "../ChatMessageList";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
+import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 
 export interface TwitchChatProps {
   /** Channel name to join */
@@ -493,6 +494,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   ]);
 
   return (
+    <UserPopoutProvider>
     <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
       <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between">
         <h2 className="font-semibold flex items-center gap-2">
@@ -624,6 +626,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           onUnban={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "unban" }) : undefined}
           onDelete={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "delete" }) : undefined}
           selfUserId={twitchUser?.id}
+          currentChannelContext={
+            channelId ? { channelId, channelSlug: channel } : undefined
+          }
         />
       </div>
 
@@ -1103,5 +1108,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         </div>
       </div>
     </div>
+    </UserPopoutProvider>
   );
 };

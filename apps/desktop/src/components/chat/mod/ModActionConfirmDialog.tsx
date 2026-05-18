@@ -26,6 +26,8 @@ import {
   LuShield,
   LuMegaphone,
   LuFingerprint,
+  LuShieldCheck,
+  LuStar,
 } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
@@ -48,7 +50,12 @@ export type ModActionType =
   | "shield"
   | "shieldOff"
   | "commercial"
-  | "uniqueChat";
+  | "uniqueChat"
+  // U17 — broadcaster-only role mutations on the user popout footer.
+  | "addMod"
+  | "removeMod"
+  | "addVip"
+  | "removeVip";
 
 interface ModActionCopy {
   icon: ReactNode;
@@ -155,6 +162,42 @@ const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
     confirmLabel: "Enable Unique Chat",
     busyLabel: "Enabling…",
     confirmClass: TWITCH_PURPLE,
+  },
+  addMod: {
+    icon: <LuShieldCheck className="w-5 h-5 text-emerald-500" />,
+    title: "Make moderator",
+    description:
+      "Grant this user moderator privileges on your channel. They'll be able to time out, ban, and delete messages.",
+    confirmLabel: "Make moderator",
+    busyLabel: "Adding…",
+    confirmClass: RECOVERY_GREEN,
+  },
+  removeMod: {
+    icon: <LuShieldCheck className="w-5 h-5 text-amber-500" />,
+    title: "Remove moderator",
+    description:
+      "Revoke this user's moderator privileges. They'll lose access to all mod actions on your channel.",
+    confirmLabel: "Remove moderator",
+    busyLabel: "Removing…",
+    confirmClass: WARNING_AMBER,
+  },
+  addVip: {
+    icon: <LuStar className="w-5 h-5 text-pink-400" />,
+    title: "Make VIP",
+    description:
+      "Grant this user VIP status. They'll bypass slow / followers / subscribers-only mode and receive a VIP badge.",
+    confirmLabel: "Make VIP",
+    busyLabel: "Adding…",
+    confirmClass: TWITCH_PURPLE,
+  },
+  removeVip: {
+    icon: <LuStar className="w-5 h-5 text-amber-500" />,
+    title: "Remove VIP",
+    description:
+      "Revoke this user's VIP status. They'll lose the VIP badge and chat-mode bypass.",
+    confirmLabel: "Remove VIP",
+    busyLabel: "Removing…",
+    confirmClass: WARNING_AMBER,
   },
 };
 

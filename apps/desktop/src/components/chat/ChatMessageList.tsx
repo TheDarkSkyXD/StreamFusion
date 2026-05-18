@@ -5,6 +5,7 @@ import type { ChatMessage as ChatMessageType } from "../../shared/chat-types";
 import { useChatStore } from "../../store/chat-store";
 import { useRenderCount } from "../dev/use-render-count";
 import { ChatMessage } from "./ChatMessage";
+import type { UsernameChannelContext } from "./Username";
 
 // Pause only on confirmed user intent: a wheel-up event (deltaY < 0) followed
 // by atBottomStateChange(false), debounced 200ms. Layout shifts from rapid
@@ -27,6 +28,9 @@ interface ChatMessageListProps {
   onDelete?: (message: ChatMessageType) => void;
   /** Signed-in user's platform user id; used to hide self-mod buttons. */
   selfUserId?: string;
+  /** U18 — forwarded to each message's Username so username clicks open
+   *  the user popout scoped to this channel. */
+  currentChannelContext?: UsernameChannelContext;
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
@@ -37,6 +41,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
   onUnban,
   onDelete,
   selfUserId,
+  currentChannelContext,
 }) => {
   useRenderCount("ChatMessageList");
   const messages = useChatStore((state) => state.messages);
@@ -163,6 +168,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
         onUnban={onUnban ? handleUnban : undefined}
         onDelete={onDelete ? handleDelete : undefined}
         selfUserId={selfUserId}
+        currentChannelContext={currentChannelContext}
       />
     ),
     [
@@ -178,6 +184,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
       handleDelete,
       onDelete,
       selfUserId,
+      currentChannelContext,
     ],
   );
 

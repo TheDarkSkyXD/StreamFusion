@@ -72,6 +72,30 @@ const ACTION_COPY: Array<{
     confirmLabel: "Enable Unique Chat",
     descriptionFragment: "identical to a recent one",
   },
+  {
+    actionType: "addMod",
+    title: "Make moderator",
+    confirmLabel: "Make moderator",
+    descriptionFragment: "moderator privileges",
+  },
+  {
+    actionType: "removeMod",
+    title: "Remove moderator",
+    confirmLabel: "Remove moderator",
+    descriptionFragment: "Revoke this user's moderator",
+  },
+  {
+    actionType: "addVip",
+    title: "Make VIP",
+    confirmLabel: "Make VIP",
+    descriptionFragment: "VIP status",
+  },
+  {
+    actionType: "removeVip",
+    title: "Remove VIP",
+    confirmLabel: "Remove VIP",
+    descriptionFragment: "Revoke this user's VIP",
+  },
 ];
 
 describe("ModActionConfirmDialog", () => {

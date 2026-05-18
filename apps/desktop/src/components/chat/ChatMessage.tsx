@@ -11,7 +11,7 @@ import {
 import type { ChatMessage as ChatMessageType, ContentFragment } from "../../shared/chat-types";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
-import { Username } from "./Username";
+import { Username, type UsernameChannelContext } from "./Username";
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -30,6 +30,9 @@ interface ChatMessageProps {
   /** The signed-in user's id. Used to recognize "own messages" so they still
    *  show the toolbar even though they may carry a moderator badge. */
   selfUserId?: string;
+  /** U18 — when provided, clicking the message's Username opens the popout
+   *  bound to this channel context. Surfaces without a channel omit it. */
+  currentChannelContext?: UsernameChannelContext;
 }
 
 /** Sender badges that protect the user from moderation actions. Toolbar is
@@ -85,6 +88,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
   onUnban,
   onDelete,
   selfUserId,
+  currentChannelContext,
 }) => {
   const isDeleted = message.isDeleted;
 
@@ -156,6 +160,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
             color={message.color}
             platform={message.platform}
             className="align-middle"
+            currentChannelContext={currentChannelContext}
           />
         </span>
 

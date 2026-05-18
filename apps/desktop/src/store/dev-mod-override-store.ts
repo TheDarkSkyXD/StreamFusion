@@ -22,15 +22,24 @@ import { create } from "zustand";
 interface DevModOverrideState {
   forceModRole: boolean;
   forceModScopes: boolean;
+  /**
+   * U17 — gates the Whisper button in `UserPopoutFooter`. Twitch heavily
+   * rate-limits `user:manage:whispers` for new apps, so the surface is
+   * hidden by default until a user opts in via the debug panel.
+   */
+  showWhisper: boolean;
   setForceModRole: (v: boolean) => void;
   setForceModScopes: (v: boolean) => void;
+  setShowWhisper: (v: boolean) => void;
   reset: () => void;
 }
 
 export const useDevModOverrideStore = create<DevModOverrideState>()((set) => ({
   forceModRole: false,
   forceModScopes: false,
+  showWhisper: false,
   setForceModRole: (v) => set({ forceModRole: v }),
   setForceModScopes: (v) => set({ forceModScopes: v }),
-  reset: () => set({ forceModRole: false, forceModScopes: false }),
+  setShowWhisper: (v) => set({ showWhisper: v }),
+  reset: () => set({ forceModRole: false, forceModScopes: false, showWhisper: false }),
 }));
