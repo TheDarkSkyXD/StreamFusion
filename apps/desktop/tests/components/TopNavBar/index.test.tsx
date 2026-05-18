@@ -1,5 +1,5 @@
 import { fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders, routerMock, screen } from '../../test-utils';
 
@@ -26,9 +26,23 @@ vi.mock('@/components/auth', () => ({
   ProfileDropdown: () => <div data-testid="profile">profile</div>,
 }));
 
+// U29 — the /mod nav-link reads `twitchModeratedChannelIds.size` from this
+// store. Each test reassigns `moderatedIds` so the selector returns a fresh
+// snapshot every render.
+let moderatedIds = new Set<string>();
+vi.mock('@/store/moderated-channels-store', () => ({
+  useModeratedChannelsStore: (
+    selector: (s: { twitchModeratedChannelIds: Set<string> }) => unknown,
+  ) => selector({ twitchModeratedChannelIds: moderatedIds }),
+}));
+
 import { TopNavBar } from '@/components/TopNavBar';
 
 describe('TopNavBar', () => {
+  beforeEach(() => {
+    moderatedIds = new Set();
+  });
+
   it('renders brand, search, notifications, profile', () => {
     renderWithProviders(<TopNavBar />);
     expect(screen.getByText('StreamFusion')).toBeInTheDocument();
@@ -41,5 +55,19 @@ describe('TopNavBar', () => {
     renderWithProviders(<TopNavBar />);
     fireEvent.click(screen.getByTitle(/collapse sidebar|expand sidebar/i));
     expect(setSidebarCollapsed).toHaveBeenCalledWith(true, true);
+  });
+
+  it('hides the /mod nav link when the user moderates no channels', () => {
+    moderatedIds = new Set();
+    renderWithProviders(<TopNavBar />);
+    expect(screen.queryByTestId('mod-nav-link')).not.toBeInTheDocument();
+  });
+
+  it('shows the /mod nav link when the user moderates ≥1 channel', () => {
+    moderatedIds = new Set(['111']);
+    renderWithProviders(<TopNavBar />);
+    const link = screen.getByTestId('mod-nav-link');
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('data-to', '/mod');
   });
 });

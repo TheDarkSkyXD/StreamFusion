@@ -17,6 +17,7 @@ import {
   FollowingPage,
   HistoryPage,
   HomePage,
+  ModPage,
   MultiStreamPage,
   SearchPage,
   SettingsPage,
@@ -184,6 +185,15 @@ const downloadsRoute = createRoute({
   component: withSuspense(DownloadsPage),
 });
 
+// Moderation page — top-level /mod surface. Nav-link gating happens in the
+// TopNavBar (visible only when the signed-in user moderates ≥1 channel); the
+// route itself is always registered so a deep-link still resolves.
+const modRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/mod",
+  component: withSuspense(ModPage),
+});
+
 // Build the route tree
 const routeTree = rootRoute.addChildren([
   appLayoutRoute.addChildren([
@@ -199,6 +209,7 @@ const routeTree = rootRoute.addChildren([
     multiStreamRoute,
     historyRoute,
     downloadsRoute,
+    modRoute,
   ]),
 ]);
 

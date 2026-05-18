@@ -42,3 +42,5 @@ export const HistoryPage = lazy(() =>
 export const DownloadsPage = lazy(() =>
   import("./Downloads").then((m) => ({ default: m.DownloadsPage }))
 );
+
+export const ModPage = lazy(() => import("./Mod").then((m) => ({ default: m.ModPage })));
