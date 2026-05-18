@@ -55,6 +55,7 @@ import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
 import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
+import { EngagementTab } from "../mod/tabs/EngagementTab";
 import { ModLogTab } from "../mod/tabs/ModLogTab";
 import { TwitchAutoModTab } from "../mod/tabs/TwitchAutoModTab";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
@@ -708,8 +709,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           ) : (
             <div className="p-4 text-gray-400">No channel selected.</div>
           ),
-          engagement: (
-            <div className="p-4 text-gray-400">Engagement — coming in U24</div>
+          engagement: channelId ? (
+            <EngagementTab channelId={channelId} />
+          ) : (
+            <div className="p-4 text-gray-400">No channel selected.</div>
           ),
         }}
       </ChatPanelTabs>

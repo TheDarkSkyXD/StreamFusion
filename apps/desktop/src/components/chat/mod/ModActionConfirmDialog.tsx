@@ -28,6 +28,11 @@ import {
   LuFingerprint,
   LuShieldCheck,
   LuStar,
+  LuLock,
+  LuTrophy,
+  LuCircleX,
+  LuSquare,
+  LuArchive,
 } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
@@ -55,7 +60,13 @@ export type ModActionType =
   | "addMod"
   | "removeMod"
   | "addVip"
-  | "removeVip";
+  | "removeVip"
+  // U25/U26 — engagement (predictions / polls) confirmations.
+  | "predictionLock"
+  | "predictionResolve"
+  | "predictionCancel"
+  | "pollTerminate"
+  | "pollArchive";
 
 interface ModActionCopy {
   icon: ReactNode;
@@ -198,6 +209,51 @@ const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
     confirmLabel: "Remove VIP",
     busyLabel: "Removing…",
     confirmClass: WARNING_AMBER,
+  },
+  predictionLock: {
+    icon: <LuLock className="w-5 h-5 text-amber-500" />,
+    title: "Lock prediction",
+    description:
+      "Stop accepting new predictions. Viewers who already locked in stay in — you can resolve a winning outcome afterward.",
+    confirmLabel: "Lock prediction",
+    busyLabel: "Locking…",
+    confirmClass: WARNING_AMBER,
+  },
+  predictionResolve: {
+    icon: <LuTrophy className="w-5 h-5 text-emerald-500" />,
+    title: "Resolve prediction",
+    description:
+      "Pay out channel points to viewers who picked the winning outcome. This cannot be undone.",
+    confirmLabel: "Resolve prediction",
+    busyLabel: "Resolving…",
+    confirmClass: RECOVERY_GREEN,
+  },
+  predictionCancel: {
+    icon: <LuCircleX className="w-5 h-5 text-red-500" />,
+    title: "Cancel prediction",
+    description:
+      "End the prediction without picking a winner. All channel points are refunded to participants.",
+    confirmLabel: "Cancel prediction",
+    busyLabel: "Canceling…",
+    confirmClass: DESTRUCTIVE_RED,
+  },
+  pollTerminate: {
+    icon: <LuSquare className="w-5 h-5 text-amber-500" />,
+    title: "Terminate poll",
+    description:
+      "End the poll right now and show the results. Voters can no longer change their vote.",
+    confirmLabel: "Terminate poll",
+    busyLabel: "Terminating…",
+    confirmClass: WARNING_AMBER,
+  },
+  pollArchive: {
+    icon: <LuArchive className="w-5 h-5 text-[var(--color-foreground-muted)]" />,
+    title: "Archive poll",
+    description:
+      "Hide this poll from chat. Already-cast votes remain in your history but the poll won't show up anywhere.",
+    confirmLabel: "Archive poll",
+    busyLabel: "Archiving…",
+    confirmClass: TWITCH_PURPLE,
   },
 };
 

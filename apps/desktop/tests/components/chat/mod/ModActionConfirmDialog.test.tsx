@@ -96,6 +96,36 @@ const ACTION_COPY: Array<{
     confirmLabel: "Remove VIP",
     descriptionFragment: "Revoke this user's VIP",
   },
+  {
+    actionType: "predictionLock",
+    title: "Lock prediction",
+    confirmLabel: "Lock prediction",
+    descriptionFragment: "Stop accepting new predictions",
+  },
+  {
+    actionType: "predictionResolve",
+    title: "Resolve prediction",
+    confirmLabel: "Resolve prediction",
+    descriptionFragment: "Pay out channel points",
+  },
+  {
+    actionType: "predictionCancel",
+    title: "Cancel prediction",
+    confirmLabel: "Cancel prediction",
+    descriptionFragment: "without picking a winner",
+  },
+  {
+    actionType: "pollTerminate",
+    title: "Terminate poll",
+    confirmLabel: "Terminate poll",
+    descriptionFragment: "End the poll right now",
+  },
+  {
+    actionType: "pollArchive",
+    title: "Archive poll",
+    confirmLabel: "Archive poll",
+    descriptionFragment: "Hide this poll from chat",
+  },
 ];
 
 describe("ModActionConfirmDialog", () => {
