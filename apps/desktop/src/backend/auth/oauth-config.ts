@@ -76,11 +76,27 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
     "user:read:follows",
     "user:read:subscriptions",
     // Mod surface (U7): required for pin/unpin actions and the mod-channels cache.
-    // The Cloudflare Worker scope allow-list (streamfusion.leveluptogetherbiz.workers.dev)
-    // must be updated in lockstep — adding scopes here without the Worker
-    // update causes the token exchange to reject the new scope set.
+    // Worker passthrough verified — apps/worker/src/index.ts handleTwitchTokenExchange
+    // forwards client_id + code + redirect_uri only; no scope allow-list filter, so
+    // the scopes Twitch sees are exactly what we request below.
     "user:read:moderated_channels",
     "moderator:manage:chat_messages",
+    // Channel-management console (U4) — twelve new scopes covering every mod and
+    // broadcaster action surfaced by the console. The Whisper button (user:manage:whispers)
+    // is feature-flagged off by default (plan decision #4) — scope is included so we
+    // have it ready if Twitch loosens whisper-API gating for new apps.
+    "moderator:manage:banned_users",
+    "moderator:manage:shield_mode",
+    "moderator:manage:automod",
+    "moderator:manage:automod_settings",
+    "moderator:read:chat_messages",
+    "channel:manage:raids",
+    "channel:manage:moderators",
+    "channel:manage:vips",
+    "channel:manage:predictions",
+    "channel:manage:polls",
+    "channel:edit:commercial",
+    "user:manage:whispers",
   ],
   usesPkce: true,
 };
