@@ -1,9 +1,15 @@
 ---
 date: 2026-05-18
 topic: channel-management-console
-status: active
+status: completed
 origin: docs/brainstorms/2026-05-18-channel-management-console-requirements.md
 ---
+
+> **Scope cut (2026-05-18):** Mid-build the user dropped AutoMod (both
+> platforms), Streamlabs OAuth, and the giveaway feature. U20, U21, U23,
+> U27, U28 are removed; U30 ships as a thin per-channel retention editor;
+> U32 ships predictions + polls only. See commit `b15bdec` for the cleanup
+> pass and `docs/solutions/` (or memory) for the rationale.
 
 # feat: Channel-Management Console — Multi-Surface Moderation + Broadcaster Tools
 
