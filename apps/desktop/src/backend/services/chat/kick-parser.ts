@@ -215,7 +215,17 @@ export function parseKickBadges(badges: KickBadge[], subscriberBadges?: Subscrib
   return badges.map((badge) => {
     // Use bundled badge assets (embedded as data URIs)
     let imageUrl = getBundledBadgeUrl(badge.type) || "";
-    const title = badge.text || badge.type;
+    // Sub-gifter badges carry the gift COUNT in `badge.count`. Surface it in
+    // the tooltip title so hovering reveals e.g. "Sub Gifter (50)" rather
+    // than a plain "Sub Gifter" — matches Kick's own tooltip behavior and is
+    // consistent with how the subscriber badge already exposes month count
+    // via the per-channel custom-badge text.
+    const baseTitle = badge.text || badge.type;
+    const isSubGifter = badge.type === "sub_gifter" || badge.type === "subgifter";
+    const title =
+      isSubGifter && typeof badge.count === "number" && badge.count > 0
+        ? `${baseTitle} (${badge.count})`
+        : baseTitle;
 
     // Custom Subscriber Badge Logic - channel-specific badges from API
     if (badge.type === "subscriber" && subscriberBadges?.length) {

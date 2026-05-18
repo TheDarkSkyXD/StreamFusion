@@ -89,6 +89,52 @@ describe("kickPinToNormalized", () => {
     expect(normalized.pinnedBy?.badges[0].title).toBe("Broadcaster");
   });
 
+  it("appends the gift count to sub-gifter badge titles for the tooltip", () => {
+    // When a chatter has gifted N subs, Kick sends a `sub_gifter` badge with
+    // `count: N`. The badge tooltip should read "Sub Gifter (N)" so the
+    // viewer can see how many gifts the user has done at a glance —
+    // matches Kick's own tooltip behavior.
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-gifter",
+          content: "test",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: {
+            username: "gifty",
+            identity: {
+              color: "#FF7F50",
+              badges: [{ type: "sub_gifter", text: "Sub Gifter", count: 50 }],
+            },
+          },
+        },
+      }),
+    );
+    expect(normalized.author.badges[0].title).toBe("Sub Gifter (50)");
+  });
+
+  it("does NOT append gift count for non-sub-gifter badges", () => {
+    // Subscriber count is rendered separately by the channel's custom
+    // subscriber-tier badge; we should not double-append.
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-sub",
+          content: "test",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: {
+            username: "longsub",
+            identity: {
+              color: "#FF7F50",
+              badges: [{ type: "subscriber", text: "1-Year Subscriber", count: 12 }],
+            },
+          },
+        },
+      }),
+    );
+    expect(normalized.author.badges[0].title).toBe("1-Year Subscriber");
+  });
+
   it("handles missing badges arrays defensively (older pin payloads)", () => {
     // Older Kick pin events may omit `identity.badges` entirely — the
     // adapter should treat that as an empty array, not crash.
