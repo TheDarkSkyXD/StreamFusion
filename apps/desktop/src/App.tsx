@@ -1,6 +1,7 @@
 import { RouterProvider } from "@tanstack/react-router";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { DebugPanel } from "@/components/dev/DebugPanel";
+import { ToastRoot } from "@/components/ToastRoot";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAppShutdown } from "@/hooks/use-app-shutdown";
 import { QueryProvider } from "@/providers/query-provider";
@@ -26,6 +27,7 @@ function App() {
         >
           <RouterProvider router={router} />
           <DebugPanel />
+          <ToastRoot />
         </AuthProvider>
       </TooltipProvider>
     </QueryProvider>

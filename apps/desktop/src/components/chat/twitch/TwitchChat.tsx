@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { BsGear, BsX } from "react-icons/bs";
+import { toast } from "sonner";
 import {
   pinChatMessage,
   unpinChatMessage,
@@ -519,13 +520,19 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               );
               if (result.ok) {
                 setPinDialogMessage(null);
+                toast.success("Pinned message");
               } else if (result.kind === "unauthenticated") {
                 setPinDialogMessage(null);
                 promptReconnect();
+              } else {
+                // Forbidden / network / other failures: surface a toast and
+                // close the dialog. The toast carries the action name + the
+                // server's reason; the user can retry by re-opening the menu.
+                setPinDialogMessage(null);
+                toast.error("Couldn't pin message", {
+                  description: result.message ?? result.kind,
+                });
               }
-              // Other failure modes (forbidden / network) leave the dialog
-              // open so the user can retry; a toast/error surface is a
-              // future follow-up.
             } finally {
               setPinDialogBusy(false);
             }
