@@ -1,6 +1,13 @@
 import type React from "react";
 import { memo, useMemo } from "react";
-import { BsPinAngleFill, BsReplyFill } from "react-icons/bs";
+import {
+  BsHammer,
+  BsHourglassSplit,
+  BsPinAngleFill,
+  BsReplyFill,
+  BsTrashFill,
+  BsUnlock,
+} from "react-icons/bs";
 import type { ChatMessage as ChatMessageType, ContentFragment } from "../../shared/chat-types";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
@@ -14,7 +21,30 @@ interface ChatMessageProps {
    *  Twitch chat messages. TwitchChat passes this only when the signed-in
    *  user moderates the current channel. */
   onPin?: (message: ChatMessageType) => void;
+  // U10 additions — each parent passes only when the action is applicable for
+  // the signed-in mod identity. ChatMessage stays unaware of mod state itself.
+  onTimeout?: (message: ChatMessageType) => void;
+  onBan?: (message: ChatMessageType) => void;
+  onUnban?: (message: ChatMessageType) => void;
+  onDelete?: (message: ChatMessageType) => void;
+  /** The signed-in user's id. Used to recognize "own messages" so they still
+   *  show the toolbar even though they may carry a moderator badge. */
+  selfUserId?: string;
 }
+
+/** Sender badges that protect the user from moderation actions. Toolbar is
+ *  hidden when the sender carries any of these — except when it's the
+ *  signed-in user's own message (AE2). */
+const PROTECTED_BADGE_SET_IDS = new Set([
+  "broadcaster",
+  "moderator",
+  "staff",
+  "admin",
+  "global_mod",
+]);
+
+const TOOLBAR_BUTTON_CLASS =
+  "opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-opacity";
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -45,7 +75,17 @@ function fragmentKey(fragment: ContentFragment, index: number): string {
  * Uses React.memo to prevent unnecessary re-renders when message data hasn't changed.
  * Timestamp is memoized to avoid recalculating on every render.
  */
-export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, onReply, onPin }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = memo(({
+  message,
+  style,
+  onReply,
+  onPin,
+  onTimeout,
+  onBan,
+  onUnban,
+  onDelete,
+  selfUserId,
+}) => {
   const isDeleted = message.isDeleted;
 
   if (message.type === "ban" && message.banInfo) {
@@ -148,19 +188,81 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, style, o
           <BsReplyFill size={13} />
         </button>
       )}
-      {/* Pin button — mod-only, visible on hover. TwitchChat and KickChat
-       *  pass onPin only when their respective useIsMod hook returns true. */}
-      {onPin && message.type === "message" && (
-        <button
-          type="button"
-          onClick={() => onPin(message)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-opacity"
-          title="Pin message"
-          aria-label="Pin message"
-        >
-          <BsPinAngleFill size={13} />
-        </button>
-      )}
+      {/* Mod toolbar — each button rendered iff its callback was passed.
+       *  Parent surfaces decide which callbacks to pass based on mod state. */}
+      {(() => {
+        const hasAnyAction = Boolean(
+          onPin || onTimeout || onBan || onUnban || onDelete
+        );
+        if (!hasAnyAction || message.type !== "message") return null;
+
+        const isOwnMessage =
+          selfUserId !== undefined && message.userId === selfUserId;
+        const senderIsProtected = message.badges.some((b) =>
+          PROTECTED_BADGE_SET_IDS.has(b.setId)
+        );
+        if (senderIsProtected && !isOwnMessage) return null;
+
+        return (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {onTimeout && (
+              <button
+                type="button"
+                onClick={() => onTimeout(message)}
+                className={TOOLBAR_BUTTON_CLASS}
+                title="Timeout user"
+                aria-label="Timeout user"
+              >
+                <BsHourglassSplit size={13} />
+              </button>
+            )}
+            {onBan && (
+              <button
+                type="button"
+                onClick={() => onBan(message)}
+                className={TOOLBAR_BUTTON_CLASS}
+                title="Ban user"
+                aria-label="Ban user"
+              >
+                <BsHammer size={13} />
+              </button>
+            )}
+            {onUnban && (
+              <button
+                type="button"
+                onClick={() => onUnban(message)}
+                className={TOOLBAR_BUTTON_CLASS}
+                title="Unban user"
+                aria-label="Unban user"
+              >
+                <BsUnlock size={13} />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(message)}
+                className={TOOLBAR_BUTTON_CLASS}
+                title="Delete message"
+                aria-label="Delete message"
+              >
+                <BsTrashFill size={13} />
+              </button>
+            )}
+            {onPin && (
+              <button
+                type="button"
+                onClick={() => onPin(message)}
+                className={TOOLBAR_BUTTON_CLASS}
+                title="Pin message"
+                aria-label="Pin message"
+              >
+                <BsPinAngleFill size={13} />
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 });
