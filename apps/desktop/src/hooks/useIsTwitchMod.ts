@@ -16,12 +16,17 @@
  */
 
 import { useAuthStore } from "@/store/auth-store";
+import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 export function useIsTwitchMod(channelId?: string | null): boolean {
   const twitchUser = useAuthStore((state) => state.twitchUser);
   const moddedIds = useModeratedChannelsStore((state) => state.twitchModeratedChannelIds);
+  // Dev debug-panel override — lets the ChatSimTool force mod UI without
+  // needing an actual mod token. Off by default, no production impact.
+  const forceMod = useDevModOverrideStore((s) => s.forceModRole);
 
+  if (forceMod) return true;
   if (!channelId) return false;
   if (!twitchUser) return false;
   // Broadcaster moderates their own channel by definition.

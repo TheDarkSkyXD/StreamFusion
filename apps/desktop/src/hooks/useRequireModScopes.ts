@@ -18,6 +18,7 @@
 import { useEffect, useState } from "react";
 
 import { useAuthStore } from "@/store/auth-store";
+import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
 const REQUIRED_MOD_SCOPES = [
@@ -37,6 +38,8 @@ export interface UseRequireModScopesResult {
 export function useRequireModScopes(): UseRequireModScopesResult {
   const twitchUser = useAuthStore((state) => state.twitchUser);
   const openDialog = useReconnectDialogStore((state) => state.open);
+  // Dev debug-panel override — see dev-mod-override-store.
+  const forceScopes = useDevModOverrideStore((s) => s.forceModScopes);
   const [hasModScopes, setHasModScopes] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -66,5 +69,11 @@ export function useRequireModScopes(): UseRequireModScopesResult {
     };
   }, [twitchUser]);
 
-  return { hasModScopes, loading, promptReconnect: openDialog };
+  // Dev override wins. Lets the debug panel test the post-scope action path
+  // without needing a token that actually carries the new scopes.
+  return {
+    hasModScopes: forceScopes || hasModScopes,
+    loading: forceScopes ? false : loading,
+    promptReconnect: openDialog,
+  };
 }
