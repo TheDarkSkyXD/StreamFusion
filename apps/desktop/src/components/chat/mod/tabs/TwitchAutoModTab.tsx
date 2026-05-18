@@ -22,6 +22,7 @@ import type {
   NotificationPayload,
 } from "@/backend/api/platforms/twitch/twitch-eventsub-types";
 import { timeoutUser } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
+import { useAutoModAlerts } from "@/hooks/useAutoModAlerts";
 import { useTwitchEventSub } from "@/hooks/useTwitchEventSub";
 import { useAuthStore } from "@/store/auth-store";
 import {
@@ -39,6 +40,9 @@ const HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 
 export interface TwitchAutoModTabProps {
   channelId: string;
+  /** Optional human-readable channel name used in alert copy. Falls back to
+   *  the channelId so the toast / OS notif still identify the source. */
+  channelName?: string;
 }
 
 interface ManageAutoModMessageArgs {
@@ -109,7 +113,10 @@ async function addAutoModPermittedUser(
   }
 }
 
-export function TwitchAutoModTab({ channelId }: TwitchAutoModTabProps) {
+export function TwitchAutoModTab({
+  channelId,
+  channelName,
+}: TwitchAutoModTabProps) {
   const add = useAutoModQueueStore((s) => s.add);
   const remove = useAutoModQueueStore((s) => s.remove);
   const byKey = useAutoModQueueStore((s) => s.byKey);
@@ -149,6 +156,28 @@ export function TwitchAutoModTab({ channelId }: TwitchAutoModTabProps) {
     if (v.channelId === channelId) held.push(v);
   }
   held.sort((a, b) => a.heldAt - b.heldAt);
+
+  // U23 — alert pipeline. Toast (+ Approve/Deny buttons) + opt-in OS notif.
+  // The Approve/Deny callbacks resolve the latest entry by id at click-time
+  // so the toast keeps working even if the store mutates between fire and
+  // click. The actual Helix call reuses the same handlers as the inline UI.
+  useAutoModAlerts({
+    platform: "twitch",
+    channelId,
+    channelName: channelName ?? channelId,
+    onApprove: (messageId) => {
+      const entry = useAutoModQueueStore.getState().byKey.get(
+        `${channelId}:${messageId}`,
+      );
+      if (entry) void handleApprove(entry);
+    },
+    onDeny: (messageId) => {
+      const entry = useAutoModQueueStore.getState().byKey.get(
+        `${channelId}:${messageId}`,
+      );
+      if (entry) void handleDeny(entry);
+    },
+  });
 
   async function getModCredentials(): Promise<{
     accessToken: string;

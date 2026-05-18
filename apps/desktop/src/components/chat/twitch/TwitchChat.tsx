@@ -45,6 +45,7 @@ import type {
   NormalizedPinnedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
+import { useAutoModQueueStore } from "../../../store/automod-queue-store";
 import { useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
 import { useRenderCount } from "../../dev/use-render-count";
@@ -509,6 +510,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     visibleTabs.push("engagement");
   }
 
+  // U23 — AutoMod tab badge count. Reactive via the queue store; `undefined`
+  // when zero so ChatPanelTabs hides the pill instead of showing "0".
+  const automodCount = useAutoModQueueStore((s) =>
+    channelId ? s.countForChannel(channelId) : 0,
+  );
+  const tabBadges = automodCount > 0 ? { automod: automodCount } : undefined;
+
   // U19 — Chat-tab body. Keeps the existing pinned banner / mod strip /
   // message list / input footer wiring intact. The mod-action and pin
   // dialogs stay outside the tab so they overlay regardless of tab.
@@ -687,11 +695,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   return (
     <UserPopoutProvider>
     <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
-      <ChatPanelTabs visibleTabs={visibleTabs}>
+      <ChatPanelTabs visibleTabs={visibleTabs} badges={tabBadges}>
         {{
           chat: chatBody,
           automod: channelId ? (
-            <TwitchAutoModTab channelId={channelId} />
+            <TwitchAutoModTab channelId={channelId} channelName={channel} />
           ) : (
             <div className="p-4 text-gray-400">No channel selected.</div>
           ),

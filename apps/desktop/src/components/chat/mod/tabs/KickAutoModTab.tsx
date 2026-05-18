@@ -25,6 +25,7 @@ import {
   useKickAutoModQueueStore,
 } from "@/store/kick-automod-queue";
 
+import { useAutoModAlerts } from "@/hooks/useAutoModAlerts";
 import { useKickAutoModConfig } from "@/hooks/useKickAutoModConfig";
 
 import { ModActionConfirmDialog } from "../ModActionConfirmDialog";
@@ -93,6 +94,28 @@ export function KickAutoModTab({
     out.sort((a, b) => a.heldAt - b.heldAt);
     return out;
   }, [byKey, channelSlug]);
+
+  // U23 — alert pipeline. Kick keys the queue by channelSlug, so we pass
+  // that as the alert "channelId". Approve releases the parsed message into
+  // chat-store; Deny just drops it. Both reuse the same handlers as the
+  // inline action buttons below.
+  useAutoModAlerts({
+    platform: "kick",
+    channelId: channelSlug,
+    channelName: channelSlug,
+    onApprove: (messageId) => {
+      const entry = useKickAutoModQueueStore.getState().byKey.get(
+        `${channelSlug}:${messageId}`,
+      );
+      if (entry) handleApprove(entry);
+    },
+    onDeny: (messageId) => {
+      const entry = useKickAutoModQueueStore.getState().byKey.get(
+        `${channelSlug}:${messageId}`,
+      );
+      if (entry) handleDeny(entry);
+    },
+  });
 
   function handleApprove(m: KickHeldMessage): void {
     addToChat(m.parsedMessage);

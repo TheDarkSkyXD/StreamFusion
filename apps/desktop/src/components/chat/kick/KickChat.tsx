@@ -29,6 +29,7 @@ import type {
 import { useAuthStore } from "../../../store/auth-store";
 import { useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
+import { useKickAutoModQueueStore } from "../../../store/kick-automod-queue";
 import { useRenderCount } from "../../dev/use-render-count";
 import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
@@ -516,6 +517,13 @@ export const KickChat: React.FC<KickChatProps> = ({
     visibleTabs.push("automod", "modlog");
   }
 
+  // U23 — AutoMod tab badge for Kick. Kick's queue is keyed by channelSlug,
+  // not channelId, so we count by the slug.
+  const kickAutomodCount = useKickAutoModQueueStore((s) =>
+    channel ? s.countForChannel(channel) : 0,
+  );
+  const tabBadges = kickAutomodCount > 0 ? { automod: kickAutomodCount } : undefined;
+
   // U19 — Chat-tab body. Keeps existing pinned banner / poll widget / mod
   // strip / message list / input footer wiring intact. The mod-action and
   // pin dialogs stay outside the tab so they overlay regardless of tab.
@@ -670,7 +678,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   return (
     <UserPopoutProvider>
     <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
-      <ChatPanelTabs visibleTabs={visibleTabs}>
+      <ChatPanelTabs visibleTabs={visibleTabs} badges={tabBadges}>
         {{
           chat: chatBody,
           automod: channelId && chatroomId ? (
