@@ -17,15 +17,6 @@ export interface AuthToken {
   scope?: string[];
 }
 
-/**
- * Streamlabs OAuth token payload. Extends the standard AuthToken with
- * `socketToken` — Streamlabs's WebSocket auth key, fetched once after OAuth
- * and required to open the Streamlabs Socket API connection.
- */
-export interface StreamlabsAuthToken extends AuthToken {
-  socketToken: string;
-}
-
 export interface EncryptedToken {
   encrypted: string; // Base64 encoded encrypted token
   iv?: string; // Initialization vector if needed
@@ -165,9 +156,6 @@ export interface StorageSchema {
     twitch?: EncryptedToken;
     kick?: EncryptedToken;
   };
-
-  // Streamlabs OAuth token (encrypted). Not a Platform — separate top-level slot.
-  streamlabsToken: EncryptedToken | null;
 
   // User data
   twitchUser: TwitchUser | null;

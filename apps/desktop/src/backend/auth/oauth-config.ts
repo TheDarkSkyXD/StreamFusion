@@ -87,9 +87,6 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
     // have it ready if Twitch loosens whisper-API gating for new apps.
     "moderator:manage:banned_users",
     "moderator:manage:shield_mode",
-    "moderator:manage:automod",
-    "moderator:manage:automod_settings",
-    "moderator:read:chat_messages",
     "channel:manage:raids",
     "channel:manage:moderators",
     "channel:manage:vips",

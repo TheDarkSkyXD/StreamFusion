@@ -2,8 +2,8 @@
  * useHelixPoll
  *
  * U24 — generic visibility-aware polling hook for the Engagement tab's Helix
- * endpoints (predictions / polls / future giveaways). Polls on the requested
- * interval while `enabled === true` AND the document is visible; pauses when
+ * endpoints (predictions / polls). Polls on the requested interval while
+ * `enabled === true` AND the document is visible; pauses when
  * the tab goes to the background; fires once immediately on mount.
  *
  * Caller-owned: the `fetcher` is invoked as-is. Errors surface via the

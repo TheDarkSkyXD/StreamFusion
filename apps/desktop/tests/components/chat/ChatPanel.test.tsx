@@ -42,7 +42,6 @@ describe('ChatPanelTabs', () => {
       <ChatPanelTabs visibleTabs={visibleTabs}>
         {{
           chat: <div data-testid="chat-body">chat content</div>,
-          automod: <div data-testid="automod-body">automod placeholder</div>,
           modlog: <div data-testid="modlog-body">modlog placeholder</div>,
           engagement: <div data-testid="engagement-body">engagement placeholder</div>,
         }}
@@ -57,85 +56,76 @@ describe('ChatPanelTabs', () => {
     expect(screen.getByTestId('chat-body')).toBeInTheDocument();
   });
 
-  it('Twitch mod (not broadcaster) sees 3 tabs: Chat / AutoMod / Mod log', () => {
-    renderTabs(['chat', 'automod', 'modlog']);
+  it('Twitch mod (not broadcaster) sees 2 tabs: Chat / Mod log', () => {
+    renderTabs(['chat', 'modlog']);
     const tabs = screen.getAllByRole('tab');
-    expect(tabs).toHaveLength(3);
-    expect(tabs.map((t) => t.textContent)).toEqual([
-      'Chat',
-      'AutoMod',
-      'Mod log',
-    ]);
+    expect(tabs).toHaveLength(2);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Chat', 'Mod log']);
     expect(screen.queryByText('Engagement')).toBeNull();
   });
 
   // AE6
-  it('Twitch broadcaster sees 4 tabs including Engagement', () => {
-    renderTabs(['chat', 'automod', 'modlog', 'engagement']);
+  it('Twitch broadcaster sees 3 tabs including Engagement', () => {
+    renderTabs(['chat', 'modlog', 'engagement']);
     const tabs = screen.getAllByRole('tab');
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(3);
     expect(tabs.map((t) => t.textContent)).toEqual([
       'Chat',
-      'AutoMod',
       'Mod log',
       'Engagement',
     ]);
   });
 
   // AE7
-  it('Kick broadcaster sees 3 tabs and no Engagement', () => {
-    renderTabs(['chat', 'automod', 'modlog']);
+  it('Kick broadcaster sees 2 tabs and no Engagement', () => {
+    renderTabs(['chat', 'modlog']);
     const tabs = screen.getAllByRole('tab');
-    expect(tabs).toHaveLength(3);
-    expect(tabs.map((t) => t.textContent)).toEqual([
-      'Chat',
-      'AutoMod',
-      'Mod log',
-    ]);
+    expect(tabs).toHaveLength(2);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Chat', 'Mod log']);
   });
 
   it('chat tab is active by default and its panel is visible', () => {
-    renderTabs(['chat', 'automod', 'modlog']);
+    renderTabs(['chat', 'modlog']);
     const chatPanel = document.querySelector(
       '[data-tab-panel="chat"]',
     ) as HTMLElement;
-    const automodPanel = document.querySelector(
-      '[data-tab-panel="automod"]',
+    const modlogPanel = document.querySelector(
+      '[data-tab-panel="modlog"]',
     ) as HTMLElement;
     expect(chatPanel.style.display).not.toBe('none');
-    expect(automodPanel.style.display).toBe('none');
+    expect(modlogPanel.style.display).toBe('none');
   });
 
-  it('clicking AutoMod hides the chat content via display:none but keeps the DOM', () => {
-    renderTabs(['chat', 'automod', 'modlog']);
-    const automodTab = screen
+  it('clicking Mod log hides the chat content via display:none but keeps the DOM', () => {
+    renderTabs(['chat', 'modlog']);
+    const modlogTab = screen
       .getAllByRole('tab')
-      .find((t) => t.textContent === 'AutoMod')!;
+      .find((t) => t.textContent === 'Mod log')!;
     act(() => {
-      fireEvent.click(automodTab);
+      fireEvent.click(modlogTab);
     });
     const chatPanel = document.querySelector(
       '[data-tab-panel="chat"]',
     ) as HTMLElement;
-    const automodPanel = document.querySelector(
-      '[data-tab-panel="automod"]',
+    const modlogPanel = document.querySelector(
+      '[data-tab-panel="modlog"]',
     ) as HTMLElement;
     // Chat DOM is still mounted, just hidden — preserves the IRC stream.
     expect(screen.getByTestId('chat-body')).toBeInTheDocument();
     expect(chatPanel.style.display).toBe('none');
-    expect(automodPanel.style.display).not.toBe('none');
+    expect(modlogPanel.style.display).not.toBe('none');
   });
 
   it('switching tabs preserves the Chat tab DOM identity (no remount)', () => {
     // The same React element instance survives across tab switches; the
     // <div data-testid="chat-body"> is the same node before and after.
-    renderTabs(['chat', 'automod', 'modlog']);
+    renderTabs(['chat', 'modlog']);
     const originalChatBody = screen.getByTestId('chat-body');
-    const automodTab = screen
+    const modlogTab = screen
       .getAllByRole('tab')
-      .find((t) => t.textContent === 'AutoMod')!;
+      .find((t) => t.textContent === 'Mod log')!;
     act(() => {
-      fireEvent.click(automodTab);
+      fireEvent.click(modlogTab);
     });
     const chatTab = screen
       .getAllByRole('tab')
@@ -149,37 +139,37 @@ describe('ChatPanelTabs', () => {
   it('renders a badge pill when the badge count is positive', () => {
     render(
       <ChatPanelTabs
-        visibleTabs={['chat', 'automod']}
-        badges={{ automod: 3 }}
+        visibleTabs={['chat', 'modlog']}
+        badges={{ modlog: 3 }}
       >
         {{
           chat: <div>c</div>,
-          automod: <div>a</div>,
+          modlog: <div>m</div>,
         }}
       </ChatPanelTabs>,
     );
-    const automodTab = screen
+    const modlogTab = screen
       .getAllByRole('tab')
-      .find((t) => t.textContent?.startsWith('AutoMod'))!;
-    expect(automodTab.textContent).toContain('3');
+      .find((t) => t.textContent?.startsWith('Mod log'))!;
+    expect(modlogTab.textContent).toContain('3');
   });
 
   it('hides the badge pill when the count is 0 or undefined', () => {
     render(
       <ChatPanelTabs
-        visibleTabs={['chat', 'automod']}
-        badges={{ automod: 0 }}
+        visibleTabs={['chat', 'modlog']}
+        badges={{ modlog: 0 }}
       >
         {{
           chat: <div>c</div>,
-          automod: <div>a</div>,
+          modlog: <div>m</div>,
         }}
       </ChatPanelTabs>,
     );
-    const automodTab = screen
+    const modlogTab = screen
       .getAllByRole('tab')
-      .find((t) => t.textContent?.startsWith('AutoMod'))!;
-    // Just "AutoMod" with no trailing digits.
-    expect(automodTab.textContent).toBe('AutoMod');
+      .find((t) => t.textContent?.startsWith('Mod log'))!;
+    // Just "Mod log" with no trailing digits.
+    expect(modlogTab.textContent).toBe('Mod log');
   });
 });

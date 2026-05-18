@@ -1,15 +1,14 @@
 import type React from "react";
 import { type ReactNode, useState } from "react";
 
-/** U19 — Identifiers for the four possible chat-panel tabs. The visible set
+/** U19 — Identifiers for the three possible chat-panel tabs. The visible set
  *  is platform- and role-dependent: viewers see no strip at all; Twitch mods
- *  see chat/automod/modlog; Twitch broadcasters add engagement; Kick caps at
- *  chat/automod/modlog. */
-export type ChatPanelTabId = "chat" | "automod" | "modlog" | "engagement";
+ *  see chat/modlog; Twitch broadcasters add engagement; Kick caps at
+ *  chat/modlog. */
+export type ChatPanelTabId = "chat" | "modlog" | "engagement";
 
 const TAB_LABELS: Record<ChatPanelTabId, string> = {
   chat: "Chat",
-  automod: "AutoMod",
   modlog: "Mod log",
   engagement: "Engagement",
 };
@@ -17,7 +16,7 @@ const TAB_LABELS: Record<ChatPanelTabId, string> = {
 export interface ChatPanelTabsProps {
   /** Which tab IDs to show. Always includes "chat" at minimum. */
   visibleTabs: ChatPanelTabId[];
-  /** Optional badge count per tab (e.g. AutoMod queue length). undefined = no badge. */
+  /** Optional badge count per tab. undefined = no badge. */
   badges?: Partial<Record<ChatPanelTabId, number>>;
   /** Panel content per tab. Required entries match visibleTabs. */
   children: Partial<Record<ChatPanelTabId, ReactNode>>;
@@ -30,7 +29,7 @@ export interface ChatPanelTabsProps {
 /**
  * U19 — Tabbed shell wrapping the chat panel. Inactive tabs are rendered
  * with `display: none` (NOT unmounted) so the Chat tab keeps its IRC stream
- * alive while a mod is reviewing AutoMod / Mod log / Engagement panels.
+ * alive while a mod is reviewing Mod log / Engagement panels.
  *
  * When `visibleTabs.length === 1`, the tab strip is omitted entirely and
  * the single panel renders raw — that's the viewer / AE5 path.

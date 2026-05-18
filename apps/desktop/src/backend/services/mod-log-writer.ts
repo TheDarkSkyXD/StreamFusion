@@ -61,18 +61,12 @@ export type ModLogAction =
   | "raid"
   | "commercial"
   | "uniqueChat"
-  | "automod-approve"
-  | "automod-deny"
-  | "automod-allow"
   | "prediction-start"
   | "prediction-lock"
   | "prediction-resolve"
   | "prediction-cancel"
   | "poll-start"
-  | "poll-terminate"
-  | "giveaway-start"
-  | "giveaway-resolve"
-  | "giveaway-reroll";
+  | "poll-terminate";
 
 export type ModLogSource = "local" | "eventsub" | "irc" | "pusher" | "bootstrap";
 

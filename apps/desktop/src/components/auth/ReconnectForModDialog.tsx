@@ -46,9 +46,6 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Channel-management console scopes (U4).
   "moderator:manage:banned_users": "Time out, ban, and unban users",
   "moderator:manage:shield_mode": "Toggle Shield Mode",
-  "moderator:manage:automod": "Approve or deny AutoMod-held messages",
-  "moderator:manage:automod_settings": "Edit AutoMod severity settings",
-  "moderator:read:chat_messages": "Receive AutoMod-held messages",
   "channel:manage:raids": "Start and cancel raids",
   "channel:manage:moderators": "Add and remove moderators",
   "channel:manage:vips": "Add and remove VIPs",

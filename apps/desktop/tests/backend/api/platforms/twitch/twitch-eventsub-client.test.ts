@@ -180,7 +180,7 @@ function reconnectEnvelope(reconnectUrl: string, sessionId = "sess-1") {
 
 function notificationEnvelope(
   subscriptionId: string,
-  type: "channel.moderate" | "automod.message.hold",
+  type: "channel.moderate",
   channelId: string,
   event: Record<string, unknown>,
 ) {
@@ -190,13 +190,13 @@ function notificationEnvelope(
       message_type: "notification",
       message_timestamp: "2026-05-18T00:00:00Z",
       subscription_type: type,
-      subscription_version: type === "channel.moderate" ? "2" : "1",
+      subscription_version: "2",
     },
     payload: {
       subscription: {
         id: subscriptionId,
         type,
-        version: type === "channel.moderate" ? "2" : "1",
+        version: "2",
         status: "enabled",
         cost: 0,
         condition: { broadcaster_user_id: channelId, moderator_user_id: SELF_ID },
@@ -210,7 +210,7 @@ function notificationEnvelope(
 
 function revocationEnvelope(
   subscriptionId: string,
-  type: "channel.moderate" | "automod.message.hold",
+  type: "channel.moderate",
   channelId: string,
 ) {
   return {
@@ -223,7 +223,7 @@ function revocationEnvelope(
       subscription: {
         id: subscriptionId,
         type,
-        version: type === "channel.moderate" ? "2" : "1",
+        version: "2",
         status: "user_removed",
         cost: 0,
         condition: { broadcaster_user_id: channelId, moderator_user_id: SELF_ID },
@@ -307,21 +307,6 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     expect(call.headers["Client-Id"]).toBeTruthy();
   });
 
-  it("automod.message.hold uses version '1'", async () => {
-    const client = getClient();
-    client.subscribe("automod.message.hold", "chan-2", () => {});
-    const ws = MockWebSocket.instances[0]!;
-    ws._open();
-    ws._emit(welcomeEnvelope("sess-1"));
-    await flushMicrotasks();
-
-    expect(fetchCalls).toHaveLength(1);
-    expect((fetchCalls[0]!.body as { version: string }).version).toBe("1");
-    expect((fetchCalls[0]!.body as { type: string }).type).toBe(
-      "automod.message.hold",
-    );
-  });
-
   it("multiple subscribers to the same (eventType, channelId) reuse one upstream sub", async () => {
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});
@@ -339,14 +324,13 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});
     client.subscribe("channel.moderate", "chan-2", () => {});
-    client.subscribe("automod.message.hold", "chan-1", () => {});
     const ws = MockWebSocket.instances[0]!;
     ws._open();
     ws._emit(welcomeEnvelope());
     await flushMicrotasks();
 
     const posts = fetchCalls.filter((c) => c.method === "POST");
-    expect(posts).toHaveLength(3);
+    expect(posts).toHaveLength(2);
   });
 
   it("last-unsubscribe fires a Helix DELETE for the subscription id", async () => {
@@ -505,22 +489,19 @@ describe("TwitchEventSubClient — dispatch + observability", () => {
     const client = getClient();
     const a = vi.fn();
     const b = vi.fn();
-    const c = vi.fn();
     client.subscribe<Record<string, unknown>>("channel.moderate", "chan-1", a);
     client.subscribe<Record<string, unknown>>("channel.moderate", "chan-2", b);
-    client.subscribe<Record<string, unknown>>("automod.message.hold", "chan-1", c);
     const ws = MockWebSocket.instances[0]!;
     ws._open();
     ws._emit(welcomeEnvelope());
     await flushMicrotasks();
 
-    // POSTs return sub-1, sub-2, sub-3 in the order subscribe was called.
+    // POSTs return sub-1, sub-2 in the order subscribe was called.
     ws._emit(
       notificationEnvelope("sub-1", "channel.moderate", "chan-1", { kind: "ban" }),
     );
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).not.toHaveBeenCalled();
-    expect(c).not.toHaveBeenCalled();
     const arg = a.mock.calls[0]![0] as NotificationPayload<{ kind: string }>;
     expect(arg.event).toEqual({ kind: "ban" });
   });
@@ -586,7 +567,7 @@ describe("TwitchEventSubClient — dispatch + observability", () => {
   it("close() is idempotent and DELETEs all active subscriptions", async () => {
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});
-    client.subscribe("automod.message.hold", "chan-2", () => {});
+    client.subscribe("channel.moderate", "chan-2", () => {});
     const ws = MockWebSocket.instances[0]!;
     ws._open();
     ws._emit(welcomeEnvelope());

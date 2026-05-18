@@ -547,7 +547,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     if (!this.sessionId) return;
     if (entry.posting || entry.subscriptionId) return;
     entry.posting = true;
-    const version = entry.eventType === "channel.moderate" ? "2" : "1";
+    const version = "2";
     const body = {
       type: entry.eventType,
       version,

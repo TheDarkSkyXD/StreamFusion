@@ -29,7 +29,6 @@ import type {
 import { useAuthStore } from "../../../store/auth-store";
 import { useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
-import { useKickAutoModQueueStore } from "../../../store/kick-automod-queue";
 import { useRenderCount } from "../../dev/use-render-count";
 import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
@@ -42,7 +41,6 @@ import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { seedKickChatHistory } from "./kick-chat-history";
 import { KickPinMessageDialog } from "./KickPinMessageDialog";
 import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
-import { KickAutoModTab } from "../mod/tabs/KickAutoModTab";
 import { ModLogTab } from "../mod/tabs/ModLogTab";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 
@@ -509,20 +507,13 @@ export const KickChat: React.FC<KickChatProps> = ({
     chatInputRef.current?.replyTo(message);
   }, []);
 
-  // U19 — Kick gets 3 tabs at most (no Engagement). Viewer = chat only,
-  // mod (including broadcaster, who is the only Kick mod-of-self today) adds
-  // automod + modlog.
+  // U19 — Kick gets 2 tabs at most (no Engagement). Viewer = chat only,
+  // mod (including broadcaster, who is the only Kick mod-of-self today)
+  // adds modlog.
   const visibleTabs: ChatPanelTabId[] = ["chat"];
   if (isMod) {
-    visibleTabs.push("automod", "modlog");
+    visibleTabs.push("modlog");
   }
-
-  // U23 — AutoMod tab badge for Kick. Kick's queue is keyed by channelSlug,
-  // not channelId, so we count by the slug.
-  const kickAutomodCount = useKickAutoModQueueStore((s) =>
-    channel ? s.countForChannel(channel) : 0,
-  );
-  const tabBadges = kickAutomodCount > 0 ? { automod: kickAutomodCount } : undefined;
 
   // U19 — Chat-tab body. Keeps existing pinned banner / poll widget / mod
   // strip / message list / input footer wiring intact. The mod-action and
@@ -678,18 +669,9 @@ export const KickChat: React.FC<KickChatProps> = ({
   return (
     <UserPopoutProvider>
     <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
-      <ChatPanelTabs visibleTabs={visibleTabs} badges={tabBadges}>
+      <ChatPanelTabs visibleTabs={visibleTabs}>
         {{
           chat: chatBody,
-          automod: channelId && chatroomId ? (
-            <KickAutoModTab
-              channelId={channelId}
-              channelSlug={channel}
-              chatroomId={chatroomId}
-            />
-          ) : (
-            <div className="p-4 text-gray-400">No channel selected.</div>
-          ),
           modlog: channelId ? (
             <ModLogTab channelId={channelId} />
           ) : (

@@ -19,7 +19,6 @@ import {
   type LocalFollow,
   type Platform,
   type StorageSchema,
-  type StreamlabsAuthToken,
   type TwitchUser,
   type UserPreferences,
 } from "../../shared/auth-types";
@@ -31,7 +30,6 @@ import { dbService } from "./database-service";
 const defaults: StorageSchema = {
   authTokens: {},
   appTokens: {},
-  streamlabsToken: null,
   twitchUser: null,
   kickUser: null,
   localFollows: [],
@@ -186,46 +184,6 @@ class StorageService {
     this.storeInstance.set("appTokens", {});
     this.tokenCache.clear();
     console.debug("🗑️ All tokens cleared");
-  }
-
-  // ========== Streamlabs Token Management (Electron Store) ==========
-  // Streamlabs is not a Platform — it lives in its own top-level slot.
-  // Intentionally no in-memory cache: a single nullable token doesn't
-  // benefit enough to justify a separate cache cell.
-
-  /**
-   * Save the Streamlabs OAuth token (includes WebSocket socketToken).
-   */
-  setStreamlabsToken(token: StreamlabsAuthToken): void {
-    const tokenString = JSON.stringify(token);
-    const encrypted = this.encryptToken(tokenString);
-    this.storeInstance.set("streamlabsToken", encrypted);
-    console.debug("✅ Streamlabs token saved");
-  }
-
-  /**
-   * Get the Streamlabs OAuth token, or null if none stored.
-   */
-  getStreamlabsToken(): StreamlabsAuthToken | null {
-    const encrypted = this.storeInstance.get("streamlabsToken");
-    if (!encrypted) {
-      return null;
-    }
-    try {
-      const tokenString = this.decryptToken(encrypted);
-      return JSON.parse(tokenString) as StreamlabsAuthToken;
-    } catch (error) {
-      console.error("Failed to decrypt Streamlabs token:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Clear the Streamlabs OAuth token.
-   */
-  clearStreamlabsToken(): void {
-    this.storeInstance.set("streamlabsToken", null);
-    console.debug("🗑️ Streamlabs token cleared");
   }
 
   // ========== App Token Management (Electron Store) ==========

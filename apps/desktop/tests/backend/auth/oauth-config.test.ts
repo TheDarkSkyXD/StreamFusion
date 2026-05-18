@@ -2,15 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { TWITCH_OAUTH_CONFIG } from "@/backend/auth/oauth-config";
 
-// The twelve scopes the channel-management console plan U4 adds in one batch.
+// The nine scopes the channel-management console plan U4 adds in one batch.
 // Kept here as a literal so the test would catch a partial drop (e.g., someone
 // removing one to "tidy up" before review).
 const REQUIRED_NEW_SCOPES = [
   "moderator:manage:banned_users",
   "moderator:manage:shield_mode",
-  "moderator:manage:automod",
-  "moderator:manage:automod_settings",
-  "moderator:read:chat_messages",
   "channel:manage:raids",
   "channel:manage:moderators",
   "channel:manage:vips",
@@ -21,7 +18,7 @@ const REQUIRED_NEW_SCOPES = [
 ] as const;
 
 describe("TWITCH_OAUTH_CONFIG scopes (U4 — channel-management console batch)", () => {
-  it("includes all twelve new console scopes", () => {
+  it("includes all nine new console scopes", () => {
     for (const scope of REQUIRED_NEW_SCOPES) {
       expect(TWITCH_OAUTH_CONFIG.scopes).toContain(scope);
     }

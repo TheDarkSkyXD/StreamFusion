@@ -3,20 +3,20 @@
  *
  * Mirrors the message envelope shape documented at
  * `dev.twitch.tv/docs/eventsub/websocket-reference/` (visited during U8 plan).
- * Concrete event payloads (`ChannelModerateEvent`, `AutomodMessageHoldEvent`)
- * are conservative best-effort shapes drawn from the published EventSub docs;
- * fields that aren't certain are typed loosely (`unknown` / `Record<string,
- * unknown>`) and the final on-the-wire shape will be validated during U20
- * manual verification. Any field flagged with `[unverified]` in a JSDoc
- * comment below is one that should be double-checked against a live capture
- * before downstream code reads it.
+ * The concrete event payload (`ChannelModerateEvent`) is a conservative
+ * best-effort shape drawn from the published EventSub docs; fields that
+ * aren't certain are typed loosely (`unknown` / `Record<string, unknown>`)
+ * and the final on-the-wire shape will be validated during U20 manual
+ * verification. Any field flagged with `[unverified]` in a JSDoc comment
+ * below is one that should be double-checked against a live capture before
+ * downstream code reads it.
  */
 
 // ---------------------------------------------------------------------------
 // Event types we subscribe to
 // ---------------------------------------------------------------------------
 
-export type TwitchEventSubEventType = "channel.moderate" | "automod.message.hold";
+export type TwitchEventSubEventType = "channel.moderate";
 
 // ---------------------------------------------------------------------------
 // Connection state
@@ -147,31 +147,3 @@ export interface ChannelModerateEvent {
   [extra: string]: unknown;
 }
 
-/**
- * `automod.message.hold` v1 event payload (conservative shape).
- * Fields below match Twitch's published example; the `boundaries` /
- * `category` enums in `fragments` are typed loosely until U20 confirms.
- */
-export interface AutomodMessageHoldEvent {
-  broadcaster_user_id: string;
-  broadcaster_user_login: string;
-  broadcaster_user_name: string;
-  user_id: string;
-  user_login: string;
-  user_name: string;
-  message_id: string;
-  message: {
-    text: string;
-    fragments: Array<{
-      type: string;
-      text: string;
-      cheermote?: unknown;
-      emote?: unknown;
-    }>;
-  };
-  /** AutoMod category that flagged the message. [unverified enum values.] */
-  category: string;
-  /** Numeric severity Twitch assigns; range [unverified]. */
-  level: number;
-  held_at: string;
-}

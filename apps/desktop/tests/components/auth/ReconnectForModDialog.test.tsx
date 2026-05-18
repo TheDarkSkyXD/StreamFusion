@@ -6,15 +6,12 @@ import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
 // Every Twitch scope U5 covers — the two pin-path scopes (U7) plus the
-// twelve channel-management console scopes (U4).
-const ALL_FOURTEEN_SCOPES = [
+// nine channel-management console scopes (U4).
+const ALL_ELEVEN_SCOPES = [
   "user:read:moderated_channels",
   "moderator:manage:chat_messages",
   "moderator:manage:banned_users",
   "moderator:manage:shield_mode",
-  "moderator:manage:automod",
-  "moderator:manage:automod_settings",
-  "moderator:read:chat_messages",
   "channel:manage:raids",
   "channel:manage:moderators",
   "channel:manage:vips",
@@ -29,9 +26,6 @@ const EXPECTED_DESCRIPTIONS: Record<string, string> = {
   "moderator:manage:chat_messages": "Pin, unpin, and delete chat messages",
   "moderator:manage:banned_users": "Time out, ban, and unban users",
   "moderator:manage:shield_mode": "Toggle Shield Mode",
-  "moderator:manage:automod": "Approve or deny AutoMod-held messages",
-  "moderator:manage:automod_settings": "Edit AutoMod severity settings",
-  "moderator:read:chat_messages": "Receive AutoMod-held messages",
   "channel:manage:raids": "Start and cancel raids",
   "channel:manage:moderators": "Add and remove moderators",
   "channel:manage:vips": "Add and remove VIPs",
@@ -73,13 +67,13 @@ describe("ReconnectForModDialog", () => {
     expect(screen.queryByText(/reconnect for mod features/i)).not.toBeInTheDocument();
   });
 
-  it("renders every U4 scope plus the two pin scopes when opened with all 14", () => {
+  it("renders every U4 scope plus the two pin scopes when opened with all 11", () => {
     render(<ReconnectForModDialog />);
     act(() => {
-      useReconnectDialogStore.getState().open({ missingScopes: ALL_FOURTEEN_SCOPES });
+      useReconnectDialogStore.getState().open({ missingScopes: ALL_ELEVEN_SCOPES });
     });
 
-    for (const scope of ALL_FOURTEEN_SCOPES) {
+    for (const scope of ALL_ELEVEN_SCOPES) {
       const desc = EXPECTED_DESCRIPTIONS[scope];
       expect(screen.getByText(desc)).toBeInTheDocument();
     }

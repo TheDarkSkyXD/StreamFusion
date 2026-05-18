@@ -28,17 +28,6 @@ export interface ModLogQueryFilters {
   offset?: number;
 }
 
-export interface KickAutomodConfig {
-  channelId: string;
-  keywordBlocklist: string[];
-  severityIdentity: string[];
-  severitySexual: string[];
-  severityAggression: string[];
-  severityBullying: string[];
-  allowlistUserIds: string[];
-  updatedAt: number;
-}
-
 export type RetentionScope = "global" | `channel:${string}`;
 
 export class DatabaseService {
@@ -161,21 +150,7 @@ export class DatabaseService {
         ON mod_log(channel_id, target_user_id);
     `);
 
-    // 4. Kick AutoMod Config
-    this.database.exec(`
-      CREATE TABLE IF NOT EXISTS kick_automod_config (
-        channel_id TEXT PRIMARY KEY,
-        keyword_blocklist TEXT NOT NULL DEFAULT '',
-        severity_identity TEXT NOT NULL DEFAULT '',
-        severity_sexual TEXT NOT NULL DEFAULT '',
-        severity_aggression TEXT NOT NULL DEFAULT '',
-        severity_bullying TEXT NOT NULL DEFAULT '',
-        allowlist_user_ids TEXT NOT NULL DEFAULT '',
-        updated_at INTEGER NOT NULL
-      );
-    `);
-
-    // 5. Retention Settings
+    // 4. Retention Settings
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS retention_settings (
         scope TEXT PRIMARY KEY,
@@ -451,62 +426,6 @@ export class DatabaseService {
     return deleted;
   }
 
-  // ========== Kick AutoMod Config Operations ==========
-
-  upsertKickAutomodConfig(
-    config: Omit<KickAutomodConfig, "updatedAt"> & { updatedAt?: number }
-  ): void {
-    const stmt = this.database.prepare(`
-      INSERT INTO kick_automod_config (
-        channel_id, keyword_blocklist,
-        severity_identity, severity_sexual,
-        severity_aggression, severity_bullying,
-        allowlist_user_ids, updated_at
-      ) VALUES (
-        @channelId, @keywordBlocklist,
-        @severityIdentity, @severitySexual,
-        @severityAggression, @severityBullying,
-        @allowlistUserIds, @updatedAt
-      )
-      ON CONFLICT(channel_id) DO UPDATE SET
-        keyword_blocklist = excluded.keyword_blocklist,
-        severity_identity = excluded.severity_identity,
-        severity_sexual = excluded.severity_sexual,
-        severity_aggression = excluded.severity_aggression,
-        severity_bullying = excluded.severity_bullying,
-        allowlist_user_ids = excluded.allowlist_user_ids,
-        updated_at = excluded.updated_at
-    `);
-
-    stmt.run({
-      channelId: config.channelId,
-      keywordBlocklist: serializeList(config.keywordBlocklist),
-      severityIdentity: serializeList(config.severityIdentity),
-      severitySexual: serializeList(config.severitySexual),
-      severityAggression: serializeList(config.severityAggression),
-      severityBullying: serializeList(config.severityBullying),
-      allowlistUserIds: serializeList(config.allowlistUserIds),
-      updatedAt: config.updatedAt ?? Date.now(),
-    });
-  }
-
-  getKickAutomodConfig(channelId: string): KickAutomodConfig | null {
-    const row = this.database
-      .prepare("SELECT * FROM kick_automod_config WHERE channel_id = ?")
-      .get(channelId) as any;
-    if (!row) return null;
-    return {
-      channelId: row.channel_id,
-      keywordBlocklist: parseList(row.keyword_blocklist),
-      severityIdentity: parseList(row.severity_identity),
-      severitySexual: parseList(row.severity_sexual),
-      severityAggression: parseList(row.severity_aggression),
-      severityBullying: parseList(row.severity_bullying),
-      allowlistUserIds: parseList(row.allowlist_user_ids),
-      updatedAt: row.updated_at,
-    };
-  }
-
   // ========== Retention Settings ==========
 
   getRetentionSetting(scope: RetentionScope): number | null | undefined {
@@ -526,15 +445,6 @@ export class DatabaseService {
       )
       .run(scope, days);
   }
-}
-
-function serializeList(values: string[]): string {
-  return values.join("\n");
-}
-
-function parseList(value: string | null | undefined): string[] {
-  if (!value) return [];
-  return value.split("\n").filter(Boolean);
 }
 
 export const dbService = new DatabaseService();

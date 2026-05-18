@@ -45,7 +45,6 @@ import type {
   NormalizedPinnedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
-import { useAutoModQueueStore } from "../../../store/automod-queue-store";
 import { useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
 import { useRenderCount } from "../../dev/use-render-count";
@@ -57,7 +56,6 @@ import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
 import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
 import { EngagementTab } from "../mod/tabs/EngagementTab";
 import { ModLogTab } from "../mod/tabs/ModLogTab";
-import { TwitchAutoModTab } from "../mod/tabs/TwitchAutoModTab";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 
 export interface TwitchChatProps {
@@ -499,24 +497,17 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   ]);
 
   // U19 — visible tabs based on role. Viewer = chat only (the component
-  // suppresses the strip), mod = chat + automod + modlog, broadcaster adds
-  // engagement. The broadcaster check is approximate per the plan: Twitch's
-  // broadcaster id IS the user id, so user.id === channelId is sufficient.
+  // suppresses the strip), mod = chat + modlog, broadcaster adds engagement.
+  // The broadcaster check is approximate per the plan: Twitch's broadcaster
+  // id IS the user id, so user.id === channelId is sufficient.
   const isCurrentUserBroadcaster = !!twitchUser && twitchUser.id === channelId;
   const visibleTabs: ChatPanelTabId[] = ["chat"];
   if (isMod) {
-    visibleTabs.push("automod", "modlog");
+    visibleTabs.push("modlog");
   }
   if (isCurrentUserBroadcaster) {
     visibleTabs.push("engagement");
   }
-
-  // U23 — AutoMod tab badge count. Reactive via the queue store; `undefined`
-  // when zero so ChatPanelTabs hides the pill instead of showing "0".
-  const automodCount = useAutoModQueueStore((s) =>
-    channelId ? s.countForChannel(channelId) : 0,
-  );
-  const tabBadges = automodCount > 0 ? { automod: automodCount } : undefined;
 
   // U19 — Chat-tab body. Keeps the existing pinned banner / mod strip /
   // message list / input footer wiring intact. The mod-action and pin
@@ -696,14 +687,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   return (
     <UserPopoutProvider>
     <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
-      <ChatPanelTabs visibleTabs={visibleTabs} badges={tabBadges}>
+      <ChatPanelTabs visibleTabs={visibleTabs}>
         {{
           chat: chatBody,
-          automod: channelId ? (
-            <TwitchAutoModTab channelId={channelId} channelName={channel} />
-          ) : (
-            <div className="p-4 text-gray-400">No channel selected.</div>
-          ),
           modlog: channelId ? (
             <ModLogTab channelId={channelId} />
           ) : (

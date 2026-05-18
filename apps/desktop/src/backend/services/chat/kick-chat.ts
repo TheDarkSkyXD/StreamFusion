@@ -19,15 +19,6 @@ import type {
   NormalizedPinnedMessage,
 } from "../../../shared/chat-types";
 
-/**
- * U21 — Opt-in pre-emit hook. Renderer code that wants to apply a custom
- * AutoMod filter installs an interceptor; if it returns `true`, the message
- * is treated as held and is NOT emitted on the `message` event (so it never
- * reaches `chat-store`). Default behavior with no interceptor is unchanged.
- */
-export type KickAutomodInterceptor = (message: ChatMessage) => boolean;
-// Removed storageService import
-
 // ... imports
 import {
   type KickChatClearedEvent,
@@ -164,9 +155,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   // Tracks how many components are actively using this service
   // Only performs full shutdown when count reaches 0
   private activeUsers = 0;
-
-  // U21 — Optional pre-emit interceptor. Default null = unchanged behavior.
-  private automodInterceptor: KickAutomodInterceptor | null = null;
 
   // ========== Public API ==========
 
@@ -818,36 +806,11 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   }
 
   /**
-   * U21 — Install (or clear with `null`) a pre-emit interceptor that
-   * decides whether a chat message should be held (filtered out of the live
-   * chat stream). When the interceptor returns true, the parsed message is
-   * NOT emitted on `"message"`, so it never reaches `chat-store`. The
-   * interceptor is opt-in; absence of one preserves prior behavior exactly.
-   */
-  setAutomodInterceptor(fn: KickAutomodInterceptor | null): void {
-    this.automodInterceptor = fn;
-  }
-
-  /**
    * Handle incoming chat message
    */
   private handleChatMessage(data: KickChatMessageEvent, channelSlug: string): void {
     const subscriberBadges = this.channelBadges.get(channelSlug);
     const message = parseKickChatMessage(data, channelSlug, subscriberBadges);
-    // U21 — Pre-emit AutoMod filter. If installed and it returns true, the
-    // message is treated as held: skip the `message` emit so chat-store
-    // never sees it. The renderer-side AutoMod tab is responsible for
-    // surfacing the held message via its own queue store.
-    if (this.automodInterceptor) {
-      try {
-        if (this.automodInterceptor(message)) {
-          return;
-        }
-      } catch (err) {
-        // Never let a broken interceptor swallow chat. Log and continue.
-        this.log(`AutoMod interceptor threw: ${(err as Error)?.message}`);
-      }
-    }
     this.emit("message", message);
   }
 

@@ -25,8 +25,6 @@ const ACTION_OPTIONS: Array<{ value: "" | ModLogAction; label: string }> = [
   { value: "delete", label: "Delete" },
   { value: "clear", label: "Chat mode" },
   { value: "raid", label: "Raid" },
-  { value: "automod-approve", label: "AutoMod approve" },
-  { value: "automod-deny", label: "AutoMod deny" },
 ];
 
 const PAGE_INCREMENT = 50;

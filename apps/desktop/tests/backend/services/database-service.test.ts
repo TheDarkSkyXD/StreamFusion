@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 describeDb("DatabaseService schema", () => {
-  it("creates mod_log, kick_automod_config, and retention_settings on first initialize() and is idempotent on a second call", () => {
+  it("creates mod_log and retention_settings on first initialize() and is idempotent on a second call", () => {
     const svc = new DatabaseService();
     svc.initialize();
     // Second call must not throw or duplicate any state.
@@ -79,7 +79,6 @@ describeDb("DatabaseService schema", () => {
         "key_value",
         "local_follows",
         "mod_log",
-        "kick_automod_config",
         "retention_settings",
       ])
     );
@@ -132,7 +131,7 @@ describeDb("DatabaseService schema", () => {
     ).map((r) => r.name);
     raw.close();
     expect(names).toEqual(
-      expect.arrayContaining(["mod_log", "kick_automod_config", "retention_settings"])
+      expect.arrayContaining(["mod_log", "retention_settings"])
     );
   });
 });
@@ -286,80 +285,6 @@ describeDb("DatabaseService mod_log helpers", () => {
     svc.setRetentionSetting("global", null);
     expect(svc.sweepModLogRetention(now)).toBe(0);
     expect(svc.queryModLog({ channelId: "c1" })).toHaveLength(1);
-  });
-});
-
-describeDb("DatabaseService kick_automod_config helpers", () => {
-  it("round-trips all 7 list columns via upsertKickAutomodConfig + getKickAutomodConfig", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-
-    svc.upsertKickAutomodConfig({
-      channelId: "kick-99",
-      keywordBlocklist: ["badword1", "badword2"],
-      severityIdentity: ["slur-a"],
-      severitySexual: ["nsfw-1", "nsfw-2"],
-      severityAggression: ["aggro"],
-      severityBullying: ["bully"],
-      allowlistUserIds: ["u-allow-1", "u-allow-2", "u-allow-3"],
-      updatedAt: 1_700_000_000_000,
-    });
-
-    const got = svc.getKickAutomodConfig("kick-99");
-    expect(got).toEqual({
-      channelId: "kick-99",
-      keywordBlocklist: ["badword1", "badword2"],
-      severityIdentity: ["slur-a"],
-      severitySexual: ["nsfw-1", "nsfw-2"],
-      severityAggression: ["aggro"],
-      severityBullying: ["bully"],
-      allowlistUserIds: ["u-allow-1", "u-allow-2", "u-allow-3"],
-      updatedAt: 1_700_000_000_000,
-    });
-  });
-
-  it("a second upsertKickAutomodConfig fully overwrites the previous lists for the same channel", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-
-    svc.upsertKickAutomodConfig({
-      channelId: "kick-42",
-      keywordBlocklist: ["old"],
-      severityIdentity: ["old"],
-      severitySexual: ["old"],
-      severityAggression: ["old"],
-      severityBullying: ["old"],
-      allowlistUserIds: ["old"],
-      updatedAt: 1,
-    });
-    svc.upsertKickAutomodConfig({
-      channelId: "kick-42",
-      keywordBlocklist: ["new1", "new2"],
-      severityIdentity: [],
-      severitySexual: [],
-      severityAggression: [],
-      severityBullying: [],
-      allowlistUserIds: ["new-u"],
-      updatedAt: 2,
-    });
-
-    const got = svc.getKickAutomodConfig("kick-42");
-    expect(got).toEqual({
-      channelId: "kick-42",
-      keywordBlocklist: ["new1", "new2"],
-      severityIdentity: [],
-      severitySexual: [],
-      severityAggression: [],
-      severityBullying: [],
-      allowlistUserIds: ["new-u"],
-      updatedAt: 2,
-    });
-  });
-
-  it("getKickAutomodConfig returns null for an unknown channel", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-    expect(svc.getKickAutomodConfig("nope")).toBeNull();
   });
 });
 
