@@ -27,6 +27,8 @@ export interface Emote {
   urls: EmoteUrls;
   /** Owner information (for 7TV, etc.) */
   owner?: EmoteOwner;
+  /** Kick subscriber-only flag. Present on Kick emotes; absent elsewhere. */
+  subscribersOnly?: boolean;
 }
 
 /** Emote URL templates for different sizes */

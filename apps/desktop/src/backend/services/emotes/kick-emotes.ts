@@ -191,6 +191,7 @@ class KickEmoteProvider implements EmoteProviderService {
         url2x: fullUrl,
         url4x: fullUrl,
       },
+      subscribersOnly: emote.subscribers_only,
     };
   }
 }
