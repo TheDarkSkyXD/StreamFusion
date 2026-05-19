@@ -21,6 +21,10 @@ export default {
           DEFAULT: '#9146ff',
           dark: '#772ce8',
           light: '#a970ff',
+          // Native prediction outcome palette (matches twitch.tv web). Used by
+          // the viewer-prediction widget in Twitch-native style.
+          blue: '#387aff',
+          pink: '#ff4f8c',
         },
         kick: {
           DEFAULT: '#53fc18',

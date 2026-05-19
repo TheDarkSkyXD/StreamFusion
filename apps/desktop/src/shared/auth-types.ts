@@ -131,6 +131,20 @@ export interface AdvancedPreferences {
   enableImageProxy: boolean;
 }
 
+/**
+ * Viewer-facing prediction widget preferences. The widget renders one of two
+ * visual styles selected by the user — see viewer-prediction plan (U1, U8).
+ */
+export interface PredictionPreferences {
+  /**
+   * `native` (default) renders the widget in each platform's native styling
+   * (Twitch purple with color-keyed side blocks and bubble chart; Kick green /
+   * pink dot pairs). `unified` renders both platforms in StreamForge's storm
+   * accent for cross-platform consistency.
+   */
+  style: "native" | "unified";
+}
+
 export interface UserPreferences {
   theme: Theme;
   language: string;
@@ -138,6 +152,7 @@ export interface UserPreferences {
   chat: ChatPreferences;
   playback: PlaybackPreferences;
   advanced: AdvancedPreferences;
+  predictions: PredictionPreferences;
   startMinimized: boolean;
   minimizeToTray: boolean;
 }
@@ -232,6 +247,10 @@ export const DEFAULT_ADVANCED_PREFERENCES: AdvancedPreferences = {
   enableImageProxy: true, // Enabled by default for better UX
 };
 
+export const DEFAULT_PREDICTION_PREFERENCES: PredictionPreferences = {
+  style: "native",
+};
+
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   theme: "dark",
   language: "en",
@@ -239,6 +258,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   chat: DEFAULT_CHAT_PREFERENCES,
   playback: DEFAULT_PLAYBACK_PREFERENCES,
   advanced: DEFAULT_ADVANCED_PREFERENCES,
+  predictions: DEFAULT_PREDICTION_PREFERENCES,
   startMinimized: false,
   minimizeToTray: true,
 };

@@ -392,10 +392,17 @@ class StorageService {
   }
 
   /**
-   * Get all preferences
+   * Get all preferences. Merges the stored value with `DEFAULT_USER_PREFERENCES`
+   * so any preference field added in a later version (e.g. `predictions` in
+   * the viewer-prediction widget release) hydrates with its default for users
+   * whose persisted state predates the field. Shallow merge at the top level
+   * is sufficient — every preference subkey is its own object with its own
+   * defaults that the original creators of those subkeys are responsible for.
    */
   getPreferences(): UserPreferences {
-    return this.storeInstance.get("preferences") || defaults.preferences;
+    const stored = this.storeInstance.get("preferences");
+    if (!stored) return defaults.preferences;
+    return { ...DEFAULT_USER_PREFERENCES, ...stored };
   }
 
   /**

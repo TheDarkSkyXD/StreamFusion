@@ -299,6 +299,68 @@ export interface KickPoll {
   duration: number;
 }
 
+/**
+ * Normalized prediction outcome that maps Twitch and Kick payload shapes to a
+ * single component-internal model. Twitch outcomes carry `color` (`BLUE` /
+ * `PINK` / sequential palette values for multi-outcome predictions) and may
+ * include `topPredictors`; Kick outcomes do not.
+ */
+export interface UnifiedPredictionOutcome {
+  /** Stable outcome id from the platform. */
+  id: string;
+  /** Display title for the outcome. */
+  title: string;
+  /**
+   * Platform color name when present. Twitch uses `blue` / `pink` for 2-outcome
+   * predictions and sequential palette values (`yellow`, `green`, `orange`,
+   * `purple`, `red`, `cyan`, `brown`, `gray`) for 3+. Kick has no color field.
+   */
+  color: "blue" | "pink" | "yellow" | "green" | "orange" | "purple" | "red" | "cyan" | "brown" | "gray" | null;
+  /** Total points (Twitch channel points) or KCP (Kick) staked on this outcome. */
+  totalAmount: number;
+  /** Unique users who voted on this outcome. */
+  userCount: number;
+  /**
+   * Top contributors for this outcome, when the read response includes them
+   * (Twitch native ended-state surface). Optional; Kick and unified styles
+   * omit the block.
+   */
+  topPredictors?: Array<{
+    userId: string;
+    userName: string;
+    amount: number;
+  }>;
+}
+
+/**
+ * Normalized active or recently-ended prediction emitted through
+ * `ChatServiceEvents.predictionUpdate`. The normalization happens at the
+ * platform / chat-service boundary so the widget consumes a single shape
+ * regardless of platform — see the viewer-prediction plan (U1).
+ */
+export interface UnifiedPrediction {
+  /** Stable prediction id from the platform. */
+  id: string;
+  /** Source platform — drives style-branching in the widget. */
+  platform: "twitch" | "kick";
+  /** Display title. */
+  title: string;
+  /** Lifecycle status. */
+  status: "ACTIVE" | "LOCKED" | "RESOLVED" | "CANCELED";
+  /** Outcomes in display order. */
+  outcomes: UnifiedPredictionOutcome[];
+  /** Winning outcome id when status is RESOLVED, otherwise null. */
+  winningOutcomeId: string | null;
+  /** Original prediction window in seconds, when known. */
+  predictionWindowSeconds: number | null;
+  /** ISO timestamp of resolve / cancel, otherwise null. */
+  endedAt: string | null;
+  /** Outcome id the signed-in viewer has already voted on, otherwise null. */
+  viewerOutcomeId: string | null;
+  /** Amount the signed-in viewer staked on `viewerOutcomeId`, otherwise null. */
+  viewerStake: number | null;
+}
+
 // ========== Chat Service Events ==========
 
 export interface ChatServiceEvents {
@@ -311,4 +373,5 @@ export interface ChatServiceEvents {
   pinnedMessage: (msg: NormalizedPinnedMessage) => void;
   pinnedMessageCleared: () => void;
   pollUpdate: (poll: KickPoll) => void;
+  predictionUpdate: (prediction: UnifiedPrediction) => void;
 }
