@@ -460,43 +460,86 @@ const EndedPanel: React.FC<{
         </div>
       </div>
 
-      {/* Two-column layout with vertical divider down the middle. Generous
-          gap-6 gives the colored percentages and stat columns breathing room
-          off the center divider — without it the % text crowds the line. */}
-      <div className="relative grid grid-cols-2 gap-6" data-testid="prediction-outcomes">
+      {/* 4-column grid:
+          [1] left stats  (left-aligned, hugs panel left edge)
+          [2] left outcome (right-aligned, hugs center divider)
+          [3] right outcome (left-aligned, hugs center divider)
+          [4] right stats (right-aligned, hugs panel right edge)
+          A vertical divider line sits between cols 2 and 3. */}
+      <div
+        className="relative grid grid-cols-[auto_1fr_1fr_auto] items-center gap-x-3"
+        data-testid="prediction-outcomes"
+      >
         <div
           className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/10"
           aria-hidden
         />
+        {/* Column 1 — left stats */}
+        {a && <StatColumn outcome={a} total={total} align="left" />}
+        {/* Column 2 — left outcome cluster */}
         {a && (
-          <EndedOutcomeColumn
+          <OutcomeCluster
             outcome={a}
             index={0}
             total={total}
             isWinner={a.id === winner?.id}
-            align="left"
-            style={style}
-            platform={prediction.platform}
-          />
-        )}
-        {b && (
-          <EndedOutcomeColumn
-            outcome={b}
-            index={1}
-            total={total}
-            isWinner={b.id === winner?.id}
             align="right"
             style={style}
             platform={prediction.platform}
           />
         )}
+        {/* Column 3 — right outcome cluster */}
+        {b && (
+          <OutcomeCluster
+            outcome={b}
+            index={1}
+            total={total}
+            isWinner={b.id === winner?.id}
+            align="left"
+            style={style}
+            platform={prediction.platform}
+          />
+        )}
+        {/* Column 4 — right stats */}
+        {b && <StatColumn outcome={b} total={total} align="right" />}
       </div>
 
     </div>
   );
 };
 
-const EndedOutcomeColumn: React.FC<{
+/**
+ * Column 1 / Column 4 — outer stat strips. Left variant left-aligns icons +
+ * values; right variant right-aligns (icons on the right side of each row).
+ */
+const StatColumn: React.FC<{
+  outcome: UnifiedPredictionOutcome;
+  total: number;
+  align: "left" | "right";
+}> = ({ outcome, total, align }) => {
+  const topUser = outcome.topPredictors?.[0];
+  const odds =
+    total > 0 && outcome.totalAmount > 0
+      ? `1:${(total / outcome.totalAmount).toFixed(2)}`
+      : "—";
+  return (
+    <div className="flex flex-col gap-2 px-1 text-[12px] text-zinc-300">
+      <StatLine icon="clock" value={short(outcome.totalAmount)} align={align} />
+      <StatLine icon="trophy" value={odds} align={align} />
+      <StatLine icon="users" value={outcome.userCount.toString()} align={align} />
+      {topUser && (
+        <StatLine icon="chart" value={short(topUser.amount)} align={align} />
+      )}
+    </div>
+  );
+};
+
+/**
+ * Column 2 / Column 3 — outcome cluster. Aligned against the center divider:
+ * left cluster right-aligns its content (so it hugs the divider on its right),
+ * right cluster left-aligns its content (so it hugs the divider on its left).
+ */
+const OutcomeCluster: React.FC<{
   outcome: UnifiedPredictionOutcome;
   index: number;
   total: number;
@@ -510,89 +553,41 @@ const EndedOutcomeColumn: React.FC<{
     style === "kick-native"
       ? kickDotColor(index, platform)
       : twitchColorHex(outcome.color ?? (index === 0 ? "blue" : "pink"));
-  const odds =
-    total > 0 && outcome.totalAmount > 0
-      ? `1:${(total / outcome.totalAmount).toFixed(2)}`
-      : "—";
-  const topUser = outcome.topPredictors?.[0];
-
-  // Stat block lives on the OUTER side of each column (left col → stats left
-  // of %, right col → stats right of %), matching the mirror layout from the
-  // screenshot. Reverse flex direction by alignment.
-  const statsLeft = align === "left";
-
+  const alignClass = align === "right" ? "items-end text-right" : "items-start text-left";
   return (
-    <div className="relative px-2 py-1">
-      {/* Stats are absolutely positioned on the OUTER edge of each column so
-          the percentage cluster (Winner / name / % / bar) below centers
-          across the FULL column width, not just the post-stats remainder.
-          This matches the screenshot's "stats hug the outer edge, big number
-          centered in the column" pattern. */}
-      <div
-        className={
-          "absolute top-1/2 -translate-y-1/2 flex flex-col gap-2 text-[12px] text-zinc-300 " +
-          (statsLeft ? "left-1" : "right-1")
-        }
-      >
-        <StatLine icon="clock" value={short(outcome.totalAmount)} align={align} />
-        <StatLine icon="trophy" value={odds} align={align} />
-        <StatLine icon="users" value={outcome.userCount.toString()} align={align} />
-        {topUser && (
-          <StatLine icon="chart" value={short(topUser.amount)} align={align} />
-        )}
+    <div className={"flex min-w-0 flex-col gap-1.5 px-2 " + alignClass}>
+      {isWinner ? (
+        <div className="flex items-center gap-1 text-[12px] font-bold text-white">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
+            <circle cx="12" cy="12" r="11" fill="white" />
+            <path
+              d="M7 12l3 3 7-7"
+              stroke="#000"
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>Winner</span>
+        </div>
+      ) : (
+        <div className="h-[18px]" aria-hidden />
+      )}
+      <div className="text-[14px] font-bold leading-tight" style={{ color }}>
+        {outcome.title}
       </div>
-
       <div
-        className={
-          "flex min-w-0 flex-col items-center gap-2 " +
-          // Margin INSIDE the column matches the absolutely-positioned stats
-          // block so the centered cluster doesn't visually crash into the
-          // stats. The bare numeric padding here is purely visual budget for
-          // the stats overlay (≈ stats column width).
-          (statsLeft ? "ml-12" : "mr-12")
-        }
+        className="text-[32px] font-bold leading-none tabular-nums"
+        style={{ color }}
       >
-        {isWinner && (
-          <div className="flex items-center gap-1 text-[12px] font-bold text-white">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="white"
-              aria-hidden
-            >
-              <circle cx="12" cy="12" r="11" fill="white" />
-              <path
-                d="M7 12l3 3 7-7"
-                stroke="#000"
-                strokeWidth="3"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>Winner</span>
-          </div>
-        )}
-        {!isWinner && <div className="h-[18px]" aria-hidden />}
+        {pct}%
+      </div>
+      <div className="mt-1 h-2 w-full max-w-[80%] overflow-hidden rounded-full bg-white/5">
         <div
-          className="text-[13px] font-bold leading-tight"
-          style={{ color }}
-        >
-          {outcome.title}
-        </div>
-        <div
-          className="text-[32px] font-bold leading-none tabular-nums"
-          style={{ color }}
-        >
-          {pct}%
-        </div>
-        <div className="mt-1 h-2 w-full max-w-[70%] overflow-hidden rounded-full bg-white/5">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: color }}
-          />
-        </div>
+          className="h-full rounded-full"
+          style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: color }}
+        />
       </div>
     </div>
   );
