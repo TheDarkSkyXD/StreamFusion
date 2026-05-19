@@ -8,9 +8,16 @@
  * any network failure, and `undefined` while still loading. The hook
  * intentionally does not retry — the parent page renders a loading skeleton
  * until the value lands.
+ *
+ * Dev override: when `useDevModOverrideStore.forceResolvedTwitchBroadcasterId`
+ * is a non-empty string, the hook returns it as the resolved id without
+ * calling Helix. Lets `/mod/twitch/<login>` mount its broadcaster-id-
+ * dependent sections without a signed-in Twitch session. Cleared by default.
  */
 
 import { useEffect, useState } from "react";
+
+import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
 
@@ -27,6 +34,9 @@ interface HelixUsersResponse {
 export function useResolveTwitchChannel(
   login: string | null | undefined,
 ): ResolvedTwitchChannel | null | undefined {
+  const forceId = useDevModOverrideStore(
+    (s) => s.forceResolvedTwitchBroadcasterId,
+  );
   const [state, setState] = useState<ResolvedTwitchChannel | null | undefined>(
     undefined,
   );
@@ -34,6 +44,16 @@ export function useResolveTwitchChannel(
   useEffect(() => {
     if (!login) {
       setState(null);
+      return;
+    }
+
+    // Dev override short-circuits Helix entirely.
+    if (forceId) {
+      setState({
+        id: forceId,
+        login: login.trim().toLowerCase(),
+        displayName: login,
+      });
       return;
     }
 
@@ -76,7 +96,7 @@ export function useResolveTwitchChannel(
     return () => {
       cancelled = true;
     };
-  }, [login]);
+  }, [login, forceId]);
 
   return state;
 }

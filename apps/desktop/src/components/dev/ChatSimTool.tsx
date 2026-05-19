@@ -372,8 +372,14 @@ export function ChatSimTool() {
   // without touching real OAuth.
   const forceModRole = useDevModOverrideStore((s) => s.forceModRole);
   const forceModScopes = useDevModOverrideStore((s) => s.forceModScopes);
+  const forceResolvedId = useDevModOverrideStore(
+    (s) => s.forceResolvedTwitchBroadcasterId,
+  );
   const setForceModRole = useDevModOverrideStore((s) => s.setForceModRole);
   const setForceModScopes = useDevModOverrideStore((s) => s.setForceModScopes);
+  const setForceResolvedId = useDevModOverrideStore(
+    (s) => s.setForceResolvedTwitchBroadcasterId,
+  );
   const openReconnectDialog = useReconnectDialogStore((s) => s.open);
   const twitchDisabledTitle = isTwitch ? "" : "Switch platform to Twitch";
 
@@ -513,6 +519,42 @@ export function ChatSimTool() {
               </span>
             </span>
           </label>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12.5,
+              color: DEBUG_TOKENS.textPrimary,
+            }}
+          >
+            <span style={{ minWidth: 110 }}>force resolved id</span>
+            <input
+              type="text"
+              value={forceResolvedId}
+              onChange={(e) => setForceResolvedId(e.target.value.trim())}
+              placeholder="(empty = real Helix call)"
+              aria-label="Force resolved Twitch broadcaster id"
+              style={{
+                flex: 1,
+                background: DEBUG_TOKENS.surfaceRaised,
+                color: DEBUG_TOKENS.textPrimary,
+                border: `1px solid ${DEBUG_TOKENS.border}`,
+                font: `12.5px/1.2 ${DEBUG_TOKENS.fontUi}`,
+                padding: "4px 8px",
+                borderRadius: 6,
+              }}
+            />
+          </label>
+          <div
+            style={{
+              color: DEBUG_TOKENS.textSecondary,
+              fontSize: 11,
+              marginLeft: 22,
+            }}
+          >
+            — bypass /users resolve on /mod/twitch/$login pages
+          </div>
         </div>
         <div style={buttonRowStyle}>
           <PillButton

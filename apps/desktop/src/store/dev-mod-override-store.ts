@@ -28,9 +28,20 @@ interface DevModOverrideState {
    * hidden by default until a user opts in via the debug panel.
    */
   showWhisper: boolean;
+  /**
+   * Dev override for `useResolveTwitchChannel`. When set to a non-empty
+   * string, the hook returns this id as the resolved `broadcaster_id`
+   * without calling Helix `/users`. Lets the `/mod/twitch/<login>` page
+   * mount its broadcaster-id-dependent sections (Banned users,
+   * Moderators table, VIPs table, Unban requests, Engagement) without
+   * needing a signed-in Twitch session. Cleared by default; setting
+   * back to an empty string disables the override.
+   */
+  forceResolvedTwitchBroadcasterId: string;
   setForceModRole: (v: boolean) => void;
   setForceModScopes: (v: boolean) => void;
   setShowWhisper: (v: boolean) => void;
+  setForceResolvedTwitchBroadcasterId: (id: string) => void;
   reset: () => void;
 }
 
@@ -38,8 +49,17 @@ export const useDevModOverrideStore = create<DevModOverrideState>()((set) => ({
   forceModRole: false,
   forceModScopes: false,
   showWhisper: false,
+  forceResolvedTwitchBroadcasterId: "",
   setForceModRole: (v) => set({ forceModRole: v }),
   setForceModScopes: (v) => set({ forceModScopes: v }),
   setShowWhisper: (v) => set({ showWhisper: v }),
-  reset: () => set({ forceModRole: false, forceModScopes: false, showWhisper: false }),
+  setForceResolvedTwitchBroadcasterId: (id) =>
+    set({ forceResolvedTwitchBroadcasterId: id }),
+  reset: () =>
+    set({
+      forceModRole: false,
+      forceModScopes: false,
+      showWhisper: false,
+      forceResolvedTwitchBroadcasterId: "",
+    }),
 }));
