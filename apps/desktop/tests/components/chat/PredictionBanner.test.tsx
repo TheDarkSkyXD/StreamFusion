@@ -84,22 +84,23 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
   });
 
-  it("renders 'Resolved' badge + 'Winner' tag on winning outcome when status is RESOLVED", () => {
+  it("renders 'Winner' tag + ended-state subtitle on winning outcome when status is RESOLVED", () => {
     render(
       <PredictionBanner
         prediction={makePrediction({ status: "RESOLVED", winningOutcomeId: "outcome-a", endedAt: "2026-05-18T22:02:11Z" })}
       />,
     );
-    fireEvent.click(screen.getByLabelText("See Details"));
-    expect(screen.getByText("Resolved")).toBeTruthy();
-    expect(screen.getByText("Winner")).toBeTruthy();
+    // Ended states use "View Result" CTA instead of "See Details"
+    fireEvent.click(screen.getByLabelText("View Result"));
+    expect(screen.getByText(/Prediction ended/)).toBeTruthy();
+    expect(screen.getByText(/Winner/)).toBeTruthy();
     expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
   });
 
-  it("renders 'Canceled — refunded' badge when status is CANCELED", () => {
+  it("renders canceled-refunded subtitle when status is CANCELED", () => {
     render(<PredictionBanner prediction={makePrediction({ status: "CANCELED" })} />);
-    fireEvent.click(screen.getByLabelText("See Details"));
-    expect(screen.getByText("Canceled — refunded")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("View Result"));
+    expect(screen.getByText(/Prediction canceled — refunded/)).toBeTruthy();
   });
 
   it("calls onAutoDismiss after ENDED_AUTO_DISMISS_MS for RESOLVED state", () => {
@@ -232,5 +233,36 @@ describe("PredictionBanner (read-only viewer widget)", () => {
       />,
     );
     expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
+  });
+
+  it("expanded ended state renders two-column layout with progress bars (visual-faithful)", () => {
+    render(
+      <PredictionBanner
+        prediction={makePrediction({
+          status: "RESOLVED",
+          winningOutcomeId: "outcome-a",
+          endedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("View Result"));
+    // Both outcomes render in the side-by-side columns
+    expect(screen.getByText("Sodapoppin")).toBeTruthy();
+    expect(screen.getByText("EggsQc")).toBeTruthy();
+    // Big-number percentage display (53% leader in our test fixture)
+    const percentNodes = Array.from(document.querySelectorAll("div")).filter(
+      (d) => /^\d+%$/.test(d.textContent || ""),
+    );
+    expect(percentNodes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("expanded active state renders bubble cluster for Twitch native with leader-percentage", () => {
+    render(<PredictionBanner prediction={makePrediction()} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    // Big leader percentage is rendered
+    const bigNumber = Array.from(document.querySelectorAll("div")).find(
+      (d) => /^\d+%$/.test(d.textContent || "") && (d.className || "").includes("text-[40px]"),
+    );
+    expect(bigNumber).toBeTruthy();
   });
 });
