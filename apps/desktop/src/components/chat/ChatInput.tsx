@@ -30,6 +30,8 @@ export interface ChatInputProps {
   platform: ChatPlatform;
   /** Additional chatroom ID (required for Kick) */
   chatroomId?: number;
+  /** Stable channel identifier for room-state lookups (broadcaster ID on Twitch, chatroom/channel ID on Kick). Forward-declared by U6; consumed by U7's InfoBanner once U9 wires it through. */
+  channelId?: string;
   /** Max message length */
   maxLength?: number;
   /** Placeholder text */
