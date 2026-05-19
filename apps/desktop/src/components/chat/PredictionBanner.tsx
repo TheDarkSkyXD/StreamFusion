@@ -460,8 +460,10 @@ const EndedPanel: React.FC<{
         </div>
       </div>
 
-      {/* Two-column layout with vertical divider down the middle. */}
-      <div className="relative grid grid-cols-2" data-testid="prediction-outcomes">
+      {/* Two-column layout with vertical divider down the middle. Generous
+          gap-6 gives the colored percentages and stat columns breathing room
+          off the center divider — without it the % text crowds the line. */}
+      <div className="relative grid grid-cols-2 gap-6" data-testid="prediction-outcomes">
         <div
           className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/10"
           aria-hidden
