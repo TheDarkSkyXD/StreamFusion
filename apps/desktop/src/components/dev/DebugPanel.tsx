@@ -62,6 +62,24 @@ function DevToolsIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+function ShieldIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
 function DragGrip() {
   // Three vertical dots — a quiet "this is draggable" affordance.
   const dot: React.CSSProperties = {
@@ -348,6 +366,37 @@ function DebugPanelImpl() {
           <strong style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.3 }}>Debug</strong>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              window.location.hash = "#/mod";
+            }}
+            title="Open /mod page (dev shortcut — the sidebar link is gated on moderating ≥1 channel)"
+            aria-label="Open mod page"
+            style={{
+              background: "transparent",
+              color: DEBUG_TOKENS.textSecondary,
+              border: "none",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "6px 8px",
+              borderRadius: 6,
+              transition: "background 0.12s, color 0.12s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = DEBUG_TOKENS.surfaceRaised;
+              e.currentTarget.style.color = DEBUG_TOKENS.textPrimary;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = DEBUG_TOKENS.textSecondary;
+            }}
+          >
+            <ShieldIcon size={14} />
+          </button>
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
