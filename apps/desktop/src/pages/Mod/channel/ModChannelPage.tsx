@@ -29,6 +29,7 @@ import { LuArrowLeft, LuRefreshCw } from "react-icons/lu";
 import { useResolveTwitchChannel } from "@/hooks/useResolveTwitchChannel";
 import type { RetentionScope } from "@/shared/mod-log-types";
 import { useAuthStore } from "@/store/auth-store";
+import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
 import { ChannelBannedList } from "./ChannelBannedList";
 import { ChannelEngagement } from "./ChannelEngagement";
@@ -75,11 +76,14 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
       ? resolvedTwitch?.displayName ?? channel
       : channel;
 
+  const forceBroadcasterIdentity = useDevModOverrideStore(
+    (s) => s.forceBroadcasterIdentity,
+  );
   const isOwnBroadcaster =
     platform === "twitch" &&
-    Boolean(twitchUser?.id) &&
     Boolean(resolvedTwitch?.id) &&
-    twitchUser?.id === resolvedTwitch?.id;
+    (forceBroadcasterIdentity ||
+      (Boolean(twitchUser?.id) && twitchUser?.id === resolvedTwitch?.id));
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 gap-6">

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatStore } from "@/store/chat-store";
+import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
 import { UserModHistory } from "./UserModHistory";
 import { UserPopoutFooter } from "./UserPopoutFooter";
@@ -78,8 +79,13 @@ export function UserPopout({
   const latestMessageId = recentMessages[0]?.id ?? null;
 
   const twitchUser = useAuthStore((s) => s.twitchUser);
+  const forceBroadcasterIdentity = useDevModOverrideStore(
+    (s) => s.forceBroadcasterIdentity,
+  );
   const isBroadcaster =
-    platform === "twitch" && Boolean(twitchUser && twitchUser.id === channelId);
+    platform === "twitch" &&
+    (forceBroadcasterIdentity ||
+      Boolean(twitchUser && twitchUser.id === channelId));
 
   // U17 — bump to force the mod-history list to re-query after an action.
   const [refreshCounter, setRefreshCounter] = useState(0);

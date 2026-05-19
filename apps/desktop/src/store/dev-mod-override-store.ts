@@ -38,10 +38,20 @@ interface DevModOverrideState {
    * back to an empty string disables the override.
    */
   forceResolvedTwitchBroadcasterId: string;
+  /**
+   * Makes every `twitchUser?.id === channelId` style check return true
+   * regardless of who's signed in. Unlocks the broadcaster-only
+   * sections (Moderators table, VIPs table, Engagement) on
+   * `/mod/twitch/<login>` plus the broadcaster Add Mod / Add VIP
+   * buttons in `UserPopoutFooter`. Honors the same opt-in shape as
+   * `forceModRole` / `forceModScopes`. Off by default.
+   */
+  forceBroadcasterIdentity: boolean;
   setForceModRole: (v: boolean) => void;
   setForceModScopes: (v: boolean) => void;
   setShowWhisper: (v: boolean) => void;
   setForceResolvedTwitchBroadcasterId: (id: string) => void;
+  setForceBroadcasterIdentity: (v: boolean) => void;
   reset: () => void;
 }
 
@@ -50,16 +60,19 @@ export const useDevModOverrideStore = create<DevModOverrideState>()((set) => ({
   forceModScopes: false,
   showWhisper: false,
   forceResolvedTwitchBroadcasterId: "",
+  forceBroadcasterIdentity: false,
   setForceModRole: (v) => set({ forceModRole: v }),
   setForceModScopes: (v) => set({ forceModScopes: v }),
   setShowWhisper: (v) => set({ showWhisper: v }),
   setForceResolvedTwitchBroadcasterId: (id) =>
     set({ forceResolvedTwitchBroadcasterId: id }),
+  setForceBroadcasterIdentity: (v) => set({ forceBroadcasterIdentity: v }),
   reset: () =>
     set({
       forceModRole: false,
       forceModScopes: false,
       showWhisper: false,
       forceResolvedTwitchBroadcasterId: "",
+      forceBroadcasterIdentity: false,
     }),
 }));

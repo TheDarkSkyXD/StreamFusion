@@ -375,10 +375,16 @@ export function ChatSimTool() {
   const forceResolvedId = useDevModOverrideStore(
     (s) => s.forceResolvedTwitchBroadcasterId,
   );
+  const forceBroadcasterIdentity = useDevModOverrideStore(
+    (s) => s.forceBroadcasterIdentity,
+  );
   const setForceModRole = useDevModOverrideStore((s) => s.setForceModRole);
   const setForceModScopes = useDevModOverrideStore((s) => s.setForceModScopes);
   const setForceResolvedId = useDevModOverrideStore(
     (s) => s.setForceResolvedTwitchBroadcasterId,
+  );
+  const setForceBroadcasterIdentity = useDevModOverrideStore(
+    (s) => s.setForceBroadcasterIdentity,
   );
   const openReconnectDialog = useReconnectDialogStore((s) => s.open);
   const twitchDisabledTitle = isTwitch ? "" : "Switch platform to Twitch";
@@ -555,6 +561,29 @@ export function ChatSimTool() {
           >
             — bypass /users resolve on /mod/twitch/$login pages
           </div>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12.5,
+              color: DEBUG_TOKENS.textPrimary,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={forceBroadcasterIdentity}
+              onChange={(e) => setForceBroadcasterIdentity(e.target.checked)}
+              style={{ cursor: "pointer", accentColor: "#9146FF" }}
+            />
+            <span>
+              force broadcaster identity
+              <span style={{ color: DEBUG_TOKENS.textSecondary, marginLeft: 6, fontSize: 11 }}>
+                — unlocks Moderators / VIPs / Engagement gates
+              </span>
+            </span>
+          </label>
         </div>
         <div style={buttonRowStyle}>
           <PillButton

@@ -37,6 +37,7 @@ import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { useChatRoomState } from "../../../hooks/useChatRoomState";
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { useAuthStore } from "../../../store/auth-store";
+import { useDevModOverrideStore } from "../../../store/dev-mod-override-store";
 import type {
   ChatConnectionStatus,
   ChatMessage,
@@ -499,8 +500,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // U19 — visible tabs based on role. Viewer = chat only (the component
   // suppresses the strip), mod = chat + modlog, broadcaster adds engagement.
   // The broadcaster check is approximate per the plan: Twitch's broadcaster
-  // id IS the user id, so user.id === channelId is sufficient.
-  const isCurrentUserBroadcaster = !!twitchUser && twitchUser.id === channelId;
+  // id IS the user id, so user.id === channelId is sufficient. The dev
+  // override (forceBroadcasterIdentity) flips the gate on for visual testing.
+  const forceBroadcasterIdentity = useDevModOverrideStore(
+    (s) => s.forceBroadcasterIdentity,
+  );
+  const isCurrentUserBroadcaster =
+    forceBroadcasterIdentity ||
+    (!!twitchUser && twitchUser.id === channelId);
   const visibleTabs: ChatPanelTabId[] = ["chat"];
   if (isMod) {
     visibleTabs.push("modlog");
