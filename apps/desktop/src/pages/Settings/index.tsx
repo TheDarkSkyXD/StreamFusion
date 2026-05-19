@@ -10,6 +10,7 @@ import {
   LuRocket,
   LuShieldCheck,
   LuTriangleAlert,
+  LuTrophy,
 } from "react-icons/lu";
 
 import { AccountConnect } from "@/components/auth";
@@ -26,7 +27,12 @@ import { Switch } from "@/components/ui/switch";
 import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAuthError } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { DEFAULT_PLAYBACK_PREFERENCES, type VideoQuality } from "@/shared/auth-types";
+import {
+  DEFAULT_PLAYBACK_PREFERENCES,
+  DEFAULT_PREDICTION_PREFERENCES,
+  type PredictionPreferences,
+  type VideoQuality,
+} from "@/shared/auth-types";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -81,6 +87,18 @@ export function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handlePredictionStyleChange = async (value: string) => {
+    const style = value as PredictionPreferences["style"];
+    await updatePreferences({
+      predictions: {
+        ...(preferences?.predictions ?? DEFAULT_PREDICTION_PREFERENCES),
+        style,
+      },
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
   return (
     <div className="flex h-full bg-[#09090b] text-zinc-100 overflow-hidden">
       {/* Sidebar Navigation */}
@@ -115,6 +133,13 @@ export function SettingsPage() {
               description="Twitch ad-blocking settings"
               isActive={activeTab === "adblock"}
               onClick={() => setActiveTab("adblock")}
+            />
+            <SidebarItem
+              icon={LuTrophy}
+              label="Predictions"
+              description="Chat prediction widget style"
+              isActive={activeTab === "predictions"}
+              onClick={() => setActiveTab("predictions")}
             />
             <SidebarItem
               icon={LuLink}
@@ -226,6 +251,52 @@ export function SettingsPage() {
                   This uses the VAFT technique to request ad-free streams via backup player types.
                   It works without external proxies. A shield icon will appear in the player when
                   active.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Predictions Tab */}
+          {activeTab === "predictions" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Predictions</h2>
+                <p className="text-zinc-400">
+                  Visual style for the chat prediction widget when a streamer runs a prediction.
+                </p>
+              </div>
+
+              <div className="p-1 rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="max-w-md">
+                      <p className="font-medium text-zinc-200">Style</p>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Native matches each platform's own UI (Twitch purple with bubble chart;
+                        Kick green/pink dot pairs). Unified uses StreamForge's storm accent on
+                        both platforms.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {saved && (
+                        <span className="text-sm text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
+                          Saved
+                        </span>
+                      )}
+                      <Select
+                        value={preferences?.predictions?.style ?? "native"}
+                        onValueChange={handlePredictionStyleChange}
+                      >
+                        <SelectTrigger className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
+                          <SelectValue placeholder="Select style" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
+                          <SelectItem value="native">Native (per platform)</SelectItem>
+                          <SelectItem value="unified">Unified StreamForge</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
