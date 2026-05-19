@@ -608,13 +608,6 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
     [addRecentEmote, onSelect]
   );
 
-  const handleFavoriteClick = useCallback(
-    (emote: Emote) => {
-      toggleFavorite(emote);
-    },
-    [toggleFavorite]
-  );
-
   const handleSubSectionClick = useCallback((id: SubSection) => {
     setActiveSubSection((cur) => (cur === id ? null : id));
   }, []);
@@ -692,7 +685,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
           collapsedHeaderOnly={searching}
           showLock={showLock}
           onEmoteClick={handleEmoteClick}
-          onFavoriteClick={handleFavoriteClick}
+          onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
         />
         <EmoteSection
@@ -701,7 +694,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
           collapsedHeaderOnly={searching}
           showLock={showLock}
           onEmoteClick={handleEmoteClick}
-          onFavoriteClick={handleFavoriteClick}
+          onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
         />
         {providerLists.map(({ provider, emotes }) => (
@@ -711,7 +704,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
             emotes={emotes}
             showLock={showLock}
             onEmoteClick={handleEmoteClick}
-            onFavoriteClick={handleFavoriteClick}
+            onFavoriteClick={toggleFavorite}
             isFavorite={isFavorite}
           />
         ))}

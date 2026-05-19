@@ -153,7 +153,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
       data-platform={platform}
       className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[var(--color-foreground,#EFEFF1)] bg-[var(--color-background-secondary,#1a1a1d)] border-b border-[var(--color-border,rgba(83,83,95,0.48))]"
     >
-      <span data-testid="info-banner-primary" className="truncate font-medium">
+      <span data-testid="info-banner-primary" className="min-w-0 truncate font-medium">
         {primary.label}
       </span>
       <Tooltip>

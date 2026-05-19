@@ -21,7 +21,7 @@
  * handled it).
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import { getChatSettings } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
 import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
@@ -198,67 +198,89 @@ export function useChatSettingsSync({
   channel,
   channelId,
 }: UseChatSettingsSyncArgs): void {
-  // Track whether the service has reached `connected` at least once for this
-  // mount. A `connected` transition while `hasConnectedOnce` is false means
-  // "first connect" (mount-path fetch already covers it). A `connected`
-  // transition while it's true means "reconnect" — fire the re-fetch.
-  const hasConnectedOnceRef = useRef(false);
-
   useEffect(() => {
     if (!channelId) return;
 
     const key = roomStateKey(platform, channelId);
-    const controller = new AbortController();
+    const mountController = new AbortController();
+    // R4 — Track the currently-active fetch controller so reconnect-driven
+    // re-fetches can abort the prior in-flight fetch before starting a new
+    // one. Without this, a reconnect storm produces N concurrent fetches
+    // racing for last-writer; the slowest-resolving one wins regardless of
+    // freshness. Per-mount only — cross-mount dedup is still handled by
+    // the module-scoped `inFlight` Set.
+    let fetchController: AbortController | null = null;
+    // R3 — When a WS `roomState` event lands during an in-flight fetch, the
+    // event carries fresher truth than the fetch's eventual response. The
+    // resolving fetch must not clobber the fresher WS write. The flag is
+    // reset at the start of each fetch attempt.
+    let wsArrivedDuringFetch = false;
+
     const updateRoomState = useRoomStateStore.getState().updateRoomState;
+    const service = platform === "twitch" ? twitchChatService : kickChatService;
 
     // -- Fetch helper (used by mount and reconnect paths) ---------------
     const runFetch = async (): Promise<void> => {
       if (inFlight.has(key)) return;
       inFlight.add(key);
+      const localController = new AbortController();
+      fetchController = localController;
+      wsArrivedDuringFetch = false;
 
       try {
-        const patch = await fetchPatchFor(platform, channel, channelId, controller.signal);
-        if (controller.signal.aborted) return;
-        // If our key was cleared during the in-flight window (channel
-        // switched away then back), don't write — the new mount owns it.
-        // We re-check membership instead of relying solely on abort because
-        // the same-key remount path uses a fresh controller.
+        const patch = await fetchPatchFor(platform, channel, channelId, localController.signal);
+        if (localController.signal.aborted) return;
+        if (mountController.signal.aborted) return;
+        // R3 — A fresher WS event already wrote during this fetch's window.
+        // Keep its value; don't clobber with a stale response.
+        if (wsArrivedDuringFetch) return;
         if (patch) {
           updateRoomState(platform, channelId, patch);
           __debugProvenance.set(key, "fetch");
         }
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (localController.signal.aborted) return;
+        if (mountController.signal.aborted) return;
         // Failure is non-fatal — the banner stays hidden (R19). Surface via
         // warn so it shows up next to other chat-join failure logs without
         // tripping error boundaries.
         console.warn("[useChatSettingsSync] initial fetch failed:", err);
       } finally {
+        if (fetchController === localController) fetchController = null;
         inFlight.delete(key);
       }
     };
 
     // -- WS event subscription -----------------------------------------
-    const service = platform === "twitch" ? twitchChatService : kickChatService;
-
     const handleRoomState = (event: RoomStatePatchEvent): void => {
       if (event.platform !== platform) return;
       if (event.channel !== channel) return;
       updateRoomState(platform, channelId, event.patch);
       __debugProvenance.set(key, "ws");
+      // R3 — Mark any in-flight fetch as stale relative to this arrival.
+      if (fetchController) wsArrivedDuringFetch = true;
     };
+
+    // R2 — Seed `hasConnectedOnce` from the service's CURRENT state so a
+    // mount arriving while the service is already connected doesn't
+    // misclassify the next reconnect as "first connect" and silently skip
+    // the re-seed. Defensive optional call — test stubs may not implement
+    // `getConnectionStatus`, in which case we fall back to the original
+    // "treat first observed connect as initial" behavior.
+    let hasConnectedOnce = service.getConnectionStatus?.()?.state === "connected";
 
     const handleConnectionStateChange = (status: ChatConnectionStatus): void => {
       if (status.platform !== platform) return;
       if (status.state !== "connected") return;
-      if (!hasConnectedOnceRef.current) {
+      if (!hasConnectedOnce) {
         // First connect — the mount-path fetch already covers initial state.
-        hasConnectedOnceRef.current = true;
+        hasConnectedOnce = true;
         return;
       }
-      // Reconnect — re-seed RoomState from the authoritative fetch. Clear
-      // any stale in-flight key first so the new fetch isn't suppressed by
-      // a pre-disconnect call that the AbortController already cut short.
+      // Reconnect — re-seed RoomState from the authoritative fetch.
+      // R4 — Abort any prior in-flight fetch before starting the new one
+      // and clear the in-flight key so `runFetch` doesn't short-circuit.
+      if (fetchController) fetchController.abort();
       inFlight.delete(key);
       void runFetch();
     };
@@ -270,7 +292,8 @@ export function useChatSettingsSync({
     void runFetch();
 
     return () => {
-      controller.abort();
+      mountController.abort();
+      if (fetchController) fetchController.abort();
       service.off("roomState", handleRoomState);
       service.off("connectionStateChange", handleConnectionStateChange);
       // Aborted fetches still need their key cleared so a same-key remount
