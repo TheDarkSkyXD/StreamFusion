@@ -153,7 +153,7 @@ describe("twitchAuthService refresh chain", () => {
     twitchAuthService.cancelProactiveRefresh();
   });
 
-  it("invalidates auth immediately on a permanent failure (invalid_grant)", async () => {
+  it("invalidates auth immediately on a permanent failure (invalid_grant) but keeps stored TwitchUser", async () => {
     const authLost = vi.fn();
     twitchAuthService.setAuthLostHandler(authLost);
 
@@ -166,12 +166,15 @@ describe("twitchAuthService refresh chain", () => {
     await vi.advanceTimersByTimeAsync(55 * 60 * 1000 + 1000);
 
     expect(refreshTokenMock).toHaveBeenCalledTimes(1);
+    // Token cleared — IRC and Helix calls can no longer authenticate.
     expect(storageModule.storageService.clearToken).toHaveBeenCalledWith("twitch");
-    expect(storageModule.storageService.clearTwitchUser).toHaveBeenCalled();
+    // But stored TwitchUser is intentionally preserved so the UI can show
+    // "<displayName> — Reconnect required" instead of scrubbing identity.
+    expect(storageModule.storageService.clearTwitchUser).not.toHaveBeenCalled();
     expect(authLost).toHaveBeenCalledTimes(1);
   });
 
-  it("escalates to invalidateAuth after 5 consecutive transient failures", async () => {
+  it("never invalidates auth from transient failures alone — caps backoff at 1h and retries forever", async () => {
     const authLost = vi.fn();
     twitchAuthService.setAuthLostHandler(authLost);
 
@@ -182,16 +185,42 @@ describe("twitchAuthService refresh chain", () => {
 
     // Initial attempt at T+55m
     await vi.advanceTimersByTimeAsync(55 * 60 * 1000 + 1000);
-    // Backoff schedule: 30s, 2m, 10m, 45m — four retries — then the fifth
-    // failure trips the invalidate-auth path.
+    // Backoff schedule: 30s, 2m, 10m, 45m, then capped at 60m forever.
     await vi.advanceTimersByTimeAsync(30 * 1000 + 100);
     await vi.advanceTimersByTimeAsync(2 * 60 * 1000 + 100);
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 100);
     await vi.advanceTimersByTimeAsync(45 * 60 * 1000 + 100);
+    // After the 5th call, we're in the 1h-cap loop. Advance two more hours
+    // worth of retries to prove they keep firing without escalation.
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 100);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 100);
 
-    expect(refreshTokenMock).toHaveBeenCalledTimes(5);
-    expect(authLost).toHaveBeenCalledTimes(1);
-    expect(storageModule.storageService.clearToken).toHaveBeenCalledWith("twitch");
+    // 7 attempts total (1 initial + 4 short backoffs + 2 hourly caps).
+    expect(refreshTokenMock).toHaveBeenCalledTimes(7);
+    // Critically: NEVER escalated to invalidateAuth.
+    expect(authLost).not.toHaveBeenCalled();
+    expect(storageModule.storageService.clearToken).not.toHaveBeenCalled();
+    twitchAuthService.cancelProactiveRefresh();
+  });
+
+  it("onSystemResume re-schedules the refresh chain (covers laptop wake from sleep)", async () => {
+    setStoredToken(60 * 60);
+    refreshTokenMock.mockResolvedValue({
+      accessToken: "new",
+      refreshToken: "rt",
+      expiresAt: Date.now() + 4 * 60 * 60 * 1000,
+    });
+
+    twitchAuthService.scheduleProactiveRefresh();
+    // Cancel as if the OS sleep killed the timer.
+    twitchAuthService.cancelProactiveRefresh();
+
+    // Resume — should re-arm against the still-stored token's expiry.
+    twitchAuthService.onSystemResume();
+    await vi.advanceTimersByTimeAsync(55 * 60 * 1000 + 1000);
+
+    expect(refreshTokenMock).toHaveBeenCalledTimes(1);
+    twitchAuthService.cancelProactiveRefresh();
   });
 
   it("logout cancels any pending refresh and clears the failure counter", async () => {

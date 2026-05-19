@@ -10,9 +10,9 @@ import "dotenv/config";
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { app, BrowserWindow, globalShortcut, Menu, protocol, session } from "electron";
+import { app, BrowserWindow, globalShortcut, Menu, powerMonitor, protocol, session } from "electron";
 
-import { protocolHandler } from "./backend/auth";
+import { protocolHandler, twitchAuthService } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
 import {
   KICK_IMAGE_SCHEME,
@@ -296,6 +296,14 @@ app.on("ready", async () => {
 
   // Mark session as started (remove sentinel until clean shutdown)
   markSessionStarted();
+
+  // Wake-aware Twitch refresh. A laptop that slept across the token's
+  // expiry can leave the proactive setTimeout running stale and IRC torn
+  // down by Twitch before the renderer notices. On every system resume,
+  // re-evaluate the refresh schedule against the current expiry.
+  powerMonitor.on("resume", () => {
+    twitchAuthService.onSystemResume();
+  });
 
   // Initialize Core Services (Database & Storage)
   // MUST be called after app path configuration and before IPC handlers

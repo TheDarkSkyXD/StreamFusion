@@ -30,6 +30,13 @@ interface AuthState {
   twitchUser: TwitchUser | null;
   twitchConnected: boolean;
   twitchLoading: boolean;
+  /**
+   * Set when the main process's refresh chain hits a permanent failure
+   * (invalid_grant or similar). The session is dead but we keep twitchUser
+   * populated so the UI can show "<displayName> — Reconnect" instead of
+   * scrubbing identity entirely. Cleared on a successful loginTwitch.
+   */
+  twitchReconnectRequired: boolean;
 
   // Kick
   kickUser: KickUser | null;
@@ -80,6 +87,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   twitchUser: null,
   twitchConnected: false,
   twitchLoading: false,
+  twitchReconnectRequired: false,
 
   kickUser: null,
   kickConnected: false,
@@ -212,11 +220,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // main process has already cleared the stored token by the time this
       // event arrives; we just sync the UI.
       window.electronAPI.auth.onTwitchAuthLost(() => {
-        console.warn("⚠️ Twitch session expired at runtime — clearing state");
+        console.warn("⚠️ Twitch session expired at runtime — entering reconnect-required mode");
+        // Degraded mode: keep twitchUser so the UI can still show the
+        // user's identity and a "Reconnect" affordance. twitchConnected
+        // flips false so authenticated features (chat send, mod actions,
+        // Helix calls) correctly gate off. Anonymous browsing keeps working.
         set({
-          twitchUser: null,
           twitchConnected: false,
-          isGuest: !get().kickUser,
+          twitchReconnectRequired: true,
           error: {
             code: "TOKEN_EXPIRED",
             message: "Your Twitch session has expired. Please reconnect your account.",
@@ -304,6 +315,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({
         twitchUser: null,
         twitchConnected: false,
+        twitchReconnectRequired: false,
         twitchLoading: false,
         isGuest: !get().kickUser,
       });
@@ -409,6 +421,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({
         twitchUser: status.twitch.user,
         twitchConnected: status.twitch.connected,
+        // A fresh successful connection clears the degraded reconnect flag.
+        // Without this, the UI would still show "Reconnect required" right
+        // after the user just successfully re-authenticated.
+        twitchReconnectRequired: status.twitch.connected
+          ? false
+          : get().twitchReconnectRequired,
         kickUser: status.kick.user,
         kickConnected: status.kick.connected,
         isGuest: status.isGuest,

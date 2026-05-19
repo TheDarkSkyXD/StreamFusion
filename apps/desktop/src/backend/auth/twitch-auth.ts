@@ -47,17 +47,18 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const MIN_REFRESH_DELAY_MS = 1000;
 
 // Exponential backoff for transient refresh failures (network blip, 5xx,
-// 408, 429). After the fifth consecutive transient failure we give up and
-// treat the chain as broken — at that point the underlying token has
-// expired anyway, so further auto-retries are noise rather than recovery.
-// Delays span ~58 minutes of automatic retries before bailing.
+// 408, 429). The chain never gives up on transient failures alone — once
+// it reaches the cap, it keeps retrying every hour forever. Only an
+// explicit permanent rejection from Twitch (invalid_grant et al.) ever
+// invalidates the session; network problems by themselves can never log
+// the user out.
 const TRANSIENT_BACKOFF_MS = [
   30 * 1000,        // 30s
   2 * 60 * 1000,    // 2m
   10 * 60 * 1000,   // 10m
   45 * 60 * 1000,   // 45m
+  60 * 60 * 1000,   // 1h — and every subsequent attempt
 ];
-const MAX_TRANSIENT_FAILURES = TRANSIENT_BACKOFF_MS.length + 1;
 
 // ========== Twitch Auth Service Class ==========
 
@@ -133,20 +134,15 @@ class TwitchAuthService {
       }
 
       this.consecutiveRefreshFailures += 1;
-      if (this.consecutiveRefreshFailures >= MAX_TRANSIENT_FAILURES) {
-        console.error(
-          `❌ Twitch token refresh failed ${this.consecutiveRefreshFailures} consecutive times — giving up and prompting re-login.`,
-          error,
-        );
-        this.invalidateAuth();
-        return null;
-      }
 
-      // Transient failure — schedule a retry with exponential backoff. The
-      // delay index maps directly to (failures - 1).
-      const backoffMs = TRANSIENT_BACKOFF_MS[this.consecutiveRefreshFailures - 1];
+      // Capped exponential backoff. Once we reach the last slot we stay
+      // there — keep retrying every hour forever. The session is only
+      // ever invalidated by a permanent rejection above, never by
+      // network problems alone.
+      const slot = Math.min(this.consecutiveRefreshFailures - 1, TRANSIENT_BACKOFF_MS.length - 1);
+      const backoffMs = TRANSIENT_BACKOFF_MS[slot];
       console.warn(
-        `⚠️ Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}/${MAX_TRANSIENT_FAILURES}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
+        `⚠️ Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
         error,
       );
       this.scheduleRefreshIn(backoffMs);
@@ -155,15 +151,19 @@ class TwitchAuthService {
   }
 
   /**
-   * Permanent-failure path: drop the dead token, stop the chain, and tell
-   * the renderer to ask the user to reconnect. Idempotent — re-fires safely
-   * if called twice (handler only invokes once thanks to the null guard).
+   * Permanent-failure path: drop the dead token and tell the renderer to
+   * ask the user to reconnect — but KEEP the stored TwitchUser. Without
+   * that the UI would scrub the user's identity entirely (avatar, name,
+   * everything reverts to "not signed in") which feels like a hard logout.
+   * Keeping the user record lets the renderer show a "Reconnect <name>"
+   * prompt while still degrading authenticated features. The user record
+   * is only fully cleared when the user explicitly logs out via logout().
    */
   private invalidateAuth(): void {
     this.cancelProactiveRefresh();
     this.consecutiveRefreshFailures = 0;
     storageService.clearToken(this.platform);
-    storageService.clearTwitchUser();
+    // Intentionally NOT clearing the TwitchUser here — see method docstring.
     const handler = this.authLostHandler;
     if (handler) {
       try {
@@ -231,6 +231,22 @@ class TwitchAuthService {
       this.refreshTimeoutId = null;
     }
     this.consecutiveRefreshFailures = 0;
+  }
+
+  /**
+   * Called from main.ts when Electron's powerMonitor fires 'resume'. Sleeping
+   * laptops are the most common cause of "I came back and chat is broken" —
+   * a setTimeout scheduled before sleep may fire late or skip entirely, and
+   * Twitch's access token may have expired during the sleep window. On every
+   * resume we re-arm the timer against the current stored expiry (firing
+   * immediately if already expired). The single-flight refresh guard
+   * prevents this from racing with an in-flight refresh.
+   */
+  onSystemResume(): void {
+    const token = storageService.getToken(this.platform);
+    if (!token) return;
+    console.debug("💤→☀️ System resumed — re-evaluating Twitch refresh schedule.");
+    this.scheduleProactiveRefresh();
   }
 
   /**
