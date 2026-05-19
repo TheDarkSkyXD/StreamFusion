@@ -44,3 +44,15 @@ export const DownloadsPage = lazy(() =>
 );
 
 export const ModPage = lazy(() => import("./Mod").then((m) => ({ default: m.ModPage })));
+
+export const ModChannelTwitchPage = lazy(() =>
+  import("./Mod/channel/ModChannelTwitchPage").then((m) => ({
+    default: m.ModChannelTwitchPage,
+  }))
+);
+
+export const ModChannelKickPage = lazy(() =>
+  import("./Mod/channel/ModChannelKickPage").then((m) => ({
+    default: m.ModChannelKickPage,
+  }))
+);

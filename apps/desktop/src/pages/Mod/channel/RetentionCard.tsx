@@ -1,36 +1,28 @@
 /**
- * U30 — Per-channel retention settings (slim version).
+ * RetentionCard — mod-log retention setting for a single scope.
  *
- * Original U30 was the AutoMod editor; with AutoMod removed (commit b15bdec)
- * what's left is the mod-log retention setting. One card per scope:
+ * Extracted from the old PerChannelSettings page (which iterated this card
+ * per moderated channel). Now reused by the per-channel mod pages
+ * (`/mod/twitch/$channel`, `/mod/kick/$channel`) and the index's
+ * GlobalRetention card.
  *
- *   • Global  — applies to all channels that don't have a per-channel override.
- *   • Channel — overrides for each Twitch channel the signed-in user moderates.
- *
- * Each card has a number input ("days") + a "Forever" toggle. Save persists
- * via `window.electronAPI.retention.set`. Initial values come from
- * `window.electronAPI.retention.get`, which returns `undefined` for "never set"
- * (treated as Forever / blank) and `null` for the explicit Forever override.
- *
- * SQLite lives in the main process (see modlog-handlers.ts); both reads and
- * writes here are async IPC round-trips.
+ * Number input ("days") + Forever toggle; persists via
+ * `window.electronAPI.retention.set`. Initial values come from
+ * `window.electronAPI.retention.get` — `undefined` means never set
+ * (treated as Forever / blank), `null` is the explicit Forever override.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import type { RetentionScope } from "@/shared/mod-log-types";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 interface RetentionCardProps {
   scope: RetentionScope;
   title: string;
 }
 
-function RetentionCard({ scope, title }: RetentionCardProps) {
-  // The DB read happens synchronously inside the renderer-side singleton.
-  // Wrap it in a try/catch — when running in a context without an initialized
-  // DB (e.g. unit-test renders), surface the empty state rather than crashing.
+export function RetentionCard({ scope, title }: RetentionCardProps) {
   const [days, setDays] = useState<string>("");
   const [forever, setForever] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -125,32 +117,5 @@ function RetentionCard({ scope, title }: RetentionCardProps) {
         </button>
       </div>
     </div>
-  );
-}
-
-export function PerChannelSettings() {
-  // Subscribe to the Set reference directly so Zustand's strict-equality
-  // check stays stable across renders; derive the array via useMemo so the
-  // mapping below gets a stable list identity until the Set actually changes.
-  const channelIdSet = useModeratedChannelsStore((s) => s.twitchModeratedChannelIds);
-  const channelIds = useMemo(() => Array.from(channelIdSet), [channelIdSet]);
-
-  return (
-    <section data-testid="per-channel-settings">
-      <h2 className="text-xl font-semibold mb-3 text-white">Per-channel retention</h2>
-      <div className="space-y-3">
-        <RetentionCard scope="global" title="Global (default)" />
-        {channelIds.map((id) => (
-          <RetentionCard
-            key={id}
-            scope={`channel:${id}` as RetentionScope}
-            title={`Channel ${id}`}
-          />
-        ))}
-        {channelIds.length === 0 ? (
-          <p className="text-gray-400">You don't moderate any channels yet.</p>
-        ) : null}
-      </div>
-    </section>
   );
 }

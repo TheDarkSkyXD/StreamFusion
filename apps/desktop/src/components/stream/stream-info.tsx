@@ -191,16 +191,28 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
           {showModButton && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link
-                  to="/mod"
-                  aria-label="Open moderation page"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#9146FF]/40 bg-[#9146FF]/15 text-[#9146FF] transition-colors hover:bg-[#9146FF]/25"
-                >
-                  <LuShield className="h-5 w-5" />
-                </Link>
+                {channel.platform === "twitch" ? (
+                  <Link
+                    to="/mod/twitch/$channel"
+                    params={{ channel: channel.username }}
+                    aria-label="Open channel moderation page"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#9146FF]/40 bg-[#9146FF]/15 text-[#9146FF] transition-colors hover:bg-[#9146FF]/25"
+                  >
+                    <LuShield className="h-5 w-5" />
+                  </Link>
+                ) : (
+                  <Link
+                    to="/mod/kick/$channel"
+                    params={{ channel: channel.username }}
+                    aria-label="Open channel moderation page"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#53FC18]/40 bg-[#53FC18]/15 text-[#53FC18] transition-colors hover:bg-[#53FC18]/25"
+                  >
+                    <LuShield className="h-5 w-5" />
+                  </Link>
+                )}
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Open moderation page — retention, banned-user search, engagement
+                Open this channel's moderation page
               </TooltipContent>
             </Tooltip>
           )}

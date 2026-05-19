@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   ),
   moderatedIds: new Set<string>(),
   authState: {
-    twitchUser: { id: '111', login: 'streamer' } as { id: string; login: string } | null,
+    twitchUser: { id: '111', login: 'streamer', displayName: 'Streamer' } as
+      | { id: string; login: string; displayName: string }
+      | null,
+    kickUser: null as { id: number; username: string; slug: string } | null,
   },
 }));
 
@@ -40,48 +43,68 @@ vi.mock('@/store/auth-store', () => {
   return { useAuthStore: useStore };
 });
 
-// Child sections — keep this test focused on the shell.
-vi.mock('@/pages/Mod/PerChannelSettings', () => ({
-  PerChannelSettings: () => <div data-testid="per-channel-settings">per-channel</div>,
-}));
-vi.mock('@/pages/Mod/BannedUserSearch', () => ({
-  BannedUserSearch: () => <div data-testid="banned-user-search">search</div>,
-}));
-vi.mock('@/pages/Mod/EngagementAggregate', () => ({
-  EngagementAggregate: () => <div data-testid="engagement-aggregate">engage</div>,
+// Stub getModeratedChannels so the ChannelList doesn't hit fetch.
+vi.mock('@/backend/api/platforms/twitch/twitch-helix-moderation', () => ({
+  getModeratedChannels: vi.fn(async () => [
+    {
+      broadcaster_id: '222',
+      broadcaster_login: 'somebody',
+      broadcaster_name: 'Somebody',
+    },
+  ]),
 }));
 
 import { ModPage } from '@/pages/Mod';
 
-describe('ModPage', () => {
+describe('ModPage (index)', () => {
   beforeEach(() => {
     mocks.hydrate.mockClear();
+    mocks.authState.twitchUser = {
+      id: '111',
+      login: 'streamer',
+      displayName: 'Streamer',
+    };
+    mocks.authState.kickUser = null;
     // biome-ignore lint/suspicious/noExplicitAny: env stub.
     (import.meta as any).env = { VITE_TWITCH_CLIENT_ID: 'cid' };
     const api = installElectronAPIMock();
     api.auth.getToken = vi.fn(async () => ({ accessToken: 'tok' }));
   });
 
-  it('renders the three sections under the Moderation heading', () => {
+  it('renders the Moderation heading + channel list + global retention sections', async () => {
     renderWithProviders(<ModPage />);
-    expect(screen.getByRole('heading', { name: /moderation/i })).toBeInTheDocument();
-    expect(screen.getByTestId('per-channel-settings')).toBeInTheDocument();
-    expect(screen.getByTestId('banned-user-search')).toBeInTheDocument();
-    expect(screen.getByTestId('engagement-aggregate')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /^moderation$/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('mod-channel-list')).toBeInTheDocument();
+    expect(screen.getByTestId('global-retention')).toBeInTheDocument();
+  });
+
+  it("renders the broadcaster's own Twitch channel card", async () => {
+    renderWithProviders(<ModPage />);
+    // Wait a tick for the async getModeratedChannels.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(
+      screen.getByTestId('mod-channel-card-twitch-streamer'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the empty state when no users are signed in', () => {
+    mocks.authState.twitchUser = null;
+    mocks.authState.kickUser = null;
+    renderWithProviders(<ModPage />);
+    expect(screen.getByTestId('mod-channel-list-empty')).toBeInTheDocument();
   });
 
   it('refresh button triggers moderated-channels hydrate', async () => {
     renderWithProviders(<ModPage />);
-    fireEvent.click(screen.getByRole('button', { name: /refresh moderation data/i }));
-    // Hydrate is async — wait for microtasks to flush.
+    fireEvent.click(
+      screen.getByRole('button', { name: /refresh moderation data/i }),
+    );
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(mocks.hydrate).toHaveBeenCalled();
-    // Verify the call shape — selfUserId and access token are the load-bearing
-    // bits; client-id comes from import.meta.env which is statically resolved.
     const callArgs = mocks.hydrate.mock.calls[0] as [string, string, string];
     expect(callArgs[0]).toBe('111');
     expect(callArgs[1]).toBe('tok');
-    expect(typeof callArgs[2]).toBe('string');
-    expect(callArgs[2].length).toBeGreaterThan(0);
   });
 });

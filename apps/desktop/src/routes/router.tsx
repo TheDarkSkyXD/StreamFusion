@@ -17,6 +17,8 @@ import {
   FollowingPage,
   HistoryPage,
   HomePage,
+  ModChannelKickPage,
+  ModChannelTwitchPage,
   ModPage,
   MultiStreamPage,
   SearchPage,
@@ -194,6 +196,21 @@ const modRoute = createRoute({
   component: withSuspense(ModPage),
 });
 
+// Per-channel mod admin pages — one per platform. The URL param is the
+// broadcaster_login (Twitch) or slug (Kick); the route component resolves
+// the numeric id internally (Twitch) or uses the slug directly (Kick).
+const modChannelTwitchRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/mod/twitch/$channel",
+  component: withSuspense(ModChannelTwitchPage),
+});
+
+const modChannelKickRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/mod/kick/$channel",
+  component: withSuspense(ModChannelKickPage),
+});
+
 // Build the route tree
 const routeTree = rootRoute.addChildren([
   appLayoutRoute.addChildren([
@@ -210,6 +227,8 @@ const routeTree = rootRoute.addChildren([
     historyRoute,
     downloadsRoute,
     modRoute,
+    modChannelTwitchRoute,
+    modChannelKickRoute,
   ]),
 ]);
 
