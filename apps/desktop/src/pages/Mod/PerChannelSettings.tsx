@@ -8,18 +8,18 @@
  *   • Channel — overrides for each Twitch channel the signed-in user moderates.
  *
  * Each card has a number input ("days") + a "Forever" toggle. Save persists
- * via `dbService.setRetentionSetting`. Initial values come from
- * `dbService.getRetentionSetting`, which returns `undefined` for "never set"
+ * via `window.electronAPI.retention.set`. Initial values come from
+ * `window.electronAPI.retention.get`, which returns `undefined` for "never set"
  * (treated as Forever / blank) and `null` for the explicit Forever override.
+ *
+ * SQLite lives in the main process (see modlog-handlers.ts); both reads and
+ * writes here are async IPC round-trips.
  */
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  dbService,
-  type RetentionScope,
-} from "@/backend/services/database-service";
+import type { RetentionScope } from "@/shared/mod-log-types";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 interface RetentionCardProps {
@@ -36,29 +36,36 @@ function RetentionCard({ scope, title }: RetentionCardProps) {
   const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
-    let initial: number | null | undefined;
-    try {
-      initial = dbService.getRetentionSetting(scope);
-    } catch {
-      initial = undefined;
-    }
-    if (initial === undefined) {
-      setDays("");
-      setForever(false);
-    } else if (initial === null) {
-      setDays("");
-      setForever(true);
-    } else {
-      setDays(String(initial));
-      setForever(false);
-    }
+    let cancelled = false;
+    (async () => {
+      let initial: number | null | undefined;
+      try {
+        initial = await window.electronAPI.retention.get(scope);
+      } catch {
+        initial = undefined;
+      }
+      if (cancelled) return;
+      if (initial === undefined) {
+        setDays("");
+        setForever(false);
+      } else if (initial === null) {
+        setDays("");
+        setForever(true);
+      } else {
+        setDays(String(initial));
+        setForever(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [scope]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
     try {
       if (forever) {
-        dbService.setRetentionSetting(scope, null);
+        await window.electronAPI.retention.set(scope, null);
         toast.success(`Retention saved for ${title}: Forever`);
       } else {
         const parsed = parseInt(days, 10);
@@ -66,7 +73,7 @@ function RetentionCard({ scope, title }: RetentionCardProps) {
           toast.error("Days must be a positive integer (or enable Forever)");
           return;
         }
-        dbService.setRetentionSetting(scope, parsed);
+        await window.electronAPI.retention.set(scope, parsed);
         toast.success(`Retention saved for ${title}: ${parsed} days`);
       }
     } catch (err) {

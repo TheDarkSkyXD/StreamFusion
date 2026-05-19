@@ -16,36 +16,22 @@
  * different source, the new entry is suppressed. This collapses the
  * local-mutation → EventSub round-trip into a single row.
  *
- * Retention (AE10 / R33): `initialize()` runs `dbService.sweepModLogRetention()`
- * exactly once at startup. No periodic sweep — the plan says retention is a
- * startup-only operation.
+ * Retention (AE10 / R33): `initialize()` runs the retention sweep exactly once
+ * at startup. No periodic sweep — the plan says retention is a startup-only
+ * operation.
  *
- * --------------------------------------------------------------------------
- *  WIRING TODO (out of scope for U12, tracked by future units):
- *    - U11 should call `modLogWriter.record({ source: "local", ... })` on
- *      successful Helix/Kick mutations.
- *    - U8's EventSub WebSocket subsystem should call
- *      `modLogWriter.ingestEventSubModerate(...)` on each
- *      `channel.moderate` notification.
- *    - The Twitch chat layer (twitch-chat.ts) should call
- *      `modLogWriter.record({ source: "irc", ... })` on CLEARCHAT/CLEARMSG.
- *    - The Kick chat layer should do the same for Pusher mod events.
- *    - The connection bootstrap path should call `bootstrapFromHelix(...)`
- *      once per moderated channel after chat connect.
- *
- *  IPC TODO: this service operates on `dbService` directly. `dbService` lives
- *  in the Electron main process (it imports `electron`'s `app.getPath`). Tests
- *  exercise both side-by-side. Production deployment needs the same IPC
- *  bridge other `dbService` consumers will use — out of scope for U12 and not
- *  unique to this unit.
- * --------------------------------------------------------------------------
+ * Runtime location: this module is imported by renderer-side code
+ * (EngagementPolls, EngagementPredictions). It therefore CANNOT touch
+ * better-sqlite3 directly. All persistence goes through the
+ * `window.electronAPI.modLog.*` IPC bridge; the dedup buffer and EventSub
+ * translation stay renderer-side.
  */
 
-import { dbService, type ModLogEntry } from "@/backend/services/database-service";
 import type {
   ChannelModerateEvent,
   NotificationPayload,
 } from "@/backend/api/platforms/twitch/twitch-eventsub-types";
+import type { ModLogEntry } from "@/shared/mod-log-types";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -133,11 +119,11 @@ export class ModLogWriter {
   private warnedUnknownActions = new Set<string>();
 
   /** Idempotent setup. Runs the AE10 retention sweep on first call only. */
-  initialize(): void {
+  async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
     try {
-      dbService.sweepModLogRetention();
+      await window.electronAPI.modLog.sweepRetention();
     } catch (err) {
       // biome-ignore lint/suspicious/noConsole: surfacing init failure
       console.warn("[mod-log-writer] retention sweep failed during initialize()", err);
@@ -147,8 +133,11 @@ export class ModLogWriter {
   /**
    * Record an action. Returns the new mod_log id, or `null` if the entry was
    * deduplicated against a recent record from a different source.
+   *
+   * The dedup check is synchronous (renderer-side buffer); the actual SQL
+   * insert is awaited over IPC.
    */
-  record(input: RecordModActionInput): number | null {
+  async record(input: RecordModActionInput): Promise<number | null> {
     const occurredAt = input.occurredAt ?? Date.now();
     const key = dedupKey(input.channelId, input.action, input.targetUserId);
 
@@ -168,7 +157,11 @@ export class ModLogWriter {
       }
     }
 
-    const id = dbService.insertModLog({
+    // Mark the buffer BEFORE the await so a concurrent same-key insert from a
+    // different source still dedups.
+    this.recent.push({ key, ts: occurredAt, source: input.source });
+
+    const id = await window.electronAPI.modLog.insert({
       channelId: input.channelId,
       channelSlug: input.channelSlug,
       action: input.action,
@@ -180,8 +173,6 @@ export class ModLogWriter {
       reason: input.reason ?? null,
       createdAt: occurredAt,
     });
-
-    this.recent.push({ key, ts: occurredAt, source: input.source });
     return id;
   }
 
@@ -197,7 +188,9 @@ export class ModLogWriter {
    *   - event.delete: { user_id, user_login, user_name, message_id, message_body }
    *   - event.unban: { user_id, user_login, user_name } (assumed — confirmed at U20)
    */
-  ingestEventSubModerate(payload: NotificationPayload<ChannelModerateEvent>): void {
+  async ingestEventSubModerate(
+    payload: NotificationPayload<ChannelModerateEvent>,
+  ): Promise<void> {
     const event = payload.event;
     const channelId = event.broadcaster_user_id;
     const channelSlug = event.broadcaster_user_login;
@@ -210,7 +203,7 @@ export class ModLogWriter {
       case "ban": {
         const sub = event.ban;
         if (!sub) return this.warnUnknown("ban-missing-payload");
-        this.record({
+        await this.record({
           channelId,
           channelSlug,
           action: "ban",
@@ -232,7 +225,7 @@ export class ModLogWriter {
         const durationSeconds = Number.isFinite(expiresMs)
           ? Math.max(0, Math.floor((expiresMs - occurredAt) / 1000))
           : null;
-        this.record({
+        await this.record({
           channelId,
           channelSlug,
           action: "timeout",
@@ -256,7 +249,7 @@ export class ModLogWriter {
         if (!sub?.user_id || !sub?.user_login) {
           return this.warnUnknown("unban-missing-payload");
         }
-        this.record({
+        await this.record({
           channelId,
           channelSlug,
           action: "unban",
@@ -274,7 +267,7 @@ export class ModLogWriter {
       case "delete": {
         const sub = event.delete;
         if (!sub) return this.warnUnknown("delete-missing-payload");
-        this.record({
+        await this.record({
           channelId,
           channelSlug,
           action: "delete",
@@ -366,16 +359,18 @@ export class ModLogWriter {
 
         // Idempotent: skip if a row with the same (channelId, targetUserId,
         // action) already exists within ±5s of this createdAt.
-        const existing = dbService.queryModLog({
+        const existing = await window.electronAPI.modLog.query({
           channelId: opts.channelId,
           targetUserId: row.user_id,
           action,
           limit: 50,
         });
-        const dupe = existing.some((e) => Math.abs(e.createdAt - createdAt) <= 5_000);
+        const dupe = Array.isArray(existing)
+          ? existing.some((e) => Math.abs(e.createdAt - createdAt) <= 5_000)
+          : false;
         if (dupe) continue;
 
-        dbService.insertModLog({
+        await window.electronAPI.modLog.insert({
           channelId: opts.channelId,
           channelSlug: opts.channelSlug,
           action,

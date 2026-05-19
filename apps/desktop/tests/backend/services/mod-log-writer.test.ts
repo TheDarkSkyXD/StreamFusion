@@ -1,36 +1,21 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+/**
+ * mod-log-writer.test.ts
+ *
+ * After U12 was rewired through the IPC bridge (modlog-handlers), this suite
+ * exercises the renderer-side behaviour of the writer:
+ *
+ *   - dedup buffer (renderer-only)
+ *   - EventSub `channel.moderate` translation
+ *   - bootstrap idempotency via Helix
+ *   - initialize() retention sweep wiring
+ *
+ * The actual SQL lives in the main process and is mocked here. We capture the
+ * IPC calls and assert on them; an in-memory mod-log store lets us simulate
+ * the queryModLog ↔ insertModLog flow that bootstrapFromHelix relies on.
+ */
 
-import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Same skip guard the U2 suite uses: better-sqlite3 binary may target Electron
-// instead of system Node. See database-service.test.ts for the full rationale.
-const SQLITE_AVAILABLE = (() => {
-  try {
-    new Database(":memory:").close();
-    return true;
-  } catch {
-    // biome-ignore lint/suspicious/noConsole: surfacing skip reason
-    console.warn(
-      "[mod-log-writer.test] better-sqlite3 native binary mismatch — skipping. " +
-        "Run `npm rebuild better-sqlite3` to run these tests."
-    );
-    return false;
-  }
-})();
-
-let currentTmpDir = "";
-
-vi.mock("electron", () => ({
-  app: {
-    getPath: (_kind: string) => currentTmpDir,
-  },
-}));
-
-// Imports after the electron mock is in place.
-import { dbService } from "@/backend/services/database-service";
 import {
   __resetModLogWriterForTesting,
   modLogWriter,
@@ -40,43 +25,72 @@ import type {
   ChannelModerateEvent,
   NotificationPayload,
 } from "@/backend/api/platforms/twitch/twitch-eventsub-types";
+import type { ModLogEntry, ModLogQueryFilters } from "@/shared/mod-log-types";
 
-function makeTmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "streamforge-modlogwriter-"));
+// ---------------------------------------------------------------------------
+// Mock IPC bridge — in-memory store backs query/insert/sweep
+// ---------------------------------------------------------------------------
+
+interface BridgeMocks {
+  store: ModLogEntry[];
+  nextId: number;
+  insert: ReturnType<typeof vi.fn>;
+  query: ReturnType<typeof vi.fn>;
+  sweepRetention: ReturnType<typeof vi.fn>;
 }
 
-function resetSingletonDb(): void {
-  // Tear down the dbService singleton's open handle so each test gets a fresh
-  // SQLite file at the per-test tmp dir.
-  // biome-ignore lint/suspicious/noExplicitAny: test-only escape hatch
-  const s = dbService as any;
-  if (s.db) {
-    try {
-      s.db.close();
-    } catch {
-      // ignore
-    }
-    s.db = null;
-  }
+let bridge: BridgeMocks;
+
+function installBridge(): void {
+  const store: ModLogEntry[] = [];
+  let nextId = 1;
+
+  const insert = vi.fn(async (entry: Omit<ModLogEntry, "id">) => {
+    const id = nextId++;
+    store.push({ ...entry, id });
+    return id;
+  });
+
+  const query = vi.fn(async (filters: ModLogQueryFilters) => {
+    return store
+      .filter((row) => {
+        if (row.channelId !== filters.channelId) return false;
+        if (filters.targetUserId && row.targetUserId !== filters.targetUserId) return false;
+        if (filters.action && row.action !== filters.action) return false;
+        if (
+          filters.moderatorUsername &&
+          row.moderatorUsername !== filters.moderatorUsername
+        )
+          return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(filters.offset ?? 0, (filters.offset ?? 0) + (filters.limit ?? 100));
+  });
+
+  const sweepRetention = vi.fn(async (_now?: number) => 0);
+
+  bridge = { store, nextId, insert, query, sweepRetention };
+
+  (globalThis as unknown as { window: Window }).window =
+    (globalThis as unknown as { window?: Window }).window ?? ({} as Window);
+  (window as unknown as { electronAPI: unknown }).electronAPI = {
+    modLog: {
+      insert: bridge.insert,
+      query: bridge.query,
+      sweepRetention: bridge.sweepRetention,
+    },
+  };
 }
 
 beforeEach(() => {
-  currentTmpDir = makeTmpDir();
-  resetSingletonDb();
+  installBridge();
   __resetModLogWriterForTesting();
-  dbService.initialize();
 });
 
 afterEach(() => {
-  resetSingletonDb();
-  try {
-    fs.rmSync(currentTmpDir, { recursive: true, force: true });
-  } catch {
-    // ignore — Windows may hold a file briefly
-  }
+  vi.restoreAllMocks();
 });
-
-const describeModLog = SQLITE_AVAILABLE ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,7 +110,9 @@ function baseRecord(overrides: Partial<Parameters<typeof modLogWriter.record>[0]
   };
 }
 
-function eventSubBan(overrides: Partial<ChannelModerateEvent> = {}): NotificationPayload<ChannelModerateEvent> {
+function eventSubBan(
+  overrides: Partial<ChannelModerateEvent> = {},
+): NotificationPayload<ChannelModerateEvent> {
   return {
     subscription: {
       id: "sub-1",
@@ -131,94 +147,97 @@ function eventSubBan(overrides: Partial<ChannelModerateEvent> = {}): Notificatio
 // Tests
 // ---------------------------------------------------------------------------
 
-describeModLog("ModLogWriter.initialize", () => {
-  it("is idempotent — second call does not re-run the retention sweep", () => {
-    const spy = vi.spyOn(dbService, "sweepModLogRetention");
-    modLogWriter.initialize();
-    modLogWriter.initialize();
-    modLogWriter.initialize();
-    expect(spy).toHaveBeenCalledTimes(1);
-    spy.mockRestore();
+describe("ModLogWriter.initialize", () => {
+  it("is idempotent — second call does not re-run the retention sweep", async () => {
+    await modLogWriter.initialize();
+    await modLogWriter.initialize();
+    await modLogWriter.initialize();
+    expect(bridge.sweepRetention).toHaveBeenCalledTimes(1);
   });
 });
 
-describeModLog("ModLogWriter.record", () => {
-  it("inserts and returns the rowid", () => {
-    const id = modLogWriter.record(baseRecord());
+describe("ModLogWriter.record", () => {
+  it("forwards the insert to the IPC bridge and returns the rowid", async () => {
+    const id = await modLogWriter.record(baseRecord());
     expect(id).toBeTypeOf("number");
     expect(id).toBeGreaterThan(0);
-
-    const rows = dbService.queryModLog({ channelId: "c1" });
-    expect(rows).toHaveLength(1);
-    expect(rows[0].targetUserId).toBe("u-bad");
-    expect(rows[0].action).toBe("ban");
+    expect(bridge.insert).toHaveBeenCalledTimes(1);
+    expect(bridge.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: "c1",
+        action: "ban",
+        targetUserId: "u-bad",
+      }),
+    );
   });
 
-  it("dedups when same key arrives from a different source within ±2s", () => {
+  it("dedups when same key arrives from a different source within ±2s", async () => {
     const t = 1_700_000_000_000;
-    const firstId = modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
+    const firstId = await modLogWriter.record(
+      baseRecord({ source: "local", occurredAt: t }),
+    );
     expect(firstId).not.toBeNull();
 
-    // Same (channelId, action, targetUserId) but different source within window.
-    const secondId = modLogWriter.record(
-      baseRecord({ source: "eventsub", occurredAt: t + 1_500 })
+    const secondId = await modLogWriter.record(
+      baseRecord({ source: "eventsub", occurredAt: t + 1_500 }),
     );
     expect(secondId).toBeNull();
-
-    const rows = dbService.queryModLog({ channelId: "c1" });
-    expect(rows).toHaveLength(1);
+    expect(bridge.insert).toHaveBeenCalledTimes(1);
   });
 
-  it("does NOT dedup when the two records share the same source", () => {
+  it("does NOT dedup when the two records share the same source", async () => {
     const t = 1_700_000_000_000;
-    const a = modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
-    const b = modLogWriter.record(baseRecord({ source: "local", occurredAt: t + 500 }));
-    expect(a).not.toBeNull();
-    expect(b).not.toBeNull();
-    expect(dbService.queryModLog({ channelId: "c1" })).toHaveLength(2);
-  });
-
-  it("does NOT dedup when the records are >2s apart", () => {
-    const t = 1_700_000_000_000;
-    const a = modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
-    const b = modLogWriter.record(
-      baseRecord({ source: "eventsub", occurredAt: t + 5_000 })
+    const a = await modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
+    const b = await modLogWriter.record(
+      baseRecord({ source: "local", occurredAt: t + 500 }),
     );
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
-    expect(dbService.queryModLog({ channelId: "c1" })).toHaveLength(2);
+    expect(bridge.insert).toHaveBeenCalledTimes(2);
   });
 
-  it("does NOT dedup across different actions on the same target", () => {
+  it("does NOT dedup when the records are >2s apart", async () => {
     const t = 1_700_000_000_000;
-    modLogWriter.record(baseRecord({ action: "ban", source: "local", occurredAt: t }));
-    modLogWriter.record(
-      baseRecord({ action: "timeout", source: "eventsub", occurredAt: t + 100 })
+    const a = await modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
+    const b = await modLogWriter.record(
+      baseRecord({ source: "eventsub", occurredAt: t + 5_000 }),
     );
-    expect(dbService.queryModLog({ channelId: "c1" })).toHaveLength(2);
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    expect(bridge.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT dedup across different actions on the same target", async () => {
+    const t = 1_700_000_000_000;
+    await modLogWriter.record(baseRecord({ action: "ban", source: "local", occurredAt: t }));
+    await modLogWriter.record(
+      baseRecord({ action: "timeout", source: "eventsub", occurredAt: t + 100 }),
+    );
+    expect(bridge.insert).toHaveBeenCalledTimes(2);
   });
 });
 
-describeModLog("ModLogWriter.ingestEventSubModerate", () => {
-  it("inserts a ban with the correct target + moderator ids", () => {
-    modLogWriter.ingestEventSubModerate(eventSubBan());
-    const rows = dbService.queryModLog({ channelId: "c1" });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      action: "ban",
-      targetUserId: "u-bad",
-      targetUsername: "bad-user",
-      moderatorUserId: "m1",
-      moderatorUsername: "modA",
-      reason: "spam",
-      durationSeconds: null,
-    });
+describe("ModLogWriter.ingestEventSubModerate", () => {
+  it("inserts a ban with the correct target + moderator ids", async () => {
+    await modLogWriter.ingestEventSubModerate(eventSubBan());
+    expect(bridge.insert).toHaveBeenCalledTimes(1);
+    expect(bridge.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "ban",
+        targetUserId: "u-bad",
+        targetUsername: "bad-user",
+        moderatorUserId: "m1",
+        moderatorUsername: "modA",
+        reason: "spam",
+        durationSeconds: null,
+      }),
+    );
   });
 
-  it("derives durationSeconds for a timeout sub-action from expires_at - now", () => {
+  it("derives durationSeconds for a timeout sub-action from expires_at - now", async () => {
     const createdAt = 1_700_000_000_000;
     const expiresAt = createdAt + 600_000; // +10 minutes
-    modLogWriter.ingestEventSubModerate({
+    await modLogWriter.ingestEventSubModerate({
       subscription: {
         id: "sub-2",
         type: "channel.moderate",
@@ -246,15 +265,15 @@ describeModLog("ModLogWriter.ingestEventSubModerate", () => {
         },
       },
     });
-    const rows = dbService.queryModLog({ channelId: "c1" });
-    expect(rows).toHaveLength(1);
-    expect(rows[0].action).toBe("timeout");
-    expect(rows[0].durationSeconds).toBe(600);
+    expect(bridge.insert).toHaveBeenCalledTimes(1);
+    expect(bridge.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "timeout", durationSeconds: 600 }),
+    );
   });
 
-  it("warns and skips an unknown sub-action key", () => {
+  it("warns and skips an unknown sub-action key", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    modLogWriter.ingestEventSubModerate({
+    await modLogWriter.ingestEventSubModerate({
       subscription: {
         id: "sub-3",
         type: "channel.moderate",
@@ -276,12 +295,12 @@ describeModLog("ModLogWriter.ingestEventSubModerate", () => {
       },
     });
     expect(warn).toHaveBeenCalled();
-    expect(dbService.queryModLog({ channelId: "c1" })).toHaveLength(0);
+    expect(bridge.insert).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 });
 
-describeModLog("ModLogWriter.bootstrapFromHelix", () => {
+describe("ModLogWriter.bootstrapFromHelix", () => {
   function helixResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
       status,
@@ -328,7 +347,7 @@ describeModLog("ModLogWriter.bootstrapFromHelix", () => {
           },
         ],
         pagination: {},
-      })
+      }),
     );
 
     const inserted = await modLogWriter.bootstrapFromHelix({
@@ -338,14 +357,11 @@ describeModLog("ModLogWriter.bootstrapFromHelix", () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     expect(inserted).toBe(3);
-
-    const rows = dbService.queryModLog({ channelId: "c1" });
-    expect(rows).toHaveLength(3);
-    // Bob has expires_at — should be a timeout.
-    const bob = rows.find((r) => r.targetUsername === "bob");
+    expect(bridge.store).toHaveLength(3);
+    const bob = bridge.store.find((r) => r.targetUsername === "bob");
     expect(bob?.action).toBe("timeout");
     expect(bob?.durationSeconds).toBeGreaterThan(0);
-    const alice = rows.find((r) => r.targetUsername === "alice");
+    const alice = bridge.store.find((r) => r.targetUsername === "alice");
     expect(alice?.action).toBe("ban");
   });
 
@@ -401,8 +417,8 @@ describeModLog("ModLogWriter.bootstrapFromHelix", () => {
 
   it("returns 0 and warns on 401 (no throw)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fetchImpl = vi.fn(async () =>
-      new Response("unauthorized", { status: 401 })
+    const fetchImpl = vi.fn(
+      async () => new Response("unauthorized", { status: 401 }),
     );
 
     const inserted = await modLogWriter.bootstrapFromHelix({
@@ -433,7 +449,7 @@ describeModLog("ModLogWriter.bootstrapFromHelix", () => {
           },
         ],
         pagination: {},
-      })
+      }),
     );
 
     const firstInsert = await modLogWriter.bootstrapFromHelix({
@@ -451,43 +467,6 @@ describeModLog("ModLogWriter.bootstrapFromHelix", () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     expect(secondInsert).toBe(0);
-
-    expect(dbService.queryModLog({ channelId: "c1" })).toHaveLength(1);
-  });
-});
-
-describeModLog("AE10: ModLogWriter.initialize triggers retention sweep", () => {
-  it("deletes rows older than the global retention window on initialize()", () => {
-    const day = 86_400_000;
-    const now = Date.now();
-
-    // Pre-seed: one old row (60d ago) + one fresh row (1d ago).
-    dbService.insertModLog({
-      channelId: "c1",
-      channelSlug: "chan-one",
-      action: "ban",
-      targetUserId: "u-old",
-      targetUsername: "old-user",
-      moderatorUserId: "m1",
-      moderatorUsername: "modA",
-      createdAt: now - 60 * day,
-    });
-    dbService.insertModLog({
-      channelId: "c1",
-      channelSlug: "chan-one",
-      action: "ban",
-      targetUserId: "u-fresh",
-      targetUsername: "fresh-user",
-      moderatorUserId: "m1",
-      moderatorUsername: "modA",
-      createdAt: now - 1 * day,
-    });
-    dbService.setRetentionSetting("global", 30);
-
-    modLogWriter.initialize();
-
-    const rows = dbService.queryModLog({ channelId: "c1" });
-    expect(rows).toHaveLength(1);
-    expect(rows[0].targetUserId).toBe("u-fresh");
+    expect(bridge.store).toHaveLength(1);
   });
 });

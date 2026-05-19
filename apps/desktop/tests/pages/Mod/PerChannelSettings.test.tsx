@@ -1,31 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fireEvent, renderWithProviders, screen } from '../../test-utils';
+import { fireEvent, renderWithProviders, screen, waitFor } from '../../test-utils';
 
-// In-memory dbService double — mocks the renderer-side singleton so we don't
-// need the better-sqlite3 native binary in the test runner. Use vi.hoisted to
-// avoid the "cannot access X before initialization" hoist-order pitfall.
+// In-memory retention store backed by the `window.electronAPI.retention` IPC
+// bridge — mocks the renderer-side surface so we don't need either SQLite or
+// the actual preload script in the test runner. Use vi.hoisted to avoid the
+// "cannot access X before initialization" hoist-order pitfall.
 const mocks = vi.hoisted(() => {
   const settings = new Map<string, number | null>();
   return {
     settings,
-    getRetentionSetting: vi.fn((scope: string) => {
+    getRetention: vi.fn(async (scope: string) => {
       if (!settings.has(scope)) return undefined;
       return settings.get(scope);
     }),
-    setRetentionSetting: vi.fn((scope: string, days: number | null) => {
+    setRetention: vi.fn(async (scope: string, days: number | null) => {
       settings.set(scope, days);
     }),
     moderatedIds: { current: new Set<string>() },
   };
 });
-
-vi.mock('@/backend/services/database-service', () => ({
-  dbService: {
-    getRetentionSetting: mocks.getRetentionSetting,
-    setRetentionSetting: mocks.setRetentionSetting,
-  },
-}));
 
 vi.mock('@/store/moderated-channels-store', () => ({
   useModeratedChannelsStore: (
@@ -37,14 +31,25 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+// Install the IPC bridge mock onto window.electronAPI before importing the
+// component. PerChannelSettings reads/writes via window.electronAPI.retention.
+(globalThis as unknown as { window: Window }).window =
+  (globalThis as unknown as { window?: Window }).window ?? ({} as Window);
+(window as unknown as { electronAPI: unknown }).electronAPI = {
+  retention: {
+    get: mocks.getRetention,
+    set: mocks.setRetention,
+  },
+};
+
 import { PerChannelSettings } from '@/pages/Mod/PerChannelSettings';
 
 describe('PerChannelSettings', () => {
   beforeEach(() => {
     mocks.settings.clear();
     mocks.moderatedIds.current = new Set();
-    mocks.getRetentionSetting.mockClear();
-    mocks.setRetentionSetting.mockClear();
+    mocks.getRetention.mockClear();
+    mocks.setRetention.mockClear();
   });
 
   it('renders one card per moderated channel plus the global card', () => {
@@ -63,19 +68,23 @@ describe('PerChannelSettings', () => {
     ).toBeInTheDocument();
   });
 
-  it('saves a positive days value to dbService', () => {
+  it('saves a positive days value via the IPC bridge', async () => {
     renderWithProviders(<PerChannelSettings />);
     const input = screen.getByLabelText(/retention days for global/i);
     fireEvent.change(input, { target: { value: '30' } });
     fireEvent.click(screen.getAllByRole('button', { name: /save/i })[0]);
-    expect(mocks.setRetentionSetting).toHaveBeenCalledWith('global', 30);
+    await waitFor(() =>
+      expect(mocks.setRetention).toHaveBeenCalledWith('global', 30),
+    );
   });
 
-  it('"Forever" toggle clears days and saves null', () => {
+  it('"Forever" toggle clears days and saves null', async () => {
     renderWithProviders(<PerChannelSettings />);
     const toggle = screen.getByLabelText(/forever toggle for global/i);
     fireEvent.click(toggle);
     fireEvent.click(screen.getAllByRole('button', { name: /save/i })[0]);
-    expect(mocks.setRetentionSetting).toHaveBeenCalledWith('global', null);
+    await waitFor(() =>
+      expect(mocks.setRetention).toHaveBeenCalledWith('global', null),
+    );
   });
 });

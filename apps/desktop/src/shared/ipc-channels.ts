@@ -167,6 +167,15 @@ export const IPC_CHANNELS = {
   ADBLOCK_PATTERNS_GET_STATS: "adblock:patterns-get-stats",
   ADBLOCK_PATTERNS_SET_AUTO_UPDATE: "adblock:patterns-set-auto-update",
 
+  // ========== Mod Log ==========
+  MODLOG_INSERT: "modlog:insert",
+  MODLOG_QUERY: "modlog:query",
+  MODLOG_SWEEP_RETENTION: "modlog:sweep-retention",
+
+  // ========== Retention Settings ==========
+  RETENTION_GET: "retention:get",
+  RETENTION_SET: "retention:set",
+
   // ========== App Auto-Update ==========
   UPDATE_CHECK: "update:check",
   UPDATE_DOWNLOAD: "update:download",

@@ -1,23 +1,22 @@
 /**
  * useModLog
  *
- * Renderer-side consumer for U12's mod-log writer. Reads synchronously from
- * `dbService.queryModLog` and exposes a `loading` flag for the first call so
- * surfaces can render a skeleton.
+ * Renderer-side consumer for U12's mod-log writer. Queries via the
+ * `window.electronAPI.modLog` IPC bridge (the underlying SQLite singleton
+ * lives in the main process — see modlog-handlers.ts). Exposes a `loading`
+ * flag for the first call so surfaces can render a skeleton.
  *
- * Re-queries when any filter changes OR when `refreshCounter` ticks — surfaces
- * that perform a mod action call `setRefreshCounter((n) => n + 1)` to force a
- * read-after-write.
- *
- * NOTE on IPC: like other `dbService` consumers, this hook currently calls
- * into the SQLite singleton directly. Production wiring through an IPC bridge
- * is a separate concern shared with the rest of the renderer-side DB reads.
+ * Re-queries when any filter changes OR when `refreshCounter` ticks —
+ * surfaces that perform a mod action call `setRefreshCounter((n) => n + 1)`
+ * to force a read-after-write.
  */
 
 import { useEffect, useState } from "react";
 
-import { dbService, type ModLogEntry } from "@/backend/services/database-service";
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
+import type { ModLogEntry } from "@/shared/mod-log-types";
+
+export type { ModLogEntry };
 
 export interface UseModLogOptions {
   channelId: string;
@@ -47,26 +46,33 @@ export function useModLog(opts: UseModLogOptions): {
 
   useEffect(() => {
     let cancelled = false;
-    try {
-      const rows = dbService.queryModLog({
-        channelId,
-        targetUserId,
-        action,
-        moderatorUsername,
-        limit,
-      });
-      if (!cancelled) {
-        setEntries(rows);
-        setLoading(false);
+    setLoading(true);
+
+    (async () => {
+      try {
+        const rows = await window.electronAPI.modLog.query({
+          channelId,
+          targetUserId,
+          action,
+          moderatorUsername,
+          limit,
+        });
+        if (!cancelled) {
+          // Defensive: an unmocked or misconfigured bridge can return a
+          // non-array; render the empty state rather than crashing on `.map`.
+          setEntries(Array.isArray(rows) ? rows : []);
+          setLoading(false);
+        }
+      } catch (err) {
+        // biome-ignore lint/suspicious/noConsole: surfacing query failure
+        console.warn("[useModLog] queryModLog failed", err);
+        if (!cancelled) {
+          setEntries([]);
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      // biome-ignore lint/suspicious/noConsole: surfacing query failure
-      console.warn("[useModLog] queryModLog failed", err);
-      if (!cancelled) {
-        setEntries([]);
-        setLoading(false);
-      }
-    }
+    })();
+
     return () => {
       cancelled = true;
     };

@@ -18,6 +18,11 @@ import type {
   UserPreferences,
 } from "../shared/auth-types";
 import { type AuthStatus, IPC_CHANNELS, type VersionInfo } from "../shared/ipc-channels";
+import type {
+  ModLogEntry,
+  ModLogQueryFilters,
+  RetentionScope,
+} from "../shared/mod-log-types";
 
 // Define the API exposed to the renderer
 const electronAPI = {
@@ -643,6 +648,24 @@ const electronAPI = {
       ipcRenderer.on(IPC_CHANNELS.UPDATE_ON_PROGRESS, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_ON_PROGRESS, handler);
     },
+  },
+
+  // ========== Mod Log ==========
+  modLog: {
+    insert: (entry: Omit<ModLogEntry, "id">): Promise<number> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODLOG_INSERT, { entry }),
+    query: (filters: ModLogQueryFilters): Promise<ModLogEntry[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODLOG_QUERY, { filters }),
+    sweepRetention: (now?: number): Promise<number> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODLOG_SWEEP_RETENTION, { now }),
+  },
+
+  // ========== Retention Settings ==========
+  retention: {
+    get: (scope: RetentionScope): Promise<number | null | undefined> =>
+      ipcRenderer.invoke(IPC_CHANNELS.RETENTION_GET, { scope }),
+    set: (scope: RetentionScope, days: number | null): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.RETENTION_SET, { scope, days }),
   },
 };
 

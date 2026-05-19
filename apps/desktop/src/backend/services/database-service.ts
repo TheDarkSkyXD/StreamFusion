@@ -3,32 +3,17 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { app } from "electron";
 
+import type {
+  ModLogEntry,
+  ModLogQueryFilters,
+  RetentionScope,
+} from "../../shared/mod-log-types";
+
 export type FollowSource = "guest" | "account";
 
-export interface ModLogEntry {
-  id?: number;
-  channelId: string;
-  channelSlug: string;
-  action: string;
-  targetUserId: string;
-  targetUsername: string;
-  moderatorUserId: string;
-  moderatorUsername: string;
-  durationSeconds?: number | null;
-  reason?: string | null;
-  createdAt: number;
-}
-
-export interface ModLogQueryFilters {
-  channelId: string;
-  targetUserId?: string;
-  action?: string;
-  moderatorUsername?: string;
-  limit?: number;
-  offset?: number;
-}
-
-export type RetentionScope = "global" | `channel:${string}`;
+// Re-export shared types so existing main-process imports
+// (`import { ModLogEntry } from "database-service"`) keep working.
+export type { ModLogEntry, ModLogQueryFilters, RetentionScope };
 
 export class DatabaseService {
   private db: Database.Database | null = null;
