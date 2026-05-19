@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import React, { useEffect, useState } from "react";
-import { LuClock, LuUsers } from "react-icons/lu";
+import { LuClock, LuShield, LuUsers } from "react-icons/lu";
 
 import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
 import { FollowButton } from "@/components/ui/follow-button";
@@ -8,6 +8,8 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
+import { useIsKickMod } from "@/hooks/useIsKickMod";
+import { useIsTwitchMod } from "@/hooks/useIsTwitchMod";
 import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
 
 /**
@@ -51,6 +53,26 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
     sourceCategoryId,
     sourceCategoryName
   );
+
+  // Show a small Mod-page shortcut next to Follow when the signed-in user
+  // moderates this channel. Both hooks always run to satisfy Rules of Hooks;
+  // each accepts null and returns false safely. The Twitch hook keys on
+  // broadcaster_id; the Kick hook keys on the channel slug (username).
+  //
+  // Coverage caveat: the /mod page itself is largely Twitch-centric today
+  // (cross-channel banned-search and engagement aggregate are Helix-only;
+  // the per-channel retention iterates twitchModeratedChannelIds). Kick
+  // mods still get the Global retention card, which controls how long
+  // mod_log entries are kept for ALL platforms — that's the main value.
+  const canModerateTwitch = useIsTwitchMod(
+    channel?.platform === "twitch" ? channel.id : null
+  );
+  const canModerateKick = useIsKickMod(
+    channel?.platform === "kick" ? channel.username : null
+  );
+  const showModButton =
+    (channel?.platform === "twitch" && canModerateTwitch) ||
+    (channel?.platform === "kick" && canModerateKick);
 
   if (isLoading || !channel) {
     return (
@@ -166,6 +188,22 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
       {/* Right side: Follow button and live stats */}
       <div className="flex flex-col items-end gap-3">
         <div className="flex items-center gap-2">
+          {showModButton && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  to="/mod"
+                  aria-label="Open moderation page"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#9146FF]/40 bg-[#9146FF]/15 text-[#9146FF] transition-colors hover:bg-[#9146FF]/25"
+                >
+                  <LuShield className="h-5 w-5" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Open moderation page — retention, banned-user search, engagement
+              </TooltipContent>
+            </Tooltip>
+          )}
           <FollowButton channel={channel} size="default" />
         </div>
 
