@@ -53,6 +53,8 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   "channel:manage:polls": "Create and terminate polls",
   "channel:edit:commercial": "Start commercial breaks",
   "user:manage:whispers": "Send whispers",
+  "moderator:read:unban_requests": "Review unban requests",
+  "moderator:manage:unban_requests": "Approve or deny unban requests",
 };
 
 export function ReconnectForModDialog() {

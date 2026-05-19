@@ -5,9 +5,10 @@ import { ReconnectForModDialog } from "@/components/auth/ReconnectForModDialog";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
-// Every Twitch scope U5 covers — the two pin-path scopes (U7) plus the
-// nine channel-management console scopes (U4).
-const ALL_ELEVEN_SCOPES = [
+// Every Twitch scope the dialog covers — the two pin-path scopes (U7), the
+// nine channel-management console scopes (U4), and the two unban-requests
+// scopes (this batch).
+const ALL_THIRTEEN_SCOPES = [
   "user:read:moderated_channels",
   "moderator:manage:chat_messages",
   "moderator:manage:banned_users",
@@ -19,6 +20,8 @@ const ALL_ELEVEN_SCOPES = [
   "channel:manage:polls",
   "channel:edit:commercial",
   "user:manage:whispers",
+  "moderator:read:unban_requests",
+  "moderator:manage:unban_requests",
 ];
 
 const EXPECTED_DESCRIPTIONS: Record<string, string> = {
@@ -33,6 +36,8 @@ const EXPECTED_DESCRIPTIONS: Record<string, string> = {
   "channel:manage:polls": "Create and terminate polls",
   "channel:edit:commercial": "Start commercial breaks",
   "user:manage:whispers": "Send whispers",
+  "moderator:read:unban_requests": "Review unban requests",
+  "moderator:manage:unban_requests": "Approve or deny unban requests",
 };
 
 const logoutTwitch = vi.fn(async () => undefined);
@@ -67,13 +72,13 @@ describe("ReconnectForModDialog", () => {
     expect(screen.queryByText(/reconnect for mod features/i)).not.toBeInTheDocument();
   });
 
-  it("renders every U4 scope plus the two pin scopes when opened with all 11", () => {
+  it("renders every U4 scope plus the two pin scopes and the two unban-requests scopes when opened with all 13", () => {
     render(<ReconnectForModDialog />);
     act(() => {
-      useReconnectDialogStore.getState().open({ missingScopes: ALL_ELEVEN_SCOPES });
+      useReconnectDialogStore.getState().open({ missingScopes: ALL_THIRTEEN_SCOPES });
     });
 
-    for (const scope of ALL_ELEVEN_SCOPES) {
+    for (const scope of ALL_THIRTEEN_SCOPES) {
       const desc = EXPECTED_DESCRIPTIONS[scope];
       expect(screen.getByText(desc)).toBeInTheDocument();
     }

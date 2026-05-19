@@ -33,6 +33,9 @@ import { useAuthStore } from "@/store/auth-store";
 import { ChannelBannedList } from "./ChannelBannedList";
 import { ChannelEngagement } from "./ChannelEngagement";
 import { ChannelModLogFeed } from "./ChannelModLogFeed";
+import { ChannelModeratorsTable } from "./ChannelModeratorsTable";
+import { ChannelUnbanRequests } from "./ChannelUnbanRequests";
+import { ChannelVipsTable } from "./ChannelVipsTable";
 import { RetentionCard } from "./RetentionCard";
 
 export interface ModChannelPageProps {
@@ -144,6 +147,33 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
             />
           ) : null}
 
+          {isOwnBroadcaster && resolvedTwitch ? (
+            <ChannelEngagement
+              broadcasterId={resolvedTwitch.id}
+              refreshCounter={refreshCounter}
+            />
+          ) : null}
+
+          {platform === "twitch" && resolvedTwitch ? (
+            <ChannelUnbanRequests
+              broadcasterId={resolvedTwitch.id}
+              refreshCounter={refreshCounter}
+            />
+          ) : null}
+
+          {isOwnBroadcaster && resolvedTwitch ? (
+            <>
+              <ChannelModeratorsTable
+                broadcasterId={resolvedTwitch.id}
+                refreshCounter={refreshCounter}
+              />
+              <ChannelVipsTable
+                broadcasterId={resolvedTwitch.id}
+                refreshCounter={refreshCounter}
+              />
+            </>
+          ) : null}
+
           <ChannelBannedList
             platform={platform}
             broadcasterId={
@@ -151,13 +181,6 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
             }
             refreshCounter={refreshCounter}
           />
-
-          {isOwnBroadcaster && resolvedTwitch ? (
-            <ChannelEngagement
-              broadcasterId={resolvedTwitch.id}
-              refreshCounter={refreshCounter}
-            />
-          ) : null}
         </>
       )}
     </div>

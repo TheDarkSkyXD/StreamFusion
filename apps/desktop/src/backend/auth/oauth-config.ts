@@ -94,6 +94,9 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
     "channel:manage:polls",
     "channel:edit:commercial",
     "user:manage:whispers",
+    // Unban-requests review (U?? — added with the moderators/VIPs/unban-requests batch).
+    "moderator:read:unban_requests",
+    "moderator:manage:unban_requests",
   ],
   usesPkce: true,
 };
