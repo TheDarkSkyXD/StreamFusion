@@ -1,7 +1,7 @@
 ---
 title: KickTalk-Style Chat Input — Two-Button Emote Picker, Multi-Mode Info Banner, Live Chat-Settings Plumbing
 type: feat
-status: active
+status: completed
 date: 2026-05-18
 origin: docs/brainstorms/2026-05-18-kicktalk-style-chat-input-requirements.md
 ---
