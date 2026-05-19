@@ -18,6 +18,7 @@ import type {
   KickPinnedMessage,
   KickPoll,
   NormalizedPinnedMessage,
+  UnifiedPrediction,
 } from "../../shared/chat-types";
 import { useChatStore } from "../../store/chat-store";
 import { useDevModOverrideStore } from "../../store/dev-mod-override-store";
@@ -363,6 +364,112 @@ export function ChatSimTool() {
     kickChatService.emit("pollUpdate", poll);
   };
 
+  // Twitch poll injection (closes the Kick-only asymmetry, R29). The
+  // existing `pollUpdate` event type carries `KickPoll`-shaped data —
+  // generic enough for Twitch's title+options+remaining+duration shape —
+  // and `twitchChatService` extends the same `ChatServiceEvents` interface.
+  // Production rendering for Twitch polls is not in this plan's scope (the
+  // viewer-side Twitch poll widget doesn't exist yet); the buttons emit
+  // through the same seam a future widget would consume.
+  const injectPollTwitch = () => {
+    if (platform !== "twitch") return;
+    const poll: KickPoll = {
+      title: "Which game next?",
+      options: [
+        { id: 1, label: "Marbles", votes: 18 },
+        { id: 2, label: "Just Chatting", votes: 41 },
+        { id: 3, label: "Slots", votes: 9 },
+      ],
+      remaining: 30,
+      duration: 60,
+    };
+    twitchChatService.emit("pollUpdate", poll);
+  };
+
+  const injectPollEndedTwitch = () => {
+    if (platform !== "twitch") return;
+    const poll: KickPoll = {
+      title: "Which game next?",
+      options: [
+        { id: 1, label: "Marbles", votes: 22 },
+        { id: 2, label: "Just Chatting", votes: 67 },
+        { id: 3, label: "Slots", votes: 11 },
+      ],
+      remaining: 0,
+      duration: 60,
+    };
+    twitchChatService.emit("pollUpdate", poll);
+  };
+
+  // Prediction injection (R28). Synthetic `UnifiedPrediction` emitted via the
+  // same `predictionUpdate` event a real PubSub / Pusher subscription would
+  // fire. Production rendering pending U6 (viewer prediction widget).
+  const buildSyntheticPrediction = (
+    p: "twitch" | "kick",
+    status: "ACTIVE" | "RESOLVED",
+  ): UnifiedPrediction => {
+    const id = uid("pred");
+    const outcomeA = uid("outcome-a");
+    const outcomeB = uid("outcome-b");
+    return {
+      id,
+      platform: p,
+      title: p === "twitch" ? "Who wins next game?" : "BroVBro - Golf it Overall",
+      status,
+      outcomes: [
+        {
+          id: outcomeA,
+          title: p === "twitch" ? "Sodapoppin" : "BroVBro",
+          color: p === "twitch" ? "blue" : null,
+          totalAmount: status === "RESOLVED" ? 2_400_000 : 979_100,
+          userCount: status === "RESOLVED" ? 45 : 22,
+          topPredictors:
+            p === "twitch"
+              ? [{ userId: "blackgio789", userName: "blackgio789", amount: 50_000 }]
+              : undefined,
+        },
+        {
+          id: outcomeB,
+          title: p === "twitch" ? "EggsQc" : "OqaXex",
+          color: p === "twitch" ? "pink" : null,
+          totalAmount: status === "RESOLVED" ? 705_000 : 848_900,
+          userCount: status === "RESOLVED" ? 17 : 19,
+        },
+      ],
+      winningOutcomeId: status === "RESOLVED" ? outcomeA : null,
+      predictionWindowSeconds: 120,
+      endedAt: status === "RESOLVED" ? new Date().toISOString() : null,
+      viewerOutcomeId: null,
+      viewerStake: null,
+    };
+  };
+
+  const injectPredictionTwitch = () => {
+    if (platform !== "twitch") return;
+    twitchChatService.emit(
+      "predictionUpdate",
+      buildSyntheticPrediction("twitch", "ACTIVE"),
+    );
+  };
+
+  const injectPredictionEndedTwitch = () => {
+    if (platform !== "twitch") return;
+    twitchChatService.emit(
+      "predictionUpdate",
+      buildSyntheticPrediction("twitch", "RESOLVED"),
+    );
+  };
+
+  const injectPredictionKick = () => {
+    if (platform !== "kick") return;
+    kickChatService.emit("predictionUpdate", buildSyntheticPrediction("kick", "ACTIVE"));
+  };
+
+  const injectPredictionEndedKick = () => {
+    if (platform !== "kick") return;
+    kickChatService.emit("predictionUpdate", buildSyntheticPrediction("kick", "RESOLVED"));
+  };
+
   const isKick = platform === "kick";
   const isTwitch = platform === "twitch";
   const kickDisabledTitle = isKick ? "" : "Switch platform to Kick";
@@ -465,6 +572,30 @@ export function ChatSimTool() {
             title={twitchDisabledTitle}
           >
             clear pin
+          </PillButton>
+          <PillButton onClick={injectPollTwitch} disabled={!isTwitch} title={twitchDisabledTitle}>
+            poll (live)
+          </PillButton>
+          <PillButton
+            onClick={injectPollEndedTwitch}
+            disabled={!isTwitch}
+            title={twitchDisabledTitle}
+          >
+            poll (ended)
+          </PillButton>
+          <PillButton
+            onClick={injectPredictionTwitch}
+            disabled={!isTwitch}
+            title={twitchDisabledTitle}
+          >
+            prediction (live)
+          </PillButton>
+          <PillButton
+            onClick={injectPredictionEndedTwitch}
+            disabled={!isTwitch}
+            title={twitchDisabledTitle}
+          >
+            prediction (ended)
           </PillButton>
         </div>
       </section>
@@ -615,6 +746,20 @@ export function ChatSimTool() {
           </PillButton>
           <PillButton onClick={injectPollEndedKick} disabled={!isKick} title={kickDisabledTitle}>
             poll (ended)
+          </PillButton>
+          <PillButton
+            onClick={injectPredictionKick}
+            disabled={!isKick}
+            title={kickDisabledTitle}
+          >
+            prediction (live)
+          </PillButton>
+          <PillButton
+            onClick={injectPredictionEndedKick}
+            disabled={!isKick}
+            title={kickDisabledTitle}
+          >
+            prediction (ended)
           </PillButton>
         </div>
       </section>
