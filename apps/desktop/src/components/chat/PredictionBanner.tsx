@@ -445,24 +445,34 @@ const EndedPanel: React.FC<{
     <div className="flex flex-col gap-3 px-3 pt-2 pb-3">
       <PanelHeader title="Prediction" onCollapse={onCollapse} onDismiss={onDismiss} />
 
-      <div className="text-center">
-        <div className="text-[12px] text-white truncate" title={prediction.title}>
+      {/* Inset question card — dark grey background, centered text. */}
+      <div className="rounded-md bg-[#1c1c1f] px-3 py-2.5 text-center">
+        <div
+          className="text-[13px] font-semibold leading-snug text-white"
+          title={prediction.title}
+        >
           {prediction.title}
         </div>
-        <div className="mt-0.5 text-[10px] text-zinc-500">
+        <div className="mt-1 text-[11px] text-zinc-400">
           {prediction.status === "CANCELED"
             ? "Prediction canceled — refunded"
             : `Prediction ended ${endedAtLabel}`}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2" data-testid="prediction-outcomes">
+      {/* Two-column layout with vertical divider down the middle. */}
+      <div className="relative grid grid-cols-2" data-testid="prediction-outcomes">
+        <div
+          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/10"
+          aria-hidden
+        />
         {a && (
           <EndedOutcomeColumn
             outcome={a}
             index={0}
             total={total}
             isWinner={a.id === winner?.id}
+            align="left"
             style={style}
             platform={prediction.platform}
           />
@@ -473,6 +483,7 @@ const EndedPanel: React.FC<{
             index={1}
             total={total}
             isWinner={b.id === winner?.id}
+            align="right"
             style={style}
             platform={prediction.platform}
           />
@@ -495,9 +506,10 @@ const EndedOutcomeColumn: React.FC<{
   index: number;
   total: number;
   isWinner: boolean;
+  align: "left" | "right";
   style: Style;
   platform: "twitch" | "kick";
-}> = ({ outcome, index, total, isWinner, style, platform }) => {
+}> = ({ outcome, index, total, isWinner, align, style, platform }) => {
   const pct = total > 0 ? Math.round((outcome.totalAmount / total) * 100) : 0;
   const color =
     style === "kick-native"
@@ -508,38 +520,153 @@ const EndedOutcomeColumn: React.FC<{
       ? `1:${(total / outcome.totalAmount).toFixed(2)}`
       : "—";
   const topUser = outcome.topPredictors?.[0];
+
+  // Stat block lives on the OUTER side of each column (left col → stats left
+  // of %, right col → stats right of %), matching the mirror layout from the
+  // screenshot. Reverse flex direction by alignment.
+  const statsLeft = align === "left";
+
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      {isWinner && (
-        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
-          ✓ Winner
-        </span>
-      )}
-      <div className="text-[11px] font-semibold" style={{ color }}>
-        {outcome.title}
+    <div
+      className={
+        "flex items-start gap-2 px-2 py-1 " +
+        (statsLeft ? "flex-row" : "flex-row-reverse")
+      }
+    >
+      <div className="flex flex-col gap-1.5 text-[10px] text-zinc-400 pt-5">
+        <StatLine icon="clock" value={short(outcome.totalAmount)} align={align} />
+        <StatLine icon="trophy" value={odds} align={align} />
+        <StatLine icon="users" value={outcome.userCount.toString()} align={align} />
+        {topUser && (
+          <StatLine icon="chart" value={short(topUser.amount)} align={align} />
+        )}
       </div>
-      <div className="text-[28px] font-bold leading-none" style={{ color }}>
-        {pct}%
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-      <div className="mt-1 grid w-full grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-400">
-        <StatRow label="🪙" value={short(outcome.totalAmount)} />
-        <StatRow label="🏆" value={odds} />
-        <StatRow label="👤" value={outcome.userCount.toString()} />
-        {topUser && <StatRow label="⭐" value={short(topUser.amount)} />}
+
+      <div className="flex flex-1 flex-col items-center gap-1.5">
+        {isWinner && (
+          <div className="flex items-center gap-1 text-[11px] font-semibold text-white">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="white"
+              aria-hidden
+            >
+              <circle cx="12" cy="12" r="11" fill="white" />
+              <path
+                d="M7 12l3 3 7-7"
+                stroke="#000"
+                strokeWidth="2.5"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>Winner</span>
+          </div>
+        )}
+        {!isWinner && <div className="h-[16px]" aria-hidden />}
+        <div
+          className="text-[13px] font-semibold leading-none"
+          style={{ color }}
+        >
+          {outcome.title}
+        </div>
+        <div
+          className="text-[32px] font-bold leading-none tabular-nums"
+          style={{ color }}
+        >
+          {pct}%
+        </div>
+        <div className="mt-1 h-2 w-full max-w-[60%] overflow-hidden rounded-full bg-white/5">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: color }}
+          />
+        </div>
       </div>
     </div>
   );
 };
 
-const StatRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="flex items-center gap-1">
-    <span aria-hidden>{label}</span>
-    <span className="text-white">{value}</span>
-  </div>
-);
+const StatLine: React.FC<{
+  icon: "clock" | "trophy" | "users" | "chart";
+  value: string;
+  align: "left" | "right";
+}> = ({ icon, value, align }) => {
+  // Per-icon color palette pulled from the screenshot — each stat icon
+  // carries its own semantic color rather than tinting by column.
+  const iconColor = {
+    clock: "#5fb4ff",
+    trophy: "#facc15",
+    users: "#ff5fa8",
+    chart: "#c084fc",
+  }[icon];
+  return (
+    <div
+      className={
+        "flex items-center gap-1 " + (align === "left" ? "flex-row" : "flex-row-reverse")
+      }
+    >
+      <StatIcon icon={icon} color={iconColor} />
+      <span className="text-white tabular-nums">{value}</span>
+    </div>
+  );
+};
+
+const StatIcon: React.FC<{ icon: "clock" | "trophy" | "users" | "chart"; color: string }> = ({
+  icon,
+  color,
+}) => {
+  const common = {
+    width: 12,
+    height: 12,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (icon === "clock") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    );
+  }
+  if (icon === "trophy") {
+    return (
+      <svg {...common}>
+        <path d="M6 9H4.5a2.5 2.5 0 010-5H6" />
+        <path d="M18 9h1.5a2.5 2.5 0 000-5H18" />
+        <path d="M4 22h16" />
+        <path d="M10 14.66V17c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-2.34" />
+        <path d="M18 2H6v7a6 6 0 0012 0V2z" />
+      </svg>
+    );
+  }
+  if (icon === "users") {
+    return (
+      <svg {...common}>
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 00-3-3.87" />
+        <path d="M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    );
+  }
+  // chart
+  return (
+    <svg {...common}>
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  );
+};
 
 const PayoutLine: React.FC<{
   winner: UnifiedPredictionOutcome;
@@ -548,14 +675,22 @@ const PayoutLine: React.FC<{
 }> = ({ winner, others, platform }) => {
   const top = winner.topPredictors?.[0];
   if (!top) return null;
+  const accentColor = platform === "twitch" ? "#9146ff" : "#53FC18";
   return (
-    <div className="flex items-center justify-center gap-1 text-[11px] text-zinc-400">
-      <span aria-hidden style={{ color: platform === "twitch" ? "#9146ff" : "#53FC18" }}>
-        ◆
-      </span>
-      <span>
-        <span className="text-white">{short(winner.totalAmount)}</span> go to{" "}
-        <span className="text-white">{top.userName}</span>
+    <div className="flex items-center gap-2 px-1 text-[12px] text-zinc-400">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill={accentColor}
+        aria-hidden
+        className="flex-shrink-0"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+      </svg>
+      <span className="leading-snug">
+        <span className="font-semibold text-white">{winner.totalAmount.toLocaleString()}</span>{" "}
+        go to <span className="text-white">{top.userName}</span>
         {others > 0 && (
           <>
             {" and "}
@@ -577,12 +712,14 @@ const PanelHeader: React.FC<{
   onCollapse: () => void;
   onDismiss?: () => void;
 }> = ({ title, onCollapse, onDismiss }) => (
-  <header className="flex items-center justify-between gap-2">
+  <header className="flex items-center gap-1">
+    {/* Left cluster: back arrow + title (screenshot pattern: '< Prediction'
+        left-aligned on the same row, NOT centered). */}
     <button
       type="button"
       onClick={onCollapse}
       aria-label="Collapse prediction panel"
-      className="flex h-8 w-8 items-center justify-center rounded text-[20px] leading-none text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+      className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
     >
       <svg
         width="18"
@@ -598,8 +735,9 @@ const PanelHeader: React.FC<{
         <path d="M15 18l-6-6 6-6" />
       </svg>
     </button>
-    <h3 className="text-[13px] font-semibold text-white">{title}</h3>
-    {onDismiss ? (
+    <h3 className="flex-1 text-[14px] font-semibold text-white">{title}</h3>
+    {/* Right cluster: ⋮ + ✕ when dismiss is available; plain ✕ otherwise. */}
+    {onDismiss && (
       <button
         type="button"
         onClick={onDismiss}
@@ -608,42 +746,33 @@ const PanelHeader: React.FC<{
         className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
         data-testid="prediction-dismiss-expanded"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
-      </button>
-    ) : (
-      <button
-        type="button"
-        onClick={onCollapse}
-        aria-label="Close prediction panel"
-        className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M18 6L6 18M6 6l12 12" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="12" cy="5" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="12" cy="19" r="1.5" />
         </svg>
       </button>
     )}
+    <button
+      type="button"
+      onClick={onCollapse}
+      aria-label="Close prediction panel"
+      className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M18 6L6 18M6 6l12 12" />
+      </svg>
+    </button>
   </header>
 );
 
