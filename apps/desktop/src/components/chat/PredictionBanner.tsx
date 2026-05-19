@@ -321,7 +321,7 @@ const BubbleCluster: React.FC<{
           {leaderIndex + 1}
         </span>
       </div>
-      <div className="text-[44px] font-bold leading-none" style={{ color }}>
+      <div className="text-[36px] font-bold leading-none" style={{ color }}>
         {leaderPct}%
       </div>
       <div className="mt-1 grid grid-cols-10 gap-1 opacity-90">
@@ -349,7 +349,7 @@ const SimpleLeaderBar: React.FC<{
       <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
         Leader · {leader.title}
       </div>
-      <div className="text-[44px] font-bold leading-none" style={{ color }}>
+      <div className="text-[36px] font-bold leading-none" style={{ color }}>
         {leaderPct}%
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
@@ -529,17 +529,18 @@ const EndedOutcomeColumn: React.FC<{
   const statsLeft = align === "left";
 
   return (
-    <div
-      className={
-        // items-center vertically aligns the stats column against the
-        // percentage column so the stat rows don't sit at the same y-range
-        // as the big percentage number. Was items-start + pt-6 — that pushed
-        // stats too high and caused 1:1.29 / 45 to overlap the % horizontally.
-        "flex items-center gap-2 px-2 py-1 " +
-        (statsLeft ? "flex-row" : "flex-row-reverse")
-      }
-    >
-      <div className="flex flex-col gap-2 text-[12px] text-zinc-300">
+    <div className="relative px-2 py-1">
+      {/* Stats are absolutely positioned on the OUTER edge of each column so
+          the percentage cluster (Winner / name / % / bar) below centers
+          across the FULL column width, not just the post-stats remainder.
+          This matches the screenshot's "stats hug the outer edge, big number
+          centered in the column" pattern. */}
+      <div
+        className={
+          "absolute top-1/2 -translate-y-1/2 flex flex-col gap-2 text-[12px] text-zinc-300 " +
+          (statsLeft ? "left-1" : "right-1")
+        }
+      >
         <StatLine icon="clock" value={short(outcome.totalAmount)} align={align} />
         <StatLine icon="trophy" value={odds} align={align} />
         <StatLine icon="users" value={outcome.userCount.toString()} align={align} />
@@ -550,12 +551,12 @@ const EndedOutcomeColumn: React.FC<{
 
       <div
         className={
-          "flex min-w-0 flex-1 flex-col items-center gap-2 " +
-          // Push the entire centered cluster (name + percentage + bar) AWAY
-          // from the center divider. Applied to the whole flex-col so the
-          // name doesn't overflow against the divider even when long. pr-5/
-          // pl-5 = 20px, combined with grid gap-6 gives a clear visual gutter.
-          (statsLeft ? "pr-5" : "pl-5")
+          "flex min-w-0 flex-col items-center gap-2 " +
+          // Margin INSIDE the column matches the absolutely-positioned stats
+          // block so the centered cluster doesn't visually crash into the
+          // stats. The bare numeric padding here is purely visual budget for
+          // the stats overlay (≈ stats column width).
+          (statsLeft ? "ml-12" : "mr-12")
         }
       >
         {isWinner && (
@@ -582,13 +583,13 @@ const EndedOutcomeColumn: React.FC<{
         )}
         {!isWinner && <div className="h-[18px]" aria-hidden />}
         <div
-          className="text-[15px] font-bold leading-tight"
+          className="text-[13px] font-bold leading-tight"
           style={{ color }}
         >
           {outcome.title}
         </div>
         <div
-          className="text-[44px] font-bold leading-none tabular-nums"
+          className="text-[32px] font-bold leading-none tabular-nums"
           style={{ color }}
         >
           {pct}%
