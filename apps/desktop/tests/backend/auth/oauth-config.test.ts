@@ -44,3 +44,18 @@ describe("TWITCH_OAUTH_CONFIG scopes (U4 — channel-management console batch)",
     expect(set.size).toBe(TWITCH_OAUTH_CONFIG.scopes.length);
   });
 });
+
+// Twitch IRC (tmi.js) authenticates via PASS oauth:<token>/NICK <login>. The
+// token must carry chat:read to read messages and chat:edit to send them; any
+// other scope (including moderator:manage:chat_messages, which only unlocks the
+// Helix delete endpoint) is not accepted by IRC. Dropping either of these
+// breaks authenticated chat connection with "Login unsuccessful".
+describe("TWITCH_OAUTH_CONFIG scopes (IRC chat — tmi.js)", () => {
+  it("includes chat:read so tmi.js can authenticate and read messages", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toContain("chat:read");
+  });
+
+  it("includes chat:edit so tmi.js can send messages and replies", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toContain("chat:edit");
+  });
+});

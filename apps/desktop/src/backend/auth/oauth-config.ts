@@ -75,6 +75,11 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
     "user:read:email",
     "user:read:follows",
     "user:read:subscriptions",
+    // IRC chat (tmi.js) auth. PASS oauth:<token> is rejected with
+    // "Login unsuccessful" without these — moderator:manage:chat_messages
+    // below only covers the Helix delete endpoint, not IRC.
+    "chat:read",
+    "chat:edit",
     // Mod surface (U7): required for pin/unpin actions and the mod-channels cache.
     // Worker passthrough verified — apps/worker/src/index.ts handleTwitchTokenExchange
     // forwards client_id + code + redirect_uri only; no scope allow-list filter, so
