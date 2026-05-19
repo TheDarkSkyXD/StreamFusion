@@ -492,7 +492,21 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({
-          pinnedBy: { username: longUsername, color: "#FF6F61", badges: [] },
+          pinnedBy: {
+            username: longUsername,
+            color: "#FF6F61",
+            // Include a badge so the three-element header row (label + badge
+            // + username) is exercised — that's the layout that most stresses
+            // the shrink behavior in production.
+            badges: [
+              {
+                setId: "broadcaster",
+                version: "1",
+                imageUrl: "https://example/b/1",
+                title: "Broadcaster",
+              },
+            ],
+          },
         })}
         role="viewer"
         isExpanded={false}
@@ -500,11 +514,18 @@ describe("PinnedMessageBanner", () => {
         onDismiss={() => {}}
       />,
     );
+    // Username span is the only piece allowed to give up width — it truncates
+    // and shrinks below its content.
     const usernameEl = screen.getByText(longUsername);
-    // truncate gives the ellipsis; min-w-0 lets the flex item shrink below
-    // its content width so the truncate can actually fire.
     expect(usernameEl.className).toContain("truncate");
     expect(usernameEl.className).toContain("min-w-0");
+    // The "Pinned by" label and badge wrapper must NOT shrink — if either
+    // absorbs the shrink budget, the username's truncate is bypassed and
+    // overflow returns.
+    expect(screen.getByText("Pinned by").className).toContain("flex-shrink-0");
+    const header = screen.getByTestId("pinned-message-header");
+    const badgeWrapper = header.querySelector("span.inline-flex");
+    expect(badgeWrapper?.className).toContain("flex-shrink-0");
   });
 
   it("resets the unpin confirm-armed state when the pin changes", () => {
