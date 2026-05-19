@@ -680,7 +680,7 @@ const PayoutLine: React.FC<{
   // `ChannelPointsContext.communityPointsSettings.image.url` per-channel
   // separately. Cleaner to render plain text than a generic placeholder.
   return (
-    <div className="px-1 text-[12px] text-zinc-400">
+    <div className="text-center text-[12px] text-zinc-400">
       <span className="leading-snug">
         <span className="font-semibold text-white">{winner.totalAmount.toLocaleString()}</span>{" "}
         go to <span className="text-white">{top.userName}</span>
