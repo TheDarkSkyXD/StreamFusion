@@ -52,15 +52,20 @@ type Style = "twitch-native" | "kick-native" | "unified";
 
 interface PredictionBannerProps {
   prediction: UnifiedPrediction;
-  /** Fired when the widget self-dismisses (ended-state window elapses, or
-   *  parent should clear state). Parent controls the underlying data —
-   *  the widget only reports its intent to unmount. */
+  /** Fired when the widget self-dismisses (ended-state window elapses).
+   *  Parent controls the underlying data — the widget only reports its
+   *  intent to unmount. */
   onAutoDismiss?: () => void;
+  /** Fired when the user manually dismisses the banner via the ✕ control.
+   *  Parent is expected to suppress further updates for this prediction id
+   *  (otherwise an incoming `predictionUpdate` would re-render the widget). */
+  onDismiss?: () => void;
 }
 
 export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   prediction,
   onAutoDismiss,
+  onDismiss,
 }) => {
   const styleSetting = useAuthStore((s) => s.preferences?.predictions?.style ?? "native");
   const [expanded, setExpanded] = useState(false);
@@ -116,6 +121,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
           isLocked={isLocked}
           ctaLabel={platformCta}
           onExpand={() => setExpanded(true)}
+          onDismiss={onDismiss}
         />
       ) : (
         <ExpandedView
@@ -125,6 +131,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
           isEnded={isEnded}
           isLocked={isLocked}
           onCollapse={() => setExpanded(false)}
+          onDismiss={onDismiss}
         />
       )}
     </section>
@@ -152,8 +159,8 @@ interface ViewProps {
 }
 
 const CollapsedView: React.FC<
-  ViewProps & { ctaLabel: string; onExpand: () => void }
-> = ({ prediction, totalAmount, style, isEnded, isLocked, ctaLabel, onExpand }) => {
+  ViewProps & { ctaLabel: string; onExpand: () => void; onDismiss?: () => void }
+> = ({ prediction, totalAmount, style, isEnded, isLocked, ctaLabel, onExpand, onDismiss }) => {
   const top2 = prediction.outcomes.slice(0, 2);
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2">
@@ -180,26 +187,35 @@ const CollapsedView: React.FC<
           ))}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onExpand}
-        className={ctaButtonClass(style)}
-        aria-label={ctaLabel}
-      >
-        {ctaLabel} ▸
-      </button>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          type="button"
+          onClick={onExpand}
+          className={ctaButtonClass(style)}
+          aria-label={ctaLabel}
+        >
+          {ctaLabel} ▸
+        </button>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss prediction"
+            title="Dismiss"
+            className="rounded p-1 text-[var(--color-foreground-muted)] transition-colors hover:bg-white/5 hover:text-white"
+            data-testid="prediction-dismiss"
+          >
+            ✕
+          </button>
+        )}
+      </div>
     </div>
   );
 };
 
-const ExpandedView: React.FC<ViewProps & { onCollapse: () => void }> = ({
-  prediction,
-  totalAmount,
-  style,
-  isEnded,
-  isLocked,
-  onCollapse,
-}) => {
+const ExpandedView: React.FC<
+  ViewProps & { onCollapse: () => void; onDismiss?: () => void }
+> = ({ prediction, totalAmount, style, isEnded, isLocked, onCollapse, onDismiss }) => {
   const deeplinkUrl =
     prediction.platform === "twitch"
       ? "https://www.twitch.tv/"
@@ -219,14 +235,27 @@ const ExpandedView: React.FC<ViewProps & { onCollapse: () => void }> = ({
         <h3 className="text-sm font-bold text-white truncate" title={prediction.title}>
           {prediction.title}
         </h3>
-        <button
-          type="button"
-          onClick={onCollapse}
-          aria-label="Close prediction panel"
-          className="text-xs text-[var(--color-foreground-muted)] hover:text-white"
-        >
-          ✕
-        </button>
+        {onDismiss ? (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss prediction"
+            title="Dismiss"
+            className="rounded p-1 text-[var(--color-foreground-muted)] transition-colors hover:bg-white/5 hover:text-white"
+            data-testid="prediction-dismiss-expanded"
+          >
+            ✕
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Close prediction panel"
+            className="text-xs text-[var(--color-foreground-muted)] hover:text-white"
+          >
+            ✕
+          </button>
+        )}
       </header>
 
       <div className="text-xs text-[var(--color-foreground-muted)]">

@@ -171,4 +171,66 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     // CTA is visible again (collapsed view)
     expect(screen.getByLabelText("See Details")).toBeTruthy();
   });
+
+  it("renders a dismiss control in the collapsed view when onDismiss is provided", () => {
+    render(<PredictionBanner prediction={makePrediction()} onDismiss={() => {}} />);
+    expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
+  });
+
+  it("hides the dismiss control when onDismiss is NOT provided", () => {
+    render(<PredictionBanner prediction={makePrediction()} />);
+    expect(screen.queryByTestId("prediction-dismiss")).toBeNull();
+  });
+
+  it("calls onDismiss when the collapsed-view dismiss button is clicked", () => {
+    const onDismiss = vi.fn();
+    render(<PredictionBanner prediction={makePrediction()} onDismiss={onDismiss} />);
+    fireEvent.click(screen.getByTestId("prediction-dismiss"));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders an expanded-view dismiss control when onDismiss is provided", () => {
+    render(<PredictionBanner prediction={makePrediction()} onDismiss={() => {}} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    expect(screen.getByTestId("prediction-dismiss-expanded")).toBeTruthy();
+  });
+
+  it("calls onDismiss when the expanded-view dismiss button is clicked", () => {
+    const onDismiss = vi.fn();
+    render(<PredictionBanner prediction={makePrediction()} onDismiss={onDismiss} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    fireEvent.click(screen.getByTestId("prediction-dismiss-expanded"));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to a collapse-only ✕ in expanded view when onDismiss is not provided", () => {
+    render(<PredictionBanner prediction={makePrediction()} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    expect(screen.queryByTestId("prediction-dismiss-expanded")).toBeNull();
+    // The non-dismiss ✕ is the close-panel one — clicking it collapses.
+    fireEvent.click(screen.getByLabelText("Close prediction panel"));
+    expect(screen.queryByTestId("prediction-outcomes")).toBeNull();
+  });
+
+  it("dismiss control is also available during LOCKED and ended states (so users can hide them)", () => {
+    const onDismiss = vi.fn();
+    const { rerender } = render(
+      <PredictionBanner
+        prediction={makePrediction({ status: "LOCKED" })}
+        onDismiss={onDismiss}
+      />,
+    );
+    expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
+    rerender(
+      <PredictionBanner
+        prediction={makePrediction({
+          id: "pred-resolved",
+          status: "RESOLVED",
+          winningOutcomeId: "outcome-a",
+        })}
+        onDismiss={onDismiss}
+      />,
+    );
+    expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
+  });
 });

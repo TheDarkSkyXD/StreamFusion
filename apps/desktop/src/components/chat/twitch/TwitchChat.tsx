@@ -138,6 +138,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // twitchChatService.emit("predictionUpdate", …); dev injection (U9) fires
   // through the same seam, so production + dev paths converge.
   const [activePrediction, setActivePrediction] = useState<UnifiedPrediction | null>(null);
+  // User-dismissed prediction id — incoming updates for this id are ignored
+  // until a fresh prediction (different id) arrives. Sticky dismiss.
+  const dismissedPredictionIdRef = useRef<string | null>(null);
   // Mod-action state (U8): the message currently queued for the Pin dialog.
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
@@ -484,6 +487,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     };
 
     const handlePredictionUpdate = (prediction: UnifiedPrediction) => {
+      // Sticky dismiss: ignore updates for a prediction the user already
+      // dismissed. A new prediction (different id) clears the suppression.
+      if (dismissedPredictionIdRef.current === prediction.id) return;
+      if (dismissedPredictionIdRef.current !== null) {
+        dismissedPredictionIdRef.current = null;
+      }
       setActivePrediction(prediction);
     };
 
@@ -563,6 +572,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         <PredictionBanner
           prediction={activePrediction}
           onAutoDismiss={() => setActivePrediction(null)}
+          onDismiss={() => {
+            dismissedPredictionIdRef.current = activePrediction.id;
+            setActivePrediction(null);
+          }}
         />
       )}
       {pinnedMessage && showPinned && (
