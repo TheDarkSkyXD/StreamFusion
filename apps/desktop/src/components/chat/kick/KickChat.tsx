@@ -700,7 +700,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               ref={chatInputRef}
               platform="kick"
               channel={channel}
-              channelId={kickRoomKey || undefined}
+              channelId={kickRoomKey}
               chatroomId={chatroomId}
               canSend={isAuthenticated && isKickConnected}
             />

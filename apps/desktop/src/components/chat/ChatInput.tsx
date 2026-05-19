@@ -2,23 +2,27 @@
  * ChatInput Component
  *
  * Full-featured chat input with:
- * - Emote autocomplete (triggered by :)
- * - Mention autocomplete (triggered by @)
- * - Chat commands (/me, /clear, /timeout, /ban, etc.)
+ * - Emote autocomplete (triggered by `:`)
+ * - Mention autocomplete (triggered by `@`)
+ * - Chat commands (`/me`, `/clear`, `/timeout`, `/ban`, etc.)
  * - Reply functionality with preview banner
- * - EmotePicker integration
- * - Character counter
- * - Platform-aware sending
+ * - InfoBanner row showing active chat-room modes (U7)
+ * - Two anchored emote dialogs (native + third-party, U8) with parent-local
+ *   mutual exclusion
+ * - Character counter and error display
+ * - Platform-aware sending; **no send button** — Enter sends.
  */
 
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { BsEmojiSmile, BsReplyFill, BsSend, BsXLg } from "react-icons/bs";
+import { BsReplyFill, BsXLg } from "react-icons/bs";
 import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
 import type { Emote } from "../../backend/services/emotes/emote-types";
 import type { ChatMessage, ChatPlatform } from "../../shared/chat-types";
 import { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
-import { EmotePicker } from "./EmotePicker";
+import { InfoBanner } from "./InfoBanner";
+import { NativeEmoteButton } from "./input/NativeEmoteButton";
+import { ThirdPartyEmoteButton } from "./input/ThirdPartyEmoteButton";
 import { MentionAutocomplete, useMentionAutocomplete } from "./MentionAutocomplete";
 
 // ========== Types ==========
@@ -30,8 +34,10 @@ export interface ChatInputProps {
   platform: ChatPlatform;
   /** Additional chatroom ID (required for Kick) */
   chatroomId?: number;
-  /** Stable channel identifier for room-state lookups (broadcaster ID on Twitch, chatroom/channel ID on Kick). Forward-declared by U6; consumed by U7's InfoBanner once U9 wires it through. */
-  channelId?: string;
+  /** Stable channel identifier for room-state lookups (broadcaster ID on
+   *  Twitch, chatroom/channel ID on Kick). Required as of U9: InfoBanner and
+   *  both EmoteDialogs key per-channel state off this. */
+  channelId: string;
   /** Max message length */
   maxLength?: number;
   /** Placeholder text */
@@ -91,10 +97,13 @@ function parseCommand(message: string): ParsedCommand | null {
 
 // ========== Component ==========
 
+type ActiveDialog = "native" | "thirdParty" | null;
+
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   channel,
   platform,
-  chatroomId,
+  chatroomId: _chatroomId,
+  channelId,
   maxLength = 500,
   placeholder = "Send a message...",
   canSend = true,
@@ -105,7 +114,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   const [message, setMessage] = useState("");
   const [cursorPosition, setCursorPosition] = useState(0);
   const [reply, setReply] = useState<ReplyState | null>(null);
-  const [isEmotePickerOpen, setIsEmotePickerOpen] = useState(false);
+  // Single dialog-tracking state; opening one closes the other. Parent-local
+  // concern, so no event bus or shared store.
+  const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,7 +138,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
       setCursorPosition(cursorPos);
       setError(null);
 
-      // Check for autocomplete triggers
       emoteAutocomplete.checkTrigger(value, cursorPos, ":");
       mentionAutocomplete.checkTrigger(value, cursorPos);
     },
@@ -140,21 +150,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
     setCursorPosition(target.selectionStart);
   }, []);
 
-  // Handle emote selection from autocomplete or picker
+  // Handle emote selection from autocomplete or dialog. The autocomplete
+  // path passes (startPos, endPos) so we replace the trigger + query span;
+  // the dialog path omits them and we insert at the current cursor.
   const handleEmoteSelect = useCallback(
     (emote: Emote, startPos?: number, endPos?: number) => {
       if (startPos !== undefined && endPos !== undefined) {
-        // From autocomplete - replace the trigger and query
         const before = message.slice(0, startPos);
         const after = message.slice(endPos);
         const newMessage = `${before}${emote.name} ${after}`;
         setMessage(newMessage);
 
-        // Move cursor after the emote
         const newCursorPos = startPos + emote.name.length + 1;
         setCursorPosition(newCursorPos);
 
-        // Focus and set cursor after state update
         setTimeout(() => {
           if (inputRef.current) {
             inputRef.current.focus();
@@ -162,7 +171,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
           }
         }, 0);
       } else {
-        // From picker - insert at cursor position
         const before = message.slice(0, cursorPosition);
         const after = message.slice(cursorPosition);
         const newMessage = `${before}${emote.name} ${after}`;
@@ -180,7 +188,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
       }
 
       emoteAutocomplete.deactivate();
-      setIsEmotePickerOpen(false);
+      setActiveDialog(null);
     },
     [message, cursorPosition, emoteAutocomplete]
   );
@@ -193,7 +201,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
       const newMessage = `${before}@${username} ${after}`;
       setMessage(newMessage);
 
-      const newCursorPos = startPos + username.length + 2; // +2 for @ and space
+      const newCursorPos = startPos + username.length + 2;
       setCursorPosition(newCursorPos);
 
       setTimeout(() => {
@@ -217,16 +225,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
       content: msg.rawContent.length > 50 ? `${msg.rawContent.slice(0, 50)}...` : msg.rawContent,
     });
 
-    // Focus input
     inputRef.current?.focus();
   }, []);
 
   const mentionUser = useCallback((username: string) => {
-    // Prepend "@username " into the input — used by the pinned-message Reply
-    // action, which doesn't have a full ChatMessage to wire IRC reply-to
-    // threading against (the underlying message may have aged out of
-    // retention). Behavior is intentionally simple: drop a mention prefix
-    // at the start of whatever the user has typed and focus the input.
     setMessage((prev) => {
       const mention = `@${username} `;
       return prev.startsWith(mention) ? prev : `${mention}${prev}`;
@@ -260,7 +262,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
     setError(null);
 
     try {
-      // Check for commands
       const parsedCommand = parseCommand(trimmedMessage);
 
       if (parsedCommand) {
@@ -268,25 +269,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
         const cmdConfig = CHAT_COMMANDS[command as keyof typeof CHAT_COMMANDS];
 
         if (!cmdConfig || !(cmdConfig.platforms as readonly string[]).includes(platform)) {
-          // Unknown command or not supported on this platform
-          // Try to send as regular message anyway? Or show error?
           setError(`Unknown command: /${command}`);
           setIsSending(false);
           return;
         }
 
-        // Handle /me command specially
         if (command === "me") {
           const actionMessage = args.join(" ");
           if (platform === "twitch") {
             await twitchChatService.sendAction(channel, actionMessage);
           } else {
-            // Kick doesn't have native /me, send as regular message with emphasis
             await kickChatService.sendMessage(channel, `*${actionMessage}*`);
           }
         } else {
-          // Other commands would need API calls to moderation endpoints
-          // For now, just send as raw message and let the server handle it
           if (platform === "twitch") {
             await twitchChatService.sendMessage(channel, trimmedMessage);
           } else {
@@ -294,17 +289,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
           }
         }
       } else {
-        // Regular message
         if (reply) {
-          // Send as reply
           if (platform === "twitch") {
             await twitchChatService.sendReply(channel, reply.messageId, trimmedMessage);
           } else {
-            // Kick doesn't have native reply support, mention the user instead
             await kickChatService.sendMessage(channel, `@${reply.username} ${trimmedMessage}`);
           }
         } else {
-          // Normal message
           if (platform === "twitch") {
             await twitchChatService.sendMessage(channel, trimmedMessage);
           } else {
@@ -313,7 +304,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
         }
       }
 
-      // Clear on success
       setMessage("");
       setReply(null);
       inputRef.current?.focus();
@@ -326,10 +316,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
     }
   }, [message, canSend, isSending, platform, channel, reply]);
 
-  // Handle key press
+  // Handle key press — Enter sends; Shift+Enter inserts newline (default
+  // textarea behavior, just don't preventDefault).
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // If autocomplete is active, let it handle the keys
       if (emoteAutocomplete.isActive || mentionAutocomplete.isActive) {
         return;
       }
@@ -348,13 +338,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
     [emoteAutocomplete.isActive, mentionAutocomplete.isActive, handleSend, reply, clearReply]
   );
 
-  // Close autocompletes when clicking outside
+  // Outside-click only closes autocompletes here. EmoteDialog owns its own
+  // outside-click (it portals out of `containerRef`, so this handler would
+  // close it on every dialog interaction otherwise).
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         emoteAutocomplete.deactivate();
         mentionAutocomplete.deactivate();
-        setIsEmotePickerOpen(false);
       }
     };
 
@@ -362,17 +353,37 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [emoteAutocomplete, mentionAutocomplete]);
 
-  // Expose reply handler to parent (via context or callback in real implementation)
-  // For now, we'll use the ChatPanel to coordinate
+  const handleNativeOpenRequest = useCallback(() => {
+    setActiveDialog((cur) => (cur === "native" ? null : "native"));
+  }, []);
+
+  const handleThirdPartyOpenRequest = useCallback(() => {
+    setActiveDialog((cur) => (cur === "thirdParty" ? null : "thirdParty"));
+  }, []);
+
+  // viewerIsSubscribed for the Kick-native dialog: the viewer's own
+  // subscriber badge isn't surfaced through any chat-state path reachable
+  // from here today (KickChat threads `subscriberBadges` for *rendering*
+  // other users' badges, not the viewer's own status). Per U8/U9 design,
+  // `undefined` means "unknown" and disables the lock overlay — Kick will
+  // server-side reject any subscriber-only emote the viewer can't use, so
+  // there's no regression relative to today. Plumbing a viewer-subscription
+  // signal is deferred as a follow-up.
+  const viewerIsSubscribed: boolean | undefined = undefined;
 
   const isOverLimit = message.length > maxLength;
   const charactersRemaining = maxLength - message.length;
 
+  const buttonsDisabled = disabled || !canSend;
+
   return (
     <div ref={containerRef} className={`relative flex flex-col ${className}`}>
-      {/* Reply Preview */}
+      {/* Reply Preview — stays at the top, above InfoBanner */}
       {reply && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-white/5 border-b border-[var(--color-border)] rounded-t-md">
+        <div
+          data-testid="reply-preview"
+          className="flex items-center gap-2 px-3 py-2 bg-white/5 border-b border-[var(--color-border)] rounded-t-md"
+        >
           <BsReplyFill className="text-gray-400 flex-shrink-0" size={14} />
           <div className="flex-1 min-w-0">
             <span className="text-xs text-gray-400">Replying to </span>
@@ -389,22 +400,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
         </div>
       )}
 
+      {/* InfoBanner — renders null when no chat-room modes are active. */}
+      <InfoBanner platform={platform} channelId={channelId} />
+
       {/* Main Input Area */}
       <div
         className={`relative flex items-end gap-2 ${reply ? "rounded-b-md" : "rounded-md"} border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 py-2`}
       >
-        {/* Emote Picker Button */}
-        <button
-          type="button"
-          onClick={() => setIsEmotePickerOpen(!isEmotePickerOpen)}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="flex-shrink-0 p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
-          aria-label="Open emote picker"
-          disabled={disabled}
-        >
-          <BsEmojiSmile size={18} />
-        </button>
-
         {/* Text Input */}
         <div className="flex-1 relative">
           <textarea
@@ -423,7 +425,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
             }}
           />
 
-          {/* Emote Autocomplete */}
           <EmoteAutocomplete
             inputValue={message}
             cursorPosition={cursorPosition}
@@ -432,7 +433,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
             isActive={emoteAutocomplete.isActive}
           />
 
-          {/* Mention Autocomplete */}
           <MentionAutocomplete
             inputValue={message}
             cursorPosition={cursorPosition}
@@ -458,26 +458,26 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
           </span>
         )}
 
-        {/* Send Button */}
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={disabled || !canSend || !message.trim() || isOverLimit || isSending}
-          className="flex-shrink-0 p-1.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
-          aria-label="Send message"
-        >
-          <BsSend size={16} className="text-white" />
-        </button>
+        {/* Emote buttons (native + third-party). Send button is intentionally
+            gone — Enter sends. */}
+        <NativeEmoteButton
+          platform={platform}
+          channelId={channelId}
+          isOpen={activeDialog === "native"}
+          onOpenRequest={handleNativeOpenRequest}
+          onEmoteSelect={handleEmoteSelect}
+          disabled={buttonsDisabled}
+          viewerIsSubscribed={viewerIsSubscribed}
+        />
+        <ThirdPartyEmoteButton
+          platform={platform}
+          channelId={channelId}
+          isOpen={activeDialog === "thirdParty"}
+          onOpenRequest={handleThirdPartyOpenRequest}
+          onEmoteSelect={handleEmoteSelect}
+          disabled={buttonsDisabled}
+        />
       </div>
-
-      {/* Emote Picker */}
-      <EmotePicker
-        isOpen={isEmotePickerOpen}
-        onClose={() => setIsEmotePickerOpen(false)}
-        onSelect={(emote) => handleEmoteSelect(emote)}
-        position="top"
-        platform={platform}
-      />
 
       {/* Error Message */}
       {error && <div className="absolute -bottom-6 left-0 text-xs text-red-500">{error}</div>}
