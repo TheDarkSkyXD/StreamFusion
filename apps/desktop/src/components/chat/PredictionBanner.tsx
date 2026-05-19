@@ -544,7 +544,16 @@ const EndedOutcomeColumn: React.FC<{
         )}
       </div>
 
-      <div className="flex flex-1 flex-col items-center gap-2">
+      <div
+        className={
+          "flex flex-1 flex-col items-center gap-2 " +
+          // Push the percentage AWAY from the center divider: left-column
+          // percentage gets right-padding, right-column percentage gets
+          // left-padding. Combined with the grid gap, this leaves visible
+          // whitespace between the two big numbers.
+          (statsLeft ? "pr-3" : "pl-3")
+        }
+      >
         {isWinner && (
           <div className="flex items-center gap-1 text-[12px] font-bold text-white">
             <svg
