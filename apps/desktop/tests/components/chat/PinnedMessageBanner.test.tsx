@@ -487,6 +487,26 @@ describe("PinnedMessageBanner", () => {
     expect(screen.queryByLabelText("Hide for yourself")).not.toBeInTheDocument();
   });
 
+  it("truncates a long 'Pinned by' username so it can't overflow the header", () => {
+    const longUsername = "bobfarrfuturepopsuperstar";
+    render(
+      <PinnedMessageBanner
+        pin={makePin({
+          pinnedBy: { username: longUsername, color: "#FF6F61", badges: [] },
+        })}
+        role="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+    const usernameEl = screen.getByText(longUsername);
+    // truncate gives the ellipsis; min-w-0 lets the flex item shrink below
+    // its content width so the truncate can actually fire.
+    expect(usernameEl.className).toContain("truncate");
+    expect(usernameEl.className).toContain("min-w-0");
+  });
+
   it("resets the unpin confirm-armed state when the pin changes", () => {
     const onUnpin = vi.fn();
     const { rerender } = render(

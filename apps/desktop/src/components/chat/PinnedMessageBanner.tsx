@@ -265,11 +265,13 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                 // [&_img]:!mr-0 strips ChatBadge's baked-in `mr-1` (4px) so
                 // our flex `gap: 3px` is the only thing controlling spacing
                 // — matching Twitch's 3px badge-margin-right exactly.
-                className="text-sm text-[#EFEFF1] truncate leading-snug flex items-center [&_img]:!mr-0"
+                // min-w-0 lets this flex item shrink below its content width
+                // so the username span's `truncate` can fire when long.
+                className="text-sm text-[#EFEFF1] leading-snug flex items-center min-w-0 [&_img]:!mr-0"
                 style={{ gap: "3px" }}
                 data-testid="pinned-message-header"
               >
-                <span>Pinned by</span>
+                <span className="flex-shrink-0">Pinned by</span>
                 {(() => {
                   // Twitch shows just ONE badge next to the pinner's username
                   // in the header — the user's highest-priority role badge.
@@ -279,12 +281,18 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                     (b) => b.setId === primary.setId,
                   );
                   return fullBadge ? (
-                    <span className="inline-flex" style={{ marginBottom: "1.5px" }}>
+                    <span
+                      className="inline-flex flex-shrink-0"
+                      style={{ marginBottom: "1.5px" }}
+                    >
                       <ChatBadge badge={fullBadge} platform={pin.platform} />
                     </span>
                   ) : null;
                 })()}
-                <span className="font-semibold" style={{ color: pinnedByColor }}>
+                <span
+                  className="font-semibold truncate min-w-0"
+                  style={{ color: pinnedByColor }}
+                >
                   {pin.pinnedBy.username}
                 </span>
               </div>
