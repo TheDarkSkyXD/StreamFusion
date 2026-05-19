@@ -531,11 +531,15 @@ const EndedOutcomeColumn: React.FC<{
   return (
     <div
       className={
-        "flex items-start gap-2 px-2 py-1 " +
+        // items-center vertically aligns the stats column against the
+        // percentage column so the stat rows don't sit at the same y-range
+        // as the big percentage number. Was items-start + pt-6 — that pushed
+        // stats too high and caused 1:1.29 / 45 to overlap the % horizontally.
+        "flex items-center gap-2 px-2 py-1 " +
         (statsLeft ? "flex-row" : "flex-row-reverse")
       }
     >
-      <div className="flex flex-col gap-2 text-[12px] text-zinc-300 pt-6">
+      <div className="flex flex-col gap-2 text-[12px] text-zinc-300">
         <StatLine icon="clock" value={short(outcome.totalAmount)} align={align} />
         <StatLine icon="trophy" value={odds} align={align} />
         <StatLine icon="users" value={outcome.userCount.toString()} align={align} />
