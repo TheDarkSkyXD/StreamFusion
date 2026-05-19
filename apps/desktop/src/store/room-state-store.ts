@@ -29,6 +29,11 @@ export interface RoomState {
   uniqueChat: boolean;
   /** Twitch only — Kick has no equivalent. */
   shieldMode: boolean;
+  /**
+   * Kick-only account-age mode. Minimum account age in minutes. `null` = off.
+   * Twitch has no equivalent; the value stays `null` on Twitch keys.
+   */
+  accountAge: number | null;
 }
 
 export const DEFAULT_ROOM_STATE: RoomState = {
@@ -38,6 +43,7 @@ export const DEFAULT_ROOM_STATE: RoomState = {
   emoteOnly: false,
   uniqueChat: false,
   shieldMode: false,
+  accountAge: null,
 };
 
 interface RoomStateStore {

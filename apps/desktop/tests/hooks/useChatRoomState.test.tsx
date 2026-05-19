@@ -18,7 +18,25 @@ describe("useChatRoomState", () => {
       emoteOnly: false,
       uniqueChat: false,
       shieldMode: false,
+      accountAge: null,
     });
+  });
+
+  it("accountAge is null in the default and patches through (Kick-only field on shared shape)", () => {
+    const { result } = renderHook(() => useChatRoomState("kick", "k1"));
+    expect(result.current.accountAge).toBeNull();
+
+    act(() => {
+      useRoomStateStore.getState().updateRoomState("kick", "k1", { accountAge: 5 });
+    });
+    expect(result.current.accountAge).toBe(5);
+
+    act(() => {
+      useRoomStateStore.getState().updateRoomState("kick", "k1", { slowMode: 30 });
+    });
+    // partial patch preserves accountAge
+    expect(result.current.accountAge).toBe(5);
+    expect(result.current.slowMode).toBe(30);
   });
 
   it("returns the default room-state when channelId is null", () => {
