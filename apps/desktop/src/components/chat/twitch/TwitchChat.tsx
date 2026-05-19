@@ -694,6 +694,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   return (
     <UserPopoutProvider>
     <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
+      <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
+        <h2 className="font-semibold flex items-center gap-2">
+          <span className="text-white">Chat</span>
+        </h2>
+        <div className="flex space-x-2">{/* Status indicators can go here */}</div>
+      </div>
       <ChatPanelTabs visibleTabs={visibleTabs}>
         {{
           chat: chatBody,
