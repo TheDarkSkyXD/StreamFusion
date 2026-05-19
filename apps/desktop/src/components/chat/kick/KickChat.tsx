@@ -36,8 +36,11 @@ import { InlineModStrip, type InlineModAction } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { useChatRoomState } from "../../../hooks/useChatRoomState";
+import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
+import { PredictionBanner } from "../PredictionBanner";
+import type { UnifiedPrediction } from "@/shared/chat-types";
 import { seedKickChatHistory } from "./kick-chat-history";
 import { KickPinMessageDialog } from "./KickPinMessageDialog";
 import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
@@ -130,8 +133,21 @@ export const KickChat: React.FC<KickChatProps> = ({
   const kickRoomKey = channelId ?? (chatroomId ? String(chatroomId) : "");
   const roomState = useChatRoomState("kick", kickRoomKey || null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
+
+  // U6 — merge seam. Initial v2 channel-resolve `chatroomSettings` block +
+  // ChatroomUpdatedEvent Pusher events + reconnect re-seed all converge
+  // through this hook into useRoomStateStore. The store key uses the same
+  // `channelId ?? String(chatroomId)` fallback the mod-strip writes under.
+  useChatSettingsSync({
+    platform: "kick",
+    channel,
+    channelId: kickRoomKey || null,
+  });
   const kickUser = useAuthStore((state) => state.kickUser);
   const [activePoll, setActivePoll] = useState<KickPoll | null>(null);
+  // U6 read-only viewer prediction. Currently fed via dev injection (U9);
+  // real Kick prediction API + Pusher event discovery lives in U4.
+  const [activePrediction, setActivePrediction] = useState<UnifiedPrediction | null>(null);
   const [showPoll, setShowPoll] = useState(true);
   const [isPollExpanded, setIsPollExpanded] = useState(false);
   const chatInputRef = useRef<ChatInputHandle>(null);
@@ -469,6 +485,10 @@ export const KickChat: React.FC<KickChatProps> = ({
       }
     };
 
+    const handlePredictionUpdate = (prediction: UnifiedPrediction) => {
+      setActivePrediction(prediction);
+    };
+
     kickChatService.on("message", handleMessage);
     kickChatService.on("userNotice", handleUserNotice);
     kickChatService.on("connectionStateChange", handleConnectionStatus);
@@ -478,6 +498,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     kickChatService.on("pinnedMessage", handlePinnedMessage);
     kickChatService.on("pinnedMessageCleared", handlePinnedMessageCleared);
     kickChatService.on("pollUpdate", handlePollUpdate);
+    kickChatService.on("predictionUpdate", handlePredictionUpdate);
 
     return () => {
       kickChatService.off("message", handleMessage);
@@ -489,6 +510,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       kickChatService.off("pinnedMessage", handlePinnedMessage);
       kickChatService.off("pinnedMessageCleared", handlePinnedMessageCleared);
       kickChatService.off("pollUpdate", handlePollUpdate);
+      kickChatService.off("predictionUpdate", handlePredictionUpdate);
       if (pollTimeoutRef.current) {
         clearTimeout(pollTimeoutRef.current);
         pollTimeoutRef.current = null;
@@ -520,6 +542,14 @@ export const KickChat: React.FC<KickChatProps> = ({
   // pin dialogs stay outside the tab so they overlay regardless of tab.
   const chatBody = (
     <div className="flex flex-col h-full w-full">
+      {/* Prediction Banner (U6) — read-only viewer widget. Fed by U4 in
+          production (TBD) and by ChatSimTool dev injection today. */}
+      {activePrediction && (
+        <PredictionBanner
+          prediction={activePrediction}
+          onAutoDismiss={() => setActivePrediction(null)}
+        />
+      )}
       {/* Pinned Message Banner */}
       {pinnedMessage && showPinned && (
         <PinnedMessageBanner
@@ -657,6 +687,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               ref={chatInputRef}
               platform="kick"
               channel={channel}
+              channelId={kickRoomKey || undefined}
               chatroomId={chatroomId}
               canSend={isAuthenticated && isKickConnected}
             />

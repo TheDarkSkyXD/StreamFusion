@@ -35,6 +35,7 @@ import {
 } from "../mod/RaidTargetPicker";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { useChatRoomState } from "../../../hooks/useChatRoomState";
+import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { useAuthStore } from "../../../store/auth-store";
 import { useDevModOverrideStore } from "../../../store/dev-mod-override-store";
@@ -52,6 +53,9 @@ import { useRenderCount } from "../../dev/use-render-count";
 import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
+import { PredictionBanner } from "../PredictionBanner";
+import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
+import type { UnifiedPrediction } from "@/shared/chat-types";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
 import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
@@ -130,6 +134,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
   const [isPinExpanded, setIsPinExpanded] = useState(false);
+  // U2 / U6 — viewer-side prediction state. Hermes WebSocket pushes via
+  // twitchChatService.emit("predictionUpdate", …); dev injection (U9) fires
+  // through the same seam, so production + dev paths converge.
+  const [activePrediction, setActivePrediction] = useState<UnifiedPrediction | null>(null);
   // Mod-action state (U8): the message currently queued for the Pin dialog.
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
@@ -145,6 +153,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // flow through useRoomStateStore; the hook auto-fills DEFAULT_ROOM_STATE.
   const roomState = useChatRoomState("twitch", channelId ?? null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
+
+  // U6 — merge seam. Initial Helix /chat/settings fetch + tmi.js roomstate
+  // events + reconnect re-seed all converge through this hook into
+  // useRoomStateStore. Optimistic mod-strip writes above continue to land
+  // on the same key; last write wins.
+  useChatSettingsSync({ platform: "twitch", channel, channelId });
 
   // Mod-role gating for Pin/Unpin actions. Both hooks return safe defaults
   // when the user isn't signed in or doesn't moderate the current channel.
@@ -469,6 +483,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       setPinnedMessage(null);
     };
 
+    const handlePredictionUpdate = (prediction: UnifiedPrediction) => {
+      setActivePrediction(prediction);
+    };
+
     twitchChatService.on("message", handleMessage);
     twitchChatService.on("userNotice", handleUserNotice);
     twitchChatService.on("connectionStateChange", handleConnectionStatus);
@@ -477,6 +495,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     twitchChatService.on("error", handleError);
     twitchChatService.on("pinnedMessage", handlePinnedMessage);
     twitchChatService.on("pinnedMessageCleared", handlePinnedMessageCleared);
+    twitchChatService.on("predictionUpdate", handlePredictionUpdate);
 
     return () => {
       twitchChatService.off("message", handleMessage);
@@ -487,6 +506,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       twitchChatService.off("error", handleError);
       twitchChatService.off("pinnedMessage", handlePinnedMessage);
       twitchChatService.off("pinnedMessageCleared", handlePinnedMessageCleared);
+      twitchChatService.off("predictionUpdate", handlePredictionUpdate);
     };
   }, [
     addMessage,
@@ -496,6 +516,24 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     deleteMessage,
     deleteMessagesByUser,
   ]);
+
+  // U2 — Hermes WebSocket subscription per channelId. Forwards predictions
+  // through twitchChatService.emit so dev injection (U9) and production both
+  // route through the predictionUpdate listener above.
+  useEffect(() => {
+    if (!channelId) return;
+    const client = new TwitchHermesClient(channelId);
+    const forward = (prediction: UnifiedPrediction) => {
+      twitchChatService.emit("predictionUpdate", prediction);
+    };
+    client.on("prediction", forward);
+    client.start();
+    return () => {
+      client.off("prediction", forward);
+      client.stop();
+      setActivePrediction(null);
+    };
+  }, [channelId]);
 
   // U19 — visible tabs based on role. Viewer = chat only (the component
   // suppresses the strip), mod = chat + modlog, broadcaster adds engagement.
@@ -521,6 +559,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // dialogs stay outside the tab so they overlay regardless of tab.
   const chatBody = (
     <div className="flex flex-col h-full w-full">
+      {activePrediction && (
+        <PredictionBanner
+          prediction={activePrediction}
+          onAutoDismiss={() => setActivePrediction(null)}
+        />
+      )}
       {pinnedMessage && showPinned && (
         <PinnedMessageBanner
           pin={pinnedMessage}
@@ -683,6 +727,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               ref={chatInputRef}
               platform="twitch"
               channel={channel}
+              channelId={channelId}
               canSend={isAuthenticated && isTwitchConnected}
             />
           </div>
