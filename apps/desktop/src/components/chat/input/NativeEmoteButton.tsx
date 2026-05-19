@@ -22,7 +22,7 @@ import { KickEmoteIcon, TwitchIcon } from "../../icons/PlatformIcons";
 
 interface NativeEmoteButtonProps {
   platform: ChatPlatform;
-  channelId: string;
+  channelId: string | null;
   isOpen: boolean;
   onOpenRequest: () => void;
   onEmoteSelect: (emote: Emote) => void;

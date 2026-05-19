@@ -35,9 +35,12 @@ export interface ChatInputProps {
   /** Additional chatroom ID (required for Kick) */
   chatroomId?: number;
   /** Stable channel identifier for room-state lookups (broadcaster ID on
-   *  Twitch, chatroom/channel ID on Kick). Required as of U9: InfoBanner and
-   *  both EmoteDialogs key per-channel state off this. */
-  channelId: string;
+   *  Twitch, chatroom/channel ID on Kick). `null` when the ID hasn't
+   *  resolved yet — InfoBanner and both EmoteDialogs degrade gracefully
+   *  rather than keying off an empty string (which would alias every
+   *  not-yet-resolved channel into a single shared `platform:` store key
+   *  and contaminate cross-channel state — see code review R9). */
+  channelId: string | null;
   /** Max message length */
   maxLength?: number;
   /** Placeholder text */

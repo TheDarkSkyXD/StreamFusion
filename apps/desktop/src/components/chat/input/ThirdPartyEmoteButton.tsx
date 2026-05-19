@@ -20,7 +20,7 @@ import { SevenTVIcon } from "../../icons/PlatformIcons";
 
 interface ThirdPartyEmoteButtonProps {
   platform: ChatPlatform;
-  channelId: string;
+  channelId: string | null;
   isOpen: boolean;
   onOpenRequest: () => void;
   onEmoteSelect: (emote: Emote) => void;

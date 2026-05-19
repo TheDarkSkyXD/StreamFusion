@@ -769,7 +769,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               ref={chatInputRef}
               platform="twitch"
               channel={channel}
-              channelId={channelId ?? ""}
+              channelId={channelId ?? null}
               canSend={isAuthenticated && isTwitchConnected}
             />
           </div>
