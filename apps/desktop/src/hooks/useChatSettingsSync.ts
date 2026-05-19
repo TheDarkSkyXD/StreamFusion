@@ -38,6 +38,13 @@ import { roomStateKey, type RoomState, useRoomStateStore } from "@/store/room-st
 
 // ---------------------------------------------------------------------------
 // Module-scoped state
+//
+// `inFlight` and `__debugProvenance` are exported with the `@internal` JSDoc
+// tag for the test-helpers sibling (`useChatSettingsSync.test-helpers.ts`)
+// only. Production consumers MUST NOT import these names — call sites of the
+// hook should treat them as private implementation detail. The
+// underscore-prefixed test inspectors that used to live here have moved to
+// the test-helpers file so they no longer ship as public exports.
 // ---------------------------------------------------------------------------
 
 /**
@@ -46,37 +53,23 @@ import { roomStateKey, type RoomState, useRoomStateStore } from "@/store/room-st
  * caused by React StrictMode (or rapid channel toggles) bypasses the dedup
  * via the per-mount AbortController, not this Set, so this Set is purely
  * about avoiding redundant network calls in normal lifecycle.
+ *
+ * @internal exported for `useChatSettingsSync.test-helpers.ts` only.
  */
-const inFlight = new Set<string>();
+export const inFlight = new Set<string>();
+
+/** @internal */
+export type Provenance = "fetch" | "ws" | "optimistic";
 
 /**
  * Dev-only provenance map. Records the last write source for each room-state
  * key so tests can assert that `'ws'` arrived after `'fetch'` etc. Production
  * code never reads this — the store entry is the same regardless of how it
  * got written.
+ *
+ * @internal exported for `useChatSettingsSync.test-helpers.ts` only.
  */
-type Provenance = "fetch" | "ws" | "optimistic";
-const __debugProvenance = new Map<string, Provenance>();
-
-/** Test-only inspection helper. Not for production consumers. */
-export function __getProvenance(key: string): Provenance | undefined {
-  return __debugProvenance.get(key);
-}
-
-/** Test-only reset helper. */
-export function __resetProvenance(): void {
-  __debugProvenance.clear();
-}
-
-/** Test-only inspection helper for the in-flight set. */
-export function __isInFlight(key: string): boolean {
-  return inFlight.has(key);
-}
-
-/** Test-only reset helper for the in-flight set. */
-export function __resetInFlight(): void {
-  inFlight.clear();
-}
+export const __debugProvenance = new Map<string, Provenance>();
 
 // ---------------------------------------------------------------------------
 // Pure translator — exported for unit tests

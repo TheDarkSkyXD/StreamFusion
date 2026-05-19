@@ -95,19 +95,18 @@ beforeEach(() => {
 // Imports under test — after vi.mock so the mocks take effect
 // ---------------------------------------------------------------------------
 
+import { chatSettingsToPatch, useChatSettingsSync } from "@/hooks/useChatSettingsSync";
 import {
-  __getProvenance,
-  __isInFlight,
-  __resetInFlight,
-  __resetProvenance,
-  chatSettingsToPatch,
-  useChatSettingsSync,
-} from "@/hooks/useChatSettingsSync";
+  getProvenance,
+  isInFlight,
+  resetInFlight,
+  resetProvenance,
+} from "@/hooks/useChatSettingsSync.test-helpers";
 
 beforeEach(() => {
   useRoomStateStore.setState({ entries: {} });
-  __resetInFlight();
-  __resetProvenance();
+  resetInFlight();
+  resetProvenance();
   getChatSettingsMock.mockReset();
   getByUsernameMock.mockReset();
 });
@@ -254,7 +253,7 @@ describe("useChatSettingsSync — initial fetch", () => {
     await waitFor(() => {
       expect(useRoomStateStore.getState().entries["twitch:123"]?.slowMode).toBe(30);
     });
-    expect(__getProvenance("twitch:123")).toBe("fetch");
+    expect(getProvenance("twitch:123")).toBe("fetch");
   });
 
   it("fetch failure does NOT write to store and does not throw", async () => {
@@ -270,7 +269,7 @@ describe("useChatSettingsSync — initial fetch", () => {
     });
     // Store stays empty; provenance never recorded a 'fetch' for this key.
     expect(useRoomStateStore.getState().entries["twitch:123"]).toBeUndefined();
-    expect(__getProvenance("twitch:123")).toBeUndefined();
+    expect(getProvenance("twitch:123")).toBeUndefined();
     warnSpy.mockRestore();
   });
 
@@ -337,12 +336,12 @@ describe("useChatSettingsSync — in-flight dedup + StrictMode", () => {
     const { unmount } = renderHook(() =>
       useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
     );
-    expect(__isInFlight("twitch:123")).toBe(true);
+    expect(isInFlight("twitch:123")).toBe(true);
 
     unmount();
     // After unmount, controller aborts and the eager cleanup removes the key
     // so a same-key remount can fetch.
-    expect(__isInFlight("twitch:123")).toBe(false);
+    expect(isInFlight("twitch:123")).toBe(false);
 
     getChatSettingsMock.mockResolvedValueOnce({
       ok: true,
@@ -437,7 +436,7 @@ describe("useChatSettingsSync — roomState WS event", () => {
 
     expect(useRoomStateStore.getState().entries["twitch:123"]?.uniqueChat).toBe(true);
     expect(useRoomStateStore.getState().entries["twitch:123"]?.slowMode).toBe(60);
-    expect(__getProvenance("twitch:123")).toBe("ws");
+    expect(getProvenance("twitch:123")).toBe("ws");
   });
 
   it("WS event for a DIFFERENT channel does NOT write", async () => {
@@ -644,6 +643,6 @@ describe("useChatSettingsSync — converge with optimistic writes", () => {
       } satisfies RoomStatePatchEvent);
     });
     expect(useRoomStateStore.getState().entries["twitch:123"]?.uniqueChat).toBe(false);
-    expect(__getProvenance("twitch:123")).toBe("ws");
+    expect(getProvenance("twitch:123")).toBe("ws");
   });
 });
