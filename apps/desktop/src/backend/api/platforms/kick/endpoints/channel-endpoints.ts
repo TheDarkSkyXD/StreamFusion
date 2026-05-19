@@ -1,12 +1,56 @@
 import { BrowserWindow } from "electron";
 
-import type { UnifiedChannel } from "../../../unified/platform-types";
+import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
 import { isNetworkLikelyDown } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
 import { KICK_LEGACY_API_V2_BASE, type KickApiChannel, type KickApiResponse } from "../kick-types";
 
 import { getUsersById } from "./user-endpoints";
+
+/**
+ * Map the raw `data.chatroom` block from the Kick v2 channel-resolve payload
+ * to the normalized {@link KickChatroomSettings} shape.
+ *
+ * The raw v2 payload uses **flat** fields:
+ *   { followers_mode: bool, subscribers_mode: bool, emotes_mode: bool,
+ *     slow_mode: bool, message_interval (seconds), following_min_duration (minutes) }
+ *
+ * This shape differs from the WS `ChatroomUpdatedEvent` payload, which nests
+ * each mode as `{ enabled, message_interval | min_duration }`. We normalize at
+ * the boundary so downstream consumers (useChatSettingsSync, InfoBanner) see
+ * one shape.
+ *
+ * Defensive: undefined/missing inputs yield `enabled: false` with null durations.
+ * `account_age` is not in the v2 initial-fetch payload (only delivered via WS),
+ * so this mapper leaves it absent.
+ *
+ * Pure function — exported for unit testing without spinning up the BrowserWindow.
+ */
+export function mapKickChatroomToSettings(raw: unknown): KickChatroomSettings | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+
+  const followersEnabled = r.followers_mode === true;
+  const followingMinDuration =
+    typeof r.following_min_duration === "number" ? r.following_min_duration : null;
+  const slowEnabled = r.slow_mode === true;
+  const messageInterval =
+    typeof r.message_interval === "number" ? r.message_interval : null;
+
+  return {
+    slowMode: {
+      enabled: slowEnabled,
+      interval: slowEnabled ? messageInterval : null,
+    },
+    followersMode: {
+      enabled: followersEnabled,
+      minDuration: followersEnabled ? followingMinDuration : null,
+    },
+    subscribersMode: { enabled: r.subscribers_mode === true },
+    emoteOnlyMode: { enabled: r.emotes_mode === true },
+  };
+}
 
 // Cache for channel data to reduce API calls and prevent 429 errors
 const _channelCache = new Map<string, { channel: UnifiedChannel; timestamp: number }>();
@@ -373,6 +417,7 @@ async function _doFetchPublicChannel(
 
     // Extract chatroom ID for Pusher WebSocket subscription
     const chatroomId = data.chatroom?.id;
+    const chatroomSettings = mapKickChatroomToSettings(data.chatroom);
     console.debug(`[KickChannel] Extracted for ${slug}:`, {
       userId,
       chatroomId,
@@ -421,6 +466,7 @@ async function _doFetchPublicChannel(
       lastStreamTitle,
       chatroomId: typeof chatroomId === "number" ? chatroomId : undefined,
       subscriberBadges: data.subscriber_badges,
+      chatroomSettings,
     };
   } catch (error) {
     // If the network service crashed mid-load, the failure isn't this slug's

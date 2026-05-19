@@ -55,6 +55,30 @@ export interface UnifiedChannel {
   chatroomId?: number;
   // Kick-specific: subscriber badges
   subscriberBadges?: any[];
+  // Kick-specific: chatroom mode settings (followers/subs/slow/emote-only/account-age).
+  // Sourced from data.chatroom on the v2 channel-resolve payload; used to seed
+  // useRoomStateStore on channel mount. Absent for Twitch channels.
+  chatroomSettings?: KickChatroomSettings;
+}
+
+/**
+ * Kick chatroom mode settings — initial-fetch shape, normalized.
+ *
+ * The raw v2 payload uses flat fields (`followers_mode: bool, slow_mode: bool,
+ * message_interval, following_min_duration`); this normalized shape mirrors what
+ * the chatroom-update Pusher event emits, so the merge seam in
+ * useChatSettingsSync sees one shape regardless of source.
+ *
+ * Units: followersMode.minDuration is **minutes**; slowMode.interval is
+ * **seconds**; accountAge.minDuration is **minutes**.
+ */
+export interface KickChatroomSettings {
+  slowMode: { enabled: boolean; interval: number | null };
+  followersMode: { enabled: boolean; minDuration: number | null };
+  subscribersMode: { enabled: boolean };
+  emoteOnlyMode: { enabled: boolean };
+  /** Account-age restriction. Absent on initial v2 fetch — only delivered via WS. */
+  accountAge?: { enabled: boolean; minDuration: number | null };
 }
 
 export interface SocialLink {
