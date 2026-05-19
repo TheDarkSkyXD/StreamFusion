@@ -533,7 +533,7 @@ const EndedOutcomeColumn: React.FC<{
         (statsLeft ? "flex-row" : "flex-row-reverse")
       }
     >
-      <div className="flex flex-col gap-1.5 text-[10px] text-zinc-400 pt-5">
+      <div className="flex flex-col gap-2 text-[12px] text-zinc-300 pt-6">
         <StatLine icon="clock" value={short(outcome.totalAmount)} align={align} />
         <StatLine icon="trophy" value={odds} align={align} />
         <StatLine icon="users" value={outcome.userCount.toString()} align={align} />
@@ -605,11 +605,11 @@ const StatLine: React.FC<{
   return (
     <div
       className={
-        "flex items-center gap-1 " + (align === "left" ? "flex-row" : "flex-row-reverse")
+        "flex items-center gap-1.5 " + (align === "left" ? "flex-row" : "flex-row-reverse")
       }
     >
       <StatIcon icon={icon} color={iconColor} />
-      <span className="text-white tabular-nums">{value}</span>
+      <span className="font-medium text-white tabular-nums">{value}</span>
     </div>
   );
 };
@@ -619,8 +619,8 @@ const StatIcon: React.FC<{ icon: "clock" | "trophy" | "users" | "chart"; color: 
   color,
 }) => {
   const common = {
-    width: 12,
-    height: 12,
+    width: 14,
+    height: 14,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: color,
