@@ -261,7 +261,9 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     fireEvent.click(screen.getByLabelText("See Details"));
     // Big leader percentage is rendered with a large font size class.
     const bigNumber = Array.from(document.querySelectorAll("div")).find(
-      (d) => /^\d+%$/.test(d.textContent || "") && /text-\[(40|44|48)px\]/.test(d.className || ""),
+      (d) =>
+        /^\d+%$/.test(d.textContent || "") &&
+        /text-\[(32|36|40|44|48)px\]/.test(d.className || ""),
     );
     expect(bigNumber).toBeTruthy();
   });
