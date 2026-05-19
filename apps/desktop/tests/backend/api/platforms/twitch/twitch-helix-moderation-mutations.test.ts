@@ -33,6 +33,7 @@ let nextThrow: Error | null = null;
 
 const CTX = {
   accessToken: "tok-1",
+  clientId: "test-client-id",
   broadcasterId: "111",
   moderatorId: "222",
 };
@@ -166,7 +167,7 @@ describe("URL + method + body construction", () => {
       status: 200,
       body: { data: [{ created_at: "2026-05-18T00:00:00Z", is_mature: false }] },
     };
-    await startRaid({ accessToken: "tok-1", fromBroadcasterId: "111", toBroadcasterId: "999" });
+    await startRaid({ accessToken: "tok-1", clientId: "test-client-id", fromBroadcasterId: "111", toBroadcasterId: "999" });
     expect(lastMethod).toBe("POST");
     expect(lastUrl).toBe(
       "https://api.twitch.tv/helix/raids?from_broadcaster_id=111&to_broadcaster_id=999",
@@ -179,7 +180,7 @@ describe("URL + method + body construction", () => {
       status: 200,
       body: { data: [{ length: 60, message: "ok", retry_after: 480 }] },
     };
-    await runCommercial({ accessToken: "tok-1", broadcasterId: "111", length: 60 });
+    await runCommercial({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", length: 60 });
     expect(lastMethod).toBe("POST");
     expect(lastUrl).toBe("https://api.twitch.tv/helix/channels/commercial");
     expect(lastBody).toEqual({ broadcaster_id: "111", length: 60 });
@@ -203,7 +204,7 @@ describe("URL + method + body construction", () => {
 
   it("addModerator → POST /moderation/moderators (no moderator_id)", async () => {
     nextResponse = { status: 204 };
-    await addModerator({ accessToken: "tok-1", broadcasterId: "111", userId: "333" });
+    await addModerator({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", userId: "333" });
     expect(lastMethod).toBe("POST");
     expect(lastUrl).toBe(
       "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=111&user_id=333",
@@ -212,7 +213,7 @@ describe("URL + method + body construction", () => {
 
   it("removeModerator → DELETE /moderation/moderators (no moderator_id)", async () => {
     nextResponse = { status: 204 };
-    await removeModerator({ accessToken: "tok-1", broadcasterId: "111", userId: "333" });
+    await removeModerator({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", userId: "333" });
     expect(lastMethod).toBe("DELETE");
     expect(lastUrl).toBe(
       "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=111&user_id=333",
@@ -221,14 +222,14 @@ describe("URL + method + body construction", () => {
 
   it("addVip → POST /channels/vips", async () => {
     nextResponse = { status: 204 };
-    await addVip({ accessToken: "tok-1", broadcasterId: "111", userId: "333" });
+    await addVip({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", userId: "333" });
     expect(lastMethod).toBe("POST");
     expect(lastUrl).toBe("https://api.twitch.tv/helix/channels/vips?broadcaster_id=111&user_id=333");
   });
 
   it("removeVip → DELETE /channels/vips", async () => {
     nextResponse = { status: 204 };
-    await removeVip({ accessToken: "tok-1", broadcasterId: "111", userId: "333" });
+    await removeVip({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", userId: "333" });
     expect(lastMethod).toBe("DELETE");
     expect(lastUrl).toBe("https://api.twitch.tv/helix/channels/vips?broadcaster_id=111&user_id=333");
   });
@@ -255,17 +256,17 @@ describe("timeoutUser duration validation", () => {
 describe("runCommercial length validation", () => {
   it("throws on 0", () => {
     expect(() =>
-      runCommercial({ accessToken: "tok-1", broadcasterId: "111", length: 0 }),
+      runCommercial({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", length: 0 }),
     ).toThrow();
   });
   it("throws on 45 (not a multiple-of-30)", () => {
     expect(() =>
-      runCommercial({ accessToken: "tok-1", broadcasterId: "111", length: 45 }),
+      runCommercial({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", length: 45 }),
     ).toThrow();
   });
   it("throws on 210", () => {
     expect(() =>
-      runCommercial({ accessToken: "tok-1", broadcasterId: "111", length: 210 }),
+      runCommercial({ accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111", length: 210 }),
     ).toThrow();
   });
 });

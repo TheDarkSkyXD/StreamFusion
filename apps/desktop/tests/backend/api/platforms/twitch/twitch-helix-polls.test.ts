@@ -64,7 +64,7 @@ const POLL = {
 describe("twitch-helix-polls URL + method + body", () => {
   it("getPolls → GET /polls?broadcaster_id=…", async () => {
     nextResponse = { status: 200, body: { data: [POLL] } };
-    await getPolls({ accessToken: "tok", broadcasterId: "111" });
+    await getPolls({ accessToken: "tok", clientId: "test-client-id", broadcasterId: "111" });
     expect(lastMethod).toBe("GET");
     expect(lastUrl).toBe("https://api.twitch.tv/helix/polls?broadcaster_id=111");
   });
@@ -73,6 +73,7 @@ describe("twitch-helix-polls URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [POLL] } };
     await createPoll({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       title: "Pick one",
       choices: [{ title: "A" }, { title: "B" }],
@@ -96,6 +97,7 @@ describe("twitch-helix-polls URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [POLL] } };
     await terminatePoll({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       pollId: "poll1",
     });
@@ -112,6 +114,7 @@ describe("twitch-helix-polls URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [POLL] } };
     await archivePoll({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       pollId: "poll1",
     });
@@ -128,6 +131,7 @@ describe("twitch-helix-polls validation", () => {
     expect(() =>
       createPoll({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "",
         choices: [{ title: "A" }, { title: "B" }],
@@ -137,6 +141,7 @@ describe("twitch-helix-polls validation", () => {
     expect(() =>
       createPoll({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "x".repeat(61),
         choices: [{ title: "A" }, { title: "B" }],
@@ -149,6 +154,7 @@ describe("twitch-helix-polls validation", () => {
     expect(() =>
       createPoll({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "ok",
         choices: [{ title: "A" }],
@@ -158,6 +164,7 @@ describe("twitch-helix-polls validation", () => {
     expect(() =>
       createPoll({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "ok",
         choices: [{ title: "A" }, { title: "x".repeat(26) }],
@@ -167,6 +174,7 @@ describe("twitch-helix-polls validation", () => {
     expect(() =>
       createPoll({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "ok",
         choices: [{ title: "A" }, { title: "B" }],

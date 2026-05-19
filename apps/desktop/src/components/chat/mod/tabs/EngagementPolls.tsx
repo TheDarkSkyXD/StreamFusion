@@ -65,9 +65,10 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
 
   const fetcher = useCallback(async (): Promise<PollsListPayload | null> => {
     const accessToken = await getToken();
-    if (!accessToken) return null;
+    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+    if (!accessToken || !clientId) return null;
     const result = await withTwitchHelixRetry(
-      { accessToken, broadcasterId: channelId },
+      { accessToken, clientId, broadcasterId: channelId },
       getPolls,
     );
     if (!result.ok) {
@@ -98,14 +99,15 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
   const moderatorUsername = twitchUser?.login ?? "";
 
   async function withMissingScopeHandling<T>(
-    run: (token: string) => Promise<HelixModResult<T>>,
+    run: (token: string, clientId: string) => Promise<HelixModResult<T>>,
   ): Promise<HelixModResult<T> | null> {
     const accessToken = await getToken();
-    if (!accessToken) {
+    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+    if (!accessToken || !clientId) {
       toast.error("Sign in to Twitch to take this action");
       return null;
     }
-    return run(accessToken);
+    return run(accessToken, clientId);
   }
 
   const handleCreate = async () => {
@@ -123,9 +125,10 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
     }
     setBusy(true);
     try {
-      const result = await withMissingScopeHandling((t) =>
+      const result = await withMissingScopeHandling((t, cid) =>
         createPoll({
           accessToken: t,
+          clientId: cid,
           broadcasterId: channelId,
           title,
           choices: cleaned.map((c) => ({ title: c })),
@@ -164,17 +167,19 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
     try {
       let result: HelixModResult<PollPayload> | null = null;
       if (pending.kind === "terminate") {
-        result = await withMissingScopeHandling((t) =>
+        result = await withMissingScopeHandling((t, cid) =>
           terminatePoll({
             accessToken: t,
+            clientId: cid,
             broadcasterId: channelId,
             pollId: current.id,
           }),
         );
       } else {
-        result = await withMissingScopeHandling((t) =>
+        result = await withMissingScopeHandling((t, cid) =>
           archivePoll({
             accessToken: t,
+            clientId: cid,
             broadcasterId: channelId,
             pollId: current.id,
           }),

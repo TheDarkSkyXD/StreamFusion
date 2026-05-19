@@ -125,12 +125,14 @@ export function ChannelBannedList({
     setRowBusy(row.user_id, true);
     try {
       const token = await window.electronAPI.auth.getToken("twitch");
-      if (!token?.accessToken) {
-        toast.error("Couldn't unban — missing Twitch token");
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!token?.accessToken || !clientId) {
+        toast.error("Couldn't unban — missing Twitch credentials");
         return;
       }
       const result = await unbanUser({
         accessToken: token.accessToken,
+        clientId,
         broadcasterId,
         moderatorId: twitchUser.id,
         userId: row.user_id,

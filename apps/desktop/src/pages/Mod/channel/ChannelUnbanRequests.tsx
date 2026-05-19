@@ -53,13 +53,15 @@ export function ChannelUnbanRequests({
     setError(null);
     try {
       const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-      if (!accessToken) {
-        setError("Missing Twitch token.");
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!accessToken || !clientId) {
+        setError("Missing Twitch credentials.");
         return;
       }
       const result = await withTwitchHelixRetry(
         {
           accessToken,
+          clientId,
           broadcasterId,
           moderatorId: twitchUser.id,
           status: statusFilter,
@@ -96,12 +98,14 @@ export function ChannelUnbanRequests({
     setBusy(true);
     try {
       const token = await window.electronAPI.auth.getToken("twitch");
-      if (!token?.accessToken) {
-        toast.error("Couldn't resolve — missing Twitch token");
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!token?.accessToken || !clientId) {
+        toast.error("Couldn't resolve — missing Twitch credentials");
         return;
       }
       const result = await resolveUnbanRequest({
         accessToken: token.accessToken,
+        clientId,
         broadcasterId,
         moderatorId: twitchUser.id,
         unbanRequestId: pending.requestId,

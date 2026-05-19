@@ -18,7 +18,6 @@ import type { HelixModResult } from "./twitch-helix-moderation-mutations";
 // Re-export for callers that want the type without pulling in the mod helpers.
 export type { HelixModResult };
 
-const HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const HELIX_BASE = "https://api.twitch.tv/helix";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -79,6 +78,7 @@ type QueryDict = Record<string, string | number | undefined>;
 
 interface HelixRequestArgs {
   accessToken: string;
+  clientId: string;
   method: "GET" | "POST" | "DELETE" | "PUT" | "PATCH";
   path: string;
   query?: QueryDict;
@@ -128,11 +128,11 @@ function parseRetryAfter(header: string | null): number | null {
 async function helixPredictionsRequest<T>(
   args: HelixRequestArgs,
 ): Promise<HelixModResult<T>> {
-  const { accessToken, method, path, query, body } = args;
+  const { accessToken, clientId, method, path, query, body } = args;
   const url = buildUrl(path, query);
 
   const headers: Record<string, string> = {
-    "Client-Id": HELIX_CLIENT_ID,
+    "Client-Id": clientId,
     Authorization: `Bearer ${accessToken}`,
   };
   if (body !== undefined) {
@@ -212,6 +212,8 @@ async function helixPredictionsRequest<T>(
 
 export interface GetPredictionsArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
 }
 
@@ -220,6 +222,7 @@ export function getPredictions(
 ): Promise<HelixModResult<PredictionsListPayload>> {
   return helixPredictionsRequest<PredictionsListPayload>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "GET",
     path: "/predictions",
     query: { broadcaster_id: args.broadcasterId },
@@ -232,6 +235,8 @@ export function getPredictions(
 
 export interface CreatePredictionArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   title: string;
   outcomes: Array<{ title: string }>;
@@ -267,6 +272,7 @@ export function createPrediction(
   }
   return helixPredictionsRequest<PredictionEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/predictions",
     body: {
@@ -288,6 +294,8 @@ export function createPrediction(
 
 export interface LockPredictionArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   predictionId: string;
 }
@@ -297,6 +305,7 @@ export async function lockPrediction(
 ): Promise<HelixModResult<PredictionPayload>> {
   const result = await helixPredictionsRequest<PredictionEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "PATCH",
     path: "/predictions",
     body: {
@@ -316,6 +325,8 @@ export async function lockPrediction(
 
 export interface ResolvePredictionArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   predictionId: string;
   winningOutcomeId: string;
@@ -326,6 +337,7 @@ export async function resolvePrediction(
 ): Promise<HelixModResult<PredictionPayload>> {
   const result = await helixPredictionsRequest<PredictionEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "PATCH",
     path: "/predictions",
     body: {
@@ -346,6 +358,8 @@ export async function resolvePrediction(
 
 export interface CancelPredictionArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   predictionId: string;
 }
@@ -355,6 +369,7 @@ export async function cancelPrediction(
 ): Promise<HelixModResult<PredictionPayload>> {
   const result = await helixPredictionsRequest<PredictionEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "PATCH",
     path: "/predictions",
     body: {

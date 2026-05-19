@@ -15,7 +15,6 @@
 
 import type { HelixModResult } from "./twitch-helix-moderation-mutations";
 
-const HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const HELIX_BASE = "https://api.twitch.tv/helix";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -61,12 +60,12 @@ type QueryDict = Record<string, string | number | undefined>;
 
 interface HelixRequestArgs {
   accessToken: string;
+  clientId: string;
   method: "GET" | "POST" | "DELETE" | "PUT" | "PATCH";
   path: string;
   query?: QueryDict;
   body?: unknown;
   fetchImpl?: typeof fetch;
-  clientId?: string;
 }
 
 interface HelixErrorBody {
@@ -115,7 +114,7 @@ async function helixRequest<T>(args: HelixRequestArgs): Promise<HelixModResult<T
   const doFetch = fetchImpl ?? fetch;
 
   const headers: Record<string, string> = {
-    "Client-Id": clientId ?? HELIX_CLIENT_ID,
+    "Client-Id": clientId,
     Authorization: `Bearer ${accessToken}`,
   };
   if (body !== undefined) {
@@ -185,13 +184,14 @@ async function helixRequest<T>(args: HelixRequestArgs): Promise<HelixModResult<T
 
 export interface GetUnbanRequestsArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   moderatorId: string;
   status: UnbanRequestStatus;
   userId?: string;
   after?: string;
   fetchImpl?: typeof fetch;
-  clientId?: string;
 }
 
 interface UnbanRequestsEnvelope {
@@ -229,13 +229,14 @@ export async function getUnbanRequests(
 
 export interface ResolveUnbanRequestArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   moderatorId: string;
   unbanRequestId: string;
   status: "approved" | "denied";
   resolutionText?: string;
   fetchImpl?: typeof fetch;
-  clientId?: string;
 }
 
 interface ResolveEnvelope {

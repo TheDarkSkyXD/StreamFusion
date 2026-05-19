@@ -65,6 +65,7 @@ describe("twitch-helix-predictions URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [PREDICTION] } };
     const result = await getPredictions({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
     });
     expect(lastMethod).toBe("GET");
@@ -78,6 +79,7 @@ describe("twitch-helix-predictions URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [PREDICTION] } };
     await createPrediction({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       title: "Will we win?",
       outcomes: [{ title: "Yes" }, { title: "No" }],
@@ -97,6 +99,7 @@ describe("twitch-helix-predictions URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [PREDICTION] } };
     await lockPrediction({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       predictionId: "p1",
     });
@@ -113,6 +116,7 @@ describe("twitch-helix-predictions URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [PREDICTION] } };
     await resolvePrediction({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       predictionId: "p1",
       winningOutcomeId: "o1",
@@ -130,6 +134,7 @@ describe("twitch-helix-predictions URL + method + body", () => {
     nextResponse = { status: 200, body: { data: [PREDICTION] } };
     await cancelPrediction({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       predictionId: "p1",
     });
@@ -146,6 +151,7 @@ describe("twitch-helix-predictions validation", () => {
     expect(() =>
       createPrediction({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "x",
         outcomes: [{ title: "a" }, { title: "b" }],
@@ -155,6 +161,7 @@ describe("twitch-helix-predictions validation", () => {
     expect(() =>
       createPrediction({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "x",
         outcomes: [{ title: "a" }, { title: "b" }],
@@ -167,6 +174,7 @@ describe("twitch-helix-predictions validation", () => {
     expect(() =>
       createPrediction({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "x",
         outcomes: [{ title: "a" }],
@@ -176,6 +184,7 @@ describe("twitch-helix-predictions validation", () => {
     expect(() =>
       createPrediction({
         accessToken: "tok",
+        clientId: "test-client-id",
         broadcasterId: "111",
         title: "x",
         outcomes: [{ title: "a" }, { title: "  " }],
@@ -197,6 +206,7 @@ describe("twitch-helix-predictions error classification", () => {
     };
     const result = await lockPrediction({
       accessToken: "tok",
+      clientId: "test-client-id",
       broadcasterId: "111",
       predictionId: "p1",
     });

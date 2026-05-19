@@ -15,10 +15,6 @@
  * U6 ships the helpers in isolation; U11 wires them into call-sites.
  */
 
-// TODO(streamforge): consolidate the Twitch anonymous Client-Id into a
-// single shared constant once the auth layer exposes one. For now we
-// duplicate the value used by twitch-gql-pin-mutations.ts.
-const HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const HELIX_BASE = "https://api.twitch.tv/helix";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -99,6 +95,7 @@ type QueryDict = Record<string, string | number | undefined>;
 
 interface HelixRequestArgs {
   accessToken: string;
+  clientId: string;
   method: "GET" | "POST" | "DELETE" | "PUT" | "PATCH";
   path: string;
   query?: QueryDict;
@@ -148,11 +145,11 @@ function parseRetryAfter(header: string | null): number | null {
 }
 
 async function helixRequest<T>(args: HelixRequestArgs): Promise<HelixModResult<T>> {
-  const { accessToken, method, path, query, body } = args;
+  const { accessToken, clientId, method, path, query, body } = args;
   const url = buildUrl(path, query);
 
   const headers: Record<string, string> = {
-    "Client-Id": HELIX_CLIENT_ID,
+    "Client-Id": clientId,
     Authorization: `Bearer ${accessToken}`,
   };
   if (body !== undefined) {
@@ -238,6 +235,8 @@ async function helixRequest<T>(args: HelixRequestArgs): Promise<HelixModResult<T
 
 export interface RequestContext {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   moderatorId: string;
 }
@@ -258,6 +257,7 @@ interface BanResponseEnvelope {
 export async function banUser(args: BanUserArgs): Promise<HelixModResult<BanPayload>> {
   const result = await helixRequest<BanResponseEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/moderation/bans",
     query: { broadcaster_id: args.broadcasterId, moderator_id: args.moderatorId },
@@ -299,6 +299,7 @@ export function timeoutUser(
   }
   return helixRequest<BanResponseEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/moderation/bans",
     query: { broadcaster_id: args.broadcasterId, moderator_id: args.moderatorId },
@@ -327,6 +328,7 @@ export interface UnbanUserArgs extends RequestContext {
 export function unbanUser(args: UnbanUserArgs): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "DELETE",
     path: "/moderation/bans",
     query: {
@@ -350,6 +352,7 @@ export function deleteChatMessage(
 ): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "DELETE",
     path: "/moderation/chat",
     query: {
@@ -367,6 +370,7 @@ export function deleteChatMessage(
 export function clearChat(args: RequestContext): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "DELETE",
     path: "/moderation/chat",
     query: {
@@ -393,6 +397,7 @@ export async function setShieldMode(
 ): Promise<HelixModResult<ShieldPayload>> {
   const result = await helixRequest<ShieldEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "PUT",
     path: "/moderation/shield_mode",
     query: { broadcaster_id: args.broadcasterId, moderator_id: args.moderatorId },
@@ -409,6 +414,8 @@ export async function setShieldMode(
 
 export interface StartRaidArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   fromBroadcasterId: string;
   toBroadcasterId: string;
 }
@@ -420,6 +427,7 @@ interface RaidEnvelope {
 export async function startRaid(args: StartRaidArgs): Promise<HelixModResult<RaidPayload>> {
   const result = await helixRequest<RaidEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/raids",
     query: {
@@ -438,6 +446,8 @@ export async function startRaid(args: StartRaidArgs): Promise<HelixModResult<Rai
 
 export interface RunCommercialArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   length: number;
 }
@@ -458,6 +468,7 @@ export function runCommercial(
   }
   return helixRequest<CommercialEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/channels/commercial",
     body: { broadcaster_id: args.broadcasterId, length: args.length },
@@ -503,6 +514,7 @@ export async function updateChatSettings(
   }
   const result = await helixRequest<ChatSettingsEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "PATCH",
     path: "/chat/settings",
     query: { broadcaster_id: args.broadcasterId, moderator_id: args.moderatorId },
@@ -519,6 +531,8 @@ export async function updateChatSettings(
 
 export interface ModeratorMembershipArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   userId: string;
 }
@@ -528,6 +542,7 @@ export function addModerator(
 ): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/moderation/moderators",
     query: { broadcaster_id: args.broadcasterId, user_id: args.userId },
@@ -539,6 +554,7 @@ export function removeModerator(
 ): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "DELETE",
     path: "/moderation/moderators",
     query: { broadcaster_id: args.broadcasterId, user_id: args.userId },
@@ -551,6 +567,8 @@ export function removeModerator(
 
 export interface VipMembershipArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   userId: string;
 }
@@ -558,6 +576,7 @@ export interface VipMembershipArgs {
 export function addVip(args: VipMembershipArgs): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/channels/vips",
     query: { broadcaster_id: args.broadcasterId, user_id: args.userId },
@@ -567,6 +586,7 @@ export function addVip(args: VipMembershipArgs): Promise<HelixModResult<void>> {
 export function removeVip(args: VipMembershipArgs): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "DELETE",
     path: "/channels/vips",
     query: { broadcaster_id: args.broadcasterId, user_id: args.userId },

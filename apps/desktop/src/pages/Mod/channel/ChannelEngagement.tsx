@@ -41,10 +41,11 @@ export function ChannelEngagement({
     setLoading(true);
     try {
       const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-      if (!accessToken) return;
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!accessToken || !clientId) return;
       const [predResult, pollResult] = await Promise.all([
-        withTwitchHelixRetry({ accessToken, broadcasterId }, getPredictions),
-        withTwitchHelixRetry({ accessToken, broadcasterId }, getPolls),
+        withTwitchHelixRetry({ accessToken, clientId, broadcasterId }, getPredictions),
+        withTwitchHelixRetry({ accessToken, clientId, broadcasterId }, getPolls),
       ]);
       setPrediction(
         predResult.ok

@@ -309,15 +309,17 @@ async function fetchPatchFor(
   signal: AbortSignal,
 ): Promise<Partial<RoomState> | null> {
   if (platform === "twitch") {
-    // Helix /chat/settings requires a Bearer token. Fetch a guaranteed-fresh
-    // one (auto-refreshes if expired) and let the retry wrapper handle the
-    // race where the token expires between our fetch and Twitch's check.
+    // Helix /chat/settings requires a Bearer token AND the Client-Id of the
+    // app that minted it — Twitch returns 401 if they don't match. The
+    // VITE_-prefixed copy of TWITCH_CLIENT_ID is the only client_id the
+    // renderer can read; without it we can't make a well-formed Helix call.
     const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-    if (!accessToken) {
+    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+    if (!accessToken || !clientId) {
       return null;
     }
     const result = await withTwitchHelixRetry(
-      { accessToken, broadcasterId: channelId, signal },
+      { accessToken, clientId, broadcasterId: channelId, signal },
       getChatSettings,
     );
     if (!result.ok) {

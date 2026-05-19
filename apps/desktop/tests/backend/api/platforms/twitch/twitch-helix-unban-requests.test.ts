@@ -43,6 +43,7 @@ afterEach(() => {
 
 const BASE = {
   accessToken: "tok-1",
+  clientId: "test-client-id",
   broadcasterId: "111",
   moderatorId: "222",
 } as const;

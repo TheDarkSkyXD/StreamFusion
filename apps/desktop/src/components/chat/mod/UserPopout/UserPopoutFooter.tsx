@@ -102,7 +102,8 @@ export function UserPopoutFooter({
     try {
       if (platform === "twitch") {
         const token = await window.electronAPI.auth.getToken("twitch");
-        if (!token?.accessToken) {
+        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+        if (!token?.accessToken || !clientId) {
           toast.error("Sign in to Twitch to take this action");
           return;
         }
@@ -112,6 +113,7 @@ export function UserPopoutFooter({
         // `isBroadcaster=true`, so we can safely use channelId as moderatorId.
         const ctx = {
           accessToken: token.accessToken,
+          clientId,
           broadcasterId: channelId,
           moderatorId: channelId,
         };
@@ -173,6 +175,7 @@ export function UserPopoutFooter({
           case "addMod": {
             const r = await addModerator({
               accessToken: token.accessToken,
+              clientId,
               broadcasterId: channelId,
               userId,
             });
@@ -188,6 +191,7 @@ export function UserPopoutFooter({
           case "removeMod": {
             const r = await removeModerator({
               accessToken: token.accessToken,
+              clientId,
               broadcasterId: channelId,
               userId,
             });
@@ -203,6 +207,7 @@ export function UserPopoutFooter({
           case "addVip": {
             const r = await addVip({
               accessToken: token.accessToken,
+              clientId,
               broadcasterId: channelId,
               userId,
             });
@@ -218,6 +223,7 @@ export function UserPopoutFooter({
           case "removeVip": {
             const r = await removeVip({
               accessToken: token.accessToken,
+              clientId,
               broadcasterId: channelId,
               userId,
             });

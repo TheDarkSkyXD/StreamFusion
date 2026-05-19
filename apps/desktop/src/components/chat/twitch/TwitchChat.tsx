@@ -947,12 +947,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                 if (!pendingModAction) return;
                 const runMessageAction = async (
                   accessToken: string,
+                  clientId: string,
                 ): Promise<HelixModResult<unknown>> => {
                   if (action.kind !== "messageScoped") {
                     throw new Error("unreachable");
                   }
                   const ctx = {
                     accessToken,
+                    clientId,
                     broadcasterId: channelId,
                     moderatorId: twitchUser.id,
                   };
@@ -981,9 +983,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
                 const runStripAction = async (
                   accessToken: string,
+                  clientId: string,
                 ): Promise<HelixModResult<unknown>> => {
                   const ctx = {
                     accessToken,
+                    clientId,
                     broadcasterId: channelId,
                     moderatorId: twitchUser.id,
                   };
@@ -1002,6 +1006,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                         }
                         return startRaid({
                           accessToken,
+                          clientId,
                           fromBroadcasterId: channelId,
                           toBroadcasterId: target.broadcasterId,
                         });
@@ -1009,6 +1014,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                       case "commercial":
                         return runCommercial({
                           accessToken,
+                          clientId,
                           broadcasterId: channelId,
                           length: 60,
                         });
@@ -1079,12 +1085,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                 setModActionBusy(true);
                 try {
                   const token = await window.electronAPI.auth.getToken("twitch");
-                  if (!token?.accessToken) {
+                  const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                  if (!token?.accessToken || !clientId) {
                     setPendingModAction(null);
                     toast.error("Sign in to Twitch to take this action");
                     return;
                   }
-                  const result = await runAction(token.accessToken);
+                  const result = await runAction(token.accessToken, clientId);
                   if (result.ok) {
                     // Optimistic room-state writeback so the strip flips its
                     // toggles immediately. The Helix call has already
@@ -1159,8 +1166,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                       missingScopes: result.missingScopes,
                       onReconnected: async () => {
                         const fresh = await window.electronAPI.auth.getToken("twitch");
-                        if (!fresh?.accessToken) return;
-                        const retry = await runAction(fresh.accessToken);
+                        const freshClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                        if (!fresh?.accessToken || !freshClientId) return;
+                        const retry = await runAction(fresh.accessToken, freshClientId);
                         if (retry.ok) toast.success("Action completed");
                         else
                           toast.error("Action still failed after reconnect", {

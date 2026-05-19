@@ -40,7 +40,11 @@ describe("getChatSettings", () => {
     };
     globalThis.fetch = mockFetchResponse({ status: 200, body: { data: [payload] } });
 
-    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
+    const result = await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "tk",
+      clientId: "test-client-id",
+    });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.payload.broadcaster_id).toBe("12345");
@@ -60,7 +64,11 @@ describe("getChatSettings", () => {
     };
     globalThis.fetch = mockFetchResponse({ status: 200, body: { data: [payload] } });
 
-    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
+    const result = await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "tk",
+      clientId: "test-client-id",
+    });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.payload.non_moderator_chat_delay).toBeUndefined();
@@ -73,7 +81,11 @@ describe("getChatSettings", () => {
       body: { error: "Unauthorized", status: 401, message: "Token expired" },
     });
 
-    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
+    const result = await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "tk",
+      clientId: "test-client-id",
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.kind).toBe("unauthorized");
@@ -86,7 +98,11 @@ describe("getChatSettings", () => {
       status: 404,
       body: { error: "Not Found", status: 404, message: "Unknown broadcaster" },
     });
-    const result = await getChatSettings({ broadcasterId: "not-real", accessToken: "tk" });
+    const result = await getChatSettings({
+      broadcasterId: "not-real",
+      accessToken: "tk",
+      clientId: "test-client-id",
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe("not-found");
   });
@@ -96,14 +112,22 @@ describe("getChatSettings", () => {
       status: 429,
       body: { error: "Too Many Requests", status: 429, message: "Slow down" },
     });
-    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
+    const result = await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "tk",
+      clientId: "test-client-id",
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe("rate-limited");
   });
 
   it("empty data array returns network failure (not silent success)", async () => {
     globalThis.fetch = mockFetchResponse({ status: 200, body: { data: [] } });
-    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
+    const result = await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "tk",
+      clientId: "test-client-id",
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe("network");
   });
@@ -112,7 +136,11 @@ describe("getChatSettings", () => {
     globalThis.fetch = vi.fn(async () => {
       throw new TypeError("fetch failed");
     }) as unknown as typeof globalThis.fetch;
-    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
+    const result = await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "tk",
+      clientId: "test-client-id",
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.kind).toBe("network");
@@ -120,7 +148,11 @@ describe("getChatSettings", () => {
     }
   });
 
-  it("sends Bearer authorization with the supplied access token", async () => {
+  it("sends the caller-supplied Client-Id (NOT a hardcoded constant)", async () => {
+    // Twitch Helix rejects with 401 when the request's Client-Id header
+    // doesn't match the access token's owning client_id. The caller must
+    // pass the same client_id that minted the token. This test pins the
+    // header to the arg to prevent regressing to a hardcoded value.
     const fetchSpy = vi.fn(async () => {
       return new Response(JSON.stringify({ data: [{ broadcaster_id: "12345" }] }), {
         status: 200,
@@ -128,13 +160,17 @@ describe("getChatSettings", () => {
     }) as unknown as typeof globalThis.fetch;
     globalThis.fetch = fetchSpy;
 
-    await getChatSettings({ broadcasterId: "12345", accessToken: "ABC123" });
+    await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "ABC123",
+      clientId: "my-app-client-id",
+    });
 
     const mock = fetchSpy as unknown as { mock: { calls: unknown[][] } };
     const [, init] = mock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer ABC123");
-    expect(headers["Client-Id"]).toBeTruthy();
+    expect(headers["Client-Id"]).toBe("my-app-client-id");
   });
 
   it("respects an external AbortSignal (caller-initiated abort)", async () => {
@@ -154,6 +190,7 @@ describe("getChatSettings", () => {
     const result = await getChatSettings({
       broadcasterId: "12345",
       accessToken: "tk",
+      clientId: "test-client-id",
       signal: ac.signal,
     });
     expect(result.ok).toBe(false);

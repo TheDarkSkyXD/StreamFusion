@@ -73,12 +73,13 @@ export function ChannelModeratorsTable({
     setError(null);
     try {
       const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-      if (!accessToken) {
-        setError("Missing Twitch token.");
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!accessToken || !clientId) {
+        setError("Missing Twitch credentials.");
         return;
       }
       const result = await withTwitchHelixRetry(
-        { accessToken, broadcasterId },
+        { accessToken, clientId, broadcasterId },
         getModerators,
       );
       if (!result.ok) {
@@ -117,6 +118,7 @@ export function ChannelModeratorsTable({
       }
       const result = await addModerator({
         accessToken: token.accessToken,
+        clientId,
         broadcasterId,
         userId: resolved.id,
       });
@@ -143,12 +145,14 @@ export function ChannelModeratorsTable({
     setRemoving((prev) => new Map(prev).set(row.user_id, true));
     try {
       const token = await window.electronAPI.auth.getToken("twitch");
-      if (!token?.accessToken) {
-        toast.error("Couldn't remove moderator — missing Twitch token");
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!token?.accessToken || !clientId) {
+        toast.error("Couldn't remove moderator — missing Twitch credentials");
         return;
       }
       const result = await removeModerator({
         accessToken: token.accessToken,
+        clientId,
         broadcasterId,
         userId: row.user_id,
       });

@@ -202,12 +202,15 @@ describe('TwitchChat', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /^Ban user$/ }));
     await waitFor(() => expect(banUserMock).toHaveBeenCalledTimes(1));
-    expect(banUserMock).toHaveBeenCalledWith({
-      accessToken: 'tok',
-      broadcasterId: 'ninja-id',
-      moderatorId: 'mod-1',
-      userId: 'user-99',
-    });
+    expect(banUserMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'tok',
+        broadcasterId: 'ninja-id',
+        moderatorId: 'mod-1',
+        userId: 'user-99',
+        clientId: expect.any(String),
+      }),
+    );
   });
 
   it('A missing-scopes result fires promptReconnect with the listed scopes', async () => {

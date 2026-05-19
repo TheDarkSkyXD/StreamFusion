@@ -41,7 +41,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const CTX = { accessToken: "tok-1", broadcasterId: "111" };
+const CTX = { accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111" };
 
 describe("getModerators", () => {
   it("GETs /moderation/moderators?broadcaster_id=&first=100", async () => {

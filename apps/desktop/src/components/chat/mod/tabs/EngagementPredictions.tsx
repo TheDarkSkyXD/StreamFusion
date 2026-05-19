@@ -73,9 +73,10 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
 
   const fetcher = useCallback(async (): Promise<PredictionsListPayload | null> => {
     const accessToken = await getToken();
-    if (!accessToken) return null;
+    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+    if (!accessToken || !clientId) return null;
     const result = await withTwitchHelixRetry(
-      { accessToken, broadcasterId: channelId },
+      { accessToken, clientId, broadcasterId: channelId },
       getPredictions,
     );
     if (!result.ok) {
@@ -110,14 +111,15 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
   const moderatorUsername = twitchUser?.login ?? "";
 
   async function withMissingScopeHandling<T>(
-    run: (token: string) => Promise<HelixModResult<T>>,
+    run: (token: string, clientId: string) => Promise<HelixModResult<T>>,
   ): Promise<HelixModResult<T> | null> {
     const accessToken = await getToken();
-    if (!accessToken) {
+    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+    if (!accessToken || !clientId) {
       toast.error("Sign in to Twitch to take this action");
       return null;
     }
-    return run(accessToken);
+    return run(accessToken, clientId);
   }
 
   const handleCreate = async () => {
@@ -135,9 +137,10 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
     }
     setBusy(true);
     try {
-      const result = await withMissingScopeHandling((t) =>
+      const result = await withMissingScopeHandling((t, cid) =>
         createPrediction({
           accessToken: t,
+          clientId: cid,
           broadcasterId: channelId,
           title,
           outcomes: cleanedOutcomes.map((o) => ({ title: o })),
@@ -179,27 +182,30 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
 
       if (pending.kind === "lock") {
         logAction = "prediction-lock";
-        result = await withMissingScopeHandling((t) =>
+        result = await withMissingScopeHandling((t, cid) =>
           lockPrediction({
             accessToken: t,
+            clientId: cid,
             broadcasterId: channelId,
             predictionId: current.id,
           }),
         );
       } else if (pending.kind === "cancel") {
         logAction = "prediction-cancel";
-        result = await withMissingScopeHandling((t) =>
+        result = await withMissingScopeHandling((t, cid) =>
           cancelPrediction({
             accessToken: t,
+            clientId: cid,
             broadcasterId: channelId,
             predictionId: current.id,
           }),
         );
       } else {
         logAction = "prediction-resolve";
-        result = await withMissingScopeHandling((t) =>
+        result = await withMissingScopeHandling((t, cid) =>
           resolvePrediction({
             accessToken: t,
+            clientId: cid,
             broadcasterId: channelId,
             predictionId: current.id,
             winningOutcomeId: pending.outcomeId,

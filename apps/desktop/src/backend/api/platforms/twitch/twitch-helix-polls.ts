@@ -13,7 +13,6 @@ import type { HelixModResult } from "./twitch-helix-moderation-mutations";
 
 export type { HelixModResult };
 
-const HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const HELIX_BASE = "https://api.twitch.tv/helix";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -74,6 +73,7 @@ type QueryDict = Record<string, string | number | undefined>;
 
 interface HelixRequestArgs {
   accessToken: string;
+  clientId: string;
   method: "GET" | "POST" | "DELETE" | "PUT" | "PATCH";
   path: string;
   query?: QueryDict;
@@ -123,11 +123,11 @@ function parseRetryAfter(header: string | null): number | null {
 async function helixPollsRequest<T>(
   args: HelixRequestArgs,
 ): Promise<HelixModResult<T>> {
-  const { accessToken, method, path, query, body } = args;
+  const { accessToken, clientId, method, path, query, body } = args;
   const url = buildUrl(path, query);
 
   const headers: Record<string, string> = {
-    "Client-Id": HELIX_CLIENT_ID,
+    "Client-Id": clientId,
     Authorization: `Bearer ${accessToken}`,
   };
   if (body !== undefined) {
@@ -198,6 +198,8 @@ async function helixPollsRequest<T>(
 
 export interface GetPollsArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
 }
 
@@ -206,6 +208,7 @@ export function getPolls(
 ): Promise<HelixModResult<PollsListPayload>> {
   return helixPollsRequest<PollsListPayload>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "GET",
     path: "/polls",
     query: { broadcaster_id: args.broadcasterId },
@@ -218,6 +221,8 @@ export function getPolls(
 
 export interface CreatePollArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   title: string;
   choices: Array<{ title: string }>;
@@ -315,6 +320,7 @@ export function createPoll(
 
   return helixPollsRequest<PollEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "POST",
     path: "/polls",
     body,
@@ -331,6 +337,8 @@ export function createPoll(
 
 export interface TerminatePollArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   pollId: string;
 }
@@ -340,6 +348,7 @@ export async function terminatePoll(
 ): Promise<HelixModResult<PollPayload>> {
   const result = await helixPollsRequest<PollEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "PATCH",
     path: "/polls",
     body: {
@@ -359,6 +368,8 @@ export async function terminatePoll(
 
 export interface ArchivePollArgs {
   accessToken: string;
+  /** Must match the client_id that minted `accessToken`. */
+  clientId: string;
   broadcasterId: string;
   pollId: string;
 }
@@ -368,6 +379,7 @@ export async function archivePoll(
 ): Promise<HelixModResult<PollPayload>> {
   const result = await helixPollsRequest<PollEnvelope>({
     accessToken: args.accessToken,
+    clientId: args.clientId,
     method: "PATCH",
     path: "/polls",
     body: {
