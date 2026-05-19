@@ -16,7 +16,7 @@
  * writes here are async IPC round-trips.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import type { RetentionScope } from "@/shared/mod-log-types";
@@ -129,9 +129,11 @@ function RetentionCard({ scope, title }: RetentionCardProps) {
 }
 
 export function PerChannelSettings() {
-  const channelIds = useModeratedChannelsStore((s) =>
-    Array.from(s.twitchModeratedChannelIds),
-  );
+  // Subscribe to the Set reference directly so Zustand's strict-equality
+  // check stays stable across renders; derive the array via useMemo so the
+  // mapping below gets a stable list identity until the Set actually changes.
+  const channelIdSet = useModeratedChannelsStore((s) => s.twitchModeratedChannelIds);
+  const channelIds = useMemo(() => Array.from(channelIdSet), [channelIdSet]);
 
   return (
     <section data-testid="per-channel-settings">
