@@ -75,11 +75,44 @@ Operation names confirmed to fire on channel load (no Prediction-named op among 
 
 **Conclusion:** finding the prediction-read operation requires being on a channel WITH an active prediction at the moment of capture. The probability of any random channel having one at any random moment is genuinely low (predictions are 5–10 minute windows, intermittent). Autonomous channel-shopping is high-cost / low-yield.
 
-## Concrete unblock path
+## Third-pass research — the answer is "no public path exists" (added 2026-05-18)
 
-When ANY of these become observable to a real browser session, the capture happens immediately:
-1. A streamer the user follows starts a prediction (chat will announce it) — pivot to that channel.
-2. The StreamForge sidebar / chat in the running app surfaces a Twitch prediction event from any followed channel (current Helix-polled `EngagementPredictions.tsx` mod console fires for the user's own channel; chat /predict announcements from other channels remain unparsed).
-3. Browse `https://predictiontracker.com/active` (community site) or the `#PredictionAlerts` Discord-equivalent to find a currently-live prediction channel by direct lookup.
+Dispatched a focused web researcher to check Twitch dev docs, third-party client source code (Chatterino, Frosty, Xtra, DankChat), and Twitch developer forums. Authoritative findings:
 
-Once captured, the discovery doc can be amended with the actual operation name, persisted hash, and response shape — and U2 implementation begins immediately against the confirmed contract.
+- **EventSub `channel.prediction.*` is architecturally broadcaster-gated by design.** The `channel:read:predictions` and `channel:manage:predictions` scopes authorize the token owner's own channel only — a viewer cannot self-authorize to read another broadcaster's predictions. Confirmed by Twitch staff in the [2021 announcement thread](https://discuss.dev.twitch.com/t/announcing-apis-and-eventsub-for-polls-and-predictions/31539) ("only the broadcaster can use it, not their mods") and the [current EventSub subscription types docs](https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/). This has not changed.
+- **Helix `GET /helix/predictions` has the same scope constraint** — polling not viable for viewers on other channels.
+- **Chatterino2 (the most active third-party Twitch client) does NOT have a viewer-side prediction read path.** Their PubSubManager (`src/providers/twitch/PubSubManager.cpp`) subscribes ONLY to `community-points-channel-v1.*` — no prediction topic. Their CHANGELOG documents prediction commands (`/prediction`, `/lockprediction`, `/completeprediction`, `/cancelprediction`) added in 2.5.5-beta.1 — all broadcaster-only. **If Chatterino doesn't have a viewer-side read path, the path doesn't exist publicly.**
+- **Xtra (`AndreyAsadchy/Xtra`) was archived October 2022.** It's not a current reference — its PubSub-based prediction reader hasn't been maintained since long before the PubSub shutdown. References to Xtra as a "post-PubSub" path were stale.
+- **PubSub shutdown date correction:** the shutdown happened **2025-04-14, not 2026-04-14** as the plan and earlier discovery doc state. The earlier external research agent appears to have misread the date in the Twitch forum thread. Either way: PubSub is gone, and the conclusion holds.
+- **twitch.tv's own web client almost certainly uses an internal authenticated WebSocket channel** (Hermes WebSocket — `wss://hermes.twitch.tv/v1`) that's not exposed to third parties. It receives a push when a prediction starts, then fires a reactive GQL read. Third-party clients without Hermes subscription have no trigger.
+
+**Conclusion: viewer-side prediction READ on Twitch is not feasible through any public documented API for broadcasters the viewer doesn't own.** The brainstorm's premise that we could ship a "Twitch viewer-side prediction widget" was based on an outdated understanding of the post-PubSub landscape. The Adversarial P0-1 finding in the plan was correct: this query may not exist, and the research confirms it.
+
+## What this means for the plan
+
+The Twitch side of this feature has three remaining options, each with significant scope changes from the brainstorm:
+
+1. **Own-channel-only via EventSub** — the broadcaster authorizes `channel:read:predictions` on their own token, EventSub WebSocket subscribes to `channel.prediction.*`. Works ONLY when the signed-in user IS the broadcaster of the channel being viewed (i.e., dev / QA / self-testing). Doesn't help viewers watching other channels. This was already in the original plan's `Deferred to Follow-Up Work` as a hybrid option.
+2. **Rip Twitch viewer widget from this plan entirely.** Ship Kick-only (where empirical Pusher capture is still viable). Acknowledge that no third-party Twitch client offers viewer-side prediction reads today.
+3. **Reverse-engineer twitch.tv's internal Hermes WebSocket and persisted GQL hashes.** Technically feasible from Electron (we can intercept the renderer's WebSocket frames if we load twitch.tv directly). But: persisted GQL hashes rotate (Twitch has changed `MakePrediction` once on 2025-11-11), Hermes is undocumented and subject to breakage, and this approach is in the gray zone of Twitch ToS. Other unofficial clients accept this risk; we'd be doing the same.
+
+Whichever option is picked, U3 (`MakePrediction` mutation) inherits the same constraints — if the user can't read the prediction, voting on it is moot.
+
+## Sources (verified)
+
+- [EventSub Subscription Types — dev.twitch.tv](https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/) — scope requirement
+- [Legacy PubSub Deprecation Thread](https://discuss.dev.twitch.com/t/legacy-pubsub-deprecation-and-shutdown-timeline/58043) — shutdown timeline (2025-04-14)
+- [Announcing APIs and EventSub for Polls and Predictions](https://discuss.dev.twitch.com/t/announcing-apis-and-eventsub-for-polls-and-predictions/31539) — broadcaster-only confirmation
+- [Prediction API — dev.twitch.tv](https://dev.twitch.tv/docs/api/predictions) — Helix endpoint scope
+- [chatterino2 CHANGELOG](https://github.com/Chatterino/chatterino2/blob/master/CHANGELOG.md) — EventSub migration history
+- [chatterino2 PubSubManager.cpp](https://github.com/Chatterino/chatterino2/blob/master/src/providers/twitch/PubSubManager.cpp) — no prediction topic
+- [AndreyAsadchy/Xtra](https://github.com/AndreyAsadchy/Xtra) — archived October 2022
+
+## Kick: no public docs either, but Pusher capture is still feasible
+
+- [KickEngineering/KickDevDocs](https://github.com/KickEngineering/KickDevDocs) — last updated Feb 2025, no prediction endpoints documented
+- [Bukk94/KickLib](https://github.com/Bukk94/KickLib) — no prediction classes
+- [fb-sean/kick-website-endpoints](https://github.com/fb-sean/kick-website-endpoints) — references Pusher events gist but no prediction event names listed
+- Documented `App\Events\PollUpdateEvent` suggests an analogous `App\Events\PredictionUpdateEvent` (or similar) likely exists, but the schema is unknown until empirical capture from a live kick.com session with an active prediction.
+
+Kick stays empirically capturable — U4 / U5 are still actionable when a Kick prediction is active. Twitch is the platform that needs the scope decision.
