@@ -582,30 +582,66 @@ const PanelHeader: React.FC<{
       type="button"
       onClick={onCollapse}
       aria-label="Collapse prediction panel"
-      className="text-[12px] text-zinc-500 hover:text-white"
+      className="flex h-8 w-8 items-center justify-center rounded text-[20px] leading-none text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
     >
-      ←
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
     </button>
-    <h3 className="text-[12px] font-semibold text-white">{title}</h3>
+    <h3 className="text-[13px] font-semibold text-white">{title}</h3>
     {onDismiss ? (
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss prediction"
         title="Dismiss"
-        className="rounded p-1 text-zinc-500 hover:bg-white/5 hover:text-white"
+        className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
         data-testid="prediction-dismiss-expanded"
       >
-        ✕
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
       </button>
     ) : (
       <button
         type="button"
         onClick={onCollapse}
         aria-label="Close prediction panel"
-        className="text-[12px] text-zinc-500 hover:text-white"
+        className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
       >
-        ✕
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
       </button>
     )}
   </header>
