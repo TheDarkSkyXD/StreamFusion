@@ -88,3 +88,103 @@ describe("auth-store logoutTwitch — follow-cache cleanup", () => {
     expect(useAuthStore.getState().twitchUser).toBeNull();
   });
 });
+
+describe("auth-store session-expired listeners — follow-cache cleanup", () => {
+  // Capture the listener callbacks registered inside initializeAuth so we can
+  // trigger them as the main process would. The auth IPC surface is intentionally
+  // stubbed minimal — initializeAuth only reaches as far as the listener wiring
+  // when status calls resolve, so we wire stable fakes for everything it touches.
+  function makeAuthApiCapture() {
+    let twitchAuthLostCb: (() => void) | null = null;
+    let kickSessionExpiredCb: (() => void) | null = null;
+    const api = {
+      auth: {
+        getStatus: vi.fn(async () => ({
+          twitch: { connected: false, user: null, hasToken: false, isExpired: false },
+          kick: { connected: false, user: null, hasToken: false, isExpired: false },
+          isGuest: true,
+        })),
+        refreshTwitchToken: vi.fn(async () => ({ success: true })),
+        refreshKickToken: vi.fn(async () => ({ success: true })),
+        clearToken: vi.fn(async () => {}),
+        clearTwitchUser: vi.fn(async () => {}),
+        clearKickUser: vi.fn(async () => {}),
+        onTwitchAuthLost: vi.fn((cb: () => void) => {
+          twitchAuthLostCb = cb;
+        }),
+        onKickSessionExpired: vi.fn((cb: () => void) => {
+          kickSessionExpiredCb = cb;
+        }),
+      },
+      follows: { getAll: vi.fn(async () => []) },
+      preferences: { get: vi.fn(async () => ({})) },
+    };
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: api,
+    });
+    return {
+      triggerTwitchAuthLost: () => {
+        if (!twitchAuthLostCb) throw new Error("onTwitchAuthLost not registered");
+        twitchAuthLostCb();
+      },
+      triggerKickSessionExpired: () => {
+        if (!kickSessionExpiredCb) throw new Error("onKickSessionExpired not registered");
+        kickSessionExpiredCb();
+      },
+    };
+  }
+
+  it("Twitch session expired fires the same cache cleanup as explicit logout", async () => {
+    const ctl = makeAuthApiCapture();
+    await useAuthStore.getState().initializeAuth();
+
+    ctl.triggerTwitchAuthLost();
+
+    expect(removeQueriesSpy).toHaveBeenCalledWith({
+      queryKey: CHANNEL_KEYS.followed("twitch"),
+    });
+    expect(removeQueriesSpy).toHaveBeenCalledWith({
+      queryKey: STREAM_KEYS.followed(),
+    });
+    expect(followStoreHydrateSpy).toHaveBeenCalled();
+  });
+
+  it("Twitch session expired keeps twitchUser for the reconnect affordance", async () => {
+    const ctl = makeAuthApiCapture();
+    // Seed a user before initialize so we can check the listener preserves it
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchUser: { id: "u1", login: "u", displayName: "U" } as never,
+      twitchConnected: true,
+    });
+    await useAuthStore.getState().initializeAuth();
+    // initializeAuth syncs from getStatus which returns no user; seed again
+    useAuthStore.setState({
+      twitchUser: { id: "u1", login: "u", displayName: "U" } as never,
+      twitchConnected: true,
+    });
+
+    ctl.triggerTwitchAuthLost();
+
+    expect(useAuthStore.getState().twitchUser).not.toBeNull();
+    expect(useAuthStore.getState().twitchConnected).toBe(false);
+    expect(useAuthStore.getState().twitchReconnectRequired).toBe(true);
+  });
+
+  it("Kick session expired fires cache cleanup for kick", async () => {
+    const ctl = makeAuthApiCapture();
+    await useAuthStore.getState().initializeAuth();
+
+    ctl.triggerKickSessionExpired();
+
+    expect(removeQueriesSpy).toHaveBeenCalledWith({
+      queryKey: CHANNEL_KEYS.followed("kick"),
+    });
+    expect(removeQueriesSpy).toHaveBeenCalledWith({
+      queryKey: STREAM_KEYS.followed(),
+    });
+    expect(followStoreHydrateSpy).toHaveBeenCalled();
+  });
+});

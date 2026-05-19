@@ -312,6 +312,16 @@ class StorageService {
   }
 
   /**
+   * Get only guest-source follows for a platform. Used by the
+   * "no live token" branch in FOLLOWS_GET_ALL so a session that
+   * died silently doesn't keep returning the now-revoked account's
+   * synced follows.
+   */
+  getGuestFollowsByPlatform(platform: Platform): LocalFollow[] {
+    return dbService.getFollowsByPlatformAndSource(platform, "guest");
+  }
+
+  /**
    * Add a local follow (guest source by default)
    */
   addLocalFollow(

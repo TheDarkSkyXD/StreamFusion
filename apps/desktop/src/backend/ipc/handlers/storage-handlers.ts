@@ -22,17 +22,27 @@ export function registerStorageHandlers(): void {
   });
 
   // ========== Local Follows ==========
+  // Account-source rows linger in the DB after a session ends silently
+  // (token revoked at runtime — onTwitchAuthLost / onKickSessionExpired
+  // path doesn't call clearAccountFollows). Treat "no token in storage"
+  // as the source-of-truth for "this platform is not connected" and fall
+  // back to guest follows so a hydrate() during degraded mode doesn't
+  // return the now-revoked account's follows.
+  const activeFollows = (platform: Platform) => {
+    if (!storageService.hasToken(platform)) {
+      return storageService.getGuestFollowsByPlatform(platform);
+    }
+    return storageService.getActiveFollowsByPlatform(platform);
+  };
+
   ipcMain.handle(IPC_CHANNELS.FOLLOWS_GET_ALL, () => {
-    // Return the active follows: account follows if logged in, guest follows if not
-    const twitch = storageService.getActiveFollowsByPlatform("twitch");
-    const kick = storageService.getActiveFollowsByPlatform("kick");
-    return [...twitch, ...kick];
+    return [...activeFollows("twitch"), ...activeFollows("kick")];
   });
 
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_GET_BY_PLATFORM,
     (_event, { platform }: { platform: Platform }) => {
-      return storageService.getActiveFollowsByPlatform(platform);
+      return activeFollows(platform);
     }
   );
 

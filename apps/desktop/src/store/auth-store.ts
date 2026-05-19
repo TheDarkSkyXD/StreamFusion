@@ -205,6 +205,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // The listener is intentionally never unregistered — it lives for the app lifetime.
       window.electronAPI.auth.onKickSessionExpired(() => {
         console.warn("⚠️ Kick session expired at runtime — clearing state");
+        queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("kick") });
+        queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+        void useFollowStore.getState().hydrate();
         set({
           kickUser: null,
           kickConnected: false,
@@ -225,6 +228,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // event arrives; we just sync the UI.
       window.electronAPI.auth.onTwitchAuthLost(() => {
         console.warn("⚠️ Twitch session expired at runtime — entering reconnect-required mode");
+        // Drop renderer-side follow caches the same way explicit logout does;
+        // the storage-handlers `activeFollows` fallback (no-token → guest
+        // follows) means hydrate() now returns guest data instead of the
+        // synced account follows that linger in the DB.
+        queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("twitch") });
+        queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+        void useFollowStore.getState().hydrate();
         // Degraded mode: keep twitchUser so the UI can still show the
         // user's identity and a "Reconnect" affordance. twitchConnected
         // flips false so authenticated features (chat send, mod actions,
