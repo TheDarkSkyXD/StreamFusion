@@ -204,6 +204,26 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           },
         });
       });
+
+      // Mirror of the Kick listener above for Twitch. Fires when the main
+      // process's refresh chain dies permanently — either Twitch rejected the
+      // refresh token (invalid_grant from a user de-authorizing the app or
+      // long inactivity) or the transient-failure backoff cap was hit. The
+      // main process has already cleared the stored token by the time this
+      // event arrives; we just sync the UI.
+      window.electronAPI.auth.onTwitchAuthLost(() => {
+        console.warn("⚠️ Twitch session expired at runtime — clearing state");
+        set({
+          twitchUser: null,
+          twitchConnected: false,
+          isGuest: !get().kickUser,
+          error: {
+            code: "TOKEN_EXPIRED",
+            message: "Your Twitch session has expired. Please reconnect your account.",
+            platform: "twitch",
+          },
+        });
+      });
     } catch (error) {
       console.error("Failed to initialize auth:", error);
       set({

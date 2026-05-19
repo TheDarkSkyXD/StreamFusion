@@ -19,7 +19,7 @@ import {
 import { storageService } from "../services/storage-service";
 
 import { getOAuthConfig } from "./oauth-config";
-import { tokenExchangeService } from "./token-exchange";
+import { tokenExchangeService, TokenRefreshError } from "./token-exchange";
 
 // ========== Types ==========
 
@@ -46,11 +46,36 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 // fire immediately instead.
 const MIN_REFRESH_DELAY_MS = 1000;
 
+// Exponential backoff for transient refresh failures (network blip, 5xx,
+// 408, 429). After the fifth consecutive transient failure we give up and
+// treat the chain as broken — at that point the underlying token has
+// expired anyway, so further auto-retries are noise rather than recovery.
+// Delays span ~58 minutes of automatic retries before bailing.
+const TRANSIENT_BACKOFF_MS = [
+  30 * 1000,        // 30s
+  2 * 60 * 1000,    // 2m
+  10 * 60 * 1000,   // 10m
+  45 * 60 * 1000,   // 45m
+];
+const MAX_TRANSIENT_FAILURES = TRANSIENT_BACKOFF_MS.length + 1;
+
 // ========== Twitch Auth Service Class ==========
 
 class TwitchAuthService {
   private readonly platform: Platform = "twitch";
   private refreshTimeoutId: NodeJS.Timeout | null = null;
+  private consecutiveRefreshFailures = 0;
+  private authLostHandler: (() => void) | null = null;
+
+  /**
+   * Register a callback fired exactly once when the refresh chain dies
+   * permanently (invalid_grant from Twitch, or 5 consecutive transient
+   * failures over ~58 minutes of backoff). The renderer subscribes through
+   * IPC and flips the auth-store to a "please reconnect" state.
+   */
+  setAuthLostHandler(handler: () => void): void {
+    this.authLostHandler = handler;
+  }
 
   /**
    * Refresh the access token using the refresh token. Concurrent callers share
@@ -73,6 +98,7 @@ class TwitchAuthService {
 
     if (!currentToken?.refreshToken) {
       console.warn("⚠️ No refresh token available for Twitch");
+      this.invalidateAuth();
       return null;
     }
 
@@ -87,14 +113,82 @@ class TwitchAuthService {
 
       console.debug("✅ Twitch token refreshed successfully");
 
-      // Chain the next proactive refresh against the freshly-rotated expiry.
+      // Successful refresh — reset the transient-failure counter and chain
+      // the next proactive refresh against the freshly-rotated expiry.
+      this.consecutiveRefreshFailures = 0;
       this.scheduleProactiveRefresh();
 
       return newToken;
     } catch (error) {
-      console.error("❌ Twitch token refresh failed:", error);
+      const isTokenRefreshError = error instanceof TokenRefreshError;
+      const permanent = isTokenRefreshError && error.isPermanent();
+
+      if (permanent) {
+        console.error(
+          "❌ Twitch refresh token rejected by Twitch (permanent failure) — clearing stored credentials and prompting re-login.",
+          error,
+        );
+        this.invalidateAuth();
+        return null;
+      }
+
+      this.consecutiveRefreshFailures += 1;
+      if (this.consecutiveRefreshFailures >= MAX_TRANSIENT_FAILURES) {
+        console.error(
+          `❌ Twitch token refresh failed ${this.consecutiveRefreshFailures} consecutive times — giving up and prompting re-login.`,
+          error,
+        );
+        this.invalidateAuth();
+        return null;
+      }
+
+      // Transient failure — schedule a retry with exponential backoff. The
+      // delay index maps directly to (failures - 1).
+      const backoffMs = TRANSIENT_BACKOFF_MS[this.consecutiveRefreshFailures - 1];
+      console.warn(
+        `⚠️ Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}/${MAX_TRANSIENT_FAILURES}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
+        error,
+      );
+      this.scheduleRefreshIn(backoffMs);
       return null;
     }
+  }
+
+  /**
+   * Permanent-failure path: drop the dead token, stop the chain, and tell
+   * the renderer to ask the user to reconnect. Idempotent — re-fires safely
+   * if called twice (handler only invokes once thanks to the null guard).
+   */
+  private invalidateAuth(): void {
+    this.cancelProactiveRefresh();
+    this.consecutiveRefreshFailures = 0;
+    storageService.clearToken(this.platform);
+    storageService.clearTwitchUser();
+    const handler = this.authLostHandler;
+    if (handler) {
+      try {
+        handler();
+      } catch (err) {
+        console.warn("Auth-lost handler threw:", err);
+      }
+    }
+  }
+
+  /**
+   * Schedule a refresh exactly `delayMs` from now. Internal — the public
+   * surface is scheduleProactiveRefresh (which derives the delay from the
+   * stored token's expiry).
+   */
+  private scheduleRefreshIn(delayMs: number): void {
+    if (this.refreshTimeoutId) {
+      clearTimeout(this.refreshTimeoutId);
+    }
+    this.refreshTimeoutId = setTimeout(() => {
+      this.refreshTimeoutId = null;
+      this.refreshToken().catch((err) => {
+        console.warn("Proactive Twitch refresh failed:", err);
+      });
+    }, delayMs);
   }
 
   /**
@@ -108,13 +202,9 @@ class TwitchAuthService {
    * No-ops when there is no stored token (logout path).
    */
   scheduleProactiveRefresh(): void {
-    if (this.refreshTimeoutId) {
-      clearTimeout(this.refreshTimeoutId);
-      this.refreshTimeoutId = null;
-    }
-
     const token = storageService.getToken(this.platform);
     if (!token || !token.expiresAt) {
+      this.cancelProactiveRefresh();
       return;
     }
 
@@ -122,14 +212,7 @@ class TwitchAuthService {
     const fireAt = token.expiresAt - REFRESH_BUFFER_MS;
     const delay = Math.max(MIN_REFRESH_DELAY_MS, fireAt - now);
 
-    this.refreshTimeoutId = setTimeout(() => {
-      this.refreshTimeoutId = null;
-      // Fire and forget — _performRefresh handles its own logging and
-      // schedules the next iteration on success.
-      this.refreshToken().catch((err) => {
-        console.warn("Proactive Twitch refresh failed:", err);
-      });
-    }, delay);
+    this.scheduleRefreshIn(delay);
 
     const minutes = Math.round(delay / 60_000);
     console.debug(
@@ -147,6 +230,7 @@ class TwitchAuthService {
       clearTimeout(this.refreshTimeoutId);
       this.refreshTimeoutId = null;
     }
+    this.consecutiveRefreshFailures = 0;
   }
 
   /**

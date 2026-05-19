@@ -190,6 +190,18 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_REFRESH_TWITCH),
     getValidTwitchToken: (): Promise<string | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_VALID_TWITCH_TOKEN),
+
+    // Fired from the main process when the Twitch refresh chain dies
+    // permanently (Twitch revoked the refresh token, or we hit the
+    // transient-failure backoff cap). The auth-store subscribes and
+    // surfaces a "Reconnect Twitch" error so the user can re-authenticate.
+    onTwitchAuthLost: (callback: () => void): (() => void) => {
+      const handler = (): void => callback();
+      ipcRenderer.on(IPC_CHANNELS.AUTH_TWITCH_AUTH_LOST, handler);
+      return (): void => {
+        ipcRenderer.removeListener(IPC_CHANNELS.AUTH_TWITCH_AUTH_LOST, handler);
+      };
+    },
     fetchTwitchUser: (): Promise<{ success: boolean; user?: TwitchUser; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_FETCH_TWITCH_USER),
 

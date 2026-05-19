@@ -42,6 +42,44 @@ interface TokenError {
   message?: string;
 }
 
+/**
+ * Refresh failures need to be categorized: transient (network, 5xx) should
+ * retry with backoff; permanent (invalid_grant — refresh token revoked or
+ * rotated out, invalid_request, invalid_client) should clear the stored
+ * token and prompt the user to re-authenticate. Callers can branch on
+ * `status` and `code`.
+ */
+export class TokenRefreshError extends Error {
+  readonly status: number | null;
+  readonly code: string | null;
+
+  constructor(message: string, status: number | null, code: string | null) {
+    super(message);
+    this.name = "TokenRefreshError";
+    this.status = status;
+    this.code = code;
+  }
+
+  /**
+   * Permanent failures (won't succeed if retried). Covers OAuth-spec error
+   * codes for which retry is futile, plus 4xx statuses other than 408/429.
+   */
+  isPermanent(): boolean {
+    if (this.code === "invalid_grant") return true;
+    if (this.code === "invalid_request") return true;
+    if (this.code === "invalid_client") return true;
+    if (this.code === "unauthorized_client") return true;
+    if (this.code === "unsupported_grant_type") return true;
+    if (this.status === null) return false;
+    // 4xx (except request timeout / rate-limit) — permanent
+    if (this.status >= 400 && this.status < 500) {
+      if (this.status === 408 || this.status === 429) return false;
+      return true;
+    }
+    return false;
+  }
+}
+
 // ========== Token Exchange Class ==========
 
 class TokenExchangeService {
@@ -174,7 +212,7 @@ class TokenExchangeService {
           response.status,
           errorMessage
         );
-        throw new Error(errorMessage);
+        throw new TokenRefreshError(errorMessage, response.status, errorData.error ?? null);
       }
 
       const data = (await response.json()) as TokenResponse;

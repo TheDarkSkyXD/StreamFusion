@@ -388,6 +388,14 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     return await twitchAuthService.getValidAccessToken();
   });
 
+  // Wire the auth-lost signal. Fires when the refresh chain dies permanently —
+  // Twitch rejected the refresh token (invalid_grant), or we exhausted the
+  // transient-failure budget. The renderer listens via onTwitchAuthLost and
+  // flips the auth-store to a "reconnect required" state.
+  twitchAuthService.setAuthLostHandler(() => {
+    safeSend(IPC_CHANNELS.AUTH_TWITCH_AUTH_LOST);
+  });
+
   // Handle fetching Twitch user info
   ipcMain.handle(IPC_CHANNELS.AUTH_FETCH_TWITCH_USER, async () => {
     console.debug("👤 Fetching Twitch user info...");
