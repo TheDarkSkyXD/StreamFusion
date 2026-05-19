@@ -13,7 +13,6 @@ export type { ChatPanelProps } from "./ChatPanel";
 export { ChatPanel } from "./ChatPanel";
 export { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
 export { EmoteImage } from "./EmoteImage";
-export { EmotePicker } from "./EmotePicker";
 export type { RecentChatter } from "./MentionAutocomplete";
 export { MentionAutocomplete, useMentionAutocomplete } from "./MentionAutocomplete";
 export { Username } from "./Username";
