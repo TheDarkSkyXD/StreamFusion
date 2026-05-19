@@ -492,13 +492,6 @@ const EndedPanel: React.FC<{
         )}
       </div>
 
-      {winner && winner.topPredictors && winner.topPredictors.length > 0 && (
-        <PayoutLine
-          winner={winner}
-          others={winner.topPredictors.length - 1}
-          platform={prediction.platform}
-        />
-      )}
     </div>
   );
 };
@@ -681,34 +674,6 @@ const StatIcon: React.FC<{ icon: "clock" | "trophy" | "users" | "chart"; color: 
       <line x1="12" y1="20" x2="12" y2="4" />
       <line x1="6" y1="20" x2="6" y2="14" />
     </svg>
-  );
-};
-
-const PayoutLine: React.FC<{
-  winner: UnifiedPredictionOutcome;
-  others: number;
-  platform: "twitch" | "kick";
-}> = ({ winner, others, platform: _platform }) => {
-  const top = winner.topPredictors?.[0];
-  if (!top) return null;
-  // No leading icon — Twitch's payout line uses the channel's custom
-  // channel-points image, which we don't have access to without fetching
-  // `ChannelPointsContext.communityPointsSettings.image.url` per-channel
-  // separately. Cleaner to render plain text than a generic placeholder.
-  return (
-    <div className="text-center text-[12px] text-zinc-400">
-      <span className="leading-snug">
-        <span className="font-semibold text-white">{winner.totalAmount.toLocaleString()}</span>{" "}
-        go to <span className="text-white">{top.userName}</span>
-        {others > 0 && (
-          <>
-            {" and "}
-            <span className="text-white">{others}</span>
-            {" others"}
-          </>
-        )}
-      </span>
-    </div>
   );
 };
 
