@@ -64,3 +64,22 @@ When the user has an active-prediction Twitch channel open in the StreamForge ap
 ## Recommended next step
 
 User navigates twitch.tv directly (in a regular browser, NOT the StreamForge app) to an active-prediction channel. Captures DevTools Network tab traffic through one full prediction lifecycle. Pastes findings here. The plan's investigation-first execution note on U2 anticipated this — the gap was assuming StreamForge's renderer could substitute for browser DevTools on twitch.tv, which it cannot (the app doesn't load twitch.tv's web client; it speaks to twitch.tv's API directly).
+
+## Second-pass attempt via Playwright (also incomplete)
+
+Tried driving a Playwright browser to "shop" for a channel with an active prediction. Visited 14 live Twitch channels across multiple categories (Slots, Just Chatting, plus high-traffic variety / FPS / League): `summit1g`, `caedrel`, `sodapoppin`, `xqc`, `trainwreckstv`, `kaicenat`, `caseoh_`, `imperialhal__`, `theburntpeanut`, `moistcr1tikal`, `maya`, `loltyler1`, `hasanabi`, `shroud`. None had an active prediction at the moment of probe (~10:00 PM CT, weekend). DOM selectors checked: `[data-test-selector*="prediction"]`, `[data-a-target*="prediction"]`, `[class*="community-prediction"]`, `[class*="prediction-card"]`, `[class*="prediction-page"]`, plus chat-panel scan for any button text matching `^(See Details|Predict)$`.
+
+Captured 25+ GQL operation names that fire on a typical channel load — none mention "prediction" in any form. **Strong signal that twitch.tv's web client does NOT poll for predictions on channel load; the prediction-read query is fired reactively when some push notification (WebSocket / SSE / IRC tag) tells the client a prediction has started.** Without an active prediction in flight, no prediction-read traffic surfaces regardless of which channel is visited.
+
+Operation names confirmed to fire on channel load (no Prediction-named op among them): `BitsConfigContext_Channel`, `StreamChat`, `TrackingManager_RequestInfo`, `VideoPlayerPixelAnalyticsUrls`, `ChannelSkins`, `Prime_PrimeOffers_PrimeOfferIds_Eligibility`, `ChatList_Badges`, `ChatList_ActiveCharityCampaign`, `ChatInput`, `SharedChatModeratorStrikes`, `ChannelPage_SubscribeButton_User`, `ChannelRoot_AboutPanel`, `ActiveGoals`, `CommunitySupportSettings`, `IsParticipatingDJ`, `GuestListQuery`, `OneTapSettings`, `StreamEventCelebrationsChannelPageBadge`, `GuestStarChannelPageCollaborationQuery`, `CollaboratorListQuery`, `RealtimeStreamTagList`, `StreamMetadata`, `UseLiveBroadcast`, `UseLive`, `CelebrationEmotes`, `SettingsNotificationsPage_User_Portal`, `TitleMentions`, `PlaybackAccessToken_Template`, `CostreamingDiscoveryContextQuery`, `StreamRefetchManager`, `SharedChatSession`, `ChannelCollaborationEligibilityQuery`, `GetHypeTrainExecution`, `ExtensionsForChannel`, `GuestStarBatchCollaborationQuery`, `SideNav`.
+
+**Conclusion:** finding the prediction-read operation requires being on a channel WITH an active prediction at the moment of capture. The probability of any random channel having one at any random moment is genuinely low (predictions are 5–10 minute windows, intermittent). Autonomous channel-shopping is high-cost / low-yield.
+
+## Concrete unblock path
+
+When ANY of these become observable to a real browser session, the capture happens immediately:
+1. A streamer the user follows starts a prediction (chat will announce it) — pivot to that channel.
+2. The StreamForge sidebar / chat in the running app surfaces a Twitch prediction event from any followed channel (current Helix-polled `EngagementPredictions.tsx` mod console fires for the user's own channel; chat /predict announcements from other channels remain unparsed).
+3. Browse `https://predictiontracker.com/active` (community site) or the `#PredictionAlerts` Discord-equivalent to find a currently-live prediction channel by direct lookup.
+
+Once captured, the discovery doc can be amended with the actual operation name, persisted hash, and response shape — and U2 implementation begins immediately against the confirmed contract.
