@@ -17,6 +17,7 @@ import type {
 
 import { badgeResolver } from "./badge-resolver";
 import { parseTwitchMessage, type TwitchTags } from "./twitch-parser";
+import { roomStateTagsToPatch, type TmiRoomStateTags } from "./twitch-roomstate";
 
 // ========== Types ==========
 
@@ -711,6 +712,24 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       if (this.user && username.toLowerCase() === this.user.login.toLowerCase()) {
         this.isModerator.set(this.normalizeChannel(channel), false);
       }
+    });
+
+    // ROOMSTATE — chat-settings tags (followers-only, slow, r9k, emote-only, subs-only)
+    // tmi.js emits this on initial join and on every settings change. The
+    // pure translator lives in twitch-roomstate.ts so it can be unit-tested
+    // without the tmi.js client.
+    this.client.on("roomstate", (channel, state) => {
+      const patch = roomStateTagsToPatch(state as TmiRoomStateTags);
+      const channelLogin = this.normalizeChannel(channel);
+      const channelId = state["room-id"] ?? this.broadcasterId.get(channelLogin) ?? "";
+      if (!channelId) return; // no id → nothing useful for the store keying
+      this.emit("roomState", {
+        platform: "twitch",
+        channel: channelLogin,
+        channelId,
+        patch,
+        reason: "ws",
+      });
     });
   }
 

@@ -361,6 +361,33 @@ export interface UnifiedPrediction {
   viewerStake: number | null;
 }
 
+// ========== Room State (chat-settings) Events ==========
+
+/**
+ * Partial room-state patch emitted by chat services for the info banner.
+ * Mirrors RoomState's field shape; absent keys mean "no change for this
+ * source." The `reason` tag distinguishes WS-pushed updates from initial
+ * fetches in tests; production stores the same final values regardless.
+ */
+export interface RoomStatePatchEvent {
+  platform: ChatPlatform;
+  /** Channel identifier: slug for Kick, login (sans #) for Twitch. */
+  channel: string;
+  /** Numeric channel id: chatroom_id for Kick, broadcaster user-id for Twitch. */
+  channelId: string;
+  patch: {
+    slowMode?: number | null;
+    followersOnly?: number | null;
+    subscribersOnly?: boolean;
+    emoteOnly?: boolean;
+    uniqueChat?: boolean;
+    shieldMode?: boolean;
+    accountAge?: number | null;
+  };
+  /** Source provenance: 'ws' for live WS events, 'fetch' for initial reads. */
+  reason: "ws" | "fetch";
+}
+
 // ========== Chat Service Events ==========
 
 export interface ChatServiceEvents {
@@ -374,4 +401,5 @@ export interface ChatServiceEvents {
   pinnedMessageCleared: () => void;
   pollUpdate: (poll: KickPoll) => void;
   predictionUpdate: (prediction: UnifiedPrediction) => void;
+  roomState: (event: RoomStatePatchEvent) => void;
 }
