@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import {
   getPolls,
   type PollPayload,
@@ -39,11 +40,11 @@ export function ChannelEngagement({
     if (!broadcasterId) return;
     setLoading(true);
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      if (!token?.accessToken) return;
+      const accessToken = await window.electronAPI.auth.getValidTwitchToken();
+      if (!accessToken) return;
       const [predResult, pollResult] = await Promise.all([
-        getPredictions({ accessToken: token.accessToken, broadcasterId }),
-        getPolls({ accessToken: token.accessToken, broadcasterId }),
+        withTwitchHelixRetry({ accessToken, broadcasterId }, getPredictions),
+        withTwitchHelixRetry({ accessToken, broadcasterId }, getPolls),
       ]);
       setPrediction(
         predResult.ok

@@ -1,16 +1,18 @@
 /**
  * Twitch Helix — Chat Settings (GET)
  *
- * Anonymous read companion to `updateChatSettings` (PATCH) in
+ * Read companion to `updateChatSettings` (PATCH) in
  * twitch-helix-moderation-mutations.ts. Used by the chat-input info banner
  * to seed RoomState on channel mount.
  *
  * Endpoint: GET https://api.twitch.tv/helix/chat/settings
- * Auth: Client-Id only (anonymous). Viewer-context response omits
- *   moderator_chat_delay* fields; we type them as optional.
+ * Auth: Bearer access token + Client-Id. Twitch documents this endpoint as
+ *   requiring an app or user access token; the viewer-context response omits
+ *   moderator_chat_delay* fields (we type them as optional).
  *
  * Returns a discriminated result mirroring the moderation-mutations shape so
- * callers can branch on failure kind without parsing strings.
+ * callers can branch on failure kind without parsing strings. Pair this call
+ * with `withTwitchHelixRetry` in `./helix-retry` to auto-refresh on 401.
  */
 
 import type { ChatSettingsPayload } from "./twitch-helix-moderation-mutations";
@@ -41,18 +43,24 @@ interface HelixErrorBody {
   message?: string;
 }
 
+export interface GetChatSettingsArgs {
+  /** Twitch numeric user id for the channel. */
+  broadcasterId: string;
+  /** OAuth access token (Bearer). Twitch rejects anonymous calls with 401. */
+  accessToken: string;
+  /**
+   * Optional AbortSignal — composed with a 10s timeout. Callers passing
+   * their own signal (e.g. a per-mount AbortController from the
+   * useChatSettingsSync hook) get cleanup-on-unmount aborts.
+   */
+  signal?: AbortSignal;
+}
+
 /**
- * Fetch a channel's chat settings via anonymous Helix GET.
- *
- * @param broadcasterId Twitch numeric user id for the channel.
- * @param signal Optional AbortSignal — composed with a 10s timeout. Callers
- *   passing their own signal (e.g. a per-mount AbortController from the
- *   useChatSettingsSync hook) get cleanup-on-unmount aborts.
+ * Fetch a channel's chat settings via authenticated Helix GET.
  */
-export async function getChatSettings(
-  broadcasterId: string,
-  signal?: AbortSignal,
-): Promise<ChatSettingsResult> {
+export async function getChatSettings(args: GetChatSettingsArgs): Promise<ChatSettingsResult> {
+  const { broadcasterId, accessToken, signal } = args;
   const url = `${HELIX_CHAT_SETTINGS_URL}?broadcaster_id=${encodeURIComponent(broadcasterId)}`;
 
   const composedSignal = composeSignals(signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS));
@@ -61,7 +69,10 @@ export async function getChatSettings(
   try {
     res = await fetch(url, {
       method: "GET",
-      headers: { "Client-Id": HELIX_CLIENT_ID },
+      headers: {
+        "Client-Id": HELIX_CLIENT_ID,
+        Authorization: `Bearer ${accessToken}`,
+      },
       signal: composedSignal,
     });
   } catch (error) {

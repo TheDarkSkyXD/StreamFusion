@@ -17,6 +17,7 @@ import {
   getVips,
   type ChannelMember,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderators-vips";
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import { useAuthStore } from "@/store/auth-store";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
@@ -66,15 +67,15 @@ export function ChannelVipsTable({
     setLoading(true);
     setError(null);
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      if (!token?.accessToken) {
+      const accessToken = await window.electronAPI.auth.getValidTwitchToken();
+      if (!accessToken) {
         setError("Missing Twitch token.");
         return;
       }
-      const result = await getVips({
-        accessToken: token.accessToken,
-        broadcasterId,
-      });
+      const result = await withTwitchHelixRetry(
+        { accessToken, broadcasterId },
+        getVips,
+      );
       if (!result.ok) {
         setError(`Couldn't load VIPs — ${result.kind}`);
         setEntries([]);

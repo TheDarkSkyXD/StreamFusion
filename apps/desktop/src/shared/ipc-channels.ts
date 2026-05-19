@@ -73,6 +73,7 @@ export const IPC_CHANNELS = {
   AUTH_LOGOUT_TWITCH: "auth:logout-twitch",
   AUTH_LOGOUT_KICK: "auth:logout-kick",
   AUTH_REFRESH_TWITCH: "auth:refresh-twitch",
+  AUTH_GET_VALID_TWITCH_TOKEN: "auth:get-valid-twitch-token",
   AUTH_REFRESH_KICK: "auth:refresh-kick",
   AUTH_FETCH_TWITCH_USER: "auth:fetch-twitch-user",
   AUTH_FETCH_KICK_USER: "auth:fetch-kick-user",

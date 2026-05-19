@@ -48,6 +48,7 @@ beforeEach(() => {
   (globalThis.window as unknown as { electronAPI: unknown }).electronAPI = {
     auth: {
       getToken: vi.fn().mockResolvedValue({ accessToken: "tok" }),
+      getValidTwitchToken: vi.fn().mockResolvedValue("tok"),
     },
   };
 });

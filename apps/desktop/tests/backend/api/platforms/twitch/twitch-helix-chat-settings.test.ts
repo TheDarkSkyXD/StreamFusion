@@ -40,7 +40,7 @@ describe("getChatSettings", () => {
     };
     globalThis.fetch = mockFetchResponse({ status: 200, body: { data: [payload] } });
 
-    const result = await getChatSettings("12345");
+    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.payload.broadcaster_id).toBe("12345");
@@ -60,7 +60,7 @@ describe("getChatSettings", () => {
     };
     globalThis.fetch = mockFetchResponse({ status: 200, body: { data: [payload] } });
 
-    const result = await getChatSettings("12345");
+    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.payload.non_moderator_chat_delay).toBeUndefined();
@@ -73,7 +73,7 @@ describe("getChatSettings", () => {
       body: { error: "Unauthorized", status: 401, message: "Token expired" },
     });
 
-    const result = await getChatSettings("12345");
+    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.kind).toBe("unauthorized");
@@ -86,7 +86,7 @@ describe("getChatSettings", () => {
       status: 404,
       body: { error: "Not Found", status: 404, message: "Unknown broadcaster" },
     });
-    const result = await getChatSettings("not-real");
+    const result = await getChatSettings({ broadcasterId: "not-real", accessToken: "tk" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe("not-found");
   });
@@ -96,14 +96,14 @@ describe("getChatSettings", () => {
       status: 429,
       body: { error: "Too Many Requests", status: 429, message: "Slow down" },
     });
-    const result = await getChatSettings("12345");
+    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe("rate-limited");
   });
 
   it("empty data array returns network failure (not silent success)", async () => {
     globalThis.fetch = mockFetchResponse({ status: 200, body: { data: [] } });
-    const result = await getChatSettings("12345");
+    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe("network");
   });
@@ -112,12 +112,29 @@ describe("getChatSettings", () => {
     globalThis.fetch = vi.fn(async () => {
       throw new TypeError("fetch failed");
     }) as unknown as typeof globalThis.fetch;
-    const result = await getChatSettings("12345");
+    const result = await getChatSettings({ broadcasterId: "12345", accessToken: "tk" });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.kind).toBe("network");
       expect(result.message).toContain("fetch failed");
     }
+  });
+
+  it("sends Bearer authorization with the supplied access token", async () => {
+    const fetchSpy = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: [{ broadcaster_id: "12345" }] }), {
+        status: 200,
+      });
+    }) as unknown as typeof globalThis.fetch;
+    globalThis.fetch = fetchSpy;
+
+    await getChatSettings({ broadcasterId: "12345", accessToken: "ABC123" });
+
+    const mock = fetchSpy as unknown as { mock: { calls: unknown[][] } };
+    const [, init] = mock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer ABC123");
+    expect(headers["Client-Id"]).toBeTruthy();
   });
 
   it("respects an external AbortSignal (caller-initiated abort)", async () => {
@@ -134,7 +151,11 @@ describe("getChatSettings", () => {
 
     const ac = new AbortController();
     ac.abort();
-    const result = await getChatSettings("12345", ac.signal);
+    const result = await getChatSettings({
+      broadcasterId: "12345",
+      accessToken: "tk",
+      signal: ac.signal,
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       // Caller-initiated abort surfaces as "network" since signal.aborted is true

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import {
   getUnbanRequests,
   resolveUnbanRequest,
@@ -51,17 +52,20 @@ export function ChannelUnbanRequests({
     setLoading(true);
     setError(null);
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      if (!token?.accessToken) {
+      const accessToken = await window.electronAPI.auth.getValidTwitchToken();
+      if (!accessToken) {
         setError("Missing Twitch token.");
         return;
       }
-      const result = await getUnbanRequests({
-        accessToken: token.accessToken,
-        broadcasterId,
-        moderatorId: twitchUser.id,
-        status: statusFilter,
-      });
+      const result = await withTwitchHelixRetry(
+        {
+          accessToken,
+          broadcasterId,
+          moderatorId: twitchUser.id,
+          status: statusFilter,
+        },
+        getUnbanRequests,
+      );
       if (!result.ok) {
         setError(`Couldn't load unban requests — ${result.kind}`);
         setEntries([]);

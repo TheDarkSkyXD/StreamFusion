@@ -188,6 +188,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT_TWITCH),
     refreshTwitchToken: (): Promise<{ success: boolean; token?: AuthToken; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_REFRESH_TWITCH),
+    getValidTwitchToken: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_VALID_TWITCH_TOKEN),
     fetchTwitchUser: (): Promise<{ success: boolean; user?: TwitchUser; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_FETCH_TWITCH_USER),
 

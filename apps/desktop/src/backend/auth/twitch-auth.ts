@@ -36,10 +36,21 @@ export interface TwitchAuthSession {
 // waiters see the fresh token via `storageService.getToken` after they resume.
 let _refreshInFlight: Promise<AuthToken | null> | null = null;
 
+// Schedule the next proactive refresh five minutes before expiry. The
+// reactive paths (TwitchRequestor's pre-call check + 401 retry) already
+// cover active users; this timer covers the long-idle case where Twitch
+// IRC and EventSub get their underlying token expired out from under them.
+const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+// Twitch can serve 401 a few seconds before the documented expires_at on
+// edge nodes. Don't schedule a refresh closer than this to the wall clock —
+// fire immediately instead.
+const MIN_REFRESH_DELAY_MS = 1000;
+
 // ========== Twitch Auth Service Class ==========
 
 class TwitchAuthService {
   private readonly platform: Platform = "twitch";
+  private refreshTimeoutId: NodeJS.Timeout | null = null;
 
   /**
    * Refresh the access token using the refresh token. Concurrent callers share
@@ -75,10 +86,66 @@ class TwitchAuthService {
       storageService.saveToken(this.platform, newToken);
 
       console.debug("✅ Twitch token refreshed successfully");
+
+      // Chain the next proactive refresh against the freshly-rotated expiry.
+      this.scheduleProactiveRefresh();
+
       return newToken;
     } catch (error) {
       console.error("❌ Twitch token refresh failed:", error);
       return null;
+    }
+  }
+
+  /**
+   * Schedule the next proactive refresh. Called from:
+   *   - app startup (so an idle session never lets the token silently expire)
+   *   - after every successful OAuth callback (new login → first scheduling)
+   *   - after every successful refresh (chain the next iteration)
+   *
+   * Safe to call repeatedly — any pending timer is cleared first. If the token
+   * is already expired or expires within the buffer, fires immediately.
+   * No-ops when there is no stored token (logout path).
+   */
+  scheduleProactiveRefresh(): void {
+    if (this.refreshTimeoutId) {
+      clearTimeout(this.refreshTimeoutId);
+      this.refreshTimeoutId = null;
+    }
+
+    const token = storageService.getToken(this.platform);
+    if (!token || !token.expiresAt) {
+      return;
+    }
+
+    const now = Date.now();
+    const fireAt = token.expiresAt - REFRESH_BUFFER_MS;
+    const delay = Math.max(MIN_REFRESH_DELAY_MS, fireAt - now);
+
+    this.refreshTimeoutId = setTimeout(() => {
+      this.refreshTimeoutId = null;
+      // Fire and forget — _performRefresh handles its own logging and
+      // schedules the next iteration on success.
+      this.refreshToken().catch((err) => {
+        console.warn("Proactive Twitch refresh failed:", err);
+      });
+    }, delay);
+
+    const minutes = Math.round(delay / 60_000);
+    console.debug(
+      `⏰ Twitch proactive refresh scheduled in ${minutes}m (token expires at ${new Date(token.expiresAt).toISOString()})`
+    );
+  }
+
+  /**
+   * Cancel any pending proactive refresh. Called on logout — without this the
+   * timer would fire after the user has signed out and try to refresh a
+   * cleared token.
+   */
+  cancelProactiveRefresh(): void {
+    if (this.refreshTimeoutId) {
+      clearTimeout(this.refreshTimeoutId);
+      this.refreshTimeoutId = null;
     }
   }
 
@@ -153,6 +220,10 @@ class TwitchAuthService {
    * Revoke the current token and logout
    */
   async logout(): Promise<boolean> {
+    // Stop any pending proactive refresh first — the token is about to be
+    // cleared and a fired timer would otherwise try to refresh nothing.
+    this.cancelProactiveRefresh();
+
     const token = storageService.getToken(this.platform);
 
     if (token) {

@@ -24,6 +24,7 @@
 import { useEffect, useRef } from "react";
 
 import { getChatSettings } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import type { ChatSettingsPayload } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { kickChatService } from "@/backend/services/chat/kick-chat";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
@@ -292,7 +293,17 @@ async function fetchPatchFor(
   signal: AbortSignal,
 ): Promise<Partial<RoomState> | null> {
   if (platform === "twitch") {
-    const result = await getChatSettings(channelId, signal);
+    // Helix /chat/settings requires a Bearer token. Fetch a guaranteed-fresh
+    // one (auto-refreshes if expired) and let the retry wrapper handle the
+    // race where the token expires between our fetch and Twitch's check.
+    const accessToken = await window.electronAPI.auth.getValidTwitchToken();
+    if (!accessToken) {
+      return null;
+    }
+    const result = await withTwitchHelixRetry(
+      { accessToken, broadcasterId: channelId, signal },
+      getChatSettings,
+    );
     if (!result.ok) {
       // Non-2xx is a soft-failure for the banner. Treat exactly the same as
       // a network error — the banner stays hidden.

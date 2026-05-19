@@ -18,6 +18,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import {
   cancelPrediction,
   createPrediction,
@@ -63,8 +64,8 @@ function isLocked(p: PredictionPayload | null | undefined): boolean {
 }
 
 async function getToken(): Promise<string | null> {
-  const token = await window.electronAPI.auth.getToken("twitch");
-  return token?.accessToken ?? null;
+  // Auto-refreshing path so idle sessions don't 401 on resume.
+  return window.electronAPI.auth.getValidTwitchToken();
 }
 
 export function EngagementPredictions({ channelId }: EngagementPredictionsProps) {
@@ -73,7 +74,10 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
   const fetcher = useCallback(async (): Promise<PredictionsListPayload | null> => {
     const accessToken = await getToken();
     if (!accessToken) return null;
-    const result = await getPredictions({ accessToken, broadcasterId: channelId });
+    const result = await withTwitchHelixRetry(
+      { accessToken, broadcasterId: channelId },
+      getPredictions,
+    );
     if (!result.ok) {
       // Surface as fetch error so the hook shows it.
       throw new Error(result.message);

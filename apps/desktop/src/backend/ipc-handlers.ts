@@ -7,6 +7,7 @@
 
 import type { BrowserWindow } from "electron";
 
+import { twitchAuthService } from "./auth";
 import { registerAdBlockHandlers } from "./ipc/handlers/adblock-handlers";
 import { registerAuthHandlers } from "./ipc/handlers/auth-handlers";
 import { registerCategoryHandlers } from "./ipc/handlers/category-handlers";
@@ -34,6 +35,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerVideoHandlers();
   registerAdBlockHandlers(mainWindow);
   registerUpdateHandlers(mainWindow);
+
+  // Start the Twitch proactive-refresh timer at boot. If a stored token
+  // exists, this schedules a refresh 5 minutes before its expiry so idle
+  // sessions don't silently lose IRC / EventSub auth. No-op when there's
+  // no token (clean install or post-logout state).
+  twitchAuthService.scheduleProactiveRefresh();
 
   console.debug("✅ All IPC handlers registered successfully");
 }

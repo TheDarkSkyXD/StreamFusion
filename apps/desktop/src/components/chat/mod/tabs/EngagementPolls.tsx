@@ -15,6 +15,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import {
   archivePoll,
   createPoll,
@@ -46,8 +47,9 @@ export interface EngagementPollsProps {
 type PendingAction = { kind: "terminate" } | { kind: "archive" };
 
 async function getToken(): Promise<string | null> {
-  const token = await window.electronAPI.auth.getToken("twitch");
-  return token?.accessToken ?? null;
+  // Auto-refreshing path. Replaces the raw cached-token read so idle sessions
+  // don't 401 the first poll on resume.
+  return window.electronAPI.auth.getValidTwitchToken();
 }
 
 function isActive(p: PollPayload | null | undefined): boolean {
@@ -64,7 +66,10 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
   const fetcher = useCallback(async (): Promise<PollsListPayload | null> => {
     const accessToken = await getToken();
     if (!accessToken) return null;
-    const result = await getPolls({ accessToken, broadcasterId: channelId });
+    const result = await withTwitchHelixRetry(
+      { accessToken, broadcasterId: channelId },
+      getPolls,
+    );
     if (!result.ok) {
       throw new Error(result.message);
     }

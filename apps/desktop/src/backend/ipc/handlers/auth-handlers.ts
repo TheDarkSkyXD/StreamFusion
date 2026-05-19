@@ -253,6 +253,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
       // Fetch user info after token is saved
       if (platform === "twitch") {
+        // Kick off background refresh chain against the new expiry. Without
+        // this the user would be auto-refreshed only after the first idle
+        // expiry, leaving a window where Twitch IRC/EventSub get torn down.
+        twitchAuthService.scheduleProactiveRefresh();
         try {
           const user = await twitchAuthService.fetchCurrentUser();
           if (user) {
@@ -374,6 +378,14 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         error: error instanceof Error ? error.message : "Token refresh failed",
       };
     }
+  });
+
+  // Returns a guaranteed-valid access-token string, refreshing if expired or
+  // expiring within 5 minutes. Use this anywhere the renderer needs to attach
+  // Authorization: Bearer <token> to a Twitch API call (chat IRC handshake,
+  // direct Helix fetches that don't route through TwitchRequestor, etc.).
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_VALID_TWITCH_TOKEN, async () => {
+    return await twitchAuthService.getValidAccessToken();
   });
 
   // Handle fetching Twitch user info
@@ -533,6 +545,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
         // Save the token
         storageService.saveToken("twitch", token);
+
+        // Chain proactive refresh against the new expiry — see the OAuth
+        // callback branch above for the rationale.
+        twitchAuthService.scheduleProactiveRefresh();
 
         // Fetch user info
         const user = await twitchAuthService.fetchCurrentUser();

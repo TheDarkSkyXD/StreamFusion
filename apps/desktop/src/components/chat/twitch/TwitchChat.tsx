@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BsGear, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import {
@@ -55,6 +55,7 @@ import { ChatMessageList } from "../ChatMessageList";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
 import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
+import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
@@ -138,9 +139,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // twitchChatService.emit("predictionUpdate", …); dev injection (U9) fires
   // through the same seam, so production + dev paths converge.
   const [activePrediction, setActivePrediction] = useState<UnifiedPrediction | null>(null);
-  // User-dismissed prediction id — incoming updates for this id are ignored
-  // until a fresh prediction (different id) arrives. Sticky dismiss.
-  const dismissedPredictionIdRef = useRef<string | null>(null);
+  // Sticky-dismiss gate. Suppress updates for any id the user has closed,
+  // until a *different* id arrives.
+  const predictionDismissGate = useStickyDismissedPrediction();
   // Mod-action state (U8): the message currently queued for the Pin dialog.
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
@@ -250,19 +251,27 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           });
         };
 
-        const twitchToken = await window.electronAPI.auth.getToken("twitch");
+        // Get a guaranteed-fresh access token (refreshes if expired or within
+        // 5 minutes of expiry). Bypasses the stale-token-from-storage gap
+        // where idle sessions try to connect IRC with an expired token and
+        // get "Login unsuccessful".
+        const accessToken = await window.electronAPI.auth.getValidTwitchToken();
         const twitchUser = await window.electronAPI.auth.getTwitchUser();
         const twitchClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
 
         // Check if component is still mounted after async calls
         if (!isMounted) return;
 
-        if (twitchToken && twitchUser) {
+        if (accessToken && twitchUser) {
           // Authenticated
           await twitchChatService.connect({
-            accessToken: twitchToken.accessToken,
+            accessToken,
             user: twitchUser,
             clientId: twitchClientId,
+            // Re-fetch a fresh token before every reconnect so Twitch IRC's
+            // OAuth-expiry-triggered disconnects don't trap us in a loop of
+            // "Login unsuccessful" with the original stale token.
+            tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
           });
 
           // Check if connection was successful (might be aborted by Strict Mode cleanup)
@@ -277,7 +286,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
           // Initialize Twitch Emotes
           if (twitchClientId) {
-            await initializeTwitchEmotes(twitchClientId, twitchToken.accessToken);
+            await initializeTwitchEmotes(twitchClientId, accessToken);
             // Reload global emotes now that we have credentials
             if (isMounted) await loadGlobalEmotes();
           }
@@ -487,12 +496,20 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     };
 
     const handlePredictionUpdate = (prediction: UnifiedPrediction) => {
-      // Sticky dismiss: ignore updates for a prediction the user already
-      // dismissed. A new prediction (different id) clears the suppression.
-      if (dismissedPredictionIdRef.current === prediction.id) return;
-      if (dismissedPredictionIdRef.current !== null) {
-        dismissedPredictionIdRef.current = null;
+      // Multiview gate: twitchChatService is a singleton, so a prediction
+      // emitted for channel A also fires this handler in the chat panel for
+      // channel B. Drop everything that doesn't match the channel rendered
+      // here. An empty `prediction.channelId` ("") is the dev-injection
+      // path (ChatSimTool has no current-channel context) — accept those
+      // so the dev tool stays useful. (Code review P0-1.)
+      if (
+        channelId &&
+        prediction.channelId &&
+        prediction.channelId !== channelId
+      ) {
+        return;
       }
+      if (predictionDismissGate.shouldSuppress(prediction.id)) return;
       setActivePrediction(prediction);
     };
 
@@ -524,6 +541,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     clearMessages,
     deleteMessage,
     deleteMessagesByUser,
+    channelId,
+    predictionDismissGate,
   ]);
 
   // U2 — Hermes WebSocket subscription per channelId. Forwards predictions
@@ -563,6 +582,19 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     visibleTabs.push("engagement");
   }
 
+  // Stable callbacks for PredictionBanner. Inline arrows here would change
+  // identity every render and bounce the banner's 60s auto-dismiss timer
+  // forever, since the banner's effect depends on `onAutoDismiss`.
+  const handlePredictionAutoDismiss = useCallback(() => {
+    setActivePrediction(null);
+  }, []);
+  const handlePredictionDismiss = useCallback(() => {
+    setActivePrediction((current) => {
+      if (current) predictionDismissGate.dismiss(current.id);
+      return null;
+    });
+  }, [predictionDismissGate]);
+
   // U19 — Chat-tab body. Keeps the existing pinned banner / mod strip /
   // message list / input footer wiring intact. The mod-action and pin
   // dialogs stay outside the tab so they overlay regardless of tab.
@@ -571,11 +603,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       {activePrediction && (
         <PredictionBanner
           prediction={activePrediction}
-          onAutoDismiss={() => setActivePrediction(null)}
-          onDismiss={() => {
-            dismissedPredictionIdRef.current = activePrediction.id;
-            setActivePrediction(null);
-          }}
+          onAutoDismiss={handlePredictionAutoDismiss}
+          onDismiss={handlePredictionDismiss}
         />
       )}
       {pinnedMessage && showPinned && (

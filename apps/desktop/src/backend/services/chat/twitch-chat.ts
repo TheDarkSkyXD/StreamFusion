@@ -32,6 +32,14 @@ interface TwitchChatOptions {
   clientId?: string;
   /** Twitch User info (required for identity) */
   user?: TwitchUser;
+  /**
+   * Called before each reconnect to obtain a fresh access token. Twitch IRC
+   * closes the WSS connection when the underlying OAuth token expires, and
+   * the cached token captured at original connect time is then stale — the
+   * reconnect will re-fail with "Login unsuccessful" unless we refresh.
+   * Returns null to fall back to anonymous reconnection.
+   */
+  tokenFetcher?: () => Promise<string | null>;
 }
 
 type TypedEventEmitter = {
@@ -66,6 +74,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   private accessToken: string | null = null;
   private clientId: string | null = null;
   private user: TwitchUser | null = null;
+  private tokenFetcher: (() => Promise<string | null>) | null = null;
 
   // Rate limiting
   private messageTimestamps: number[] = [];
@@ -126,9 +135,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.isAnonymous = options.anonymous ?? false;
 
     if (!this.isAnonymous) {
-      this.accessToken = options.accessToken || null;
-      this.clientId = options.clientId || null;
-      this.user = options.user || null;
+      // Only overwrite when the option was explicitly provided. On reconnect
+      // the caller passes `{anonymous, debug}` without creds — preserving the
+      // existing identity keeps the chat authenticated across token rotations.
+      if (options.accessToken !== undefined) this.accessToken = options.accessToken;
+      if (options.clientId !== undefined) this.clientId = options.clientId;
+      if (options.user !== undefined) this.user = options.user;
+      if (options.tokenFetcher !== undefined) this.tokenFetcher = options.tokenFetcher;
     }
 
     this.setConnectionState("connecting");
@@ -805,6 +818,21 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
         if (!this.isActive) {
           this.log("Service deactivated during reconnect delay, aborting");
           return;
+        }
+
+        // Refresh the access token before reconnecting. The cached token
+        // captured at original connect time may have expired (Twitch IRC
+        // closes the WSS when the OAuth token expires), and reusing the
+        // stale token would just re-fail with "Login unsuccessful".
+        if (!this.isAnonymous && this.tokenFetcher) {
+          try {
+            const fresh = await this.tokenFetcher();
+            if (fresh) {
+              this.accessToken = fresh;
+            }
+          } catch (err) {
+            console.warn("Twitch chat token refresh before reconnect failed:", err);
+          }
         }
 
         try {

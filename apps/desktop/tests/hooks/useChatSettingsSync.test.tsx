@@ -82,6 +82,12 @@ beforeEach(() => {
   const w = (globalThis as any).window ?? ((globalThis as any).window = {});
   w.electronAPI = {
     channels: { getByUsername: getByUsernameMock },
+    auth: {
+      // Hook calls getValidTwitchToken() before getChatSettings; returning a
+      // stable string keeps the Bearer-auth path happy without exercising the
+      // refresh flow (the wrapper covers that elsewhere).
+      getValidTwitchToken: vi.fn().mockResolvedValue("tok"),
+    },
   };
 });
 
