@@ -546,12 +546,12 @@ const EndedOutcomeColumn: React.FC<{
 
       <div
         className={
-          "flex flex-1 flex-col items-center gap-2 " +
-          // Push the percentage AWAY from the center divider: left-column
-          // percentage gets right-padding, right-column percentage gets
-          // left-padding. Combined with the grid gap, this leaves visible
-          // whitespace between the two big numbers.
-          (statsLeft ? "pr-3" : "pl-3")
+          "flex min-w-0 flex-1 flex-col items-center gap-2 " +
+          // Push the entire centered cluster (name + percentage + bar) AWAY
+          // from the center divider. Applied to the whole flex-col so the
+          // name doesn't overflow against the divider even when long. pr-5/
+          // pl-5 = 20px, combined with grid gap-6 gives a clear visual gutter.
+          (statsLeft ? "pr-5" : "pl-5")
         }
       >
         {isWinner && (
