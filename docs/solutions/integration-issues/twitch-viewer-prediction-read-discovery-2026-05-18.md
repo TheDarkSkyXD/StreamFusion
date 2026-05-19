@@ -98,6 +98,92 @@ The Twitch side of this feature has three remaining options, each with significa
 
 Whichever option is picked, U3 (`MakePrediction` mutation) inherits the same constraints — if the user can't read the prediction, voting on it is moot.
 
+## FOURTH PASS — actual unblock found in `reference/Xtra For-Twitch-Better-Functions-etc-master`
+
+The user pointed me back at the Xtra reference, and the research agent's "archived October 2022, not viable" assessment turned out to be wrong. Xtra reverse-engineered Hermes WebSocket BEFORE the PubSub shutdown and that protocol is still what twitch.tv's web client uses today. The PubSub shutdown moved the topic to a new transport; the topic name (`predictions-channel-v1.{channelId}`) stayed identical.
+
+**Verified contract** (from `reference/Xtra For-Twitch-Better-Functions-etc-master/app/src/main/java/com/github/andreyasadchy/xtra/util/chat/HermesWebSocket.kt`):
+
+- **Endpoint:** `wss://hermes.twitch.tv/v1?clientId=kimne78kx3ncx6brgo4mv6wki5h1ko`
+- **Authentication:** Optional. Anonymous subscription works for `predictions-channel-v1.*`. Authenticated subscription (for `community-points-user-v1.<userId>`) takes a GQL session token via an `authenticate` frame.
+- **Connection flow:** Client connects → server sends `welcome` with `keepaliveSec` → client sends `subscribe` for each desired topic → server sends `notification` frames carrying inner pubsub messages.
+- **Message envelope:**
+  ```json
+  {
+    "type": "notification",
+    "notification": {
+      "subscription": { "id": "<sub-id>" },
+      "pubsub": "<stringified inner JSON>"
+    }
+  }
+  ```
+- **Subscribe frame:**
+  ```json
+  {
+    "type": "subscribe",
+    "id": "<message-id 21-char>",
+    "subscribe": {
+      "id": "<sub-id 21-char>",
+      "type": "pubsub",
+      "pubsub": { "topic": "predictions-channel-v1.<channelId>" }
+    },
+    "timestamp": "<ISO-8601>"
+  }
+  ```
+- **Other lifecycle frames:** `keepalive` (server ping; reset client pong timer), `reconnect` (server tells client to reconnect; URL in payload), `welcome` (initial handshake).
+- **Topics on Hermes (relevant ones):**
+  - `predictions-channel-v1.{channelId}` ← THIS UNBLOCKS U2
+  - `polls.{channelId}` — would render the same way as Kick polls on the Twitch side if/when we implement them
+  - `video-playback-by-id.{channelId}` — viewer count + stream-up/down
+  - `community-points-channel-v1.{channelId}` — channel reward redemptions
+  - `community-points-user-v1.{userId}` — requires auth, user's own point balance updates
+  - `raid.{channelId}`, `broadcast-settings-update.{channelId}`
+
+**Prediction inner-message shape** (from `PubSubUtils.onPredictionUpdate` in the same package):
+
+```json
+{
+  "data": {
+    "event": {
+      "id": "<prediction-id>",
+      "created_at": "<ISO-8601>",
+      "title": "<prediction-title>",
+      "status": "ACTIVE" | "LOCKED" | "RESOLVED" | "CANCELED",
+      "prediction_window_seconds": <int>,
+      "winning_outcome_id": "<outcome-id-or-null>",
+      "outcomes": [
+        {
+          "id": "<outcome-id>",
+          "title": "<outcome-title>",
+          "total_points": <int>,
+          "total_users": <int>
+        }
+      ]
+    }
+  }
+}
+```
+
+**Fields Xtra parses but the brainstorm's `UnifiedPrediction` shape wants more of:**
+- `color` on outcomes (BLUE / PINK / sequential palette) — Xtra doesn't extract. Live payload likely includes it; verify when first capture lands.
+- `top_predictors` per outcome — Xtra doesn't extract. Likely in live payload at `outcomes[].top_predictors`.
+- `ended_at` / `locked_at` timestamps — Xtra doesn't extract. Likely in live payload.
+
+These additional fields are NOT load-bearing for the v1 widget — Xtra's seven-field subset is enough for the collapsed banner + expanded panel + ended-state recap. The bubble chart and top-predictor block can extend the shape later when full payload is captured.
+
+**What's still blocked:**
+
+- U3 (`MakePrediction` mutation): Xtra has no voting code. We still rely on the Channel-Points-Miner reference hash `b44682ec...` (with the year-old caveat from the plan). Voting on Twitch needs the user's OAuth token + the mutation hash, neither of which Xtra contributes.
+- Kick (U4, U5): unchanged. Empirical Pusher capture still required from a live kick.com session.
+
+**Net plan-state change:**
+
+- U2 is now actually implementable. Build a `twitch-hermes-client.ts` that connects to `wss://hermes.twitch.tv/v1?clientId=kimne78...`, subscribes to `predictions-channel-v1.{channelId}`, parses Hermes-wrapped pubsub messages, emits `predictionUpdate` through `twitchChatService` with the Xtra-shape-mapped-to-`UnifiedPrediction`.
+- U3 stays gated on a live prediction to capture MakePrediction + integrity verification.
+- The plan's Risk Analysis row "Client-Integrity is enforced on `MakePrediction`" stands — Hermes subscription is anonymous and doesn't need integrity, but voting still might.
+
+**Year-off note on PubSub:** the research agent disputed our doc's "2026-04-14" shutdown date, claiming it was actually 2025-04-14. Whichever the correct date, the conclusion holds: PubSub is gone, Hermes is the current channel. (Either the research agent or our prior agent misread the year; the Twitch deprecation thread is authoritative if it matters for the plan body.)
+
 ## Sources (verified)
 
 - [EventSub Subscription Types — dev.twitch.tv](https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/) — scope requirement
