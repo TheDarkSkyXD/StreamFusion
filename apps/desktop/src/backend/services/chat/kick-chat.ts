@@ -38,6 +38,10 @@ import {
   parseKickUserBanned,
   type SubscriberBadge,
 } from "./kick-parser";
+import {
+  chatroomUpdatedEventToPatch,
+  type KickChatroomUpdatedEventPayload,
+} from "./kick-roomstate";
 
 /**
  * Convert a raw Kick pinned-message Pusher payload into the platform-agnostic
@@ -496,7 +500,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       });
 
       // Set up event handlers for this channel
-      this.setupChannelEventHandlers(pusherChannel, normalizedChannel);
+      this.setupChannelEventHandlers(pusherChannel, normalizedChannel, chatroomId);
 
       // NOTE: Channel badges should be set by caller via setChannelBadges()
 
@@ -729,7 +733,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    */
   private setupChannelEventHandlers(
     pusherChannel: ReturnType<Pusher["subscribe"]>,
-    channelSlug: string
+    channelSlug: string,
+    chatroomId: number
   ): void {
     // Chat message event
     pusherChannel.bind("App\\Events\\ChatMessageEvent", (data: KickChatMessageEvent) => {
@@ -793,6 +798,23 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       if (poll?.title) {
         this.emit("pollUpdate", poll);
       }
+    });
+
+    // Chatroom-updated event — chat-settings modes (followers/subs/slow/emote-only/account-age).
+    // Verified event name + payload shape against KickTalk's
+    // reference/KickTalk-main/utils/services/kick/kickPusher.js:192 and
+    // src/renderer/src/components/Chat/Input/InfoBar.jsx lines 12-22.
+    // Note: this event fires on mode CHANGES only, not on subscribe — initial
+    // state comes from getPublicChannel.chatroomSettings via U6's hook.
+    pusherChannel.bind("App\\Events\\ChatroomUpdatedEvent", (data: unknown) => {
+      const patch = chatroomUpdatedEventToPatch(data as KickChatroomUpdatedEventPayload);
+      this.emit("roomState", {
+        platform: "kick",
+        channel: channelSlug,
+        channelId: String(chatroomId),
+        patch,
+        reason: "ws",
+      });
     });
 
     // Subscription states
