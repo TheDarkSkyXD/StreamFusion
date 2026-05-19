@@ -672,22 +672,15 @@ const PayoutLine: React.FC<{
   winner: UnifiedPredictionOutcome;
   others: number;
   platform: "twitch" | "kick";
-}> = ({ winner, others, platform }) => {
+}> = ({ winner, others, platform: _platform }) => {
   const top = winner.topPredictors?.[0];
   if (!top) return null;
-  const accentColor = platform === "twitch" ? "#9146ff" : "#53FC18";
+  // No leading icon — Twitch's payout line uses the channel's custom
+  // channel-points image, which we don't have access to without fetching
+  // `ChannelPointsContext.communityPointsSettings.image.url` per-channel
+  // separately. Cleaner to render plain text than a generic placeholder.
   return (
-    <div className="flex items-center gap-2 px-1 text-[12px] text-zinc-400">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill={accentColor}
-        aria-hidden
-        className="flex-shrink-0"
-      >
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-      </svg>
+    <div className="px-1 text-[12px] text-zinc-400">
       <span className="leading-snug">
         <span className="font-semibold text-white">{winner.totalAmount.toLocaleString()}</span>{" "}
         go to <span className="text-white">{top.userName}</span>
