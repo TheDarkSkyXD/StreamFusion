@@ -414,6 +414,10 @@ export function ChatSimTool() {
     return {
       id,
       platform: p,
+      // Dev sentinel — empty channelId tells the chat handlers to accept the
+      // event into whichever channel is currently rendered, since the sim
+      // tool has no view of the active channel id.
+      channelId: "",
       title: p === "twitch" ? "Who wins next game?" : "BroVBro - Golf it Overall",
       status,
       outcomes: [

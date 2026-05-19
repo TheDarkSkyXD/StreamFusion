@@ -40,6 +40,7 @@ import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
+import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import { seedKickChatHistory } from "./kick-chat-history";
 import { KickPinMessageDialog } from "./KickPinMessageDialog";
@@ -148,9 +149,9 @@ export const KickChat: React.FC<KickChatProps> = ({
   // U6 read-only viewer prediction. Currently fed via dev injection (U9);
   // real Kick prediction API + Pusher event discovery lives in U4.
   const [activePrediction, setActivePrediction] = useState<UnifiedPrediction | null>(null);
-  // User-dismissed prediction id — incoming updates for this id are ignored
-  // until a fresh prediction (different id) arrives. Sticky dismiss.
-  const dismissedPredictionIdRef = useRef<string | null>(null);
+  // Sticky-dismiss gate. Suppress updates for any id the user has closed,
+  // until a *different* id arrives.
+  const predictionDismissGate = useStickyDismissedPrediction();
   const [showPoll, setShowPoll] = useState(true);
   const [isPollExpanded, setIsPollExpanded] = useState(false);
   const chatInputRef = useRef<ChatInputHandle>(null);
@@ -489,12 +490,16 @@ export const KickChat: React.FC<KickChatProps> = ({
     };
 
     const handlePredictionUpdate = (prediction: UnifiedPrediction) => {
-      // Sticky dismiss: ignore updates for a prediction the user already
-      // dismissed. A new prediction (different id) clears the suppression.
-      if (dismissedPredictionIdRef.current === prediction.id) return;
-      if (dismissedPredictionIdRef.current !== null) {
-        dismissedPredictionIdRef.current = null;
+      // Multiview gate — drop events for channels other than this panel.
+      // kickChatService is a singleton; without this filter a prediction
+      // emitted for channel A would also pop in channel B. We accept the
+      // event when channelId is unknown (anonymous / dev-injection paths
+      // that don't carry a real id yet). (Code review P0-1.)
+      const localId = kickRoomKey || null;
+      if (localId && prediction.channelId && prediction.channelId !== localId) {
+        return;
       }
+      if (predictionDismissGate.shouldSuppress(prediction.id)) return;
       setActivePrediction(prediction);
     };
 
@@ -532,11 +537,24 @@ export const KickChat: React.FC<KickChatProps> = ({
     clearMessages,
     deleteMessage,
     deleteMessagesByUser,
+    kickRoomKey,
+    predictionDismissGate,
   ]);
 
   const handleReply = useCallback((message: ChatMessage) => {
     chatInputRef.current?.replyTo(message);
   }, []);
+
+  // Stable callbacks for PredictionBanner — see TwitchChat for context.
+  const handlePredictionAutoDismiss = useCallback(() => {
+    setActivePrediction(null);
+  }, []);
+  const handlePredictionDismiss = useCallback(() => {
+    setActivePrediction((current) => {
+      if (current) predictionDismissGate.dismiss(current.id);
+      return null;
+    });
+  }, [predictionDismissGate]);
 
   // U19 — Kick gets 2 tabs at most (no Engagement). Viewer = chat only,
   // mod (including broadcaster, who is the only Kick mod-of-self today)
@@ -556,11 +574,8 @@ export const KickChat: React.FC<KickChatProps> = ({
       {activePrediction && (
         <PredictionBanner
           prediction={activePrediction}
-          onAutoDismiss={() => setActivePrediction(null)}
-          onDismiss={() => {
-            dismissedPredictionIdRef.current = activePrediction.id;
-            setActivePrediction(null);
-          }}
+          onAutoDismiss={handlePredictionAutoDismiss}
+          onDismiss={handlePredictionDismiss}
         />
       )}
       {/* Pinned Message Banner */}

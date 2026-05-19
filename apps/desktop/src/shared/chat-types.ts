@@ -343,6 +343,14 @@ export interface UnifiedPrediction {
   id: string;
   /** Source platform — drives style-branching in the widget. */
   platform: "twitch" | "kick";
+  /**
+   * Channel that owns this prediction. Required so multiview consumers can
+   * filter incoming events to the channel rendered in each chat panel —
+   * `twitchChatService` / `kickChatService` are singletons whose event bus
+   * fans out to every mounted listener, so unfiltered handlers would render
+   * a prediction in channels other than the one it came from.
+   */
+  channelId: string;
   /** Display title. */
   title: string;
   /** Lifecycle status. */

@@ -24,6 +24,7 @@ describe("UnifiedPrediction shape (U1)", () => {
     const prediction: UnifiedPrediction = {
       id: "pred-twitch-1",
       platform: "twitch",
+      channelId: "12345",
       title: "Who wins next game?",
       status: "ACTIVE",
       outcomes: [outcomeA, outcomeB],
@@ -34,6 +35,7 @@ describe("UnifiedPrediction shape (U1)", () => {
       viewerStake: null,
     };
     expect(prediction.platform).toBe("twitch");
+    expect(prediction.channelId).toBe("12345");
     expect(prediction.outcomes).toHaveLength(2);
     expect(prediction.outcomes[0].color).toBe("blue");
   });
@@ -42,6 +44,7 @@ describe("UnifiedPrediction shape (U1)", () => {
     const prediction: UnifiedPrediction = {
       id: "pred-kick-1",
       platform: "kick",
+      channelId: "kick-channel-7",
       title: "Golf it Overall",
       status: "RESOLVED",
       outcomes: [

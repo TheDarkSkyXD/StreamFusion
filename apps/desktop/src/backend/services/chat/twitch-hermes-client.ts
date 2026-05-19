@@ -80,6 +80,7 @@ export class TwitchHermesClient {
 
   stop(): void {
     this.active = false;
+    this.reconnectAttempts = 0;
     this.clearTimers();
     if (this.ws) {
       try {
@@ -112,7 +113,11 @@ export class TwitchHermesClient {
     }
     this.ws = ws;
     ws.onopen = () => {
-      this.reconnectAttempts = 0;
+      // NB: reconnectAttempts is reset in `handleWelcome`, not here. A bare
+      // TCP open is not proof the connection is healthy — if Hermes accepts
+      // the socket but never sends the welcome frame, resetting here would
+      // pin backoff at 1s forever and produce a connect storm against
+      // hermes.twitch.tv on every flap. (Code review P0-2.)
       this.emitter.emit("state", "connected");
     };
     ws.onmessage = (event) => this.handleMessage(event.data);
@@ -154,6 +159,9 @@ export class TwitchHermesClient {
   private resetPongTimer(): void {
     if (this.pongTimer) clearTimeout(this.pongTimer);
     this.pongTimer = setTimeout(() => {
+      // Null the ref before closing so a same-tick clearTimers can't operate
+      // on a stale already-fired ID. (R2)
+      this.pongTimer = null;
       // Server hasn't pinged us in keepaliveMs — assume dead; close + reconnect.
       try {
         this.ws?.close();
@@ -208,6 +216,9 @@ export class TwitchHermesClient {
     const welcome = isObject(frame.welcome) ? frame.welcome : null;
     const seconds = welcome && typeof welcome.keepaliveSec === "number" ? welcome.keepaliveSec : 0;
     if (seconds > 0) this.keepaliveMs = seconds * 1000;
+    // Welcome frame is the real "we're connected" signal — reset backoff
+    // only now so a half-open socket can't loop us at the 1s base delay.
+    this.reconnectAttempts = 0;
     this.resetPongTimer();
     this.subscribePrediction();
   }
@@ -257,11 +268,15 @@ export class TwitchHermesClient {
  * when the payload shape doesn't match (defensive — we don't want a malformed
  * frame to crash the listener).
  *
+ * `channelId` is the channel the subscription was opened for. It's threaded
+ * onto the returned `UnifiedPrediction.channelId` so multiview consumers can
+ * filter cross-channel leakage at the chat-component boundary.
+ *
  * Exported for unit testing.
  */
 export function parsePredictionEvent(
   inner: unknown,
-  _channelId: string,
+  channelId: string,
 ): UnifiedPrediction | null {
   if (!isObject(inner)) return null;
   const data = isObject(inner.data) ? inner.data : null;
@@ -296,6 +311,7 @@ export function parsePredictionEvent(
   return {
     id,
     platform: "twitch",
+    channelId,
     title,
     status,
     outcomes,
@@ -305,6 +321,22 @@ export function parsePredictionEvent(
     viewerOutcomeId: null,
     viewerStake: null,
   };
+}
+
+type TopPredictor = NonNullable<UnifiedPredictionOutcome["topPredictors"]>[number];
+
+function parseTopPredictor(raw: unknown): TopPredictor | null {
+  if (!isObject(raw)) return null;
+  const userId = typeof raw.user_id === "string" ? raw.user_id : null;
+  const userName =
+    typeof raw.user_display_name === "string"
+      ? raw.user_display_name
+      : typeof raw.user_login === "string"
+        ? raw.user_login
+        : null;
+  const amount = typeof raw.points === "number" ? raw.points : null;
+  if (!userId || !userName || amount === null) return null;
+  return { userId, userName, amount };
 }
 
 function parseOutcome(raw: unknown): UnifiedPredictionOutcome | null {
@@ -321,20 +353,8 @@ function parseOutcome(raw: unknown): UnifiedPredictionOutcome | null {
   const topPredictorsRaw = Array.isArray(raw.top_predictors) ? raw.top_predictors : null;
   const topPredictors = topPredictorsRaw
     ? topPredictorsRaw
-        .map((tp): UnifiedPredictionOutcome["topPredictors"] extends Array<infer U> | undefined ? U : never => {
-          if (!isObject(tp)) return null as never;
-          const userId = typeof tp.user_id === "string" ? tp.user_id : null;
-          const userName =
-            typeof tp.user_display_name === "string"
-              ? tp.user_display_name
-              : typeof tp.user_login === "string"
-                ? tp.user_login
-                : null;
-          const amount = typeof tp.points === "number" ? tp.points : null;
-          if (!userId || !userName || amount === null) return null as never;
-          return { userId, userName, amount };
-        })
-        .filter((x): x is NonNullable<typeof x> => x !== null && (x as unknown) !== undefined)
+        .map(parseTopPredictor)
+        .filter((tp): tp is TopPredictor => tp !== null)
     : undefined;
   return {
     id,

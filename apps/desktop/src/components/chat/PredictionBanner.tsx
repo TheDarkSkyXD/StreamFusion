@@ -14,7 +14,7 @@
  * prediction.platform: twitch-native | kick-native | unified.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -34,7 +34,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   onAutoDismiss,
   onDismiss,
 }) => {
-  const styleSetting = useAuthStore((s) => s.preferences?.predictions?.style ?? "native");
+  const styleSetting = useAuthStore((s) => s.preferences?.predictions.style ?? "native");
   const [expanded, setExpanded] = useState(false);
 
   const style: Style = useMemo(() => {
@@ -45,11 +45,23 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   const isEnded = prediction.status === "RESOLVED" || prediction.status === "CANCELED";
   const isLocked = prediction.status === "LOCKED";
 
+  // Read the latest onAutoDismiss through a ref so the timer effect doesn't
+  // depend on the callback's identity. Parents historically passed an inline
+  // arrow here, which gave the prop a fresh identity on every re-render and
+  // bounced the 60s dismiss timer indefinitely on busy chats. (Code review
+  // P1-3.)
+  const onAutoDismissRef = useRef(onAutoDismiss);
   useEffect(() => {
-    if (!isEnded || !onAutoDismiss) return;
-    const t = setTimeout(onAutoDismiss, ENDED_AUTO_DISMISS_MS);
+    onAutoDismissRef.current = onAutoDismiss;
+  }, [onAutoDismiss]);
+
+  useEffect(() => {
+    if (!isEnded) return;
+    const t = setTimeout(() => {
+      onAutoDismissRef.current?.();
+    }, ENDED_AUTO_DISMISS_MS);
     return () => clearTimeout(t);
-  }, [isEnded, onAutoDismiss, prediction.id]);
+  }, [isEnded, prediction.id]);
 
   useEffect(() => {
     setExpanded(false);
@@ -398,7 +410,7 @@ const ActiveOutcomeRow: React.FC<{
         {style === "kick-native" && (
           <span
             className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: kickDotColor(index, platform) }}
+            style={{ backgroundColor: kickDotColor(index) }}
             aria-hidden
           />
         )}
@@ -437,9 +449,16 @@ const EndedPanel: React.FC<{
   onDismiss?: () => void;
 }> = ({ prediction, style, onCollapse, onDismiss }) => {
   const total = sumAmount(prediction);
-  const [a, b] = prediction.outcomes;
   const endedAtLabel = endedRelativeLabel(prediction.endedAt);
   const winner = prediction.outcomes.find((o) => o.id === prediction.winningOutcomeId) ?? null;
+  // Default: show outcomes[0]/[1] in declared order — matches twitch.tv's
+  // 2-outcome layout exactly. Hoist exception: if the winner sits in
+  // outcomes[2+], promote it into the right slot so a 3+ outcome resolution
+  // can never hide its winner. (Code review P1-6.)
+  let [a, b] = prediction.outcomes;
+  if (winner && a?.id !== winner.id && b?.id !== winner.id) {
+    b = winner;
+  }
 
   return (
     <div className="flex flex-col gap-3 px-3 pt-2 pb-3">
@@ -551,7 +570,7 @@ const OutcomeCluster: React.FC<{
   const pct = total > 0 ? Math.round((outcome.totalAmount / total) * 100) : 0;
   const color =
     style === "kick-native"
-      ? kickDotColor(index, platform)
+      ? kickDotColor(index)
       : twitchColorHex(outcome.color ?? (index === 0 ? "blue" : "pink"));
   const alignClass = align === "right" ? "items-end text-right" : "items-start text-left";
   return (
@@ -815,7 +834,7 @@ function twitchColorHex(color: string): string {
   return map[color] ?? "#9146ff";
 }
 
-function kickDotColor(index: number, _platform: "twitch" | "kick"): string {
+function kickDotColor(index: number): string {
   if (index === 0) return "#53FC18";
   if (index === 1) return "#ff4f8c";
   return "#6b7280";

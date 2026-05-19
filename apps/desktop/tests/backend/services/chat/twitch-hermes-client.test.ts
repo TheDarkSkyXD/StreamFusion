@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parsePredictionEvent } from "@/backend/services/chat/twitch-hermes-client";
 
-const CHANNEL_ID = "71092938"; // xQc, arbitrary
+const CHANNEL_ID = "12345";
 
 function activePayload(overrides: Record<string, unknown> = {}): unknown {
   return {
@@ -41,6 +41,7 @@ describe("parsePredictionEvent (Hermes payload → UnifiedPrediction)", () => {
     const result = parsePredictionEvent(activePayload(), CHANNEL_ID);
     expect(result).not.toBeNull();
     expect(result?.platform).toBe("twitch");
+    expect(result?.channelId).toBe(CHANNEL_ID);
     expect(result?.status).toBe("ACTIVE");
     expect(result?.title).toBe("Who wins next game?");
     expect(result?.outcomes).toHaveLength(2);
@@ -48,6 +49,11 @@ describe("parsePredictionEvent (Hermes payload → UnifiedPrediction)", () => {
     expect(result?.outcomes[1].color).toBe("pink");
     expect(result?.winningOutcomeId).toBeNull();
     expect(result?.predictionWindowSeconds).toBe(120);
+  });
+
+  it("threads channelId from the subscription onto the prediction (multiview guard)", () => {
+    const result = parsePredictionEvent(activePayload(), "99999");
+    expect(result?.channelId).toBe("99999");
   });
 
   it("parses a RESOLVED prediction with winning_outcome_id and ended_at", () => {
@@ -73,7 +79,10 @@ describe("parsePredictionEvent (Hermes payload → UnifiedPrediction)", () => {
   });
 
   it("parses LOCKED status", () => {
-    const result = parsePredictionEvent(activePayload({ status: "LOCKED" }), CHANNEL_ID);
+    const result = parsePredictionEvent(
+      activePayload({ status: "LOCKED" }),
+      CHANNEL_ID,
+    );
     expect(result?.status).toBe("LOCKED");
   });
 
@@ -136,12 +145,18 @@ describe("parsePredictionEvent (Hermes payload → UnifiedPrediction)", () => {
   });
 
   it("returns null when status is not a recognized value", () => {
-    const result = parsePredictionEvent(activePayload({ status: "WAT" }), CHANNEL_ID);
+    const result = parsePredictionEvent(
+      activePayload({ status: "WAT" }),
+      CHANNEL_ID,
+    );
     expect(result).toBeNull();
   });
 
   it("returns null when outcomes array is empty", () => {
-    const result = parsePredictionEvent(activePayload({ outcomes: [] }), CHANNEL_ID);
+    const result = parsePredictionEvent(
+      activePayload({ outcomes: [] }),
+      CHANNEL_ID,
+    );
     expect(result).toBeNull();
   });
 

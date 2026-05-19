@@ -9,6 +9,7 @@ function makePrediction(overrides: Partial<UnifiedPrediction> = {}): UnifiedPred
   return {
     id: "pred-1",
     platform: "twitch",
+    channelId: "12345",
     title: "Who wins next game?",
     status: "ACTIVE",
     outcomes: [
@@ -266,5 +267,83 @@ describe("PredictionBanner (read-only viewer widget)", () => {
         /text-\[(32|36|40|44|48)px\]/.test(d.className || ""),
     );
     expect(bigNumber).toBeTruthy();
+  });
+
+  it("EndedPanel hoists the winner into the displayed pair for 3+ outcome predictions", () => {
+    // Winner is outcomes[2] — declared order would hide it. The panel must
+    // promote it into the right slot so the resolution is always visible.
+    const prediction = makePrediction({
+      status: "RESOLVED",
+      winningOutcomeId: "outcome-c",
+      outcomes: [
+        {
+          id: "outcome-a",
+          title: "Sodapoppin",
+          color: "blue",
+          totalAmount: 500_000,
+          userCount: 200,
+        },
+        {
+          id: "outcome-b",
+          title: "EggsQc",
+          color: "pink",
+          totalAmount: 300_000,
+          userCount: 150,
+        },
+        {
+          id: "outcome-c",
+          title: "Roflgator",
+          color: "yellow",
+          totalAmount: 100_000,
+          userCount: 50,
+        },
+      ],
+    });
+    render(<PredictionBanner prediction={prediction} />);
+    fireEvent.click(screen.getByLabelText("View Result"));
+    // Winner outcome must render even though it's outcomes[2].
+    expect(screen.getByText("Roflgator")).toBeTruthy();
+    // The "Winner" tag points at it.
+    expect(screen.getByText(/Winner/)).toBeTruthy();
+  });
+
+  it("PredictionBanner auto-dismiss timer does NOT reset on parent re-render with a new inline callback", () => {
+    // Regression for the P1-3 finding: passing a fresh inline arrow on every
+    // render must NOT bounce the 60s timer. Re-render with a brand-new
+    // function reference repeatedly within the timeout window and confirm
+    // the dismiss still fires exactly once.
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const prediction = makePrediction({
+        status: "RESOLVED",
+        winningOutcomeId: "outcome-a",
+      });
+      const { rerender } = render(
+        <PredictionBanner
+          prediction={prediction}
+          onAutoDismiss={() => {
+            calls += 1;
+          }}
+        />,
+      );
+      // Re-render 5 times with new callback identity each pass (parent re-renders).
+      for (let i = 0; i < 5; i += 1) {
+        vi.advanceTimersByTime(10_000); // 50_000ms elapsed total
+        rerender(
+          <PredictionBanner
+            prediction={prediction}
+            onAutoDismiss={() => {
+              calls += 1;
+            }}
+          />,
+        );
+      }
+      // Now push past the 60s mark.
+      vi.advanceTimersByTime(15_000);
+      expect(calls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
