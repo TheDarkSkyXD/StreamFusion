@@ -7,6 +7,9 @@
 
 import { create } from "zustand";
 
+import { CHANNEL_KEYS } from "../hooks/queries/useChannels";
+import { STREAM_KEYS } from "../hooks/queries/useStreams";
+import { queryClient } from "../providers/query-provider";
 import type {
   AuthErrorCode,
   KickUser,
@@ -16,6 +19,7 @@ import type {
   UserPreferences,
 } from "../shared/auth-types";
 import type { AuthStatus } from "../shared/ipc-channels";
+import { useFollowStore } from "./follow-store";
 
 // ========== Types ==========
 
@@ -311,6 +315,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       // Use the proper logout function that revokes the token
       await window.electronAPI.auth.logoutTwitch();
+
+      // Drop renderer-side caches that still hold the now-revoked account's
+      // follows. Backend already cleared account-source rows; without this,
+      // SidebarFollows keeps merging the React-Query cache (enabled:false does
+      // not invalidate data) and the in-memory useFollowStore copy (only
+      // hydrated at app boot) until the next restart.
+      queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("twitch") });
+      queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+      await useFollowStore.getState().hydrate();
 
       set({
         twitchUser: null,
