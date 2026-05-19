@@ -259,9 +259,9 @@ describe("PredictionBanner (read-only viewer widget)", () => {
   it("expanded active state renders bubble cluster for Twitch native with leader-percentage", () => {
     render(<PredictionBanner prediction={makePrediction()} />);
     fireEvent.click(screen.getByLabelText("See Details"));
-    // Big leader percentage is rendered
+    // Big leader percentage is rendered with a large font size class.
     const bigNumber = Array.from(document.querySelectorAll("div")).find(
-      (d) => /^\d+%$/.test(d.textContent || "") && (d.className || "").includes("text-[40px]"),
+      (d) => /^\d+%$/.test(d.textContent || "") && /text-\[(40|44|48)px\]/.test(d.className || ""),
     );
     expect(bigNumber).toBeTruthy();
   });

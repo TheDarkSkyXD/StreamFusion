@@ -321,7 +321,7 @@ const BubbleCluster: React.FC<{
           {leaderIndex + 1}
         </span>
       </div>
-      <div className="text-[40px] font-bold leading-none" style={{ color }}>
+      <div className="text-[44px] font-bold leading-none" style={{ color }}>
         {leaderPct}%
       </div>
       <div className="mt-1 grid grid-cols-10 gap-1 opacity-90">
@@ -349,7 +349,7 @@ const SimpleLeaderBar: React.FC<{
       <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
         Leader · {leader.title}
       </div>
-      <div className="text-[40px] font-bold leading-none" style={{ color }}>
+      <div className="text-[44px] font-bold leading-none" style={{ color }}>
         {leaderPct}%
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
@@ -446,14 +446,14 @@ const EndedPanel: React.FC<{
       <PanelHeader title="Prediction" onCollapse={onCollapse} onDismiss={onDismiss} />
 
       {/* Inset question card — dark grey background, centered text. */}
-      <div className="rounded-md bg-[#1c1c1f] px-3 py-2.5 text-center">
+      <div className="rounded-md bg-[#1c1c1f] px-3 py-3 text-center">
         <div
-          className="text-[13px] font-semibold leading-snug text-white"
+          className="text-[16px] font-bold leading-tight text-white"
           title={prediction.title}
         >
           {prediction.title}
         </div>
-        <div className="mt-1 text-[11px] text-zinc-400">
+        <div className="mt-1.5 text-[12px] text-zinc-400">
           {prediction.status === "CANCELED"
             ? "Prediction canceled — refunded"
             : `Prediction ended ${endedAtLabel}`}
@@ -542,12 +542,12 @@ const EndedOutcomeColumn: React.FC<{
         )}
       </div>
 
-      <div className="flex flex-1 flex-col items-center gap-1.5">
+      <div className="flex flex-1 flex-col items-center gap-2">
         {isWinner && (
-          <div className="flex items-center gap-1 text-[11px] font-semibold text-white">
+          <div className="flex items-center gap-1 text-[12px] font-bold text-white">
             <svg
-              width="12"
-              height="12"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="white"
               aria-hidden
@@ -556,7 +556,7 @@ const EndedOutcomeColumn: React.FC<{
               <path
                 d="M7 12l3 3 7-7"
                 stroke="#000"
-                strokeWidth="2.5"
+                strokeWidth="3"
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -565,20 +565,20 @@ const EndedOutcomeColumn: React.FC<{
             <span>Winner</span>
           </div>
         )}
-        {!isWinner && <div className="h-[16px]" aria-hidden />}
+        {!isWinner && <div className="h-[18px]" aria-hidden />}
         <div
-          className="text-[13px] font-semibold leading-none"
+          className="text-[15px] font-bold leading-tight"
           style={{ color }}
         >
           {outcome.title}
         </div>
         <div
-          className="text-[32px] font-bold leading-none tabular-nums"
+          className="text-[44px] font-bold leading-none tabular-nums"
           style={{ color }}
         >
           {pct}%
         </div>
-        <div className="mt-1 h-2 w-full max-w-[60%] overflow-hidden rounded-full bg-white/5">
+        <div className="mt-1 h-2 w-full max-w-[70%] overflow-hidden rounded-full bg-white/5">
           <div
             className="h-full rounded-full"
             style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: color }}
@@ -829,9 +829,11 @@ function endedRelativeLabel(endedAt: string | null): string {
 }
 
 function twitchColorHex(color: string): string {
+  // Saturations tuned against the screenshot — twitch's web client uses a
+  // brighter blue/pink for prediction outcomes than the standard brand swatch.
   const map: Record<string, string> = {
-    blue: "#387aff",
-    pink: "#ff4f8c",
+    blue: "#4a8eff",
+    pink: "#ff5fa8",
     yellow: "#facc15",
     green: "#22c55e",
     orange: "#fb923c",
