@@ -9,6 +9,10 @@
 
 import type { KickUser } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
+import {
+  purgeStoredThirdPartyCookies,
+  registerThirdPartyCookieStripper,
+} from "../../../services/third-party-cookie-stripper";
 import type { UnifiedCategory, UnifiedChannel, UnifiedStream } from "../../unified/platform-types";
 
 // Re-export common types for compatibility
@@ -236,10 +240,6 @@ class KickClient implements KickRequestor {
     }
 
     const { session } = require("electron");
-    const {
-      registerThirdPartyCookieStripper,
-      purgeStoredThirdPartyCookies,
-    } = require("../../../services/third-party-cookie-stripper");
 
     // Create dedicated session for CDN requests with no proxy
     const cdnSession: Electron.Session = session.fromPartition("persist:kick-cdn-direct");

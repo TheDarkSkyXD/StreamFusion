@@ -1,3 +1,5 @@
+import { net } from "electron";
+
 import type { UnifiedStream } from "../../../unified/platform-types";
 import {
   acquireKickRequestSlot,
@@ -366,8 +368,6 @@ async function _doFetchPublicStreamBySlug(
 
     const releaseSlot = await acquireKickRequestSlot();
     try {
-      const { net } = require("electron");
-
       const data = await new Promise<any>((resolve, reject) => {
         const request = net.request({
           method: "GET",
