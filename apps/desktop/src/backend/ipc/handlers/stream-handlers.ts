@@ -5,6 +5,12 @@ import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
 
 export function registerStreamHandlers(): void {
+  // Tracks the active followed-streams dispatch. A new poll aborts the prior
+  // one so orphan stagger timers from a stale dispatch (e.g. focus + manual
+  // refresh firing back-to-back) reject cleanly instead of holding semaphore
+  // slots behind the live request.
+  let _kickFollowsAbort: AbortController | null = null;
+
   /**
    * Get top streams from one or both platforms
    */
@@ -284,27 +290,20 @@ export function registerStreamHandlers(): void {
             const uniqueSlugs = [...new Set(localKick.map((f) => f.channelName))];
 
             // Stagger by 60ms each so N parallel /channels/{slug} fetches don't
-            // fan-out on the same JS tick. The cold-TLS burst otherwise exhausts
-            // the 5s per-request timeout (see PUBLIC_STREAM_REQUEST_TIMEOUT_MS in
-            // stream-endpoints.ts) and produces recurring `[KickStream] timeout …
-            // retrying` noise on every cache-miss cycle, even though the retry
-            // succeeds. The positive cache in stream-endpoints handles cross-cycle
-            // reuse; this stagger handles the within-cycle burst. The 4-slot
-            // semaphore in kick-network-health naturally serializes beyond the
-            // first 4, so the cumulative stagger is bounded by request time for
-            // large follow lists.
-            const FAN_OUT_STAGGER_MS = 60;
+            // fan-out on the same JS tick. The actual sleep lives inside
+            // getPublicStreamBySlug, after its cache check — so warm-cache
+            // polls return synchronously and only cache-miss work pays the
+            // dispatch spread. The AbortController cancels orphan timers if
+            // a new poll fires before the prior one settles.
+            if (_kickFollowsAbort) _kickFollowsAbort.abort();
+            const abort = new AbortController();
+            _kickFollowsAbort = abort;
+
+            const fanOutStaggerMs = 60;
             const settled = await Promise.allSettled(
               uniqueSlugs.map((slug, i) =>
-                (async () => {
-                  if (i > 0) {
-                    await new Promise((resolve) =>
-                      setTimeout(resolve, FAN_OUT_STAGGER_MS * i)
-                    );
-                  }
-                  return kickClient.getPublicStreamBySlug(slug);
-                })()
-              )
+                kickClient.getPublicStreamBySlug(slug, i * fanOutStaggerMs, abort.signal),
+              ),
             );
 
             for (const result of settled) {
@@ -313,7 +312,7 @@ export function registerStreamHandlers(): void {
                   kickStreams.push(result.value);
                   seenIds.add(result.value.id);
                 }
-              } else {
+              } else if ((result.reason as Error)?.message !== "AbortError") {
                 console.warn("Failed to fetch Kick stream:", result.reason);
               }
             }

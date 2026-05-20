@@ -236,6 +236,10 @@ class KickClient implements KickRequestor {
     }
 
     const { session } = require("electron");
+    const {
+      registerThirdPartyCookieStripper,
+      purgeStoredThirdPartyCookies,
+    } = require("../../../services/third-party-cookie-stripper");
 
     // Create dedicated session for CDN requests with no proxy
     const cdnSession: Electron.Session = session.fromPartition("persist:kick-cdn-direct");
@@ -247,6 +251,14 @@ class KickClient implements KickRequestor {
 
     // Close any existing connections to ensure new settings take effect
     await cdnSession.closeAllConnections();
+
+    // The CDN partition has its own cookie jar, so the default-session
+    // stripper doesn't reach it. Wire the same strip + purge here so Kick
+    // CDN responses don't pollute this jar either.
+    registerThirdPartyCookieStripper(cdnSession);
+    void purgeStoredThirdPartyCookies(cdnSession).catch(() => {
+      // Best-effort; cookie eviction is not gating CDN reads.
+    });
 
     // Cache the session
     this.cdnSession = cdnSession;
@@ -624,8 +636,12 @@ class KickClient implements KickRequestor {
   /**
    * Get stream info using the public/legacy API (No Auth Required)
    */
-  async getPublicStreamBySlug(slug: string): Promise<UnifiedStream | null> {
-    return StreamEndpoints.getPublicStreamBySlug(slug);
+  async getPublicStreamBySlug(
+    slug: string,
+    staggerOffsetMs?: number,
+    signal?: AbortSignal,
+  ): Promise<UnifiedStream | null> {
+    return StreamEndpoints.getPublicStreamBySlug(slug, staggerOffsetMs, signal);
   }
 
   /**

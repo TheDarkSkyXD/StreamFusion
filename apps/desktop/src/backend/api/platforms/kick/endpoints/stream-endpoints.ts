@@ -86,6 +86,15 @@ setInterval(
         _displayNameCache.delete(next.value);
       }
     }
+    // Evict stream-cache entries older than the longest consumer's TTL
+    // (the 5-min outage stale-serve path). Both the 90s positive-cache
+    // reader and the 5-min outage reader see fresher entries during normal
+    // operation; entries older than this are unusable for either path.
+    for (const [key, value] of _publicStreamSuccessCache.entries()) {
+      if (now - value.timestamp >= PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
+        _publicStreamSuccessCache.delete(key);
+      }
+    }
   },
   1000 * 60 * 5
 ).unref(); // Clean every 5 minutes
@@ -208,7 +217,7 @@ const _publicStreamSuccessCache = new Map<
   string,
   { data: UnifiedStream | null; timestamp: number }
 >();
-const PUBLIC_STREAM_SUCCESS_CACHE_TTL_MS = 5 * 60 * 1000;
+const PUBLIC_STREAM_OUTAGE_STALE_TTL_MS = 5 * 60 * 1000;
 // 5-min lockout is fine for genuine API failures (DNS, 5xx, parse errors) where
 // hammering Kick is pointless. But a single 5s timeout shouldn't blackhole the
 // UI for 5 minutes — Kick's CDN/edge can flake transiently while playback is
@@ -219,7 +228,7 @@ const PUBLIC_STREAM_SUCCESS_CACHE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_STREAM_FAILURE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_STREAM_TIMEOUT_TTL_MS = 30 * 1000;
 const PUBLIC_STREAM_REQUEST_TIMEOUT_MS = 5000;
-// Normal-path positive cache. Distinct from PUBLIC_STREAM_SUCCESS_CACHE_TTL_MS
+// Normal-path positive cache. Distinct from PUBLIC_STREAM_OUTAGE_STALE_TTL_MS
 // (which is a 5-min stale-serve window for the network-service-crash path).
 // `useFollowedStreams` polls every 60s and `fetchKickFollowed` fan-outs all
 // follows in parallel; with the global slot cap at 4 the first burst on a
@@ -229,7 +238,31 @@ const PUBLIC_STREAM_REQUEST_TIMEOUT_MS = 5000;
 // most polls hit the cache instead of re-bursting; keeping it under 2× the
 // poll interval bounds "channel went live" detection latency to one extra
 // cycle at worst.
-const PUBLIC_STREAM_POSITIVE_CACHE_TTL_MS = 90 * 1000;
+const PUBLIC_STREAM_POLL_HIT_TTL_MS = 90 * 1000;
+
+/**
+ * Cancellable sleep used to stagger parallel network dispatches without
+ * orphaning timers. Callers pass an AbortSignal from a per-invocation
+ * AbortController; the next invocation aborts the prior one so pending
+ * delays from stale dispatches reject instead of firing into the network.
+ */
+function staggerDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("AbortError"));
+      return;
+    }
+    const timeoutId = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timeoutId);
+        reject(new Error("AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
 
 /**
  * Get stream info using the public/legacy API (No Auth Required)
@@ -238,8 +271,17 @@ const PUBLIC_STREAM_POSITIVE_CACHE_TTL_MS = 90 * 1000;
  * share an in-flight promise, and persistent failures are negative-cached for
  * `PUBLIC_STREAM_FAILURE_TTL_MS` so the 60s `useFollowedStreams` refetch loop
  * doesn't keep re-hitting a known-unreachable channel.
+ *
+ * `staggerOffsetMs` delays the network call by that many milliseconds when the
+ * caller's positive / failure / outage caches all miss. Cache hits short-circuit
+ * synchronously without delaying. `signal` cancels the stagger sleep so the
+ * next dispatch can abort orphan timers from the prior one.
  */
-export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream | null> {
+export async function getPublicStreamBySlug(
+  slug: string,
+  staggerOffsetMs: number = 0,
+  signal?: AbortSignal,
+): Promise<UnifiedStream | null> {
   const key = slug.toLowerCase().trim();
 
   // Stale-during-outage: when Chromium's network service just crashed, every
@@ -248,7 +290,7 @@ export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream
   // periodic refetch corrects the data once the service is back.
   if (isNetworkLikelyDown()) {
     const cached = _publicStreamSuccessCache.get(key);
-    if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_SUCCESS_CACHE_TTL_MS) {
+    if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
       return cached.data;
     }
   }
@@ -267,7 +309,7 @@ export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream
   const cachedSuccess = _publicStreamSuccessCache.get(key);
   if (
     cachedSuccess &&
-    Date.now() - cachedSuccess.timestamp < PUBLIC_STREAM_POSITIVE_CACHE_TTL_MS
+    Date.now() - cachedSuccess.timestamp < PUBLIC_STREAM_POLL_HIT_TTL_MS
   ) {
     return cachedSuccess.data;
   }
@@ -275,7 +317,16 @@ export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream
   const inFlight = _publicStreamInFlight.get(key);
   if (inFlight) return inFlight;
 
-  const promise = _doFetchPublicStreamBySlug(slug, key);
+  // Register the in-flight promise BEFORE the stagger so concurrent same-slug
+  // callers dedupe against the staggered work, not against a "not started yet"
+  // gap. The stagger only fires for cache-miss work; the cache checks above
+  // short-circuit synchronously without delaying.
+  const promise = (async () => {
+    if (staggerOffsetMs > 0) {
+      await staggerDelay(staggerOffsetMs, signal);
+    }
+    return _doFetchPublicStreamBySlug(slug, key);
+  })();
   _publicStreamInFlight.set(key, promise);
   try {
     const result = await promise;
@@ -285,7 +336,7 @@ export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream
     // flicker just because the outage straddled the request.
     if (result === null && isNetworkLikelyDown()) {
       const cached = _publicStreamSuccessCache.get(key);
-      if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_SUCCESS_CACHE_TTL_MS) {
+      if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
         return cached.data;
       }
     }
@@ -495,6 +546,17 @@ async function _doFetchPublicStreamBySlug(
     const isTimeout = lastError.message === "TRANSIENT:timeout";
     const isNetCrash = /TRANSIENT:net::ERR_/.test(lastError.message || "");
     const transient = isTimeout || isNetCrash || isNetworkLikelyDown();
+    // Don't blacklist a slug whose positive cache is still fresh — a single
+    // 5s cold-TLS timeout is exactly what the poll-hit cache was designed to
+    // absorb, and letting the 30s timeout-TTL preempt a recent success would
+    // flash false "channel offline" UI on the stream-detail page. Genuine API
+    // trouble (DNS / 5xx / parse — the non-transient branch) still locks out.
+    if (transient) {
+      const fresh = _publicStreamSuccessCache.get(key);
+      if (fresh && Date.now() - fresh.timestamp < PUBLIC_STREAM_POLL_HIT_TTL_MS) {
+        return null;
+      }
+    }
     const ttl = transient ? PUBLIC_STREAM_TIMEOUT_TTL_MS : PUBLIC_STREAM_FAILURE_TTL_MS;
     _publicStreamFailureCache.set(key, Date.now() + ttl);
   }
