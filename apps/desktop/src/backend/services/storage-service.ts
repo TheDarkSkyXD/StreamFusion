@@ -52,6 +52,7 @@ class StorageService {
     if (this.store) return; // Already initialized
 
     this.store = new Store<StorageSchema>({
+      projectName: "streamfusion",
       name: "streamfusion-storage",
       defaults,
     });
