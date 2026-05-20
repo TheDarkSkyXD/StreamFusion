@@ -54,6 +54,15 @@ export type PlatformUser = TwitchUser | KickUser;
 
 // ========== Follow Types ==========
 
+/**
+ * Origin of a local-follow row. `account` rows come from the post-login
+ * `syncFollowsOnLogin` bulk import (Twitch `/channels/followed`, Kick
+ * equivalent) and are read-only in the renderer — UI surfaces redirect the
+ * user to the source platform to unfollow there. `guest` rows are anonymous
+ * client-side follows added via the in-app heart button.
+ */
+export type FollowSource = "guest" | "account";
+
 export interface LocalFollow {
   id: string; // Unique identifier (generated)
   platform: Platform;
@@ -65,6 +74,8 @@ export interface LocalFollow {
   lastSeen?: string; // ISO date string
   isLive?: boolean;
   notifications?: boolean;
+  /** Defaults to "guest" for rows added via the FollowButton. */
+  source?: FollowSource;
 }
 
 export interface TwitchFollow {

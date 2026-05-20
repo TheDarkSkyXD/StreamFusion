@@ -90,6 +90,12 @@ export const IPC_CHANNELS = {
 
   // Auth - Session Events (main → renderer push)
   AUTH_KICK_SESSION_EXPIRED: "auth:kick-session-expired",
+  // Fired by syncFollowsOnLogin after a successful login + bulk import of
+  // account-source follows into the local DB. Renderer subscribers re-hydrate
+  // useFollowStore and invalidate the followed-channels / followed-streams
+  // React-Query caches so the sidebar, FollowButton state, and Following page
+  // catch up without a manual refresh.
+  AUTH_FOLLOWS_SYNCED: "auth:follows-synced",
 
   // Local Follows
   FOLLOWS_GET_ALL: "follows:get-all",

@@ -220,6 +220,21 @@ const electronAPI = {
       return () => ipcRenderer.removeListener(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED, handler);
     },
 
+    // Listen for the main process finishing the post-login account-follows
+    // sync. Renderer re-hydrates useFollowStore + invalidates the followed
+    // React-Query caches so the sidebar and FollowButton flip to "Following"
+    // without waiting for a manual refresh.
+    onFollowsSynced: (
+      callback: (data: { platform: Platform; count: number }) => void
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { platform: Platform; count: number }
+      ) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, handler);
+    },
+
     // Auth status
     getStatus: (): Promise<AuthStatus> => ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_STATUS),
   },

@@ -226,6 +226,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // long inactivity) or the transient-failure backoff cap was hit. The
       // main process has already cleared the stored token by the time this
       // event arrives; we just sync the UI.
+      // Fires when the main process finishes the post-login `syncFollowsOnLogin`
+      // bulk import for either platform. The local follows DB now reflects the
+      // signed-in user's account follow list — re-hydrate so FollowButton
+      // flips to "Following", invalidate the React-Query caches so the
+      // Following page and sidebar refetch with the new rows.
+      window.electronAPI.auth.onFollowsSynced(({ platform }) => {
+        console.debug(`🔁 Follows synced for ${platform} — re-hydrating renderer caches`);
+        void useFollowStore.getState().hydrate();
+        queryClient.invalidateQueries({ queryKey: CHANNEL_KEYS.followed(platform) });
+        queryClient.invalidateQueries({ queryKey: STREAM_KEYS.followed() });
+      });
+
       window.electronAPI.auth.onTwitchAuthLost(() => {
         console.warn("⚠️ Twitch session expired at runtime — entering reconnect-required mode");
         // Drop renderer-side follow caches the same way explicit logout does;
@@ -275,6 +287,29 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       // After the window closes, refresh auth status to get updated user
       await get().refreshAuthStatus();
+
+      // Warm the Live Channels grid as soon as auth lands so the next /following
+      // navigation paints from cache. The background `syncFollowsOnLogin` writes
+      // freshly imported account follows into the DB after this returns; the
+      // `onFollowsSynced` listener wired in initializeAuth invalidates this
+      // query then, so the prefetched data refreshes once with the post-sync
+      // truth instead of blocking the UI on the import.
+      if (get().twitchConnected) {
+        void queryClient.prefetchQuery({
+          queryKey: STREAM_KEYS.followed(),
+          queryFn: async () => {
+            const response = await window.electronAPI.streams.getFollowed({});
+            if (response.error) {
+              console.warn(
+                "Prefetch of followed streams failed (non-fatal):",
+                response.error
+              );
+              return [];
+            }
+            return response.data ?? [];
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to login to Twitch:", error);
 

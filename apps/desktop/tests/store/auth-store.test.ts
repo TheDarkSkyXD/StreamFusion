@@ -115,6 +115,11 @@ describe("auth-store session-expired listeners — follow-cache cleanup", () => 
         onKickSessionExpired: vi.fn((cb: () => void) => {
           kickSessionExpiredCb = cb;
         }),
+        // Wired in initializeAuth alongside the session-expired listeners.
+        // Tests in this file don't exercise the post-login sync path, so
+        // a no-op register is enough — the listener is registered but never
+        // invoked here.
+        onFollowsSynced: vi.fn(() => () => {}),
       },
       follows: { getAll: vi.fn(async () => []) },
       preferences: { get: vi.fn(async () => ({})) },

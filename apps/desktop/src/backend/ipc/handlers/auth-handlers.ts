@@ -48,6 +48,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     try {
       console.debug(`🔄 Syncing ${platform} follows after login...`);
 
+      let importedCount = 0;
       if (platform === "twitch") {
         const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
         const allFollowed = await twitchClient.getAllFollowedChannels();
@@ -68,7 +69,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             "account"
           );
         }
-        console.debug(`✅ Synced ${allFollowed.length} Twitch follows`);
+        importedCount = allFollowed.length;
+        console.debug(`✅ Synced ${importedCount} Twitch follows`);
       } else if (platform === "kick") {
         const { kickClient } = await import("../../api/platforms/kick/kick-client");
         const allFollowed = await kickClient.getAllFollowedChannels();
@@ -89,8 +91,16 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             "account"
           );
         }
-        console.debug(`✅ Synced ${allFollowed.length} Kick follows`);
+        importedCount = allFollowed.length;
+        console.debug(`✅ Synced ${importedCount} Kick follows`);
       }
+
+      // Tell the renderer the local DB now reflects this platform's account
+      // follow list so it can re-hydrate useFollowStore and invalidate the
+      // followed-channels / followed-streams React-Query caches. Without this
+      // signal the renderer keeps showing pre-login state (empty FollowButton,
+      // stale sidebar) until something else happens to trigger a re-read.
+      safeSend(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, { platform, count: importedCount });
     } catch (error) {
       console.warn(`⚠️ Failed to sync ${platform} follows on login:`, error);
       // Don't throw — this is non-critical and should not block the login
