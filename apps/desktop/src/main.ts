@@ -10,7 +10,15 @@ import "dotenv/config";
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { app, BrowserWindow, globalShortcut, Menu, powerMonitor, protocol, session } from "electron";
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  Menu,
+  powerMonitor,
+  protocol,
+  session,
+} from "electron";
 
 import { protocolHandler, twitchAuthService } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
@@ -22,13 +30,13 @@ import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-
 import { dbService } from "./backend/services/database-service";
 import { networkAdBlockService } from "./backend/services/network-adblock-service";
 import { storageService } from "./backend/services/storage-service";
+import {
+  purgeStoredThirdPartyCookies,
+  registerThirdPartyCookieStripper,
+} from "./backend/services/third-party-cookie-stripper";
 import { twitchManifestProxy } from "./backend/services/twitch-manifest-proxy";
 import { vaftPatternService } from "./backend/services/vaft-pattern-service";
-import {
-  markCleanShutdown,
-  markSessionStarted,
-  wasCleanShutdown,
-} from "./backend/shutdown-marker";
+import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "./backend/shutdown-marker";
 import { windowManager } from "./backend/window-manager";
 import { IPC_CHANNELS } from "./shared/ipc-channels";
 
@@ -171,7 +179,6 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-
 /**
  * Setup request interceptors for Kick CDN domains that require special headers
  * and network-level ad blocking for Twitch.
@@ -223,7 +230,7 @@ function setupRequestInterceptors(): void {
   );
 
   // CSP modification for Twitch ad blocking (onHeadersReceived)
-  // Adds 'data:' to connect-src to allow blank video segment replacement
+  // Adds 'data:' to connect-src to allow blank video segment replacement.
   session.defaultSession.webRequest.onHeadersReceived(
     { urls: ["*://*.twitch.tv/*", "*://*.ttvnw.net/*"] },
     (details, callback) => {
@@ -250,26 +257,15 @@ function setupRequestInterceptors(): void {
         }
       }
 
-      // Strip 'Set-Cookie' header to prevent "Reading cookie in cross-site context" console spam
-      // and block 3rd party tracking cookies from video/API requests.
-      const url = details.url;
-      const shouldStripCookies =
-        url.includes("gql.twitch.tv") ||
-        url.includes("ttvnw.net") ||
-        url.includes("usher.ttvnw.net") ||
-        url.includes("api.twitch.tv");
-
-      if (shouldStripCookies) {
-        Object.keys(headers).forEach((key) => {
-          if (key.toLowerCase() === "set-cookie") {
-            delete headers[key];
-          }
-        });
-      }
-
       callback({ responseHeaders: headers });
     }
   );
+
+  // Set-Cookie stripping for third-party CDN hosts. The previous version of
+  // this lived inside the *.twitch.tv handler above and missed jtvnw.net,
+  // files.kick.com, and emote CDNs — which accumulated 8 cookies and 1800+
+  // "Reading cookie in cross-site context" DevTools warnings.
+  registerThirdPartyCookieStripper(session.defaultSession);
 }
 
 // App lifecycle events
@@ -326,6 +322,15 @@ app.on("ready", async () => {
 
   // Setup request interceptors for CDN domains and ad blocking
   setupRequestInterceptors();
+
+  // One-shot purge so the 8 cookies that accumulated before the stripper was
+  // wired up (jtvnw, kick CDN, emote CDNs) don't keep getting read on every
+  // cross-site request. Runs once per launch; safe to no-op when the jar is
+  // already empty. Fire-and-forget so a slow cookie store doesn't gate the
+  // window from opening.
+  void purgeStoredThirdPartyCookies(session.defaultSession).catch((e) => {
+    console.warn("[Main] Failed to purge stored third-party cookies:", e);
+  });
 
   const mainWindow = windowManager.createMainWindow();
 
