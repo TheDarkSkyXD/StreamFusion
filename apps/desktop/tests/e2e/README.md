@@ -1,13 +1,10 @@
 # StreamFusion E2E Test Suite
 
-End-to-end tests for the desktop app live here. There are **two complementary runners**:
+End-to-end tests for the desktop app live here. The suite is **MCP-playbook-driven**: Claude (or another MCP client) executes each playbook against a running StreamFusion dev build via the `debug-electron-mcp` server.
 
-| Runner | When it runs | Driver | Coverage |
-|--------|--------------|--------|----------|
-| **Playwright** (`./specs/*.spec.ts`) | CI + local; autonomous | Playwright Electron | Per-page smoke + nav flow |
-| **MCP playbooks** (`./playbooks/*.playbook.md`) | Ad-hoc; Claude executes them | `debug-electron-mcp` (primary) or `electron-mcp-server` (fallback) | Manual / interactive smoke |
+Playbooks are intentionally markdown checklists, not code. They're authored to be read top-to-bottom and to expose every selector, route, and assertion to the eye — so a person can verify what's being checked without running anything, and a regressed playbook can be diffed against the page that broke it.
 
-> The **MCP playbooks are the primary e2e suite** as requested by the project. Playwright is here for CI redundancy and as a programmatic fallback.
+> **Why no Playwright?** A Playwright spec runner used to live alongside the playbooks but was never wired into CI and the build-target path drifted. We removed it in favor of the single MCP-driven path. See `docs/test-audit/2026-05-19-audit-log.md` for the audit-trail context.
 
 ---
 
@@ -15,25 +12,21 @@ End-to-end tests for the desktop app live here. There are **two complementary ru
 
 ```bash
 # From apps/desktop/
-npm run test:e2e          # Playwright suite (headless)
-npm run test:e2e:ui       # Playwright UI mode
-npm run test:e2e:debug    # Playwright debug mode
-
 npm run dev:mcp           # Dev server with Chrome DevTools Protocol on :9222
                           #   ↑ start this *before* asking Claude to run playbooks
 ```
 
-The dev:mcp script lives in `apps/desktop/package.json`:
+The `dev:mcp` script lives in `apps/desktop/package.json`:
 
 ```json
 "dev:mcp": "electron-vite dev -- --remote-debugging-port=9222"
 ```
 
-Once `npm run dev:mcp` is running, Claude can connect via either MCP and drive the app.
+Once `npm run dev:mcp` is running, Claude can connect via either MCP server (see below) and drive the app.
 
 ---
 
-## E2E #1 — MCP playbooks (primary)
+## MCP playbooks
 
 ### What is "debug-electron-mcp"?
 
@@ -53,8 +46,6 @@ The tools it provides (visible to Claude as `mcp__debug-electron-mcp__*`):
 | `take_screenshot` | Captures the renderer viewport as PNG. |
 
 ### Setup — `debug-electron-mcp` (primary)
-
-> **First time? Install the MCP server.** This is a separate package from your app dependencies. See vendor docs for the exact name; the StreamFusion CLAUDE.md docs the canonical install command. The general shape is:
 
 1. **Install the MCP server** (one-time):
 
@@ -96,12 +87,9 @@ The tools it provides (visible to Claude as `mcp__debug-electron-mcp__*`):
    npm run dev:mcp
    ```
 
-5. **Sanity-check the connection**:
-   Ask Claude:
+5. **Sanity-check the connection** by running the app-launch playbook:
 
-   > "List electron windows via debug-electron-mcp."
-
-   You should get back the main StreamFusion window with its URL.
+   > "Run the app-launch playbook (`apps/desktop/tests/e2e/playbooks/00-app-launch.playbook.md`)."
 
 ### Running a playbook
 
@@ -109,7 +97,7 @@ Ask Claude:
 
 > "Run the home playbook from `apps/desktop/tests/e2e/playbooks/01-home.playbook.md`."
 
-Claude will read the file, execute each MCP call, and report pass/fail against the listed criteria. Each playbook is self-contained and lists exact JS payloads to evaluate via `send_command_to_electron`.
+Claude reads the file, executes each MCP call, and reports pass/fail against the listed criteria. Each playbook is self-contained and lists exact JS payloads to evaluate via `send_command_to_electron`.
 
 For a full app sweep:
 
@@ -124,7 +112,7 @@ For a full app sweep:
 
 ---
 
-## E2E #1.5 — Fallback: `electron-mcp-server`
+## Fallback: `electron-mcp-server`
 
 If you lose access to `debug-electron-mcp` (or it isn't installed yet on a new machine), the project already depends on **`electron-mcp-server`** (declared in `apps/desktop/package.json` devDependencies). It exposes a similar toolset under a different prefix. Use it as a drop-in fallback for the playbooks — the steps still apply, you'll just substitute tool names:
 
@@ -137,12 +125,10 @@ If you lose access to `debug-electron-mcp` (or it isn't installed yet on a new m
 
 ### Setup — `electron-mcp-server` (fallback)
 
-It's already a dev dependency, so:
+It's already a dev dependency:
 
 ```bash
 # From apps/desktop/
-# Run the server pointing at the running app. The exact CLI may differ
-# per version — start with --help to confirm:
 npx electron-mcp-server --help
 ```
 
@@ -169,85 +155,22 @@ When using this fallback, the playbooks' **JS payloads remain identical** — on
 
 ---
 
-## E2E #2 — Playwright specs (autonomous, CI-runnable)
-
-The Playwright suite is in `./specs/*.spec.ts`. It uses the existing `_electron.launch()` API and the fixture in `./fixtures/electron-app.ts` (no changes from how it already worked — these specs slot in alongside the original `app-launch.spec.ts`).
-
-### Running
-
-```bash
-npm run test:e2e            # headless run
-npm run test:e2e:ui         # interactive UI mode
-npm run test:e2e:debug      # step-through debugger
-```
-
-### What's covered
-
-Each spec exercises **one page** via the production hash router (`window.location.hash = "/route"`), waits for a route-specific heading or sentinel, and then asserts at least one user-visible thing — without depending on real API data (so it stays green offline).
-
-| Spec | Route(s) |
-|------|----------|
-| `app-launch.spec.ts` (existing) | Window/IPC sanity |
-| `home.spec.ts` | `/` |
-| `following.spec.ts` | `/following` |
-| `categories.spec.ts` | `/categories` |
-| `category-detail.spec.ts` | `/categories/:platform/:id` |
-| `search.spec.ts` | `/search?q=...` |
-| `stream.spec.ts` | `/stream/:platform/:channel` |
-| `video.spec.ts` | `/video/:platform/:videoId` |
-| `clip.spec.ts` | `/clip/:platform/:clipId` |
-| `multistream.spec.ts` | `/multistream` |
-| `history.spec.ts` | `/history` |
-| `downloads.spec.ts` | `/downloads` |
-| `settings.spec.ts` | `/settings` |
-| `navigation.spec.ts` | Sweep through every page |
-
-### Fixtures / page objects
-
-- `fixtures/electron-app.ts` — launches Electron and exposes `electronApp` + `mainWindow`.
-- `page-objects/AppNavigation.ts` — shared `open()` / `waitForHeading()` helpers used across specs.
-- `page-objects/MainWindow.ts` — the broader main-window page object (already in repo).
-
-### Adding a new spec
-
-Steal the shape of `home.spec.ts`:
-
-```ts
-import { expect, test } from '../fixtures/electron-app';
-import { AppNavigation } from '../page-objects/AppNavigation';
-
-test.describe('My new page', () => {
-  test('renders main affordance', async ({ mainWindow }) => {
-    const nav = new AppNavigation(mainWindow);
-    await nav.open('/my-new-page');
-    await nav.waitForHeading(/my new page/i);
-  });
-});
-```
-
-Keep specs **offline-safe**: don't assert on data that requires Twitch/Kick auth or live API calls. If you need real data, gate the spec on `process.env.STREAMFUSION_E2E_AUTH === 'true'`.
-
----
-
 ## Unit tests vs E2E — boundary
 
 | What it tests | Where |
 |---------------|-------|
 | Per-component rendering, branches, callbacks | `apps/desktop/tests/components/**/*.test.tsx` (vitest) |
 | Per-page rendering with mocked hooks/stores | `apps/desktop/tests/pages/*.test.tsx` (vitest) |
-| Real Electron app, real router, real DOM | `apps/desktop/tests/e2e/specs/*.spec.ts` (Playwright) |
-| Manual Claude-driven smoke / regression | `apps/desktop/tests/e2e/playbooks/*.playbook.md` (MCP) |
+| Real Electron app, real router, real DOM | `apps/desktop/tests/e2e/playbooks/*.playbook.md` (MCP-driven) |
 
-Unit tests are owned by `npm test` (vitest). E2E is owned by `npm run test:e2e` (Playwright). Playbooks are owned by Claude.
+Unit tests are owned by `npm test` (vitest). E2E is owned by Claude executing the playbooks.
 
 ---
 
 ## Troubleshooting
 
-- **Playwright says "browser not found"** — run `npx playwright install` once.
-- **`npm run test:e2e` fails to find the binary** — the spec builds against `out/StreamFusion-<platform>-<arch>/`. Run `npm run build` first, OR set `ELECTRON_IS_PACKAGED=false` and run against the Vite dev output (default).
 - **MCP says "no windows found"** — confirm the dev server was started with `npm run dev:mcp` (not `npm run dev`). The `--remote-debugging-port=9222` flag is what exposes CDP.
-- **Playbook step fails on a selector** — the playbooks rely on stable text strings and roles. If a page changed copy, update the corresponding playbook + the matching `*.spec.ts`.
+- **Playbook step fails on a selector** — the playbooks rely on stable text strings and roles. If a page changed copy, update the corresponding playbook.
 - **Claude can't see the MCP tools** — restart Claude Code after editing its MCP config. Tool names: look for `mcp__debug-electron-mcp__*` or `mcp__electron-mcp-server__*` in the available tool list.
 
 ---
@@ -256,35 +179,24 @@ Unit tests are owned by `npm test` (vitest). E2E is owned by `npm run test:e2e` 
 
 ```
 tests/
-├── adblock/               # Pre-existing ad-block unit tests (untouched)
+├── adblock/               # Pre-existing ad-block unit tests
+├── backend/               # Backend service + API client unit tests (vitest)
 ├── components/            # Component unit tests (vitest)
-│   ├── auth/
-│   ├── chat/
-│   ├── discovery/
-│   ├── icons/
-│   ├── layout/
-│   ├── multistream/
-│   ├── player/
-│   ├── search/
-│   ├── stream/
-│   ├── TopNavBar/
-│   └── ui/
+├── hooks/                 # Hook unit tests (vitest)
+├── lib/                   # Library function tests (vitest)
 ├── pages/                 # Per-page unit tests (vitest)
+├── shared/                # Shared type/contract tests (vitest)
+├── store/                 # Zustand store tests (vitest)
+├── helpers/               # Test helpers (e.g. the better-sqlite3 shim)
 ├── test-utils.tsx         # Shared render/mocks for vitest
-├── setup.ts               # vitest global setup (matchMedia mock)
+├── setup.ts               # vitest global setup (matchMedia, ResizeObserver mocks)
+├── AGENTS.md              # Per-test conventions (Keep/Rewrite/Delete + // Guards:)
 └── e2e/
     ├── README.md          # ← you are here
-    ├── playwright.config.ts
-    ├── fixtures/
-    │   ├── electron-app.ts
-    │   └── test-utils.ts
-    ├── page-objects/
-    │   ├── AppNavigation.ts
-    │   └── MainWindow.ts
-    ├── specs/             # Autonomous Playwright specs (one per page + nav sweep)
-    ├── screenshots/       # Output dir (gitignored conventionally)
     └── playbooks/         # MCP-driven scenario scripts (Claude executes)
         ├── README.md
+        ├── 00-app-launch.playbook.md
+        ├── 00b-sidebar-navigation.playbook.md
         ├── 01-home.playbook.md
         ├── 02-following.playbook.md
         ├── 03-categories.playbook.md

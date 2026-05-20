@@ -28,9 +28,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "npx playwright test --config=tests/e2e/playwright.config.ts",
-    "test:e2e:ui": "npx playwright test --config=tests/e2e/playwright.config.ts --ui",
-    "test:e2e:debug": "npx playwright test --config=tests/e2e/playwright.config.ts --debug",
     "bundle:analyze": "cross-env ANALYZE=true npm run build"
   },
   "build": {
@@ -78,10 +75,8 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@axe-core/playwright": "^4.11.0",
     "@biomejs/biome": "^2.3.14",
     "@electron/rebuild": "^4.0.3",
-    "@playwright/test": "^1.58.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query-devtools": "^5.91.3",

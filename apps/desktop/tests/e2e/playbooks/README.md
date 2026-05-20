@@ -2,11 +2,12 @@
 
 These are scenario scripts that **Claude (or another MCP client)** executes against a running StreamFusion dev build via the `debug-electron-mcp` server. Each playbook is a self-contained checklist Claude can follow step-by-step using the MCP tools listed below.
 
-The playbooks **do not run on CI** — for autonomous CI coverage use the Playwright specs in `../specs`. The playbooks exist for:
+The playbooks **do not run on CI** — CI runs the vitest unit suite only (see `.github/workflows/build.yml`). The playbooks exist for:
 
 - Interactive smoke-testing during development.
 - Reproducing user reports inside Claude.
 - Validating new pages/features before committing.
+- Visual evidence (screenshots) of UI changes for PR descriptions.
 
 ## MCP toolset used
 
@@ -41,6 +42,8 @@ When you ask Claude to "run the home playbook," Claude reads the corresponding f
 
 | Page | File |
 |------|------|
+| App launch | [00-app-launch.playbook.md](00-app-launch.playbook.md) |
+| Sidebar navigation | [00b-sidebar-navigation.playbook.md](00b-sidebar-navigation.playbook.md) |
 | Home | [01-home.playbook.md](01-home.playbook.md) |
 | Following | [02-following.playbook.md](02-following.playbook.md) |
 | Categories | [03-categories.playbook.md](03-categories.playbook.md) |
