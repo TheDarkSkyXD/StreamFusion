@@ -13,23 +13,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run ESLint
         run: npm run lint
+
+  test:
+    name: Test (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run vitest
+        run: npm test
+        # E2E playbooks are NOT run here — they're MCP-driven and require a live
+        # dev build (`npm run dev:mcp`). See apps/desktop/tests/e2e/README.md.
 
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: lint
+    needs: [lint, test]
     strategy:
       fail-fast: false
       matrix:
