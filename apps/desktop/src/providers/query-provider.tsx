@@ -19,21 +19,23 @@ const DRAG_THRESHOLD_PX = 5;
 
 function DraggableDevtools({ children }: { children: React.ReactNode }) {
   const [pos, setPos] = useState<{ x: number; y: number }>(() => {
+    const maxX = Math.max(0, window.innerWidth - DEVTOOLS_BTN_SIZE);
+    const maxY = Math.max(0, window.innerHeight - DEVTOOLS_BTN_SIZE);
     try {
       const saved = localStorage.getItem(DEVTOOLS_POS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (typeof parsed?.x === "number" && typeof parsed?.y === "number") {
-          return parsed;
+        if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) {
+          return {
+            x: Math.max(0, Math.min(maxX, parsed.x)),
+            y: Math.max(0, Math.min(maxY, parsed.y)),
+          };
         }
       }
     } catch {
       // ignore corrupt storage
     }
-    return {
-      x: window.innerWidth - DEVTOOLS_BTN_SIZE - 16,
-      y: window.innerHeight - DEVTOOLS_BTN_SIZE - 16,
-    };
+    return { x: Math.max(0, maxX - 16), y: Math.max(0, maxY - 16) };
   });
 
   useEffect(() => {
@@ -44,72 +46,81 @@ function DraggableDevtools({ children }: { children: React.ReactNode }) {
     }
   }, [pos]);
 
-  useEffect(() => {
-    const onResize = () => {
-      setPos((p) => ({
-        x: Math.max(0, Math.min(p.x, window.innerWidth - DEVTOOLS_BTN_SIZE)),
-        y: Math.max(0, Math.min(p.y, window.innerHeight - DEVTOOLS_BTN_SIZE)),
-      }));
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
   const dragRef = useRef<{
+    pointerId: number;
     startX: number;
     startY: number;
     posX: number;
     posY: number;
     dragging: boolean;
   } | null>(null);
+  const wasDraggingRef = useRef(false);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
+      pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
       posX: pos.x,
       posY: pos.y,
       dragging: false,
     };
+  };
 
-    const onMove = (ev: PointerEvent) => {
-      const d = dragRef.current;
-      if (!d) return;
-      const dx = ev.clientX - d.startX;
-      const dy = ev.clientY - d.startY;
-      if (!d.dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
-        d.dragging = true;
-      }
-      if (d.dragging) {
-        ev.preventDefault();
-        setPos({
-          x: Math.max(0, Math.min(window.innerWidth - DEVTOOLS_BTN_SIZE, d.posX + dx)),
-          y: Math.max(0, Math.min(window.innerHeight - DEVTOOLS_BTN_SIZE, d.posY + dy)),
-        });
-      }
-    };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+      d.dragging = true;
+    }
+    if (d.dragging) {
+      e.preventDefault();
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - DEVTOOLS_BTN_SIZE, d.posX + dx)),
+        y: Math.max(0, Math.min(window.innerHeight - DEVTOOLS_BTN_SIZE, d.posY + dy)),
+      });
+    }
+  };
 
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      if (dragRef.current?.dragging) {
-        // Suppress the click that would otherwise open the devtools panel
-        const blockClick = (ce: MouseEvent) => {
-          ce.stopPropagation();
-          ce.preventDefault();
-        };
-        window.addEventListener("click", blockClick, { capture: true, once: true });
-      }
-      dragRef.current = null;
-    };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    if (d.dragging) {
+      // onClickCapture below swallows the trailing click; the timer clears the
+      // flag if Chromium already suppressed the synthesized click.
+      wasDraggingRef.current = true;
+      setTimeout(() => {
+        wasDraggingRef.current = false;
+      }, 0);
+    }
+    dragRef.current = null;
+  };
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+  const onPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+  };
+
+  const onClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }
   };
 
   return (
     <div
       onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onClickCapture={onClickCapture}
       style={{
         position: "fixed",
         left: pos.x,
