@@ -5,6 +5,7 @@
  * and lookup of emotes from Twitch, Kick, BTTV, FFZ, and 7TV.
  */
 
+import type { Platform } from "@/shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type { Emote, EmoteManagerConfig, EmoteProvider, EmoteProviderService } from "./emote-types";
 import { DEFAULT_EMOTE_CONFIG } from "./emote-types";
@@ -28,14 +29,13 @@ const CACHE_CLEANUP_INTERVAL = 5 * 60 * 1000; // Cleanup every 5 minutes
  * Used by both global and channel emote loaders so we don't fire pointless
  * cross-platform fetches (e.g. Kick's no-op global loader on a Twitch stream).
  */
-const PLATFORM_PROVIDERS: Record<"twitch" | "kick", EmoteProvider[]> = {
+const PLATFORM_PROVIDERS: { [K in Platform]: readonly [K, ...EmoteProvider[]] } = {
   twitch: ["twitch", "bttv", "ffz", "7tv"],
   kick: ["kick", "7tv"],
 };
 
 /** Emote manager events */
 export interface EmoteManagerEvents {
-  ready: () => void;
   emotesFetched: (provider: EmoteProvider, isGlobal: boolean, channelId?: string) => void;
   error: (error: Error, provider: EmoteProvider) => void;
 }
@@ -46,7 +46,6 @@ class EmoteManager extends EventEmitter {
   private channelEmotes: Map<string, Map<EmoteProvider, Emote[]>> = new Map();
   private emoteCache: Map<string, EmoteCacheEntry> = new Map();
   private config: EmoteManagerConfig;
-  private isInitialized = false;
 
   /** Track channel access order for LRU eviction */
   private channelAccessOrder: string[] = [];
@@ -124,20 +123,6 @@ class EmoteManager extends EventEmitter {
   }
 
   /**
-   * Initialize the emote manager and load global emotes
-   */
-  async initialize(): Promise<void> {
-    if (this.isInitialized) return;
-
-    if (this.config.loadGlobalOnInit) {
-      await this.loadGlobalEmotes();
-    }
-
-    this.isInitialized = true;
-    this.emit("ready");
-  }
-
-  /**
    * Load global emotes from registered providers.
    *
    * When `platform` is provided, only loads from providers that serve that
@@ -146,7 +131,7 @@ class EmoteManager extends EventEmitter {
    *
    * When omitted, falls back to loading all enabled providers (legacy behavior).
    */
-  async loadGlobalEmotes(platform?: "twitch" | "kick"): Promise<void> {
+  async loadGlobalEmotes(platform?: Platform): Promise<void> {
     const allowed = platform ? PLATFORM_PROVIDERS[platform] : null;
     const enabledProviders = Array.from(this.providers.entries())
       .filter(([name]) => this.config.enabledProviders.includes(name))
@@ -192,7 +177,7 @@ class EmoteManager extends EventEmitter {
   async loadChannelEmotes(
     channelId: string,
     channelName?: string,
-    platform: "twitch" | "kick" = "twitch"
+    platform: Platform = "twitch"
   ): Promise<void> {
     // Track channel access for LRU eviction
     this.trackChannelAccess(channelId);
@@ -533,7 +518,6 @@ class EmoteManager extends EventEmitter {
     this.channelEmotes.clear();
     this.emoteCache.clear();
     this.channelAccessOrder = [];
-    this.isInitialized = false;
     console.debug("[EmoteManager] Cleared all emote data");
   }
 

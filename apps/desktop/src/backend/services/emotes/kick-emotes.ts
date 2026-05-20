@@ -60,7 +60,6 @@ class KickEmoteProvider implements EmoteProviderService {
     // Kick doesn't expose a public global emotes API
     // Users get their emotes from channels they subscribe to
     // Return empty array - channel emotes will be loaded separately
-    console.log("[KickEmotes] Kick does not have global emotes endpoint");
     return [];
   }
 

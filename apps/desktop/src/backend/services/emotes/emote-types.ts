@@ -4,6 +4,8 @@
  * Shared type definitions for the emote provider system.
  */
 
+import type { Platform } from "@/shared/auth-types";
+
 /** Supported emote providers */
 export type EmoteProvider = "twitch" | "kick" | "bttv" | "ffz" | "7tv";
 
@@ -76,7 +78,7 @@ export interface EmoteProviderService {
   fetchChannelEmotes(
     channelId: string,
     channelName?: string,
-    platform?: "twitch" | "kick"
+    platform?: Platform
   ): Promise<Emote[]>;
 
   /** Get URL for an emote at a specific size */
@@ -85,8 +87,6 @@ export interface EmoteProviderService {
 
 /** Emote manager configuration */
 export interface EmoteManagerConfig {
-  /** Whether to load global emotes on init */
-  loadGlobalOnInit: boolean;
   /** Providers to enable */
   enabledProviders: EmoteProvider[];
   /** Cache TTL in milliseconds */
@@ -95,7 +95,6 @@ export interface EmoteManagerConfig {
 
 /** Default emote manager configuration */
 export const DEFAULT_EMOTE_CONFIG: EmoteManagerConfig = {
-  loadGlobalOnInit: true,
   enabledProviders: ["twitch", "kick", "bttv", "ffz", "7tv"],
   cacheTTL: 30 * 60 * 1000, // 30 minutes
 };

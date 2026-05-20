@@ -66,6 +66,11 @@ vi.mock('@/backend/services/chat/twitch-chat', () => ({
     off: vi.fn(),
     onMessage: vi.fn(() => () => {}),
     onConnectionStateChange: vi.fn(() => () => {}),
+    // Needed so the connect-effect doesn't short-circuit on an undefined
+    // getConnectionStatus call. The platform-scoped loadGlobalEmotes assertion
+    // below depends on the effect reaching past this check.
+    getConnectionStatus: vi.fn(() => ({ state: 'connected' })),
+    joinChannel: vi.fn(async () => true),
   },
 }));
 
@@ -101,12 +106,13 @@ vi.mock('@/store/chat-store', () => {
   return { useChatStore };
 });
 
+const loadGlobalEmotesMock = vi.fn();
 vi.mock('@/store/emote-store', () => {
   const state = {
     loadedChannels: new Set(),
     setActiveChannel: vi.fn(),
     loadChannelEmotes: vi.fn(),
-    loadGlobalEmotes: vi.fn(),
+    loadGlobalEmotes: (...args: unknown[]) => loadGlobalEmotesMock(...args),
     unloadChannelEmotes: vi.fn(),
   };
   return {
@@ -154,12 +160,28 @@ describe('TwitchChat', () => {
     unbanUserMock.mockReset();
     deleteChatMessageMock.mockReset();
     promptReconnectMock.mockReset();
+    loadGlobalEmotesMock.mockReset();
   });
 
   it('renders message list and chat input', () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
+  });
+
+  it("loads global emotes scoped to 'twitch' after auth/connect", async () => {
+    // The branch that calls loadGlobalEmotes('twitch') is gated on
+    // `if (twitchClientId)`. Stub the env so the gate opens for this test.
+    vi.stubEnv('VITE_TWITCH_CLIENT_ID', 'test-client-id');
+    try {
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+      // The connect effect is async — wait until the platform-scoped call lands
+      // before asserting the argument so we don't race the resolve.
+      await waitFor(() => expect(loadGlobalEmotesMock).toHaveBeenCalled());
+      expect(loadGlobalEmotesMock).toHaveBeenCalledWith('twitch');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('canSend reflects the narrowed connection-state selector', () => {

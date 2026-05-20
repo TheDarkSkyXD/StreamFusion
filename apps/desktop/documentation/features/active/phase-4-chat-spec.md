@@ -349,7 +349,9 @@ Incoming Message
   export class EmoteManager {
     private providers: EmoteProvider[];
     
-    async loadGlobalEmotes(): Promise<void>;
+    async loadGlobalEmotes(platform?: Platform): Promise<void>;
+    // When `platform` is provided, only loads from providers that serve that platform
+    // (e.g. Twitch streams get Twitch/BTTV/FFZ/7TV; Kick streams get Kick/7TV).
     async loadChannelEmotes(channelId: string, platform: Platform): Promise<void>;
     getEmote(name: string, context: EmoteContext): Emote | null;
     searchEmotes(query: string): Emote[];

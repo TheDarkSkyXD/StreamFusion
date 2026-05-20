@@ -435,14 +435,14 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
     favoriteEmotes,
     activeChannelId,
     loadedChannels,
-    globalEmotesLoaded,
+    loadedGlobalPlatforms,
   } = useEmoteStore(
     useShallow((state) => ({
       recentEmotes: state.recentEmotes,
       favoriteEmotes: state.favoriteEmotes,
       activeChannelId: state.activeChannelId,
       loadedChannels: state.loadedChannels,
-      globalEmotesLoaded: state.globalEmotesLoaded,
+      loadedGlobalPlatforms: state.loadedGlobalPlatforms,
     }))
   );
   const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
@@ -451,11 +451,14 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   const getEmotesByProvider = useEmoteStore((state) => state.getEmotesByProvider);
 
   // Provider → emotes map. Recompute when underlying load state shifts.
+  // `loadedGlobalPlatforms.size` is a stable primitive across renders (Sets
+  // get rebuilt on each per-platform completion), so it tracks the actual
+  // signal the memo cares about — globals coming online for any platform.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const emotesByProvider = useMemo(() => getEmotesByProvider(), [
     activeChannelId,
     loadedChannels,
-    globalEmotesLoaded,
+    loadedGlobalPlatforms.size,
   ]);
 
   /* --------------------------- focus on open --------------------------- */

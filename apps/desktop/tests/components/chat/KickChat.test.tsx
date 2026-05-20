@@ -84,12 +84,13 @@ vi.mock('@/store/chat-store', () => {
   return { useChatStore };
 });
 
+const loadGlobalEmotesMock = vi.fn();
 vi.mock('@/store/emote-store', () => {
   const state = {
     loadedChannels: new Set(),
     setActiveChannel: vi.fn(),
     loadChannelEmotes: vi.fn(),
-    loadGlobalEmotes: vi.fn(),
+    loadGlobalEmotes: (...args: unknown[]) => loadGlobalEmotesMock(...args),
     unloadChannelEmotes: vi.fn(),
   };
   return {
@@ -135,12 +136,21 @@ describe('KickChat', () => {
     timeoutKickUserMock.mockReset();
     unbanKickUserMock.mockReset();
     deleteKickMessageMock.mockReset();
+    loadGlobalEmotesMock.mockReset();
   });
 
   it('renders message list and chat input', () => {
     render(<KickChat channel="xqc" chatroomId={12345} />);
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
+  });
+
+  it("loads global emotes scoped to 'kick' after connect", async () => {
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    // The connect effect is async — wait until the platform-scoped call lands
+    // before asserting the argument so we don't race the resolve.
+    await waitFor(() => expect(loadGlobalEmotesMock).toHaveBeenCalled());
+    expect(loadGlobalEmotesMock).toHaveBeenCalledWith('kick');
   });
 
   it('canSend reflects the narrowed connection-state selector', () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EmoteManager } from "@/backend/services/emotes/emote-manager";
 import type { Emote, EmoteProvider, EmoteProviderService } from "@/backend/services/emotes/emote-types";
@@ -15,9 +15,27 @@ function makeProvider(name: EmoteProvider): EmoteProviderService & {
   };
 }
 
+// EmoteManager starts a 5-min setInterval in its constructor (browser-only,
+// gated on `typeof window !== "undefined"`). vitest/jsdom satisfies that
+// check, so every `new EmoteManager()` in these tests leaks a timer unless
+// we stop it explicitly. Register each manager via this helper so afterEach
+// can drain them.
+const managers: EmoteManager[] = [];
+function createManager(): EmoteManager {
+  const m = new EmoteManager();
+  managers.push(m);
+  return m;
+}
+
+afterEach(() => {
+  while (managers.length > 0) {
+    managers.pop()?.stopCleanupTimer();
+  }
+});
+
 describe("EmoteManager.loadGlobalEmotes platform filter", () => {
   it("does not invoke Twitch-only providers when platform is 'kick'", async () => {
-    const manager = new EmoteManager();
+    const manager = createManager();
     const twitch = makeProvider("twitch");
     const kick = makeProvider("kick");
     const bttv = makeProvider("bttv");
@@ -43,7 +61,7 @@ describe("EmoteManager.loadGlobalEmotes platform filter", () => {
   });
 
   it("does not invoke Kick's global loader when platform is 'twitch'", async () => {
-    const manager = new EmoteManager();
+    const manager = createManager();
     const twitch = makeProvider("twitch");
     const kick = makeProvider("kick");
     const bttv = makeProvider("bttv");
@@ -67,7 +85,7 @@ describe("EmoteManager.loadGlobalEmotes platform filter", () => {
   });
 
   it("loads from every enabled provider when called with no platform (legacy behavior)", async () => {
-    const manager = new EmoteManager();
+    const manager = createManager();
     const twitch = makeProvider("twitch");
     const kick = makeProvider("kick");
     manager.registerProvider(twitch);

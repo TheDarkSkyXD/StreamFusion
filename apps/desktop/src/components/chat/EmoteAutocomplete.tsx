@@ -49,7 +49,7 @@ export const EmoteAutocomplete: React.FC<EmoteAutocompleteProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { searchEmotes, globalEmotesLoaded, loadedChannels, activeChannelId } = useEmoteStore();
+  const { searchEmotes, loadedChannels, activeChannelId } = useEmoteStore();
 
   // Find the current autocomplete match (text after trigger char)
   const match = useMemo((): AutocompleteMatch | null => {

@@ -7,7 +7,7 @@ import type { Emote, EmoteProvider } from '@/backend/services/emotes/emote-types
 /* ------------------------------------------------------------------------- */
 
 interface MockState {
-  globalEmotesLoaded: boolean;
+  loadedGlobalPlatforms: Set<'twitch' | 'kick'>;
   loadedChannels: Set<string>;
   activeChannelId: string | null;
   favoriteEmotes: Emote[];
@@ -22,7 +22,7 @@ interface MockState {
 }
 
 const mockState: MockState = {
-  globalEmotesLoaded: true,
+  loadedGlobalPlatforms: new Set(['twitch']),
   loadedChannels: new Set(),
   activeChannelId: null,
   favoriteEmotes: [],

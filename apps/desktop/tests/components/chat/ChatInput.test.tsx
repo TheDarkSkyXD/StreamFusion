@@ -38,7 +38,7 @@ vi.mock('@/store/chat-store', () => ({
 vi.mock('@/store/emote-store', () => {
   const state = {
     searchEmotes: () => [],
-    globalEmotesLoaded: false,
+    loadedGlobalPlatforms: new Set<'twitch' | 'kick'>(),
     loadedChannels: new Set(),
     activeChannelId: null,
     favoriteEmotes: [],

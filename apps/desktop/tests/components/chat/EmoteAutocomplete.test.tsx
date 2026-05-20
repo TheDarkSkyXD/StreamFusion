@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/store/emote-store', () => ({
   useEmoteStore: () => ({
     searchEmotes: () => [],
-    globalEmotesLoaded: false,
     loadedChannels: new Set(),
     activeChannelId: null,
   }),

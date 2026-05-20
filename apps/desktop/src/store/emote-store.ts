@@ -8,17 +8,26 @@
 import { create } from "zustand";
 import { emoteManager } from "../backend/services/emotes";
 import type { Emote, EmoteProvider } from "../backend/services/emotes/emote-types";
+import type { Platform } from "../shared/auth-types";
+
+/**
+ * Single-flight dedup for per-platform global emote fetches. Module-scoped
+ * because it's a write-side gate, not state that drives UI re-renders. Mirrors
+ * the EmoteManager.channelEmoteInFlight pattern so two simultaneous Twitch +
+ * Kick loads (e.g. multistream) each run exactly once instead of one being
+ * suppressed by the other's shared `isLoading` flag.
+ */
+const inFlightGlobalLoads = new Map<Platform | "legacy", Promise<void>>();
 
 interface EmoteState {
-  /** Whether emotes are currently loading */
+  /** Whether emotes are currently loading (UI hint only; not used as a gate) */
   isLoading: boolean;
-  /** Whether global emotes have been loaded (true once any platform completes) */
-  globalEmotesLoaded: boolean;
   /**
-   * Per-platform load tracker. Lets us dedupe per-platform global fetches so
-   * opening Twitch then Kick still loads each platform's providers exactly once.
+   * Per-platform load tracker — authority for "have we loaded globals for X?".
+   * Lets us dedupe per-platform global fetches so opening Twitch then Kick
+   * still loads each platform's providers exactly once.
    */
-  loadedGlobalPlatforms: Set<"twitch" | "kick">;
+  loadedGlobalPlatforms: Set<Platform>;
   /** Current error message if any */
   error: string | null;
   /** Channels that have had their emotes loaded */
@@ -35,11 +44,11 @@ interface EmoteState {
   // Actions
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  loadGlobalEmotes: (platform?: "twitch" | "kick") => Promise<void>;
+  loadGlobalEmotes: (platform?: Platform) => Promise<void>;
   loadChannelEmotes: (
     channelId: string,
     channelName?: string,
-    platform?: "twitch" | "kick"
+    platform?: Platform
   ) => Promise<void>;
   unloadChannelEmotes: (channelId: string) => void;
   setActiveChannel: (channelId: string | null) => void;
@@ -54,7 +63,6 @@ interface EmoteState {
 
 export const useEmoteStore = create<EmoteState>((set, get) => ({
   isLoading: false,
-  globalEmotesLoaded: false,
   loadedGlobalPlatforms: new Set(),
   error: null,
   loadedChannels: new Set(),
@@ -72,26 +80,46 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
     // Per-platform gate when platform is given (so opening Twitch then Kick
     // still loads each platform's providers once). Falls back to the legacy
     // "loaded anything" gate when called without a platform.
-    if (platform ? state.loadedGlobalPlatforms.has(platform) : state.globalEmotesLoaded) return;
-    if (state.isLoading) return;
+    if (platform ? state.loadedGlobalPlatforms.has(platform) : state.loadedGlobalPlatforms.size > 0)
+      return;
+
+    // Single-flight per-platform key. Critically, "twitch" and "kick" are
+    // independent keys — a Kick load no longer blocks a concurrent Twitch
+    // load the way the old shared `isLoading` boolean did.
+    const key: Platform | "legacy" = platform ?? "legacy";
+    const existing = inFlightGlobalLoads.get(key);
+    if (existing) {
+      await existing;
+      return;
+    }
 
     set({ isLoading: true, error: null });
 
+    const run = (async () => {
+      try {
+        await emoteManager.loadGlobalEmotes(platform);
+        set((s) => ({
+          loadedGlobalPlatforms: platform
+            ? new Set([...s.loadedGlobalPlatforms, platform])
+            : s.loadedGlobalPlatforms,
+          isLoading: false,
+        }));
+      } catch (error) {
+        console.error("[EmoteStore] Failed to load global emotes:", error);
+        set({
+          error: "Failed to load global emotes",
+          isLoading: false,
+        });
+      }
+    })();
+
+    inFlightGlobalLoads.set(key, run);
     try {
-      await emoteManager.loadGlobalEmotes(platform);
-      set((s) => ({
-        globalEmotesLoaded: true,
-        loadedGlobalPlatforms: platform
-          ? new Set([...s.loadedGlobalPlatforms, platform])
-          : s.loadedGlobalPlatforms,
-        isLoading: false,
-      }));
-    } catch (error) {
-      console.error("[EmoteStore] Failed to load global emotes:", error);
-      set({
-        error: "Failed to load global emotes",
-        isLoading: false,
-      });
+      await run;
+    } finally {
+      if (inFlightGlobalLoads.get(key) === run) {
+        inFlightGlobalLoads.delete(key);
+      }
     }
   },
 
@@ -174,5 +202,15 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
     return emoteManager.getAllEmotes(state.activeChannelId || undefined);
   },
 }));
+
+/**
+ * Derived selector for "global emotes have loaded for at least one platform".
+ * Replaces the stored `globalEmotesLoaded` boolean — `loadedGlobalPlatforms`
+ * is the single authority and this hook just reads its size. Consumers that
+ * need the legacy boolean shape can subscribe to this without re-rendering
+ * when unrelated emote-store slices change.
+ */
+export const useGlobalEmotesLoaded = (): boolean =>
+  useEmoteStore((s) => s.loadedGlobalPlatforms.size > 0);
 
 export default useEmoteStore;
