@@ -16,6 +16,11 @@ export default defineConfig({
       '@backend/': path.resolve(__dirname, './src/backend') + '/',
       '@frontend/': path.resolve(__dirname, './src/frontend') + '/',
       '@shared/': path.resolve(__dirname, './src/shared') + '/',
+      // The repo ships better-sqlite3 compiled against Electron's
+      // NODE_MODULE_VERSION; vitest runs under system Node. Route imports
+      // to a node:sqlite-backed shim so DB tests run without a binary
+      // rebuild dance. See tests/helpers/better-sqlite3-shim.ts.
+      'better-sqlite3': path.resolve(__dirname, './tests/helpers/better-sqlite3-shim.ts'),
     },
     coverage: {
       provider: 'v8',

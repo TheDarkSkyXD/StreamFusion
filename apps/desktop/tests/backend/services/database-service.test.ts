@@ -5,27 +5,11 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The repo ships better-sqlite3 compiled for Electron (NODE_MODULE_VERSION 133).
-// Vitest runs under system Node (137), so the native binding fails to load
-// unless the developer has run `npm rebuild better-sqlite3`. Skip gracefully
-// when the binary is mismatched so the rest of the test suite stays green.
-// To run these tests: `npm rebuild better-sqlite3 && npm test ...` then
-// `npm run rebuild-deps` to restore the Electron-targeted binary.
-const SQLITE_AVAILABLE = (() => {
-  try {
-    new Database(":memory:").close();
-    return true;
-  } catch {
-    // biome-ignore lint/suspicious/noConsole: surfacing skip reason
-    console.warn(
-      "[database-service.test] better-sqlite3 native binary mismatch — skipping. " +
-        "Run `npm rebuild better-sqlite3` to run these tests."
-    );
-    return false;
-  }
-})();
-
-const describeDb = SQLITE_AVAILABLE ? describe : describe.skip;
+// vitest.config.ts aliases `better-sqlite3` to a `node:sqlite`-backed shim
+// (tests/helpers/better-sqlite3-shim.ts), so this suite no longer depends
+// on the native Electron-targeted binary. The previous SQLITE_AVAILABLE
+// skip pattern is therefore unnecessary.
+const describeDb = describe;
 
 // A fresh temp directory per test so each DatabaseService instance
 // initializes its own SQLite file at <tmp>/streamfusion.db.
