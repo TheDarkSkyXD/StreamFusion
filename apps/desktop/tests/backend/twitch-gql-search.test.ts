@@ -7,6 +7,9 @@ import {
   type SearchGameEdgeItem,
 } from "@/backend/api/platforms/twitch/twitch-gql-client";
 
+// Guards: Twitch GQL search pagination — `searchFor.channels` and `searchFor.games` do NOT accept `cursor`/`first` on the persisted operation, and the operation ignores `after`. Any fix that "adds pagination" by re-sending the same op with cursor will skeleton-flicker forever. The 26-test suite below pins the input contract, the cursor handoff, the dedupe semantics, and the endReason taxonomy (see `docs/solutions/integration-issues/twitch-gql-search-pagination-skeleton-flicker-loop-2026-05-17.md` for the bug class).
+// Guards: response-fixture `satisfies` narrowing — widening what `transformSearchChannel`/`transformSearchGame` need produces a compile error here, so the test stays in sync with the production transforms rather than drifting silently.
+
 type FetchMock = ReturnType<typeof vi.fn>;
 
 // Fixtures use `satisfies` against the narrowed contracts the production

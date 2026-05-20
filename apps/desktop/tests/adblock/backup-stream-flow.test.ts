@@ -5,6 +5,8 @@
  * playerType values to find an ad-free stream. This is the core VAFT technique.
  */
 
+// Guards: backup-stream cycling is the core VAFT technique — each player-type variant must be tried in order and rejected if it returns an ad-stitched playlist.
+
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock fetch globally

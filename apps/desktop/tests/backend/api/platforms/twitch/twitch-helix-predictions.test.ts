@@ -8,6 +8,8 @@ import {
   resolvePrediction,
 } from "@/backend/api/platforms/twitch/twitch-helix-predictions";
 
+// Guards: Helix predictions CRUD — create/lock/resolve/cancel/get, asserted as URL + method + body envelope. Resolve takes a winning_outcome_id; cancel does not. Get supports pagination cursor.
+
 let lastUrl: string | null = null;
 let lastMethod: string | null = null;
 let lastBody: unknown = null;

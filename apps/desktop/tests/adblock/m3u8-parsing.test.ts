@@ -5,6 +5,8 @@
  * Covers master playlists, media playlists, and edge cases.
  */
 
+// Guards: realistic Twitch m3u8 playlist parsing — master + media variants, EXT tags, ad markers; fixtures derived from production captures so a parser regression surfaces here, not in users' players.
+
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock fetch globally

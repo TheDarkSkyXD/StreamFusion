@@ -5,6 +5,8 @@ import {
   unpinChatMessage,
 } from "@/backend/api/platforms/twitch/twitch-gql-pin-mutations";
 
+// Guards: Twitch GQL pin/unpin mutation wire shape — operationName, persisted-op hash, variable shape. Twitch rotates persisted-op hashes on schema changes; a fix-and-forget rename would silently 4xx in production. Test asserts the request body verbatim so any drift surfaces here.
+
 // Capture each fetch call so the tests can inspect the body Twitch receives.
 let lastBody: unknown = null;
 let nextResponse: { status: number; body: unknown } = { status: 200, body: { data: {} } };

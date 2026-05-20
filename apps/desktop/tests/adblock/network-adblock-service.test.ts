@@ -1,8 +1,10 @@
 /**
  * Tests for Network Ad Block Service
- * 
+ *
  * Tests the network-level ad blocking in network-adblock-service.ts
  */
+
+// Guards: network-level URL blocking — specific Twitch ad-server domains (edge.ads.twitch.tv etc.) must stay blocked; new ad endpoints get added here when discovered.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { networkAdBlockService } from '@/backend/services/network-adblock-service';

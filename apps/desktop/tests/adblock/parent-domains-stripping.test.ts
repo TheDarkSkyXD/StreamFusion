@@ -1,18 +1,20 @@
 /**
  * Tests for parent_domains Stripping in Twitch Ad-Block Service
- * 
+ *
  * These tests verify that the critical parent_domains stripping is working
  * correctly to prevent Twitch from detecting our app as an "embedded" player
  * and forcing ads on backup streams.
- * 
+ *
  * The parent_domains parameter is what Twitch uses to identify embedded players
  * and serve ads to them. By stripping this from:
  * 1. The access token value (JSON inside the token)
  * 2. The usher URL parameters
- * 
+ *
  * We can get ad-free backup streams that show the actual stream content
  * instead of the purple "Commercial break in progress" screen.
  */
+
+// Guards: parent_domains stripping is critical — Twitch uses this to detect "embedded" players and force ads onto backup streams; stripping it from token JSON + usher URL is what makes backups ad-free.
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 

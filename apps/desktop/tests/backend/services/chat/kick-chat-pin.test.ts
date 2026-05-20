@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { kickPinToNormalized } from "@/backend/services/chat/kick-chat";
 import type { KickPinnedMessage } from "@/shared/chat-types";
 
+// Guards: Kick pin payload → normalized shape — message id, sender identity, pinned_by, finish_at → expiresAt, content as a single text fragment. Kick's identity.badges parser is exercised here; sub_gifter count appends to the title only for that badge type (not subscriber).
+// Guards: defensive Kick payload handling — older pin events omit `identity.badges`; the history endpoint occasionally omits `pinned_by`. Both must not throw; both must produce a usable banner.
+
 function makeRawPin(overrides: Partial<KickPinnedMessage> = {}): KickPinnedMessage {
   return {
     message: {

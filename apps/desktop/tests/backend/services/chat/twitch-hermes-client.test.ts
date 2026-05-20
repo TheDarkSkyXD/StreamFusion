@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { parsePredictionEvent } from "@/backend/services/chat/twitch-hermes-client";
 
+// Guards: Hermes prediction-event parsing — `data.event` shape, ACTIVE/RESOLVED/CANCELED/LOCKED status set, BLUE/PINK color literals, and the top_predictors array under outcomes. Hermes drift on any of these would silently break the prediction banner.
+// Guards: multiview-bus channel-id threading — `parsePredictionEvent(payload, channelId)` must stamp the channelId onto the result so a singleton Hermes connection emitting to N subscribers doesn't bleed channel A's prediction into channel B's banner.
+// Guards: anonymous Hermes envelope — `viewerOutcomeId` and `viewerStake` are always null off the public bus; only authed Helix surfaces would carry them. A change that defaults them non-null silently breaks the "have I bet?" UI gate.
+
 const CHANNEL_ID = "12345";
 
 function activePayload(overrides: Record<string, unknown> = {}): unknown {

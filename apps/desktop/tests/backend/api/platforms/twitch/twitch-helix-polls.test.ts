@@ -7,6 +7,8 @@ import {
   terminatePoll,
 } from "@/backend/api/platforms/twitch/twitch-helix-polls";
 
+// Guards: Helix polls CRUD — `POST /polls`, `PATCH /polls` (terminate + archive distinguished by `status` enum), `GET /polls`. Asserts request body shape, including the `choices` array length bounds Twitch enforces.
+
 let lastUrl: string | null = null;
 let lastMethod: string | null = null;
 let lastBody: unknown = null;

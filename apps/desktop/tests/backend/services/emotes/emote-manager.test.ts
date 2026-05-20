@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EmoteManager } from "@/backend/services/emotes/emote-manager";
 import type { Emote, EmoteProvider, EmoteProviderService } from "@/backend/services/emotes/emote-types";
 
+// Guards: cross-platform global-emote scoping (regression `cfb0033`) — Kick's no-op global loader must NOT fire when the player is on Twitch, and Twitch-only providers (BTTV/FFZ) must NOT fire when on Kick. The "actual bug" comment at line 78 names this explicitly; renaming or removing the platform-allowlist branching loses the test.
+// Guards: legacy no-platform call path — calling `loadGlobalEmotes()` with no argument must fan out to every registered provider. This is the back-compat surface; refactors that move the platform map shouldn't silently drop it.
+
 function makeProvider(name: EmoteProvider): EmoteProviderService & {
   fetchGlobalEmotes: ReturnType<typeof vi.fn>;
   fetchChannelEmotes: ReturnType<typeof vi.fn>;

@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { TWITCH_OAUTH_CONFIG } from "@/backend/auth/oauth-config";
 
+// Guards: Twitch IRC chat-scope regression — `chat:read` + `chat:edit` MUST stay in `TWITCH_OAUTH_CONFIG.scopes`. Dropping either breaks tmi.js authentication with the user-invisible "Login unsuccessful" failure (the `twitch-irc-missing-chat-scopes-2026-05-19` bug class). The second `describe` exists specifically because the Helix-side `moderator:manage:chat_messages` scope is NOT accepted by IRC, so the test pins the IRC requirements separately from the broader Helix scope set.
+// Guards: channel-management console scope set — 11 retained-feature scopes plus prior scopes. Per-item `toContain` (not snapshot-equality) so a casual "tidy up" PR can't silently drop a single scope while keeping the list "mostly right". After the b15bdec refactor removed AutoMod/Streamlabs/giveaway features, no AutoMod-specific scopes appear in this set — drift in either direction (add an AutoMod scope, drop a retained scope) fails this test.
+// Guards: no duplicate scopes — Twitch silently accepts duplicates but the dedupe test surfaces the bug at audit time when someone has copy-pasted a scope while adding a feature.
+
 // The eleven scopes the channel-management console plan adds in one batch
 // (U4's nine plus the two unban-requests scopes from the moderators/VIPs/
 // unban-requests follow-up). Kept here as a literal so the test would catch

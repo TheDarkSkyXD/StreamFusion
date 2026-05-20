@@ -14,6 +14,8 @@
  * the queryModLog ↔ insertModLog flow that bootstrapFromHelix relies on.
  */
 
+// Guards: mod-log writer renderer-side behaviour — dedup buffer (no duplicate IPC writes for the same EventSub envelope), `channel.moderate` event → ModAction translation, Helix bootstrap idempotency (replaying bootstrap doesn't double-insert), and retention-sweep wiring on initialize(). IPC contract is the test surface; SQL lives in the main process and stays mocked.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {

@@ -5,6 +5,8 @@
  * through ad detection, backup fetching, segment stripping, and recovery.
  */
 
+// Guards: end-to-end adblock pipeline — init → master playlist → media playlist → segment stripping → recovery sequence; this is the only test that exercises the full chain.
+
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock fetch globally

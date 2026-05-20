@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { KickEmoteProvider } from "@/backend/services/emotes/kick-emotes";
 
+// Guards: Kick emote transform — `subscribers_only` boolean threads to `subscribersOnly`, channelId is carried through, image URL construction. Private-method exercise; if `transformEmote` is renamed or made public the test imports surface a compile error before the runtime cast hides drift.
+
 // transformEmote is private; we exercise it through fetchChannelEmotes' transform
 // by reaching into the class. Vitest is happy to access private methods at runtime —
 // the type signature is the only barrier and we cast through it for the test.

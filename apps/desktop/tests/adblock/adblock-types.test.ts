@@ -1,8 +1,15 @@
 /**
  * Tests for Twitch Ad-Block Types
- * 
+ *
  * Tests the type definitions and helper functions in adblock-types.ts
+ *
+ * DEFAULT_ADBLOCK_CONFIG pins Twitch's embed-player client ID and the backup
+ * player-type list. These look like config but are load-bearing: drift here
+ * silently breaks the VAFT ad-block technique even though the change in diff
+ * looks benign. Test asserts each field by exact value on purpose.
  */
+
+// Guards: DEFAULT_ADBLOCK_CONFIG pins Twitch's embed-player client ID + backup player types — drift here breaks VAFT (changes look benign in diff but kill ad-blocking).
 
 import { describe, it, expect } from 'vitest';
 import {

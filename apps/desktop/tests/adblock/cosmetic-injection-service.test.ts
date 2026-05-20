@@ -1,9 +1,11 @@
 /**
  * Tests for Cosmetic Injection Service
- * 
+ *
  * Tests the CSS/scriptlet injection functionality.
  * Note: This is a unit test without Electron - mocks ipcMain and BrowserWindow.
  */
+
+// Guards: CSS/scriptlet injection IPC contract — renderer-side selectors and adblock cosmetic filters must reach the right BrowserWindow.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 

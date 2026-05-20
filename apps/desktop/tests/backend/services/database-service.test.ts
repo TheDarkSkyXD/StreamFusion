@@ -9,6 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // (tests/helpers/better-sqlite3-shim.ts), so this suite no longer depends
 // on the native Electron-targeted binary. The previous SQLITE_AVAILABLE
 // skip pattern is therefore unnecessary.
+
+// Guards: DatabaseService schema + migrations against the node:sqlite-shim — initialization, the local-follows schema, and any ON CONFLICT / named-param SQL paths must round-trip on the shim exactly as they do against native better-sqlite3 (parity covered by `tests/helpers/better-sqlite3-shim.test.ts`).
+
 const describeDb = describe;
 
 // A fresh temp directory per test so each DatabaseService instance

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TokenRefreshError } from "@/backend/auth/token-exchange";
 
+// Guards: Twitch token-refresh flow — 401 → refresh → retry, refresh-failure → clearToken + signed-out state, expired-token detection. Module-level mocks for storageService and tokenExchangeService keep the refresh-decision logic isolated from disk/network so the chain can be driven deterministically. Drift on the singleton's lookup-then-decide ordering (e.g. caching a stale token in memory across a refresh) surfaces here.
+
 // The service singleton imports storageService and tokenExchangeService at
 // module-load time. Both are mocked below so the tests don't touch disk or
 // the network and can drive the refresh chain deterministically.

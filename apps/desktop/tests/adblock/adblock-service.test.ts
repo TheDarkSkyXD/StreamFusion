@@ -1,8 +1,10 @@
 /**
  * Tests for Twitch Ad-Block Service
- * 
+ *
  * Tests the core ad-blocking logic in twitch-adblock-service.ts
  */
+
+// Guards: core adblock state machine — init/config/status transitions must round-trip correctly for the player to gate ads.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 

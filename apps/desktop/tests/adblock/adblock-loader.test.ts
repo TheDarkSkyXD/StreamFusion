@@ -9,6 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Guards: HLS.js loader utility helpers used by the Twitch ad-block flow stay covered when HLS.js itself is mocked (browser-only library).
+
 // Mock HLS.js since it's browser-only
 vi.mock('hls.js', () => {
   const MockLoader = class {

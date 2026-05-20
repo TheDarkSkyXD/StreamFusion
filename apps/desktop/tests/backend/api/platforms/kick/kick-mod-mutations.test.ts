@@ -8,6 +8,8 @@ import {
   unbanKickUser,
 } from "@/backend/api/platforms/kick/kick-mod-mutations";
 
+// Guards: Kick v2 moderation mutations — ban (permanent=true), timeout (permanent=false + duration), unban, delete-message, set-chat-mode. Each pins URL + method + body envelope so a casual refactor that "simplifies" the request shape doesn't silently 4xx mod actions.
+
 let lastUrl: string | null = null;
 let lastMethod: string | null = null;
 let lastBody: unknown = null;

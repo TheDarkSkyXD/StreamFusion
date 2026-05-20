@@ -5,6 +5,8 @@ import {
   resolveUnbanRequest,
 } from "@/backend/api/platforms/twitch/twitch-helix-unban-requests";
 
+// Guards: Helix unban-requests CRUD — list (filterable by status), resolve (approve/deny + optional moderator_message). The status filter is a literal-union; resolve mutates exactly one record per call.
+
 let lastUrl: string | null = null;
 let lastMethod: string | null = null;
 let lastBody: unknown = null;

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 
+// Guards: `withTwitchHelixRetry` wraps any Helix call with a 401→refresh-token→retry-once pattern. The retry must not multiply (no double-refresh, no infinite loop), must surface a non-401 failure as-is, and must thread the refreshed token through `electronAPI.auth.getValidTwitchToken()` exactly once.
+
 interface FakeWindow {
   electronAPI: {
     auth: {

@@ -5,6 +5,8 @@ import {
   unpinKickMessage,
 } from "@/backend/api/platforms/kick/kick-pin-mutations";
 
+// Guards: Kick pin/unpin v2 wire envelope — POST/DELETE on `/api/v2/channels/{slug}/pinned-message`, the canonical message body shape (id/chatroom_id/content/type/sender), and the `duration` field's "omit means until-unpinned" semantics. Result classification (unauthenticated/forbidden/not-found) maps HTTP status to the discriminated-union result type the UI consumes.
+
 let lastUrl = "";
 let lastBody: unknown = null;
 let lastMethod = "";

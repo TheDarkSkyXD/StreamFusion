@@ -6,6 +6,8 @@
  * playlists that swap HEVC streams to AVC equivalents for compatibility.
  */
 
+// Guards: HEVC→AVC playlist swap during ads — H.265 streams break the player's ad-decode path; backup playlists must rewrite to AVC equivalents so the player keeps playing during ad windows.
+
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock fetch globally

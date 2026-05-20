@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { __resetTwitchPinPollers, toNormalized } from "@/backend/services/chat/twitch-pin-poller";
 
+// Guards: Twitch `PinnedChatMessage.id` (the pin record's id) is NOT the same as `pinnedMessage.id` (the chat message's id). The normalized payload's `messageId` must come from `pinnedMessage.id` so the banner can thread back to the right chat row. First test pins fixture ids from production GQL to keep these distinct on every diff.
+// Guards: `PinnedChatMessage` has exactly 5 fields per the live schema (`id`, `type`, `updatedAt`, `pinnedBy`, `pinnedMessage`). Adding a 6th means Twitch shipped a schema change worth investigating; removing one means our normalizer needs to defend against undefined.
+// Guards: pin payloads with `pinnedMessage: null` (chat message deleted while pin record is still active) must still produce a valid banner using the pin record's id and an empty content array.
+
 afterEach(() => {
   __resetTwitchPinPollers();
 });

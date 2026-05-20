@@ -5,6 +5,8 @@ import {
   getVips,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderators-vips";
 
+// Guards: Helix `GET /moderation/moderators` and `GET /channels/vips` envelopes — broadcaster_id required, cursor handoff, paging up to 100/page. Drift on the URL or the pagination shape silently empties the mod/VIP tables.
+
 let lastUrl: string | null = null;
 let lastMethod: string | null = null;
 let lastBody: unknown = null;

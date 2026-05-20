@@ -6,6 +6,8 @@
  * and replaces tracking URLs to minimize ad impact.
  */
 
+// Guards: per-segment ad stripping — when backup streams aren't available, ad segments must be stripped from media playlists and tracking URLs replaced; this is the fallback path when VAFT backups fail.
+
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock fetch globally

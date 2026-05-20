@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { BadgeResolver } from '@/backend/services/chat/badge-resolver';
 import type { ChatBadge } from '@/shared/chat-types';
 
+// Guards: BadgeResolver cache identity — same badge set + same broadcasterId returns the SAME array reference (React render stability); different broadcasterId or set/version returns a different reference (no stale-channel bleed); clearCache drops the memo. Reference-equality matters because consumers use it as a React key signal.
+
 function makeBadges(): ChatBadge[] {
   return [
     { setId: 'subscriber', version: '6', imageUrl: '', title: '' },

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Guards: Helix moderation-mutation wire envelopes — ban/unban/timeout/clear-chat/delete-message/raid/shield-mode/commercial/add+remove-moderator/add+remove-vip. Each asserts URL, method, query params, and request body so a casual rename to a Helix field doesn't silently 404 the moderator UI in production.
+
 import {
   addModerator,
   addVip,

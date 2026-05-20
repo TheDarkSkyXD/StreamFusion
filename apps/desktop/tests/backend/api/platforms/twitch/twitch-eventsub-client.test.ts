@@ -8,6 +8,8 @@
  *     return canned responses with subscription ids.
  */
 
+// Guards: Twitch EventSub WebSocket lifecycle — `session_welcome` handoff to subscription POST, `session_keepalive` heartbeat, `session_reconnect` URL handoff, `revocation`/`subscription` event routing, and DELETE-on-close cleanup. Asserts the full handshake with a stubbable WebSocket ctor + stubbable fetch so we don't depend on real CDP connectivity.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
