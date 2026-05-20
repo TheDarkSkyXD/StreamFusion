@@ -12,8 +12,13 @@ import type { Emote, EmoteProvider } from "../backend/services/emotes/emote-type
 interface EmoteState {
   /** Whether emotes are currently loading */
   isLoading: boolean;
-  /** Whether global emotes have been loaded */
+  /** Whether global emotes have been loaded (true once any platform completes) */
   globalEmotesLoaded: boolean;
+  /**
+   * Per-platform load tracker. Lets us dedupe per-platform global fetches so
+   * opening Twitch then Kick still loads each platform's providers exactly once.
+   */
+  loadedGlobalPlatforms: Set<"twitch" | "kick">;
   /** Current error message if any */
   error: string | null;
   /** Channels that have had their emotes loaded */
@@ -30,7 +35,7 @@ interface EmoteState {
   // Actions
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  loadGlobalEmotes: () => Promise<void>;
+  loadGlobalEmotes: (platform?: "twitch" | "kick") => Promise<void>;
   loadChannelEmotes: (
     channelId: string,
     channelName?: string,
@@ -50,6 +55,7 @@ interface EmoteState {
 export const useEmoteStore = create<EmoteState>((set, get) => ({
   isLoading: false,
   globalEmotesLoaded: false,
+  loadedGlobalPlatforms: new Set(),
   error: null,
   loadedChannels: new Set(),
   recentEmotes: [],
@@ -61,15 +67,25 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
 
   setError: (error) => set({ error }),
 
-  loadGlobalEmotes: async () => {
+  loadGlobalEmotes: async (platform) => {
     const state = get();
-    if (state.globalEmotesLoaded || state.isLoading) return;
+    // Per-platform gate when platform is given (so opening Twitch then Kick
+    // still loads each platform's providers once). Falls back to the legacy
+    // "loaded anything" gate when called without a platform.
+    if (platform ? state.loadedGlobalPlatforms.has(platform) : state.globalEmotesLoaded) return;
+    if (state.isLoading) return;
 
     set({ isLoading: true, error: null });
 
     try {
-      await emoteManager.loadGlobalEmotes();
-      set({ globalEmotesLoaded: true, isLoading: false });
+      await emoteManager.loadGlobalEmotes(platform);
+      set((s) => ({
+        globalEmotesLoaded: true,
+        loadedGlobalPlatforms: platform
+          ? new Set([...s.loadedGlobalPlatforms, platform])
+          : s.loadedGlobalPlatforms,
+        isLoading: false,
+      }));
     } catch (error) {
       console.error("[EmoteStore] Failed to load global emotes:", error);
       set({

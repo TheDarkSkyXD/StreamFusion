@@ -288,7 +288,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           if (twitchClientId) {
             await initializeTwitchEmotes(twitchClientId, accessToken);
             // Reload global emotes now that we have credentials
-            if (isMounted) await loadGlobalEmotes();
+            if (isMounted) await loadGlobalEmotes("twitch");
           }
 
           if (!isMounted) return;

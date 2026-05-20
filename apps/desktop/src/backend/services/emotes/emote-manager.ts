@@ -20,6 +20,19 @@ interface EmoteCacheEntry {
 const MAX_CACHED_CHANNELS = 5; // LRU limit for channel emotes
 const CACHE_CLEANUP_INTERVAL = 5 * 60 * 1000; // Cleanup every 5 minutes
 
+/**
+ * Which providers are relevant per platform.
+ * - Twitch streams use Twitch first-party plus BTTV/FFZ/7TV third-party overlays.
+ * - Kick streams use Kick first-party plus 7TV (the only third-party that supports Kick).
+ *
+ * Used by both global and channel emote loaders so we don't fire pointless
+ * cross-platform fetches (e.g. Kick's no-op global loader on a Twitch stream).
+ */
+const PLATFORM_PROVIDERS: Record<"twitch" | "kick", EmoteProvider[]> = {
+  twitch: ["twitch", "bttv", "ffz", "7tv"],
+  kick: ["kick", "7tv"],
+};
+
 /** Emote manager events */
 export interface EmoteManagerEvents {
   ready: () => void;
@@ -125,12 +138,19 @@ class EmoteManager extends EventEmitter {
   }
 
   /**
-   * Load global emotes from all registered providers
+   * Load global emotes from registered providers.
+   *
+   * When `platform` is provided, only loads from providers that serve that
+   * platform (see PLATFORM_PROVIDERS). This avoids no-op fetches like Kick's
+   * "no global endpoint" loader firing on Twitch streams.
+   *
+   * When omitted, falls back to loading all enabled providers (legacy behavior).
    */
-  async loadGlobalEmotes(): Promise<void> {
-    const enabledProviders = Array.from(this.providers.entries()).filter(([name]) =>
-      this.config.enabledProviders.includes(name)
-    );
+  async loadGlobalEmotes(platform?: "twitch" | "kick"): Promise<void> {
+    const allowed = platform ? PLATFORM_PROVIDERS[platform] : null;
+    const enabledProviders = Array.from(this.providers.entries())
+      .filter(([name]) => this.config.enabledProviders.includes(name))
+      .filter(([name]) => !allowed || allowed.includes(name));
 
     const results = await Promise.allSettled(
       enabledProviders.map(async ([name, provider]) => {
@@ -187,17 +207,10 @@ class EmoteManager extends EventEmitter {
 
     const channelMap = this.channelEmotes.get(channelId)!;
 
-    // Filter providers based on platform to avoid unnecessary API calls
-    // Twitch: twitch, bttv, ffz, 7tv
-    // Kick: kick, 7tv (7TV supports both platforms)
-    const platformProviders: Record<"twitch" | "kick", EmoteProvider[]> = {
-      twitch: ["twitch", "bttv", "ffz", "7tv"],
-      kick: ["kick", "7tv"],
-    };
-
+    // Filter providers based on platform to avoid unnecessary API calls.
     const enabledProviders = Array.from(this.providers.entries())
       .filter(([name]) => this.config.enabledProviders.includes(name))
-      .filter(([name]) => platformProviders[platform].includes(name));
+      .filter(([name]) => PLATFORM_PROVIDERS[platform].includes(name));
 
     const results = await Promise.allSettled(
       enabledProviders.map(async ([name, provider]) => {

@@ -211,7 +211,7 @@ export const KickChat: React.FC<KickChatProps> = ({
 
           // Initialize Kick Emotes
           initializeKickEmotes(kickToken.accessToken);
-          if (isMounted) await loadGlobalEmotes();
+          if (isMounted) await loadGlobalEmotes("kick");
         } else {
           // Anonymous
           await kickChatService.connect({
@@ -220,8 +220,8 @@ export const KickChat: React.FC<KickChatProps> = ({
 
           if (!isMounted) return;
           setIsAuthenticated(false);
-          // Just load global emotes (BTTV/7TV)
-          if (isMounted) await loadGlobalEmotes();
+          // Just load 7TV globals (Kick has no global endpoint of its own).
+          if (isMounted) await loadGlobalEmotes("kick");
         }
 
         if (!isMounted) return;
