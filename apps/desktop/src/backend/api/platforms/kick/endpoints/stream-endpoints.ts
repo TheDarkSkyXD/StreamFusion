@@ -219,6 +219,17 @@ const PUBLIC_STREAM_SUCCESS_CACHE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_STREAM_FAILURE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_STREAM_TIMEOUT_TTL_MS = 30 * 1000;
 const PUBLIC_STREAM_REQUEST_TIMEOUT_MS = 5000;
+// Normal-path positive cache. Distinct from PUBLIC_STREAM_SUCCESS_CACHE_TTL_MS
+// (which is a 5-min stale-serve window for the network-service-crash path).
+// `useFollowedStreams` polls every 60s and `fetchKickFollowed` fan-outs all
+// follows in parallel; with the global slot cap at 4 the first burst on a
+// cold TLS connection consistently exhausts the 5s per-request timeout,
+// producing `[KickStream] timeout … retrying` noise on every cycle even
+// though attempt 1 then succeeds. A TTL above the 60s poll interval lets
+// most polls hit the cache instead of re-bursting; keeping it under 2× the
+// poll interval bounds "channel went live" detection latency to one extra
+// cycle at worst.
+const PUBLIC_STREAM_POSITIVE_CACHE_TTL_MS = 90 * 1000;
 
 /**
  * Get stream info using the public/legacy API (No Auth Required)
@@ -246,6 +257,19 @@ export async function getPublicStreamBySlug(slug: string): Promise<UnifiedStream
   if (failExpiry !== undefined) {
     if (Date.now() < failExpiry) return null;
     _publicStreamFailureCache.delete(key);
+  }
+
+  // Positive cache hit: skip the network entirely when the previous fetch is
+  // still fresh. Sits after the failure check so a fresh failure preempts a
+  // stale-but-not-yet-expired success. The success cache stores both live
+  // streams and known-offline (`data: null`) channels, so this also avoids
+  // re-bursting for offline follows.
+  const cachedSuccess = _publicStreamSuccessCache.get(key);
+  if (
+    cachedSuccess &&
+    Date.now() - cachedSuccess.timestamp < PUBLIC_STREAM_POSITIVE_CACHE_TTL_MS
+  ) {
+    return cachedSuccess.data;
   }
 
   const inFlight = _publicStreamInFlight.get(key);
