@@ -283,13 +283,28 @@ export function registerStreamHandlers(): void {
           if (localKick.length > 0) {
             const uniqueSlugs = [...new Set(localKick.map((f) => f.channelName))];
 
-            // Concurrency is already capped at 4 by acquireKickRequestSlot() inside
-            // getPublicStreamBySlug — chunking on top of that just added ~500 ms of
-            // sleep between batches of 3 (≈2 s for a 15-follow user) on every 60 s
-            // poll, with no extra 429 protection beyond what the semaphore + the
-            // in-flight dedupe + failure cache already provide.
+            // Stagger by 60ms each so N parallel /channels/{slug} fetches don't
+            // fan-out on the same JS tick. The cold-TLS burst otherwise exhausts
+            // the 5s per-request timeout (see PUBLIC_STREAM_REQUEST_TIMEOUT_MS in
+            // stream-endpoints.ts) and produces recurring `[KickStream] timeout …
+            // retrying` noise on every cache-miss cycle, even though the retry
+            // succeeds. The positive cache in stream-endpoints handles cross-cycle
+            // reuse; this stagger handles the within-cycle burst. The 4-slot
+            // semaphore in kick-network-health naturally serializes beyond the
+            // first 4, so the cumulative stagger is bounded by request time for
+            // large follow lists.
+            const FAN_OUT_STAGGER_MS = 60;
             const settled = await Promise.allSettled(
-              uniqueSlugs.map((slug) => kickClient.getPublicStreamBySlug(slug))
+              uniqueSlugs.map((slug, i) =>
+                (async () => {
+                  if (i > 0) {
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, FAN_OUT_STAGGER_MS * i)
+                    );
+                  }
+                  return kickClient.getPublicStreamBySlug(slug);
+                })()
+              )
             );
 
             for (const result of settled) {
