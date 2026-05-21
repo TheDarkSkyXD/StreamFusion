@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { parsePredictionEvent } from "@/backend/services/chat/twitch-hermes-client";
+import {
+  parsePredictionEvent,
+  TwitchHermesClient,
+} from "@/backend/services/chat/twitch-hermes-client";
 
 // Guards: Hermes prediction-event parsing — `data.event` shape, ACTIVE/RESOLVED/CANCELED/LOCKED status set, BLUE/PINK color literals, and the top_predictors array under outcomes. Hermes drift on any of these would silently break the prediction banner.
 // Guards: multiview-bus channel-id threading — `parsePredictionEvent(payload, channelId)` must stamp the channelId onto the result so a singleton Hermes connection emitting to N subscribers doesn't bleed channel A's prediction into channel B's banner.
 // Guards: anonymous Hermes envelope — `viewerOutcomeId` and `viewerStake` are always null off the public bus; only authed Helix surfaces would carry them. A change that defaults them non-null silently breaks the "have I bet?" UI gate.
+// Guards: stop() during CONNECTING — closing a WebSocket before the handshake completes triggers the browser's spec-required "WebSocket is closed before the connection is established" console error. Under React StrictMode dev double-invoke the mount-cleanup runs synchronously after the initial effect, so close() lands while readyState=0. The lifecycle test asserts close is deferred to onopen instead of called eagerly.
 
 const CHANNEL_ID = "12345";
 
@@ -204,5 +208,82 @@ describe("parsePredictionEvent (Hermes payload → UnifiedPrediction)", () => {
     const result = parsePredictionEvent(activePayload(), CHANNEL_ID);
     expect(result?.viewerOutcomeId).toBeNull();
     expect(result?.viewerStake).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MockWebSocket — minimal stub for stop()-during-CONNECTING coverage.
+// Mirrors the shape used in twitch-eventsub-client.test.ts; kept local because
+// only the connect/close lifecycle is exercised here.
+// ---------------------------------------------------------------------------
+
+class MockWebSocket {
+  static CONNECTING = 0 as const;
+  static OPEN = 1 as const;
+  static CLOSING = 2 as const;
+  static CLOSED = 3 as const;
+  static instances: MockWebSocket[] = [];
+  url: string;
+  readyState: number = MockWebSocket.CONNECTING;
+  closeCallCount = 0;
+  onopen: ((ev: Event) => void) | null = null;
+  onmessage: ((ev: MessageEvent) => void) | null = null;
+  onclose: ((ev: CloseEvent) => void) | null = null;
+  onerror: ((ev: Event) => void) | null = null;
+  constructor(url: string) {
+    this.url = url;
+    MockWebSocket.instances.push(this);
+  }
+  send(_: string): void {}
+  close(): void {
+    this.closeCallCount += 1;
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({ code: 1000 } as CloseEvent);
+  }
+  _open(): void {
+    this.readyState = MockWebSocket.OPEN;
+    this.onopen?.({} as Event);
+  }
+}
+
+describe("TwitchHermesClient lifecycle (start/stop)", () => {
+  beforeEach(() => {
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does not call close() while the WebSocket is still CONNECTING — defers to onopen so the browser does not log 'closed before connection established'", () => {
+    const client = new TwitchHermesClient("12345");
+    client.start();
+    expect(MockWebSocket.instances).toHaveLength(1);
+    const ws = MockWebSocket.instances[0];
+    expect(ws.readyState).toBe(MockWebSocket.CONNECTING);
+
+    client.stop();
+    // Eager close on CONNECTING is the bug. The fix detaches handlers and
+    // installs an onopen that closes once the handshake lands.
+    expect(ws.closeCallCount).toBe(0);
+    expect(ws.onopen).not.toBeNull();
+    expect(ws.onmessage).toBeNull();
+    expect(ws.onclose).toBeNull();
+
+    // When the deferred onopen fires after the handshake, the socket is
+    // closed cleanly (no console error because it's no longer CONNECTING).
+    ws._open();
+    expect(ws.closeCallCount).toBe(1);
+  });
+
+  it("closes immediately when stop() is called after the socket is OPEN", () => {
+    const client = new TwitchHermesClient("12345");
+    client.start();
+    const ws = MockWebSocket.instances[0];
+    ws._open();
+    expect(ws.readyState).toBe(MockWebSocket.OPEN);
+
+    client.stop();
+    expect(ws.closeCallCount).toBe(1);
   });
 });

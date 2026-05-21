@@ -83,11 +83,7 @@ export class TwitchHermesClient {
     this.reconnectAttempts = 0;
     this.clearTimers();
     if (this.ws) {
-      try {
-        this.ws.close();
-      } catch {
-        // ignore
-      }
+      closeWebSocketSafe(this.ws);
       this.ws = null;
     }
     this.emitter.emit("state", "disconnected");
@@ -381,6 +377,40 @@ const VALID_COLORS: ReadonlySet<string> = new Set([
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+// Closing a CONNECTING WebSocket emits a browser-level console error
+// ("WebSocket is closed before the connection is established") because the
+// spec requires "fail the WebSocket connection" — observable in prod whenever
+// the user unmounts chat or switches channelId before the handshake lands,
+// and deterministic in dev under React StrictMode's mount-then-cleanup
+// double-invoke. Defer close to onopen for CONNECTING sockets so the actual
+// close runs against an OPEN socket and stays quiet.
+function closeWebSocketSafe(ws: WebSocket): void {
+  ws.onmessage = null;
+  ws.onerror = null;
+  ws.onclose = null;
+  const state = ws.readyState;
+  if (state === WebSocket.CLOSING || state === WebSocket.CLOSED) {
+    ws.onopen = null;
+    return;
+  }
+  if (state === WebSocket.CONNECTING) {
+    ws.onopen = () => {
+      try {
+        ws.close();
+      } catch {
+        // ignore
+      }
+    };
+    return;
+  }
+  ws.onopen = null;
+  try {
+    ws.close();
+  } catch {
+    // ignore
+  }
 }
 
 function makeId(): string {
