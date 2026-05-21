@@ -359,11 +359,14 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
 
         {/* Message body: just the content. Twitch's native card omits the
          * sender entirely in collapsed state — the "Pinned by X" header is
-         * the only attribution. 18px / weight 500 / 1.3 line-height. */}
+         * the only attribution. 18px / weight 500 / 1.3 line-height.
+         *
+         * Body always wraps (twitch.tv parity): long messages flow to as many
+         * lines as needed; long URLs fall back to `break-all` on the link
+         * fragment itself. The expand/collapse chevron only toggles the
+         * sender row + reply button — never clips the message. */}
         <div
-          className={`mt-0.5 text-lg font-medium leading-snug text-[#EFEFF1] ${
-            isExpanded ? "break-words" : "truncate"
-          }`}
+          className="mt-0.5 text-lg font-medium leading-snug text-[#EFEFF1] break-words"
           data-testid="pinned-message-content"
         >
           {pin.content.map((fragment, i) => (

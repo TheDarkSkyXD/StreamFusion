@@ -468,9 +468,12 @@ describe("PinnedMessageBanner", () => {
     expect(screen.getByTestId("pinned-message-content")).toHaveTextContent("second pin");
   });
 
-  it("AE8: collapsed content uses the truncate utility for narrow-width safety", () => {
+  it("AE8: body wraps in both collapsed and expanded states (twitch.tv parity)", () => {
+    // Body never truncates — the chevron only toggles the sender row + reply
+    // button, never clips the message. break-words handles prose; the link
+    // fragment carries break-all separately so long URLs wrap mid-character.
     const longText = "this is a very long pinned message intended to overflow at narrow widths";
-    render(
+    const { rerender } = render(
       <PinnedMessageBanner
         pin={makePin({ content: [{ type: "text", content: longText }] })}
         role="viewer"
@@ -480,11 +483,52 @@ describe("PinnedMessageBanner", () => {
       />,
     );
     const content = screen.getByTestId("pinned-message-content");
-    expect(content.className).toContain("truncate");
+    expect(content.className).toContain("break-words");
+    expect(content.className).not.toContain("truncate");
     // Collapsed state has only the Expand chevron (Twitch parity) — the hide
     // button only appears after expanding.
     expect(screen.getByLabelText("Expand pinned message")).toBeInTheDocument();
     expect(screen.queryByLabelText("Hide for yourself")).not.toBeInTheDocument();
+
+    rerender(
+      <PinnedMessageBanner
+        pin={makePin({ content: [{ type: "text", content: longText }] })}
+        role="viewer"
+        isExpanded={true}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+    // Same wrap class after expansion — the chevron is metadata-only, not a
+    // wrap toggle.
+    const expandedContent = screen.getByTestId("pinned-message-content");
+    expect(expandedContent.className).toContain("break-words");
+    expect(expandedContent.className).not.toContain("truncate");
+  });
+
+  it("collapsed state renders long URLs as clickable wrapping anchors (no ellipsis)", () => {
+    // Regression: previously the parent's `truncate` collapsed the link to a
+    // single line with ellipsis, hiding the rest of the URL. With always-wrap,
+    // the link's own `break-all` is allowed to fire so the whole URL stays
+    // visible and clickable across multiple lines.
+    const longUrl = "https://www.youtube.com/watch?v=averylonglongvideoidstringhere";
+    render(
+      <PinnedMessageBanner
+        pin={makePin({ content: [{ type: "link", url: longUrl, text: longUrl }] })}
+        role="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+    const content = screen.getByTestId("pinned-message-content");
+    const anchor = content.querySelector("a");
+    expect(anchor).not.toBeNull();
+    expect(anchor?.getAttribute("href")).toBe(longUrl);
+    expect(anchor?.className).toContain("break-all");
+    // Parent must not force nowrap; break-all on the child can only fire when
+    // the parent permits wrapping.
+    expect(content.className).toContain("break-words");
   });
 
   it("truncates a long 'Pinned by' username so it can't overflow the header", () => {
