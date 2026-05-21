@@ -8,7 +8,6 @@ import {
 // Guards: Hermes prediction-event parsing — `data.event` shape, ACTIVE/RESOLVED/CANCELED/LOCKED status set, BLUE/PINK color literals, and the top_predictors array under outcomes. Hermes drift on any of these would silently break the prediction banner.
 // Guards: multiview-bus channel-id threading — `parsePredictionEvent(payload, channelId)` must stamp the channelId onto the result so a singleton Hermes connection emitting to N subscribers doesn't bleed channel A's prediction into channel B's banner.
 // Guards: anonymous Hermes envelope — `viewerOutcomeId` and `viewerStake` are always null off the public bus; only authed Helix surfaces would carry them. A change that defaults them non-null silently breaks the "have I bet?" UI gate.
-// Guards: stop() during CONNECTING — closing a WebSocket before the handshake completes triggers the browser's spec-required "WebSocket is closed before the connection is established" console error. Under React StrictMode dev double-invoke the mount-cleanup runs synchronously after the initial effect, so close() lands while readyState=0. The lifecycle test asserts close is deferred to onopen instead of called eagerly.
 
 const CHANNEL_ID = "12345";
 
@@ -212,9 +211,11 @@ describe("parsePredictionEvent (Hermes payload → UnifiedPrediction)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// MockWebSocket — minimal stub for stop()-during-CONNECTING coverage.
-// Mirrors the shape used in twitch-eventsub-client.test.ts; kept local because
-// only the connect/close lifecycle is exercised here.
+// MockWebSocket — minimal stub for stop()-during-CONNECTING coverage. Mirrors
+// the shape used in twitch-eventsub-client.test.ts (including the
+// queueMicrotask onclose dispatch so async-close ordering is the same as the
+// real WebSocket spec); kept local because only the connect/close lifecycle
+// is exercised here.
 // ---------------------------------------------------------------------------
 
 class MockWebSocket {
@@ -238,14 +239,25 @@ class MockWebSocket {
   close(): void {
     this.closeCallCount += 1;
     this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.({ code: 1000 } as CloseEvent);
+    // Real WebSocket dispatches close async; matching that here keeps
+    // ordering honest for any future reconnect/swap test.
+    queueMicrotask(() => {
+      this.onclose?.({ code: 1000 } as CloseEvent);
+    });
   }
   _open(): void {
     this.readyState = MockWebSocket.OPEN;
     this.onopen?.({} as Event);
   }
+  /** Simulate a failed handshake (browser fires onerror then onclose). */
+  _failHandshake(): void {
+    this.onerror?.({} as Event);
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({ code: 1006 } as CloseEvent);
+  }
 }
 
+// Guards: stop() during CONNECTING — closing a WebSocket before the handshake completes triggers the browser's spec-required "WebSocket is closed before the connection is established" console error. Under React StrictMode dev double-invoke the mount-cleanup runs synchronously after the initial effect, so close() lands while readyState=0. The lifecycle tests assert close is deferred to onopen, that consumer state events stay coherent (only "disconnected" fires; no spurious "connected" after the deferred close), and that hung-handshake / CLOSING / CLOSED branches behave correctly.
 describe("TwitchHermesClient lifecycle (start/stop)", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
@@ -257,23 +269,47 @@ describe("TwitchHermesClient lifecycle (start/stop)", () => {
 
   it("does not call close() while the WebSocket is still CONNECTING — defers to onopen so the browser does not log 'closed before connection established'", () => {
     const client = new TwitchHermesClient("12345");
+    const states: string[] = [];
+    client.on("state", (s) => states.push(s));
     client.start();
     expect(MockWebSocket.instances).toHaveLength(1);
     const ws = MockWebSocket.instances[0];
     expect(ws.readyState).toBe(MockWebSocket.CONNECTING);
 
     client.stop();
-    // Eager close on CONNECTING is the bug. The fix detaches handlers and
-    // installs an onopen that closes once the handshake lands.
     expect(ws.closeCallCount).toBe(0);
+    // Handlers we no longer want events from are detached; onopen is now the
+    // deferred-close lambda, not the production "state: connected" handler.
     expect(ws.onopen).not.toBeNull();
     expect(ws.onmessage).toBeNull();
     expect(ws.onclose).toBeNull();
+    expect(states).toEqual(["connecting", "disconnected"]);
 
-    // When the deferred onopen fires after the handshake, the socket is
-    // closed cleanly (no console error because it's no longer CONNECTING).
+    // Handshake lands: deferred onopen closes the socket. Crucially, the
+    // production "state: connected" handler must NOT fire — that's the
+    // regression that bare `expect(onopen).not.toBeNull()` would not catch.
     ws._open();
     expect(ws.closeCallCount).toBe(1);
+    expect(states).toEqual(["connecting", "disconnected"]);
+  });
+
+  it("releases the deferred-close closure when the handshake fails — onerror nulls onopen so the captured ws can be collected", () => {
+    const client = new TwitchHermesClient("12345");
+    client.start();
+    const ws = MockWebSocket.instances[0];
+    client.stop();
+    // CONNECTING branch installed both the deferred-close onopen and the
+    // failure-path onerror.
+    expect(ws.onopen).not.toBeNull();
+    expect(ws.onerror).not.toBeNull();
+
+    // Browser path on hung/refused handshake: onerror fires, then the socket
+    // closes. The onerror handler nulls onopen so the deferred-close lambda
+    // doesn't keep the WebSocket reachable.
+    ws._failHandshake();
+    expect(ws.onopen).toBeNull();
+    // No deferred close ever ran (the failure already tore the socket down).
+    expect(ws.closeCallCount).toBe(0);
   });
 
   it("closes immediately when stop() is called after the socket is OPEN", () => {
@@ -285,5 +321,30 @@ describe("TwitchHermesClient lifecycle (start/stop)", () => {
 
     client.stop();
     expect(ws.closeCallCount).toBe(1);
+  });
+
+  it("does not re-call close() when the socket is already CLOSING", () => {
+    const client = new TwitchHermesClient("12345");
+    client.start();
+    const ws = MockWebSocket.instances[0];
+    ws.readyState = MockWebSocket.CLOSING;
+
+    client.stop();
+    // CLOSING branch nulls onopen and returns without invoking close().
+    expect(ws.closeCallCount).toBe(0);
+    expect(ws.onopen).toBeNull();
+    expect(ws.onmessage).toBeNull();
+    expect(ws.onclose).toBeNull();
+  });
+
+  it("does not re-call close() when the socket is already CLOSED", () => {
+    const client = new TwitchHermesClient("12345");
+    client.start();
+    const ws = MockWebSocket.instances[0];
+    ws.readyState = MockWebSocket.CLOSED;
+
+    client.stop();
+    expect(ws.closeCallCount).toBe(0);
+    expect(ws.onopen).toBeNull();
   });
 });

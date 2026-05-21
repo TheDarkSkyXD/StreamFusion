@@ -199,7 +199,10 @@ export class TwitchHermesClient {
         try {
           this.ws?.close();
         } catch {
-          // ignore — onclose will trigger reconnect
+          // ignore — reachable only after handleWelcome, so ws is OPEN and
+          // production onclose (set in connect()) is intact: it nulls
+          // this.ws, clears timers, emits "disconnected", and schedules a
+          // reconnect when active. closeWebSocketSafe is NOT used here.
         }
         return;
       case "notification":
@@ -402,6 +405,14 @@ function closeWebSocketSafe(ws: WebSocket): void {
       } catch {
         // ignore
       }
+    };
+    // Failure path: if the handshake never lands (server accepts TCP but
+    // never sends the 101 upgrade, or the connection errors out), the
+    // browser fires onerror then onclose. Release the deferred-close
+    // closure here so the captured WebSocket can be collected promptly
+    // instead of waiting for the OS TCP timeout.
+    ws.onerror = () => {
+      ws.onopen = null;
     };
     return;
   }
