@@ -272,7 +272,8 @@ class KickClient implements KickRequestor {
    */
   private async electronRequestBinary(
     url: string,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    timeoutMs = 15000
   ): Promise<{ buffer: Buffer; statusCode: number; contentType: string }> {
     // Get direct session to bypass proxy
     const directSession = await this.getCdnSession();
@@ -305,7 +306,7 @@ class KickClient implements KickRequestor {
             completed = true;
             request.abort();
             reject(new Error("Request timeout"));
-          }, 15000);
+          }, timeoutMs);
 
           request.on("response", (response: any) => {
             if (response.statusCode !== 200) {
@@ -373,10 +374,26 @@ class KickClient implements KickRequestor {
       _imageNegativeCache.delete(url);
     }
 
-    if (isNetworkLikelyDown()) {
-      return null;
-    }
-
+    // Image fetches deliberately bypass `isNetworkLikelyDown()`. The gate is
+    // designed for retry loops (API, stream polls) that benefit from a brief
+    // back-off. Image fetches are one-shot: when they return null the renderer
+    // <img> goes to onError and the caller latches the error state until the
+    // component remounts, so a single 3-second unhealthy window — rolled
+    // forward by concurrent net::ERR_FAILED bursts from other Kick callers —
+    // can leave the whole discover grid stuck on broken avatars/thumbnails.
+    // The semaphore in `acquireKickRequestSlot` caps concurrency at 4, so
+    // removing the gate doesn't re-introduce the thundering-herd it was
+    // guarding against.
+    //
+    // Accepted tradeoffs (see PR review): (1) image net::ERR_* failures now
+    // feed `recordTransientNetworkError`, so a CDN-only outage can arm the
+    // gate for other Kick callers; (2) during a sustained outage, image
+    // fetches occupy semaphore slots until they time out — the timeout below
+    // is intentionally short (3s) to bound the worst-case wall-clock for a
+    // discover-page grid (~13 batches × 3s = ~40s) and to free slots quickly
+    // for API traffic. The previous null-short-circuit was 0ms, but it left
+    // images permanently broken; the 3s timeout is the cheapest correctness
+    // restoration without re-introducing the latching bug.
     const inFlight = _imageInFlight.get(url);
     if (inFlight) {
       return inFlight;
@@ -402,7 +419,10 @@ class KickClient implements KickRequestor {
         headers["Sec-Fetch-Mode"] = "no-cors";
         headers["Sec-Fetch-Site"] = "cross-site";
 
-        const { buffer, contentType } = await this.electronRequestBinary(url, headers);
+        // 3s timeout (vs the default 15s for API calls): image fetches are
+        // best-effort and now contend for the same 4-slot semaphore as API
+        // traffic during outages — see the bypass-justification block above.
+        const { buffer, contentType } = await this.electronRequestBinary(url, headers, 3000);
         return { buffer, contentType };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
