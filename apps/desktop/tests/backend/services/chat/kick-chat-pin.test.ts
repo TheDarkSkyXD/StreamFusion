@@ -155,7 +155,11 @@ describe("kickPinToNormalized", () => {
     expect(normalized.pinnedBy).toBeNull();
   });
 
-  it("emits content as a single text fragment carrying the raw body", () => {
+  it("parses a bare URL in the pin body into a clickable link fragment", () => {
+    // Regression: pin bodies used to be wrapped in a single text fragment, so
+    // URLs rendered as inert text. Now they share the same content parser the
+    // live chat uses — link fragments here are what makes the banner anchor
+    // tag fire window.electronAPI.openExternal.
     const normalized = kickPinToNormalized(
       makeRawPin({
         message: {
@@ -167,7 +171,97 @@ describe("kickPinToNormalized", () => {
       }),
     );
     expect(normalized.content).toEqual([
-      { type: "text", content: "https://youtube.com/@CoHBro" },
+      { type: "link", url: "https://youtube.com/@CoHBro", text: "https://youtube.com/@CoHBro" },
     ]);
+  });
+
+  it("splits surrounding text from a URL so prose stays plain and the URL stays clickable", () => {
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-mixed",
+          content: "check this https://example.com out",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: { username: "fitzbro", identity: { color: "#53FC18" } },
+        },
+      }),
+    );
+    expect(normalized.content).toEqual([
+      { type: "text", content: "check this " },
+      { type: "link", url: "https://example.com", text: "https://example.com" },
+      { type: "text", content: " out" },
+    ]);
+  });
+
+  it("extracts multiple URLs from a single pin body", () => {
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-multi-url",
+          content: "see https://a.com and https://b.com",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: { username: "fitzbro", identity: { color: "#53FC18" } },
+        },
+      }),
+    );
+    expect(normalized.content).toEqual([
+      { type: "text", content: "see " },
+      { type: "link", url: "https://a.com", text: "https://a.com" },
+      { type: "text", content: " and " },
+      { type: "link", url: "https://b.com", text: "https://b.com" },
+    ]);
+  });
+
+  it("parses [emote:id:name] markers into emote fragments with the bundled URL", () => {
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-emote",
+          content: "[emote:12345:KEKW] funny",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: { username: "fitzbro", identity: { color: "#53FC18" } },
+        },
+      }),
+    );
+    expect(normalized.content).toEqual([
+      {
+        type: "emote",
+        id: "12345",
+        name: "KEKW",
+        url: "https://files.kick.com/emotes/12345/fullsize",
+      },
+      { type: "text", content: " funny" },
+    ]);
+  });
+
+  it("parses @mentions into mention fragments", () => {
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-mention",
+          content: "@bob hey",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: { username: "fitzbro", identity: { color: "#53FC18" } },
+        },
+      }),
+    );
+    expect(normalized.content).toEqual([
+      { type: "mention", username: "bob" },
+      { type: "text", content: " hey" },
+    ]);
+  });
+
+  it("leaves plain text bodies as a single text fragment", () => {
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-plain",
+          content: "just a regular pin",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: { username: "fitzbro", identity: { color: "#53FC18" } },
+        },
+      }),
+    );
+    expect(normalized.content).toEqual([{ type: "text", content: "just a regular pin" }]);
   });
 });

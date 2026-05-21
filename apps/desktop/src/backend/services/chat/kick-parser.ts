@@ -312,6 +312,19 @@ function getKickEmoteUrl(emoteId: string): string {
 }
 
 /**
+ * Parse a raw Kick message body into renderable fragments.
+ * Handles `[emote:id:name]` markers, URLs, @mentions, and plain text.
+ *
+ * Exposed so both live chat (parseKickChatMessage) and pinned-message
+ * normalization (kickPinToNormalized) share the exact same fragment rules —
+ * without this, pin bodies would render URLs as inert text instead of
+ * clickable anchors.
+ */
+export function parseKickMessageContent(content: string): ContentFragment[] {
+  return parseKickEmotes(content).fragments;
+}
+
+/**
  * Parse text fragment for mentions and links
  */
 function parseTextFragment(text: string): ContentFragment[] {

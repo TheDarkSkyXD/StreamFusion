@@ -33,6 +33,7 @@ import {
   parseKickChatMessage,
   parseKickGiftedSub,
   parseKickHostRaid,
+  parseKickMessageContent,
   parseKickMessageDeleted,
   parseKickSubscription,
   parseKickUserBanned,
@@ -47,10 +48,11 @@ import {
  * Convert a raw Kick pinned-message Pusher payload into the platform-agnostic
  * NormalizedPinnedMessage shape used by the shared PinnedMessageBanner.
  *
- * Kick's pinned-message body is plain text (no emote/mention parsing on the
- * Pusher event), so content is emitted as a single text fragment. If Kick ever
- * adds rich content to the pin payload, parse it here before constructing the
- * fragment list.
+ * Kick's pin Pusher event carries the message body as a raw string — the same
+ * format live chat messages arrive in. We run it through the shared content
+ * parser so the banner renders `[emote:id:name]` markers as emote images,
+ * URLs as clickable anchors, and @mentions as highlighted pills, matching
+ * live-chat parity.
  */
 export function kickPinToNormalized(pin: KickPinnedMessage): NormalizedPinnedMessage {
   // Kick's pin Pusher payload carries badges inside `sender.identity.badges`
@@ -73,7 +75,7 @@ export function kickPinToNormalized(pin: KickPinnedMessage): NormalizedPinnedMes
       color: pin.message.sender.identity.color,
       badges: parseKickBadges(pin.message.sender.identity.badges ?? []),
     },
-    content: [{ type: "text", content: pin.message.content }],
+    content: parseKickMessageContent(pin.message.content),
     pinnedBy: pin.pinned_by
       ? {
           username: pin.pinned_by.username,
