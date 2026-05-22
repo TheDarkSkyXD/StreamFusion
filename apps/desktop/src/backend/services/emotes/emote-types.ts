@@ -31,6 +31,12 @@ export interface Emote {
   owner?: EmoteOwner;
   /** Kick subscriber-only flag. Present on Kick emotes; absent elsewhere. */
   subscribersOnly?: boolean;
+  /**
+   * When the emote was added to its set (7TV only), as a Unix-ms timestamp.
+   * 7TV's `ActiveEmote.timestamp` field — the "Added on" date KickTalk surfaces.
+   * Absent for global emotes whose set carries no per-emote timestamp.
+   */
+  addedAt?: number;
 }
 
 /** Emote URL templates for different sizes */

@@ -85,6 +85,16 @@ export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emot
   // Determine provider color for badge
   const _providerColor = PROVIDER_COLORS[emote.provider] || "#ffffff";
 
+  // Match KickTalk's "Jun 22, 2023" format; force en-US so the layout stays predictable
+  // across locales. 7TV ActiveEmote.timestamp is unix-ms (0 means absent → undefined).
+  const addedOnLabel = emote.addedAt
+    ? new Date(emote.addedAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
   return createPortal(
     <div
       ref={tooltipRef}
@@ -126,6 +136,20 @@ export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emot
                   : emote.provider.toUpperCase()}
           </span>
         </div>
+
+        {/* Author + Added date (mirrors KickTalk's tooltip) */}
+        {(emote.owner || addedOnLabel) && (
+          <div className="flex flex-col items-center gap-0.5 -mt-1">
+            {emote.owner && (
+              <span className="text-[#b0b3b8] text-xs">
+                Made by <span className="text-white">{emote.owner.displayName}</span>
+              </span>
+            )}
+            {addedOnLabel && (
+              <span className="text-[#b0b3b8] text-xs">Added on {addedOnLabel}</span>
+            )}
+          </div>
+        )}
 
         {/* Extra Flags */}
         {(emote.isAnimated || emote.isZeroWidth) && (

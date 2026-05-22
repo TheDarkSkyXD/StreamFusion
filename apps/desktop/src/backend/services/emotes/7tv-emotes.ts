@@ -280,6 +280,7 @@ class SevenTVEmoteProvider implements EmoteProviderService {
             displayName: data.owner.display_name,
           }
         : undefined,
+      addedAt: emote.timestamp > 0 ? emote.timestamp : undefined,
     };
   }
 }
