@@ -300,11 +300,26 @@ class StorageService {
   }
 
   /**
-   * Get the "active" follows for a platform.
-   * If the user has logged in and account follows exist, return those.
-   * Otherwise, return guest follows.
+   * Get the "active" follows for a platform — what the UI should surface.
+   *
+   * Semantics:
+   *   - No token (signed out / session expired) → guest follows. Forces the
+   *     guest fallback even when stale account-source rows linger in the DB
+   *     (e.g., a logout that crashed before clearAccountFollows fired). This
+   *     mirrors how Twitch's logout flow surfaces guest follows again after
+   *     sign-out, and is what U6's cookie-clear logout chain converges on.
+   *   - Token present + account follows in DB → account follows.
+   *   - Token present but no account follows yet (fresh login mid-sync, or
+   *     a sync that returned empty/error) → guest follows.
+   *
+   * The token check is the source of truth for "is the user signed in?",
+   * not DB presence. A user with stale account-source rows in the DB but no
+   * valid token is effectively signed out and must see guest follows.
    */
   getActiveFollowsByPlatform(platform: Platform): LocalFollow[] {
+    if (!this.hasToken(platform)) {
+      return dbService.getFollowsByPlatformAndSource(platform, "guest");
+    }
     if (dbService.hasAccountFollows(platform)) {
       return dbService.getFollowsByPlatformAndSource(platform, "account");
     }
