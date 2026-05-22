@@ -1317,8 +1317,9 @@ export async function getFollowedStreams(
   _client: KickRequestor,
   _options: PaginationOptions = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
-  // The official API doesn't have a followed streams endpoint
-  // Would need to first get followed channels, then check which are live
-  console.warn("⚠️ Kick official API does not support followed streams directly");
+  // The official API doesn't have a followed streams endpoint.
+  // Callers (the followed-streams IPC handler) union this empty result with
+  // local-follow data fetched per-slug via getPublicStreamBySlug — the empty
+  // return is the intended contract, not a failure.
   return { data: [] };
 }
