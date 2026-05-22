@@ -7,6 +7,7 @@ import type {
   TwitchUser,
 } from "../../../shared/auth-types";
 import { type AuthStatus, IPC_CHANNELS } from "../../../shared/ipc-channels";
+import type { FollowedChannelsResult } from "../../api/platforms/kick/endpoints/follow-endpoints";
 import {
   authWindowManager,
   deviceCodeFlowService,
@@ -17,7 +18,6 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
-import type { FollowedChannelsResult } from "../../api/platforms/kick/endpoints/follow-endpoints";
 import { storageService } from "../../services/storage-service";
 
 /**
@@ -29,19 +29,21 @@ import { storageService } from "../../services/storage-service";
  *
  * Contract:
  *   - On `{status:"error"}` from `getFollows`: returns the error WITHOUT
- *     calling `replaceAccountFollows`. Guards against silent data loss
- *     when Cloudflare / Kasada / auth challenges produce a transient
- *     failure mid-session.
- *   - On `{status:"ok"}`: atomically swaps the account-source rows via
- *     `replaceAccountFollows` and returns the imported count.
+ *     touching storage. Guards against silent data loss when Cloudflare /
+ *     Kasada / auth challenges produce a transient failure mid-session.
+ *   - On `{status:"ok"}`: atomically reconciles account-source rows via
+ *     `replaceAccountFollowsRespectingPending`, honoring push-sync
+ *     tombstones in `pending_follow_writes` (U2). Returns both the
+ *     imported account count and the remaining pending count for the
+ *     reconciliation banner in U8.
  */
 export type KickSyncOutcome =
-  | { status: "ok"; count: number }
+  | { status: "ok"; count: number; pendingCount: number }
   | { status: "error"; reason: string };
 
 export async function syncKickFollowsAfterLogin(
   getFollows: () => Promise<FollowedChannelsResult>,
-  storage: Pick<typeof storageService, "replaceAccountFollows"> = storageService
+  storage: Pick<typeof storageService, "replaceAccountFollowsRespectingPending"> = storageService
 ): Promise<KickSyncOutcome> {
   const result = await getFollows();
   if (result.status === "error") {
@@ -57,8 +59,11 @@ export async function syncKickFollowsAfterLogin(
         profileImage: channel.avatarUrl,
       }) as Omit<LocalFollow, "id" | "followedAt">
   );
-  storage.replaceAccountFollows("kick", kickFollows);
-  return { status: "ok", count: kickFollows.length };
+  const { accountCount, pendingCount } = storage.replaceAccountFollowsRespectingPending(
+    "kick",
+    kickFollows
+  );
+  return { status: "ok", count: accountCount, pendingCount };
 }
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
@@ -82,37 +87,44 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   }
 
   /**
-   * Sync local follows on login: replace guest follows for the platform
-   * with the account's actual followed channels.
+   * Sync local follows on login OR on periodic refresh: reconcile the
+   * platform's account-source rows against the platform's actual followed
+   * channels, honoring `pending_follow_writes` tombstones from push-sync.
    * Runs in the background — does not block the login flow.
    */
   async function syncFollowsOnLogin(platform: Platform): Promise<void> {
     try {
-      console.debug(`🔄 Syncing ${platform} follows after login...`);
+      console.debug(`🔄 Syncing ${platform} follows...`);
 
       let importedCount = 0;
+      let pendingCount = 0;
       if (platform === "twitch") {
         const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
         const allFollowed = await twitchClient.getAllFollowedChannels();
 
-        // Clear old account follows for this platform (guest follows stay intact)
-        storageService.clearAccountFollows("twitch");
-
-        // Import account follows as local follows
-        for (const channel of allFollowed) {
-          storageService.addLocalFollow(
-            {
+        // Pending-aware atomic reconciliation. Replaces the prior
+        // clearAccountFollows + addLocalFollow loop which was both
+        // non-atomic (mid-loop crash left a partial list with no recovery)
+        // and pending-blind (would silently drop a row the user just
+        // clicked Follow on if the platform hadn't registered the push
+        // yet). U7 doc-review P1 fix.
+        const twitchFollows = allFollowed.map(
+          (channel) =>
+            ({
               platform: "twitch",
               channelId: channel.id,
               channelName: channel.username,
               displayName: channel.displayName,
               profileImage: channel.avatarUrl,
-            } as Omit<LocalFollow, "id" | "followedAt">,
-            "account"
-          );
-        }
-        importedCount = allFollowed.length;
-        console.debug(`✅ Synced ${importedCount} Twitch follows`);
+            }) as Omit<LocalFollow, "id" | "followedAt">
+        );
+        const result = storageService.replaceAccountFollowsRespectingPending(
+          "twitch",
+          twitchFollows
+        );
+        importedCount = result.accountCount;
+        pendingCount = result.pendingCount;
+        console.debug(`✅ Synced ${importedCount} Twitch follows (pending=${pendingCount})`);
       } else if (platform === "kick") {
         // Call FollowEndpoints directly rather than kickClient.getAllFollowedChannels()
         // so we get the tagged result. A transient Cloudflare 403 / auth failure
@@ -132,7 +144,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
           return;
         }
         importedCount = outcome.count;
-        console.debug(`✅ Synced ${importedCount} Kick follows`);
+        pendingCount = outcome.pendingCount;
+        console.debug(`✅ Synced ${importedCount} Kick follows (pending=${pendingCount})`);
       }
 
       // Tell the renderer the local DB now reflects this platform's account
@@ -140,46 +153,59 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       // followed-channels / followed-streams React-Query caches. Without this
       // signal the renderer keeps showing pre-login state (empty FollowButton,
       // stale sidebar) until something else happens to trigger a re-read.
-      safeSend(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, { platform, count: importedCount });
+      // pendingCount drives U8's per-platform reconciliation banner.
+      safeSend(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, {
+        platform,
+        count: importedCount,
+        pendingCount,
+      });
     } catch (error) {
-      console.warn(`⚠️ Failed to sync ${platform} follows on login:`, error);
+      console.warn(`⚠️ Failed to sync ${platform} follows:`, error);
       // Don't throw — this is non-critical and should not block the login
     }
   }
 
-  // ========== Background Kick follow refresh ==========
-  // The Kick OAuth token isn't used to fetch follows — the BrowserWindow
-  // fallback reads kick.com session cookies which outlive any single login
-  // (weeks-months, until Kick rotates them). So we can resync the user's
-  // follow list any time without re-authenticating, as long as the cookies
-  // are alive. Two refresh triggers:
+  // ========== Background follow refresh (per platform) ==========
+  // Two refresh triggers per platform:
   //   1. Periodic interval (15 min) — catches follows added while the app
-  //      was open in the background.
+  //      was open in the background OR confirms / clears pending push-sync
+  //      rows that landed externally.
   //   2. Window focus — catches the common case of "I followed someone in
-  //      my browser, then switched back to StreamFusion."
+  //      my browser/Xbox/mobile, then switched back to StreamFusion."
   //
-  // The single-flight Promise inside follow-endpoints.getAllFollowedChannels
+  // Per-platform cooldown state so Kick focus events don't gate Twitch
+  // refreshes and vice versa. Both platforms register unconditionally;
+  // the no-token guard lives inside maybeRefreshFollows so the interval
+  // ticks harmlessly when the user isn't signed in.
+  //
+  // The single-flight Promise inside each platform's getAllFollowedChannels
   // collapses concurrent triggers, so over-firing is cheap. We still
   // cooldown the on-focus path to avoid hammering on Alt-Tab.
-  const KICK_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+  const FOLLOWS_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
   const FOCUS_REFRESH_COOLDOWN_MS = 60 * 1000;
-  let lastKickRefreshAt = 0;
+  const lastRefreshAt: Map<Platform, number> = new Map([
+    ["kick", 0],
+    ["twitch", 0],
+  ]);
 
-  function maybeRefreshKickFollows(trigger: "interval" | "focus"): void {
-    if (!storageService.hasToken("kick")) return;
+  function maybeRefreshFollows(platform: Platform, trigger: "interval" | "focus"): void {
+    if (!storageService.hasToken(platform)) return;
+    const now = Date.now();
     if (trigger === "focus") {
-      const now = Date.now();
-      if (now - lastKickRefreshAt < FOCUS_REFRESH_COOLDOWN_MS) return;
-      lastKickRefreshAt = now;
-    } else {
-      lastKickRefreshAt = Date.now();
+      const last = lastRefreshAt.get(platform) ?? 0;
+      if (now - last < FOCUS_REFRESH_COOLDOWN_MS) return;
     }
-    console.debug(`🔄 Kick follow refresh (${trigger})`);
-    syncFollowsOnLogin("kick").catch(() => {});
+    lastRefreshAt.set(platform, now);
+    console.debug(`🔄 ${platform} follow refresh (${trigger})`);
+    syncFollowsOnLogin(platform).catch(() => {});
   }
 
-  setInterval(() => maybeRefreshKickFollows("interval"), KICK_REFRESH_INTERVAL_MS);
-  mainWindow.on("focus", () => maybeRefreshKickFollows("focus"));
+  setInterval(() => maybeRefreshFollows("kick", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
+  setInterval(() => maybeRefreshFollows("twitch", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
+  mainWindow.on("focus", () => {
+    maybeRefreshFollows("kick", "focus");
+    maybeRefreshFollows("twitch", "focus");
+  });
 
   // ========== Kick Session Expiry (push event) ==========
   // Forward the 'session-expired' event emitted by KickAuthService to the renderer

@@ -18,11 +18,7 @@ import type {
   UserPreferences,
 } from "../shared/auth-types";
 import { type AuthStatus, IPC_CHANNELS, type VersionInfo } from "../shared/ipc-channels";
-import type {
-  ModLogEntry,
-  ModLogQueryFilters,
-  RetentionScope,
-} from "../shared/mod-log-types";
+import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../shared/mod-log-types";
 
 // Define the API exposed to the renderer
 const electronAPI = {
@@ -225,11 +221,11 @@ const electronAPI = {
     // React-Query caches so the sidebar and FollowButton flip to "Following"
     // without waiting for a manual refresh.
     onFollowsSynced: (
-      callback: (data: { platform: Platform; count: number }) => void
+      callback: (data: { platform: Platform; count: number; pendingCount?: number }) => void
     ): (() => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
-        data: { platform: Platform; count: number }
+        data: { platform: Platform; count: number; pendingCount?: number }
       ) => callback(data);
       ipcRenderer.on(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, handler);

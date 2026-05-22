@@ -422,6 +422,27 @@ class StorageService {
   }
 
   /**
+   * Pending-aware variant. Consults `pending_follow_writes` to:
+   *   - Preserve local rows with an unconfirmed push (push hasn't landed
+   *     on the platform yet — don't drop the row)
+   *   - Skip adopting fetched rows blocked by a pending unfollow (tombstone)
+   *   - Clear pending_writes whose divergence has been resolved externally
+   *
+   * Returns the row counts so the caller can emit pendingCount in the
+   * AUTH_FOLLOWS_SYNCED IPC payload for the reconciliation banner.
+   */
+  replaceAccountFollowsRespectingPending(
+    platform: Platform,
+    follows: Array<Omit<LocalFollow, "id" | "followedAt">>
+  ): { accountCount: number; pendingCount: number } {
+    const result = dbService.replaceAccountFollowsRespectingPending(platform, follows);
+    console.debug(
+      `🔄 Account follows replaced for ${platform} respecting pending (account=${result.accountCount}, pending=${result.pendingCount})`
+    );
+    return result;
+  }
+
+  /**
    * Clear local follows for a specific platform (all sources)
    */
   clearLocalFollowsByPlatform(platform: Platform): void {
