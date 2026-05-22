@@ -319,15 +319,6 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     try {
       scrapeResult = (await win.webContents.executeJavaScript(
         `(() => {
-          // The /following page renders a grid of channel cards. Each card
-          // is an anchor pointing at /<slug> with an avatar img inside and
-          // the channel's display name as text content.
-          //
-          // We look for anchors whose href is a single-segment path (e.g.
-          // "/summit1g" or "/summit1g/") and which contain an <img>. That
-          // catches channel cards and excludes nav links / category cards.
-          // We then dedupe by slug since the SPA can render the same channel
-          // multiple times (live indicator + name link both inside one card).
           const reservedPaths = new Set([
             'login','signup','signin','signout','logout','about','help',
             'dashboard','settings','profile','admin','browse','category',
@@ -336,7 +327,11 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             'rules','features','app','schedule','wallet','partner','support',
           ]);
 
-          const seen = new Map();
+          // Phase 1: collect all candidate anchors with their structural
+          // context so we can refine the selector. /following has follow
+          // cards + recommendation widgets + sidebar + nav; we need to
+          // identify which container holds the actual follows.
+          const allCandidates = [];
           for (const a of document.querySelectorAll('a[href]')) {
             const href = a.getAttribute('href') || '';
             const match = href.match(/^\\/([^\\/?#]+)\\/?$/);
@@ -346,17 +341,54 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
             const img = a.querySelector('img');
             if (!img) continue;
-            const displayName = (img.alt || a.textContent || slug).trim().slice(0, 100);
-            const avatarUrl = img.getAttribute('src') || '';
-            if (!seen.has(slug)) {
-              seen.set(slug, { slug, displayName, avatarUrl });
+
+            // Walk up the DOM to find the nearest section/region/div with a
+            // meaningful identifier (data-testid, id, distinctive class).
+            let ancestor = a.parentElement;
+            const ancestorChain = [];
+            for (let i = 0; i < 8 && ancestor; i++) {
+              const tag = ancestor.tagName?.toLowerCase() || '';
+              const id = ancestor.id || '';
+              const dataAttrs = Array.from(ancestor.attributes || [])
+                .filter(at => at.name.startsWith('data-'))
+                .map(at => at.name + '=' + (at.value || '').slice(0, 30))
+                .join(',');
+              const cls = (ancestor.className || '').toString().slice(0, 80);
+              ancestorChain.push({ tag, id, dataAttrs, cls });
+              ancestor = ancestor.parentElement;
+            }
+
+            allCandidates.push({
+              slug,
+              imgAlt: (img.alt || '').slice(0, 80),
+              imgSrc: (img.getAttribute('src') || '').slice(0, 100),
+              textContent: (a.textContent || '').trim().slice(0, 80),
+              ancestorChain,
+            });
+          }
+
+          // Dedupe by slug for the channels list (display purposes).
+          const seen = new Map();
+          for (const c of allCandidates) {
+            if (!seen.has(c.slug)) {
+              seen.set(c.slug, {
+                slug: c.slug,
+                displayName: (c.imgAlt || c.textContent || c.slug).trim().slice(0, 100),
+                avatarUrl: c.imgSrc,
+              });
             }
           }
+
           return JSON.stringify({
             channels: Array.from(seen.values()),
             url: window.location.href,
             title: document.title,
             anchorCount: document.querySelectorAll('a[href]').length,
+            candidateCount: allCandidates.length,
+            // Diagnostic: dump first 30 candidates with full ancestor chain so
+            // we can identify which container hosts the actual follows grid
+            // vs recommendation widgets / sidebar items.
+            firstCandidates: allCandidates.slice(0, 30),
           });
         })()`
       )) as string;
@@ -367,7 +399,20 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       return { status: "error", reason: "parse-error" };
     }
 
-    let scraped: { channels: Array<{ slug: string; displayName: string; avatarUrl: string }>; url: string; title: string; anchorCount: number };
+    let scraped: {
+      channels: Array<{ slug: string; displayName: string; avatarUrl: string }>;
+      url: string;
+      title: string;
+      anchorCount: number;
+      candidateCount: number;
+      firstCandidates: Array<{
+        slug: string;
+        imgAlt: string;
+        imgSrc: string;
+        textContent: string;
+        ancestorChain: Array<{ tag: string; id: string; dataAttrs: string; cls: string }>;
+      }>;
+    };
     try {
       scraped = JSON.parse(scrapeResult);
     } catch (err) {
@@ -378,8 +423,22 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     }
 
     console.warn(
-      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} channels=${scraped.channels.length}`
+      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} candidates=${scraped.candidateCount} channels=${scraped.channels.length}`
     );
+
+    // Diagnostic: dump first ~10 candidates with their ancestor chain so we
+    // can refine the selector. Each candidate's chain reveals whether it
+    // sits in a follows-grid container vs a recommendation/sidebar widget.
+    for (let i = 0; i < Math.min(scraped.firstCandidates.length, 10); i++) {
+      const c = scraped.firstCandidates[i];
+      if (!c) continue;
+      const chain = c.ancestorChain
+        .map((a) => `${a.tag}${a.id ? "#" + a.id : ""}${a.dataAttrs ? "[" + a.dataAttrs + "]" : ""}${a.cls ? "." + a.cls.split(" ").slice(0, 2).join(".") : ""}`)
+        .join(" > ");
+      console.warn(
+        `[KickFollows] candidate[${i}] slug=${c.slug} alt="${c.imgAlt.slice(0, 40)}" ancestors=${chain.slice(0, 200)}`
+      );
+    }
 
     if (scraped.channels.length === 0) {
       // Either the user genuinely follows zero channels or the page didn't
