@@ -16,10 +16,24 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  PredictionVoteForm,
+  type PredictionVoteFormBalance,
+} from "@/components/chat/PredictionVoteForm";
+import {
+  clearForChannel,
+  clearForPrediction,
+} from "@/lib/prediction-vote-gate";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const ENDED_AUTO_DISMISS_MS = 60_000;
+/**
+ * `localVoteSubmittedAt` window — see plan U5. After a successful vote,
+ * suppress incoming `viewerOutcomeId === null` updates for this many ms so
+ * the just-cast vote doesn't get visually "uncast" by a poll-tick echo.
+ */
+const LOCAL_VOTE_SUPPRESSION_MS = 10_000;
 
 type Style = "twitch-native" | "kick-native" | "unified";
 
@@ -35,7 +49,79 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   onDismiss,
 }) => {
   const styleSetting = useAuthStore((s) => s.preferences?.predictions.style ?? "native");
+  const twitchUser = useAuthStore((s) => s.twitchUser);
+  const kickUser = useAuthStore((s) => s.kickUser);
   const [expanded, setExpanded] = useState(false);
+
+  // Track the timestamp of the last successful local vote per prediction id.
+  // When a `predictionUpdate` arrives with `viewerOutcomeId === null` within
+  // LOCAL_VOTE_SUPPRESSION_MS of a successful vote, we suppress just that
+  // field — other fields flow through unchanged.
+  const localVoteSubmittedAtRef = useRef<Map<string, number>>(new Map());
+  // The viewer's local optimistic self-state. Survives a stale incoming
+  // null update within the suppression window. We pair it with a "vote
+  // expired" tick so the suppression window naturally lapses without
+  // needing an external update to trigger a re-render.
+  const [localViewer, setLocalViewer] = useState<{
+    outcomeId: string;
+    stake: number;
+  } | null>(null);
+  const [suppressionExpired, setSuppressionExpired] = useState(false);
+  const suppressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset local optimistic state when the prediction id changes.
+  useEffect(() => {
+    setLocalViewer(null);
+    setSuppressionExpired(false);
+    if (suppressionTimerRef.current) {
+      clearTimeout(suppressionTimerRef.current);
+      suppressionTimerRef.current = null;
+    }
+  }, [prediction.id]);
+
+  // Cleanup any pending suppression timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (suppressionTimerRef.current) {
+        clearTimeout(suppressionTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Effective viewer outcome / stake: prefer the local optimistic value when
+  // the incoming server null update is inside the suppression window.
+  const effectiveViewerOutcomeId = useMemo(() => {
+    if (prediction.viewerOutcomeId !== null) return prediction.viewerOutcomeId;
+    if (!localViewer) return null;
+    if (suppressionExpired) return null;
+    const submittedAt = localVoteSubmittedAtRef.current.get(prediction.id);
+    if (submittedAt && Date.now() - submittedAt < LOCAL_VOTE_SUPPRESSION_MS) {
+      return localViewer.outcomeId;
+    }
+    return null;
+  }, [prediction.id, prediction.viewerOutcomeId, localViewer, suppressionExpired]);
+
+  const effectiveViewerStake = useMemo(() => {
+    if (prediction.viewerStake !== null) return prediction.viewerStake;
+    if (!localViewer) return null;
+    if (suppressionExpired) return null;
+    const submittedAt = localVoteSubmittedAtRef.current.get(prediction.id);
+    if (submittedAt && Date.now() - submittedAt < LOCAL_VOTE_SUPPRESSION_MS) {
+      return localViewer.stake;
+    }
+    return null;
+  }, [prediction.id, prediction.viewerStake, localViewer, suppressionExpired]);
+
+  // Effective prediction view: forwards the platform payload but with the
+  // suppression-aware viewerOutcomeId / viewerStake.
+  const effectivePrediction = useMemo<UnifiedPrediction>(
+    () => ({
+      ...prediction,
+      viewerOutcomeId: effectiveViewerOutcomeId,
+      viewerStake: effectiveViewerStake,
+    }),
+    [prediction, effectiveViewerOutcomeId, effectiveViewerStake],
+  );
 
   const style: Style = useMemo(() => {
     if (styleSetting === "unified") return "unified";
@@ -44,6 +130,24 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
 
   const isEnded = prediction.status === "RESOLVED" || prediction.status === "CANCELED";
   const isLocked = prediction.status === "LOCKED";
+
+  // Gate cleanup on settled status transitions. Iteration on the raw status
+  // string keeps the dependency simple and matches plan U5.
+  useEffect(() => {
+    if (prediction.status === "RESOLVED" || prediction.status === "CANCELED") {
+      clearForPrediction(prediction.id);
+    }
+  }, [prediction.status, prediction.id]);
+
+  // Gate cleanup on unmount / channel switch. The widget represents one
+  // prediction-per-channel mount, so unmount → clearForChannel(slug) per
+  // plan U5.
+  useEffect(() => {
+    const slug = prediction.channelSlug;
+    return () => {
+      clearForChannel(slug);
+    };
+  }, [prediction.channelSlug]);
 
   // Read the latest onAutoDismiss through a ref so the timer effect doesn't
   // depend on the callback's identity. Parents historically passed an inline
@@ -67,6 +171,25 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     setExpanded(false);
   }, [prediction.id]);
 
+  // Token-presence check drives the form-vs-deeplink branch in the active
+  // panel. Token retrieval at submit time happens inside the form — this
+  // store selector is only a proxy for "is a platform OAuth session present
+  // right now". The Zustand subscription auto-renders when the user
+  // connects/disconnects mid-prediction.
+  const hasPlatformToken =
+    prediction.platform === "twitch" ? !!twitchUser : !!kickUser;
+
+  const handleVoteSuccess = (outcomeId: string, amount: number) => {
+    localVoteSubmittedAtRef.current.set(prediction.id, Date.now());
+    setLocalViewer({ outcomeId, stake: amount });
+    setSuppressionExpired(false);
+    if (suppressionTimerRef.current) clearTimeout(suppressionTimerRef.current);
+    suppressionTimerRef.current = setTimeout(() => {
+      setSuppressionExpired(true);
+      suppressionTimerRef.current = null;
+    }, LOCAL_VOTE_SUPPRESSION_MS);
+  };
+
   return (
     <section
       data-testid="prediction-banner"
@@ -77,7 +200,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     >
       {!expanded ? (
         <CollapsedView
-          prediction={prediction}
+          prediction={effectivePrediction}
           style={style}
           isEnded={isEnded}
           isLocked={isLocked}
@@ -86,18 +209,20 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
         />
       ) : isEnded ? (
         <EndedPanel
-          prediction={prediction}
+          prediction={effectivePrediction}
           style={style}
           onCollapse={() => setExpanded(false)}
           onDismiss={onDismiss}
         />
       ) : (
         <ActivePanel
-          prediction={prediction}
+          prediction={effectivePrediction}
           style={style}
           isLocked={isLocked}
+          hasPlatformToken={hasPlatformToken}
           onCollapse={() => setExpanded(false)}
           onDismiss={onDismiss}
+          onVoteSuccess={handleVoteSuccess}
         />
       )}
     </section>
@@ -228,22 +353,51 @@ interface ActivePanelProps {
   prediction: UnifiedPrediction;
   style: Style;
   isLocked: boolean;
+  /**
+   * True when a platform OAuth token is present (Twitch login for Twitch
+   * predictions, Kick login for Kick predictions). Drives the form-vs-
+   * deeplink branch in the active panel.
+   */
+  hasPlatformToken: boolean;
   onCollapse: () => void;
   onDismiss?: () => void;
+  onVoteSuccess: (outcomeId: string, amount: number) => void;
 }
 
 const ActivePanel: React.FC<ActivePanelProps> = ({
   prediction,
   style,
   isLocked,
+  hasPlatformToken,
   onCollapse,
   onDismiss,
+  onVoteSuccess,
 }) => {
   const total = sumAmount(prediction);
   const leader = topOutcome(prediction);
   const leaderPct = leader && total > 0 ? Math.round((leader.totalAmount / total) * 100) : 0;
   const leaderIndex = leader ? prediction.outcomes.findIndex((o) => o.id === leader.id) : 0;
   const deeplink = prediction.platform === "twitch" ? "https://www.twitch.tv/" : "https://kick.com/";
+
+  // Form-vs-deeplink branch. Rules from plan U5:
+  //   - Active + viewer hasn't voted + token present → in-app vote form
+  //   - Active + viewer hasn't voted + no token       → deeplink chip
+  //   - Active + viewer already voted                 → no form, no deeplink
+  //     (the panel just shows the highlighted-outcome state via outcome row)
+  //   - Locked                                        → no form, no deeplink
+  const viewerHasVoted = prediction.viewerOutcomeId !== null;
+  const showVoteForm = !isLocked && !viewerHasVoted && hasPlatformToken;
+  const showDeeplink = !isLocked && !viewerHasVoted && !hasPlatformToken;
+
+  // TODO(predictions-backend U5): wire real balance fetches once U3
+  // (twitch-gql-predictions) and U1 (kick-predictions service) confirm
+  // whether prediction read responses already carry viewer balance. For
+  // v1 the form renders with `failed` balance — submit still works,
+  // server is source of truth, three-state UI handles the messaging.
+  const balance: PredictionVoteFormBalance = {
+    state: "failed",
+    reason: "not implemented",
+  };
 
   return (
     <div className="flex flex-col gap-3 px-3 pt-2 pb-3">
@@ -290,6 +444,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
               total={total}
               isLeader={o.id === leader?.id}
               isWinner={o.id === prediction.winningOutcomeId}
+              isViewerPick={o.id === prediction.viewerOutcomeId}
               style={style}
               platform={prediction.platform}
             />
@@ -297,7 +452,16 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
         </ul>
       </div>
 
-      {!isLocked && (
+      {showVoteForm && (
+        <PredictionVoteForm
+          prediction={prediction}
+          channelLogin={prediction.channelSlug}
+          balance={balance}
+          onVoteSuccess={onVoteSuccess}
+        />
+      )}
+
+      {showDeeplink && (
         <a
           href={deeplink}
           target="_blank"
@@ -380,9 +544,10 @@ const ActiveOutcomeRow: React.FC<{
   total: number;
   isLeader: boolean;
   isWinner: boolean;
+  isViewerPick: boolean;
   style: Style;
   platform: "twitch" | "kick";
-}> = ({ outcome, index, total, isLeader, isWinner, style, platform }) => {
+}> = ({ outcome, index, total, isLeader, isWinner, isViewerPick, style, platform }) => {
   const pct = total > 0 ? (outcome.totalAmount / total) * 100 : 0;
   const odds = total > 0 && outcome.totalAmount > 0
     ? `1:${(total / outcome.totalAmount).toFixed(1)}`
@@ -392,9 +557,11 @@ const ActiveOutcomeRow: React.FC<{
   return (
     <li
       data-testid={`prediction-outcome-${outcome.id}`}
+      data-viewer-pick={isViewerPick || undefined}
       className={
         "flex items-center justify-between gap-3 rounded-md bg-[#18181b] px-2 py-1.5 " +
-        (isWinner ? "ring-1 ring-emerald-500/30" : "")
+        (isWinner ? "ring-1 ring-emerald-500/30 " : "") +
+        (isViewerPick ? "ring-1 ring-storm-accent/60" : "")
       }
     >
       <span className="flex min-w-0 items-center gap-2">

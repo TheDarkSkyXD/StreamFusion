@@ -1,9 +1,23 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 
 import { PredictionBanner } from "@/components/chat/PredictionBanner";
+import {
+  __resetForTests as resetGate,
+  acquire as acquireGate,
+  predictionVoteGateKey,
+} from "@/lib/prediction-vote-gate";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
+
+const makePredictionMock = vi.fn();
+const voteOnPredictionMock = vi.fn();
+vi.mock("@/backend/api/platforms/twitch/twitch-gql-prediction-mutations", () => ({
+  makePrediction: (...args: unknown[]) => makePredictionMock(...args),
+}));
+vi.mock("@/backend/api/platforms/kick/kick-prediction-mutations", () => ({
+  voteOnPrediction: (...args: unknown[]) => voteOnPredictionMock(...args),
+}));
 
 function makePrediction(overrides: Partial<UnifiedPrediction> = {}): UnifiedPrediction {
   return {
@@ -46,8 +60,47 @@ beforeEach(() => {
       ...(s.preferences ?? {}),
       predictions: { style: "native" },
     } as typeof s.preferences,
+    twitchUser: null,
+    kickUser: null,
   }));
+  resetGate();
+  makePredictionMock.mockReset();
+  voteOnPredictionMock.mockReset();
+  (globalThis.window as unknown as { electronAPI: unknown }).electronAPI = {
+    auth: {
+      getToken: vi.fn().mockResolvedValue({ accessToken: "tok-1" }),
+    },
+  };
 });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+function setTwitchUser() {
+  useAuthStore.setState((s) => ({
+    ...s,
+    twitchUser: {
+      id: "u1",
+      login: "viewer",
+      displayName: "Viewer",
+      profileImageUrl: "",
+      createdAt: "",
+      broadcasterType: "",
+    } as unknown as typeof s.twitchUser,
+  }));
+}
+
+function setKickUser() {
+  useAuthStore.setState((s) => ({
+    ...s,
+    kickUser: {
+      id: "kv1",
+      login: "kickviewer",
+      displayName: "KickViewer",
+    } as unknown as typeof s.kickUser,
+  }));
+}
 
 describe("PredictionBanner (read-only viewer widget)", () => {
   it("renders collapsed by default with the platform-native CTA label (Twitch → 'See Details')", () => {
@@ -346,5 +399,168 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// U5 — form-vs-deeplink branch + localVoteSubmittedAt defense + gate cleanup
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PredictionBanner — U5 form/deeplink branch", () => {
+  it("shows in-app vote form (not deeplink) when prediction is ACTIVE and Twitch user is signed in", () => {
+    setTwitchUser();
+    render(<PredictionBanner prediction={makePrediction()} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    expect(screen.getByTestId("prediction-vote-form")).toBeTruthy();
+    expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
+  });
+
+  it("shows deeplink (not form) when prediction is ACTIVE and no Twitch user is signed in", () => {
+    render(<PredictionBanner prediction={makePrediction()} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
+    expect(screen.getByTestId("prediction-vote-deeplink")).toBeTruthy();
+  });
+
+  it("shows in-app vote form for Kick when Kick user is signed in", () => {
+    setKickUser();
+    render(<PredictionBanner prediction={makePrediction({ platform: "kick" })} />);
+    fireEvent.click(screen.getByLabelText("Predict"));
+    expect(screen.getByTestId("prediction-vote-form")).toBeTruthy();
+    expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
+  });
+
+  it("Twitch user signed in does NOT enable Kick form on a Kick prediction (per-platform branch)", () => {
+    setTwitchUser();
+    render(<PredictionBanner prediction={makePrediction({ platform: "kick" })} />);
+    fireEvent.click(screen.getByLabelText("Predict"));
+    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
+    expect(screen.getByTestId("prediction-vote-deeplink")).toBeTruthy();
+  });
+
+  it("hides both form and deeplink when prediction is LOCKED", () => {
+    setTwitchUser();
+    render(<PredictionBanner prediction={makePrediction({ status: "LOCKED" })} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
+    expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
+  });
+
+  it("hides both form and deeplink when viewer already voted (viewerOutcomeId set)", () => {
+    setTwitchUser();
+    render(
+      <PredictionBanner prediction={makePrediction({ viewerOutcomeId: "outcome-a", viewerStake: 100 })} />,
+    );
+    fireEvent.click(screen.getByLabelText("See Details"));
+    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
+    expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
+  });
+});
+
+describe("PredictionBanner — localVoteSubmittedAt suppression", () => {
+  it("suppresses incoming viewerOutcomeId=null update within 10s of successful vote", async () => {
+    setTwitchUser();
+    makePredictionMock.mockResolvedValue({ ok: true });
+    const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
+    fireEvent.click(screen.getByLabelText("See Details"));
+    expect(screen.getByTestId("prediction-vote-form")).toBeTruthy();
+    // Cast a vote.
+    fireEvent.click(screen.getByTestId("vote-outcome-outcome-a"));
+    fireEvent.change(screen.getByTestId("vote-stake-input"), { target: { value: "100" } });
+    fireEvent.click(screen.getByTestId("vote-submit"));
+    await waitFor(() => expect(makePredictionMock).toHaveBeenCalledTimes(1));
+    // Form should disappear since the local optimistic state now has the
+    // viewer's outcome.
+    await waitFor(() => expect(screen.queryByTestId("prediction-vote-form")).toBeNull());
+
+    // Now the server poll comes back with the stale null update. Without
+    // suppression this would re-show the form.
+    rerender(<PredictionBanner prediction={makePrediction({ viewerOutcomeId: null })} />);
+    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
+    // The picked outcome row carries the viewer-pick attr from the
+    // optimistic state.
+    const outcomeA = screen.getByTestId("prediction-outcome-outcome-a");
+    expect(outcomeA.getAttribute("data-viewer-pick")).toBe("true");
+  });
+
+  it("accepts viewerOutcomeId=null update AFTER 10s suppression window expires", async () => {
+    vi.useFakeTimers();
+    try {
+      setTwitchUser();
+      makePredictionMock.mockResolvedValue({ ok: true });
+      const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
+      fireEvent.click(screen.getByLabelText("See Details"));
+      fireEvent.click(screen.getByTestId("vote-outcome-outcome-a"));
+      fireEvent.change(screen.getByTestId("vote-stake-input"), { target: { value: "100" } });
+      // Drive the promise resolution under fake timers — we await the
+      // settled mutation by manually running pending microtasks.
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("vote-submit"));
+        // Flush the microtask queue created by the resolved mock.
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Advance past the suppression window.
+      await act(async () => {
+        vi.advanceTimersByTime(11_000);
+      });
+
+      // Server still returns null — but now we're past 10s, so the
+      // suppression no longer applies. The component should not be in
+      // optimistic-voted state anymore.
+      rerender(<PredictionBanner prediction={makePrediction({ viewerOutcomeId: null })} />);
+      // Re-expand to check the panel state (re-render may have collapsed).
+      const cta = screen.queryByLabelText("See Details");
+      if (cta) fireEvent.click(cta);
+      // Form is back since suppression expired and server says null.
+      expect(screen.queryByTestId("prediction-vote-form")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("PredictionBanner — gate cleanup", () => {
+  it("calls clearForPrediction when status transitions to RESOLVED", () => {
+    setTwitchUser();
+    const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
+    // Seed the gate with this prediction so clearForPrediction has work to do.
+    const key = predictionVoteGateKey("twitch", "fitzbro", "pred-1");
+    acquireGate(key);
+    expect(acquireGate(key)).toBe(false); // confirm seeded
+    rerender(
+      <PredictionBanner
+        prediction={makePrediction({ status: "RESOLVED", winningOutcomeId: "outcome-a" })}
+      />,
+    );
+    // Gate cleared → a fresh acquire of the same key succeeds again.
+    expect(acquireGate(key)).toBe(true);
+  });
+
+  it("calls clearForPrediction when status transitions to CANCELED", () => {
+    setTwitchUser();
+    const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
+    const key = predictionVoteGateKey("twitch", "fitzbro", "pred-1");
+    acquireGate(key);
+    expect(acquireGate(key)).toBe(false);
+    rerender(<PredictionBanner prediction={makePrediction({ status: "CANCELED" })} />);
+    expect(acquireGate(key)).toBe(true);
+  });
+
+  it("calls clearForChannel on widget unmount", () => {
+    setTwitchUser();
+    const { unmount } = render(<PredictionBanner prediction={makePrediction()} />);
+    // Seed: acquire keys for two predictions on the same channel.
+    const k1 = predictionVoteGateKey("twitch", "fitzbro", "pred-1");
+    const k2 = predictionVoteGateKey("twitch", "fitzbro", "pred-2");
+    acquireGate(k1);
+    acquireGate(k2);
+    unmount();
+    // Both should now be releasable / re-acquirable since clearForChannel
+    // matched both keys' slug segment.
+    expect(acquireGate(k1)).toBe(true);
+    expect(acquireGate(k2)).toBe(true);
   });
 });
