@@ -89,12 +89,34 @@ describe('FollowButton', () => {
     expect(openExternal).toHaveBeenCalledWith('https://www.twitch.tv/xqc');
   });
 
-  it('still toggles locally on an account-source Kick row (Twitch-only carve-out)', () => {
+  it('routes account-source Kick row to kick.com (no local toggle)', () => {
+    // After the kick-account-follows-import feature shipped (plan
+    // 2026-05-21-001), Kick account rows behave like Twitch account rows —
+    // unfollow redirects to the platform instead of mutating the local DB,
+    // because import is one-way and a local removal would bounce back on
+    // the next sync.
     mockIsFollowing = true;
     mockFollowSource = 'account';
+    renderWithProviders(
+      <FollowButton channel={fixtures.channel({ platform: 'kick', username: 'Summit1G' })} />
+    );
+    fireEvent.click(screen.getByRole('button'));
+    expect(toggleFollow).not.toHaveBeenCalled();
+    expect(toastFn).toHaveBeenCalledTimes(1);
+    const [message, opts] = toastFn.mock.calls[0] as [string, { action: { onClick: () => void } }];
+    expect(message).toMatch(/kick/i);
+    // Simulate the user clicking the "Open Kick" action button in the toast.
+    opts.action.onClick();
+    expect(openExternal).toHaveBeenCalledWith('https://kick.com/summit1g');
+  });
+
+  it('still toggles locally on a guest-source Kick row (regression guard for AE4)', () => {
+    mockIsFollowing = true;
+    mockFollowSource = 'guest';
     renderWithProviders(<FollowButton channel={fixtures.channel({ platform: 'kick' })} />);
     fireEvent.click(screen.getByRole('button'));
     expect(toggleFollow).toHaveBeenCalledTimes(1);
     expect(openExternal).not.toHaveBeenCalled();
+    expect(toastFn).not.toHaveBeenCalled();
   });
 });

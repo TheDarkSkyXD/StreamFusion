@@ -21,6 +21,12 @@ function buildTwitchChannelUrl(username: string): string {
   return `https://www.twitch.tv/${encodeURIComponent(username.toLowerCase())}`;
 }
 
+function buildKickChannelUrl(username: string): string {
+  // Kick slugs are case-insensitive and ASCII-only; lowercase matches kick.com's
+  // canonical URL form.
+  return `https://kick.com/${encodeURIComponent(username.toLowerCase())}`;
+}
+
 export function FollowButton({ channel, className, size = "sm" }: FollowButtonProps) {
   const { isFollowing: isFollowingStore, toggleFollow, getFollowSource } = useFollowStore();
   const isFollowing = isFollowingStore(channel);
@@ -35,6 +41,14 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
   // (next post-login sync would just re-add it and the heart would bounce
   // back, which reads as a broken toggle).
   const isManagedByTwitch = platform === "twitch" && followSource === "account";
+  // Kick HAS a working DELETE /api/v2/channels/{slug}/follow endpoint, but the
+  // brainstorm scoped this feature as import-only (no bidirectional sync). A
+  // local unfollow without a kick.com-side unfollow would just bounce back on
+  // the next sync — same broken-toggle UX the Twitch branch was built to
+  // prevent. Route to kick.com instead so the user unfollows there and the
+  // change reconciles via the next sync. Import-only by design — see
+  // docs/brainstorms/2026-05-21-kick-account-follows-import-requirements.md.
+  const isManagedByKick = platform === "kick" && followSource === "account";
 
   const handleClick = (e: MouseEvent) => {
     e.preventDefault();
@@ -46,6 +60,18 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
         description: `Open ${channel.displayName || channel.username} on twitch.tv to unfollow.`,
         action: {
           label: "Open Twitch",
+          onClick: () => openExternal(url),
+        },
+      });
+      return;
+    }
+
+    if (isManagedByKick && channel.username) {
+      const url = buildKickChannelUrl(channel.username);
+      toast("Manage this follow on Kick", {
+        description: `Open ${channel.displayName || channel.username} on kick.com to unfollow.`,
+        action: {
+          label: "Open Kick",
           onClick: () => openExternal(url),
         },
       });
@@ -81,9 +107,11 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
       title={
         isManagedByTwitch
           ? "Followed via your Twitch account — click to manage on twitch.tv"
-          : isFollowing
-            ? "Unfollow"
-            : "Follow"
+          : isManagedByKick
+            ? "Followed via your Kick account — click to manage on kick.com"
+            : isFollowing
+              ? "Unfollow"
+              : "Follow"
       }
     >
       {isFollowing ? (
