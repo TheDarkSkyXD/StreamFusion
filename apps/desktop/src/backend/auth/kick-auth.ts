@@ -11,11 +11,65 @@
 
 import { EventEmitter } from "node:events";
 
+import { session } from "electron";
+
 import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { storageService } from "../services/storage-service";
 
 import { tokenExchangeService } from "./token-exchange";
+
+// Cookie names that hold Cloudflare WAF clearance state. These belong to
+// Cloudflare's anonymous-visitor protection layer, not the user's identity —
+// preserving them across logout means the next user (or the same user re-
+// logging-in) doesn't trigger a fresh WAF challenge on the first kick.com
+// visit. Keep this list narrow; anything else with a kick.com / id.kick.com
+// domain is treated as user-session state and cleared on logout.
+const CLOUDFLARE_PRESERVE_NAMES = new Set<string>(["cf_clearance", "__cf_bm"]);
+
+/**
+ * Clear the kick.com / id.kick.com session cookies from Electron's default
+ * session — where the Kick OAuth flow deposits id.kick.com cookies and where
+ * the follow-endpoints BrowserWindow fallback reads them from. Preserves the
+ * Cloudflare clearance cookies so the next kick.com visit doesn't trigger a
+ * fresh WAF challenge.
+ *
+ * Safe to call when no cookies are present (no-op). Errors during individual
+ * cookie removal are logged at debug level and do not abort the rest of the
+ * clear — a stuck cookie shouldn't block logout.
+ */
+async function clearKickSessionCookies(): Promise<void> {
+  const defaultSession = session.defaultSession;
+  const domains = [".kick.com", "kick.com", "id.kick.com", ".id.kick.com"];
+
+  for (const domain of domains) {
+    let cookies;
+    try {
+      cookies = await defaultSession.cookies.get({ domain });
+    } catch (err) {
+      console.debug(`[kickAuth] Failed to enumerate cookies for ${domain}:`, err);
+      continue;
+    }
+
+    for (const cookie of cookies) {
+      if (CLOUDFLARE_PRESERVE_NAMES.has(cookie.name)) continue;
+
+      // Reconstruct the URL the cookie was set against. The leading-dot
+      // domain form ('.kick.com') needs to be stripped to form a valid URL.
+      const cookieDomain = cookie.domain?.replace(/^\./, "") ?? "";
+      if (!cookieDomain) continue;
+      const protocol = cookie.secure ? "https" : "http";
+      const url = `${protocol}://${cookieDomain}${cookie.path ?? "/"}`;
+
+      try {
+        await defaultSession.cookies.remove(url, cookie.name);
+      } catch (err) {
+        console.debug(`[kickAuth] Failed to remove cookie ${cookie.name}:`, err);
+      }
+    }
+  }
+  console.debug("🍪 Cleared Kick session cookies from default partition");
+}
 
 // ========== Kick Auth Service Class ==========
 
@@ -55,6 +109,7 @@ class KickAuthService extends EventEmitter {
       // renderer so the user can re-authenticate.
       storageService.clearToken(this.platform);
       storageService.clearKickUser();
+      await clearKickSessionCookies();
       this.emit("session-expired");
       console.warn("⚠️ Kick session cleared — user must re-authenticate");
       return null;
@@ -99,12 +154,15 @@ class KickAuthService extends EventEmitter {
   }
 
   /**
-   * Logout and clear local data
+   * Logout and clear local data + kick.com session cookies from the default
+   * Electron session. Kick has no formal OAuth revoke endpoint, so this is
+   * the only way to ensure the next user on the same machine doesn't inherit
+   * authenticated state. Preserves Cloudflare WAF clearance cookies.
    */
   async logout(): Promise<boolean> {
-    // Kick might not have a formal revoke endpoint, so we just clear local data
     storageService.clearToken(this.platform);
     storageService.clearKickUser();
+    await clearKickSessionCookies();
 
     return true;
   }

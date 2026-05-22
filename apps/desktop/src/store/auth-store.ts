@@ -450,8 +450,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
     set({ kickLoading: true });
     try {
-      await window.electronAPI.auth.clearToken("kick");
-      await window.electronAPI.auth.clearKickUser();
+      // Route through logoutKick (not the individual clearToken/clearKickUser
+      // calls) so kickAuthService.logout() runs end-to-end — clears the OAuth
+      // token, the cached user, the kick.com / id.kick.com session cookies
+      // from the default Electron session, and the account-source follows in
+      // the local DB. Mirrors the logoutTwitch flow above.
+      await window.electronAPI.auth.logoutKick();
+
+      // Drop renderer-side caches that still hold the now-revoked account's
+      // follows. Backend already cleared account-source rows via
+      // clearAccountFollows("kick"); without these the React-Query cache and
+      // the in-memory useFollowStore copy keep the synced rows visible until
+      // restart.
+      queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("kick") });
+      queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+      await useFollowStore.getState().hydrate();
 
       set({
         kickUser: null,
