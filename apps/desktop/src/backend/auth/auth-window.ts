@@ -72,7 +72,14 @@ class AuthWindowManager {
     console.debug(`🔐 Opening auth window for ${platform}`);
     console.debug(`🔗 Redirect URI: ${redirectUri}`);
 
-    // Create the auth window
+    // Create the auth window.
+    //
+    // Kick gets sandbox: false because Kick.com's sign-in flow is gated by
+    // Kasada's bot-detection (KP_UIDz cookies). The page's JS needs full
+    // access to its own context to solve Kasada's challenges, mirror real
+    // mouse/keyboard interactions, and rotate session_token on successful
+    // login. KickTalk uses the same config (src/main/index.js:535). Twitch
+    // OAuth has no Kasada and stays in the safer sandboxed config.
     const window = new BrowserWindow({
       width: 500,
       height: 750,
@@ -85,7 +92,7 @@ class AuthWindowManager {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true,
+        sandbox: platform !== "kick",
         // No preload needed for external OAuth pages
       },
     });
@@ -208,20 +215,25 @@ class AuthWindowManager {
   }
 
   /**
-   * Detect kick.com web sign-in by polling the default session's cookie jar
-   * for an authenticated session. KickTalk uses the same approach
-   * (src/main/index.js:569-596). The fingerprint of an authenticated kick.com
-   * session is the simultaneous presence of `session_token` AND `kick_session`
-   * cookies — both set by Kick's normal login flow, neither set on a truly
-   * fresh anonymous visit.
+   * Detect kick.com web sign-in by watching for cookie-value rotation in the
+   * default session.
    *
-   * Cross-checks with /api/v2/user via the window's webContents to confirm
-   * the session is actually bound to a user (defends against the SSO-bridged
-   * anonymous session that the previous post-OAuth detour produced, where
-   * cookies were present but the v2 endpoint still returned Unauthenticated).
+   * Live testing on 2026-05-22 confirmed:
+   *   - kick.com sets session_token AND kick_session on its initial anonymous
+   *     load, BEFORE the user signs in. Presence alone gives false positives.
+   *   - /api/v2/user is gated by Kasada bot-detection (KP_UIDz cookies). A
+   *     programmatic fetch() from the BrowserWindow returns a Cloudflare
+   *     challenge HTML page instead of JSON. We can't use API probes to
+   *     verify auth state.
+   *   - When the user actually completes kick.com's login form, Kick rotates
+   *     session_token to a new value (Laravel-style session regeneration).
+   *     That value change is the only reliable signal we have.
    *
-   * Polls every 1.5s for up to 5 minutes. Returns false if the window closes
-   * or the deadline elapses.
+   * Strategy: capture session_token's initial value on first poll, then watch
+   * for it to differ from that baseline on subsequent polls. Rotation = login.
+   * Polls every 1.5s for up to 5 minutes. Also handles the case where
+   * session_token wasn't initially present (transitions on first appearance,
+   * not just rotation).
    */
   private async _waitForKickWebAuth(
     window: BrowserWindow,
@@ -229,37 +241,51 @@ class AuthWindowManager {
   ): Promise<boolean> {
     const start = Date.now();
     let attempts = 0;
-    let lastReason = "no-cookies";
+    let baselineSessionToken: string | null = null;
+    let baselineKickSession: string | null = null;
+    let baselineCaptured = false;
+    let lastReason = "polling-not-started";
+
     while (Date.now() - start < maxMs) {
       if (window.isDestroyed()) {
-        console.debug(`[KickAuth] Window destroyed after ${attempts} poll(s) — aborting`);
+        console.debug(`[KickAuth] window destroyed after ${attempts} poll(s) — aborting`);
         return false;
       }
       attempts++;
       try {
         const cookies = await session.defaultSession.cookies.get({ domain: "kick.com" });
-        const hasSessionToken = cookies.some((c) => c.name === "session_token");
-        const hasKickSession = cookies.some((c) => c.name === "kick_session");
+        const sessionToken = cookies.find((c) => c.name === "session_token")?.value ?? null;
+        const kickSession = cookies.find((c) => c.name === "kick_session")?.value ?? null;
 
-        if (!hasSessionToken || !hasKickSession) {
-          lastReason = `missing-cookies (session_token=${hasSessionToken} kick_session=${hasKickSession})`;
-          if (attempts === 1 || attempts % 5 === 0) {
-            console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
+        if (!baselineCaptured) {
+          // Wait one full poll to let kick.com finish its initial bootstrap
+          // (the homepage sets anonymous cookies as it loads).
+          if (attempts === 1) {
+            lastReason = "capturing-baseline";
+            console.debug(`[KickAuth] poll #1: baseline read pending`);
+          } else {
+            baselineSessionToken = sessionToken;
+            baselineKickSession = kickSession;
+            baselineCaptured = true;
+            lastReason = "baseline-captured";
+            console.debug(
+              `[KickAuth] poll #${attempts}: baseline captured — session_token=${this._fp(sessionToken)} kick_session=${this._fp(kickSession)}`
+            );
           }
         } else {
-          // Both cookies present — verify by hitting /api/v2/user via the
-          // window's own context (so cookies are included). A real auth
-          // returns user JSON; an anonymous SSO-bridged session returns
-          // {"message":"Unauthenticated."}.
-          const probe = await this._probeKickAuth(window);
-          if (probe.authenticated) {
+          const sessionTokenChanged =
+            !!sessionToken && sessionToken !== baselineSessionToken;
+          const kickSessionChanged =
+            !!kickSession && kickSession !== baselineKickSession;
+
+          if (sessionTokenChanged || kickSessionChanged) {
             console.debug(
-              `✅ Kick web auth detected for "${probe.username}" after ${attempts} poll(s) (${Date.now() - start}ms)`
+              `✅ Kick web auth detected via cookie rotation after ${attempts} poll(s) (${Date.now() - start}ms): session_token ${sessionTokenChanged ? "ROTATED" : "unchanged"}, kick_session ${kickSessionChanged ? "ROTATED" : "unchanged"}`
             );
             return true;
           }
-          lastReason = `cookies present but /api/v2/user says ${probe.reason}`;
-          if (attempts === 1 || attempts % 5 === 0) {
+          lastReason = `cookies unchanged from baseline (session_token=${this._fp(sessionToken)})`;
+          if (attempts === 3 || attempts % 10 === 0) {
             console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
           }
         }
@@ -275,47 +301,11 @@ class AuthWindowManager {
     return false;
   }
 
-  private async _probeKickAuth(
-    window: BrowserWindow
-  ): Promise<{ authenticated: true; username: string } | { authenticated: false; reason: string }> {
-    try {
-      // Returns a JSON-encoded probe result so we can distinguish HTTP errors
-      // from page-context fetch failures without conflating them.
-      const probeJson = (await window.webContents.executeJavaScript(
-        `(async () => {
-          try {
-            const r = await fetch('/api/v2/user', { credentials: 'include', headers: { Accept: 'application/json' } });
-            const status = r.status;
-            const body = await r.text().catch(() => '');
-            return JSON.stringify({ status, body: body.slice(0, 300) });
-          } catch (e) {
-            return JSON.stringify({ status: 0, body: String(e) });
-          }
-        })()`
-      )) as string;
-
-      const probe = JSON.parse(probeJson) as { status: number; body: string };
-      if (probe.status !== 200) {
-        return { authenticated: false, reason: `status=${probe.status} body="${probe.body.slice(0, 80)}"` };
-      }
-      let parsed: { username?: string; user?: { username?: string } };
-      try {
-        parsed = JSON.parse(probe.body);
-      } catch {
-        return { authenticated: false, reason: `non-JSON body: "${probe.body.slice(0, 80)}"` };
-      }
-      const username = parsed.username ?? parsed.user?.username;
-      if (username) return { authenticated: true, username };
-      return {
-        authenticated: false,
-        reason: `200 OK but no username in body: "${probe.body.slice(0, 80)}"`,
-      };
-    } catch (err) {
-      return {
-        authenticated: false,
-        reason: `probe threw: ${err instanceof Error ? err.message : String(err)}`,
-      };
-    }
+  /** Compact fingerprint for logging cookie values without exposing the full token. */
+  private _fp(value: string | null): string {
+    if (!value) return "(absent)";
+    if (value.length <= 12) return `"${value}"`;
+    return `"${value.slice(0, 8)}…${value.slice(-4)}"`;
   }
 
   /**
