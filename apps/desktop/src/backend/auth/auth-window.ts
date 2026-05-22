@@ -176,12 +176,28 @@ class AuthWindowManager {
       console.debug("🌐 Loading kick.com for web sign-in (Kick OAuth flow)");
       window.loadURL("https://kick.com/");
 
-      // Auto-click the Sign In button on the kick.com header once the page
-      // is interactive. Same pattern KickTalk uses (src/main/index.js:543).
-      // If Kick's UI changes the button selector, this becomes a no-op and
-      // the user just clicks Sign In themselves — failure is silent.
-      window.webContents.once("did-finish-load", () => {
+      // After kick.com loads, decide whether the user is already authenticated
+      // (skip straight to OAuth) or needs to sign in (auto-click + poll).
+      window.webContents.once("did-finish-load", async () => {
         if (window.isDestroyed()) return;
+
+        // Give the SPA ~1.2s to bootstrap and render the header (logged-in
+        // users see avatar; anonymous users see Sign In button).
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        if (window.isDestroyed()) return;
+
+        const alreadyAuthed = await this._isKickWebAuthenticated(window);
+        if (alreadyAuthed) {
+          console.debug(
+            "✅ kick.com session already authenticated — proceeding directly to id.kick.com OAuth"
+          );
+          if (!window.isDestroyed()) window.loadURL(authUrl);
+          return;
+        }
+
+        // Not yet authed: auto-click the Sign In button so the user lands
+        // in the login modal without needing to find it themselves. Same
+        // selector KickTalk uses (src/main/index.js:543).
         window.webContents
           .executeJavaScript(
             `(function() {
@@ -189,23 +205,21 @@ class AuthWindowManager {
               const interval = setInterval(() => {
                 attempts++;
                 const el = document.querySelector('div.flex.items-center.gap-4 > button:last-child');
-                if (el) {
-                  el.click();
-                  clearInterval(interval);
-                }
+                if (el) { el.click(); clearInterval(interval); }
                 if (attempts > 30) clearInterval(interval);
               }, 100);
             })()`
           )
-          .catch(() => {
-            // Page can be Cloudflare-challenged; ignore — user can click manually.
-          });
-      });
+          .catch(() => {});
 
-      void this._waitForKickWebAuth(window).then((authenticated) => {
-        if (!authenticated || window.isDestroyed()) return;
-        console.debug("🔁 Kick web auth confirmed — proceeding to id.kick.com OAuth");
-        window.loadURL(authUrl);
+        // Start polling for cookie rotation that signals successful sign-in.
+        void this._waitForKickWebAuth(window).then((authenticated) => {
+          if (!authenticated || window.isDestroyed()) return;
+          console.debug(
+            "🔁 Kick web auth confirmed — proceeding to id.kick.com OAuth"
+          );
+          window.loadURL(authUrl);
+        });
       });
     } else {
       window.loadURL(authUrl);
@@ -306,6 +320,39 @@ class AuthWindowManager {
     if (!value) return "(absent)";
     if (value.length <= 12) return `"${value}"`;
     return `"${value.slice(0, 8)}…${value.slice(-4)}"`;
+  }
+
+  /**
+   * Check whether the user is already authenticated on kick.com by inspecting
+   * the rendered page's header. Logged-in users have an avatar / user-menu
+   * trigger and no visible "Sign In" / "Sign Up" buttons; anonymous users
+   * have the opposite. Used to short-circuit the polling loop when a prior
+   * kick.com session is still valid — the user just signed in (or never
+   * signed out) and we shouldn't make them log in again.
+   *
+   * Returns false on any executeJavaScript failure (Cloudflare challenge,
+   * SPA not yet rendered, page destroyed) — fail-closed means we'll fall
+   * through to the polling path, which is correct behavior when uncertain.
+   */
+  private async _isKickWebAuthenticated(window: BrowserWindow): Promise<boolean> {
+    try {
+      const result = await window.webContents.executeJavaScript(
+        `(function() {
+          const buttons = Array.from(document.querySelectorAll('button, a'));
+          const hasSignIn = buttons.some((el) => /^\\s*(Sign\\s*In|Log\\s*In)\\s*$/i.test((el.textContent || '').trim()));
+          const hasSignUp = buttons.some((el) => /^\\s*Sign\\s*Up\\s*$/i.test((el.textContent || '').trim()));
+          const hasAvatar =
+            !!document.querySelector('img[alt][src*="profile"]') ||
+            !!document.querySelector('img[alt][src*="default-avatar"]') ||
+            !!document.querySelector('button[aria-haspopup="menu"]') ||
+            !!document.querySelector('[data-testid*="user"]');
+          return !hasSignIn && !hasSignUp && hasAvatar;
+        })()`
+      );
+      return !!result;
+    } catch {
+      return false;
+    }
   }
 
   /**
