@@ -72,14 +72,33 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         importedCount = allFollowed.length;
         console.debug(`✅ Synced ${importedCount} Twitch follows`);
       } else if (platform === "kick") {
-        const { kickClient } = await import("../../api/platforms/kick/kick-client");
-        const allFollowed = await kickClient.getAllFollowedChannels();
+        // Call FollowEndpoints directly rather than kickClient.getAllFollowedChannels()
+        // so we get the tagged result. A transient Cloudflare 403 / auth failure
+        // must NOT trigger clearAccountFollows — that would silently wipe the
+        // user's prior synced follows. See A1 in
+        // docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
+        const { getAllFollowedChannels } = await import(
+          "../../api/platforms/kick/endpoints/follow-endpoints"
+        );
+        const result = await getAllFollowedChannels();
+
+        if (result.status === "error") {
+          console.warn(
+            `⚠️ Kick follow sync skipped (${result.reason}); preserving prior account-source rows`
+          );
+          // Bail out before clearing. Skip the AUTH_FOLLOWS_SYNCED event too —
+          // the renderer's prior state remains correct; firing the event would
+          // invalidate caches and re-hydrate against the (now-stale-but-still-
+          // correct) DB, which is wasteful but not harmful. Either way is OK;
+          // skipping is cleaner.
+          return;
+        }
 
         // Clear old account follows for this platform (guest follows stay intact)
         storageService.clearAccountFollows("kick");
 
         // Import account follows as local follows
-        for (const channel of allFollowed) {
+        for (const channel of result.channels) {
           storageService.addLocalFollow(
             {
               platform: "kick",
@@ -91,7 +110,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             "account"
           );
         }
-        importedCount = allFollowed.length;
+        importedCount = result.channels.length;
         console.debug(`✅ Synced ${importedCount} Kick follows`);
       }
 
