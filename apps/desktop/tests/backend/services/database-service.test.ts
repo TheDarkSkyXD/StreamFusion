@@ -67,6 +67,7 @@ describeDb("DatabaseService schema", () => {
         "local_follows",
         "mod_log",
         "retention_settings",
+        "pending_follow_writes",
       ])
     );
   });
@@ -118,7 +119,7 @@ describeDb("DatabaseService schema", () => {
     ).map((r) => r.name);
     raw.close();
     expect(names).toEqual(
-      expect.arrayContaining(["mod_log", "retention_settings"])
+      expect.arrayContaining(["mod_log", "retention_settings", "pending_follow_writes"])
     );
   });
 });
@@ -306,10 +307,7 @@ describeDb("DatabaseService follow-row safety", () => {
 
     const rows = svc.getFollowsByPlatformAndSource("kick", "account");
     expect(rows).toHaveLength(2);
-    expect(rows.map((r) => r.channelId).sort()).toEqual([
-      "chickenandy",
-      "summit1g",
-    ]);
+    expect(rows.map((r) => r.channelId).sort()).toEqual(["chickenandy", "summit1g"]);
   });
 
   it("replaceAccountFollows atomically swaps the account-source rows for a platform", () => {
@@ -356,10 +354,7 @@ describeDb("DatabaseService follow-row safety", () => {
     ]);
 
     const accountRows = svc.getFollowsByPlatformAndSource("kick", "account");
-    expect(accountRows.map((r) => r.channelId).sort()).toEqual([
-      "411439",
-      "550022",
-    ]);
+    expect(accountRows.map((r) => r.channelId).sort()).toEqual(["411439", "550022"]);
     // Guest row is untouched.
     const guestRows = svc.getFollowsByPlatformAndSource("kick", "guest");
     expect(guestRows.map((r) => r.channelId)).toEqual(["guest1"]);
@@ -413,5 +408,218 @@ describeDb("DatabaseService retention_settings helpers", () => {
 
     svc.setRetentionSetting("channel:abc", 7);
     expect(svc.getRetentionSetting("channel:abc")).toBe(7);
+  });
+});
+
+describeDb("DatabaseService pending_follow_writes helpers", () => {
+  it("addPendingFollowWrite stores a row with all fields populated", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addPendingFollowWrite({
+      platform: "twitch",
+      channelId: "12345",
+      slug: "somechannel",
+      action: "follow",
+      lastError: "integrity check failed",
+    });
+
+    const rows = svc.getAllPendingFollowWrites();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      platform: "twitch",
+      channelId: "12345",
+      slug: "somechannel",
+      action: "follow",
+      lastError: "integrity check failed",
+    });
+    expect(rows[0].id).toBeGreaterThan(0);
+    expect(rows[0].attemptedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO-8601 prefix
+  });
+
+  it("addPendingFollowWrite UPSERTs on duplicate (platform, channel_id, action) — updates attempted_at and last_error, no duplicate row", async () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "999",
+      slug: "ramees",
+      action: "follow",
+      lastError: "first attempt",
+    });
+    const firstRow = svc.getAllPendingFollowWrites()[0];
+
+    // Ensure the timestamp would actually advance.
+    await new Promise((r) => setTimeout(r, 20));
+
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "999",
+      slug: "ramees",
+      action: "follow",
+      lastError: "second attempt",
+    });
+
+    const rows = svc.getAllPendingFollowWrites();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(firstRow.id);
+    expect(rows[0].lastError).toBe("second attempt");
+    expect(rows[0].attemptedAt > firstRow.attemptedAt).toBe(true);
+  });
+
+  it("a follow-pending and an unfollow-pending for the same channel coexist as distinct rows", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "999",
+      slug: "ramees",
+      action: "follow",
+    });
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "999",
+      slug: "ramees",
+      action: "unfollow",
+    });
+
+    const rows = svc.getAllPendingFollowWrites();
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.action).sort()).toEqual(["follow", "unfollow"]);
+  });
+
+  it("removePendingFollowWrite deletes by composite key including action; sibling action stays", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addPendingFollowWrite({
+      platform: "twitch",
+      channelId: "12345",
+      slug: "alice",
+      action: "follow",
+    });
+    svc.addPendingFollowWrite({
+      platform: "twitch",
+      channelId: "12345",
+      slug: "alice",
+      action: "unfollow",
+    });
+
+    const removed = svc.removePendingFollowWrite({
+      platform: "twitch",
+      channelId: "12345",
+      slug: "alice",
+      action: "follow",
+    });
+    expect(removed).toBe(true);
+
+    const remaining = svc.getAllPendingFollowWrites();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].action).toBe("unfollow");
+  });
+
+  it("removePendingFollowWrite matches by slug when channelId differs (dual-id bridge for legacy user_id rows)", () => {
+    // Regression: docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    // Pending row inserted with the numeric user_id Kick returned at sync time.
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "12345",
+      slug: "ramees",
+      action: "follow",
+    });
+
+    // Retry path hydrates from a different source and passes slug as channelId.
+    // The cleanup must still find the row via the slug bridge.
+    const removed = svc.removePendingFollowWrite({
+      platform: "kick",
+      channelId: "ramees",
+      slug: "ramees",
+      action: "follow",
+    });
+    expect(removed).toBe(true);
+    expect(svc.getAllPendingFollowWrites()).toHaveLength(0);
+  });
+
+  it("getPendingFollowWritesByPlatform returns only rows for the requested platform, ordered by attempted_at ascending", async () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addPendingFollowWrite({
+      platform: "twitch",
+      channelId: "100",
+      slug: "twitchA",
+      action: "follow",
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "200",
+      slug: "kickA",
+      action: "follow",
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    svc.addPendingFollowWrite({
+      platform: "twitch",
+      channelId: "101",
+      slug: "twitchB",
+      action: "unfollow",
+    });
+
+    const twitchRows = svc.getPendingFollowWritesByPlatform("twitch");
+    expect(twitchRows.map((r) => r.slug)).toEqual(["twitchA", "twitchB"]);
+
+    const kickRows = svc.getPendingFollowWritesByPlatform("kick");
+    expect(kickRows.map((r) => r.slug)).toEqual(["kickA"]);
+  });
+
+  it("CHECK constraint rejects an action value outside the enum", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    expect(() =>
+      svc.addPendingFollowWrite({
+        platform: "twitch",
+        channelId: "1",
+        slug: "foo",
+        // @ts-expect-error — deliberately violating the type to exercise the CHECK constraint
+        action: "subscribe",
+      })
+    ).toThrow();
+  });
+
+  it("removePendingFollowWrite returns false when no matching row exists", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    const removed = svc.removePendingFollowWrite({
+      platform: "twitch",
+      channelId: "nope",
+      slug: "nope",
+      action: "follow",
+    });
+    expect(removed).toBe(false);
+  });
+
+  it("pending_follow_writes table is created on a fresh DB, and survives reopen", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.addPendingFollowWrite({
+      platform: "twitch",
+      channelId: "1",
+      slug: "a",
+      action: "follow",
+    });
+
+    // Re-instantiate against the same path — simulates an app restart.
+    const svc2 = new DatabaseService();
+    svc2.initialize();
+    const rows = svc2.getAllPendingFollowWrites();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].slug).toBe("a");
   });
 });

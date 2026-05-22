@@ -3,13 +3,32 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { app } from "electron";
 
-import type {
-  ModLogEntry,
-  ModLogQueryFilters,
-  RetentionScope,
-} from "../../shared/mod-log-types";
+import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../../shared/mod-log-types";
 
 export type FollowSource = "guest" | "account";
+
+export type PendingFollowAction = "follow" | "unfollow";
+
+/**
+ * Tombstone-equivalent row tracking a push-sync write that hasn't yet been
+ * confirmed by the platform. Reconciliation (background sync) consults this
+ * to distinguish "user intended unfollow, push failed" (don't re-adopt the
+ * platform row) from "user never followed this on platform" (adopt as
+ * account-source per existing import behavior).
+ *
+ * The `slug` column is essential for Kick rows where `channelId` may carry
+ * a stale `user_id` from the dual-id problem; `removePendingFollowWrite`
+ * matches via the `channelsMatch` primitive (platform AND (id OR slug)).
+ */
+export interface PendingFollowWrite {
+  id: number;
+  platform: string;
+  channelId: string;
+  slug: string;
+  action: PendingFollowAction;
+  attemptedAt: string;
+  lastError: string | null;
+}
 
 // Re-export shared types so existing main-process imports
 // (`import { ModLogEntry } from "database-service"`) keep working.
@@ -141,6 +160,22 @@ export class DatabaseService {
         scope TEXT PRIMARY KEY,
         retention_days INTEGER
       );
+    `);
+
+    // 5. Pending Follow Writes (push-sync reconciliation tombstone table)
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS pending_follow_writes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        platform TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('follow', 'unfollow')),
+        attempted_at TEXT NOT NULL,
+        last_error TEXT,
+        UNIQUE(platform, channel_id, action)
+      );
+      CREATE INDEX IF NOT EXISTS idx_pending_writes_platform
+        ON pending_follow_writes(platform);
     `);
 
     console.debug("✅ SQLite Schema initialized");
@@ -321,6 +356,84 @@ export class DatabaseService {
       profileImage: row.profile_image,
       followedAt: row.followed_at,
       source: row.source || "guest",
+    };
+  }
+
+  // ========== Pending Follow Writes (Push-Sync Reconciliation) ==========
+
+  /**
+   * Insert or update a pending follow/unfollow write. On UNIQUE conflict
+   * (same platform + channel_id + action), refreshes `attempted_at` and
+   * `last_error` rather than creating a duplicate row.
+   */
+  addPendingFollowWrite(input: {
+    platform: string;
+    channelId: string;
+    slug: string;
+    action: PendingFollowAction;
+    lastError?: string | null;
+  }): void {
+    const stmt = this.database.prepare(`
+      INSERT INTO pending_follow_writes (platform, channel_id, slug, action, attempted_at, last_error)
+      VALUES (@platform, @channelId, @slug, @action, @attemptedAt, @lastError)
+      ON CONFLICT(platform, channel_id, action) DO UPDATE SET
+        attempted_at = excluded.attempted_at,
+        last_error = excluded.last_error,
+        slug = excluded.slug
+    `);
+    stmt.run({
+      platform: input.platform,
+      channelId: input.channelId,
+      slug: input.slug,
+      action: input.action,
+      attemptedAt: new Date().toISOString(),
+      lastError: input.lastError ?? null,
+    });
+  }
+
+  /**
+   * Delete a pending write by composite key. Matches via dual-id pattern
+   * (channel_id OR slug) so a row inserted with channel_id=numeric-user-id
+   * is still findable for cleanup when the retry path passes channel_id=slug.
+   * See: docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md
+   */
+  removePendingFollowWrite(input: {
+    platform: string;
+    channelId: string;
+    slug: string;
+    action: PendingFollowAction;
+  }): boolean {
+    const stmt = this.database.prepare(`
+      DELETE FROM pending_follow_writes
+      WHERE platform = ? AND (channel_id = ? OR slug = ?) AND action = ?
+    `);
+    const info = stmt.run(input.platform, input.channelId, input.slug, input.action);
+    return info.changes > 0;
+  }
+
+  getAllPendingFollowWrites(): PendingFollowWrite[] {
+    const stmt = this.database.prepare(
+      "SELECT * FROM pending_follow_writes ORDER BY attempted_at ASC"
+    );
+    return stmt.all().map(this.mapPendingWriteFromDb);
+  }
+
+  getPendingFollowWritesByPlatform(platform: string): PendingFollowWrite[] {
+    const stmt = this.database.prepare(
+      "SELECT * FROM pending_follow_writes WHERE platform = ? ORDER BY attempted_at ASC"
+    );
+    return stmt.all(platform).map(this.mapPendingWriteFromDb);
+  }
+
+  private mapPendingWriteFromDb(row: any): PendingFollowWrite {
+    return {
+      id: Number(row.id),
+      platform: row.platform,
+      channelId: row.channel_id,
+      slug: row.slug,
+      action: row.action,
+      attemptedAt: row.attempted_at,
+      lastError: row.last_error ?? null,
     };
   }
 

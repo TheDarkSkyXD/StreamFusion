@@ -23,7 +23,7 @@ import {
   type UserPreferences,
 } from "../../shared/auth-types";
 
-import { dbService } from "./database-service";
+import { dbService, type PendingFollowAction, type PendingFollowWrite } from "./database-service";
 
 // ========== Default Values ==========
 
@@ -435,6 +435,49 @@ class StorageService {
   clearLocalFollows(): void {
     dbService.clearFollows();
     console.debug("🗑️ All local follows cleared");
+  }
+
+  // ========== Pending Follow Writes (Push-Sync Reconciliation) ==========
+
+  /**
+   * Record that a follow/unfollow push to the platform has been attempted
+   * but not yet confirmed. Reconciliation (background sync) reads this set
+   * to distinguish pending pushes from completed external state changes.
+   *
+   * The caller is responsible for sanitizing `lastError` of any token-shaped
+   * substrings before passing — this layer stores what it's given. The
+   * existing `sanitizeMessage` helper in `twitch-gql-prediction-mutations.ts`
+   * is the convention.
+   */
+  addPendingFollowWrite(input: {
+    platform: Platform;
+    channelId: string;
+    slug: string;
+    action: PendingFollowAction;
+    lastError?: string | null;
+  }): void {
+    dbService.addPendingFollowWrite(input);
+  }
+
+  /**
+   * Remove a pending write by composite key. Matches via dual-id (channel_id
+   * OR slug) so legacy rows with a stale user_id are still findable.
+   */
+  removePendingFollowWrite(input: {
+    platform: Platform;
+    channelId: string;
+    slug: string;
+    action: PendingFollowAction;
+  }): boolean {
+    return dbService.removePendingFollowWrite(input);
+  }
+
+  getAllPendingFollowWrites(): PendingFollowWrite[] {
+    return dbService.getAllPendingFollowWrites();
+  }
+
+  getPendingFollowWritesByPlatform(platform: Platform): PendingFollowWrite[] {
+    return dbService.getPendingFollowWritesByPlatform(platform);
   }
 
   /**
