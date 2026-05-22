@@ -23,7 +23,7 @@ describe("useIsKickMod", () => {
 
   it("returns false for null/empty channelSlug", () => {
     useAuthStore.setState({
-      kickUser: { id: 1, username: "me", slug: "me", profilePic: "" },
+      kickUser: { id: 1, username: "me", slug: "me", profilePic: "", verified: false },
     });
     expect(renderHook(() => useIsKickMod(null)).result.current).toBe(false);
     expect(renderHook(() => useIsKickMod("")).result.current).toBe(false);
@@ -31,7 +31,7 @@ describe("useIsKickMod", () => {
 
   it("returns true when the signed-in user is the broadcaster (slug match)", () => {
     useAuthStore.setState({
-      kickUser: { id: 1, username: "Ac7ionMan", slug: "ac7ionman", profilePic: "" },
+      kickUser: { id: 1, username: "Ac7ionMan", slug: "ac7ionman", profilePic: "", verified: false },
     });
     const { result } = renderHook(() => useIsKickMod("ac7ionman"));
     expect(result.current).toBe(true);
@@ -39,14 +39,14 @@ describe("useIsKickMod", () => {
 
   it("matches case-insensitively on both slug and channelSlug", () => {
     useAuthStore.setState({
-      kickUser: { id: 1, username: "Ac7ionMan", slug: "Ac7ionMan", profilePic: "" },
+      kickUser: { id: 1, username: "Ac7ionMan", slug: "Ac7ionMan", profilePic: "", verified: false },
     });
     expect(renderHook(() => useIsKickMod("AC7IONMAN")).result.current).toBe(true);
   });
 
   it("falls back to username match when slug doesn't match (legacy accounts)", () => {
     useAuthStore.setState({
-      kickUser: { id: 1, username: "ac7ionman", slug: "legacy-slug-mismatch", profilePic: "" },
+      kickUser: { id: 1, username: "ac7ionman", slug: "legacy-slug-mismatch", profilePic: "", verified: false },
     });
     const { result } = renderHook(() => useIsKickMod("ac7ionman"));
     expect(result.current).toBe(true);
@@ -54,7 +54,7 @@ describe("useIsKickMod", () => {
 
   it("returns false for non-broadcaster channels", () => {
     useAuthStore.setState({
-      kickUser: { id: 1, username: "me", slug: "me", profilePic: "" },
+      kickUser: { id: 1, username: "me", slug: "me", profilePic: "", verified: false },
     });
     const { result } = renderHook(() => useIsKickMod("ac7ionman"));
     expect(result.current).toBe(false);

@@ -58,7 +58,6 @@ class VaftPatternService {
 
     if (!this.store) {
       this.store = new Store<PatternStoreSchema>({
-        projectName: "streamfusion",
         name: "streamfusion-adblock-patterns",
         defaults: {
           adPatterns: DEFAULT_STORED_PATTERNS,

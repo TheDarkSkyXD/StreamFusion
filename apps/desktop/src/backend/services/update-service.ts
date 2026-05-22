@@ -17,7 +17,6 @@ import type { UpdateInfo, UpdateProgress, UpdateState } from "../../shared/ipc-c
 
 // Store for update preferences
 const updateStore = new Store<{ allowPrerelease: boolean }>({
-  projectName: "streamfusion",
   name: "update-settings",
   defaults: {
     allowPrerelease: false,
