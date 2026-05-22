@@ -144,57 +144,114 @@ class AuthWindowManager {
     window.webContents.on("did-navigate", (_event, url) => {
       if (this.isCallbackUrl(url, port, platform)) {
         console.debug(`✅ Auth callback page loaded for ${platform}`);
-
-        if (platform === "kick") {
-          // Kick's official OAuth API has no followed-channels endpoint, so
-          // we fetch the user's follows from kick.com/api/v2/channels/followed
-          // which needs apex `kick.com` session cookies. Those cookies aren't
-          // set by id.kick.com OAuth on its own. Detour the same window to
-          // kick.com while the id.kick.com auth context is still fresh —
-          // Kick's SPA on kick.com bootstraps and may auto-bridge an SSO
-          // session via the existing id.kick.com state, landing the
-          // `kick_session` cookie in the default partition where the
-          // follow-endpoints BrowserWindow fallback reads from.
-          console.debug("🍪 Establishing kick.com web session via post-OAuth detour...");
-          window.loadURL("https://kick.com/");
-
-          // Close after kick.com has had time to bootstrap + 2.5s buffer
-          // for the SPA's async auth-bridge fetch to fire and set cookies.
-          // Hard 10s deadline so a hung kick.com load can't keep the window
-          // open forever.
-          const closeAfter = (ms: number) => {
-            setTimeout(() => this.closeAuthWindow(platform), ms);
-          };
-
-          let closedOnLoad = false;
-          window.webContents.once("did-finish-load", () => {
-            if (closedOnLoad) return;
-            closedOnLoad = true;
-            console.debug("🍪 kick.com loaded after OAuth — giving 2.5s for session bridge");
-            closeAfter(2500);
-          });
-
-          // Backstop deadline.
-          setTimeout(() => {
-            if (!closedOnLoad) {
-              closedOnLoad = true;
-              console.debug("🍪 kick.com detour timed out (10s); closing auth window");
-              this.closeAuthWindow(platform);
-            }
-          }, 10000);
-        } else {
-          // Twitch and others: just close after the success page displays.
-          setTimeout(() => {
-            this.closeAuthWindow(platform);
-          }, 1500);
-        }
+        // Close window after the success page displays briefly
+        setTimeout(() => {
+          this.closeAuthWindow(platform);
+        }, 1500);
       }
     });
 
-    // Load the authorization URL
-    window.loadURL(authUrl);
+    // Platform-specific entry navigation:
+    //
+    // Twitch: load the OAuth URL directly — the Bearer token alone covers
+    //   every Twitch API we need (Helix /channels/followed et al).
+    //
+    // Kick: load kick.com FIRST so the user signs in on kick.com (binding the
+    //   `kick_session` cookie to a real user identity), then navigate the same
+    //   window to id.kick.com for the OAuth handshake. Without the kick.com
+    //   web session, the v2 followed-channels endpoint returns
+    //   {"message":"Unauthenticated."} even with a valid Bearer token (live-
+    //   tested 2026-05-22). If the user is already signed into kick.com,
+    //   _waitForKickWebAuth returns immediately and the OAuth window
+    //   navigates straight to id.kick.com with no visible difference from
+    //   the previous single-redirect flow.
+    if (platform === "kick") {
+      console.debug("🌐 Loading kick.com for web sign-in (Kick OAuth flow)");
+      window.loadURL("https://kick.com/");
+
+      // Auto-click the Sign In button on the kick.com header once the page
+      // is interactive. Same pattern KickTalk uses (src/main/index.js:543).
+      // If Kick's UI changes the button selector, this becomes a no-op and
+      // the user just clicks Sign In themselves — failure is silent.
+      window.webContents.once("did-finish-load", () => {
+        if (window.isDestroyed()) return;
+        window.webContents
+          .executeJavaScript(
+            `(function() {
+              let attempts = 0;
+              const interval = setInterval(() => {
+                attempts++;
+                const el = document.querySelector('div.flex.items-center.gap-4 > button:last-child');
+                if (el) {
+                  el.click();
+                  clearInterval(interval);
+                }
+                if (attempts > 30) clearInterval(interval);
+              }, 100);
+            })()`
+          )
+          .catch(() => {
+            // Page can be Cloudflare-challenged; ignore — user can click manually.
+          });
+      });
+
+      void this._waitForKickWebAuth(window).then((authenticated) => {
+        if (!authenticated || window.isDestroyed()) return;
+        console.debug("🔁 Kick web auth confirmed — proceeding to id.kick.com OAuth");
+        window.loadURL(authUrl);
+      });
+    } else {
+      window.loadURL(authUrl);
+    }
 
     return { window, pkce, state, redirectUri, port };
+  }
+
+  /**
+   * Poll the kick.com session for an authenticated user identity by hitting
+   * /api/v2/user from within the auth window's page context. Returns true as
+   * soon as the endpoint returns a real username; returns false if the window
+   * is destroyed or the deadline elapses.
+   *
+   * Polling fires every 2s for up to 5 minutes. The page-context fetch uses
+   * the window's own cookies — so the moment the user completes kick.com's
+   * sign-in form (whether via the normal login page, the modal, or an SSO
+   * redirect), the next poll catches it. Users who already have a valid
+   * kick.com session see the first poll resolve true immediately, making
+   * the flow indistinguishable from a single-redirect OAuth.
+   */
+  private async _waitForKickWebAuth(
+    window: BrowserWindow,
+    maxMs = 5 * 60 * 1000
+  ): Promise<boolean> {
+    const start = Date.now();
+    let attempts = 0;
+    while (Date.now() - start < maxMs) {
+      if (window.isDestroyed()) return false;
+      attempts++;
+      try {
+        const username = (await window.webContents.executeJavaScript(
+          `fetch('/api/v2/user', { credentials: 'include', headers: { Accept: 'application/json' } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => d && (d.username || (d.user && d.user.username)) || null)
+            .catch(() => null)`
+        )) as string | null;
+        if (username) {
+          console.debug(
+            `✅ Kick web auth detected for "${username}" after ${attempts} poll(s) (${Date.now() - start}ms)`
+          );
+          return true;
+        }
+      } catch {
+        // executeJavaScript can fail mid-navigation (page changed, frame
+        // disposed). Swallow and retry — the next poll will hit the new page.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    console.warn(
+      `⚠️ Kick web sign-in not detected within ${Math.round(maxMs / 1000)}s — aborting OAuth handoff`
+    );
+    return false;
   }
 
   /**
