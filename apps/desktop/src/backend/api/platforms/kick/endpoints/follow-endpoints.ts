@@ -327,16 +327,46 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             'rules','features','app','schedule','wallet','partner','support',
           ]);
 
-          // Scope to follow cards. Each card is rendered as a
-          // <div data-testid="livestream-results-card"> on /following and
-          // contains TWO anchors that link to the channel:
-          //   - thumbnail (img.alt = stream title — long, often emoji-laden)
-          //   - avatar    (img.alt = ChannelDisplayName — short, canonical)
-          // We dedupe by slug and prefer the SHORTER alt as the display name,
-          // which reliably picks the avatar text over the stream title.
+          // The /following page renders MULTIPLE livestream-results-card
+          // sections — one for actual follows AND others for recommendations
+          // ("Live channels you may like" etc). Each section has a distinct
+          // data-testid; the follows section's testid contains "follow",
+          // while recommendation sections use other names ("recommend",
+          // "top", "live-channel" etc).
+          //
+          // For each card, walk up the DOM and require an ancestor section
+          // with data-testid containing "follow". Cards in recommendation
+          // sections are skipped entirely.
           const seen = new Map();
           const cards = document.querySelectorAll('[data-testid="livestream-results-card"]');
+          const sectionTestids = new Set();
+          let acceptedCardCount = 0;
+
           for (const card of cards) {
+            // Find the nearest section ancestor with a data-testid that
+            // identifies it as a follows container.
+            let ancestor = card.parentElement;
+            let owningSectionTestid = null;
+            while (ancestor) {
+              const testid = ancestor.getAttribute && ancestor.getAttribute('data-testid');
+              if (testid) {
+                sectionTestids.add(testid);
+                if (/follow/i.test(testid)) {
+                  owningSectionTestid = testid;
+                  break;
+                }
+                // If we hit a non-follow section testid first (recommend,
+                // top, live-channel, suggested, etc), the card is in that
+                // section, not in follows.
+                if (/recommend|top|live[-_]?channel|suggest|popular|trending/i.test(testid)) {
+                  break;
+                }
+              }
+              ancestor = ancestor.parentElement;
+            }
+            if (!owningSectionTestid) continue;
+            acceptedCardCount++;
+
             const anchors = Array.from(card.querySelectorAll('a[href]'));
             const cardCandidates = [];
             for (const a of anchors) {
@@ -381,7 +411,9 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             title: document.title,
             anchorCount: document.querySelectorAll('a[href]').length,
             cardCount: cards.length,
+            acceptedCardCount,
             channelCount: seen.size,
+            sectionTestids: Array.from(sectionTestids).slice(0, 20),
           });
         })()`
       )) as string;
@@ -398,7 +430,9 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       title: string;
       anchorCount: number;
       cardCount: number;
+      acceptedCardCount: number;
       channelCount: number;
+      sectionTestids: string[];
     };
     try {
       scraped = JSON.parse(scrapeResult);
@@ -410,7 +444,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     }
 
     console.warn(
-      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} cards=${scraped.cardCount} channels=${scraped.channelCount}`
+      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} totalCards=${scraped.cardCount} followCards=${scraped.acceptedCardCount} channels=${scraped.channelCount} sectionTestids=[${scraped.sectionTestids.join(", ")}]`
     );
 
     if (scraped.channels.length === 0) {
