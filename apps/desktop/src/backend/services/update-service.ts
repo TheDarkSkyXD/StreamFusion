@@ -16,12 +16,15 @@ import {
 import type { UpdateInfo, UpdateProgress, UpdateState } from "../../shared/ipc-channels";
 
 // Store for update preferences
+// projectName is required at runtime — see storage-service for the full
+// regression note. Fires at module load before Electron's app name is set.
 const updateStore = new Store<{ allowPrerelease: boolean }>({
+  projectName: "streamfusion",
   name: "update-settings",
   defaults: {
     allowPrerelease: false,
   },
-});
+} as ConstructorParameters<typeof Store<{ allowPrerelease: boolean }>>[0]);
 
 // Internal state
 let currentState: UpdateState = {

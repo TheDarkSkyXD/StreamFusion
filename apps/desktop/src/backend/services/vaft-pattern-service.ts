@@ -58,11 +58,13 @@ class VaftPatternService {
 
     if (!this.store) {
       this.store = new Store<PatternStoreSchema>({
+        // projectName needed at runtime — see storage-service.
+        projectName: "streamfusion",
         name: "streamfusion-adblock-patterns",
         defaults: {
           adPatterns: DEFAULT_STORED_PATTERNS,
         },
-      });
+      } as ConstructorParameters<typeof Store<PatternStoreSchema>>[0]);
     }
 
     console.debug("[VaftPatterns] Initializing pattern service...");

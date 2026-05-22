@@ -52,9 +52,17 @@ class StorageService {
     if (this.store) return; // Already initialized
 
     this.store = new Store<StorageSchema>({
+      // projectName must be passed explicitly even in electron-store@11. Conf
+      // (the underlying lib) errors out when it can't derive a project name
+      // from app.getName(), and during electron-vite dev startup the app
+      // name isn't always populated before the module-level Store
+      // instantiations fire (see update-service top-level call). The
+      // commit-65b7a80 cleanup that dropped this field caused a hard crash
+      // at "Please specify the projectName option" during dev rebuild.
+      projectName: "streamfusion",
       name: "streamfusion-storage",
       defaults,
-    });
+    } as ConstructorParameters<typeof Store<StorageSchema>>[0]);
 
     // Check if safeStorage encryption is available
     this.isEncryptionAvailable = safeStorage.isEncryptionAvailable();
