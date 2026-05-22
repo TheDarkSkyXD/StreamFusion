@@ -18,7 +18,7 @@
  * outcome or transient failures would wipe a user's prior synced follows.
  */
 
-import type { UnifiedChannel } from "../../unified/platform-types";
+import type { UnifiedChannel } from "../../../unified/platform-types";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";
 import type { KickLegacyApiFollowedChannel } from "../kick-types";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
