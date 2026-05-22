@@ -17,7 +17,49 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
+import type { FollowedChannelsResult } from "../../api/platforms/kick/endpoints/follow-endpoints";
 import { storageService } from "../../services/storage-service";
+
+/**
+ * Kick-side of the post-login follow sync, extracted so the
+ * "preserve prior rows when fetch errors out" decision is unit-testable
+ * without spinning up the full IPC layer. The closure form inside
+ * `registerAuthHandlers` calls this and surfaces the outcome to the
+ * AUTH_FOLLOWS_SYNCED event.
+ *
+ * Contract:
+ *   - On `{status:"error"}` from `getFollows`: returns the error WITHOUT
+ *     calling `replaceAccountFollows`. Guards against silent data loss
+ *     when Cloudflare / Kasada / auth challenges produce a transient
+ *     failure mid-session.
+ *   - On `{status:"ok"}`: atomically swaps the account-source rows via
+ *     `replaceAccountFollows` and returns the imported count.
+ */
+export type KickSyncOutcome =
+  | { status: "ok"; count: number }
+  | { status: "error"; reason: string };
+
+export async function syncKickFollowsAfterLogin(
+  getFollows: () => Promise<FollowedChannelsResult>,
+  storage: Pick<typeof storageService, "replaceAccountFollows"> = storageService
+): Promise<KickSyncOutcome> {
+  const result = await getFollows();
+  if (result.status === "error") {
+    return { status: "error", reason: result.reason };
+  }
+  const kickFollows = result.channels.map(
+    (channel) =>
+      ({
+        platform: "kick",
+        channelId: channel.id,
+        channelName: channel.username,
+        displayName: channel.displayName,
+        profileImage: channel.avatarUrl,
+      }) as Omit<LocalFollow, "id" | "followedAt">
+  );
+  storage.replaceAccountFollows("kick", kickFollows);
+  return { status: "ok", count: kickFollows.length };
+}
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   /**
@@ -80,37 +122,16 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         const { getAllFollowedChannels } = await import(
           "../../api/platforms/kick/endpoints/follow-endpoints"
         );
-        const result = await getAllFollowedChannels();
-
-        if (result.status === "error") {
+        const outcome = await syncKickFollowsAfterLogin(getAllFollowedChannels);
+        if (outcome.status === "error") {
           console.warn(
-            `⚠️ Kick follow sync skipped (${result.reason}); preserving prior account-source rows`
+            `⚠️ Kick follow sync skipped (${outcome.reason}); preserving prior account-source rows`
           );
-          // Bail out before clearing. Skip the AUTH_FOLLOWS_SYNCED event too —
-          // the renderer's prior state remains correct; firing the event would
-          // invalidate caches and re-hydrate against the (now-stale-but-still-
-          // correct) DB, which is wasteful but not harmful. Either way is OK;
-          // skipping is cleaner.
+          // Bail out without firing AUTH_FOLLOWS_SYNCED. The renderer's prior
+          // state remains correct.
           return;
         }
-
-        // Clear old account follows for this platform (guest follows stay intact)
-        storageService.clearAccountFollows("kick");
-
-        // Import account follows as local follows
-        for (const channel of result.channels) {
-          storageService.addLocalFollow(
-            {
-              platform: "kick",
-              channelId: channel.id,
-              channelName: channel.username,
-              displayName: channel.displayName,
-              profileImage: channel.avatarUrl,
-            } as Omit<LocalFollow, "id" | "followedAt">,
-            "account"
-          );
-        }
-        importedCount = result.channels.length;
+        importedCount = outcome.count;
         console.debug(`✅ Synced ${importedCount} Kick follows`);
       }
 

@@ -275,6 +275,128 @@ describeDb("DatabaseService mod_log helpers", () => {
   });
 });
 
+describeDb("DatabaseService follow-row safety", () => {
+  it("addFollow with empty channelId falls back to slug — two slug-only follows do NOT collide on UNIQUE(platform, channel_id, source)", () => {
+    // Regression guard for the kick-DOM-scrape collision: before the fix
+    // two slug-only follows both wrote channel_id="" and the second silently
+    // replaced the first via INSERT OR REPLACE (only one row survived).
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "",
+        channelName: "summit1g",
+        displayName: "Summit1G",
+        profileImage: "",
+      },
+      "account"
+    );
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "",
+        channelName: "chickenandy",
+        displayName: "ChickenAndy",
+        profileImage: "",
+      },
+      "account"
+    );
+
+    const rows = svc.getFollowsByPlatformAndSource("kick", "account");
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.channelId).sort()).toEqual([
+      "chickenandy",
+      "summit1g",
+    ]);
+  });
+
+  it("replaceAccountFollows atomically swaps the account-source rows for a platform", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    // Seed prior account-source rows and a guest-source row that must survive.
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "stale1",
+        channelName: "stale-one",
+        displayName: "Stale One",
+        profileImage: "",
+      },
+      "account"
+    );
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "guest1",
+        channelName: "guest-channel",
+        displayName: "Guest Channel",
+        profileImage: "",
+      },
+      "guest"
+    );
+
+    svc.replaceAccountFollows("kick", [
+      {
+        platform: "kick",
+        channelId: "411439",
+        channelName: "summit1g",
+        displayName: "Summit1G",
+        profileImage: "",
+      },
+      {
+        platform: "kick",
+        channelId: "550022",
+        channelName: "chickenandy",
+        displayName: "ChickenAndy",
+        profileImage: "",
+      },
+    ]);
+
+    const accountRows = svc.getFollowsByPlatformAndSource("kick", "account");
+    expect(accountRows.map((r) => r.channelId).sort()).toEqual([
+      "411439",
+      "550022",
+    ]);
+    // Guest row is untouched.
+    const guestRows = svc.getFollowsByPlatformAndSource("kick", "guest");
+    expect(guestRows.map((r) => r.channelId)).toEqual(["guest1"]);
+  });
+
+  it("replaceAccountFollows with an empty batch clears prior account-source rows but leaves guest rows intact", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "prior1",
+        channelName: "prior-channel",
+        displayName: "Prior",
+        profileImage: "",
+      },
+      "account"
+    );
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "g1",
+        channelName: "g",
+        displayName: "G",
+        profileImage: "",
+      },
+      "guest"
+    );
+
+    svc.replaceAccountFollows("kick", []);
+
+    expect(svc.getFollowsByPlatformAndSource("kick", "account")).toHaveLength(0);
+    expect(svc.getFollowsByPlatformAndSource("kick", "guest")).toHaveLength(1);
+  });
+});
+
 describeDb("DatabaseService retention_settings helpers", () => {
   it("getRetentionSetting returns undefined when no row exists, and round-trips both number and null", () => {
     const svc = new DatabaseService();

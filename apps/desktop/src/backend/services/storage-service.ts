@@ -409,6 +409,19 @@ class StorageService {
   }
 
   /**
+   * Atomically replace account follows for a platform. Use this in place of
+   * clearAccountFollows + addLocalFollow loops on sync paths so a crash mid-
+   * import doesn't leave the user with a partial follow list and no recovery.
+   */
+  replaceAccountFollows(
+    platform: Platform,
+    follows: Array<Omit<LocalFollow, "id" | "followedAt">>
+  ): void {
+    dbService.replaceAccountFollows(platform, follows);
+    console.debug(`🔄 Account follows replaced for ${platform} (${follows.length} rows)`);
+  }
+
+  /**
    * Clear local follows for a specific platform (all sources)
    */
   clearLocalFollowsByPlatform(platform: Platform): void {

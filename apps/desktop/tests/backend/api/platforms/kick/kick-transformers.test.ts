@@ -108,7 +108,8 @@ describe("transformKickFollowedChannelLegacy", () => {
   it("accepts slug-only rows by coercing id to empty string (slug-bridge identity)", () => {
     // channelsMatch can identify by platform+slug alone. Empty id is the
     // documented sentinel for "canonical id not yet known" — see follow-store
-    // upgradeFollowIfNeeded.
+    // upgradeFollowIfNeeded. The DB write layer (storage-service.addFollow)
+    // is responsible for assigning a non-colliding channel_id from the slug.
     const item: KickLegacyApiFollowedChannel = {
       slug: "summit1g",
       user: { username: "Summit1G" },

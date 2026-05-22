@@ -89,6 +89,71 @@ describe("auth-store logoutTwitch — follow-cache cleanup", () => {
   });
 });
 
+describe("auth-store logoutKick — follow-cache cleanup", () => {
+  beforeEach(() => {
+    // Re-seed for a logged-in Kick session (the outer beforeEach seeds Twitch).
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchUser: null,
+      twitchConnected: false,
+      kickUser: { id: "k1", username: "kuser", displayName: "KUser" } as never,
+      kickConnected: true,
+      kickLoading: false,
+      isGuest: false,
+    });
+    const authStub = {
+      logoutKick: vi.fn(async () => ({ success: true })),
+      clearToken: vi.fn(async () => {}),
+      clearKickUser: vi.fn(async () => {}),
+    };
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: authStub },
+    });
+  });
+
+  it("removes the cached followed-channels query for kick", async () => {
+    await useAuthStore.getState().logoutKick();
+
+    expect(removeQueriesSpy).toHaveBeenCalledWith({
+      queryKey: CHANNEL_KEYS.followed("kick"),
+    });
+  });
+
+  it("removes the cached followed-streams query so stale Kick live-streams stop rendering", async () => {
+    await useAuthStore.getState().logoutKick();
+
+    expect(removeQueriesSpy).toHaveBeenCalledWith({
+      queryKey: STREAM_KEYS.followed(),
+    });
+  });
+
+  it("re-hydrates the follow-store so in-memory account Kick follows drop to guest", async () => {
+    await useAuthStore.getState().logoutKick();
+
+    expect(followStoreHydrateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls the logoutKick IPC (end-to-end backend teardown) — not the legacy clearToken/clearKickUser path", async () => {
+    // Regression guard: an earlier draft of this flow called the individual
+    // clearToken + clearKickUser IPCs, which left kick.com session cookies
+    // alive in the default Electron session. The single logoutKick call wires
+    // through to kickAuthService.logout() which also clears those cookies.
+    await useAuthStore.getState().logoutKick();
+
+    const auth = (window as unknown as { electronAPI: { auth: { logoutKick: ReturnType<typeof vi.fn> } } }).electronAPI.auth;
+    expect(auth.logoutKick).toHaveBeenCalledTimes(1);
+  });
+
+  it("flips kickConnected to false and clears kickUser after the cache cleanup", async () => {
+    await useAuthStore.getState().logoutKick();
+
+    expect(useAuthStore.getState().kickConnected).toBe(false);
+    expect(useAuthStore.getState().kickUser).toBeNull();
+  });
+});
+
 describe("auth-store session-expired listeners — follow-cache cleanup", () => {
   // Capture the listener callbacks registered inside initializeAuth so we can
   // trigger them as the main process would. The auth IPC surface is intentionally

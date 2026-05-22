@@ -197,16 +197,31 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
   });
 
   it("warns once per failure class across repeated calls", async () => {
+    // Three repeated 403s. The Bearer path classifies each as 'auth-failed'
+    // and emits exactly one warn for that class regardless of repetition.
+    // The orchestration's BrowserWindow fallback may also emit at most one
+    // warn for its own failure class (e.g. 'network-error' when the test
+    // env has no Electron BrowserWindow) — that's also deduped via
+    // _warnOnce per reason. The invariant under test: a reconnect loop
+    // doesn't multiply log entries linearly with call count.
     fetchSpy
       .mockResolvedValueOnce(textResponse("", { status: 403 }))
       .mockResolvedValueOnce(textResponse("", { status: 403 }))
       .mockResolvedValueOnce(textResponse("", { status: 403 }));
 
     await getAllFollowedChannels();
+    const warnsAfterFirst = warnSpy.mock.calls.length;
     await getAllFollowedChannels();
     await getAllFollowedChannels();
 
-    expect(warnSpy).toHaveBeenCalledTimes(1);
+    // Subsequent calls must not add any new warns — all reason classes
+    // already latched in _warned after the first call.
+    expect(warnSpy.mock.calls.length).toBe(warnsAfterFirst);
+    // And the per-class cap holds: at most one warn per reason class.
+    // Currently observed classes: 'auth-failed' (from Bearer) and
+    // 'network-error' (from BrowserWindow fallback failing in node env).
+    expect(warnsAfterFirst).toBeLessThanOrEqual(2);
+    expect(warnsAfterFirst).toBeGreaterThanOrEqual(1);
   });
 
   it("shares the in-flight Promise across concurrent callers", async () => {

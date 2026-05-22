@@ -13,11 +13,9 @@
  *   - `.exec(sql)`
  *   - `.prepare(sql)` returning `.run / .get / .all`
  *   - `.pragma(name)` — covers SET (`journal_mode = WAL`) and READ (`table_info(x)`)
+ *   - `.transaction(fn)` — better-sqlite3's transaction wrapper (used by
+ *     `database-service.replaceAccountFollows` for atomic account-follow swaps)
  *   - `.close()`
- *
- * Anything unsupported by `node:sqlite` (e.g. `db.transaction(fn)`) is
- * intentionally absent — production code in `database-service.ts` doesn't
- * use it. Add to the shim only when a real call site demands it.
  */
 
 import { DatabaseSync, type StatementSync } from "node:sqlite";
@@ -93,6 +91,29 @@ class BetterSqlite3Shim {
       return [];
     }
     return this.inner.prepare(`PRAGMA ${directive}`).all();
+  }
+
+  /**
+   * better-sqlite3's `db.transaction(fn)` returns a wrapped function that
+   * runs `fn` inside `BEGIN`/`COMMIT`, with automatic `ROLLBACK` on throw.
+   * Mirror that semantic via node:sqlite's plain BEGIN/COMMIT/ROLLBACK exec.
+   * Nested transactions (savepoints) aren't supported — our production code
+   * only uses one level.
+   */
+  transaction<TArgs extends unknown[], TReturn>(
+    fn: (...args: TArgs) => TReturn
+  ): (...args: TArgs) => TReturn {
+    return (...args: TArgs): TReturn => {
+      this.inner.exec("BEGIN");
+      try {
+        const result = fn(...args);
+        this.inner.exec("COMMIT");
+        return result;
+      } catch (err) {
+        this.inner.exec("ROLLBACK");
+        throw err;
+      }
+    };
   }
 
   close(): void {

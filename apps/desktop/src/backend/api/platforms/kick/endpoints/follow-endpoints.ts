@@ -93,7 +93,13 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
   // the OAuth window's session cookies (default session, where id.kick.com
   // cookies live) — Kick's cross-subdomain SSO sets a kick.com apex session
   // when we visit kick.com while authenticated on id.kick.com.
-  console.warn(
+  //
+  // Dedupe the fallback notice via _warnOnce so reconnect-loops (re-firing
+  // syncFollowsOnLogin on every visibility-change) don't spam the user's
+  // log file. The per-reason _warnOnce inside _tryBearerFetch already
+  // covers the actual failure cause.
+  _warnOnce(
+    bearerResult.reason,
     `[KickFollows] Bearer path failed with reason="${bearerResult.reason}". Trying BrowserWindow cookie-auth fallback...`
   );
   return _fetchViaBrowserWindow();
@@ -202,6 +208,11 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
 const WARM_VISIT_URL = "https://kick.com/";
 const WARM_VISIT_TIMEOUT_MS = 6000;
 const PAGE_LOAD_TIMEOUT_MS = 10000;
+// Upper bound on the DOM-scrape executeJavaScript call. Without this, a
+// hung renderer (Kick SPA crash, infinite loop in our scrape JS, GPU stall)
+// would hold `_inFlight` forever and never release the BrowserWindow slot
+// mutex — wedging all future sync attempts process-wide.
+const EXECUTE_JS_TIMEOUT_MS = 8000;
 
 /**
  * Cookie-auth fallback path: open a hidden BrowserWindow in the DEFAULT
@@ -218,9 +229,11 @@ const PAGE_LOAD_TIMEOUT_MS = 10000;
  * `getPublicChannel` for the GPU subprocess.
  */
 async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
-  console.warn("[KickFollows] BrowserWindow fallback: acquiring window slot...");
+  // Normal-flow traces go to debug. Only actual failures emit warn so the
+  // user's log file stays signal-dense.
+  console.debug("[KickFollows] BrowserWindow fallback: acquiring window slot...");
   const releaseSlot = await acquireBrowserWindowSlot();
-  console.warn("[KickFollows] BrowserWindow fallback: slot acquired, creating window");
+  console.debug("[KickFollows] BrowserWindow fallback: slot acquired, creating window");
   let win: BrowserWindow | null = null;
   try {
     win = new BrowserWindow({
@@ -239,14 +252,14 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // cookie in response to id.kick.com authentication, this navigation
     // deposits it. Failures here aren't fatal — we proceed to the v2 visit
     // and let the response classification decide.
-    console.warn(`[KickFollows] BrowserWindow fallback: warm visit to ${WARM_VISIT_URL}`);
+    console.debug(`[KickFollows] BrowserWindow fallback: warm visit to ${WARM_VISIT_URL}`);
     try {
       const warmLoad = win.loadURL(WARM_VISIT_URL);
       const warmTimeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("warm-timeout")), WARM_VISIT_TIMEOUT_MS)
       );
       await Promise.race([warmLoad, warmTimeout]);
-      console.warn("[KickFollows] BrowserWindow fallback: warm visit completed");
+      console.debug("[KickFollows] BrowserWindow fallback: warm visit completed");
 
       // Give Kick's SPA a moment to bootstrap and make its auth-bridge API
       // calls (the homepage typically fetches /api/v2/user on load to set the
@@ -257,11 +270,13 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       const defaultSession = session.defaultSession;
       const cookies = await defaultSession.cookies.get({ domain: "kick.com" });
       const cookieSummary = cookies.map((c) => `${c.name}@${c.domain}`).join(", ") || "(none)";
-      console.warn(
+      console.debug(
         `[KickFollows] BrowserWindow fallback: kick.com cookies after warm visit: ${cookieSummary}`
       );
     } catch (err) {
-      console.warn(
+      // Warm visit failure is non-fatal — log at debug, the real failure
+      // (if any) will surface on the /following navigation below.
+      console.debug(
         `[KickFollows] BrowserWindow fallback: warm visit failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`
       );
     }
@@ -276,7 +291,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // mirroring what kick.com's SPA does for its own API calls. Also sends
     // X-Requested-With so Laravel respects Accept: application/json instead
     // of redirecting an unauthed request to /login.
-    console.warn(
+    console.debug(
       `[KickFollows] BrowserWindow fallback: fetching ${FOLLOWED_CHANNELS_URL} via page context with XSRF header`
     );
 
@@ -295,7 +310,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // with nav link [Channels → /following/channels]. Scrape the dedicated
     // page so we don't mix recommendations into the follow list.
     const FOLLOWING_PAGE_URL = "https://kick.com/following/channels";
-    console.warn(
+    console.debug(
       `[KickFollows] BrowserWindow fallback: navigating to ${FOLLOWING_PAGE_URL} for DOM-scrape extraction`
     );
 
@@ -305,9 +320,12 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
         setTimeout(() => reject(new Error("following-page-load-timeout")), PAGE_LOAD_TIMEOUT_MS)
       );
       await Promise.race([navPromise, navTimeout]);
-      console.warn("[KickFollows] BrowserWindow fallback: /following page loaded");
+      console.debug("[KickFollows] BrowserWindow fallback: /following page loaded");
     } catch (err) {
-      console.warn(
+      // Real failure — keep at warn. Deduped via _warnOnce so reconnect
+      // loops don't spam the log.
+      _warnOnce(
+        "network-error",
         `[KickFollows] BrowserWindow fallback: /following navigation failed: ${err instanceof Error ? err.message : String(err)}`
       );
       return { status: "error", reason: "network-error" };
@@ -316,14 +334,14 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // Give the SPA time to fetch + render the follows grid. Kick's SPA does
     // its own auth-aware API call here; we just wait for it to populate the
     // DOM. 6s is conservative; if performance allows, tighten later.
-    console.warn(
+    console.debug(
       "[KickFollows] BrowserWindow fallback: waiting 6s for /following SPA render"
     );
     await new Promise((resolve) => setTimeout(resolve, 6000));
 
     let scrapeResult: string;
     try {
-      scrapeResult = (await win.webContents.executeJavaScript(
+      const scrapePromise = win.webContents.executeJavaScript(
         `(() => {
           const reservedPaths = new Set([
             'login','signup','signin','signout','logout','about','help',
@@ -428,9 +446,17 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             scoped: !!scopeContainer,
           });
         })()`
-      )) as string;
+      );
+      const scrapeTimeout = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("execute-js-timeout")),
+          EXECUTE_JS_TIMEOUT_MS
+        )
+      );
+      scrapeResult = (await Promise.race([scrapePromise, scrapeTimeout])) as string;
     } catch (err) {
-      console.warn(
+      _warnOnce(
+        "parse-error",
         `[KickFollows] BrowserWindow fallback: DOM scrape threw: ${err instanceof Error ? err.message : String(err)}`
       );
       return { status: "error", reason: "parse-error" };
@@ -451,19 +477,20 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     try {
       scraped = JSON.parse(scrapeResult);
     } catch (err) {
-      console.warn(
+      _warnOnce(
+        "parse-error",
         `[KickFollows] BrowserWindow fallback: DOM scrape result was not JSON: ${scrapeResult.slice(0, 200)}`
       );
       return { status: "error", reason: "parse-error" };
     }
 
-    console.warn(
+    console.debug(
       `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" cards=${scraped.cardCount} accepted=${scraped.acceptedCardCount} channels=${scraped.channelCount} sectionTestids=[${scraped.sectionTestids.join(", ")}]`
     );
-    console.warn(
+    console.debug(
       `[KickFollows] page headings: ${scraped.headings.map((h) => h.tag + ":" + h.text).join(" | ")}`
     );
-    console.warn(
+    console.debug(
       `[KickFollows] follow-related nav links: ${scraped.navLinks.map((l) => l.text + "→" + l.href).join(" | ")}`
     );
 
@@ -500,12 +527,13 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       isPartner: false,
     }));
 
-    console.warn(
+    console.debug(
       `[KickFollows] BrowserWindow fallback SUCCESS: scraped ${channels.length} followed channels from /following DOM`
     );
     return { status: "ok", channels };
   } catch (err) {
-    console.warn(
+    _warnOnce(
+      "network-error",
       `[KickFollows] BrowserWindow fallback unexpected error: ${err instanceof Error ? err.message : String(err)}`
     );
     return { status: "error", reason: "network-error" };

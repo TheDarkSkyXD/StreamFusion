@@ -215,9 +215,17 @@ export class DatabaseService {
       VALUES (@id, @platform, @channelId, @channelName, @displayName, @profileImage, @followedAt, @source)
     `);
 
+    // When the upstream canonical id is unknown (transformer sentinel — kick
+    // DOM scrape, or the VOD-page pre-resolve flow), fall back to the slug
+    // as the effective channel_id. Without this, two slug-only follows for
+    // different channels both write channel_id="" and the second silently
+    // replaces the first via UNIQUE(platform, channel_id, source).
+    const slugFallback = (follow.channelName || follow.username || "").toLowerCase();
+    const effectiveChannelId = follow.channelId || slugFallback;
+
     // Ensure ID exists — include source to avoid collisions
     if (!follow.id) {
-      follow.id = `${follow.platform}-${source}-${follow.channelId}-${Date.now()}`;
+      follow.id = `${follow.platform}-${source}-${effectiveChannelId}-${Date.now()}`;
     }
     if (!follow.followedAt) {
       follow.followedAt = new Date().toISOString();
@@ -226,15 +234,38 @@ export class DatabaseService {
     stmt.run({
       id: follow.id,
       platform: follow.platform,
-      channelId: follow.channelId,
+      channelId: effectiveChannelId,
       channelName: follow.channelName || follow.username,
-      displayName: follow.displayName,
-      profileImage: follow.profileImage || follow.avatarUrl,
+      displayName: follow.displayName ?? "",
+      // Default to "" not undefined — better-sqlite3 accepts undefined as
+      // NULL but the test-time node:sqlite shim rejects it. The DB column
+      // is nullable; we still coerce to "" for consistency with the rest
+      // of the row shape (rows always come back as strings).
+      profileImage: follow.profileImage || follow.avatarUrl || "",
       followedAt: follow.followedAt,
       source,
     });
 
     return { ...follow, source };
+  }
+
+  /**
+   * Atomically replace all account-source follows for a platform with a new
+   * batch. Wraps clear + insert-loop in a single transaction so a mid-batch
+   * crash leaves the existing rows intact rather than half-deleted with no
+   * recovery path.
+   */
+  replaceAccountFollows(platform: string, follows: any[]): void {
+    const replace = this.database.transaction((rows: any[]) => {
+      const clearStmt = this.database.prepare(
+        "DELETE FROM local_follows WHERE platform = ? AND source = 'account'"
+      );
+      clearStmt.run(platform);
+      for (const follow of rows) {
+        this.addFollow(follow, "account");
+      }
+    });
+    replace(follows);
   }
 
   removeFollow(id: string): boolean {
