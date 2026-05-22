@@ -20,6 +20,7 @@ import type {
   KickApiLivestream,
   KickApiUser,
   KickLegacyApiClip,
+  KickLegacyApiFollowedChannel,
 } from "./kick-types";
 
 /**
@@ -139,6 +140,43 @@ export function transformKickFollow(channel: KickApiChannel, followedAt?: string
     channel: transformKickChannel(channel),
     followedAt: followedAt || new Date().toISOString(),
     notifications: false, // Default, can be updated
+  };
+}
+
+/**
+ * Transform a v2 legacy followed-channel item into a UnifiedChannel.
+ *
+ * Source: GET kick.com/api/v2/channels/followed (undocumented). The endpoint
+ * may return either a nested `user.*` block (mirroring the clip endpoint shape)
+ * or flat top-level fields. This reads defensively from both.
+ *
+ * Returns null if neither an id nor a slug is present — without either, the
+ * row is unusable downstream because identity matching in channelsMatch
+ * requires at least one of platform+id or platform+slug.
+ */
+export function transformKickFollowedChannelLegacy(
+  item: KickLegacyApiFollowedChannel
+): UnifiedChannel | null {
+  const channelId = item.id;
+  const slug = item.slug;
+  if (channelId == null && !slug) return null;
+
+  const displayName =
+    item.user?.username ?? item.username ?? slug ?? (channelId != null ? String(channelId) : "");
+  const avatarUrl = item.user?.profile_pic ?? item.profile_pic ?? "";
+  const isLive = item.livestream?.is_live ?? item.is_live ?? false;
+
+  return {
+    id: channelId != null ? String(channelId) : "",
+    platform: "kick",
+    username: slug ?? "",
+    displayName,
+    avatarUrl,
+    bannerUrl: undefined,
+    bio: undefined,
+    isLive,
+    isVerified: false,
+    isPartner: false,
   };
 }
 

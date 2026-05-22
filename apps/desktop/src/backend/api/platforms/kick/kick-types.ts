@@ -296,6 +296,32 @@ export interface KickLegacyApiVideo {
   duration: number; // Duration in milliseconds
 }
 
+/**
+ * Followed-channel item shape returned by GET kick.com/api/v2/channels/followed.
+ * Endpoint is undocumented (not in docs.kick.com as of 2026-05-21); shape is
+ * inferred from sibling v2 endpoints (clip channel block, public-channel
+ * response) and may need adjusting once observed live. Fields are all optional
+ * so the transformer degrades to a partial UnifiedChannel rather than throwing
+ * when the shape drifts.
+ *
+ * Important: prefer `id` (channel.id) over `user_id` for identity. See
+ * docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md.
+ */
+export interface KickLegacyApiFollowedChannel {
+  id?: number;
+  user_id?: number;
+  slug?: string;
+  username?: string;
+  profile_pic?: string | null;
+  user?: {
+    id?: number;
+    username?: string;
+    profile_pic?: string | null;
+  };
+  livestream?: { is_live?: boolean } | null;
+  is_live?: boolean;
+}
+
 export interface KickLegacyApiClip {
   id: string;
   livestream_id: string;
