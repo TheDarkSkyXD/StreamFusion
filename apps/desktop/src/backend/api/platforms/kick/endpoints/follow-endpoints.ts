@@ -405,6 +405,26 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             }
           }
 
+          // Diagnostic: capture headings near the "following" section so we
+          // can see if it's labeled "Channels you follow" vs "Live channels
+          // in Following category" or similar. Also dump alternative
+          // navigation paths the page exposes.
+          const headings = [];
+          for (const h of document.querySelectorAll('h1, h2, h3, h4, [role="heading"]')) {
+            const text = (h.textContent || '').trim().slice(0, 80);
+            if (text) headings.push({ tag: h.tagName, text });
+            if (headings.length >= 20) break;
+          }
+          const navLinks = [];
+          for (const a of document.querySelectorAll('a[href]')) {
+            const href = a.getAttribute('href') || '';
+            const text = (a.textContent || '').trim().slice(0, 40);
+            if (/follow/i.test(href) && href !== '/following') {
+              navLinks.push({ href, text });
+              if (navLinks.length >= 10) break;
+            }
+          }
+
           return JSON.stringify({
             channels: Array.from(seen.values()),
             url: window.location.href,
@@ -414,6 +434,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             acceptedCardCount,
             channelCount: seen.size,
             sectionTestids: Array.from(sectionTestids).slice(0, 20),
+            headings: headings.slice(0, 20),
+            navLinks: navLinks.slice(0, 10),
           });
         })()`
       )) as string;
@@ -433,6 +455,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       acceptedCardCount: number;
       channelCount: number;
       sectionTestids: string[];
+      headings: Array<{ tag: string; text: string }>;
+      navLinks: Array<{ href: string; text: string }>;
     };
     try {
       scraped = JSON.parse(scrapeResult);
@@ -444,7 +468,13 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     }
 
     console.warn(
-      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} totalCards=${scraped.cardCount} followCards=${scraped.acceptedCardCount} channels=${scraped.channelCount} sectionTestids=[${scraped.sectionTestids.join(", ")}]`
+      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" cards=${scraped.cardCount} accepted=${scraped.acceptedCardCount} channels=${scraped.channelCount} sectionTestids=[${scraped.sectionTestids.join(", ")}]`
+    );
+    console.warn(
+      `[KickFollows] page headings: ${scraped.headings.map((h) => h.tag + ":" + h.text).join(" | ")}`
+    );
+    console.warn(
+      `[KickFollows] follow-related nav links: ${scraped.navLinks.map((l) => l.text + "→" + l.href).join(" | ")}`
     );
 
     if (scraped.channels.length === 0) {
