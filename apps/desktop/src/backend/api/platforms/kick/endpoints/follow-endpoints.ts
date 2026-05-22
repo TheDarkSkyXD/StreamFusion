@@ -333,83 +333,66 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             'rules','features','app','schedule','wallet','partner','support',
           ]);
 
-          // The /following page renders MULTIPLE livestream-results-card
-          // sections — one for actual follows AND others for recommendations
-          // ("Live channels you may like" etc). Each section has a distinct
-          // data-testid; the follows section's testid contains "follow",
-          // while recommendation sections use other names ("recommend",
-          // "top", "live-channel" etc).
+          // /following/channels is the dedicated "all your follows" page
+          // (separate from /following which mixes live-follows + recommendations).
+          // Its DOM structure differs from /following's livestream-results-card
+          // grid — cards are plain anchors with an avatar img, no wrapping
+          // data-testid container.
           //
-          // For each card, walk up the DOM and require an ancestor section
-          // with data-testid containing "follow". Cards in recommendation
-          // sections are skipped entirely.
+          // Strategy: find the "Followed Channels" H2 and scope to its
+          // sibling/descendant container. Falls back to scanning the whole
+          // page if the H2 isn't found (defensive against Kick UI changes).
           const seen = new Map();
-          const cards = document.querySelectorAll('[data-testid="livestream-results-card"]');
           const sectionTestids = new Set();
           let acceptedCardCount = 0;
+          let scopeContainer = null;
 
-          for (const card of cards) {
-            // Find the nearest section ancestor with a data-testid that
-            // identifies it as a follows container.
-            let ancestor = card.parentElement;
-            let owningSectionTestid = null;
-            while (ancestor) {
-              const testid = ancestor.getAttribute && ancestor.getAttribute('data-testid');
-              if (testid) {
-                sectionTestids.add(testid);
-                if (/follow/i.test(testid)) {
-                  owningSectionTestid = testid;
+          // Find the "Followed Channels" heading and walk up to a container
+          // big enough to hold the follow grid.
+          for (const h of document.querySelectorAll('h2, h3, [role="heading"]')) {
+            const text = (h.textContent || '').trim().toLowerCase();
+            if (/followed channel|channels you follow|following channels/.test(text)) {
+              let p = h.parentElement;
+              for (let i = 0; i < 6 && p; i++) {
+                if (p.querySelectorAll('a[href]').length >= 5) {
+                  scopeContainer = p;
                   break;
                 }
-                // If we hit a non-follow section testid first (recommend,
-                // top, live-channel, suggested, etc), the card is in that
-                // section, not in follows.
-                if (/recommend|top|live[-_]?channel|suggest|popular|trending/i.test(testid)) {
-                  break;
-                }
+                p = p.parentElement;
               }
-              ancestor = ancestor.parentElement;
+              if (scopeContainer) break;
             }
-            if (!owningSectionTestid) continue;
+          }
+
+          const root = scopeContainer || document;
+          const candidateAnchors = root.querySelectorAll('a[href]');
+
+          for (const a of candidateAnchors) {
+            const href = a.getAttribute('href') || '';
+            const m = href.match(/^\\/([^\\/?#]+)\\/?$/);
+            if (!m) continue;
+            const slug = m[1].toLowerCase();
+            if (reservedPaths.has(slug)) continue;
+            if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
+            const img = a.querySelector('img');
+            if (!img) continue;
             acceptedCardCount++;
 
-            const anchors = Array.from(card.querySelectorAll('a[href]'));
-            const cardCandidates = [];
-            for (const a of anchors) {
-              const href = a.getAttribute('href') || '';
-              const m = href.match(/^\\/([^\\/?#]+)\\/?$/);
-              if (!m) continue;
-              const slug = m[1].toLowerCase();
-              if (reservedPaths.has(slug)) continue;
-              if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
-              const img = a.querySelector('img');
-              if (!img) continue;
-              cardCandidates.push({
-                slug,
-                alt: (img.alt || '').trim(),
-                src: img.getAttribute('src') || '',
-              });
-            }
-            if (cardCandidates.length === 0) continue;
+            const alt = (img.alt || '').trim();
+            const src = img.getAttribute('src') || '';
 
-            // Group by slug within the card; prefer shortest alt (avatar's
-            // ChannelDisplayName beats thumbnail's stream title every time).
-            const bySlug = new Map();
-            for (const c of cardCandidates) {
-              const existing = bySlug.get(c.slug);
-              if (!existing || c.alt.length < existing.alt.length) {
-                bySlug.set(c.slug, c);
-              }
-            }
-            for (const c of bySlug.values()) {
-              if (seen.has(c.slug)) continue;
-              seen.set(c.slug, {
-                slug: c.slug,
-                displayName: (c.alt || c.slug).slice(0, 100),
-                avatarUrl: c.src,
+            const existing = seen.get(slug);
+            if (!existing || alt.length < existing._altLen) {
+              seen.set(slug, {
+                slug,
+                displayName: (alt || slug).slice(0, 100),
+                avatarUrl: src,
+                _altLen: alt.length,
               });
             }
           }
+          // Strip internal _altLen
+          for (const v of seen.values()) delete v._altLen;
 
           // Diagnostic: capture headings near the "following" section so we
           // can see if it's labeled "Channels you follow" vs "Live channels
@@ -436,12 +419,13 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             url: window.location.href,
             title: document.title,
             anchorCount: document.querySelectorAll('a[href]').length,
-            cardCount: cards.length,
+            cardCount: candidateAnchors.length,
             acceptedCardCount,
             channelCount: seen.size,
             sectionTestids: Array.from(sectionTestids).slice(0, 20),
             headings: headings.slice(0, 20),
             navLinks: navLinks.slice(0, 10),
+            scoped: !!scopeContainer,
           });
         })()`
       )) as string;
