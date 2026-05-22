@@ -147,6 +147,40 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     }
   }
 
+  // ========== Background Kick follow refresh ==========
+  // The Kick OAuth token isn't used to fetch follows — the BrowserWindow
+  // fallback reads kick.com session cookies which outlive any single login
+  // (weeks-months, until Kick rotates them). So we can resync the user's
+  // follow list any time without re-authenticating, as long as the cookies
+  // are alive. Two refresh triggers:
+  //   1. Periodic interval (15 min) — catches follows added while the app
+  //      was open in the background.
+  //   2. Window focus — catches the common case of "I followed someone in
+  //      my browser, then switched back to StreamFusion."
+  //
+  // The single-flight Promise inside follow-endpoints.getAllFollowedChannels
+  // collapses concurrent triggers, so over-firing is cheap. We still
+  // cooldown the on-focus path to avoid hammering on Alt-Tab.
+  const KICK_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+  const FOCUS_REFRESH_COOLDOWN_MS = 60 * 1000;
+  let lastKickRefreshAt = 0;
+
+  function maybeRefreshKickFollows(trigger: "interval" | "focus"): void {
+    if (!storageService.hasToken("kick")) return;
+    if (trigger === "focus") {
+      const now = Date.now();
+      if (now - lastKickRefreshAt < FOCUS_REFRESH_COOLDOWN_MS) return;
+      lastKickRefreshAt = now;
+    } else {
+      lastKickRefreshAt = Date.now();
+    }
+    console.debug(`🔄 Kick follow refresh (${trigger})`);
+    syncFollowsOnLogin("kick").catch(() => {});
+  }
+
+  setInterval(() => maybeRefreshKickFollows("interval"), KICK_REFRESH_INTERVAL_MS);
+  mainWindow.on("focus", () => maybeRefreshKickFollows("focus"));
+
   // ========== Kick Session Expiry (push event) ==========
   // Forward the 'session-expired' event emitted by KickAuthService to the renderer
   // so it can prompt the user to re-authenticate.
