@@ -31,8 +31,16 @@ const { storageService } = await import(
 
 import {
   _resetWarnedForTests,
+  _tryBearerFetch,
   getAllFollowedChannels,
 } from "../../../../../src/backend/api/platforms/kick/endpoints/follow-endpoints";
+
+// Tests validate the Bearer-fetch path in isolation via _tryBearerFetch.
+// The full getAllFollowedChannels orchestration (Bearer-first, then
+// BrowserWindow fallback on auth-failed / cloudflare-challenge / parse-error
+// / network-error) is validated by live integration test — see task #6 in
+// docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
+const TEST_TOKEN = "test-token-123";
 
 const FETCH_URL = "https://kick.com/api/v2/channels/followed";
 
@@ -47,7 +55,7 @@ function textResponse(body: string, init: ResponseInit = { status: 200 }): Respo
   return new Response(body, init);
 }
 
-describe("getAllFollowedChannels", () => {
+describe("_tryBearerFetch and getAllFollowedChannels", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
@@ -84,7 +92,7 @@ describe("getAllFollowedChannels", () => {
       })
     );
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") throw new Error("type narrowing");
@@ -96,7 +104,7 @@ describe("getAllFollowedChannels", () => {
   it("returns ok with empty array when the user follows zero channels (silent)", async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ data: [] }));
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result).toEqual({ status: "ok", channels: [] });
     expect(warnSpy).not.toHaveBeenCalled();
@@ -107,7 +115,7 @@ describe("getAllFollowedChannels", () => {
       jsonResponse([{ id: 1, slug: "a", user: { username: "A" } }])
     );
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") throw new Error("type narrowing");
@@ -117,6 +125,9 @@ describe("getAllFollowedChannels", () => {
   it("returns no-token when storage has no Kick token", async () => {
     vi.mocked(storageService.getToken).mockReturnValue(null);
 
+    // no-token is checked inside getAllFollowedChannels (orchestrator), not
+    // _tryBearerFetch (which trusts the token its caller provides). Verify
+    // via the public entry point.
     const result = await getAllFollowedChannels();
 
     expect(result).toEqual({ status: "error", reason: "no-token" });
@@ -126,7 +137,7 @@ describe("getAllFollowedChannels", () => {
   it("classifies 401 as auth-failed and warns once", async () => {
     fetchSpy.mockResolvedValueOnce(textResponse("", { status: 401 }));
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result).toEqual({ status: "error", reason: "auth-failed" });
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -136,7 +147,7 @@ describe("getAllFollowedChannels", () => {
   it("classifies 403 as auth-failed", async () => {
     fetchSpy.mockResolvedValueOnce(textResponse("", { status: 403 }));
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result.status).toBe("error");
     if (result.status !== "error") throw new Error("type narrowing");
@@ -151,7 +162,7 @@ describe("getAllFollowedChannels", () => {
       )
     );
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result).toEqual({ status: "error", reason: "cloudflare-challenge" });
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -161,7 +172,7 @@ describe("getAllFollowedChannels", () => {
   it("classifies non-JSON text as parse-error", async () => {
     fetchSpy.mockResolvedValueOnce(textResponse("not json at all", { status: 200 }));
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result).toEqual({ status: "error", reason: "parse-error" });
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -170,7 +181,7 @@ describe("getAllFollowedChannels", () => {
   it("classifies wrong-shape JSON (neither array nor data array) as parse-error", async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ unexpected: "shape" }));
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result).toEqual({ status: "error", reason: "parse-error" });
   });
@@ -178,7 +189,7 @@ describe("getAllFollowedChannels", () => {
   it("classifies a fetch throw as network-error", async () => {
     fetchSpy.mockRejectedValueOnce(new TypeError("fetch failed"));
 
-    const result = await getAllFollowedChannels();
+    const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result).toEqual({ status: "error", reason: "network-error" });
     // Network errors stay at debug level (not warn).

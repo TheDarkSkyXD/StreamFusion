@@ -18,12 +18,15 @@
  * outcome or transient failures would wipe a user's prior synced follows.
  */
 
+import { BrowserWindow } from "electron";
+
 import type { UnifiedChannel } from "../../../unified/platform-types";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";
 import type { KickLegacyApiFollowedChannel } from "../kick-types";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
 
 import { storageService } from "../../../../services/storage-service";
+import { acquireBrowserWindowSlot } from "./channel-endpoints";
 
 const FOLLOWED_CHANNELS_URL = `${KICK_LEGACY_API_V2_BASE}/channels/followed`;
 const FETCH_TIMEOUT_MS = 10000;
@@ -74,6 +77,32 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
     return { status: "error", reason: "no-token" };
   }
 
+  // Try the cheap path first: Bearer auth via fetch(). If Kick ever extends
+  // the OAuth API to cover follows, this lets us pick it up automatically.
+  // Live testing on 2026-05-21 confirmed Bearer is rejected with 403, so the
+  // BrowserWindow fallback below is the real workhorse — but the Bearer
+  // attempt costs ~30ms and the fallback covers every failure path it produces.
+  const bearerResult = await _tryBearerFetch(token);
+  if (bearerResult.status === "ok") return bearerResult;
+  if (bearerResult.status === "error" && bearerResult.reason === "no-token") {
+    return bearerResult;
+  }
+
+  // Fall through to cookie-auth BrowserWindow for auth-failed,
+  // cloudflare-challenge, parse-error, and network-error. The window inherits
+  // the OAuth window's session cookies (default session, where id.kick.com
+  // cookies live) — Kick's cross-subdomain SSO sets a kick.com apex session
+  // when we visit kick.com while authenticated on id.kick.com.
+  return _fetchViaBrowserWindow();
+}
+
+/**
+ * Test-visible Bearer-fetch path. Exported (with underscore prefix) so unit
+ * tests can validate the per-cause classification logic without mocking
+ * Electron's BrowserWindow constructor. The orchestration in `_doFetch` is
+ * validated by live integration testing — see plan task #6.
+ */
+export async function _tryBearerFetch(token: string): Promise<FollowedChannelsResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -165,6 +194,152 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
   // No warn. The caller (syncFollowsOnLogin) handles the clear+insert with
   // zero inserts as a successful sync.
   return { status: "ok", channels };
+}
+
+const WARM_VISIT_URL = "https://kick.com/";
+const WARM_VISIT_TIMEOUT_MS = 6000;
+const PAGE_LOAD_TIMEOUT_MS = 10000;
+
+/**
+ * Cookie-auth fallback path: open a hidden BrowserWindow in the DEFAULT
+ * Electron session (where the Kick OAuth window's id.kick.com cookies live),
+ * warm-visit kick.com apex to let Kick's cross-subdomain SSO set the
+ * `kick_session` cookie, then load the v2 followed-channels endpoint and
+ * extract the response body via executeJavaScript.
+ *
+ * The default session is intentional — `persist:kick_public` doesn't carry
+ * the user's authentication state (OAuth ran in default), and forcing a
+ * partition migration would require every existing user to re-login.
+ *
+ * Mutex-serialized via `acquireBrowserWindowSlot` so we never contend with
+ * `getPublicChannel` for the GPU subprocess.
+ */
+async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
+  const releaseSlot = await acquireBrowserWindowSlot();
+  let win: BrowserWindow | null = null;
+  try {
+    win = new BrowserWindow({
+      show: false,
+      width: 800,
+      height: 600,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        // Default session — inherits OAuth window's id.kick.com cookies.
+      },
+    });
+
+    // Warm visit to kick.com apex. If Kick's SSO sets a .kick.com session
+    // cookie in response to id.kick.com authentication, this navigation
+    // deposits it. Failures here aren't fatal — we proceed to the v2 visit
+    // and let the response classification decide.
+    try {
+      const warmLoad = win.loadURL(WARM_VISIT_URL);
+      const warmTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("warm-timeout")), WARM_VISIT_TIMEOUT_MS)
+      );
+      await Promise.race([warmLoad, warmTimeout]);
+    } catch (err) {
+      console.debug("[KickFollows] Warm visit to kick.com failed (non-fatal):", err);
+    }
+
+    // Now load the v2 followed-channels endpoint. The window's session
+    // should now carry both the OAuth-flow cookies and any apex cookies
+    // set by the warm visit.
+    const loadPromise = win.loadURL(FOLLOWED_CHANNELS_URL);
+    const loadTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("page-load-timeout")), PAGE_LOAD_TIMEOUT_MS)
+    );
+
+    try {
+      await Promise.race([loadPromise, loadTimeout]);
+    } catch (err) {
+      console.debug("[KickFollows] BrowserWindow page-load failed:", err);
+      return { status: "error", reason: "network-error" };
+    }
+
+    const pageContent: string = await win.webContents.executeJavaScript(
+      "document.body.innerText"
+    );
+
+    if (!pageContent || pageContent.length === 0) {
+      _warnOnce(
+        "parse-error",
+        "Kick v2 followed-channels (BrowserWindow) returned an empty body."
+      );
+      return { status: "error", reason: "parse-error" };
+    }
+
+    // Detect Cloudflare challenge HTML in the rendered page (looks the same
+    // as the fetch() classification path).
+    const lower = pageContent.toLowerCase();
+    if (
+      lower.includes("<!doctype html") ||
+      lower.includes("just a moment") ||
+      lower.includes("cf-browser-verification") ||
+      lower.includes("checking your browser")
+    ) {
+      _warnOnce(
+        "cloudflare-challenge",
+        "Kick v2 followed-channels (BrowserWindow) returned a Cloudflare challenge. The default session may not carry the user's apex kick.com session yet — confirm the OAuth flow's id.kick.com cookies trigger Kick's SSO."
+      );
+      return { status: "error", reason: "cloudflare-challenge" };
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(pageContent);
+    } catch (err) {
+      _warnOnce(
+        "parse-error",
+        `Kick v2 followed-channels (BrowserWindow) returned non-JSON. Preview: ${pageContent.slice(0, 120)}`
+      );
+      return { status: "error", reason: "parse-error" };
+    }
+
+    // Auth challenge in JSON form — Laravel typically returns
+    // { message: "Unauthenticated." } with a 401. The BrowserWindow doesn't
+    // surface status codes, so detect by payload shape.
+    if (parsed && typeof parsed === "object") {
+      const message = (parsed as { message?: string }).message;
+      if (message && /unauthenticated|unauthorized|forbidden/i.test(message)) {
+        _warnOnce(
+          "auth-failed",
+          `Kick v2 followed-channels (BrowserWindow) returned auth challenge: "${message}". The user's kick.com session may have expired — re-authenticating the Kick account is the typical recovery.`
+        );
+        return { status: "error", reason: "auth-failed" };
+      }
+    }
+
+    const rawItems = _extractItems(parsed);
+    if (!rawItems) {
+      _warnOnce(
+        "parse-error",
+        `Kick v2 followed-channels (BrowserWindow) JSON did not contain an array under 'data' or at top level. Got: ${typeof parsed}`
+      );
+      return { status: "error", reason: "parse-error" };
+    }
+
+    const channels: UnifiedChannel[] = [];
+    for (const item of rawItems) {
+      const channel = transformKickFollowedChannelLegacy(item as KickLegacyApiFollowedChannel);
+      if (channel) channels.push(channel);
+    }
+
+    console.debug(
+      `[KickFollows] BrowserWindow fallback fetched ${channels.length} followed channels`
+    );
+    return { status: "ok", channels };
+  } catch (err) {
+    console.debug("[KickFollows] BrowserWindow fallback unexpected error:", err);
+    return { status: "error", reason: "network-error" };
+  } finally {
+    releaseSlot();
+    if (win && !win.isDestroyed()) {
+      win.destroy();
+    }
+  }
 }
 
 function _extractItems(parsed: unknown): unknown[] | null {
