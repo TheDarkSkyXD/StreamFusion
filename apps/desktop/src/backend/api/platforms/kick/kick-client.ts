@@ -22,6 +22,7 @@ export type { PaginatedResult, PaginationOptions } from "./kick-types";
 import * as CategoryEndpoints from "./endpoints/category-endpoints";
 import * as ChannelEndpoints from "./endpoints/channel-endpoints";
 import * as ClipEndpoints from "./endpoints/clip-endpoints";
+import * as FollowEndpoints from "./endpoints/follow-endpoints";
 import * as SearchEndpoints from "./endpoints/search-endpoints";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
@@ -747,25 +748,38 @@ class KickClient implements KickRequestor {
   }
 
   // ========== Follows Endpoints ==========
-  // Note: The official Kick API does not currently have endpoints for follows
+  // Sourced from the undocumented internal v2 endpoint
+  // (kick.com/api/v2/channels/followed) since the official Kick Public API has
+  // no followed-channels endpoint. The endpoint is fetched with the OAuth
+  // Bearer token via FollowEndpoints (see follow-endpoints.ts for the failure
+  // classification model and the rationale for not gating behind
+  // isNetworkLikelyDown). This convenience returns a flat array; callers that
+  // need the failure tag (notably syncFollowsOnLogin) should import
+  // FollowEndpoints directly so a transient fetch failure doesn't get
+  // silently coerced into "user follows zero channels" — see U4/A1 in
+  // docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
 
   /**
-   * Get followed channels
-   * Note: Not available in official API
+   * Get followed channels (paginated convenience).
+   * The v2 endpoint returns the full list in one response; the PaginationOptions
+   * arg is preserved only for interface symmetry with other endpoint methods.
    */
   async getFollowedChannels(
     _options: PaginationOptions = {}
   ): Promise<PaginatedResult<UnifiedChannel>> {
-    console.warn("⚠️ Kick official API does not support followed channels endpoint");
-    return { data: [] };
+    const result = await FollowEndpoints.getAllFollowedChannels();
+    return { data: result.status === "ok" ? result.channels : [] };
   }
 
   /**
-   * Get all followed channels
-   * Note: Not available in official API
+   * Get all followed channels (flat array).
+   * Returns [] on any error. Callers that need to distinguish "follows zero
+   * channels" from "fetch failed" must use FollowEndpoints.getAllFollowedChannels()
+   * directly for the tagged result.
    */
   async getAllFollowedChannels(): Promise<UnifiedChannel[]> {
-    return [];
+    const result = await FollowEndpoints.getAllFollowedChannels();
+    return result.status === "ok" ? result.channels : [];
   }
 
   // ========== Search ==========
