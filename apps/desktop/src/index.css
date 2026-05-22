@@ -46,6 +46,12 @@
   --animate-fade-in: fade-in 0.2s ease-in-out;
   --animate-slide-up: slide-up 0.2s ease-out;
   --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-slide-and-fade-in: slide-and-fade-in 0.2s ease-in-out forwards;
+}
+
+@keyframes slide-and-fade-in {
+  0% { transform: translateY(24px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes fade-in {

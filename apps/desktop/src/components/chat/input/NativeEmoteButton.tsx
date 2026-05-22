@@ -14,11 +14,17 @@
  */
 
 import type React from "react";
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Emote } from "../../../backend/services/emotes/emote-types";
 import type { ChatPlatform } from "../../../shared/chat-types";
+import { useEmoteStore } from "../../../store/emote-store";
 import { EmoteDialog } from "../EmoteDialog";
-import { KickEmoteIcon, TwitchIcon } from "../../icons/PlatformIcons";
+import { TwitchIcon } from "../../icons/PlatformIcons";
+
+/** KickTalk's hardcoded fallback Kick emote ID (used when no provider emotes
+ *  are loaded yet). Surfaces a recognizable green-blob KEKW on first paint. */
+const KICK_FALLBACK_EMOTE_ID = "1730762";
+const kickEmoteUrl = (id: string) => `https://files.kick.com/emotes/${id}/fullsize`;
 
 interface NativeEmoteButtonProps {
   platform: ChatPlatform;
@@ -42,9 +48,50 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
   viewerIsSubscribed,
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
-
-  const Icon = platform === "twitch" ? TwitchIcon : KickEmoteIcon;
   const label = `Open ${platform} emote picker`;
+
+  // Kick-specific: cycle through real channel/global Kick emotes on hover so
+  // the button matches KickTalk's `kickEmoteButton` UX (random emote image
+  // updates each time the cursor enters). Twitch keeps its static glitch mark.
+  //
+  // We can't read this via a zustand selector — `getEmotesByProvider()` builds
+  // a new Map on every call, which would force-rerender on every store update
+  // and (because pool is in the dep array of the seeding effect) loop forever.
+  // Instead we pull a stable snapshot inside an effect that subscribes to the
+  // store directly.
+  const [kickEmotePool, setKickEmotePool] = useState<Emote[]>([]);
+  useEffect(() => {
+    if (platform !== "kick") {
+      setKickEmotePool([]);
+      return;
+    }
+    const refresh = () => {
+      const pool = useEmoteStore
+        .getState()
+        .getEmotesByProvider()
+        .get("kick");
+      setKickEmotePool((pool ?? []).filter((e) => !e.subscribersOnly));
+    };
+    refresh();
+    const unsubscribe = useEmoteStore.subscribe(refresh);
+    return unsubscribe;
+  }, [platform, channelId]);
+
+  const [hoverEmoteId, setHoverEmoteId] = useState<string>(KICK_FALLBACK_EMOTE_ID);
+
+  // Reseed when the pool changes (channel switch, lazy emote load) so the
+  // default ID isn't sticky on a channel that has its own emotes loaded.
+  useEffect(() => {
+    if (platform !== "kick" || kickEmotePool.length === 0) return;
+    const seed = kickEmotePool[Math.floor(Math.random() * kickEmotePool.length)];
+    if (seed) setHoverEmoteId(seed.id);
+  }, [platform, kickEmotePool]);
+
+  const rerollKickEmote = useCallback(() => {
+    if (platform !== "kick" || kickEmotePool.length === 0) return;
+    const next = kickEmotePool[Math.floor(Math.random() * kickEmotePool.length)];
+    if (next) setHoverEmoteId(next.id);
+  }, [platform, kickEmotePool]);
 
   return (
     <>
@@ -53,13 +100,26 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         type="button"
         onClick={onOpenRequest}
         onMouseDown={(e) => e.stopPropagation()}
+        onMouseEnter={rerollKickEmote}
         className="flex-shrink-0 p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label={label}
         aria-pressed={isOpen}
         data-testid="native-emote-button"
         disabled={disabled}
       >
-        <Icon size={18} />
+        {platform === "kick" ? (
+          <img
+            src={kickEmoteUrl(hoverEmoteId)}
+            alt=""
+            width={20}
+            height={20}
+            loading="lazy"
+            decoding="async"
+            className="block transition-transform duration-150 ease-out hover:scale-110"
+          />
+        ) : (
+          <TwitchIcon size={18} />
+        )}
       </button>
       <EmoteDialog
         isOpen={isOpen}

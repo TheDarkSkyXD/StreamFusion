@@ -44,13 +44,22 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
         type="button"
         onClick={onOpenRequest}
         onMouseDown={(e) => e.stopPropagation()}
-        className="flex-shrink-0 p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        className="group flex-shrink-0 p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Open third-party emote picker"
         aria-pressed={isOpen}
         data-testid="third-party-emote-button"
         disabled={disabled}
       >
-        <SevenTVIcon size={18} />
+        {/* KickTalk's `.emoteBtn img` pattern — start at 50% opacity, fade to
+            100% on hover with a 200 ms ease transition so the brand mark
+            visibly "lights up" when the cursor enters. */}
+        <span
+          className={`block transition-opacity duration-200 ease-out ${
+            isOpen ? "opacity-100" : "opacity-50 group-hover:opacity-100"
+          }`}
+        >
+          <SevenTVIcon size={24} />
+        </span>
       </button>
       <EmoteDialog
         isOpen={isOpen}

@@ -5,7 +5,7 @@
  * into a single primary visible label plus a right-aligned info icon whose
  * tooltip lists every active mode on its own row. Mirrors KickTalk's
  * `Chat/Input/InfoBar.jsx` precedence + tooltip pattern, ported to Tailwind
- * + StreamForge's Radix `Tooltip` primitive (no SCSS).
+ * + StreamFusion's Radix `Tooltip` primitive (no SCSS).
  *
  * Precedence for the visible label (R14):
  *   followersOnly → subscribersOnly → accountAge → emoteOnly → slowMode
@@ -151,20 +151,17 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
     <div
       data-testid="info-banner"
       data-platform={platform}
-      className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[var(--color-foreground,#EFEFF1)] bg-[var(--color-background-secondary,#1a1a1d)] border-b border-[var(--color-border,rgba(83,83,95,0.48))]"
+      className="flex items-center gap-1 px-2 py-0.5 text-sm font-semibold text-[var(--color-foreground,#EFEFF1)] bg-[var(--color-background-secondary,#1a1a1d)] border border-b-0 border-[var(--color-border,rgba(83,83,95,0.48))] rounded-t-md"
     >
-      <span data-testid="info-banner-primary" className="min-w-0 truncate font-medium">
-        {primary.label}
-      </span>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             aria-label="Active chat modes"
             data-testid="info-banner-icon"
-            className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full text-[var(--color-foreground-muted,#a1a1aa)] hover:text-white focus:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
+            className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full text-[#d3d3d9] hover:text-white focus:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
           >
-            <InfoIcon />
+            {primary.key === "slow" ? <SlowModeIcon size={16} /> : <InfoIcon />}
           </button>
         </TooltipTrigger>
         <TooltipContent>
@@ -173,13 +170,21 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
             className="flex flex-col gap-1 text-xs"
           >
             {active.map((mode) => (
-              <span key={mode.key} data-testid={`info-banner-tooltip-row-${mode.key}`}>
+              <span
+                key={mode.key}
+                data-testid={`info-banner-tooltip-row-${mode.key}`}
+                className="flex items-center gap-1"
+              >
+                {mode.key === "slow" && <SlowModeIcon size={12} />}
                 {mode.tooltipLabel}
               </span>
             ))}
           </div>
         </TooltipContent>
       </Tooltip>
+      <span data-testid="info-banner-primary" className="min-w-0 truncate">
+        {primary.label}
+      </span>
     </div>
   );
 };
@@ -192,13 +197,27 @@ InfoBanner.displayName = "InfoBanner";
  */
 const InfoIcon: React.FC = () => (
   <svg
-    width="14"
-    height="14"
-    viewBox="0 0 16 16"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
     aria-hidden="true"
     focusable="false"
     fill="currentColor"
   >
-    <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7.25 4.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0Zm1.5 6.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 1.5 0v3.5Z" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1Zm1 5v2h-2V6h2Zm0 4v8h-2v-8h2Z" />
+  </svg>
+);
+
+const SlowModeIcon: React.FC<{ size?: number }> = ({ size = 24 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    aria-hidden="true"
+    focusable="false"
+    fill="#A8ADB3"
+  >
+    <path d="M15 3.9c0-.5-.4-.9-.9-.9s-.8.4-.8.9c0 .3.1.6.4.7v1h-1.8v-1c.3-.1.5-.4.5-.7 0-.5-.4-.9-.9-.9s-.9.4-.9.9c0 .3.2.6.5.7v1L9.7 6.7a4.4 4.4 0 1 0-7 4.2l-1.7.8v1.8h10.5l3-3.5V4.6c.3-.1.5-.4.5-.7Zm-9.6.9a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.3Z" />
+    <path d="M7.1 7.2H5.6V5.6H4.3v2.9H7V7.2Z" />
   </svg>
 );

@@ -40,10 +40,12 @@ export function KickIcon({ className, size = 24 }: IconProps) {
 }
 
 /**
- * 7TV Brand Mark — hand-rolled to avoid pulling SVG from KickTalk (GPL-3.0,
- * incompatible with this codebase). Compact "7TV" wordmark inside a rounded
- * square; matches the visual weight of the other PlatformIcons at default
- * 24×24.
+ * 7TV Brand Mark — the official 7TV logo (three angled "7TV" letterforms).
+ * Path geometry is 7TV's own brand asset (7tv.app), not KickTalk's; we're
+ * intentionally rendering the same recognizable mark KickTalk uses so the
+ * emote-picker button looks identical across the two apps. The viewBox is
+ * 156×114 to preserve the source asset's aspect ratio — the `size` prop
+ * still scales the rendered box uniformly.
  */
 export function SevenTVIcon({ className, size = 24 }: IconProps) {
   return (
@@ -51,12 +53,23 @@ export function SevenTVIcon({ className, size = 24 }: IconProps) {
       className={className}
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
+      viewBox="0 0 156 114"
+      fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm4.5 3a.75.75 0 0 0 0 1.5h2.43l-2.1 5.78a.75.75 0 1 0 1.41.5l2.36-6.49A.75.75 0 0 0 11 8H7.5Zm5.25 0a.75.75 0 0 0 0 1.5h1V16a.75.75 0 0 0 1.5 0V9.5h1a.75.75 0 0 0 0-1.5h-3.5Zm4.78.27a.75.75 0 0 1 .95.48l1.07 3.21 1.07-3.21a.75.75 0 1 1 1.42.48l-1.78 5.34a.75.75 0 0 1-1.42 0L17.06 9.22a.75.75 0 0 1 .47-.95Z" />
+      <path
+        d="M118.551 31.283L125.599 19.0235L129.406 12.5414L122.357 0.281829V0H84.7192L98.8158 24.5191L102.763 31.283H118.551Z"
+        fill="currentColor"
+      />
+      <path
+        d="M40.8797 113.577L83.1691 40.0199L88.3846 31.0014L74.288 6.48225L70.3411 0.141113H10.8543L3.80604 12.4007L0 18.8827L7.04823 31.1423V31.4241H52.1569L16.9157 92.7219L11.982 101.459L19.0302 113.718V114H40.8797"
+        fill="currentColor"
+      />
+      <path
+        d="M99.8028 113.576H121.37L149.563 64.5382L154.497 56.0837L147.449 43.8241V43.5422H125.74L111.644 68.0614L110.657 69.8934L96.5605 45.3742L95.5742 43.5422L81.4776 68.0614L77.5308 74.825L98.6753 111.604L99.8028 113.576Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }

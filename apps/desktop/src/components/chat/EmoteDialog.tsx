@@ -16,6 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useShallow } from "zustand/react/shallow";
 import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-types";
 import { useEmoteStore } from "../../store/emote-store";
@@ -630,7 +631,10 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
 
   const searching = searchQuery.trim().length > 0;
 
-  return (
+  // Portal to <body> so position:fixed anchors to the viewport rather than to
+  // a transformed ancestor (chat panel uses CSS transforms internally; without
+  // the portal the dialog renders 1500+ px past the viewport edge).
+  return createPortal(
     <div
       ref={containerRef}
       data-testid="emote-dialog"
@@ -712,7 +716,8 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
           />
         ))}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
