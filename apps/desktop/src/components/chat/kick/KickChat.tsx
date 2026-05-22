@@ -284,14 +284,14 @@ export const KickChat: React.FC<KickChatProps> = ({
           //    `channelId` here is the broadcaster's user_id (v2 channel
           //    `data.id`) — required by `kickChatService.sendMessage` so the
           //    official `POST /public/v1/chat` endpoint addresses the right
-          //    channel. Distinct from chatroomId; without it, sendMessage
-          //    falls back to chatroomId and Kick rejects the call.
-          const broadcasterUserId = channelId ? Number(channelId) : undefined;
-          await kickChatService.joinChannel(
-            channel,
-            chatroomId,
-            Number.isFinite(broadcasterUserId) ? broadcasterUserId : undefined,
-          );
+          //    channel. Distinct from chatroomId; if it hasn't resolved yet
+          //    we still join (Pusher receive only) and sendMessage throws
+          //    with a clear message until the next mount supplies it.
+          const parsedBroadcasterId = Number(channelId);
+          const broadcasterUserId = Number.isFinite(parsedBroadcasterId)
+            ? parsedBroadcasterId
+            : undefined;
+          await kickChatService.joinChannel(channel, chatroomId, broadcasterUserId);
 
           if (!isMounted) return;
 

@@ -112,9 +112,9 @@ interface ChannelInfo {
   /** Broadcaster's user_id (Kick channel's internal db id, i.e. `data.id` on
    *  the v2 channel response). Distinct from `chatroomId`; required by the
    *  official `POST /public/v1/chat` endpoint as `broadcaster_user_id`.
-   *  Optional because anonymous/legacy callers may not have it — `sendMessage`
-   *  falls back to `chatroomId` in that case to preserve prior behavior, but
-   *  emits a debug warning since Kick will likely reject the send. */
+   *  Optional so callers can join receive-only when the broadcaster id hasn't
+   *  resolved yet — `sendMessage` throws a clear error in that case rather
+   *  than POSTing the wrong id. */
   broadcasterUserId?: number;
   /** Pusher channel subscription (using ReturnType to avoid type conflicts) */
   pusherChannel?: ReturnType<Pusher["subscribe"]>;
@@ -584,15 +584,15 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     // Kick's `POST /public/v1/chat` expects `broadcaster_user_id` = the channel
     // owner's user_id (the v2 channel `data.id`), NOT the chatroom id used by
-    // Pusher. These are two different numeric ids on Kick. If the join path
-    // didn't supply broadcasterUserId yet, fall back to chatroomId to preserve
-    // prior behavior — Kick will likely reject that send, but it's still less
-    // surprising than silently dropping the request here.
-    const broadcasterUserId = channelInfo.broadcasterUserId ?? channelInfo.chatroomId;
+    // Pusher. These are two different numeric ids on Kick; the join path is
+    // responsible for supplying the user_id when the channel needs send
+    // capability. A receive-only join (anonymous or channelId-still-resolving)
+    // legitimately has no broadcaster id — surface that as a clear actionable
+    // error here rather than POSTing the wrong id and waiting for Kick to 4xx.
     if (channelInfo.broadcasterUserId === undefined) {
-      console.warn(
-        `[kick-chat] sendMessage(${normalizedChannel}): broadcaster_user_id not set; ` +
-          "falling back to chatroomId. Update the joinChannel caller to pass it.",
+      throw new Error(
+        `Cannot send to ${normalizedChannel}: broadcaster user_id not set. ` +
+          "Rejoin the channel once its broadcaster id has loaded.",
       );
     }
 
@@ -606,7 +606,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          broadcaster_user_id: broadcasterUserId,
+          broadcaster_user_id: channelInfo.broadcasterUserId,
           content: message,
           type: "user",
         }),
@@ -614,6 +614,16 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
       if (!response.ok) {
         const errorText = await response.text();
+        // 401 on this endpoint almost always means the user's bearer token
+        // predates the chat:write scope grant (commit 306a8e5). The only fix
+        // is for them to disconnect and reconnect Kick so a fresh token is
+        // minted with the scope — a generic 401 message strands them.
+        if (response.status === 401) {
+          throw new Error(
+            "Kick chat permission missing — please disconnect and reconnect " +
+              "your Kick account in Settings to grant the chat:write scope.",
+          );
+        }
         throw new Error(`Failed to send message: ${response.status} ${errorText}`);
       }
 

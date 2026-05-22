@@ -64,10 +64,10 @@ describe("TWITCH_OAUTH_CONFIG scopes (IRC chat — tmi.js)", () => {
   });
 });
 
+// Guards: Kick chat:write scope — dropping it causes POST /public/v1/chat to return 401 Unauthorized on every send (regression 306a8e5).
 // Kick's `POST /public/v1/chat` requires the `chat:write` scope on the access
 // token. Without it, the API returns 401 Unauthorized on every send and the
 // user sees a generic "Failed to send message" with no path to recovery.
-// Dropping this scope reintroduces that bug.
 describe("KICK_OAUTH_CONFIG scopes (chat send)", () => {
   it("includes chat:write so POST /public/v1/chat is authorized", () => {
     expect(KICK_OAUTH_CONFIG.scopes).toContain("chat:write");
