@@ -107,8 +107,15 @@ interface KickChatOptions {
 interface ChannelInfo {
   /** Channel slug (username) */
   slug: string;
-  /** Chatroom ID for WebSocket subscription */
+  /** Chatroom ID for WebSocket subscription (Pusher `chatrooms.{id}.v2`). */
   chatroomId: number;
+  /** Broadcaster's user_id (Kick channel's internal db id, i.e. `data.id` on
+   *  the v2 channel response). Distinct from `chatroomId`; required by the
+   *  official `POST /public/v1/chat` endpoint as `broadcaster_user_id`.
+   *  Optional because anonymous/legacy callers may not have it — `sendMessage`
+   *  falls back to `chatroomId` in that case to preserve prior behavior, but
+   *  emits a debug warning since Kick will likely reject the send. */
+  broadcasterUserId?: number;
   /** Pusher channel subscription (using ReturnType to avoid type conflicts) */
   pusherChannel?: ReturnType<Pusher["subscribe"]>;
 }
@@ -458,9 +465,17 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   /**
    * Join a channel's chat
    * @param channel - Channel slug
-   * @param chatroomId - Chatroom ID from Kick API
+   * @param chatroomId - Chatroom ID from Kick API (used for Pusher subscription)
+   * @param broadcasterUserId - Broadcaster's user_id (channel's internal db id).
+   *   Required for `sendMessage` to address the right channel on Kick's official
+   *   chat endpoint. Distinct from `chatroomId` — they are different numbers on
+   *   most channels.
    */
-  async joinChannel(channel: string, chatroomId: number): Promise<void> {
+  async joinChannel(
+    channel: string,
+    chatroomId: number,
+    broadcasterUserId?: number,
+  ): Promise<void> {
     const normalizedChannel = this.normalizeChannel(channel);
 
     if (this.channels.has(normalizedChannel)) {
@@ -498,6 +513,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       this.channels.set(normalizedChannel, {
         slug: normalizedChannel,
         chatroomId,
+        broadcasterUserId,
         pusherChannel,
       });
 
@@ -566,6 +582,20 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       throw new Error("Not authenticated with Kick");
     }
 
+    // Kick's `POST /public/v1/chat` expects `broadcaster_user_id` = the channel
+    // owner's user_id (the v2 channel `data.id`), NOT the chatroom id used by
+    // Pusher. These are two different numeric ids on Kick. If the join path
+    // didn't supply broadcasterUserId yet, fall back to chatroomId to preserve
+    // prior behavior — Kick will likely reject that send, but it's still less
+    // surprising than silently dropping the request here.
+    const broadcasterUserId = channelInfo.broadcasterUserId ?? channelInfo.chatroomId;
+    if (channelInfo.broadcasterUserId === undefined) {
+      console.warn(
+        `[kick-chat] sendMessage(${normalizedChannel}): broadcaster_user_id not set; ` +
+          "falling back to chatroomId. Update the joinChannel caller to pass it.",
+      );
+    }
+
     try {
       // Use the Kick API to send the message
       const response = await fetch("https://api.kick.com/public/v1/chat", {
@@ -576,7 +606,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          broadcaster_user_id: channelInfo.chatroomId,
+          broadcaster_user_id: broadcasterUserId,
           content: message,
           type: "user",
         }),
@@ -877,8 +907,10 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
           // Rejoin channels (only if still active)
           if (this.isActive) {
             for (const [slug, info] of this.channels) {
-              // We need to resubscribe with the stored chatroomId
-              await this.joinChannel(slug, info.chatroomId);
+              // We need to resubscribe with the stored chatroomId, and
+              // preserve broadcasterUserId so post-reconnect sends still
+              // address the right channel on the official chat endpoint.
+              await this.joinChannel(slug, info.chatroomId, info.broadcasterUserId);
             }
           }
         } catch (error) {

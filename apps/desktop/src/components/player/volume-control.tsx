@@ -21,6 +21,10 @@ export function VolumeControl({
 }: VolumeControlProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // Keep the thumb Tooltip fully controlled — mixing `open={isDragging || undefined}`
+  // flips Radix between controlled (true) and uncontrolled (undefined) modes
+  // every drag cycle, which logs the "controlled to uncontrolled" warning.
+  const [thumbTooltipOpen, setThumbTooltipOpen] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const getIcon = () => {
@@ -110,7 +114,11 @@ export function VolumeControl({
             style={{ width: `${displayVolume}%` }}
           />
           {/* Thumb (white circle) - positioned to stay within bounds */}
-          <Tooltip delayDuration={0} open={isDragging || undefined}>
+          <Tooltip
+            delayDuration={0}
+            open={isDragging || thumbTooltipOpen}
+            onOpenChange={setThumbTooltipOpen}
+          >
             <TooltipTrigger asChild>
               <div
                 className="absolute w-4 h-4 bg-white rounded-full shadow-md cursor-pointer"

@@ -65,6 +65,11 @@ export function MiniPlayer() {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [isVolumeDragging, setIsVolumeDragging] = useState(false);
+  // Controlled Tooltip state for the volume thumb. Pairing it with
+  // `isVolumeDragging` keeps Radix in controlled mode at all times (otherwise
+  // `open={isVolumeDragging || undefined}` would oscillate between controlled
+  // and uncontrolled across each drag cycle and emit React's warning).
+  const [volumeThumbTooltipOpen, setVolumeThumbTooltipOpen] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const positionStart = useRef({ x: 0, y: 0 });
 
@@ -424,7 +429,11 @@ export function MiniPlayer() {
                         style={{ width: `${isMuted ? 0 : volume}%` }}
                       />
                       {/* Thumb */}
-                      <Tooltip delayDuration={0} open={isVolumeDragging || undefined}>
+                      <Tooltip
+                        delayDuration={0}
+                        open={isVolumeDragging || volumeThumbTooltipOpen}
+                        onOpenChange={setVolumeThumbTooltipOpen}
+                      >
                         <TooltipTrigger asChild>
                           <div
                             className="absolute w-3 h-3 bg-white rounded-full shadow-sm"

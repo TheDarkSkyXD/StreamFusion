@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { TWITCH_OAUTH_CONFIG } from "@/backend/auth/oauth-config";
+import { KICK_OAUTH_CONFIG, TWITCH_OAUTH_CONFIG } from "@/backend/auth/oauth-config";
 
 // Guards: Twitch IRC chat-scope regression — `chat:read` + `chat:edit` MUST stay in `TWITCH_OAUTH_CONFIG.scopes`. Dropping either breaks tmi.js authentication with the user-invisible "Login unsuccessful" failure (the `twitch-irc-missing-chat-scopes-2026-05-19` bug class). The second `describe` exists specifically because the Helix-side `moderator:manage:chat_messages` scope is NOT accepted by IRC, so the test pins the IRC requirements separately from the broader Helix scope set.
 // Guards: channel-management console scope set — 11 retained-feature scopes plus prior scopes. Per-item `toContain` (not snapshot-equality) so a casual "tidy up" PR can't silently drop a single scope while keeping the list "mostly right". After the b15bdec refactor removed AutoMod/Streamlabs/giveaway features, no AutoMod-specific scopes appear in this set — drift in either direction (add an AutoMod scope, drop a retained scope) fails this test.
@@ -61,5 +61,26 @@ describe("TWITCH_OAUTH_CONFIG scopes (IRC chat — tmi.js)", () => {
 
   it("includes chat:edit so tmi.js can send messages and replies", () => {
     expect(TWITCH_OAUTH_CONFIG.scopes).toContain("chat:edit");
+  });
+});
+
+// Kick's `POST /public/v1/chat` requires the `chat:write` scope on the access
+// token. Without it, the API returns 401 Unauthorized on every send and the
+// user sees a generic "Failed to send message" with no path to recovery.
+// Dropping this scope reintroduces that bug.
+describe("KICK_OAUTH_CONFIG scopes (chat send)", () => {
+  it("includes chat:write so POST /public/v1/chat is authorized", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toContain("chat:write");
+  });
+
+  it("preserves the prior base scopes (user:read + channel:read)", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toEqual(
+      expect.arrayContaining(["user:read", "channel:read"]),
+    );
+  });
+
+  it("contains no duplicate scopes", () => {
+    const set = new Set(KICK_OAUTH_CONFIG.scopes);
+    expect(set.size).toBe(KICK_OAUTH_CONFIG.scopes.length);
   });
 });

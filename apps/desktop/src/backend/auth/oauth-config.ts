@@ -120,8 +120,8 @@ export const KICK_OAUTH_CONFIG: OAuthConfig = {
   scopes: [
     "user:read", // View user information (username, streamer ID, etc.)
     "channel:read", // View channel information (description, category, etc.)
+    "chat:write", // Send chat messages via POST /public/v1/chat (required for ChatInput on Kick — without this, every send returns 401 Unauthorized)
     // Future scopes:
-    // 'chat:write',    // Send chat messages
     // 'events:subscribe', // Subscribe to channel events
   ],
   usesPkce: true,

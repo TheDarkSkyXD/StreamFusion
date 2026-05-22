@@ -281,7 +281,17 @@ export const KickChat: React.FC<KickChatProps> = ({
           });
 
           // 3. Subscribe to Pusher; live messages start flowing after this.
-          await kickChatService.joinChannel(channel, chatroomId);
+          //    `channelId` here is the broadcaster's user_id (v2 channel
+          //    `data.id`) — required by `kickChatService.sendMessage` so the
+          //    official `POST /public/v1/chat` endpoint addresses the right
+          //    channel. Distinct from chatroomId; without it, sendMessage
+          //    falls back to chatroomId and Kick rejects the call.
+          const broadcasterUserId = channelId ? Number(channelId) : undefined;
+          await kickChatService.joinChannel(
+            channel,
+            chatroomId,
+            Number.isFinite(broadcasterUserId) ? broadcasterUserId : undefined,
+          );
 
           if (!isMounted) return;
 
