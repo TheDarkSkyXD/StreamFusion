@@ -1,10 +1,14 @@
 ---
 title: Viewer Prediction Widget — Twitch and Kick Chat Predictions With Voting and Style Toggle
 type: feat
-status: active
+status: superseded
 date: 2026-05-18
+superseded-by: docs/plans/2026-05-22-002-feat-predictions-backend-integration-plan.md
+superseded-on: 2026-05-22
 origin: docs/brainstorms/2026-05-18-viewer-prediction-widget-requirements.md
 ---
+
+> **SUPERSEDED 2026-05-22.** U1 (foundation), U6 (widget UI), U8 (Settings predictions section), and U9 (ChatSimTool dev injection) shipped between 2026-05-18 and 2026-05-22 — verify in git for the current state. The 2026-05-22 Kick discovery (`docs/brainstorms/2026-05-22-kick-predictions-discovery-notes.md`) also obsoleted the Kick reverse-engineering scaffolding in U4/U5/U6's Kick branch contingency. The replacement plan focuses on the remaining backend integration. See `docs/plans/2026-05-22-002-feat-predictions-backend-integration-plan.md`.
 
 # Viewer Prediction Widget — Twitch and Kick Chat Predictions With Voting and Style Toggle
 
