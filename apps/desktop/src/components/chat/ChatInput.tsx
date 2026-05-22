@@ -19,6 +19,7 @@ import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
 import type { Emote } from "../../backend/services/emotes/emote-types";
 import type { ChatMessage, ChatPlatform } from "../../shared/chat-types";
+import { useAuthStore } from "../../store/auth-store";
 import { useEmoteStore } from "../../store/emote-store";
 import { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
 import { InfoBanner } from "./InfoBanner";
@@ -209,6 +210,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   // Refs
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Signed-in Kick user — needed to attach a sender identity to the optimistic
+  // local echo of outbound messages, because Kick's `POST /public/v1/chat`
+  // doesn't reliably re-broadcast the sender's own message via Pusher.
+  // Subscribed reactively so a mid-session sign-in/out updates the value
+  // without remounting this component.
+  const kickUser = useAuthStore((state) => state.kickUser);
 
   // Autocomplete hooks
   const emoteAutocomplete = useEmoteAutocomplete();
@@ -473,13 +481,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
           if (platform === "twitch") {
             await twitchChatService.sendAction(channel, actionMessage);
           } else {
-            await kickChatService.sendMessage(channel, `*${actionMessage}*`);
+            await kickChatService.sendMessage(channel, `*${actionMessage}*`, kickUser ?? undefined);
           }
         } else {
           if (platform === "twitch") {
             await twitchChatService.sendMessage(channel, trimmedMessage);
           } else {
-            await kickChatService.sendMessage(channel, trimmedMessage);
+            await kickChatService.sendMessage(channel, trimmedMessage, kickUser ?? undefined);
           }
         }
       } else {
@@ -487,13 +495,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
           if (platform === "twitch") {
             await twitchChatService.sendReply(channel, reply.messageId, trimmedMessage);
           } else {
-            await kickChatService.sendMessage(channel, `@${reply.username} ${trimmedMessage}`);
+            await kickChatService.sendMessage(
+              channel,
+              `@${reply.username} ${trimmedMessage}`,
+              kickUser ?? undefined,
+            );
           }
         } else {
           if (platform === "twitch") {
             await twitchChatService.sendMessage(channel, trimmedMessage);
           } else {
-            await kickChatService.sendMessage(channel, trimmedMessage);
+            await kickChatService.sendMessage(channel, trimmedMessage, kickUser ?? undefined);
           }
         }
       }
@@ -509,7 +521,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
     } finally {
       setIsSending(false);
     }
-  }, [message, canSend, isSending, platform, channel, reply]);
+  }, [message, emoteSlots, canSend, isSending, platform, channel, reply, kickUser]);
 
   // Handle key press — Enter sends; Shift+Enter inserts newline (default
   // textarea behavior, just don't preventDefault).

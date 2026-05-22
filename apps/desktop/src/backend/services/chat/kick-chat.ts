@@ -10,6 +10,7 @@ import { EventEmitter } from "../../../shared/browser-event-emitter";
 
 // ... imports
 import type {
+  ChatBadge,
   ChatConnectionState,
   ChatConnectionStatus,
   ChatMessage,
@@ -21,6 +22,7 @@ import type {
 
 // ... imports
 import {
+  type KickBadge,
   type KickChatClearedEvent,
   type KickChatMessageEvent,
   type KickGiftedSubEvent,
@@ -158,6 +160,14 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   private messageTimestamps: number[] = [];
   private isModerator: Map<string, boolean> = new Map(); // channel -> isMod
   private channelBadges: Map<string, SubscriberBadge[]> = new Map(); // channel -> badges
+  // Self-learning badge cache: snapshot of each sender's badges in each
+  // channel, populated whenever a Pusher ChatMessageEvent arrives. Used by
+  // sendMessage's optimistic local echo so the signed-in user's own
+  // outbound message renders with the same badge set Kick stamped on
+  // their previous inbound message. Falls back to broadcaster/mod
+  // synthesis from local state when no cached entry exists yet.
+  // Outer key: channel slug. Inner key: userId (string).
+  private senderBadgesCache: Map<string, Map<string, ChatBadge[]>> = new Map();
 
   // Platform isolation: prevents zombie reconnections when service should be inactive
   // When false, ALL connection attempts and reconnections are blocked
@@ -557,15 +567,40 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     this.channels.delete(normalizedChannel);
     this.isModerator.delete(normalizedChannel);
+    this.senderBadgesCache.delete(normalizedChannel);
     this.emitConnectionStatus();
     this.log(`Left channel: ${normalizedChannel}`);
   }
 
   /**
-   * Send a message to a channel
-   * Note: Kick requires using the official API to send messages
+   * Send a message to a channel via Kick's official OAuth chat API.
+   *
+   * Caveat (verified 2026-05-22): `POST /public/v1/chat` returns
+   * `200 { is_sent: true, message_id }` for every call but does NOT
+   * actually broadcast the message to the chatroom Pusher subscription
+   * unless the OAuth app has been verified by Kick (email
+   * developers@kick.com). For un-verified apps the call appears to
+   * succeed but the message never reaches other viewers. We still call
+   * it and emit the optimistic local echo below so the sender sees
+   * their own messages — Kick may relax this gating later, and either
+   * way the verified-app path will work transparently once it lands.
+   * The alternative — kick.com web-internal `/api/v2/messages/send/{id}`
+   * — requires a kick.com web session our OAuth flow doesn't establish
+   * (we authenticate against id.kick.com only) and was investigated and
+   * ruled out 2026-05-22.
+   *
+   * `sender` is optional so anonymous / test callers still work; when
+   * provided we emit a synthetic "message" event so the local UI shows
+   * the user's own outbound messages (IRC-style echo for Kick). If Kick
+   * ever does deliver via Pusher, `chat-store.flushBatch`'s dedup-by-id
+   * collapses the duplicate (we use the server-issued `message_id` as
+   * the dedup key).
    */
-  async sendMessage(channel: string, message: string): Promise<void> {
+  async sendMessage(
+    channel: string,
+    message: string,
+    sender?: { id: number; username: string; slug: string; color?: string },
+  ): Promise<void> {
     const normalizedChannel = this.normalizeChannel(channel);
     const channelInfo = this.channels.get(normalizedChannel);
 
@@ -596,8 +631,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       );
     }
 
+    let serverMessageId: string | undefined;
     try {
-      // Use the Kick API to send the message
       const response = await fetch("https://api.kick.com/public/v1/chat", {
         method: "POST",
         headers: {
@@ -627,10 +662,63 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         throw new Error(`Failed to send message: ${response.status} ${errorText}`);
       }
 
+      // Read message_id from the response body so the optimistic echo
+      // below can use it as the dedup key against any future Pusher echo.
+      try {
+        const parsed = (await response.clone().json()) as
+          | { data?: { id?: string | number; message_id?: string } }
+          | undefined;
+        const raw = parsed?.data?.message_id ?? parsed?.data?.id;
+        if (raw !== undefined) serverMessageId = String(raw);
+      } catch {
+        // Body wasn't JSON — fall back to a synthetic id in the echo.
+      }
+
       this.recordMessageSent();
     } catch (error) {
       console.error(`Failed to send message to ${normalizedChannel}:`, error);
       throw error;
+    }
+
+    // Optimistic local echo. Kick's OAuth chat API doesn't echo the
+    // sender's own message back via Pusher (the chatroom subscription
+    // delivers others' messages but not the sender's own from this
+    // endpoint), so without this the user types into chat and sees
+    // nothing happen locally. The badge synthesis fallback covers
+    // broadcaster / moderator cold-start before the Pusher cache
+    // catches richer badge data from any of the user's prior messages.
+    if (sender) {
+      const cachedForChannel = this.senderBadgesCache.get(normalizedChannel);
+      const cachedBadges = cachedForChannel?.get(String(sender.id));
+      let echoBadges: ChatBadge[];
+      if (cachedBadges && cachedBadges.length > 0) {
+        echoBadges = cachedBadges;
+      } else {
+        const synthBadges: KickBadge[] = [];
+        if (sender.id === channelInfo.broadcasterUserId) {
+          synthBadges.push({ type: "broadcaster", text: "Broadcaster" });
+        } else if (this.isModerator.get(normalizedChannel)) {
+          synthBadges.push({ type: "moderator", text: "Moderator" });
+        }
+        echoBadges = parseKickBadges(synthBadges);
+      }
+      this.emit("message", {
+        id: serverMessageId ?? crypto.randomUUID(),
+        platform: "kick",
+        type: "message",
+        channel: normalizedChannel,
+        userId: String(sender.id),
+        username: sender.slug,
+        displayName: sender.username,
+        color: sender.color || "#FFFFFF",
+        badges: echoBadges,
+        content: [{ type: "text", content: message }],
+        rawContent: message,
+        timestamp: new Date(),
+        isDeleted: false,
+        isHighlighted: false,
+        isAction: false,
+      });
     }
   }
 
@@ -875,6 +963,21 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   private handleChatMessage(data: KickChatMessageEvent, channelSlug: string): void {
     const subscriberBadges = this.channelBadges.get(channelSlug);
     const message = parseKickChatMessage(data, channelSlug, subscriberBadges);
+
+    // Snapshot the sender's badges so sendMessage's optimistic local echo
+    // can stamp the user's own outbound messages with their real badge set
+    // (broadcaster + moderator + subscriber-months + VIP/OG/verified) the
+    // next time they send. We only cache non-empty badge lists — replacing
+    // a previously-good cache with an empty one would mask real badges.
+    if (message.badges.length > 0) {
+      let cacheForChannel = this.senderBadgesCache.get(channelSlug);
+      if (!cacheForChannel) {
+        cacheForChannel = new Map();
+        this.senderBadgesCache.set(channelSlug, cacheForChannel);
+      }
+      cacheForChannel.set(message.userId, message.badges);
+    }
+
     this.emit("message", message);
   }
 

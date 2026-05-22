@@ -113,7 +113,12 @@ export const KickChat: React.FC<KickChatProps> = ({
   const setActiveChannel = useEmoteStore((state) => state.setActiveChannel);
   const unloadChannelEmotes = useEmoteStore((state) => state.unloadChannelEmotes);
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // Reactive auth gate. Subscribing to the store (instead of a local
+  // useState that's only set inside the connect effect) lets the chat
+  // input flip between "Send a message..." and "Log in to chat" the
+  // instant the user signs in or out via the ProfileDropdown — no page
+  // refresh required.
+  const isAuthenticated = useAuthStore((state) => state.kickConnected);
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
@@ -207,7 +212,6 @@ export const KickChat: React.FC<KickChatProps> = ({
           });
 
           if (!isMounted) return;
-          setIsAuthenticated(true);
 
           // Initialize Kick Emotes
           initializeKickEmotes(kickToken.accessToken);
@@ -219,7 +223,6 @@ export const KickChat: React.FC<KickChatProps> = ({
           });
 
           if (!isMounted) return;
-          setIsAuthenticated(false);
           // Just load 7TV globals (Kick has no global endpoint of its own).
           if (isMounted) await loadGlobalEmotes("kick");
         }
@@ -252,10 +255,15 @@ export const KickChat: React.FC<KickChatProps> = ({
               isMounted: () => isMounted,
               prependMessages,
               subscriberBadges: subscriberBadgesRef.current,
+              // Route through the same service event the live Pusher path uses,
+              // not the local setPinnedMessage/setShowPinned/setIsPinExpanded
+              // triplet. Identifiers from the React component closure can become
+              // stale on Vite HMR if a fresh module is swapped in while this
+              // async work is mid-flight, throwing a ReferenceError when the
+              // callback later resolves. The service singleton lives outside
+              // the React tree and survives HMR unchanged.
               onPinnedMessage: (pin) => {
-                setPinnedMessage(pin);
-                setShowPinned(true);
-                setIsPinExpanded(false);
+                kickChatService.emit("pinnedMessage", pin);
               },
             });
             if (!isMounted) return;
@@ -366,6 +374,58 @@ export const KickChat: React.FC<KickChatProps> = ({
       kickChatService.setChannelBadges(channel, subscriberBadges);
     }
   }, [channel, subscriberBadges]);
+
+  // Mid-session auth-identity swap. The primary connect effect above runs
+  // once on mount with the auth state at that moment and doesn't react to
+  // sign-in / sign-out via the ProfileDropdown. Without this effect, a
+  // fresh sign-in keeps using the anonymous Pusher subscription, so the
+  // POST /public/v1/chat send path can't address the right user; the
+  // reverse leaves an authenticated socket alive after logout. We track
+  // the last seen value in a ref so the very first render — which is
+  // always handled by the primary effect — is a no-op here.
+  const lastAuthRef = useRef(isAuthenticated);
+  useEffect(() => {
+    if (lastAuthRef.current === isAuthenticated) return;
+    lastAuthRef.current = isAuthenticated;
+    if (!channel || !chatroomId) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        // Hard reset: sets `this.pusher = null` inside the service so the
+        // subsequent connect() creates a fresh Pusher client with the new
+        // identity rather than returning early on its "already connected"
+        // check. activeUsers is untouched, so the refcount stays intact.
+        await kickChatService.disconnect();
+        if (cancelled) return;
+
+        const kickToken = isAuthenticated
+          ? await window.electronAPI.auth.getToken("kick")
+          : null;
+        if (cancelled) return;
+
+        await kickChatService.connect({
+          accessToken: kickToken?.accessToken,
+          debug: import.meta.env.DEV,
+        });
+        if (cancelled) return;
+
+        const parsedBroadcasterId = Number(channelId);
+        const broadcasterUserId = Number.isFinite(parsedBroadcasterId)
+          ? parsedBroadcasterId
+          : undefined;
+        await kickChatService.joinChannel(channel, chatroomId, broadcasterUserId);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to swap Kick chat identity:", err);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, channel, chatroomId, channelId]);
 
   // Reset pin state on channel change. Without this, switching from a
   // channel-with-pin to a channel-without-pin leaves the previous banner

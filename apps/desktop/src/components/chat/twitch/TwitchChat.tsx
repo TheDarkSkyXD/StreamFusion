@@ -130,7 +130,16 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const setActiveChannel = useEmoteStore((state) => state.setActiveChannel);
   const unloadChannelEmotes = useEmoteStore((state) => state.unloadChannelEmotes);
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // Reactive auth gate. Subscribing to the store (instead of a local
+  // useState that's only set inside the connect effect) lets the chat
+  // input flip between "Send a message..." and "Log in to chat" the
+  // instant the user signs in or out via the ProfileDropdown — no page
+  // refresh required. twitchReconnectRequired keeps the gate closed in
+  // the degraded post-revocation mode so the input doesn't pretend the
+  // user can chat when their refresh token is dead.
+  const isAuthenticated = useAuthStore(
+    (state) => state.twitchConnected && !state.twitchReconnectRequired,
+  );
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
@@ -282,8 +291,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             return;
           }
 
-          setIsAuthenticated(true);
-
           // Initialize Twitch Emotes
           if (twitchClientId) {
             await initializeTwitchEmotes(twitchClientId, accessToken);
@@ -313,7 +320,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               return;
             }
 
-            setIsAuthenticated(false);
             await joinAndSeed(channel);
           }
         }
@@ -371,6 +377,63 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       setActiveChannel(null);
     }
   }, [channel, channelId, setActiveChannel, loadChannelEmotes]);
+
+  // Mid-session auth-identity swap. The primary connect effect above runs
+  // once on mount with the auth state at that moment and doesn't react to
+  // sign-in / sign-out via the ProfileDropdown. Without this effect, a
+  // fresh sign-in keeps using the anonymous IRC socket and sendMessage
+  // throws "Cannot send messages in anonymous mode"; the reverse leaves an
+  // authenticated socket alive after logout. We track the last seen value
+  // in a ref so the very first render — which is always handled by the
+  // primary effect — is a no-op here.
+  const lastAuthRef = useRef(isAuthenticated);
+  useEffect(() => {
+    if (lastAuthRef.current === isAuthenticated) return;
+    lastAuthRef.current = isAuthenticated;
+    if (!channel) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        // Hard reset: sets `this.client = null` inside the service so the
+        // subsequent connect() creates a fresh client with the new identity
+        // rather than returning early on its "already connected" check.
+        // activeUsers is untouched, so the refcount stays intact across
+        // the swap.
+        await twitchChatService.disconnect();
+        if (cancelled) return;
+
+        if (isAuthenticated) {
+          const accessToken = await window.electronAPI.auth.getValidTwitchToken();
+          const twitchUser = await window.electronAPI.auth.getTwitchUser();
+          if (cancelled || !accessToken || !twitchUser) return;
+          await twitchChatService.connect({
+            accessToken,
+            user: twitchUser,
+            clientId: import.meta.env.VITE_TWITCH_CLIENT_ID,
+            tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
+          });
+          if (cancelled) return;
+          await twitchChatService.joinChannel(channel, twitchUser.id);
+        } else {
+          await twitchChatService.connect({
+            anonymous: true,
+            debug: import.meta.env.DEV,
+          });
+          if (cancelled) return;
+          await twitchChatService.joinChannel(channel);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to swap Twitch chat identity:", err);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, channel]);
 
   // Pin polling — independent of IRC/auth so the banner can populate within
   // a network round-trip of mount (~50ms) instead of waiting on joinChannel.
