@@ -280,52 +280,86 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       `[KickFollows] BrowserWindow fallback: fetching ${FOLLOWED_CHANNELS_URL} via page context with XSRF header`
     );
 
+    // Try each candidate hostname in order. Live testing showed that
+    // kick_session_id is scoped to web.kick.com (not .kick.com), so a fetch
+    // to kick.com/api/v2/... omits that cookie even though kick_session is
+    // present — and the v2 endpoint may verify against the subdomain-scoped
+    // cookie. Trying web.kick.com first lets Laravel see the full session.
     let pageContent: string;
+    const candidates = [
+      "https://web.kick.com/api/v2/channels/followed",
+      "https://kick.com/api/v2/channels/followed",
+    ];
+    let lastFailure: { status: number; body: string; hadXsrf: boolean | null; url: string } | null =
+      null;
+
     try {
-      const fetchResult = (await win.webContents.executeJavaScript(
-        `(async () => {
-          try {
-            const xsrfMatch = document.cookie.match(/(?:^|;\\s*)XSRF-TOKEN=([^;]+)/);
-            const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : '';
-            const response = await fetch('/api/v2/channels/followed', {
-              method: 'GET',
-              credentials: 'include',
-              headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                ...(xsrf ? { 'X-XSRF-TOKEN': xsrf } : {}),
-              },
-            });
-            const status = response.status;
-            const body = await response.text().catch(() => '');
-            return JSON.stringify({ status, body, hadXsrf: !!xsrf });
-          } catch (e) {
-            return JSON.stringify({ status: 0, body: 'fetch-threw: ' + String(e), hadXsrf: null });
-          }
-        })()`
-      )) as string;
+      let success = false;
+      for (const url of candidates) {
+        const fetchResult = (await win.webContents.executeJavaScript(
+          `(async () => {
+            try {
+              const xsrfMatch = document.cookie.match(/(?:^|;\\s*)XSRF-TOKEN=([^;]+)/);
+              const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : '';
+              const response = await fetch(${JSON.stringify(url)}, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  ...(xsrf ? { 'X-XSRF-TOKEN': xsrf } : {}),
+                },
+              });
+              const status = response.status;
+              const body = await response.text().catch(() => '');
+              return JSON.stringify({ status, body, hadXsrf: !!xsrf });
+            } catch (e) {
+              return JSON.stringify({ status: 0, body: 'fetch-threw: ' + String(e), hadXsrf: null });
+            }
+          })()`
+        )) as string;
 
-      const parsed = JSON.parse(fetchResult) as {
-        status: number;
-        body: string;
-        hadXsrf: boolean | null;
-      };
-      console.warn(
-        `[KickFollows] BrowserWindow fallback: page-context fetch returned status=${parsed.status} hadXsrf=${parsed.hadXsrf} bodyLen=${parsed.body.length}`
-      );
-
-      if (parsed.status === 0) {
-        console.warn(`[KickFollows] BrowserWindow fallback: ${parsed.body}`);
-        return { status: "error", reason: "network-error" };
-      }
-      if (parsed.status === 401 || parsed.status === 403) {
-        _warnOnce(
-          "auth-failed",
-          `Kick v2 followed-channels (page-context fetch) HTTP ${parsed.status}. XSRF header was ${parsed.hadXsrf ? "attached" : "MISSING"}. Body preview: "${parsed.body.slice(0, 200)}"`
+        const parsed = JSON.parse(fetchResult) as {
+          status: number;
+          body: string;
+          hadXsrf: boolean | null;
+        };
+        console.warn(
+          `[KickFollows] BrowserWindow fallback: tried ${url} → status=${parsed.status} hadXsrf=${parsed.hadXsrf} bodyLen=${parsed.body.length}`
         );
-        return { status: "error", reason: "auth-failed" };
+
+        if (parsed.status === 200) {
+          pageContent = parsed.body;
+          success = true;
+          break;
+        }
+        lastFailure = { ...parsed, url };
       }
-      pageContent = parsed.body;
+
+      if (!success) {
+        if (!lastFailure) {
+          return { status: "error", reason: "network-error" };
+        }
+        if (lastFailure.status === 0) {
+          console.warn(`[KickFollows] BrowserWindow fallback: ${lastFailure.body}`);
+          return { status: "error", reason: "network-error" };
+        }
+        if (lastFailure.status === 401 || lastFailure.status === 403) {
+          _warnOnce(
+            "auth-failed",
+            `Kick v2 followed-channels rejected all candidate hosts. Last: ${lastFailure.url} → HTTP ${lastFailure.status}. XSRF header was ${lastFailure.hadXsrf ? "attached" : "MISSING"}. Body: "${lastFailure.body.slice(0, 200)}"`
+          );
+          return { status: "error", reason: "auth-failed" };
+        }
+        _warnOnce(
+          "parse-error",
+          `Kick v2 followed-channels: unexpected status ${lastFailure.status} from ${lastFailure.url}. Body: "${lastFailure.body.slice(0, 200)}"`
+        );
+        return { status: "error", reason: "parse-error" };
+      }
+
+      // TypeScript narrowing: success path means pageContent is set.
+      pageContent ??= "";
     } catch (err) {
       console.warn(
         `[KickFollows] BrowserWindow fallback: page-context fetch threw: ${err instanceof Error ? err.message : String(err)}`
