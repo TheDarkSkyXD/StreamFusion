@@ -150,7 +150,7 @@ export interface PredictionPreferences {
   /**
    * `native` (default) renders the widget in each platform's native styling
    * (Twitch purple with color-keyed side blocks and bubble chart; Kick green /
-   * pink dot pairs). `unified` renders both platforms in StreamForge's storm
+   * pink dot pairs). `unified` renders both platforms in StreamFusion's storm
    * accent for cross-platform consistency.
    */
   style: "native" | "unified";

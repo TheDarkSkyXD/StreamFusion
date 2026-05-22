@@ -315,7 +315,7 @@ Carried from origin's scope boundaries; this plan adds no scope beyond them.
 
 Per-unit verification is listed under each Implementation Unit above. End-to-end manual verification after all units land:
 
-1. Fresh install / clear session. Open StreamForge, click "Connect Kick," complete OAuth.
+1. Fresh install / clear session. Open StreamFusion, click "Connect Kick," complete OAuth.
 2. Wait ~2-3 seconds for `syncFollowsOnLogin('kick')` to complete in the background.
 3. Open the Following page → all kick.com follows are visible.
 4. Open the sidebar → followed channels appear with the correct avatars and display names.

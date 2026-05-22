@@ -36,7 +36,7 @@ import type {
   TwitchEventSubMessage,
 } from "./twitch-eventsub-types";
 
-// TODO(streamforge): consolidate the Twitch anonymous Client-Id into a
+// TODO(streamfusion): consolidate the Twitch anonymous Client-Id into a
 // single shared constant once the auth layer exposes one. For now we
 // duplicate the value used by twitch-helix-moderation-mutations.ts and
 // twitch-gql-pin-mutations.ts.

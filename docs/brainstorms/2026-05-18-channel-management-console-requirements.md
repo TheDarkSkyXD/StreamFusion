@@ -7,22 +7,22 @@ topic: channel-management-console
 
 ## Summary
 
-A unified channel-management console layered onto StreamForge that serves both **moderators** and **broadcasters** across five surfaces: a per-message hover toolbar (Timeout / Ban / Unban / Delete), an inline strip above the chat tabs for channel-mode toggles and one-shot actions, a username-click user popout with profile + per-user mod history + quick actions, chat-panel tabs (Chat / AutoMod / Mod log + Engagement on Twitch when broadcaster), and a `/mod` top-level route for per-channel mod settings and cross-channel banned-user search. Kick gets a from-scratch AutoMod implementation (keyword + 4-severity-tier filters) because Kick has no native AutoMod system. Persistent state (mod log, AutoMod config, allow-lists, Streamlabs tokens) extends the existing local SQLite layer (`apps/desktop/src/backend/services/database-service.ts`) fed by Twitch EventSub + Helix. Giveaways ship as an in-house keyword-based picker (both platforms) plus an optional Streamlabs OAuth integration; StreamElements is explicitly excluded since the service is winding down in 2026.
+A unified channel-management console layered onto StreamFusion that serves both **moderators** and **broadcasters** across five surfaces: a per-message hover toolbar (Timeout / Ban / Unban / Delete), an inline strip above the chat tabs for channel-mode toggles and one-shot actions, a username-click user popout with profile + per-user mod history + quick actions, chat-panel tabs (Chat / AutoMod / Mod log + Engagement on Twitch when broadcaster), and a `/mod` top-level route for per-channel mod settings and cross-channel banned-user search. Kick gets a from-scratch AutoMod implementation (keyword + 4-severity-tier filters) because Kick has no native AutoMod system. Persistent state (mod log, AutoMod config, allow-lists, Streamlabs tokens) extends the existing local SQLite layer (`apps/desktop/src/backend/services/database-service.ts`) fed by Twitch EventSub + Helix. Giveaways ship as an in-house keyword-based picker (both platforms) plus an optional Streamlabs OAuth integration; StreamElements is explicitly excluded since the service is winding down in 2026.
 
 ---
 
 ## Problem Frame
 
-Today, every moderation or broadcaster-engagement action a StreamForge user wants to take requires leaving the app: opening twitch.tv or kick.com in a browser, finding the message or user, and acting there. The friction is highest at the moments mods are most needed — during a raid, a hate spike, a backseat-modding incident, or a giveaway closeout. The existing pinned-message work (`apps/desktop/src/components/chat/PinnedMessageBanner.tsx`) and the dev-panel mod-action overrides established that the app can host mod-tier UI and the OAuth/scope plumbing works — but the user-facing surface stops at pin/unpin. There is no way to timeout, ban, delete, raid, run a poll, manage AutoMod, or even see who a chatter is, all of which mods and broadcasters do dozens of times per stream.
+Today, every moderation or broadcaster-engagement action a StreamFusion user wants to take requires leaving the app: opening twitch.tv or kick.com in a browser, finding the message or user, and acting there. The friction is highest at the moments mods are most needed — during a raid, a hate spike, a backseat-modding incident, or a giveaway closeout. The existing pinned-message work (`apps/desktop/src/components/chat/PinnedMessageBanner.tsx`) and the dev-panel mod-action overrides established that the app can host mod-tier UI and the OAuth/scope plumbing works — but the user-facing surface stops at pin/unpin. There is no way to timeout, ban, delete, raid, run a poll, manage AutoMod, or even see who a chatter is, all of which mods and broadcasters do dozens of times per stream.
 
-Broadcasters who self-mod are a particular pain case: they need both moderation reach (ban, timeout, AutoMod) and broadcaster reach (predictions, polls, giveaways, raids), and today have to keep two browser tabs open beside StreamForge to do their job. The app's identity-shift from "viewer/chat client" to "channel-management console" recognizes that the same human is wearing both hats simultaneously and serves both with one console.
+Broadcasters who self-mod are a particular pain case: they need both moderation reach (ban, timeout, AutoMod) and broadcaster reach (predictions, polls, giveaways, raids), and today have to keep two browser tabs open beside StreamFusion to do their job. The app's identity-shift from "viewer/chat client" to "channel-management console" recognizes that the same human is wearing both hats simultaneously and serves both with one console.
 
 ---
 
 ## Actors
 
-- A1. **Moderator** — a StreamForge user signed in to a Twitch or Kick account that has moderator role on at least one channel they are currently viewing. Primary user of Timeout/Ban/Unban/Delete, AutoMod review, mod log, user popout, and chat-mode toggles.
-- A2. **Broadcaster** — a StreamForge user viewing their own channel. Inherits all Moderator capabilities (A1) plus broadcaster-only actions: `/raid`, `/commercial`, Shield mode, add/remove mod + VIP, Engagement tab (Predictions, Polls, Giveaways).
+- A1. **Moderator** — a StreamFusion user signed in to a Twitch or Kick account that has moderator role on at least one channel they are currently viewing. Primary user of Timeout/Ban/Unban/Delete, AutoMod review, mod log, user popout, and chat-mode toggles.
+- A2. **Broadcaster** — a StreamFusion user viewing their own channel. Inherits all Moderator capabilities (A1) plus broadcaster-only actions: `/raid`, `/commercial`, Shield mode, add/remove mod + VIP, Engagement tab (Predictions, Polls, Giveaways).
 - A3. **Viewer** — any other signed-in (or guest) user. Read-only for everything in this brainstorm; named here only so requirements can explicitly hide mod surfaces from them.
 - A4. **Held-message author** — a chatter whose message AutoMod intercepted. Indirect actor; their message appears in the Twitch AutoMod queue or the Kick custom AutoMod queue awaiting review.
 
@@ -55,7 +55,7 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
   - **Trigger:** Broadcaster on their own Twitch channel opens the Engagement tab.
   - **Actors:** A2
   - **Steps:** Tab shows current active prediction (if any) or a "Create prediction" button → broadcaster fills in title and 2-10 outcome labels → sets prediction window (1s-1800s) → clicks Start → prediction is live; broadcaster can Lock or Cancel during the window; after the window closes, broadcaster picks a winning outcome → channel-points payout fires on Twitch.
-  - **Outcome:** Active prediction lifecycle managed entirely inside StreamForge for the broadcaster's own channel.
+  - **Outcome:** Active prediction lifecycle managed entirely inside StreamFusion for the broadcaster's own channel.
   - **Covered by:** R37, R38, R39, R44
 
 - F5. **Run an in-house giveaway**
@@ -125,7 +125,7 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 
 **Mod log**
 
-- R33. The mod log SHALL record every observable mod action on every channel the signed-in user views (or moderates), regardless of whether the action originated from inside StreamForge or from another client. Source events: Twitch EventSub `channel.moderate`, IRC CLEARCHAT/CLEARMSG, Helix `/moderation/bans` polling at session start; on Kick, the corresponding chatroom-event channels.
+- R33. The mod log SHALL record every observable mod action on every channel the signed-in user views (or moderates), regardless of whether the action originated from inside StreamFusion or from another client. Source events: Twitch EventSub `channel.moderate`, IRC CLEARCHAT/CLEARMSG, Helix `/moderation/bans` polling at session start; on Kick, the corresponding chatroom-event channels.
 - R34. Each mod log entry SHALL capture: action type, target username + user-id, acting moderator username + user-id (when known), action duration (for timeouts), reason (when provided), and a timestamp. Entries SHALL persist in a local SQLite store across app restarts.
 - R35. Mod log retention SHALL default to forever-with-manual-clear, with a per-channel "Clear log for this channel" button and an additional global setting allowing user-configurable rolling retention (7 days / 30 days / 90 days / forever).
 - R36. The mod log entries SHALL be addressable by user (clicking a target username opens the user popout per R14, which then displays this user's mod-log entries on the current channel per R15).
@@ -182,7 +182,7 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 
 ## Success Criteria
 
-- A moderator can complete a full timeout → mod-log-verify cycle without leaving StreamForge.
+- A moderator can complete a full timeout → mod-log-verify cycle without leaving StreamFusion.
 - A broadcaster can run a prediction, a poll, and an in-house giveaway end-to-end without opening twitch.tv.
 - The AutoMod tab on Twitch surfaces every held message within ≤2 seconds of Twitch's EventSub emitting the hold event, and approval/denial round-trips complete within ≤1 second.
 - The Kick custom AutoMod intercepts messages before they appear in the Chat tab (no flicker).
@@ -220,7 +220,7 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 - **Sonner library for toasts.** Resolves the existing `TwitchChat.tsx:527` "toast/error surface is a future follow-up" TODO with a single Toaster mount in `App.tsx`.
 - **All OAuth scopes added in one batch, with batched reconnect-dialog.** Chose one consent screen over scope-on-first-use. The reconnect dialog will list all currently-missing scopes for the actions visible in the active console, not just one.
 - **Hybrid surface layout.** Chat-panel tabs handle channel-scoped persistent surfaces (AutoMod, Mod log, Engagement). Inline strip above tabs handles channel-scoped one-shot actions + chat-mode toggles. Username popout handles per-user context. `/mod` top-level route handles cross-channel settings + search.
-- **Identity shift recorded.** StreamForge's user model is being expanded from "viewers" to "viewers + moderators + broadcasters." This is a positioning decision, not just a feature addition.
+- **Identity shift recorded.** StreamFusion's user model is being expanded from "viewers" to "viewers + moderators + broadcasters." This is a positioning decision, not just a feature addition.
 
 ---
 
@@ -230,7 +230,7 @@ Broadcasters who self-mod are a particular pain case: they need both moderation 
 - The existing `ReconnectForModDialog` (`apps/desktop/src/components/auth/ReconnectForModDialog.tsx`) can be extended to accept a list of missing scopes rather than a single fixed scope. If not, planning may need to refactor it.
 - The existing Cloudflare Worker token exchange is a pure pass-through with no scope allow-list (verified during pinned-message work and captured in `feedback_electron_mcp_eval.md` memory). Adding scopes to `oauth-config.ts` is sufficient on Twitch's side; the Worker requires no change.
 - Twitch's EventSub WebSocket transport (not webhook) is reachable from the Electron renderer over standard WS. Twitch's published session-keepalive behavior holds.
-- Kick's chatroom Pusher events expose enough mod-action signal to populate the Kick side of the mod log. Where they do not, the Kick mod log will reflect only actions taken from inside StreamForge (locally-originated, locally-logged).
+- Kick's chatroom Pusher events expose enough mod-action signal to populate the Kick side of the mod log. Where they do not, the Kick mod log will reflect only actions taken from inside StreamFusion (locally-originated, locally-logged).
 - The `react-icons` package already in the app contains the gavel, hourglass, circle-slash, and trash icons needed for the new toolbar (otherwise a separate icon-asset decision is needed).
 - Sonner is a viable library for this codebase (no React-version conflicts, no peer-dep issues with existing Radix usage).
 - Streamlabs's public OAuth API remains stable enough to integrate against. If it deprecates or paywalls, the connector becomes deferred — in-house giveaways still ship.

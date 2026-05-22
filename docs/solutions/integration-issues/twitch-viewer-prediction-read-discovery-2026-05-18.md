@@ -10,7 +10,7 @@ status: investigation_incomplete
 
 ## Context
 
-The viewer-prediction widget plan (`docs/plans/2026-05-18-002-feat-viewer-prediction-widget-plan.md` U2) assumed a viewer-side GQL prediction read query exists in twitch.tv's web client now that PubSub (`predictions-channel-v1.<channel_id>`) was shut down on 2026-04-14. This doc captures what was confirmed and what remains unknown after a session of probing the renderer from inside StreamForge via electron-mcp.
+The viewer-prediction widget plan (`docs/plans/2026-05-18-002-feat-viewer-prediction-widget-plan.md` U2) assumed a viewer-side GQL prediction read query exists in twitch.tv's web client now that PubSub (`predictions-channel-v1.<channel_id>`) was shut down on 2026-04-14. This doc captures what was confirmed and what remains unknown after a session of probing the renderer from inside StreamFusion via electron-mcp.
 
 ## Confirmed
 
@@ -34,7 +34,7 @@ The viewer-prediction widget plan (`docs/plans/2026-05-18-002-feat-viewer-predic
 
 ## Probe helper for next session
 
-When the user has an active-prediction Twitch channel open in the StreamForge app, this snippet can be pasted into the renderer console (or fired via electron-mcp) to test a candidate operation name and capture the result:
+When the user has an active-prediction Twitch channel open in the StreamFusion app, this snippet can be pasted into the renderer console (or fired via electron-mcp) to test a candidate operation name and capture the result:
 
 ```js
 (async () => {
@@ -63,7 +63,7 @@ When the user has an active-prediction Twitch channel open in the StreamForge ap
 
 ## Recommended next step
 
-User navigates twitch.tv directly (in a regular browser, NOT the StreamForge app) to an active-prediction channel. Captures DevTools Network tab traffic through one full prediction lifecycle. Pastes findings here. The plan's investigation-first execution note on U2 anticipated this — the gap was assuming StreamForge's renderer could substitute for browser DevTools on twitch.tv, which it cannot (the app doesn't load twitch.tv's web client; it speaks to twitch.tv's API directly).
+User navigates twitch.tv directly (in a regular browser, NOT the StreamFusion app) to an active-prediction channel. Captures DevTools Network tab traffic through one full prediction lifecycle. Pastes findings here. The plan's investigation-first execution note on U2 anticipated this — the gap was assuming StreamFusion's renderer could substitute for browser DevTools on twitch.tv, which it cannot (the app doesn't load twitch.tv's web client; it speaks to twitch.tv's API directly).
 
 ## Second-pass attempt via Playwright (also incomplete)
 

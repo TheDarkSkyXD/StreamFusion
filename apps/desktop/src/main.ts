@@ -8,8 +8,6 @@
 // Load environment variables from .env file FIRST (before other imports)
 import "dotenv/config";
 
-import * as fs from "node:fs";
-import * as path from "node:path";
 import {
   app,
   BrowserWindow,
@@ -51,15 +49,20 @@ if (!isProduction) {
   app.setPath("userData", devUserDataPath);
   console.debug(`📂 Development mode: User data path set to ${devUserDataPath}`);
 
-  // Default to 9231 — the port this project is registered under in the
-  // debug-electron MCP as `streamforge-monorepo`, so `npm start` is
+  // NOTE: if productName ever changes again, a migration shim is needed to copy
+  // old userData files and rename localStorage keys before services initialize
+  // — see git history for the migrateUserData/renameOldFiles pattern removed
+  // in the StreamFusion rebrand.
+
+  // Default to 9236 — the port this project is registered under in the
+  // debug-electron MCP as `streamfusion-monorepo`, so `npm start` is
   // discoverable out of the box. Skip the override if the CLI already
   // passed `--remote-debugging-port` (e.g. `dev:mcp` forces 9222 for
   // Playwright tooling) — appendSwitch would otherwise clobber it.
   const hasCliPort = process.argv.some((a) => a.startsWith("--remote-debugging-port"));
   if (!hasCliPort) {
-    app.commandLine.appendSwitch("remote-debugging-port", "9231");
-    console.debug("🔌 CDP remote debugging enabled on port 9231 for debug-electron MCP");
+    app.commandLine.appendSwitch("remote-debugging-port", "9236");
+    console.debug("🔌 CDP remote debugging enabled on port 9236 for debug-electron MCP");
   } else {
     console.debug("🔌 CDP remote debugging using port from CLI args");
   }
@@ -67,79 +70,6 @@ if (!isProduction) {
   app.commandLine.appendSwitch("remote-debugging-port", "9005");
   console.debug("🔌 CDP remote debugging enabled on port 9005 for Production");
 }
-
-// Migrate userData from old "StreamStorm" or "StreamForge" directories to new "StreamFusion"
-// directory so existing users don't lose their database, settings, or preferences.
-// Checks StreamForge first (most recent previous name), then StreamStorm (original name).
-function migrateUserData(): void {
-  const newUserData = app.getPath("userData");
-
-  const candidates = [
-    newUserData.replace(/StreamFusion/g, "StreamForge"),
-    newUserData.replace(/StreamFusion/g, "StreamStorm"),
-  ];
-
-  for (const oldUserData of candidates) {
-    if (oldUserData === newUserData) continue;
-    if (!fs.existsSync(oldUserData)) continue;
-
-    try {
-      if (!fs.existsSync(newUserData)) {
-        fs.mkdirSync(newUserData, { recursive: true });
-      }
-
-      const files = fs.readdirSync(oldUserData);
-      for (const file of files) {
-        const src = path.join(oldUserData, file);
-        const dest = path.join(newUserData, file);
-        if (!fs.existsSync(dest)) {
-          fs.cpSync(src, dest, { recursive: true });
-        }
-      }
-      console.debug(`📦 Migrated user data from ${oldUserData} to ${newUserData}`);
-    } catch (e) {
-      console.warn("⚠️ Failed to migrate user data from old directory:", e);
-    }
-  }
-}
-
-/**
- * Rename old "streamforge" and "streamstorm" files to "streamfusion" within the userData directory.
- * Covers database files, electron-store config files, etc.
- */
-function renameOldFiles(): void {
-  const userData = app.getPath("userData");
-  const renames: [string, string][] = [
-    // StreamForge → StreamFusion (previous name)
-    ["streamforge.db", "streamfusion.db"],
-    ["streamforge.db-wal", "streamfusion.db-wal"],
-    ["streamforge.db-shm", "streamfusion.db-shm"],
-    ["streamforge-storage.json", "streamfusion-storage.json"],
-    ["streamforge-adblock-patterns.json", "streamfusion-adblock-patterns.json"],
-    // StreamStorm → StreamFusion (original name, for users who skipped StreamForge)
-    ["streamstorm.db", "streamfusion.db"],
-    ["streamstorm.db-wal", "streamfusion.db-wal"],
-    ["streamstorm.db-shm", "streamfusion.db-shm"],
-    ["streamstorm-storage.json", "streamfusion-storage.json"],
-    ["streamstorm-adblock-patterns.json", "streamfusion-adblock-patterns.json"],
-  ];
-
-  for (const [oldName, newName] of renames) {
-    const oldPath = path.join(userData, oldName);
-    const newPath = path.join(userData, newName);
-    try {
-      if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
-        fs.renameSync(oldPath, newPath);
-        console.debug(`📦 Renamed ${oldName} → ${newName}`);
-      }
-    } catch (e) {
-      console.warn(`⚠️ Failed to rename ${oldName}:`, e);
-    }
-  }
-}
-
-migrateUserData();
-renameOldFiles();
 
 // ============================================================================
 // CRASH-RESISTANT RUNTIME FLAGS

@@ -28,7 +28,7 @@ vi.mock("electron", () => ({
 import { DatabaseService } from "@/backend/services/database-service";
 
 function makeTmpDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "streamforge-dbtest-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "streamfusion-dbtest-"));
   return dir;
 }
 

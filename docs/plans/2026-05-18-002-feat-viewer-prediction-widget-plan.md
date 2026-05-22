@@ -10,13 +10,13 @@ origin: docs/brainstorms/2026-05-18-viewer-prediction-widget-requirements.md
 
 ## Summary
 
-Build a viewer-facing prediction widget in the chat panel of both Twitch and Kick channels — collapsed banner → expanded detail panel → ended-state recap — with start detection (5s GQL polling on Twitch following the 2026-04-14 PubSub shutdown; Kick Pusher event subscription with REST-polling fallback), voting from inside StreamForge (Twitch GQL `MakePrediction` mutation; Kick vote endpoint reverse-engineered during implementation with read-only fallback), three visual styles (Twitch-native, Kick-native, unified StreamForge) selectable from a new dedicated **Predictions** Settings section, and matching ChatSimTool dev-injection parity (predictions live + ended for both platforms, plus the missing Twitch poll-injection pair).
+Build a viewer-facing prediction widget in the chat panel of both Twitch and Kick channels — collapsed banner → expanded detail panel → ended-state recap — with start detection (5s GQL polling on Twitch following the 2026-04-14 PubSub shutdown; Kick Pusher event subscription with REST-polling fallback), voting from inside StreamFusion (Twitch GQL `MakePrediction` mutation; Kick vote endpoint reverse-engineered during implementation with read-only fallback), three visual styles (Twitch-native, Kick-native, unified StreamFusion) selectable from a new dedicated **Predictions** Settings section, and matching ChatSimTool dev-injection parity (predictions live + ended for both platforms, plus the missing Twitch poll-injection pair).
 
 ---
 
 ## Problem Frame
 
-Viewer-side prediction surfaces are invisible in StreamForge today, while every native client and most competitors show them prominently above chat with live tallies and a vote affordance. Origin doc carries the full pain framing; this plan focuses on the **how**. The brainstorm assumed PubSub for Twitch real-time with GQL polling as fallback, but PubSub was fully shut down on 2026-04-14 (about a month before plan date), so the "fallback" path is now the primary and the IRC-tag investigation lands as a separate optional unit. (see origin: `docs/brainstorms/2026-05-18-viewer-prediction-widget-requirements.md`)
+Viewer-side prediction surfaces are invisible in StreamFusion today, while every native client and most competitors show them prominently above chat with live tallies and a vote affordance. Origin doc carries the full pain framing; this plan focuses on the **how**. The brainstorm assumed PubSub for Twitch real-time with GQL polling as fallback, but PubSub was fully shut down on 2026-04-14 (about a month before plan date), so the "fallback" path is now the primary and the IRC-tag investigation lands as a separate optional unit. (see origin: `docs/brainstorms/2026-05-18-viewer-prediction-widget-requirements.md`)
 
 ---
 
@@ -65,7 +65,6 @@ All 30 requirements from the origin requirements doc are addressed by this plan.
 - **Twitch IRC tag investigation for near-real-time prediction signals**: investigate whether Twitch sends prediction-related tags on IRC PRIVMSG / USERNOTICE messages (e.g., `prediction-id`, `outcome` markers) that the existing tmi.js client could surface as a refresh trigger supplementing the 5s GQL polling. Originally scoped as a numbered unit (U10); collapsed to follow-up because it is investigation-first, zero-code if no tags surface, and the polling baseline already satisfies R13. If the investigation finds useful tags, capture in a `docs/solutions/` artifact and open a follow-up plan to wire them.
 - **R25-R27 multistream slot isolation**: reactivate when multistream chat gains a real mount. Currently a stub in `MultiStream/index.tsx:125-131`.
 - **PubSub-equivalent EventSub viewer path on own channel only**: if user demand surfaces for real-time prediction events when watching one's *own* channel, the asymmetric EventSub-on-own-channel path (option 4 in the planning question) becomes a follow-up. Not included in this plan.
-- **Brand-drift cleanup** (code references "StreamFusion" while user-facing name is StreamForge): noticed during research but explicitly out of scope per surgical-changes guidance in `CLAUDE.md`.
 - **`docs/solutions/` learning capture** for the new PubSub-replacement real-time pattern: candidate for `/ce-compound` after this work ships (no current learning entry exists for real-time event flow on either platform).
 
 ---
@@ -643,7 +642,7 @@ UnifiedPrediction {
 - Mirror the existing playback-section pattern. SidebarItem labeled "Predictions" with whatever icon convention the Settings page uses (likely a small SVG; pick one consistent with other sidebar items).
 - Content block: section header "Predictions", subheader "Visual style", two radio options or a segmented control:
   - **Native (default)** — "Match each platform's native style: Twitch purple/bubbles, Kick green/pink dots."
-  - **Unified StreamForge** — "Same look on both platforms using StreamForge's accent color."
+  - **Unified StreamFusion** — "Same look on both platforms using StreamFusion's accent color."
 - On change: `updatePreferences({ predictions: { style: <newValue> } })`. The mounted prediction widget(s) re-render automatically via the Zustand subscription.
 
 **Patterns to follow:**

@@ -7,7 +7,7 @@ topic: kick-account-follows-import
 
 ## Summary
 
-After a user signs into Kick, the channels they follow on kick.com are imported into StreamForge's local follow store as `account`-source rows — the same one-way sync model the Twitch side already uses. The list refreshes on each Kick login.
+After a user signs into Kick, the channels they follow on kick.com are imported into StreamFusion's local follow store as `account`-source rows — the same one-way sync model the Twitch side already uses. The list refreshes on each Kick login.
 
 ---
 
@@ -17,7 +17,7 @@ Twitch users who log in get their twitch.tv follows imported automatically: the 
 
 For Kick, the same hook fires (`syncFollowsOnLogin('kick')` runs on every Kick login) but `kickClient.getAllFollowedChannels()` returns an empty array. The comment in `apps/desktop/src/backend/api/platforms/kick/kick-client.ts:756` explains why: "Kick official API does not support followed channels endpoint." Verified live on 2026-05-21 against `docs.kick.com` — still no official endpoint. The only follow-related primitive in the public API is the `channel.followed` webhook event, which fires per-follow and has no bulk-list form.
 
-The user-visible cost: a user logs into Kick, the app reports "connected," but their actual Kick follows never appear. The sidebar shows only whatever they happen to have followed locally in StreamForge. The Following page treats it as if they had nothing followed on Kick. The 60s `getFollowedStreams` poll runs against an empty set. Two recent commits (`525d19c`, `b648691`) muted symptoms of this gap rather than closing it.
+The user-visible cost: a user logs into Kick, the app reports "connected," but their actual Kick follows never appear. The sidebar shows only whatever they happen to have followed locally in StreamFusion. The Following page treats it as if they had nothing followed on Kick. The 60s `getFollowedStreams` poll runs against an empty set. Two recent commits (`525d19c`, `b648691`) muted symptoms of this gap rather than closing it.
 
 ---
 
@@ -31,7 +31,7 @@ The user-visible cost: a user logs into Kick, the app reports "connected," but t
     3. Sync clears existing `account`-source Kick rows in the local DB and inserts one row per imported channel.
     4. Main process emits `AUTH_FOLLOWS_SYNCED` with `platform: 'kick'`.
     5. Renderer re-hydrates `useFollowStore`, invalidates the followed-channels and followed-streams React-Query caches, and the sidebar / Following page repaint with imported rows.
-  - **Outcome:** All channels the user follows on kick.com appear in StreamForge as `account`-source follows. `FollowButton` on any of those channels shows the "following" state immediately.
+  - **Outcome:** All channels the user follows on kick.com appear in StreamFusion as `account`-source follows. `FollowButton` on any of those channels shows the "following" state immediately.
   - **Failure path:** If the fetch fails for any reason (Cloudflare challenge, expired cookies, endpoint shape change, network down), no DB writes happen, a single warning is logged, login still completes, and the existing guest follows surface via the existing `getActiveFollowsByPlatform` fallback. No toast on this path — it should fail quiet, the same way the empty-stub does today.
   - **Covered by:** R1, R2, R3, R4, R7
 
@@ -41,7 +41,7 @@ The user-visible cost: a user logs into Kick, the app reports "connected," but t
     1. Button detects "account-source Kick row" and shows a toast: "Manage this follow on Kick" with an "Open Kick" action.
     2. User clicks the action; app opens `https://kick.com/{username}` in the system browser.
     3. User unfollows on kick.com.
-    4. On next Kick login (or token refresh that re-runs sync), the row disappears from StreamForge.
+    4. On next Kick login (or token refresh that re-runs sync), the row disappears from StreamFusion.
   - **Outcome:** Unfollow eventually reconciles via re-sync, without the local DB being mutated in a way the next sync would undo.
   - **Covered by:** R5, R6
 
@@ -67,7 +67,7 @@ The user-visible cost: a user logs into Kick, the app reports "connected," but t
 
 ## Acceptance Examples
 
-- AE1. **Covers R1, R3.** Given the user follows 12 channels on kick.com and StreamForge has 3 pre-existing `account`-source Kick rows from an earlier session, when the user completes Kick OAuth login, after the background sync settles, the local DB contains exactly the 12 channels currently followed on kick.com and the previous 3 are gone (re-pruned then re-imported).
+- AE1. **Covers R1, R3.** Given the user follows 12 channels on kick.com and StreamFusion has 3 pre-existing `account`-source Kick rows from an earlier session, when the user completes Kick OAuth login, after the background sync settles, the local DB contains exactly the 12 channels currently followed on kick.com and the previous 3 are gone (re-pruned then re-imported).
 - AE2. **Covers R4.** Given the Kick sync completes successfully and the user is currently on the Following page, when the `AUTH_FOLLOWS_SYNCED` event fires, the page re-renders and shows the newly imported follows without requiring a manual refresh.
 - AE3. **Covers R5.** Given a user is signed into Kick and the sidebar shows a Kick channel they imported from kick.com, when the user clicks the heart icon on that channel's `FollowButton`, no local DB row is removed and a toast appears offering to open kick.com to manage the follow.
 - AE4. **Covers R6.** Given a user is signed into Kick but ALSO has a Kick guest-source follow they added manually before logging in (e.g., a channel they don't follow on kick.com — possible if the local DB held the guest row before login), when the user clicks the heart on that guest row, the row is removed locally exactly as in current guest-mode behavior.
@@ -77,7 +77,7 @@ The user-visible cost: a user logs into Kick, the app reports "connected," but t
 
 ## Success Criteria
 
-- A Kick user who follows N channels on kick.com sees those N channels in the StreamForge sidebar and Following page within seconds of completing Kick login, without manually re-following any of them.
+- A Kick user who follows N channels on kick.com sees those N channels in the StreamFusion sidebar and Following page within seconds of completing Kick login, without manually re-following any of them.
 - A downstream implementer can wire the fetch into `kickClient.getAllFollowedChannels()` and unblock the existing `syncFollowsOnLogin('kick')` path without changing the renderer, the storage service, the `account`/`guest` source model, or the `AUTH_FOLLOWS_SYNCED` contract.
 - Unfollowing an imported row no longer produces the "heart bounce-back" failure mode where a local removal is undone on the next sync.
 
@@ -85,7 +85,7 @@ The user-visible cost: a user logs into Kick, the app reports "connected," but t
 
 ## Scope Boundaries
 
-- Bidirectional sync (clicking Follow in StreamForge causing a `POST /api/v2/channels/{slug}/follow` on kick.com) — out. Import-only was the user's explicit choice.
+- Bidirectional sync (clicking Follow in StreamFusion causing a `POST /api/v2/channels/{slug}/follow` on kick.com) — out. Import-only was the user's explicit choice.
 - Multi-account scoping (separate follow lists per Kick user id) — out. Single Kick account at a time, matching today's model.
 - Periodic background re-sync between logins — out. Login is the only refresh trigger.
 - Importing subscriptions, mod channels, blocked users, or any other Kick relationship — out. Only the followed-channels list.

@@ -273,7 +273,7 @@ export function SettingsPage() {
                       <p className="font-medium text-zinc-200">Style</p>
                       <p className="text-sm text-zinc-500 mt-1">
                         Native matches each platform's own UI (Twitch purple with bubble chart;
-                        Kick green/pink dot pairs). Unified uses StreamForge's storm accent on
+                        Kick green/pink dot pairs). Unified uses StreamFusion's storm accent on
                         both platforms.
                       </p>
                     </div>
@@ -292,7 +292,7 @@ export function SettingsPage() {
                         </SelectTrigger>
                         <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                           <SelectItem value="native">Native (per platform)</SelectItem>
-                          <SelectItem value="unified">Unified StreamForge</SelectItem>
+                          <SelectItem value="unified">Unified StreamFusion</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

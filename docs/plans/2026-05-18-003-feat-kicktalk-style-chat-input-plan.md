@@ -172,7 +172,7 @@ The tree is a scope declaration. The implementer may adjust filenames or directo
 
 ### U2. Add `accountAge` to `RoomState`; update default + selector test
 
-**Goal:** Foundation for R18 (Kick chatroom-info seeding) and R10/R25 (banner). KickTalk's InfoBar handles account-age mode but StreamForge's `RoomState` does not yet model it.
+**Goal:** Foundation for R18 (Kick chatroom-info seeding) and R10/R25 (banner). KickTalk's InfoBar handles account-age mode but StreamFusion's `RoomState` does not yet model it.
 
 **Requirements:** R10 (partial), R18 (partial), R25.
 
@@ -444,7 +444,7 @@ This illustrates the intended race-protection model and is directional guidance 
 
 **Patterns to follow:**
 - `reference/KickTalk-main/src/renderer/src/components/Chat/Input/InfoBar.jsx` lines 10–43 (precedence chain + label formatting) and lines 45–91 (tooltip with active-mode list).
-- StreamForge tooltip / popover primitives — check `apps/desktop/src/components/ui/` for existing patterns (likely a Tooltip component to mirror).
+- StreamFusion tooltip / popover primitives — check `apps/desktop/src/components/ui/` for existing patterns (likely a Tooltip component to mirror).
 
 **Test scenarios:**
 - No active mode → returns `null` (renders nothing).
@@ -500,7 +500,7 @@ This illustrates the intended race-protection model and is directional guidance 
 
 **Patterns to follow:**
 - KickTalk reference: `reference/KickTalk-main/src/renderer/src/components/Chat/Input/EmoteDialogs.jsx`.
-- StreamForge current popover-positioning convention (verify during implementation in `apps/desktop/src/components/ui/`).
+- StreamFusion current popover-positioning convention (verify during implementation in `apps/desktop/src/components/ui/`).
 - `EmotePicker.tsx` lines 110–142 for outside-click + Escape patterns.
 - `useShallow` from `zustand/react/shallow` for multi-field store selection (used in current EmotePicker lines 86–96).
 

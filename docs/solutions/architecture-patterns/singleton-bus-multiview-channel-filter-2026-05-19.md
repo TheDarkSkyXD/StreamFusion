@@ -35,7 +35,7 @@ tags:
 
 ## Context
 
-StreamForge runs chat through two process-wide singletons —
+StreamFusion runs chat through two process-wide singletons —
 `twitchChatService` and `kickChatService` (in
 `apps/desktop/src/backend/services/chat/`) — that expose a single event bus
 shared by every mounted chat panel. The Hermes WebSocket client parses

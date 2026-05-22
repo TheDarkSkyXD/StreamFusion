@@ -72,13 +72,13 @@ The tools it provides (visible to Claude as `mcp__debug-electron-mcp__*`):
    Restart Claude Code so it picks up the new server. Once restarted, you should see `mcp__debug-electron-mcp__*` tools in Claude's tool list.
 
 3. **Register this project with the MCP server** (one-time, from inside Claude):
-   Ask Claude to call:
+   Ask Claude to call (substitute your local checkout path for `<absolute-path-to-this-checkout>`):
 
    ```
    mcp__debug-electron-mcp__register_project
-     path: "F:/My Github Repos/Open Source Repos/StreamForge- kick, twitch desktop app/StreamForge/apps/desktop"
+     path: "<absolute-path-to-this-checkout>/apps/desktop"
      port: 9222
-     name: "streamfusion"
+     name: "streamfusion-monorepo"
    ```
 
 4. **Start the app in dev mode**:

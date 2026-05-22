@@ -35,7 +35,7 @@ tags:
 
 ## Problem
 
-Kick exposes two distinct numeric identifiers per broadcaster — `user_id` and `channel.id` — and StreamForge's follow store was keying by a single id string. Avatar URLs use `files.kick.com/images/user/<user_id>/...` while banners use `files.kick.com/images/channel/<channel.id>/...`; the two numbers do not match for the same broadcaster.
+Kick exposes two distinct numeric identifiers per broadcaster — `user_id` and `channel.id` — and StreamFusion's follow store was keying by a single id string. Avatar URLs use `files.kick.com/images/user/<user_id>/...` while banners use `files.kick.com/images/channel/<channel.id>/...`; the two numbers do not match for the same broadcaster.
 
 `apps/desktop/src/backend/api/platforms/kick/endpoints/channel-endpoints.ts:368` (`getPublicChannel`) prefers `data.id` (channel.id) over `data.user_id`, but legacy SQLite follow rows written before that switch still carry `user_id`. Numeric ↔ numeric lookups across the dual-ID schema cannot bridge them.
 

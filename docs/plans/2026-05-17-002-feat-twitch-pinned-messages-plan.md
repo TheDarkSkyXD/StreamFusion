@@ -15,7 +15,7 @@ Ship a Twitch pinned-message feature that mirrors Twitch.tv's native viewer card
 
 ## Problem Frame
 
-Twitch streamers and mods pin messages constantly — links, brackets, charity totals, schedule notes — and the surface is invisible in StreamForge today. Kick pinned messages already work but render as an edge-to-edge `border-b` strip with "Sent by X" labeling that diverges from Twitch's prominent inset "Pinned by X" card. Building the Twitch side is the right moment to unify on one shared banner rather than ship a second divergent one. The work cuts across IRC parsing, GraphQL, OAuth scope expansion, a new mod-role cache, a shared chat component, the dev simulator, and multistream verification. None of the open questions from the origin doc were product blockers; they are all technical (data source, OAuth scope, mod-channels cache existence) and are resolved below.
+Twitch streamers and mods pin messages constantly — links, brackets, charity totals, schedule notes — and the surface is invisible in StreamFusion today. Kick pinned messages already work but render as an edge-to-edge `border-b` strip with "Sent by X" labeling that diverges from Twitch's prominent inset "Pinned by X" card. Building the Twitch side is the right moment to unify on one shared banner rather than ship a second divergent one. The work cuts across IRC parsing, GraphQL, OAuth scope expansion, a new mod-role cache, a shared chat component, the dev simulator, and multistream verification. None of the open questions from the origin doc were product blockers; they are all technical (data source, OAuth scope, mod-channels cache existence) and are resolved below.
 
 ---
 
@@ -352,7 +352,7 @@ The implementer may adjust this structure if implementation reveals a better lay
 - `useIsTwitchMod(null)` returns `false`.
 - After 5 minutes from `hydratedAt`, a mod-role read triggers a background re-hydrate but returns the cached value synchronously.
 
-**Verification:** store tests pass; manual verification: log in as a known mod of channel X, open channel X in StreamForge, observe that `useIsTwitchMod(channelXId)` returns `true` in React DevTools.
+**Verification:** store tests pass; manual verification: log in as a known mod of channel X, open channel X in StreamFusion, observe that `useIsTwitchMod(channelXId)` returns `true` in React DevTools.
 
 ---
 
@@ -556,7 +556,7 @@ None. This plan covers all 22 origin requirements.
 
 ### Outside this product's identity
 
-- N/A (no such subsection in the origin document; the feature is squarely within StreamForge's chat-client identity).
+- N/A (no such subsection in the origin document; the feature is squarely within StreamFusion's chat-client identity).
 
 ### Deferred to Follow-Up Work
 
@@ -584,7 +584,7 @@ None. This plan covers all 22 origin requirements.
 | `USERNOTICE` `msg-id` values for pinned messages differ from documented form (`pinned-chat-message-created` etc.) | Low | Pin events never fire | Live IRC capture in U4 before parser is finalized. Explicit `Execution note` on U4. |
 | Existing Twitch users without expanded scopes try mod actions and get confused | Medium | Friction, support load | Lazy reconnect dialog (U7) explains the situation in one sentence; one click to fix. |
 | Worker scope allow-list update is forgotten | Low | OAuth flow rejects new scopes; users can't reconnect | U7 verification calls it out explicitly and the deploy checklist for this feature must include it. |
-| Helix `GET /moderation/channels` rate limits hit a streamer who mods 100+ channels | Very low | Stale mod-channel list | 5-min cache with background refresh (D6). Streamers modding 100+ channels are rare in StreamForge's user base. |
+| Helix `GET /moderation/channels` rate limits hit a streamer who mods 100+ channels | Very low | Stale mod-channel list | 5-min cache with background refresh (D6). Streamers modding 100+ channels are rare in StreamFusion's user base. |
 | Optimistic banner from U8 fires before the real `USERNOTICE` arrives, then the real event creates a flicker | Medium | Visible UI jitter | Reconcile by `pinned-chat-message-id`: if the optimistic id matches the real id, suppress the re-render; if they differ, the real one wins. Asserted in U8 test scenario. |
 | R7 internal-tension flag from research: Twitch native has no viewer dismiss, but we ship one | Low | Slight divergence from Twitch UX | Intentional product decision in the brainstorm (User picked "Mods see Unpin, viewers see Dismiss" hybrid). Documented in D5 and surfaced in the README of the shared banner if/when written. |
 | `force_verify=true` re-consent screen confuses users who weren't expecting it | Low | Short-term friction | Already in place today for the existing flow; adding scopes doesn't change this UX. |
@@ -615,8 +615,8 @@ None. This plan covers all 22 origin requirements.
 
 ## Success Metrics
 
-- A viewer in StreamForge sees the same pinned message as on twitch.tv for the same channel, with comparable visual styling.
-- A mod can pin and unpin Twitch messages without leaving StreamForge.
+- A viewer in StreamFusion sees the same pinned message as on twitch.tv for the same channel, with comparable visual styling.
+- A mod can pin and unpin Twitch messages without leaving StreamFusion.
 - Both Twitch and Kick banners render through the shared component (visual identical).
 - Multistream slot switching does not bleed pin state between slots (covered by AE4 + U5 test).
 - The dev simulator can drive a Twitch pin/unpin through the production render path.

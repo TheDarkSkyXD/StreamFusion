@@ -7,15 +7,15 @@ topic: twitch-pinned-messages
 
 ## Summary
 
-Add pinned-message support to Twitch chat in StreamForge — both viewer-side display (mirroring Twitch.tv's native inset card) and a moderator surface (pin from message context menu, set duration, unpin, reply to pinned author). Introduce one shared `PinnedMessageBanner` component used by both Twitch and Kick chats so the two platforms feel consistent inside StreamForge; Kick's existing edge-to-edge banner is retrofitted to the new Twitch-faithful card. The feature works in single-stream and multistream views with per-slot isolation: each slot reflects its own channel's pin, dismiss state is per-slot, and mod controls are gated by the signed-in user's mod role on that specific channel.
+Add pinned-message support to Twitch chat in StreamFusion — both viewer-side display (mirroring Twitch.tv's native inset card) and a moderator surface (pin from message context menu, set duration, unpin, reply to pinned author). Introduce one shared `PinnedMessageBanner` component used by both Twitch and Kick chats so the two platforms feel consistent inside StreamFusion; Kick's existing edge-to-edge banner is retrofitted to the new Twitch-faithful card. The feature works in single-stream and multistream views with per-slot isolation: each slot reflects its own channel's pin, dismiss state is per-slot, and mod controls are gated by the signed-in user's mod role on that specific channel.
 
 ---
 
 ## Problem Frame
 
-Twitch streamers and mods routinely pin messages — drop links, brackets, charity totals, schedule notes — and that surface is invisible in StreamForge today. Users watching Twitch in StreamForge miss context that's plainly visible on twitch.tv, and mods who want to pin from inside their viewer have to swap to a browser to do it. Kick pinned messages already work in StreamForge (`kickChatService` emits `pinnedMessage` / `pinnedMessageCleared`, rendered by `KickPinnedMessageBanner` in `apps/desktop/src/components/chat/kick/KickChat.tsx`), but that banner is styled as an edge-to-edge strip with "Sent by X" labelling, which diverges from Twitch's prominent inset "Pinned by X" card. Building the Twitch feature is the right moment to unify on the better of the two designs rather than ship a second divergent banner.
+Twitch streamers and mods routinely pin messages — drop links, brackets, charity totals, schedule notes — and that surface is invisible in StreamFusion today. Users watching Twitch in StreamFusion miss context that's plainly visible on twitch.tv, and mods who want to pin from inside their viewer have to swap to a browser to do it. Kick pinned messages already work in StreamFusion (`kickChatService` emits `pinnedMessage` / `pinnedMessageCleared`, rendered by `KickPinnedMessageBanner` in `apps/desktop/src/components/chat/kick/KickChat.tsx`), but that banner is styled as an edge-to-edge strip with "Sent by X" labelling, which diverges from Twitch's prominent inset "Pinned by X" card. Building the Twitch feature is the right moment to unify on the better of the two designs rather than ship a second divergent banner.
 
-Multistream is in scope from v1 because StreamForge's per-slot chat instance pattern (`apps/desktop/src/components/multistream/stream-slot.tsx`) already gives natural isolation — but pin state, dismiss state, and mod-role detection all have to actually honor that isolation rather than leaking across slots.
+Multistream is in scope from v1 because StreamFusion's per-slot chat instance pattern (`apps/desktop/src/components/multistream/stream-slot.tsx`) already gives natural isolation — but pin state, dismiss state, and mod-role detection all have to actually honor that isolation rather than leaking across slots.
 
 ---
 
@@ -90,8 +90,8 @@ Multistream is in scope from v1 because StreamForge's per-slot chat instance pat
 
 ## Success Criteria
 
-- A viewer watching Twitch in StreamForge sees the same pinned message they would see on twitch.tv, with visually equivalent styling, and the banner clears on its own when the pin is unpinned or expires.
-- A signed-in moderator can pin and unpin Twitch messages without leaving StreamForge, including choosing a duration that matches Twitch's native choices.
+- A viewer watching Twitch in StreamFusion sees the same pinned message they would see on twitch.tv, with visually equivalent styling, and the banner clears on its own when the pin is unpinned or expires.
+- A signed-in moderator can pin and unpin Twitch messages without leaving StreamFusion, including choosing a duration that matches Twitch's native choices.
 - Both Twitch and Kick chats render their pin banners with the same shared component; visually they are the same card.
 - In multistream, a banner in one slot never affects a banner in another slot, mod controls appear only in slots where the user is actually a mod, and the banner is verified to lay out cleanly at ~280px width via Playwright screenshot.
 - The dev simulator can drive Twitch pin/unpin states through the same render path as production events.

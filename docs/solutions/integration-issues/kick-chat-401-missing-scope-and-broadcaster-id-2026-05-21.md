@@ -32,7 +32,7 @@ tags:
 
 ## Problem
 
-Sending a chat message via StreamForge's ChatInput on Kick returned `401 Unauthorized` on every attempt. Two independent root causes compounded: the OAuth token lacked the `chat:write` scope entirely, and even with the scope present the POST body was supplying the chatroom id (`data.chatroom.id`, a Pusher subscription id) instead of the broadcaster's user_id (`data.id`, a different numeric id). Either alone would have killed the feature; both were live in production until commit `306a8e5`.
+Sending a chat message via StreamFusion's ChatInput on Kick returned `401 Unauthorized` on every attempt. Two independent root causes compounded: the OAuth token lacked the `chat:write` scope entirely, and even with the scope present the POST body was supplying the chatroom id (`data.chatroom.id`, a Pusher subscription id) instead of the broadcaster's user_id (`data.id`, a different numeric id). Either alone would have killed the feature; both were live in production until commit `306a8e5`.
 
 ## Symptoms
 

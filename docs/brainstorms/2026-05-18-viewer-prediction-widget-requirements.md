@@ -3,19 +3,19 @@ date: 2026-05-18
 topic: viewer-prediction-widget
 ---
 
-# Viewer Prediction Widget — Per-Platform Native Parity, Voting From StreamForge, Real-Time Start Detection
+# Viewer Prediction Widget — Per-Platform Native Parity, Voting From StreamFusion, Real-Time Start Detection
 
 ## Summary
 
-Add a viewer-facing prediction widget to chat on both Twitch and Kick channels in StreamForge. The widget renders three states — collapsed banner above chat input → expanded detail panel → ended-state recap — appears the instant a prediction starts on the channel, and lets the viewer cast a vote (channel points on Twitch, KCP on Kick) from inside the app. Per-platform native styling by default (Twitch purple with bubble visualization, Kick green/pink dot pairing), with a unified StreamForge style available as an opt-in settings toggle. Ships alongside debug-panel parity: prediction-injection helpers (live + ended) for both platforms, plus the missing Twitch poll-injection helpers that mirror Kick's existing pair.
+Add a viewer-facing prediction widget to chat on both Twitch and Kick channels in StreamFusion. The widget renders three states — collapsed banner above chat input → expanded detail panel → ended-state recap — appears the instant a prediction starts on the channel, and lets the viewer cast a vote (channel points on Twitch, KCP on Kick) from inside the app. Per-platform native styling by default (Twitch purple with bubble visualization, Kick green/pink dot pairing), with a unified StreamFusion style available as an opt-in settings toggle. Ships alongside debug-panel parity: prediction-injection helpers (live + ended) for both platforms, plus the missing Twitch poll-injection helpers that mirror Kick's existing pair.
 
 ---
 
 ## Problem Frame
 
-Predictions are a first-class engagement surface on both Twitch and Kick — viewers see a prominent banner above chat the moment a streamer starts one, expand to see who's winning and how points are flowing, and place a vote without leaving the page. In StreamForge today, that surface is invisible. The only prediction-aware code is `apps/desktop/src/components/chat/mod/tabs/EngagementPredictions.tsx`, a broadcaster-only console for *creating* predictions on the user's own Twitch channel via Helix polling. Viewers watching anyone else's stream — on either platform — see no indication that a prediction is even happening, can't track it, and can't vote without switching to twitch.tv or kick.com.
+Predictions are a first-class engagement surface on both Twitch and Kick — viewers see a prominent banner above chat the moment a streamer starts one, expand to see who's winning and how points are flowing, and place a vote without leaving the page. In StreamFusion today, that surface is invisible. The only prediction-aware code is `apps/desktop/src/components/chat/mod/tabs/EngagementPredictions.tsx`, a broadcaster-only console for *creating* predictions on the user's own Twitch channel via Helix polling. Viewers watching anyone else's stream — on either platform — see no indication that a prediction is even happening, can't track it, and can't vote without switching to twitch.tv or kick.com.
 
-The asymmetry hurts both directions. Twitch viewers lose the bubble-chart payoff that's part of the platform's native experience. Kick viewers lose the green-vs-pink dot tally that's a recognizable Kick signature. And StreamForge — which exists specifically so users don't have to context-switch between platform tabs — silently fails the moment any kind of audience engagement starts.
+The asymmetry hurts both directions. Twitch viewers lose the bubble-chart payoff that's part of the platform's native experience. Kick viewers lose the green-vs-pink dot tally that's a recognizable Kick signature. And StreamFusion — which exists specifically so users don't have to context-switch between platform tabs — silently fails the moment any kind of audience engagement starts.
 
 The dev experience has the same gap. `ChatSimTool` already lets a developer inject a synthetic Kick poll (live or ended) to verify the production banner renders correctly, but the equivalent injection paths for Twitch polls and for predictions on either platform don't exist. Building the prediction widget without closing those dev-tooling gaps would force visual testing through a live broadcast.
 
@@ -23,7 +23,7 @@ The dev experience has the same gap. `ChatSimTool` already lets a developer inje
 
 ## Actors
 
-- A1. Viewer: signed-in StreamForge user watching a Twitch or Kick stream. Sees the prediction banner when one becomes active, may cast a vote, sees the resolved result. Not a moderator on that channel.
+- A1. Viewer: signed-in StreamFusion user watching a Twitch or Kick stream. Sees the prediction banner when one becomes active, may cast a vote, sees the resolved result. Not a moderator on that channel.
 - A2. Broadcaster (acting as viewer): user whose own channel has the prediction. Sees the same viewer widget on their own stream. Separate from their broadcaster console (the existing Engagement tab), which they reach via `/mod`.
 - A3. Moderator (acting as viewer): mod on the channel being watched. Same widget, same capabilities as A1 from the widget's perspective — moderation actions on predictions live in the broadcaster console, not the viewer widget.
 
@@ -76,7 +76,7 @@ The dev experience has the same gap. `ChatSimTool` already lets a developer inje
 
 **Voting**
 
-- R6. From the expanded panel, the viewer SHALL be able to select an outcome and submit a vote without leaving StreamForge.
+- R6. From the expanded panel, the viewer SHALL be able to select an outcome and submit a vote without leaving StreamFusion.
 - R7. Before vote submission, the viewer's current spendable balance — channel points on Twitch, KCP on Kick — SHALL be visible alongside the vote-amount control.
 - R8. Vote submission SHALL go through the platform's existing internal API surface: Twitch GQL (`MakePrediction` mutation, same auth context as the existing pin / search GQL traffic), Kick internal vote endpoint (same cookie-session pattern as `kick-mod-mutations.ts`).
 - R9. When the viewer has already voted on this prediction (per the platform API's self-state field), their selected outcome SHALL be visually highlighted and the vote-submit control SHALL be hidden or disabled.
@@ -100,9 +100,9 @@ The dev experience has the same gap. `ChatSimTool` already lets a developer inje
 - R18. The Twitch-native style SHALL use `#9146ff` purple as the primary color, the bubble visualization (R5), and Twitch's native wording: "points," "See Details," "Winner."
 - R19. The Kick-native style SHALL use Kick's green (`#53fc18`) and pink color pairing on the dual outcomes, the dot-tally visualization, and Kick's native wording: "KCP," "Predict."
 
-**Unified StreamForge style (settings toggle)**
+**Unified StreamFusion style (settings toggle)**
 
-- R20. A unified StreamForge style SHALL be available as an alternative to the platform-native styles, selectable from a settings toggle. Default value is **native**.
+- R20. A unified StreamFusion style SHALL be available as an alternative to the platform-native styles, selectable from a settings toggle. Default value is **native**.
 - R21. The unified style SHALL use the existing `storm-accent` token (`#dc143c`) as primary, with consistent typography and spacing across both platforms. It SHALL preserve all three states (collapsed → expanded → ended).
 - R22. The unified style SHALL operate on a normalized prediction model that abstracts both platforms' shapes — Twitch's `{ id, title, status, outcomes: [{ id, title, color, channel_points, users, top_predictors }], winning_outcome_id }` and Kick's `{ id, title, status, options: [{ id, label, total_amount, user_count }], winner_option_id }` reduce to a single component-internal shape. The normalization SHALL happen at the chat-service / platform boundary, not inside the widget.
 
@@ -134,7 +134,7 @@ The dev experience has the same gap. `ChatSimTool` already lets a developer inje
 - AE2. **Covers R5, R18.** Given the viewer is in Twitch-native style and a prediction has ≥2 outcomes, when they tap "See Details", then the expanded panel shows a big-number percentage for the leading outcome with a bubble cluster visualization above an Options list with rank badges, point totals, and payout odds — matching the Twitch.tv native panel screenshot.
 - AE3. **Covers R6, R7, R8, R10, R11.** Given a viewer with 500 channel points has expanded an active Twitch prediction, when they pick an outcome and attempt to stake 1000 points, then the submit control shows an "Insufficient channel points" inline error and does not call the API. When they reduce the stake to 250 and submit, the submit control enters a pending state, the GQL `MakePrediction` mutation fires, on success their pick is highlighted and the displayed balance decreases by 250.
 - AE4. **Covers R9.** Given a viewer has already voted 100 KCP on outcome A of a Kick prediction earlier in the session, when they reopen the expanded panel, then outcome A is highlighted as their pick, no vote-submit control is offered for other outcomes, and the balance display omits the stake control.
-- AE5. **Covers R13, R14.** Given a Twitch prediction has been active for 8 minutes by the time the viewer opens the channel in StreamForge, when the chat slot mounts, then the banner appears populated (point totals, current leader) within a reasonable bootstrap window without waiting for the next live PubSub event.
+- AE5. **Covers R13, R14.** Given a Twitch prediction has been active for 8 minutes by the time the viewer opens the channel in StreamFusion, when the chat slot mounts, then the banner appears populated (point totals, current leader) within a reasonable bootstrap window without waiting for the next live PubSub event.
 - AE6. **Covers R15, R16, R17.** Given an active Twitch prediction resolves in favor of outcome 1, when the resolved event arrives, then the widget swaps to the ended view showing a Winner badge on outcome 1, both outcomes' final percentages, the per-side stat block (point total / payout / voter count / top contribution), and the "X points go to user and N others" payout line. After Twitch's native ended-card display window the ended view auto-dismisses. The same scenario on a Kick channel uses Kick's native ended-display window.
 - AE7. **Covers R20, R21, R22, R24.** Given the user has toggled the prediction style setting to "unified" and a prediction is active on a Kick channel, when the user views the banner, then it uses storm-accent (`#dc143c`) coloring with the same collapsed → expanded → ended state shapes; switching the setting back to "native" while the widget is open re-renders it to the green / pink Kick style without dropping or reconnecting the chat.
 - AE8. **Covers R25, R26.** Given a multistream view with two slots — slot 1 on a Twitch channel with an active prediction, slot 2 on a Kick channel with an active prediction — when the viewer votes 50 channel points on slot 1, then only slot 1's widget updates and only the Twitch GQL mutation fires; slot 2 is unaffected and Kick's vote endpoint is not called.
@@ -145,8 +145,8 @@ The dev experience has the same gap. `ChatSimTool` already lets a developer inje
 
 ## Success Criteria
 
-- A viewer watching any Twitch or Kick stream in StreamForge sees an active prediction within ~1 second of it starting, can read its state without leaving the app, and can place a vote that registers on the platform's records — for both single-stream and multistream views.
-- The Twitch and Kick widgets are visually recognizable as their respective platform's native experience (purple bubbles for Twitch, green / pink dots for Kick) when the style setting is "native," and become a single consistent StreamForge style when set to "unified."
+- A viewer watching any Twitch or Kick stream in StreamFusion sees an active prediction within ~1 second of it starting, can read its state without leaving the app, and can place a vote that registers on the platform's records — for both single-stream and multistream views.
+- The Twitch and Kick widgets are visually recognizable as their respective platform's native experience (purple bubbles for Twitch, green / pink dots for Kick) when the style setting is "native," and become a single consistent StreamFusion style when set to "unified."
 - A developer can reproduce all three widget states (active, voted, ended) on either platform without needing a live broadcaster, by clicking buttons in `ChatSimTool`. The same dev path also covers Twitch polls, removing the existing Kick-only asymmetry.
 - A downstream `ce-plan` agent reading this doc can identify which existing files to extend (`KickChat.tsx`, `TwitchChat.tsx`, `kick-chat.ts`, `twitch-gql-client.ts`, `ChatSimTool.tsx`), which API surfaces are in scope (PubSub on Twitch, Pusher events on Kick, GQL mutation on Twitch, internal vote endpoint on Kick), and which boundaries hold (broadcaster Engagement tab unchanged, no history scrollback, no system notifications).
 

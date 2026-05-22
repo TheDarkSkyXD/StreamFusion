@@ -9,10 +9,6 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App";
 import "./index.css";
-import { migrateLocalStorage } from "./lib/migrate-localstorage";
-
-// Migrate old "streamstorm-*" localStorage keys to "streamfusion-*" (one-time, before stores init)
-migrateLocalStorage();
 
 const container = document.getElementById("root");
 
