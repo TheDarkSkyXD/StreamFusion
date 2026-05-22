@@ -280,161 +280,133 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       `[KickFollows] BrowserWindow fallback: fetching ${FOLLOWED_CHANNELS_URL} via page context with XSRF header`
     );
 
-    // Try each candidate hostname in order. Live testing showed that
-    // kick_session_id is scoped to web.kick.com (not .kick.com), so a fetch
-    // to kick.com/api/v2/... omits that cookie even though kick_session is
-    // present — and the v2 endpoint may verify against the subdomain-scoped
-    // cookie. Trying web.kick.com first lets Laravel see the full session.
-    let pageContent: string;
-    const candidates = [
-      "https://web.kick.com/api/v2/channels/followed",
-      "https://kick.com/api/v2/channels/followed",
-    ];
-    let lastFailure: { status: number; body: string; hadXsrf: boolean | null; url: string } | null =
-      null;
+    // Programmatic API fetches consistently fail against Kick's v2 endpoint
+    // (live-tested 2026-05-22: kick.com 401 even with full session cookies +
+    // XSRF header + AJAX-Requested header; web.kick.com cross-origin
+    // blocked). The SPA itself loads the user's follows just fine on
+    // kick.com/following because its own context has Kasada's bot-detection
+    // tokens injected. We piggyback on that: navigate the BrowserWindow to
+    // the /following page, wait for the SPA to render the follows grid,
+    // then scrape channel info from the rendered DOM.
+    const FOLLOWING_PAGE_URL = "https://kick.com/following";
+    console.warn(
+      `[KickFollows] BrowserWindow fallback: navigating to ${FOLLOWING_PAGE_URL} for DOM-scrape extraction`
+    );
 
     try {
-      let success = false;
-      for (const url of candidates) {
-        const fetchResult = (await win.webContents.executeJavaScript(
-          `(async () => {
-            try {
-              const xsrfMatch = document.cookie.match(/(?:^|;\\s*)XSRF-TOKEN=([^;]+)/);
-              const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : '';
-              const response = await fetch(${JSON.stringify(url)}, {
-                method: 'GET',
-                credentials: 'include',
-                headers: {
-                  'Accept': 'application/json',
-                  'X-Requested-With': 'XMLHttpRequest',
-                  ...(xsrf ? { 'X-XSRF-TOKEN': xsrf } : {}),
-                },
-              });
-              const status = response.status;
-              const body = await response.text().catch(() => '');
-              return JSON.stringify({ status, body, hadXsrf: !!xsrf });
-            } catch (e) {
-              return JSON.stringify({ status: 0, body: 'fetch-threw: ' + String(e), hadXsrf: null });
-            }
-          })()`
-        )) as string;
-
-        const parsed = JSON.parse(fetchResult) as {
-          status: number;
-          body: string;
-          hadXsrf: boolean | null;
-        };
-        console.warn(
-          `[KickFollows] BrowserWindow fallback: tried ${url} → status=${parsed.status} hadXsrf=${parsed.hadXsrf} bodyLen=${parsed.body.length}`
-        );
-
-        if (parsed.status === 200) {
-          pageContent = parsed.body;
-          success = true;
-          break;
-        }
-        lastFailure = { ...parsed, url };
-      }
-
-      if (!success) {
-        if (!lastFailure) {
-          return { status: "error", reason: "network-error" };
-        }
-        if (lastFailure.status === 0) {
-          console.warn(`[KickFollows] BrowserWindow fallback: ${lastFailure.body}`);
-          return { status: "error", reason: "network-error" };
-        }
-        if (lastFailure.status === 401 || lastFailure.status === 403) {
-          _warnOnce(
-            "auth-failed",
-            `Kick v2 followed-channels rejected all candidate hosts. Last: ${lastFailure.url} → HTTP ${lastFailure.status}. XSRF header was ${lastFailure.hadXsrf ? "attached" : "MISSING"}. Body: "${lastFailure.body.slice(0, 200)}"`
-          );
-          return { status: "error", reason: "auth-failed" };
-        }
-        _warnOnce(
-          "parse-error",
-          `Kick v2 followed-channels: unexpected status ${lastFailure.status} from ${lastFailure.url}. Body: "${lastFailure.body.slice(0, 200)}"`
-        );
-        return { status: "error", reason: "parse-error" };
-      }
-
-      // TypeScript narrowing: success path means pageContent is set.
-      pageContent ??= "";
+      const navPromise = win.loadURL(FOLLOWING_PAGE_URL);
+      const navTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("following-page-load-timeout")), PAGE_LOAD_TIMEOUT_MS)
+      );
+      await Promise.race([navPromise, navTimeout]);
+      console.warn("[KickFollows] BrowserWindow fallback: /following page loaded");
     } catch (err) {
       console.warn(
-        `[KickFollows] BrowserWindow fallback: page-context fetch threw: ${err instanceof Error ? err.message : String(err)}`
+        `[KickFollows] BrowserWindow fallback: /following navigation failed: ${err instanceof Error ? err.message : String(err)}`
       );
       return { status: "error", reason: "network-error" };
     }
 
-    if (!pageContent || pageContent.length === 0) {
-      _warnOnce(
-        "parse-error",
-        "Kick v2 followed-channels (BrowserWindow) returned an empty body."
-      );
-      return { status: "error", reason: "parse-error" };
-    }
+    // Give the SPA time to fetch + render the follows grid. Kick's SPA does
+    // its own auth-aware API call here; we just wait for it to populate the
+    // DOM. 6s is conservative; if performance allows, tighten later.
+    console.warn(
+      "[KickFollows] BrowserWindow fallback: waiting 6s for /following SPA render"
+    );
+    await new Promise((resolve) => setTimeout(resolve, 6000));
 
-    // Detect Cloudflare challenge HTML in the rendered page (looks the same
-    // as the fetch() classification path).
-    const lower = pageContent.toLowerCase();
-    if (
-      lower.includes("<!doctype html") ||
-      lower.includes("just a moment") ||
-      lower.includes("cf-browser-verification") ||
-      lower.includes("checking your browser")
-    ) {
-      _warnOnce(
-        "cloudflare-challenge",
-        "Kick v2 followed-channels (BrowserWindow) returned a Cloudflare challenge. The default session may not carry the user's apex kick.com session yet — confirm the OAuth flow's id.kick.com cookies trigger Kick's SSO."
-      );
-      return { status: "error", reason: "cloudflare-challenge" };
-    }
-
-    let parsed: unknown;
+    let scrapeResult: string;
     try {
-      parsed = JSON.parse(pageContent);
+      scrapeResult = (await win.webContents.executeJavaScript(
+        `(() => {
+          // The /following page renders a grid of channel cards. Each card
+          // is an anchor pointing at /<slug> with an avatar img inside and
+          // the channel's display name as text content.
+          //
+          // We look for anchors whose href is a single-segment path (e.g.
+          // "/summit1g" or "/summit1g/") and which contain an <img>. That
+          // catches channel cards and excludes nav links / category cards.
+          // We then dedupe by slug since the SPA can render the same channel
+          // multiple times (live indicator + name link both inside one card).
+          const reservedPaths = new Set([
+            'login','signup','signin','signout','logout','about','help',
+            'dashboard','settings','profile','admin','browse','category',
+            'categories','games','search','following','followers','vods',
+            'clips','subscriptions','community','dmca','privacy','terms',
+            'rules','features','app','schedule','wallet','partner','support',
+          ]);
+
+          const seen = new Map();
+          for (const a of document.querySelectorAll('a[href]')) {
+            const href = a.getAttribute('href') || '';
+            const match = href.match(/^\\/([^\\/?#]+)\\/?$/);
+            if (!match) continue;
+            const slug = match[1].toLowerCase();
+            if (reservedPaths.has(slug)) continue;
+            if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
+            const img = a.querySelector('img');
+            if (!img) continue;
+            const displayName = (img.alt || a.textContent || slug).trim().slice(0, 100);
+            const avatarUrl = img.getAttribute('src') || '';
+            if (!seen.has(slug)) {
+              seen.set(slug, { slug, displayName, avatarUrl });
+            }
+          }
+          return JSON.stringify({
+            channels: Array.from(seen.values()),
+            url: window.location.href,
+            title: document.title,
+            anchorCount: document.querySelectorAll('a[href]').length,
+          });
+        })()`
+      )) as string;
     } catch (err) {
-      _warnOnce(
-        "parse-error",
-        `Kick v2 followed-channels (BrowserWindow) returned non-JSON. Preview: ${pageContent.slice(0, 120)}`
+      console.warn(
+        `[KickFollows] BrowserWindow fallback: DOM scrape threw: ${err instanceof Error ? err.message : String(err)}`
       );
       return { status: "error", reason: "parse-error" };
     }
 
-    // Auth challenge in JSON form — Laravel typically returns
-    // { message: "Unauthenticated." } with a 401. The BrowserWindow doesn't
-    // surface status codes, so detect by payload shape.
-    if (parsed && typeof parsed === "object") {
-      const message = (parsed as { message?: string }).message;
-      if (message && /unauthenticated|unauthorized|forbidden/i.test(message)) {
-        // Unconditional warn (bypasses warn-once) so this is always visible
-        // when the BrowserWindow path can't auth — even when Bearer already
-        // fired the same reason. Tagged with (BrowserWindow) so it's distinct.
-        console.warn(
-          `[KickFollows] BrowserWindow fallback: v2 endpoint returned auth challenge: "${message}". Response preview: ${pageContent.slice(0, 200)}`
-        );
-        return { status: "error", reason: "auth-failed" };
-      }
-    }
-
-    const rawItems = _extractItems(parsed);
-    if (!rawItems) {
-      _warnOnce(
-        "parse-error",
-        `Kick v2 followed-channels (BrowserWindow) JSON did not contain an array under 'data' or at top level. Got: ${typeof parsed}`
+    let scraped: { channels: Array<{ slug: string; displayName: string; avatarUrl: string }>; url: string; title: string; anchorCount: number };
+    try {
+      scraped = JSON.parse(scrapeResult);
+    } catch (err) {
+      console.warn(
+        `[KickFollows] BrowserWindow fallback: DOM scrape result was not JSON: ${scrapeResult.slice(0, 200)}`
       );
       return { status: "error", reason: "parse-error" };
-    }
-
-    const channels: UnifiedChannel[] = [];
-    for (const item of rawItems) {
-      const channel = transformKickFollowedChannelLegacy(item as KickLegacyApiFollowedChannel);
-      if (channel) channels.push(channel);
     }
 
     console.warn(
-      `[KickFollows] BrowserWindow fallback SUCCESS: fetched ${channels.length} followed channels`
+      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} channels=${scraped.channels.length}`
+    );
+
+    if (scraped.channels.length === 0) {
+      // Either the user genuinely follows zero channels or the page didn't
+      // render (auth still required, slow network, layout change). Treat as
+      // an error so we don't wipe existing account follows.
+      _warnOnce(
+        "parse-error",
+        `Kick /following DOM scrape returned zero channels. Page url=${scraped.url}, title="${scraped.title}", anchor count=${scraped.anchorCount}. If you follow zero channels on kick.com this is expected; otherwise the page didn't render (auth required, slow network, or layout changed).`
+      );
+      return { status: "error", reason: "parse-error" };
+    }
+
+    const channels: UnifiedChannel[] = scraped.channels.map((c) => ({
+      id: "", // We don't have channel.id from DOM scraping — slug only.
+      platform: "kick" as const,
+      username: c.slug,
+      displayName: c.displayName,
+      avatarUrl: c.avatarUrl,
+      bannerUrl: undefined,
+      bio: undefined,
+      isLive: false,
+      isVerified: false,
+      isPartner: false,
+    }));
+
+    console.warn(
+      `[KickFollows] BrowserWindow fallback SUCCESS: scraped ${channels.length} followed channels from /following DOM`
     );
     return { status: "ok", channels };
   } catch (err) {
