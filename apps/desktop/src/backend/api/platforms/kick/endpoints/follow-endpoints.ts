@@ -327,54 +327,50 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             'rules','features','app','schedule','wallet','partner','support',
           ]);
 
-          // Phase 1: collect all candidate anchors with their structural
-          // context so we can refine the selector. /following has follow
-          // cards + recommendation widgets + sidebar + nav; we need to
-          // identify which container holds the actual follows.
-          const allCandidates = [];
-          for (const a of document.querySelectorAll('a[href]')) {
-            const href = a.getAttribute('href') || '';
-            const match = href.match(/^\\/([^\\/?#]+)\\/?$/);
-            if (!match) continue;
-            const slug = match[1].toLowerCase();
-            if (reservedPaths.has(slug)) continue;
-            if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
-            const img = a.querySelector('img');
-            if (!img) continue;
-
-            // Walk up the DOM to find the nearest section/region/div with a
-            // meaningful identifier (data-testid, id, distinctive class).
-            let ancestor = a.parentElement;
-            const ancestorChain = [];
-            for (let i = 0; i < 8 && ancestor; i++) {
-              const tag = ancestor.tagName?.toLowerCase() || '';
-              const id = ancestor.id || '';
-              const dataAttrs = Array.from(ancestor.attributes || [])
-                .filter(at => at.name.startsWith('data-'))
-                .map(at => at.name + '=' + (at.value || '').slice(0, 30))
-                .join(',');
-              const cls = (ancestor.className || '').toString().slice(0, 80);
-              ancestorChain.push({ tag, id, dataAttrs, cls });
-              ancestor = ancestor.parentElement;
-            }
-
-            allCandidates.push({
-              slug,
-              imgAlt: (img.alt || '').slice(0, 80),
-              imgSrc: (img.getAttribute('src') || '').slice(0, 100),
-              textContent: (a.textContent || '').trim().slice(0, 80),
-              ancestorChain,
-            });
-          }
-
-          // Dedupe by slug for the channels list (display purposes).
+          // Scope to follow cards. Each card is rendered as a
+          // <div data-testid="livestream-results-card"> on /following and
+          // contains TWO anchors that link to the channel:
+          //   - thumbnail (img.alt = stream title — long, often emoji-laden)
+          //   - avatar    (img.alt = ChannelDisplayName — short, canonical)
+          // We dedupe by slug and prefer the SHORTER alt as the display name,
+          // which reliably picks the avatar text over the stream title.
           const seen = new Map();
-          for (const c of allCandidates) {
-            if (!seen.has(c.slug)) {
+          const cards = document.querySelectorAll('[data-testid="livestream-results-card"]');
+          for (const card of cards) {
+            const anchors = Array.from(card.querySelectorAll('a[href]'));
+            const cardCandidates = [];
+            for (const a of anchors) {
+              const href = a.getAttribute('href') || '';
+              const m = href.match(/^\\/([^\\/?#]+)\\/?$/);
+              if (!m) continue;
+              const slug = m[1].toLowerCase();
+              if (reservedPaths.has(slug)) continue;
+              if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
+              const img = a.querySelector('img');
+              if (!img) continue;
+              cardCandidates.push({
+                slug,
+                alt: (img.alt || '').trim(),
+                src: img.getAttribute('src') || '',
+              });
+            }
+            if (cardCandidates.length === 0) continue;
+
+            // Group by slug within the card; prefer shortest alt (avatar's
+            // ChannelDisplayName beats thumbnail's stream title every time).
+            const bySlug = new Map();
+            for (const c of cardCandidates) {
+              const existing = bySlug.get(c.slug);
+              if (!existing || c.alt.length < existing.alt.length) {
+                bySlug.set(c.slug, c);
+              }
+            }
+            for (const c of bySlug.values()) {
+              if (seen.has(c.slug)) continue;
               seen.set(c.slug, {
                 slug: c.slug,
-                displayName: (c.imgAlt || c.textContent || c.slug).trim().slice(0, 100),
-                avatarUrl: c.imgSrc,
+                displayName: (c.alt || c.slug).slice(0, 100),
+                avatarUrl: c.src,
               });
             }
           }
@@ -384,11 +380,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
             url: window.location.href,
             title: document.title,
             anchorCount: document.querySelectorAll('a[href]').length,
-            candidateCount: allCandidates.length,
-            // Diagnostic: dump first 30 candidates with full ancestor chain so
-            // we can identify which container hosts the actual follows grid
-            // vs recommendation widgets / sidebar items.
-            firstCandidates: allCandidates.slice(0, 30),
+            cardCount: cards.length,
+            channelCount: seen.size,
           });
         })()`
       )) as string;
@@ -404,14 +397,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       url: string;
       title: string;
       anchorCount: number;
-      candidateCount: number;
-      firstCandidates: Array<{
-        slug: string;
-        imgAlt: string;
-        imgSrc: string;
-        textContent: string;
-        ancestorChain: Array<{ tag: string; id: string; dataAttrs: string; cls: string }>;
-      }>;
+      cardCount: number;
+      channelCount: number;
     };
     try {
       scraped = JSON.parse(scrapeResult);
@@ -423,22 +410,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     }
 
     console.warn(
-      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} candidates=${scraped.candidateCount} channels=${scraped.channels.length}`
+      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" anchors=${scraped.anchorCount} cards=${scraped.cardCount} channels=${scraped.channelCount}`
     );
-
-    // Diagnostic: dump first ~10 candidates with their ancestor chain so we
-    // can refine the selector. Each candidate's chain reveals whether it
-    // sits in a follows-grid container vs a recommendation/sidebar widget.
-    for (let i = 0; i < Math.min(scraped.firstCandidates.length, 10); i++) {
-      const c = scraped.firstCandidates[i];
-      if (!c) continue;
-      const chain = c.ancestorChain
-        .map((a) => `${a.tag}${a.id ? "#" + a.id : ""}${a.dataAttrs ? "[" + a.dataAttrs + "]" : ""}${a.cls ? "." + a.cls.split(" ").slice(0, 2).join(".") : ""}`)
-        .join(" > ");
-      console.warn(
-        `[KickFollows] candidate[${i}] slug=${c.slug} alt="${c.imgAlt.slice(0, 40)}" ancestors=${chain.slice(0, 200)}`
-      );
-    }
 
     if (scraped.channels.length === 0) {
       // Either the user genuinely follows zero channels or the page didn't
