@@ -288,7 +288,13 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // tokens injected. We piggyback on that: navigate the BrowserWindow to
     // the /following page, wait for the SPA to render the follows grid,
     // then scrape channel info from the rendered DOM.
-    const FOLLOWING_PAGE_URL = "https://kick.com/following";
+    // /following is a hybrid view that mixes "live follows" + "Live Channels"
+    // (general recommendations). /following/channels is the dedicated user-
+    // follows page exposed in the page's own navigation. Live-diagnostic on
+    // 2026-05-22: /following heading hierarchy = [H2:Following, H2:Live Channels]
+    // with nav link [Channels → /following/channels]. Scrape the dedicated
+    // page so we don't mix recommendations into the follow list.
+    const FOLLOWING_PAGE_URL = "https://kick.com/following/channels";
     console.warn(
       `[KickFollows] BrowserWindow fallback: navigating to ${FOLLOWING_PAGE_URL} for DOM-scrape extraction`
     );
