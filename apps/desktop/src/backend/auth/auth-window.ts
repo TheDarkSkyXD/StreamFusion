@@ -144,10 +144,50 @@ class AuthWindowManager {
     window.webContents.on("did-navigate", (_event, url) => {
       if (this.isCallbackUrl(url, port, platform)) {
         console.debug(`✅ Auth callback page loaded for ${platform}`);
-        // Close window after the success page displays briefly
-        setTimeout(() => {
-          this.closeAuthWindow(platform);
-        }, 1500);
+
+        if (platform === "kick") {
+          // Kick's official OAuth API has no followed-channels endpoint, so
+          // we fetch the user's follows from kick.com/api/v2/channels/followed
+          // which needs apex `kick.com` session cookies. Those cookies aren't
+          // set by id.kick.com OAuth on its own. Detour the same window to
+          // kick.com while the id.kick.com auth context is still fresh —
+          // Kick's SPA on kick.com bootstraps and may auto-bridge an SSO
+          // session via the existing id.kick.com state, landing the
+          // `kick_session` cookie in the default partition where the
+          // follow-endpoints BrowserWindow fallback reads from.
+          console.debug("🍪 Establishing kick.com web session via post-OAuth detour...");
+          window.loadURL("https://kick.com/");
+
+          // Close after kick.com has had time to bootstrap + 2.5s buffer
+          // for the SPA's async auth-bridge fetch to fire and set cookies.
+          // Hard 10s deadline so a hung kick.com load can't keep the window
+          // open forever.
+          const closeAfter = (ms: number) => {
+            setTimeout(() => this.closeAuthWindow(platform), ms);
+          };
+
+          let closedOnLoad = false;
+          window.webContents.once("did-finish-load", () => {
+            if (closedOnLoad) return;
+            closedOnLoad = true;
+            console.debug("🍪 kick.com loaded after OAuth — giving 2.5s for session bridge");
+            closeAfter(2500);
+          });
+
+          // Backstop deadline.
+          setTimeout(() => {
+            if (!closedOnLoad) {
+              closedOnLoad = true;
+              console.debug("🍪 kick.com detour timed out (10s); closing auth window");
+              this.closeAuthWindow(platform);
+            }
+          }, 10000);
+        } else {
+          // Twitch and others: just close after the success page displays.
+          setTimeout(() => {
+            this.closeAuthWindow(platform);
+          }, 1500);
+        }
       }
     });
 
