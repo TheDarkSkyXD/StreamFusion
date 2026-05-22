@@ -18,7 +18,7 @@
  * outcome or transient failures would wipe a user's prior synced follows.
  */
 
-import { BrowserWindow } from "electron";
+import { BrowserWindow, session } from "electron";
 
 import type { UnifiedChannel } from "../../../unified/platform-types";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";
@@ -247,6 +247,19 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       );
       await Promise.race([warmLoad, warmTimeout]);
       console.warn("[KickFollows] BrowserWindow fallback: warm visit completed");
+
+      // Give Kick's SPA a moment to bootstrap and make its auth-bridge API
+      // calls (the homepage typically fetches /api/v2/user on load to set the
+      // apex session cookie if the user is authed on id.kick.com).
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+
+      // Diagnostic: log what cookies actually landed for kick.com.
+      const defaultSession = session.defaultSession;
+      const cookies = await defaultSession.cookies.get({ domain: "kick.com" });
+      const cookieSummary = cookies.map((c) => `${c.name}@${c.domain}`).join(", ") || "(none)";
+      console.warn(
+        `[KickFollows] BrowserWindow fallback: kick.com cookies after warm visit: ${cookieSummary}`
+      );
     } catch (err) {
       console.warn(
         `[KickFollows] BrowserWindow fallback: warm visit failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`
@@ -317,9 +330,11 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     if (parsed && typeof parsed === "object") {
       const message = (parsed as { message?: string }).message;
       if (message && /unauthenticated|unauthorized|forbidden/i.test(message)) {
-        _warnOnce(
-          "auth-failed",
-          `Kick v2 followed-channels (BrowserWindow) returned auth challenge: "${message}". The user's kick.com session may have expired — re-authenticating the Kick account is the typical recovery.`
+        // Unconditional warn (bypasses warn-once) so this is always visible
+        // when the BrowserWindow path can't auth — even when Bearer already
+        // fired the same reason. Tagged with (BrowserWindow) so it's distinct.
+        console.warn(
+          `[KickFollows] BrowserWindow fallback: v2 endpoint returned auth challenge: "${message}". Response preview: ${pageContent.slice(0, 200)}`
         );
         return { status: "error", reason: "auth-failed" };
       }
