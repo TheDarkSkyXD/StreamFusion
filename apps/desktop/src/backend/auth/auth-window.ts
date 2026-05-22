@@ -5,7 +5,7 @@
  * Opens the OAuth login page and handles window lifecycle.
  */
 
-import { BrowserWindow, shell } from "electron";
+import { BrowserWindow, session, shell } from "electron";
 
 import type { Platform } from "../../shared/auth-types";
 
@@ -208,17 +208,20 @@ class AuthWindowManager {
   }
 
   /**
-   * Poll the kick.com session for an authenticated user identity by hitting
-   * /api/v2/user from within the auth window's page context. Returns true as
-   * soon as the endpoint returns a real username; returns false if the window
-   * is destroyed or the deadline elapses.
+   * Detect kick.com web sign-in by polling the default session's cookie jar
+   * for an authenticated session. KickTalk uses the same approach
+   * (src/main/index.js:569-596). The fingerprint of an authenticated kick.com
+   * session is the simultaneous presence of `session_token` AND `kick_session`
+   * cookies — both set by Kick's normal login flow, neither set on a truly
+   * fresh anonymous visit.
    *
-   * Polling fires every 2s for up to 5 minutes. The page-context fetch uses
-   * the window's own cookies — so the moment the user completes kick.com's
-   * sign-in form (whether via the normal login page, the modal, or an SSO
-   * redirect), the next poll catches it. Users who already have a valid
-   * kick.com session see the first poll resolve true immediately, making
-   * the flow indistinguishable from a single-redirect OAuth.
+   * Cross-checks with /api/v2/user via the window's webContents to confirm
+   * the session is actually bound to a user (defends against the SSO-bridged
+   * anonymous session that the previous post-OAuth detour produced, where
+   * cookies were present but the v2 endpoint still returned Unauthenticated).
+   *
+   * Polls every 1.5s for up to 5 minutes. Returns false if the window closes
+   * or the deadline elapses.
    */
   private async _waitForKickWebAuth(
     window: BrowserWindow,
@@ -226,32 +229,93 @@ class AuthWindowManager {
   ): Promise<boolean> {
     const start = Date.now();
     let attempts = 0;
+    let lastReason = "no-cookies";
     while (Date.now() - start < maxMs) {
-      if (window.isDestroyed()) return false;
+      if (window.isDestroyed()) {
+        console.debug(`[KickAuth] Window destroyed after ${attempts} poll(s) — aborting`);
+        return false;
+      }
       attempts++;
       try {
-        const username = (await window.webContents.executeJavaScript(
-          `fetch('/api/v2/user', { credentials: 'include', headers: { Accept: 'application/json' } })
-            .then(r => r.ok ? r.json() : null)
-            .then(d => d && (d.username || (d.user && d.user.username)) || null)
-            .catch(() => null)`
-        )) as string | null;
-        if (username) {
-          console.debug(
-            `✅ Kick web auth detected for "${username}" after ${attempts} poll(s) (${Date.now() - start}ms)`
-          );
-          return true;
+        const cookies = await session.defaultSession.cookies.get({ domain: "kick.com" });
+        const hasSessionToken = cookies.some((c) => c.name === "session_token");
+        const hasKickSession = cookies.some((c) => c.name === "kick_session");
+
+        if (!hasSessionToken || !hasKickSession) {
+          lastReason = `missing-cookies (session_token=${hasSessionToken} kick_session=${hasKickSession})`;
+          if (attempts === 1 || attempts % 5 === 0) {
+            console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
+          }
+        } else {
+          // Both cookies present — verify by hitting /api/v2/user via the
+          // window's own context (so cookies are included). A real auth
+          // returns user JSON; an anonymous SSO-bridged session returns
+          // {"message":"Unauthenticated."}.
+          const probe = await this._probeKickAuth(window);
+          if (probe.authenticated) {
+            console.debug(
+              `✅ Kick web auth detected for "${probe.username}" after ${attempts} poll(s) (${Date.now() - start}ms)`
+            );
+            return true;
+          }
+          lastReason = `cookies present but /api/v2/user says ${probe.reason}`;
+          if (attempts === 1 || attempts % 5 === 0) {
+            console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
+          }
         }
-      } catch {
-        // executeJavaScript can fail mid-navigation (page changed, frame
-        // disposed). Swallow and retry — the next poll will hit the new page.
+      } catch (err) {
+        lastReason = `poll error: ${err instanceof Error ? err.message : String(err)}`;
+        console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
       }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     }
     console.warn(
-      `⚠️ Kick web sign-in not detected within ${Math.round(maxMs / 1000)}s — aborting OAuth handoff`
+      `⚠️ Kick web sign-in not detected within ${Math.round(maxMs / 1000)}s — aborting OAuth handoff. Last poll reason: ${lastReason}`
     );
     return false;
+  }
+
+  private async _probeKickAuth(
+    window: BrowserWindow
+  ): Promise<{ authenticated: true; username: string } | { authenticated: false; reason: string }> {
+    try {
+      // Returns a JSON-encoded probe result so we can distinguish HTTP errors
+      // from page-context fetch failures without conflating them.
+      const probeJson = (await window.webContents.executeJavaScript(
+        `(async () => {
+          try {
+            const r = await fetch('/api/v2/user', { credentials: 'include', headers: { Accept: 'application/json' } });
+            const status = r.status;
+            const body = await r.text().catch(() => '');
+            return JSON.stringify({ status, body: body.slice(0, 300) });
+          } catch (e) {
+            return JSON.stringify({ status: 0, body: String(e) });
+          }
+        })()`
+      )) as string;
+
+      const probe = JSON.parse(probeJson) as { status: number; body: string };
+      if (probe.status !== 200) {
+        return { authenticated: false, reason: `status=${probe.status} body="${probe.body.slice(0, 80)}"` };
+      }
+      let parsed: { username?: string; user?: { username?: string } };
+      try {
+        parsed = JSON.parse(probe.body);
+      } catch {
+        return { authenticated: false, reason: `non-JSON body: "${probe.body.slice(0, 80)}"` };
+      }
+      const username = parsed.username ?? parsed.user?.username;
+      if (username) return { authenticated: true, username };
+      return {
+        authenticated: false,
+        reason: `200 OK but no username in body: "${probe.body.slice(0, 80)}"`,
+      };
+    } catch (err) {
+      return {
+        authenticated: false,
+        reason: `probe threw: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 
   /**
