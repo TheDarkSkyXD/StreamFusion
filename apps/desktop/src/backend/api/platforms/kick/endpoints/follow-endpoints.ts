@@ -93,6 +93,9 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
   // the OAuth window's session cookies (default session, where id.kick.com
   // cookies live) — Kick's cross-subdomain SSO sets a kick.com apex session
   // when we visit kick.com while authenticated on id.kick.com.
+  console.warn(
+    `[KickFollows] Bearer path failed with reason="${bearerResult.reason}". Trying BrowserWindow cookie-auth fallback...`
+  );
   return _fetchViaBrowserWindow();
 }
 
@@ -215,7 +218,9 @@ const PAGE_LOAD_TIMEOUT_MS = 10000;
  * `getPublicChannel` for the GPU subprocess.
  */
 async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
+  console.warn("[KickFollows] BrowserWindow fallback: acquiring window slot...");
   const releaseSlot = await acquireBrowserWindowSlot();
+  console.warn("[KickFollows] BrowserWindow fallback: slot acquired, creating window");
   let win: BrowserWindow | null = null;
   try {
     win = new BrowserWindow({
@@ -234,19 +239,24 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // cookie in response to id.kick.com authentication, this navigation
     // deposits it. Failures here aren't fatal — we proceed to the v2 visit
     // and let the response classification decide.
+    console.warn(`[KickFollows] BrowserWindow fallback: warm visit to ${WARM_VISIT_URL}`);
     try {
       const warmLoad = win.loadURL(WARM_VISIT_URL);
       const warmTimeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("warm-timeout")), WARM_VISIT_TIMEOUT_MS)
       );
       await Promise.race([warmLoad, warmTimeout]);
+      console.warn("[KickFollows] BrowserWindow fallback: warm visit completed");
     } catch (err) {
-      console.debug("[KickFollows] Warm visit to kick.com failed (non-fatal):", err);
+      console.warn(
+        `[KickFollows] BrowserWindow fallback: warm visit failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`
+      );
     }
 
     // Now load the v2 followed-channels endpoint. The window's session
     // should now carry both the OAuth-flow cookies and any apex cookies
     // set by the warm visit.
+    console.warn(`[KickFollows] BrowserWindow fallback: loading ${FOLLOWED_CHANNELS_URL}`);
     const loadPromise = win.loadURL(FOLLOWED_CHANNELS_URL);
     const loadTimeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("page-load-timeout")), PAGE_LOAD_TIMEOUT_MS)
@@ -254,8 +264,11 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
 
     try {
       await Promise.race([loadPromise, loadTimeout]);
+      console.warn("[KickFollows] BrowserWindow fallback: page load completed");
     } catch (err) {
-      console.debug("[KickFollows] BrowserWindow page-load failed:", err);
+      console.warn(
+        `[KickFollows] BrowserWindow fallback: page-load failed: ${err instanceof Error ? err.message : String(err)}`
+      );
       return { status: "error", reason: "network-error" };
     }
 
@@ -327,12 +340,14 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       if (channel) channels.push(channel);
     }
 
-    console.debug(
-      `[KickFollows] BrowserWindow fallback fetched ${channels.length} followed channels`
+    console.warn(
+      `[KickFollows] BrowserWindow fallback SUCCESS: fetched ${channels.length} followed channels`
     );
     return { status: "ok", channels };
   } catch (err) {
-    console.debug("[KickFollows] BrowserWindow fallback unexpected error:", err);
+    console.warn(
+      `[KickFollows] BrowserWindow fallback unexpected error: ${err instanceof Error ? err.message : String(err)}`
+    );
     return { status: "error", reason: "network-error" };
   } finally {
     releaseSlot();
