@@ -100,6 +100,20 @@ describe("voteOnPrediction — input validation", () => {
     if (!result.ok) expect(result.kind).toBe("invalidInput");
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("rejects empty channelSlug with invalidInput — guards against `/channels//predictions/vote` 405 from dev sentinel", async () => {
+    const result = await voteOnPrediction({ ...VALID_PAYLOAD, channelSlug: "" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe("invalidInput");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects whitespace-only channelSlug with invalidInput", async () => {
+    const result = await voteOnPrediction({ ...VALID_PAYLOAD, channelSlug: "   " });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe("invalidInput");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("voteOnPrediction — status mapping", () => {

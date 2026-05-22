@@ -144,6 +144,15 @@ function extractBodyText(body: unknown): string {
  * failure or `null` when the inputs look fine.
  */
 function validateInput(payload: KickPredictionVotePayload): KickPredictionVoteResult | null {
+  // Defensive: an empty channelSlug builds `/channels//predictions/vote`,
+  // which Laravel collapses to `/channels/predictions/vote` — a different
+  // route that's GET-only — returning 405 "POST not supported". This was
+  // the failure mode hit when a ChatSimTool dev-injection prediction
+  // (channelSlug=""sentinel) reached the form without an upstream override.
+  // Bail explicitly so the form can show a clean error instead.
+  if (!payload.channelSlug || !payload.channelSlug.trim()) {
+    return { ok: false, kind: "invalidInput", message: "channelSlug required" };
+  }
   if (!payload.outcomeId) {
     return { ok: false, kind: "invalidInput", message: "outcomeId required" };
   }

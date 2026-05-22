@@ -39,12 +39,21 @@ type Style = "twitch-native" | "kick-native" | "unified";
 
 interface PredictionBannerProps {
   prediction: UnifiedPrediction;
+  /**
+   * Real channel slug (Kick) / login (Twitch) for the panel hosting this
+   * banner. Used as the destination for vote-mutation API calls. Falls back
+   * to `prediction.channelSlug`, but the dev-injection sentinel has an empty
+   * channelSlug — so callers should always pass the real channel from their
+   * own props to keep voting working against dev-injected predictions too.
+   */
+  channelLogin?: string;
   onAutoDismiss?: () => void;
   onDismiss?: () => void;
 }
 
 export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   prediction,
+  channelLogin,
   onAutoDismiss,
   onDismiss,
 }) => {
@@ -220,6 +229,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
           style={style}
           isLocked={isLocked}
           hasPlatformToken={hasPlatformToken}
+          channelLogin={channelLogin}
           onCollapse={() => setExpanded(false)}
           onDismiss={onDismiss}
           onVoteSuccess={handleVoteSuccess}
@@ -359,6 +369,13 @@ interface ActivePanelProps {
    * deeplink branch in the active panel.
    */
   hasPlatformToken: boolean;
+  /**
+   * Real channel slug / login from the parent chat panel. Used as the
+   * destination for vote-mutation API calls. Falls back to
+   * `prediction.channelSlug` (which is the multiview-filter sentinel and
+   * may be empty for dev injection).
+   */
+  channelLogin?: string;
   onCollapse: () => void;
   onDismiss?: () => void;
   onVoteSuccess: (outcomeId: string, amount: number) => void;
@@ -369,6 +386,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
   style,
   isLocked,
   hasPlatformToken,
+  channelLogin,
   onCollapse,
   onDismiss,
   onVoteSuccess,
@@ -380,14 +398,20 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
   const deeplink = prediction.platform === "twitch" ? "https://www.twitch.tv/" : "https://kick.com/";
 
   // Form-vs-deeplink branch. Rules from plan U5:
-  //   - Active + viewer hasn't voted + token present → in-app vote form
-  //   - Active + viewer hasn't voted + no token       → deeplink chip
-  //   - Active + viewer already voted                 → no form, no deeplink
+  //   - Active + viewer hasn't voted + token present + real channel → in-app vote form
+  //   - Active + viewer hasn't voted + no token                     → deeplink chip
+  //   - Active + viewer hasn't voted + token present + no real
+  //     channel (dev sentinel with empty slug + no channelLogin prop)
+  //                                                                 → deeplink (form would build a broken URL)
+  //   - Active + viewer already voted                               → no form, no deeplink
   //     (the panel just shows the highlighted-outcome state via outcome row)
-  //   - Locked                                        → no form, no deeplink
+  //   - Locked                                                      → no form, no deeplink
   const viewerHasVoted = prediction.viewerOutcomeId !== null;
-  const showVoteForm = !isLocked && !viewerHasVoted && hasPlatformToken;
-  const showDeeplink = !isLocked && !viewerHasVoted && !hasPlatformToken;
+  const resolvedChannelLogin = (channelLogin ?? "").trim() || prediction.channelSlug.trim();
+  const hasRealChannel = resolvedChannelLogin.length > 0;
+  const showVoteForm =
+    !isLocked && !viewerHasVoted && hasPlatformToken && hasRealChannel;
+  const showDeeplink = !isLocked && !viewerHasVoted && !showVoteForm;
 
   // TODO(predictions-backend U5): wire real balance fetches once U3
   // (twitch-gql-predictions) and U1 (kick-predictions service) confirm
@@ -455,7 +479,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
       {showVoteForm && (
         <PredictionVoteForm
           prediction={prediction}
-          channelLogin={prediction.channelSlug}
+          channelLogin={resolvedChannelLogin}
           balance={balance}
           onVoteSuccess={onVoteSuccess}
         />

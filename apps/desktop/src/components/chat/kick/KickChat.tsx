@@ -680,6 +680,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       {activePrediction && (
         <PredictionBanner
           prediction={activePrediction}
+          channelLogin={channel}
           onAutoDismiss={handlePredictionAutoDismiss}
           onDismiss={handlePredictionDismiss}
         />

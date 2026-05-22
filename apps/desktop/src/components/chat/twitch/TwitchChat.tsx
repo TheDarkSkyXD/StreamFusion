@@ -666,6 +666,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       {activePrediction && (
         <PredictionBanner
           prediction={activePrediction}
+          channelLogin={channel}
           onAutoDismiss={handlePredictionAutoDismiss}
           onDismiss={handlePredictionDismiss}
         />
