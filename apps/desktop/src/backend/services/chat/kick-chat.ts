@@ -758,6 +758,19 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     return info?.chatroomId ?? null;
   }
 
+  /**
+   * Expose the underlying Pusher client to sibling services (e.g.
+   * `kick-predictions-service`) that need to subscribe their own channels on
+   * the same WebSocket. Returns `null` when the service hasn't connected
+   * yet (or has shut down) so callers can defer subscription until the next
+   * `connectionStateChange` to `connected`. Sibling services MUST NOT call
+   * `.disconnect()` or `.connection.bind_all()` on this instance — lifecycle
+   * stays with KickChatService.
+   */
+  getPusher(): Pusher | null {
+    return this.pusher;
+  }
+
   // ========== Private Methods ==========
 
   /**
@@ -1102,3 +1115,16 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 // ========== Export Singleton ==========
 
 export const kickChatService = new KickChatService();
+
+/**
+ * Module-level accessor for the live Pusher singleton owned by
+ * `kickChatService`. Returns `null` until the chat service has connected.
+ *
+ * The `kick-predictions-service` and any future sibling that wants to ride
+ * on the same WebSocket imports this rather than calling
+ * `kickChatService.getPusher()` directly so test mocks can stub a single
+ * function point.
+ */
+export function getKickPusher(): Pusher | null {
+  return kickChatService.getPusher();
+}

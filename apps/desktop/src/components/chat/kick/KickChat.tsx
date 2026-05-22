@@ -15,6 +15,7 @@ import {
   unpinKickMessage,
 } from "../../../backend/api/platforms/kick/kick-pin-mutations";
 import { kickChatService } from "../../../backend/services/chat/kick-chat";
+import { kickPredictionsService } from "../../../backend/services/chat/kick-predictions-service";
 import { initializeKickEmotes } from "../../../backend/services/emotes";
 import { useIsKickMod } from "../../../hooks/useIsKickMod";
 import type {
@@ -303,6 +304,20 @@ export const KickChat: React.FC<KickChatProps> = ({
 
           if (!isMounted) return;
 
+          // U1 — wire the predictions service in. Fires a REST seed for any
+          // active/recent prediction, subscribes to predictions-channel-{N}
+          // on the shared Pusher singleton, and emits predictionUpdate
+          // through kickChatService. Service is idempotent on repeat acquire
+          // and ref-counted so multiview is safe. Token is optional;
+          // anonymous works for guests.
+          if (channelId) {
+            void kickPredictionsService.acquire({
+              channelId,
+              channelSlug: channel,
+              accessToken: kickToken?.accessToken,
+            });
+          }
+
           // 4. Confirm the live session is up.
           addMessage({
             id: crypto.randomUUID(),
@@ -339,6 +354,13 @@ export const KickChat: React.FC<KickChatProps> = ({
       // In multi-view: Other components keep the service alive
       if (currentChannelRef.current?.channel) {
         kickChatService.release(currentChannelRef.current.channel);
+
+        // U1 — release the predictions service reference for this channel.
+        // Pairs with the acquire() above. Safe to call even if acquire never
+        // ran (no-op when the channelId is unknown).
+        if (channelId) {
+          kickPredictionsService.release({ channelId });
+        }
 
         // Memory cleanup: unload channel emotes to free RAM
         const emoteChannelId = currentChannelRef.current.chatroomId
@@ -565,8 +587,21 @@ export const KickChat: React.FC<KickChatProps> = ({
       // emitted for channel A would also pop in channel B. We accept the
       // event when channelId is unknown (anonymous / dev-injection paths
       // that don't carry a real id yet). (Code review P0-1.)
+      //
+      // U1 dual-ID defense: Kick exposes two numeric IDs per channel
+      // (`user_id` vs `channel.id`). kick.com's bundle subscribes its
+      // predictions-channel-{N} Pusher subscription using the channel
+      // record's `id`, but the value flowing into this filter depends on
+      // which id flavor `kickRoomKey` resolved to. Match on EITHER the
+      // numeric id OR the slug — the slug is stable across both flavors,
+      // so the filter accepts the legit event regardless. See
+      // docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md.
       const localId = kickRoomKey || null;
-      if (localId && prediction.channelId && prediction.channelId !== localId) {
+      const matchesId =
+        !localId || !prediction.channelId || prediction.channelId === localId;
+      const matchesSlug =
+        !!channel && !!prediction.channelSlug && prediction.channelSlug === channel;
+      if (!matchesId && !matchesSlug) {
         return;
       }
       if (predictionDismissGate.shouldSuppress(prediction.id)) return;
@@ -608,6 +643,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     deleteMessage,
     deleteMessagesByUser,
     kickRoomKey,
+    channel,
     predictionDismissGate,
   ]);
 

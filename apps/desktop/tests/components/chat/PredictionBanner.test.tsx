@@ -10,6 +10,7 @@ function makePrediction(overrides: Partial<UnifiedPrediction> = {}): UnifiedPred
     id: "pred-1",
     platform: "twitch",
     channelId: "12345",
+    channelSlug: "fitzbro",
     title: "Who wins next game?",
     status: "ACTIVE",
     outcomes: [

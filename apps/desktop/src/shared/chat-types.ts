@@ -351,6 +351,18 @@ export interface UnifiedPrediction {
    * a prediction in channels other than the one it came from.
    */
   channelId: string;
+  /**
+   * Channel slug fallback for the multiview filter. Kick exposes two numeric
+   * IDs per channel (`user_id` vs `channel.id`); the kick.com bundle uses
+   * `useChatroomContext().channelId` (the channel record's `id`) when naming
+   * the `predictions-channel-{N}` Pusher subscription, but the value flowing
+   * into multiview filters can be either flavor depending on the call site.
+   * Populating the slug alongside the numeric id lets the consumer match on
+   * either, sidestepping the dual-ID risk entirely. See
+   * `docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md`.
+   * For Twitch this carries the channel login (lowercased).
+   */
+  channelSlug: string;
   /** Display title. */
   title: string;
   /** Lifecycle status. */

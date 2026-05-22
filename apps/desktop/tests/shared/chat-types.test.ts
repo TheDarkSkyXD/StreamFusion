@@ -25,6 +25,7 @@ describe("UnifiedPrediction shape (U1)", () => {
       id: "pred-twitch-1",
       platform: "twitch",
       channelId: "12345",
+      channelSlug: "fitzbro",
       title: "Who wins next game?",
       status: "ACTIVE",
       outcomes: [outcomeA, outcomeB],
@@ -45,6 +46,7 @@ describe("UnifiedPrediction shape (U1)", () => {
       id: "pred-kick-1",
       platform: "kick",
       channelId: "kick-channel-7",
+      channelSlug: "ramee",
       title: "Golf it Overall",
       status: "RESOLVED",
       outcomes: [

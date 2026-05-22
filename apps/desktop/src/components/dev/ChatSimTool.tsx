@@ -418,6 +418,9 @@ export function ChatSimTool() {
       // event into whichever channel is currently rendered, since the sim
       // tool has no view of the active channel id.
       channelId: "",
+      // Same sentinel for the slug fallback — empty matches no real slug, so
+      // the multiview filter falls through to the channelId-empty escape hatch.
+      channelSlug: "",
       title: p === "twitch" ? "Who wins next game?" : "BroVBro - Golf it Overall",
       status,
       outcomes: [

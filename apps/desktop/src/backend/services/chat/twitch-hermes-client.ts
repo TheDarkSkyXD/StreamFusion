@@ -311,6 +311,11 @@ export function parsePredictionEvent(
     id,
     platform: "twitch",
     channelId,
+    // Hermes only carries the broadcaster's numeric id; the channel login
+    // (slug) isn't in the payload and isn't known to this parser. U3 will
+    // populate this through the GQL polling path. Leave empty so multiview
+    // filters can fall back to channelId matching unchanged.
+    channelSlug: "",
     title,
     status,
     outcomes,

@@ -371,6 +371,58 @@ export interface KickLegacyApiClip {
 export const KICK_LEGACY_API_V2_BASE = "https://kick.com/api/v2";
 export const KICK_LEGACY_API_V1_BASE = "https://kick.com/api/v1";
 
+// ========== Predictions (undocumented v2) ==========
+// Source: kick.com Next.js bundle, 2026-05-22 discovery
+//   (docs/brainstorms/2026-05-22-kick-predictions-discovery-notes.md).
+// Pusher channel: `predictions-channel-{channelId}` (numeric channel id).
+// Events: `PredictionCreated`, `PredictionUpdated` (plain names — NO
+//         `App\Events\` prefix). Both payloads carry `{ prediction }`.
+// REST endpoints:
+//   GET  /api/v2/channels/{slug}/predictions/latest
+//   GET  /api/v2/channels/{slug}/predictions/recent
+//   POST /api/v2/channels/{slug}/predictions/vote
+//   PATCH /api/v2/channels/{slug}/predictions/{predictionId}  (mod-only)
+
+export interface KickPredictionOutcomePayload {
+  id: string;
+  title: string;
+  total_vote_amount: number;
+  // user_count is not always present on the wire — kick.com's frontend only
+  // displays the total stake; the unique-voter count is optional.
+  user_count?: number;
+}
+
+export interface KickPredictionUserVote {
+  outcome_id: string;
+  total_vote_amount: number;
+}
+
+export interface KickPredictionPayload {
+  id: string;
+  title: string;
+  /** Raw state string. kick.com confirmed `ACTIVE`; transitions include
+   *  locked / resolved / canceled / deleted — normalize and clamp at the
+   *  consumer boundary. */
+  state: string;
+  outcomes: KickPredictionOutcomePayload[];
+  winning_outcome_id?: string | null;
+  /** Prediction window length in seconds. */
+  duration: number;
+  /** ISO timestamp when the prediction became active. */
+  created_at: string;
+  /** Viewer's own stake — only populated when the request is authenticated
+   *  and the viewer has voted. Absent for anonymous or non-voting viewers. */
+  user_vote?: KickPredictionUserVote;
+}
+
+/**
+ * Wire payload for `PredictionCreated` and `PredictionUpdated` Pusher events,
+ * and for `GET /api/v2/channels/{slug}/predictions/latest`.
+ */
+export interface KickPredictionEventPayload {
+  prediction: KickPredictionPayload;
+}
+
 // ========== Common Types ==========
 
 export interface PaginationOptions {
