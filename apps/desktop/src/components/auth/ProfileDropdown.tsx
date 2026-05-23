@@ -44,19 +44,18 @@ function StackedAvatars({
       </div>
       {/* Twitch avatar (front) */}
       <div className="absolute z-10">
-        {twitchAvatar ? (
-          <img
-            src={twitchAvatar}
-            alt={twitchName || "Twitch"}
-            className={`${dimensions} rounded-full ring-2 ring-[#9146FF] shadow-md`}
-          />
-        ) : (
-          <div
-            className={`${dimensions} rounded-full bg-[#9146FF]/20 ring-2 ring-[#9146FF] flex items-center justify-center shadow-md`}
-          >
-            <span className="text-[#9146FF] text-xs font-bold">T</span>
-          </div>
-        )}
+        <ProxiedImage
+          src={twitchAvatar}
+          alt={twitchName || "Twitch"}
+          className={`${dimensions} rounded-full ring-2 ring-[#9146FF] shadow-md`}
+          fallback={
+            <div
+              className={`${dimensions} rounded-full bg-[#9146FF]/20 ring-2 ring-[#9146FF] flex items-center justify-center shadow-md`}
+            >
+              <span className="text-[#9146FF] text-xs font-bold">T</span>
+            </div>
+          }
+        />
       </div>
     </div>
   );
@@ -87,30 +86,18 @@ function SingleAvatar({
     </div>
   );
 
-  // Use ProxiedImage for Kick (CORS issues), regular img for Twitch
-  if (platform === "kick") {
-    return (
-      <ProxiedImage
-        src={avatar}
-        alt={name || platform}
-        className={`${dimensions} rounded-full ring-2 ${ringColor}`}
-        fallback={fallbackElement}
-      />
-    );
-  }
-
-  // Twitch - use regular img
-  if (avatar) {
-    return (
-      <img
-        src={avatar}
-        alt={name || platform}
-        className={`${dimensions} rounded-full ring-2 ${ringColor}`}
-      />
-    );
-  }
-
-  return fallbackElement;
+  // Both platforms go through ProxiedImage: Kick CDN needs the kick-image://
+  // proxy for Referer/Origin spoofing, and Twitch CDN occasionally 403s on
+  // specific profile-image objects — ProxiedImage's onError → fallback path
+  // handles both cleanly, where a raw <img> would show a broken-image icon.
+  return (
+    <ProxiedImage
+      src={avatar}
+      alt={name || platform}
+      className={`${dimensions} rounded-full ring-2 ${ringColor}`}
+      fallback={fallbackElement}
+    />
+  );
 }
 
 export function ProfileDropdown() {
@@ -281,17 +268,16 @@ export function ProfileDropdown() {
                   <div className="flex items-center justify-between px-3 py-2 rounded-md bg-[var(--color-background-secondary)]/50 group">
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        {twitchUser.profileImageUrl ? (
-                          <img
-                            src={twitchUser.profileImageUrl}
-                            alt={twitchUser.displayName}
-                            className="w-7 h-7 rounded-full ring-2 ring-[#9146FF]"
-                          />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-[#9146FF]/20 ring-2 ring-[#9146FF] flex items-center justify-center">
-                            <span className="text-[#9146FF] text-xs font-bold">T</span>
-                          </div>
-                        )}
+                        <ProxiedImage
+                          src={twitchUser.profileImageUrl}
+                          alt={twitchUser.displayName}
+                          className="w-7 h-7 rounded-full ring-2 ring-[#9146FF]"
+                          fallback={
+                            <div className="w-7 h-7 rounded-full bg-[#9146FF]/20 ring-2 ring-[#9146FF] flex items-center justify-center">
+                              <span className="text-[#9146FF] text-xs font-bold">T</span>
+                            </div>
+                          }
+                        />
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm text-white font-medium">

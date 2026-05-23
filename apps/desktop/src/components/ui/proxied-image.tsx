@@ -15,6 +15,18 @@ import { cn } from "@/lib/utils";
 
 const KICK_IMAGE_SCHEME = "kick-image";
 
+// Session-level set of URLs that have already 403'd / errored. Used to skip
+// the network request on subsequent renders so the console doesn't fill up
+// with the same "GET ... 403 (Forbidden)" line every time the parent
+// re-renders. In-memory only — forgotten on app restart, so if the asset
+// recovers we'll pick it up on the next launch.
+const brokenUrls = new Set<string>();
+
+/** Test-only escape hatch — production code should never need this. */
+export function _resetProxiedImageBrokenUrls(): void {
+  brokenUrls.clear();
+}
+
 // Domains that require proxying through kick-image:// (Referer/Origin needed).
 const PROXY_REQUIRED_DOMAINS: string[] = ["files.kick.com", "images.kick.com"];
 
@@ -96,7 +108,12 @@ export function ProxiedImage({
   const imgRef = useRef<HTMLImageElement | null>(null);
   const seenSrcRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  // Seed hasError from the session-level skip-list so a URL that 403'd earlier
+  // in this session goes straight to the fallback path without re-issuing a
+  // request the browser would log to the console.
+  const [hasError, setHasError] = useState(() =>
+    resolvedSrc !== null && brokenUrls.has(resolvedSrc)
+  );
 
   // Reset load state when the underlying src actually changes. A bare
   // useEffect([resolvedSrc]) would also fire on initial mount and override the
@@ -106,7 +123,10 @@ export function ProxiedImage({
   useEffect(() => {
     if (seenSrcRef.current !== null && seenSrcRef.current !== resolvedSrc) {
       setIsLoaded(false);
-      setHasError(false);
+      // Re-seed against the skip-list on src change so a previously-broken
+      // URL stays broken without a doomed retry, while a fresh URL starts
+      // clean.
+      setHasError(resolvedSrc !== null && brokenUrls.has(resolvedSrc));
     }
     seenSrcRef.current = resolvedSrc;
   }, [resolvedSrc]);
@@ -158,6 +178,7 @@ export function ProxiedImage({
       {...(height !== undefined ? { height } : {})}
       onLoad={() => setIsLoaded(true)}
       onError={() => {
+        if (resolvedSrc) brokenUrls.add(resolvedSrc);
         setHasError(true);
         onProxyError?.();
       }}

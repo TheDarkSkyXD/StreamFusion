@@ -2,11 +2,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installElectronAPIMock } from '../../test-utils';
-import { ProxiedImage } from '@/components/ui/proxied-image';
+import { ProxiedImage, _resetProxiedImageBrokenUrls } from '@/components/ui/proxied-image';
 
 describe('ProxiedImage', () => {
   beforeEach(() => {
     installElectronAPIMock();
+    _resetProxiedImageBrokenUrls();
   });
 
   it('renders the image directly for non-proxied http URLs', async () => {
@@ -54,5 +55,22 @@ describe('ProxiedImage', () => {
     const img = await screen.findByRole('img', { name: 'x' });
     fireEvent.error(img);
     await waitFor(() => expect(onProxyError).toHaveBeenCalled());
+  });
+
+  it('skips the network request and shows the fallback when a URL has already 403d this session', async () => {
+    // First render: image errors, URL gets added to the session-level broken-URL set.
+    const { unmount } = render(
+      <ProxiedImage src="https://cdn.example.com/broken.jpg" alt="Bob" />
+    );
+    const img = await screen.findByRole('img', { name: 'Bob' });
+    fireEvent.error(img);
+    await waitFor(() => expect(screen.getByText('B')).toBeInTheDocument());
+    unmount();
+
+    // Re-mount with the same URL — should jump straight to fallback initial,
+    // not issue a new <img> request that would log another 403 to the console.
+    render(<ProxiedImage src="https://cdn.example.com/broken.jpg" alt="Bob" />);
+    await waitFor(() => expect(screen.getByText('B')).toBeInTheDocument());
+    expect(screen.queryByRole('img', { name: 'Bob' })).toBeNull();
   });
 });

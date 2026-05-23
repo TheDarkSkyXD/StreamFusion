@@ -43,6 +43,14 @@ import { IPC_CHANNELS } from "./shared/ipc-channels";
 const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
 
 if (!isProduction) {
+  // Suppress the (Disabled webSecurity) + (allowRunningInsecureContent) dev
+  // warnings the renderer prints on every launch. The posture is intentional
+  // (window-manager.ts:132 — needed for cross-origin video stream playback)
+  // and tracked separately in the worker-auth/proxy-removal brainstorm; the
+  // warnings just bury real signal in the dev console. Production builds
+  // suppress them automatically, so gate strictly to dev.
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
+
   // Use a separate user data directory for development to allow running dev and prod simultaneously
   const userDataPath = app.getPath("userData");
   const devUserDataPath = `${userDataPath} (Dev)`;
