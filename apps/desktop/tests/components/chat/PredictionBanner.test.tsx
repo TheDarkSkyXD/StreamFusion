@@ -422,12 +422,12 @@ describe("PredictionBanner — U5 form/deeplink branch", () => {
     expect(screen.getByTestId("prediction-vote-deeplink")).toBeTruthy();
   });
 
-  it("shows in-app vote form for Kick when Kick user is signed in", () => {
+  it("shows deeplink (not in-app form) for Kick even when Kick user is signed in — Kick voting requires session cookies + CSRF; deferred to BrowserWindow scrape", () => {
     setKickUser();
     render(<PredictionBanner prediction={makePrediction({ platform: "kick" })} />);
     fireEvent.click(screen.getByLabelText("Predict"));
-    expect(screen.getByTestId("prediction-vote-form")).toBeTruthy();
-    expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
+    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
+    expect(screen.getByTestId("prediction-vote-deeplink")).toBeTruthy();
   });
 
   it("Twitch user signed in does NOT enable Kick form on a Kick prediction (per-platform branch)", () => {

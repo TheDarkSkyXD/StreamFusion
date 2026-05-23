@@ -397,20 +397,38 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
   const leaderIndex = leader ? prediction.outcomes.findIndex((o) => o.id === leader.id) : 0;
   const deeplink = prediction.platform === "twitch" ? "https://www.twitch.tv/" : "https://kick.com/";
 
-  // Form-vs-deeplink branch. Rules from plan U5:
-  //   - Active + viewer hasn't voted + token present + real channel → in-app vote form
-  //   - Active + viewer hasn't voted + no token                     → deeplink chip
-  //   - Active + viewer hasn't voted + token present + no real
-  //     channel (dev sentinel with empty slug + no channelLogin prop)
-  //                                                                 → deeplink (form would build a broken URL)
-  //   - Active + viewer already voted                               → no form, no deeplink
+  // Form-vs-deeplink branch. Rules from plan U5 + auth-surface follow-up:
+  //   - Active + viewer hasn't voted + token present + real channel + Twitch → in-app vote form
+  //   - Active + viewer hasn't voted + no token                              → deeplink chip
+  //   - Active + viewer hasn't voted + token present + no real channel       → deeplink (form would build a broken URL)
+  //   - Active + viewer hasn't voted + Kick                                  → deeplink (Kick in-app vote disabled — see below)
+  //   - Active + viewer already voted                                        → no form, no deeplink
   //     (the panel just shows the highlighted-outcome state via outcome row)
-  //   - Locked                                                      → no form, no deeplink
+  //   - Locked                                                               → no form, no deeplink
+  //
+  // KICK_IN_APP_VOTING_SUPPORTED is false because Kick's
+  // /api/v2/channels/{slug}/predictions/vote endpoint requires session
+  // cookies + X-XSRF-TOKEN from a real kick.com browser context. A renderer
+  // Bearer-only POST gets 401 even with a fresh OAuth login (verified
+  // 2026-05-22 against a live prediction on lordkebun). The architectural
+  // fix is the BrowserWindow scrape pattern at
+  // apps/desktop/src/backend/api/platforms/kick/endpoints/follow-endpoints.ts:231
+  // — significant rework deferred to a separate plan. Until that lands,
+  // Kick viewers see the read-only banner + deeplink to kick.com to vote.
+  // Twitch in-app voting (U4 MakePrediction GQL) is unaffected — it uses
+  // a different auth path that doesn't need session cookies.
+  const KICK_IN_APP_VOTING_SUPPORTED = false;
   const viewerHasVoted = prediction.viewerOutcomeId !== null;
   const resolvedChannelLogin = (channelLogin ?? "").trim() || prediction.channelSlug.trim();
   const hasRealChannel = resolvedChannelLogin.length > 0;
+  const platformSupportsInAppVote =
+    prediction.platform === "twitch" || KICK_IN_APP_VOTING_SUPPORTED;
   const showVoteForm =
-    !isLocked && !viewerHasVoted && hasPlatformToken && hasRealChannel;
+    !isLocked &&
+    !viewerHasVoted &&
+    hasPlatformToken &&
+    hasRealChannel &&
+    platformSupportsInAppVote;
   const showDeeplink = !isLocked && !viewerHasVoted && !showVoteForm;
 
   // TODO(predictions-backend U5): wire real balance fetches once U3
