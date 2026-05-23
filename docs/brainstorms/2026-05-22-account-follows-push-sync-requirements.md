@@ -1,7 +1,11 @@
 ---
 date: 2026-05-22
 topic: account-follows-push-sync
+status: investigated-infeasible
+superseded-by: docs/solutions/integration-issues/follow-push-sync-infeasible-2026-05-23.md
 ---
+
+> **2026-05-23 outcome:** the WHAT in this brainstorm assumed Xtra's documented Twitch GQL approach and Kick's session-cookie BrowserWindow approach would work for follow writes. Live probing on 2026-05-23 invalidated both — every reasonable path is blocked by platform-side anti-automation systems. See the linked solutions doc. Foundational improvements (U2 schema, U7 atomic sync + Twitch periodic refresh) shipped from the plan; the actual push-sync units (U3, U4, U6, U8) are abandoned.
 
 # Account Follows Push-Sync (Twitch + Kick)
 

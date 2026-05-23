@@ -1,9 +1,12 @@
 ---
 date: 2026-05-22
-status: active
+status: superseded
 type: feat
 origin: docs/brainstorms/2026-05-22-account-follows-push-sync-requirements.md
+superseded-by: docs/solutions/integration-issues/follow-push-sync-infeasible-2026-05-23.md
 ---
+
+> **2026-05-23 outcome:** U2 (schema) and U7 (atomic pending-aware sync + Twitch periodic refresh) shipped — they're real improvements independent of push-sync. U3, U4, U6, U8 abandoned after live probing on 2026-05-23 confirmed that follow push-sync from a third-party desktop app is infeasible on both Twitch and Kick. Every approach (GQL with various Client-Ids, page-context fetch, main-process `net.fetch`, DOM-click via `sendInputEvent`) hit platform-side anti-automation defenses. See `docs/solutions/integration-issues/follow-push-sync-infeasible-2026-05-23.md` for the full investigation and what NOT to retry. The existing redirect-to-platform.com toast remains the unfollow UX.
 
 # feat: Push-sync follows on Twitch + Kick
 
