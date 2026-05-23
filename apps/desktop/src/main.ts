@@ -24,6 +24,10 @@ import {
   KICK_IMAGE_SCHEME,
   registerKickImageProtocol,
 } from "./backend/protocols/kick-image-protocol";
+import {
+  registerTwitchImageProtocol,
+  TWITCH_IMAGE_SCHEME,
+} from "./backend/protocols/twitch-image-protocol";
 import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
 import { dbService } from "./backend/services/database-service";
 import { networkAdBlockService } from "./backend/services/network-adblock-service";
@@ -102,11 +106,21 @@ app.commandLine.appendSwitch("enable-features", "V8MemoryCage");
 // Disable accessibility runtime (saves ~10-20MB if not needed)
 app.commandLine.appendSwitch("disable-renderer-accessibility");
 
-// Register kick-image:// as a privileged scheme so the renderer can use it
-// in <img src> for Kick CDN thumbnails/avatars. Must happen before app.ready.
+// Register kick-image:// + twitch-image:// as privileged schemes so the renderer
+// can use them in <img src> for CDN avatars/thumbnails. Must happen before app.ready.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: KICK_IMAGE_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      stream: true,
+    },
+  },
+  {
+    scheme: TWITCH_IMAGE_SCHEME,
     privileges: {
       standard: true,
       secure: true,
@@ -249,6 +263,11 @@ app.on("ready", async () => {
 
   // Register kick-image:// streaming image protocol (replaces base64 IPC proxy)
   registerKickImageProtocol();
+
+  // Register twitch-image:// streaming image protocol — swallows per-user
+  // 403s from static-cdn.jtvnw.net by returning a 1×1 placeholder so they
+  // never reach the renderer's network log.
+  registerTwitchImageProtocol();
 
   // Initialize VAFT pattern service (auto-updates ad detection patterns)
   vaftPatternService.initialize().catch((error) => {

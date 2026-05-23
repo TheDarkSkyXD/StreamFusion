@@ -1,12 +1,21 @@
 /**
  * ProxiedImage Component
  *
- * Renders an <img> for remote images. For Kick CDN URLs (which require special
- * Referer/Origin headers to bypass hotlinking protection), the src is rewritten
- * to a kick-image://image?u=<base64url> URL handled by the custom protocol in
- * the main process. That lets Chromium use its native disk + decoded-bitmap
- * cache instead of holding a multi-MB base64 data URL per visible image in
- * renderer JS memory.
+ * Renders an <img> for remote images. Two custom protocols handle CDNs that
+ * the renderer can't reach cleanly:
+ *
+ *  - kick-image:// — Kick CDN needs Referer/Origin spoofing to bypass
+ *    hotlinking protection. The main process attaches the right headers.
+ *  - twitch-image:// — Twitch's static-cdn.jtvnw.net returns 403 + text/html
+ *    for specific per-user profile-image objects (twitch.tv's own UI also
+ *    fails on the same paths — it's CDN-side per-user breakage). The main
+ *    process swallows those failures and returns a 1×1 transparent PNG, so
+ *    no 403 ever reaches the renderer's DevTools network log. The 1×1
+ *    placeholder is detected here via naturalWidth === 1 and routed to the
+ *    fallback initial.
+ *
+ * Both protocols let Chromium use its native disk + decoded-bitmap cache
+ * instead of holding multi-MB base64 data URLs in renderer JS memory.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const KICK_IMAGE_SCHEME = "kick-image";
+const TWITCH_IMAGE_SCHEME = "twitch-image";
 
 // Session-level set of URLs that have already 403'd / errored. Used to skip
 // the network request on subsequent renders so the console doesn't fill up
@@ -27,32 +37,40 @@ export function _resetProxiedImageBrokenUrls(): void {
   brokenUrls.clear();
 }
 
-// Domains that require proxying through kick-image:// (Referer/Origin needed).
-const PROXY_REQUIRED_DOMAINS: string[] = ["files.kick.com", "images.kick.com"];
-
-// Additional URL patterns that require proxying (checked against full URL)
-const PROXY_REQUIRED_PATTERNS: RegExp[] = [
+// Domains that route through kick-image:// (Referer/Origin spoofing).
+const KICK_PROXY_DOMAINS: string[] = ["files.kick.com", "images.kick.com"];
+const KICK_PROXY_PATTERNS: RegExp[] = [
   /^https?:\/\/(www\.)?kick\.com\/img\//i, // kick.com/img/... URLs from official API
 ];
 
-function needsProxy(url: string): boolean {
+// URL patterns that route through twitch-image:// (swallow per-user 403s on
+// Twitch's CDN). Kept narrow to profile_image objects only — emotes and live
+// thumbnails don't have the same breakage and routing them through the main
+// process would add latency to chat rendering.
+const TWITCH_PROXY_PATTERNS: RegExp[] = [
+  /^https:\/\/static-cdn\.jtvnw\.net\/jtv_user_pictures\//i,
+];
+
+type ProxyScheme = typeof KICK_IMAGE_SCHEME | typeof TWITCH_IMAGE_SCHEME;
+
+function chooseProxy(url: string): ProxyScheme | null {
   try {
     const parsed = new URL(url);
-
-    const domainMatch = PROXY_REQUIRED_DOMAINS.some(
+    const kickDomainHit = KICK_PROXY_DOMAINS.some(
       (domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
     );
-    if (domainMatch) return true;
-
-    return PROXY_REQUIRED_PATTERNS.some((pattern) => pattern.test(url));
+    if (kickDomainHit) return KICK_IMAGE_SCHEME;
+    if (KICK_PROXY_PATTERNS.some((p) => p.test(url))) return KICK_IMAGE_SCHEME;
+    if (TWITCH_PROXY_PATTERNS.some((p) => p.test(url))) return TWITCH_IMAGE_SCHEME;
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
 
 function toBase64Url(value: string): string {
-  // btoa accepts only Latin-1 bytes; encode as UTF-8 first so Kick CDN URLs
-  // with non-ASCII characters round-trip safely.
+  // btoa accepts only Latin-1 bytes; encode as UTF-8 first so CDN URLs with
+  // non-ASCII characters round-trip safely.
   const utf8 = String.fromCharCode(...new TextEncoder().encode(value));
   return btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -61,10 +79,21 @@ function resolveSrc(src: string | undefined | null): string | null {
   if (!src || src.trim() === "") return null;
   if (src.startsWith("data:")) return src;
   if (!src.startsWith("http")) return null;
-  if (needsProxy(src)) {
-    return `${KICK_IMAGE_SCHEME}://image?u=${toBase64Url(src)}`;
+  const scheme = chooseProxy(src);
+  if (scheme) {
+    return `${scheme}://image?u=${toBase64Url(src)}`;
   }
   return src;
+}
+
+// Treat this <img> as a proxy placeholder if the protocol handler returned
+// the 1×1 transparent PNG (its in-band signal that the upstream failed).
+// Only matters for proxied URLs — direct CDN images can legitimately be very
+// small and we don't want to false-fallback them.
+function isProxyPlaceholder(el: HTMLImageElement, resolvedSrc: string | null): boolean {
+  if (!resolvedSrc) return false;
+  if (!resolvedSrc.startsWith(`${TWITCH_IMAGE_SCHEME}://`)) return false;
+  return el.naturalWidth === 1 && el.naturalHeight === 1;
 }
 
 interface ProxiedImageProps {
@@ -134,12 +163,21 @@ export function ProxiedImage({
   // Cache hits can fire <img>'s load event before React attaches the handler,
   // leaving isLoaded stuck at false. Detect via the ref callback (which runs
   // during commit) so the placeholder doesn't flash for cached images.
-  const setImgRef = useCallback((el: HTMLImageElement | null) => {
-    imgRef.current = el;
-    if (el?.complete && el.naturalWidth > 0) {
-      setIsLoaded(true);
-    }
-  }, []);
+  const setImgRef = useCallback(
+    (el: HTMLImageElement | null) => {
+      imgRef.current = el;
+      if (el?.complete && el.naturalWidth > 0) {
+        if (isProxyPlaceholder(el, resolvedSrc)) {
+          if (resolvedSrc) brokenUrls.add(resolvedSrc);
+          setHasError(true);
+          onProxyError?.();
+          return;
+        }
+        setIsLoaded(true);
+      }
+    },
+    [resolvedSrc, onProxyError]
+  );
 
   if (!resolvedSrc || hasError) {
     if (fallback) return <>{fallback}</>;
@@ -176,7 +214,15 @@ export function ProxiedImage({
       decoding="async"
       {...(width !== undefined ? { width } : {})}
       {...(height !== undefined ? { height } : {})}
-      onLoad={() => setIsLoaded(true)}
+      onLoad={(e) => {
+        if (isProxyPlaceholder(e.currentTarget, resolvedSrc)) {
+          if (resolvedSrc) brokenUrls.add(resolvedSrc);
+          setHasError(true);
+          onProxyError?.();
+          return;
+        }
+        setIsLoaded(true);
+      }}
       onError={() => {
         if (resolvedSrc) brokenUrls.add(resolvedSrc);
         setHasError(true);

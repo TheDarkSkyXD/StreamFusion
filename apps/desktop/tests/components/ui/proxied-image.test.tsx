@@ -33,6 +33,26 @@ describe('ProxiedImage', () => {
     expect(atob(b64)).toBe('https://files.kick.com/foo.png');
   });
 
+  it('rewrites Twitch profile_image URLs to the twitch-image:// protocol', async () => {
+    const upstream =
+      'https://static-cdn.jtvnw.net/jtv_user_pictures/rescueqt-profile_image-971ff387d62d4a54-300x300.jpeg';
+    render(<ProxiedImage src={upstream} alt="rescueqt" />);
+    const img = await screen.findByRole('img', { name: 'rescueqt' });
+    const src = img.getAttribute('src') ?? '';
+    expect(src.startsWith('twitch-image://image?u=')).toBe(true);
+    const u = new URL(src).searchParams.get('u') ?? '';
+    const b64 = u.replace(/-/g, '+').replace(/_/g, '/');
+    expect(atob(b64)).toBe(upstream);
+  });
+
+  it('leaves non-profile Twitch CDN URLs (emotes, thumbnails) alone', async () => {
+    const emote =
+      'https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/3.0';
+    render(<ProxiedImage src={emote} alt="kappa" />);
+    const img = await screen.findByRole('img', { name: 'kappa' });
+    expect(img.getAttribute('src')).toBe(emote);
+  });
+
   it('renders the default fallback initial on empty src', async () => {
     render(<ProxiedImage src="" alt="Alice" />);
     await waitFor(() => {
@@ -55,6 +75,21 @@ describe('ProxiedImage', () => {
     const img = await screen.findByRole('img', { name: 'x' });
     fireEvent.error(img);
     await waitFor(() => expect(onProxyError).toHaveBeenCalled());
+  });
+
+  it('treats a 1x1 response on the twitch-image:// protocol as upstream failure → fallback', async () => {
+    const upstream =
+      'https://static-cdn.jtvnw.net/jtv_user_pictures/broken-profile_image-abcdef0123456789-300x300.jpeg';
+    render(<ProxiedImage src={upstream} alt="Dana" />);
+    const img = await screen.findByRole('img', { name: 'Dana' });
+    // Simulate the protocol handler's 1×1 placeholder by stamping the natural
+    // dimensions before firing onLoad. The component uses these to detect
+    // "upstream failed, paint the fallback initial."
+    Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 1 });
+    Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 1 });
+    fireEvent.load(img);
+    await waitFor(() => expect(screen.getByText('D')).toBeInTheDocument());
+    expect(screen.queryByRole('img', { name: 'Dana' })).toBeNull();
   });
 
   it('skips the network request and shows the fallback when a URL has already 403d this session', async () => {
