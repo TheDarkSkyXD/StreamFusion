@@ -52,8 +52,11 @@ import type {
 
 const GQL_ENDPOINT = "https://gql.twitch.tv/gql";
 // Android-app Client-Id — bypasses the integrity check pairing the web
-// Client-Id requires. Matches the strategy at twitch-gql-client.ts:58-65.
-const GQL_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
+// Client-Id requires. Used for ANONYMOUS GQL traffic only (matches the
+// strategy at twitch-gql-client.ts:58-65). Authenticated calls must pair the
+// user's OAuth token with the app's own Client-Id; otherwise Twitch returns
+// 401 (see commit 5fc5a23 for the Helix-side documentation of this invariant).
+const ANONYMOUS_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 type Status = UnifiedPrediction["status"];
@@ -124,13 +127,21 @@ interface TwitchGqlPredictionResponse {
 
 export interface FetchChannelPredictionOptions {
   /**
-   * OAuth Bearer token from our Twitch auth flow. When supplied, the request
-   * adds `Authorization: OAuth <token>` (Twitch GQL uses `OAuth` scheme, not
-   * `Bearer` — verified in `twitch-gql-pin-mutations.ts`). Required to
-   * populate `viewerOutcomeId` / `viewerStake`. Omitted = anonymous call,
-   * payload still parses, self-state defaults to null.
+   * OAuth user-access token from our Twitch auth flow. To attach Authorization,
+   * `clientId` must ALSO be supplied — Twitch's GQL endpoint requires the
+   * `Client-Id` header to match the token's owning client_id, otherwise the
+   * request 401s. When `accessToken` is set but `clientId` is missing, the
+   * Authorization header is dropped and the call degrades to anonymous (no
+   * `self` block) instead of sending a known-bad pair.
    */
   accessToken?: string;
+  /**
+   * Twitch app Client-Id that minted the OAuth token (read from
+   * `import.meta.env.VITE_TWITCH_CLIENT_ID` in the renderer). Defaults to the
+   * Android anonymous Client-Id when omitted. The Authorization header is
+   * attached only when this is supplied alongside `accessToken`.
+   */
+  clientId?: string;
 }
 
 /**
@@ -157,15 +168,17 @@ export async function fetchChannelPrediction(
   opts: FetchChannelPredictionOptions = {},
 ): Promise<UnifiedPrediction | null> {
   const login = channelLogin.toLowerCase();
+  // Authorization is attached only when BOTH a token AND its matching app
+  // Client-Id are supplied. A user OAuth token paired with the anonymous
+  // Android Client-Id is rejected by Twitch with 401 (Client-Id must match the
+  // token's owning client_id), so we fail closed and degrade to anonymous when
+  // the pair is incomplete.
+  const isAuthenticated = Boolean(opts.accessToken && opts.clientId);
   const headers: Record<string, string> = {
-    "Client-Id": GQL_CLIENT_ID,
+    "Client-Id": opts.clientId ?? ANONYMOUS_CLIENT_ID,
     "Content-Type": "application/json",
   };
-  // Twitch GQL uses the `OAuth <token>` scheme (NOT Bearer), per the existing
-  // pin mutations file. The Authorization header is only added when a token is
-  // supplied — anonymous callers (guests / not-authed-to-Twitch StreamFusion
-  // users) omit it entirely.
-  if (opts.accessToken) {
+  if (isAuthenticated) {
     headers.Authorization = `OAuth ${opts.accessToken}`;
   }
 

@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe("fetchChannelPrediction — request wire shape", () => {
-  it("sends Client-Id always (Android Client-Id matching codebase strategy)", async () => {
+  it("defaults Client-Id to the anonymous Android id when no clientId option is supplied (guest path)", async () => {
     nextResponse = { status: 200, body: { data: { channel: null } } };
     await fetchChannelPrediction("ramee");
     expect(lastRequest.headers["Client-Id"]).toBe("kd1unb4b3q4t58fwlpcbzcbnm76a8fp");
@@ -64,12 +64,35 @@ describe("fetchChannelPrediction — request wire shape", () => {
     expect(lastRequest.headers.Authorization).toBeUndefined();
   });
 
-  it("sends Authorization: OAuth <token> when accessToken is supplied (NOT Bearer)", async () => {
+  it("falls back to anonymous (no Authorization) when accessToken is supplied WITHOUT a matching clientId", async () => {
+    // Fail-closed: a user OAuth token paired with the anonymous Android Client-Id
+    // would be rejected by Twitch with 401 (Client-Id must match the token's
+    // owning client_id). Better to send no Authorization than to send a known-bad
+    // pair and spam the console — matches the May 19 Helix fix pattern.
     nextResponse = { status: 200, body: { data: { channel: null } } };
     await fetchChannelPrediction("ramee", { accessToken: "tok-1" });
-    // Twitch GQL uses OAuth scheme; Bearer is for Helix. Drift here would 401
-    // silently.
+    expect(lastRequest.headers.Authorization).toBeUndefined();
+    expect(lastRequest.headers["Client-Id"]).toBe("kd1unb4b3q4t58fwlpcbzcbnm76a8fp");
+  });
+
+  it("sends Authorization: OAuth <token> AND the app Client-Id when both accessToken and clientId are supplied", async () => {
+    nextResponse = { status: 200, body: { data: { channel: null } } };
+    await fetchChannelPrediction("ramee", {
+      accessToken: "tok-1",
+      clientId: "my-app-client-id",
+    });
+    // Twitch's auth invariant: Client-Id must match the token's owning client_id.
+    // Pairing the user-OAuth token with the app's own Client-Id is the only way
+    // GQL accepts the request (see commit 5fc5a23 for the Helix-side rationale).
+    expect(lastRequest.headers["Client-Id"]).toBe("my-app-client-id");
     expect(lastRequest.headers.Authorization).toBe("OAuth tok-1");
+  });
+
+  it("uses the supplied clientId for anonymous calls too (no Authorization attached)", async () => {
+    nextResponse = { status: 200, body: { data: { channel: null } } };
+    await fetchChannelPrediction("ramee", { clientId: "my-app-client-id" });
+    expect(lastRequest.headers["Client-Id"]).toBe("my-app-client-id");
+    expect(lastRequest.headers.Authorization).toBeUndefined();
   });
 
   it("posts the ChannelPredictionContext operation with lowercased channelLogin variable", async () => {
@@ -185,7 +208,10 @@ describe("fetchChannelPrediction — response handling", () => {
         },
       },
     };
-    const result = await fetchChannelPrediction("ramee", { accessToken: "tok-1" });
+    const result = await fetchChannelPrediction("ramee", {
+      accessToken: "tok-1",
+      clientId: "my-app-client-id",
+    });
     expect(result?.viewerOutcomeId).toBe("outcome-a");
     expect(result?.viewerStake).toBe(250);
   });

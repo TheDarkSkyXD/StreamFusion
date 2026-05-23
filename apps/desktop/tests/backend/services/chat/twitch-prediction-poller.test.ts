@@ -92,6 +92,10 @@ beforeEach(() => {
   chatServiceMock.emit.mockReset();
   chatServiceMock.on.mockReset();
   chatServiceMock.off.mockReset();
+  // Neutralize the renderer Client-Id env var so tests don't pick up whatever
+  // the dev machine has in `.env`. Individual tests that exercise the
+  // Client-Id-pairing path override this with `vi.stubEnv`.
+  vi.stubEnv("VITE_TWITCH_CLIENT_ID", "");
   // Default: no electronAPI shim — guest path. Individual tests install one
   // as needed.
   clearElectronApi();
@@ -101,6 +105,7 @@ beforeEach(() => {
 afterEach(() => {
   __resetTwitchPredictionPollers();
   vi.useRealTimers();
+  vi.unstubAllEnvs();
   clearElectronApi();
 });
 
@@ -125,6 +130,7 @@ describe("startTwitchPredictionPolling — initial fetch", () => {
     expect(fetchChannelPredictionMock).toHaveBeenCalledTimes(1);
     expect(fetchChannelPredictionMock).toHaveBeenCalledWith("ramee", {
       accessToken: undefined,
+      clientId: undefined,
     });
   });
 
@@ -345,6 +351,7 @@ describe("three-auth-state matrix (auth-state coverage per plan)", () => {
     // the guest path.
     expect(fetchChannelPredictionMock).toHaveBeenCalledWith("ramee", {
       accessToken: undefined,
+      clientId: undefined,
     });
     expect(chatServiceMock.emit).toHaveBeenCalledWith(
       "predictionUpdate",
@@ -361,6 +368,7 @@ describe("three-auth-state matrix (auth-state coverage per plan)", () => {
     await flushMicrotasks();
     expect(fetchChannelPredictionMock).toHaveBeenCalledWith("ramee", {
       accessToken: "tok-1",
+      clientId: undefined,
     });
     expect(chatServiceMock.emit).toHaveBeenCalledWith(
       "predictionUpdate",
@@ -375,7 +383,24 @@ describe("three-auth-state matrix (auth-state coverage per plan)", () => {
     await flushMicrotasks();
     expect(fetchChannelPredictionMock).toHaveBeenCalledWith("ramee", {
       accessToken: undefined,
+      clientId: undefined,
     });
+  });
+
+  it("passes VITE_TWITCH_CLIENT_ID through to the fetcher so Twitch's Client-Id/token pairing invariant holds", async () => {
+    // The U3 GQL prediction read attaches Authorization only when both a token
+    // AND the app's own Client-Id are supplied (see twitch-gql-predictions.ts).
+    // The renderer-side env var is the source of truth for the Client-Id.
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "my-app-client-id");
+    installElectronApi(async () => "tok-1");
+    fetchChannelPredictionMock.mockResolvedValue(activePrediction());
+    startTwitchPredictionPolling("ramee");
+    await flushMicrotasks();
+    expect(fetchChannelPredictionMock).toHaveBeenCalledWith("ramee", {
+      accessToken: "tok-1",
+      clientId: "my-app-client-id",
+    });
+    vi.unstubAllEnvs();
   });
 });
 
@@ -425,5 +450,45 @@ describe("401 → refresh + retry (renderer-safe seam)", () => {
     await flushMicrotasks();
     // Single attempt — 500s don't trigger refresh.
     expect(fetchChannelPredictionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops polling after two CONSECUTIVE cross-tick 401s (prevents console spam loop)", async () => {
+    // Without this guard, a sustained 401 (e.g. Client-Id/token mismatch
+    // produced by env misconfiguration, OAuth scheme drift, or a Twitch-side
+    // policy change) would fire 2× POSTs per 5s tick forever. The per-tick
+    // `pendingRefresh` flag resets in `finally`, so it doesn't cap retries
+    // across ticks. This test pins the cross-tick stop behavior.
+    installElectronApi(async () => "tok-1");
+    fetchChannelPredictionMock.mockRejectedValue(
+      new Error("ChannelPredictionContext 401"),
+    );
+    startTwitchPredictionPolling("ramee");
+    await flushMicrotasks(); // tick 1: bootstrap → 2× 401 (initial + refresh retry)
+    await vi.advanceTimersByTimeAsync(5_000); // tick 2: 2× 401 → poller hits its sustained-401 cap and stops
+    // Two ticks = 4 fetch attempts total.
+    expect(fetchChannelPredictionMock).toHaveBeenCalledTimes(4);
+    fetchChannelPredictionMock.mockClear();
+    // Advance well past several intervals — no further attempts should fire.
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchChannelPredictionMock).not.toHaveBeenCalled();
+  });
+
+  it("resets the 401 streak on a successful fetch (transient 401 does not arm the stop)", async () => {
+    installElectronApi(async () => "tok-1");
+    fetchChannelPredictionMock
+      .mockRejectedValueOnce(new Error("ChannelPredictionContext 401"))
+      .mockRejectedValueOnce(new Error("ChannelPredictionContext 401")) // bootstrap: refresh retry also 401s
+      .mockResolvedValueOnce(activePrediction()) // tick 2 recovers
+      .mockRejectedValueOnce(new Error("ChannelPredictionContext 401"))
+      .mockRejectedValueOnce(new Error("ChannelPredictionContext 401")); // tick 3 401 again — should NOT stop yet (streak was reset)
+    startTwitchPredictionPolling("ramee");
+    await flushMicrotasks(); // tick 1: 401×2
+    await vi.advanceTimersByTimeAsync(5_000); // tick 2: success resets streak
+    await vi.advanceTimersByTimeAsync(5_000); // tick 3: 401×2 → streak back to 1, not 2
+    // Poller should still be alive — next tick fires another fetch.
+    fetchChannelPredictionMock.mockClear();
+    fetchChannelPredictionMock.mockResolvedValue(activePrediction());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(fetchChannelPredictionMock).toHaveBeenCalled();
   });
 });

@@ -48,6 +48,13 @@ const POLL_INTERVAL_MS = 5_000;
 /** Stop polling after this many consecutive null responses. Resumed externally
  *  by another `start` call. */
 const NULL_RESPONSES_BEFORE_STOP = 2;
+/** Stop polling after this many consecutive 401s across ticks. The per-tick
+ *  `pendingRefresh` guard already prevents an in-tick loop; this caps the
+ *  *cross-tick* loop that fires when Twitch keeps rejecting the request — for
+ *  example a Client-Id/token mismatch (commit 5fc5a23 documents the invariant
+ *  on the Helix side) or a missing VITE_TWITCH_CLIENT_ID build. Without this
+ *  cap, sustained 401s spam the dev console at 2× per 5s indefinitely. */
+const AUTH_401_BEFORE_STOP = 2;
 
 interface PollState {
   /** Channel login (lowercased) this poller targets. */
@@ -61,6 +68,9 @@ interface PollState {
   nullStreak: number;
   /** Tracks 401-retry attempts within a single tick so we don't loop. */
   pendingRefresh: boolean;
+  /** Consecutive cross-tick 401s. Resets on any non-401 outcome (success or
+   *  other error). Hits AUTH_401_BEFORE_STOP → poller stops. */
+  auth401Streak: number;
   /** Set by stop() to prevent an in-flight poll from emitting after teardown. */
   cancelled: boolean;
 }
@@ -81,6 +91,7 @@ export function startTwitchPredictionPolling(channelLogin: string): void {
     lastSnapshot: null,
     nullStreak: 0,
     pendingRefresh: false,
+    auth401Streak: 0,
     cancelled: false,
   };
   pollers.set(login, state);
@@ -122,7 +133,25 @@ async function poll(login: string): Promise<void> {
   try {
     prediction = await fetchWithAuthRetry(login, state);
   } catch (error) {
-    // Network blip / Twitch hiccup — silent skip; try again on the next tick.
+    if (is401(error)) {
+      state.auth401Streak += 1;
+      if (state.auth401Streak >= AUTH_401_BEFORE_STOP) {
+        // Sustained 401s mean the token/Client-Id pairing is wrong or the
+        // operation is auth-gated in a way the refresh path can't fix. Stop
+        // so we don't spam Twitch + the dev console; a fresh `start` call
+        // (channel re-mount, auth flip) re-arms the loop with whatever state
+        // applies then.
+        console.warn(
+          `[twitch-prediction-poller] sustained 401s for "${login}" — pausing poll until next start`,
+        );
+        stopTwitchPredictionPolling(login);
+        return;
+      }
+    } else {
+      // Any non-401 error resets the auth streak — only consecutive 401s arm
+      // the auto-stop. (Network blips shouldn't kill the prediction poll.)
+      state.auth401Streak = 0;
+    }
     if (process.env.NODE_ENV !== "production") {
       console.debug("[twitch-prediction-poller] fetch failed:", login, error);
     }
@@ -131,6 +160,9 @@ async function poll(login: string): Promise<void> {
 
   // Re-check after the async hop — `stop` may have fired while we awaited.
   if (state.cancelled || !pollers.has(login)) return;
+
+  // Successful fetch (null or populated) clears the auth streak.
+  state.auth401Streak = 0;
 
   if (prediction === null) {
     state.nullStreak += 1;
@@ -167,9 +199,18 @@ async function fetchWithAuthRetry(
   login: string,
   state: PollState,
 ): Promise<UnifiedPrediction | null> {
+  // Twitch's GQL endpoint requires the `Client-Id` header to match the OAuth
+  // token's owning client_id, otherwise the request 401s (see the May 19
+  // Helix-side fix in commit 5fc5a23). The renderer-only env var is the source
+  // of truth; main-process / test contexts where it's undefined fall through
+  // to the anonymous Android Client-Id path inside `fetchChannelPrediction`.
+  const clientId = getRendererClientId();
   const token = await getValidTwitchTokenSafe();
   try {
-    return await fetchChannelPrediction(login, { accessToken: token ?? undefined });
+    return await fetchChannelPrediction(login, {
+      accessToken: token ?? undefined,
+      clientId,
+    });
   } catch (error) {
     if (!is401(error) || state.pendingRefresh) throw error;
     state.pendingRefresh = true;
@@ -181,10 +222,24 @@ async function fetchWithAuthRetry(
       // the next tick.
       return await fetchChannelPrediction(login, {
         accessToken: fresh ?? undefined,
+        clientId,
       });
     } finally {
       state.pendingRefresh = false;
     }
+  }
+}
+
+function getRendererClientId(): string | undefined {
+  // `import.meta.env` is undefined in non-Vite contexts (some unit tests). Guard
+  // so the poller stays renderer-and-test-safe. Empty string (e.g. env var
+  // explicitly cleared in tests, or a build that forgot to set it) collapses to
+  // `undefined` so we don't ship a malformed `Client-Id: ` header.
+  try {
+    const v = import.meta.env?.VITE_TWITCH_CLIENT_ID;
+    return typeof v === "string" && v.length > 0 ? v : undefined;
+  } catch {
+    return undefined;
   }
 }
 
