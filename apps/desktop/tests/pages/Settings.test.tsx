@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_BUFFER_PREFERENCES,
+  DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
 } from '@/shared/auth-types';
@@ -51,6 +52,9 @@ const buffer = { ...DEFAULT_BUFFER_PREFERENCES, liveSyncDurationCount: 5 };
 // proxy carries the main-owned `hasCredentials:true` advisory — it is NOT part of
 // the apply config, so a save's `{...proxyPrefs, ...config}` write must preserve it.
 const proxy = { ...DEFAULT_PROXY_PREFERENCES, hasCredentials: true };
+// playbackAdvanced carries a non-default sibling (allowHevc:true) so the U13
+// spread-preservation assertion has something to prove.
+const playbackAdvanced = { ...DEFAULT_PLAYBACK_ADVANCED_PREFERENCES, allowHevc: true };
 vi.mock('@/store/auth-store', () => ({
   useAuthStore: (selector?: (s: unknown) => unknown) => {
     const state = {
@@ -59,6 +63,7 @@ vi.mock('@/store/auth-store', () => ({
         playerControls,
         buffer,
         proxy,
+        playbackAdvanced,
       },
       updatePreferences,
     };
@@ -365,5 +370,62 @@ describe('SettingsPage — Proxy tab (U12)', () => {
     await waitFor(() => {
       expect(proxyApi.setCredentials).toHaveBeenCalledWith(null);
     });
+  });
+});
+
+describe('SettingsPage — Advanced stream-token (U13, under Playback)', () => {
+  beforeEach(() => {
+    updatePreferences.mockReset();
+    localStorage.clear();
+  });
+
+  // The Playback tab is the default active tab, so the advanced subsection
+  // renders without navigation.
+
+  it('renders the advanced subsection with the persistent danger banner', () => {
+    renderWithProviders(<SettingsPage />);
+    expect(screen.getByText(/advanced \(stream token\)/i)).toBeInTheDocument();
+    // The exact danger framing the plan requires.
+    expect(
+      screen.getByText(/wrong values can break playback\. defaults match the current configuration/i)
+    ).toBeInTheDocument();
+    // The three controls.
+    expect(screen.getByText(/access-token player type/i)).toBeInTheDocument();
+    expect(screen.getByText(/allow hevc/i)).toBeInTheDocument();
+    expect(screen.getByText(/stream device id/i)).toBeInTheDocument();
+  });
+
+  it('toggling Allow HEVC persists to playbackAdvanced with the spread preserved', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(screen.getByRole('switch', { name: /allow hevc/i }));
+
+    expect(updatePreferences).toHaveBeenCalledTimes(1);
+    // The mock seeds allowHevc:true, so the (checked) switch flips it to false.
+    expect(updatePreferences).toHaveBeenCalledWith({
+      playbackAdvanced: { ...playbackAdvanced, allowHevc: false },
+    });
+    // Spread preserved: the sibling playerType survives the single-field write.
+    const arg = updatePreferences.mock.calls[0][0] as {
+      playbackAdvanced: typeof playbackAdvanced;
+    };
+    expect(arg.playbackAdvanced.playerType).toBe('default');
+  });
+
+  it('Randomize writes a new device id to localStorage and shows its prefix', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+
+    expect(localStorage.getItem('twitch_adblock_device_id')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /randomize/i }));
+
+    const stored = localStorage.getItem('twitch_adblock_device_id');
+    expect(stored).toMatch(/^[a-z0-9]{32}$/);
+    // The UI surfaces the first 8 chars of the new id.
+    expect(screen.getByText(new RegExp(stored!.slice(0, 8)))).toBeInTheDocument();
+    // Randomizing is not a preferences write (device-id isn't an AdBlockConfig field).
+    expect(updatePreferences).not.toHaveBeenCalled();
   });
 });

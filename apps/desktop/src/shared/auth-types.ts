@@ -319,6 +319,63 @@ export interface ChatDisplayPreferences {
   messageLimit: number;
 }
 
+/**
+ * Player type for the advanced stream-token override. `"default"` is a sentinel
+ * meaning "no override" — the ad-block service keeps its own `DEFAULT_ADBLOCK_CONFIG`
+ * player-type list, so an untouched setting is behavior-neutral. The non-default
+ * values are exactly the ad-block `PlayerType` union (kept in sync there); they are
+ * not re-imported here to keep this shared types module dependency-free.
+ */
+export type PlaybackAdvancedPlayerType =
+  | "default"
+  | "site"
+  | "embed"
+  | "popout"
+  | "autoplay"
+  | "picture-by-picture"
+  | "thunderdome";
+
+/**
+ * Advanced Twitch stream-token controls, applied ONLY through the ad-block
+ * (VAFT) token pipeline via `updateAdBlockConfig`.
+ *
+ * Its own top-level group so older installs hydrate the whole group with
+ * defaults under the shallow top-level preferences merge.
+ *
+ * SCOPED TO THE AD-BLOCK PATH ONLY (plan U13, R22/R23): the ad-block service
+ * requests tokens with the web Client-Id (`kimne…`) paired with integrity
+ * headers, while the non-ad-block resolver (`twitch-gql-client.ts`) uses the
+ * Android Client-Id (`kd1unb…`) with a hardcoded `playerType:"site"`. The two
+ * pairings are not interchangeable — pushing a player-type/codec override into
+ * the resolver would trip its integrity check and 401. So these overrides flow
+ * through `updateAdBlockConfig` only; when ad-block is OFF the resolver keeps
+ * its working defaults and these settings have no effect.
+ *
+ * Defaults reproduce the current ad-block behavior exactly, so an untouched
+ * install is behavior-neutral (R25). Only the controls that map to a REAL,
+ * behavior-active `AdBlockConfig` field are present here — see the U13 report
+ * for the controls that were dropped because no clean config mapping exists
+ * (include-GQL-token, extra stream headers, skip-video-access-token).
+ */
+export interface PlaybackAdvancedPreferences {
+  /**
+   * Preferred player type for the ad-block access-token request. `"default"`
+   * (the shipped behavior) leaves the ad-block service's own player-type list
+   * untouched. A concrete value is tried first for backup streams and used as
+   * the fallback player type. Device-id randomize is a separate action (it is
+   * not an `AdBlockConfig` field) — see the Settings UI.
+   */
+  playerType: PlaybackAdvancedPlayerType;
+  /**
+   * Allow HEVC (H.265) streams to play without swapping to an AVC equivalent.
+   * Maps to `AdBlockConfig.skipPlayerReloadOnHevc`. Default `false` reproduces
+   * the current behavior (HEVC triggers the AVC swap / player reload during ads
+   * so the player doesn't hard-reload mid-stream). Enabling keeps HEVC but can
+   * break playback if the decoder can't switch cleanly — hence "advanced".
+   */
+  allowHevc: boolean;
+}
+
 export interface UserPreferences {
   theme: Theme;
   language: string;
@@ -335,6 +392,8 @@ export interface UserPreferences {
   buffer: BufferPreferences;
   /** Outbound Twitch-stream proxy (host/port/enabled only — creds via safeStorage; Xtra port, U11). */
   proxy: ProxyPreferences;
+  /** Advanced Twitch stream-token controls, ad-block path only (Xtra port, U13). */
+  playbackAdvanced: PlaybackAdvancedPreferences;
   startMinimized: boolean;
   minimizeToTray: boolean;
 }
@@ -497,6 +556,17 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   messageLimit: 100,
 };
 
+/**
+ * Defaults reproduce the current ad-block token behavior exactly (R25):
+ * `playerType:"default"` leaves the ad-block service's own player-type list
+ * untouched, and `allowHevc:false` matches `DEFAULT_ADBLOCK_CONFIG`'s
+ * `skipPlayerReloadOnHevc:false`. So an untouched install applies no override.
+ */
+export const DEFAULT_PLAYBACK_ADVANCED_PREFERENCES: PlaybackAdvancedPreferences = {
+  playerType: "default",
+  allowHevc: false,
+};
+
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   theme: "dark",
   language: "en",
@@ -509,6 +579,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   playerControls: DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   buffer: DEFAULT_BUFFER_PREFERENCES,
   proxy: DEFAULT_PROXY_PREFERENCES,
+  playbackAdvanced: DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   startMinimized: false,
   minimizeToTray: true,
 };

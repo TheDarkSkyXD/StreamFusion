@@ -38,14 +38,21 @@ import { cn } from "@/lib/utils";
 import {
   type BufferPreferences,
   DEFAULT_BUFFER_PREFERENCES,
+  DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYBACK_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
+  type PlaybackAdvancedPlayerType,
+  type PlaybackAdvancedPreferences,
   type PlayerControlsPreferences,
   type PredictionPreferences,
   type VideoQuality,
 } from "@/shared/auth-types";
+import {
+  getAdBlockDeviceId,
+  randomizeAdBlockDeviceId,
+} from "@/components/player/twitch/twitch-adblock-device-id";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -121,6 +128,18 @@ const PLAYER_CONTROL_TOGGLES: {
   { field: "showFullscreen", label: "Fullscreen", description: "Fullscreen toggle button." },
   { field: "showTheater", label: "Theater", description: "Theater-mode toggle button." },
   { field: "showVideoStats", label: "Video Stats", description: "Live video stats overlay." },
+];
+
+// Player-type options for the advanced stream-token control (U13). "default" is
+// the behavior-neutral sentinel; the rest are the ad-block `PlayerType` union.
+const PLAYBACK_ADVANCED_PLAYER_TYPES: { value: PlaybackAdvancedPlayerType; label: string }[] = [
+  { value: "default", label: "Default (recommended)" },
+  { value: "site", label: "site" },
+  { value: "embed", label: "embed" },
+  { value: "popout", label: "popout" },
+  { value: "autoplay", label: "autoplay" },
+  { value: "picture-by-picture", label: "picture-by-picture" },
+  { value: "thunderdome", label: "thunderdome" },
 ];
 
 export function SettingsPage() {
@@ -221,6 +240,39 @@ export function SettingsPage() {
 
   const handleBufferReset = async () => {
     await updatePreferences({ buffer: { ...DEFAULT_BUFFER_PREFERENCES } });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  // ===== Advanced stream-token (U13) =====
+  // Surfaced under Playback. Overrides flow ONLY through the ad-block (VAFT)
+  // token pipeline (`updateAdBlockConfig` at player mount) — never the resolver
+  // path, which uses a different Client-Id. Defaults are behavior-neutral.
+  const playbackAdvanced = preferences?.playbackAdvanced ?? DEFAULT_PLAYBACK_ADVANCED_PREFERENCES;
+
+  const handlePlaybackAdvancedChange = async (
+    field: keyof PlaybackAdvancedPreferences,
+    value: PlaybackAdvancedPlayerType | boolean
+  ) => {
+    await updatePreferences({
+      playbackAdvanced: {
+        ...(preferences?.playbackAdvanced ?? DEFAULT_PLAYBACK_ADVANCED_PREFERENCES),
+        [field]: value,
+      },
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  // Device-id is a localStorage value (not a pref). Seed the displayed id on
+  // mount; "Randomize" clears + regenerates it and updates the display. It takes
+  // effect on the next stream load (the player remount re-seeds).
+  const [adBlockDeviceId, setAdBlockDeviceId] = useState<string | null>(null);
+  useEffect(() => {
+    setAdBlockDeviceId(getAdBlockDeviceId());
+  }, []);
+  const handleRandomizeDeviceId = () => {
+    setAdBlockDeviceId(randomizeAdBlockDeviceId());
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -472,6 +524,107 @@ export function SettingsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced (stream token) — U13. Overrides apply ONLY via the
+                  ad-block token pipeline; the resolver path keeps its defaults. */}
+              <div className="rounded-xl border border-amber-500/20 bg-[#121214] overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Advanced (stream token)
+                  </h3>
+                  {saved && (
+                    <span className="text-xs text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
+                      Saved
+                    </span>
+                  )}
+                </div>
+
+                {/* Persistent danger banner */}
+                <div className="mx-6 mt-4 flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300/90">
+                  <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm leading-relaxed">
+                    These affect how the Twitch stream token is requested. Wrong values can break
+                    playback. Defaults match the current configuration. They apply through the
+                    ad-block pipeline only — with ad-block off, the standard player is unaffected.
+                  </p>
+                </div>
+
+                <div className="px-6 py-2 divide-y divide-[#27272a]/60">
+                  {/* Player type */}
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Access-token player type</p>
+                      <p className="text-sm text-zinc-500 mt-0.5">
+                        Player type used when requesting the ad-block stream token. Leave on Default
+                        unless a specific type is needed.
+                      </p>
+                    </div>
+                    <Select
+                      value={playbackAdvanced.playerType}
+                      onValueChange={(v) =>
+                        handlePlaybackAdvancedChange("playerType", v as PlaybackAdvancedPlayerType)
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label="Access-token player type"
+                        className="w-[200px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-amber-500/20"
+                      >
+                        <SelectValue placeholder="Select player type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
+                        {PLAYBACK_ADVANCED_PLAYER_TYPES.map(({ value, label }) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Allow HEVC */}
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Allow HEVC (H.265)</p>
+                      <p className="text-sm text-zinc-500 mt-0.5">
+                        Keep HEVC streams instead of swapping to AVC during ads. Off by default —
+                        enabling can break playback if the decoder can't switch cleanly.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={playbackAdvanced.allowHevc}
+                      onCheckedChange={(v) => handlePlaybackAdvancedChange("allowHevc", v)}
+                      aria-label="Allow HEVC"
+                    />
+                  </div>
+
+                  {/* Device-id randomize */}
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Stream device ID</p>
+                      <p className="text-sm text-zinc-500 mt-0.5">
+                        Identifier sent with the ad-block stream token.{" "}
+                        {adBlockDeviceId ? (
+                          <>
+                            Current:{" "}
+                            <code className="text-zinc-400">{adBlockDeviceId.slice(0, 8)}…</code>
+                          </>
+                        ) : (
+                          "Not yet generated (set on first stream load)."
+                        )}{" "}
+                        Randomizing takes effect on the next stream load.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRandomizeDeviceId}
+                      className="flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
+                    >
+                      Randomize
+                    </Button>
                   </div>
                 </div>
               </div>

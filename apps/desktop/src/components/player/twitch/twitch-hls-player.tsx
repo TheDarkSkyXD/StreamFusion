@@ -17,14 +17,17 @@ import { useAuthStore } from "@/store/auth-store";
 import { resolveHlsBufferConfig } from "../hls-buffer-config";
 import type { PlayerError, QualityLevel } from "../types";
 
+import { resolvePlaybackAdvancedAdBlockOverrides } from "./playback-advanced-config";
 import { getAdBlockHlsConfig } from "./twitch-adblock-loader";
 import {
   clearStreamInfo,
+  getAdBlockConfig,
   initAdBlockService,
   isAdBlockEnabled,
   setAuthHeaders,
   setPlayerCallbacks,
   setStatusChangeCallback,
+  updateAdBlockConfig,
 } from "./twitch-adblock-service";
 
 export interface TwitchHlsPlayerProps
@@ -95,6 +98,21 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     useEffect(() => {
       if (enableAdBlock) {
         initAdBlockService({ enabled: true });
+
+        // Apply the user's advanced stream-token overrides to the ad-block path
+        // ONLY (plan U13). Read at mount so they take effect on the next stream
+        // load; defaults produce `{}`, so an untouched install is behavior-
+        // neutral. These never reach the non-ad-block resolver (different
+        // Client-Id pairing — see playback-advanced-config.ts).
+        const advancedPrefs = useAuthStore.getState().preferences?.playbackAdvanced;
+        const overrides = resolvePlaybackAdvancedAdBlockOverrides(
+          advancedPrefs,
+          getAdBlockConfig().backupPlayerTypes
+        );
+        if (Object.keys(overrides).length > 0) {
+          updateAdBlockConfig(overrides);
+        }
+
         setStatusChangeCallback((status) => {
           setAdBlockStatus(status);
           onAdBlockStatusChangeRef.current?.(status);

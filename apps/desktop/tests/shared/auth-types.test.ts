@@ -5,10 +5,12 @@ import {
   type ChatDisplayPreferences,
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
+  type PlaybackAdvancedPreferences,
   type PlayerControlsPreferences,
   type PredictionPreferences,
   type ProxyPreferences,
@@ -201,5 +203,47 @@ describe("ProxyPreferences defaults (U11)", () => {
     const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
     expect(hydrated.proxy).toEqual(DEFAULT_PROXY_PREFERENCES);
     expect(hydrated.proxy.enabled).toBe(false);
+  });
+});
+
+describe("PlaybackAdvancedPreferences defaults (U13)", () => {
+  it("defaults reproduce the current ad-block token behavior (behavior-neutral, R25)", () => {
+    // playerType "default" = no override (ad-block keeps its own player-type list);
+    // allowHevc false = DEFAULT_ADBLOCK_CONFIG.skipPlayerReloadOnHevc (HEVC→AVC swap).
+    expect(DEFAULT_PLAYBACK_ADVANCED_PREFERENCES).toEqual({
+      playerType: "default",
+      allowHevc: false,
+    });
+    expect(DEFAULT_USER_PREFERENCES.playbackAdvanced).toBe(DEFAULT_PLAYBACK_ADVANCED_PREFERENCES);
+  });
+
+  it("wires playbackAdvanced onto the top-level UserPreferences shape", () => {
+    const prefs: UserPreferences = DEFAULT_USER_PREFERENCES;
+    // Type-level check: playbackAdvanced is a required field. If U13 forgot to
+    // wire it into UserPreferences, this assignment would fail to compile.
+    const advanced: PlaybackAdvancedPreferences = prefs.playbackAdvanced;
+    expect(advanced).toBe(DEFAULT_PLAYBACK_ADVANCED_PREFERENCES);
+  });
+
+  it("hydrates the whole playbackAdvanced group for installs predating it (shallow merge)", () => {
+    // Mirrors storageService.getPreferences: `{ ...DEFAULT_USER_PREFERENCES, ...stored }`.
+    const legacyStored: Partial<UserPreferences> = {
+      theme: "dark",
+      language: "en",
+    };
+    const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
+    expect(hydrated.playbackAdvanced).toEqual(DEFAULT_PLAYBACK_ADVANCED_PREFERENCES);
+    expect(hydrated.playbackAdvanced.playerType).toBe("default");
+  });
+
+  it("shallow-merges a partial playbackAdvanced write without dropping siblings", () => {
+    // The Settings write idiom spreads the current group then overrides one field.
+    const merged: PlaybackAdvancedPreferences = {
+      ...DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
+      allowHevc: true,
+    };
+    expect(merged.allowHevc).toBe(true);
+    // Sibling preserved.
+    expect(merged.playerType).toBe("default");
   });
 });
