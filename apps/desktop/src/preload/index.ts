@@ -23,6 +23,7 @@ import {
   type ProxyApplyConfig,
   type ProxyApplyResult,
   type ProxyCredentialsInput,
+  type TokenStatusResult,
   type VersionInfo,
 } from "../shared/ipc-channels";
 import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../shared/mod-log-types";
@@ -240,6 +241,12 @@ const electronAPI = {
 
     // Auth status
     getStatus: (): Promise<AuthStatus> => ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_STATUS),
+
+    // Read-only token status for the Settings → API / Tokens panel (U14).
+    // Validates the stored token live and returns identity/validity/expiry/
+    // scopes ONLY — never a token value (enforced by TokenStatusResult).
+    tokenStatus: (platform: Platform): Promise<TokenStatusResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AUTH_TOKEN_STATUS, { platform }),
   },
 
   // ========== Local Follows ==========

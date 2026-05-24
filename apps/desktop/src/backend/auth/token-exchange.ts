@@ -6,6 +6,7 @@
  */
 
 import type { AuthToken, Platform } from "../../shared/auth-types";
+import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 
 import { getOAuthConfig, type PkceChallenge } from "./oauth-config";
 
@@ -40,6 +41,20 @@ interface TokenError {
   error: string;
   error_description?: string;
   message?: string;
+}
+
+/**
+ * Validity-status portion returned by `getTokenStatus` (U14). This is the
+ * status/expiry/scopes ONLY — never the token value. The token-status handler
+ * adds `platform` + `connected` to form the renderer-facing `TokenStatusResult`.
+ * When `valid` is false the identity fields are omitted.
+ */
+export interface TokenStatusReport {
+  valid: boolean;
+  login?: string;
+  userId?: string;
+  scopes?: string[];
+  expiresAt?: number | null;
 }
 
 /**
@@ -325,6 +340,104 @@ class TokenExchangeService {
       },
     });
     return response.ok;
+  }
+
+  /**
+   * Read-only token status for the API/Tokens panel (U14). Validates live and
+   * returns identity + validity + expiry + scopes ONLY — the access token string
+   * stays inside this method; the caller (token-status-handler) only ever sees
+   * `TokenStatusReport`. Callers pass the stored token so we never read storage
+   * from here (keeps this unit testable with a plain object).
+   *
+   * Twitch: hits `id.twitch.tv/oauth2/validate`, which authenticates with the
+   *   OAuth bearer header alone (NO Client-Id — the Client-Id pairing concern is
+   *   a Helix/`fetchCurrentUser` problem, not a /validate one). login/user_id/
+   *   scopes/expiry come straight off the /validate body.
+   * Kick: has no /validate analogue. We re-fetch the current user on the OAuth
+   *   surface; non-200 = invalid. Kick returns no expiry, so `expiresAt` falls
+   *   back to the stored token's `expiresAt` and `userId` is the OAuth `user_id`.
+   */
+  async getTokenStatus(platform: Platform, token: AuthToken): Promise<TokenStatusReport> {
+    try {
+      switch (platform) {
+        case "twitch":
+          return await this.getTwitchTokenStatus(token);
+        case "kick":
+          return await this.getKickTokenStatus(token);
+        default:
+          return { valid: false };
+      }
+    } catch {
+      // Network failure / unexpected error → report invalid rather than throw,
+      // so the panel shows "invalid or expired + reconnect" instead of crashing.
+      return { valid: false };
+    }
+  }
+
+  private async getTwitchTokenStatus(token: AuthToken): Promise<TokenStatusReport> {
+    const response = await fetch("https://id.twitch.tv/oauth2/validate", {
+      headers: {
+        // /validate takes ONLY the OAuth bearer header — no Client-Id.
+        Authorization: `OAuth ${token.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      return { valid: false };
+    }
+
+    const data = (await response.json()) as {
+      login?: string;
+      user_id?: string;
+      scopes?: string[];
+      expires_in?: number;
+    };
+
+    return {
+      valid: true,
+      login: data.login,
+      userId: data.user_id,
+      scopes: data.scopes ?? [],
+      // /validate returns seconds-until-expiry; convert to an absolute ms
+      // timestamp. Fall back to the stored expiry when absent.
+      expiresAt:
+        typeof data.expires_in === "number"
+          ? Date.now() + data.expires_in * 1000
+          : (token.expiresAt ?? null),
+    };
+  }
+
+  private async getKickTokenStatus(token: AuthToken): Promise<TokenStatusReport> {
+    // Kick has no /validate; GET /users (no IDs) returns the current user when
+    // the bearer token is valid. Non-200 → invalid.
+    const response = await fetch(`${KICK_API_BASE}/users`, {
+      headers: {
+        Authorization: `Bearer ${token.accessToken}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return { valid: false };
+    }
+
+    const body = (await response.json()) as {
+      data?: Array<{ user_id?: number; name?: string }>;
+    };
+    const apiUser = body?.data?.[0];
+
+    return {
+      valid: true,
+      login: apiUser?.name,
+      // The Kick OAuth `user_id` (NOT the channel.id) — see the dual-id learning.
+      userId: apiUser?.user_id != null ? String(apiUser.user_id) : undefined,
+      // Kick's current-user endpoint returns no scopes; the stored token carries
+      // the granted scopes from the OAuth exchange. Shown honestly (a 200 here
+      // proves nothing about scope sufficiency).
+      scopes: token.scope ?? [],
+      // No expiry from the API surface — fall back to the stored token expiry.
+      expiresAt: token.expiresAt ?? null,
+    };
   }
 
   /**

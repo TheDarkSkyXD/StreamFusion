@@ -1,13 +1,16 @@
 import { useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 import {
   LuCircleAlert,
+  LuCircleCheck,
   LuCircleHelp,
+  LuCircleX,
   LuDownload,
   LuEye,
   LuEyeOff,
   LuGauge,
+  LuKeyRound,
   LuLink,
   LuMessageSquare,
   LuMonitor,
@@ -35,6 +38,8 @@ import { Switch } from "@/components/ui/switch";
 import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAuthError } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import type { Platform } from "@/shared/auth-types";
+import type { TokenStatusResult } from "@/shared/ipc-channels";
 import {
   type BufferPreferences,
   DEFAULT_BUFFER_PREFERENCES,
@@ -65,6 +70,7 @@ const SETTINGS_TABS = [
   "proxy",
   "predictions",
   "integrations",
+  "api-tokens",
   "updates",
   "about",
 ] as const;
@@ -462,6 +468,13 @@ export function SettingsPage() {
               description="Connected accounts & APIs"
               isActive={activeTab === "integrations"}
               onClick={() => setActiveTab("integrations")}
+            />
+            <SidebarItem
+              icon={LuKeyRound}
+              label="API / Tokens"
+              description="Sign-in & token status"
+              isActive={activeTab === "api-tokens"}
+              onClick={() => setActiveTab("api-tokens")}
             />
             <SidebarItem
               icon={LuRefreshCw}
@@ -1106,6 +1119,30 @@ export function SettingsPage() {
             </div>
           )}
 
+          {/* API / Tokens Tab (U14 — read-only token status) */}
+          {activeTab === "api-tokens" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">API / Tokens</h2>
+                <p className="text-zinc-400">
+                  Read-only status of your Twitch and Kick sign-in. Token values never leave your
+                  device — this only shows identity, validity, expiry, and granted scopes.
+                </p>
+              </div>
+
+              <ApiTokenPanel
+                platform="twitch"
+                label="Twitch"
+                onOpenIntegrations={() => setActiveTab("integrations")}
+              />
+              <ApiTokenPanel
+                platform="kick"
+                label="Kick"
+                onOpenIntegrations={() => setActiveTab("integrations")}
+              />
+            </div>
+          )}
+
           {/* Updates Tab */}
           {activeTab === "updates" && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -1314,5 +1351,166 @@ function SidebarItem({
         </p>
       </div>
     </button>
+  );
+}
+
+// Format a token expiry (Unix ms) for the API/Tokens panel. `null`/`undefined`
+// means the platform reports no expiry — shown honestly as "unknown" rather
+// than fabricating a date.
+function formatExpiry(expiresAt: number | null | undefined): string {
+  if (expiresAt == null) return "unknown";
+  return new Date(expiresAt).toLocaleString();
+}
+
+/**
+ * Read-only token-status panel for one platform (U14). Renders four states from
+ * the `auth.tokenStatus` IPC result: not-connected, loading, valid, and
+ * invalid/expired. "Validate now" re-runs the IPC; "Reconnect" runs the
+ * existing login action. Never sees or shows a token value — the IPC returns
+ * `TokenStatusResult` (status/identity/expiry/scopes only).
+ */
+function ApiTokenPanel({
+  platform,
+  label,
+  onOpenIntegrations,
+}: {
+  platform: Platform;
+  label: string;
+  onOpenIntegrations: () => void;
+}) {
+  const loginTwitch = useAuthStore((state) => state.loginTwitch);
+  const loginKick = useAuthStore((state) => state.loginKick);
+  const reconnect = platform === "twitch" ? loginTwitch : loginKick;
+
+  const [status, setStatus] = useState<TokenStatusResult | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const validate = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.auth.tokenStatus(platform);
+      setStatus(result);
+    } catch {
+      // IPC failure → treat as a probe we couldn't complete; show invalid so
+      // the user gets a reconnect affordance rather than a blank panel.
+      setStatus({ platform, connected: true, valid: false });
+    } finally {
+      setLoading(false);
+    }
+  }, [platform]);
+
+  // Validate once when the panel mounts (i.e. when the API/Tokens tab opens).
+  useEffect(() => {
+    void validate();
+  }, [validate]);
+
+  const accent = platform === "twitch" ? "#9146FF" : "#53FC18";
+  const notConnected = status != null && !status.connected;
+  const isValid = status?.connected === true && status.valid === true;
+  const isInvalid = status?.connected === true && status.valid === false;
+
+  return (
+    <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-block w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: accent }}
+            aria-hidden
+          />
+          <h3 className="font-semibold text-lg">{label}</h3>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void validate()}
+          disabled={loading}
+          className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
+        >
+          <LuRefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
+          Validate now
+        </Button>
+      </div>
+
+      <div className="px-6 py-5">
+        {/* Loading — initial probe in flight (no prior result yet). */}
+        {loading && status == null && (
+          <div className="flex items-center gap-2 text-sm text-zinc-400">
+            <LuRefreshCw className="w-4 h-4 animate-spin" />
+            Validating…
+          </div>
+        )}
+
+        {/* Not signed in. */}
+        {notConnected && (
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-400">Not signed in.</p>
+            <button
+              type="button"
+              onClick={onOpenIntegrations}
+              className="text-sm font-medium hover:underline"
+              style={{ color: accent }}
+            >
+              Connect in Integrations
+            </button>
+          </div>
+        )}
+
+        {/* Invalid / expired — offer a reconnect. */}
+        {isInvalid && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-red-400">
+              <LuCircleX className="w-4 h-4" />
+              Token invalid or expired
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void reconnect()}
+              className="text-white"
+              style={{ backgroundColor: accent }}
+            >
+              Reconnect
+            </Button>
+          </div>
+        )}
+
+        {/* Valid — identity, expiry, and granted scopes. */}
+        {isValid && status && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-green-400">
+              <LuCircleCheck className="w-4 h-4" />
+              Token valid
+            </div>
+
+            <dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
+              <dt className="text-zinc-500">Login</dt>
+              <dd className="text-zinc-200 break-all">{status.login ?? "—"}</dd>
+              <dt className="text-zinc-500">User ID</dt>
+              <dd className="text-zinc-200 break-all tabular-nums">{status.userId ?? "—"}</dd>
+              <dt className="text-zinc-500">Expires</dt>
+              <dd className="text-zinc-200">{formatExpiry(status.expiresAt)}</dd>
+            </dl>
+
+            <div>
+              <p className="text-sm text-zinc-500 mb-2">Granted scopes</p>
+              {status.scopes && status.scopes.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {status.scopes.map((scope) => (
+                    <span
+                      key={scope}
+                      className="px-2 py-0.5 text-xs font-medium rounded-md bg-[#18181b] border border-[#27272a] text-zinc-300"
+                    >
+                      {scope}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-600">No scopes reported.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

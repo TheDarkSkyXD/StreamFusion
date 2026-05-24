@@ -55,6 +55,9 @@ const proxy = { ...DEFAULT_PROXY_PREFERENCES, hasCredentials: true };
 // playbackAdvanced carries a non-default sibling (allowHevc:true) so the U13
 // spread-preservation assertion has something to prove.
 const playbackAdvanced = { ...DEFAULT_PLAYBACK_ADVANCED_PREFERENCES, allowHevc: true };
+// Login actions for the API/Tokens "Reconnect" buttons (U14).
+const loginTwitch = vi.fn();
+const loginKick = vi.fn();
 vi.mock('@/store/auth-store', () => ({
   useAuthStore: (selector?: (s: unknown) => unknown) => {
     const state = {
@@ -66,6 +69,8 @@ vi.mock('@/store/auth-store', () => ({
         playbackAdvanced,
       },
       updatePreferences,
+      loginTwitch,
+      loginKick,
     };
     return selector ? selector(state) : state;
   },
@@ -427,5 +432,109 @@ describe('SettingsPage — Advanced stream-token (U13, under Playback)', () => {
     expect(screen.getByText(new RegExp(stored!.slice(0, 8)))).toBeInTheDocument();
     // Randomizing is not a preferences write (device-id isn't an AdBlockConfig field).
     expect(updatePreferences).not.toHaveBeenCalled();
+  });
+});
+
+describe('SettingsPage — API / Tokens tab (U14)', () => {
+  // Install the electronAPI mock with an `auth.tokenStatus` that returns the
+  // documented TokenStatusResult shape per platform. The default auto-stub
+  // returns `{data:[],error:null}`, which is the wrong shape for this panel.
+  function installTokenStatusMock(
+    byPlatform: Partial<Record<'twitch' | 'kick', import('@/shared/ipc-channels').TokenStatusResult>>
+  ) {
+    const api = installElectronAPIMock();
+    const tokenStatus = vi.fn(async (platform: 'twitch' | 'kick') => {
+      return (
+        byPlatform[platform] ?? { platform, connected: false, valid: false }
+      );
+    });
+    api.auth = { tokenStatus };
+    return { api, tokenStatus };
+  }
+
+  async function openApiTokensTab(
+    byPlatform: Partial<Record<'twitch' | 'kick', import('@/shared/ipc-channels').TokenStatusResult>>
+  ) {
+    const mock = installTokenStatusMock(byPlatform);
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByText('API / Tokens'));
+    // Both panels validate on mount — wait for the IPC to have been called.
+    await waitFor(() => expect(mock.tokenStatus).toHaveBeenCalledWith('twitch'));
+    await waitFor(() => expect(mock.tokenStatus).toHaveBeenCalledWith('kick'));
+    return { user, ...mock };
+  }
+
+  beforeEach(() => {
+    updatePreferences.mockReset();
+    loginTwitch.mockReset();
+    loginKick.mockReset();
+  });
+
+  it('valid state: shows login, user id, expiry, and scopes as badges', async () => {
+    const expiresAt = new Date('2099-01-01T00:00:00.000Z').getTime();
+    await openApiTokensTab({
+      twitch: {
+        platform: 'twitch',
+        connected: true,
+        valid: true,
+        login: 'streamer',
+        userId: '12345',
+        scopes: ['chat:read', 'chat:edit'],
+        expiresAt,
+      },
+      kick: { platform: 'kick', connected: false, valid: false },
+    });
+
+    await waitFor(() => expect(screen.getByText('streamer')).toBeInTheDocument());
+    expect(screen.getByText('12345')).toBeInTheDocument();
+    expect(screen.getByText('chat:read')).toBeInTheDocument();
+    expect(screen.getByText('chat:edit')).toBeInTheDocument();
+    // Token valid affordance present; the expiry renders as a locale date string.
+    expect(screen.getAllByText(/token valid/i).length).toBeGreaterThan(0);
+  });
+
+  it('not-connected state: shows "Not signed in" + a link to Integrations', async () => {
+    const { user } = await openApiTokensTab({
+      twitch: { platform: 'twitch', connected: false, valid: false },
+      kick: { platform: 'kick', connected: false, valid: false },
+    });
+
+    await waitFor(() => expect(screen.getAllByText(/not signed in/i).length).toBe(2));
+    // Clicking "Connect in Integrations" switches to the Integrations tab.
+    const links = screen.getAllByText(/connect in integrations/i);
+    await user.click(links[0]);
+    expect(screen.getByTestId('account-connect')).toBeInTheDocument();
+  });
+
+  it('invalid/expired state: shows the message + a Reconnect button that calls the login action', async () => {
+    const { user } = await openApiTokensTab({
+      twitch: { platform: 'twitch', connected: true, valid: false },
+      kick: { platform: 'kick', connected: false, valid: false },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/token invalid or expired/i)).toBeInTheDocument()
+    );
+    await user.click(screen.getByRole('button', { name: /reconnect/i }));
+    expect(loginTwitch).toHaveBeenCalledTimes(1);
+    expect(loginKick).not.toHaveBeenCalled();
+  });
+
+  it('"Validate now" re-runs the tokenStatus IPC', async () => {
+    const { user, tokenStatus } = await openApiTokensTab({
+      twitch: { platform: 'twitch', connected: true, valid: false },
+      kick: { platform: 'kick', connected: false, valid: false },
+    });
+
+    // One call per platform on mount (2 total). Click Twitch's "Validate now".
+    const twitchCallsBefore = tokenStatus.mock.calls.filter((c) => c[0] === 'twitch').length;
+    const buttons = screen.getAllByRole('button', { name: /validate now/i });
+    await user.click(buttons[0]);
+
+    await waitFor(() => {
+      const after = tokenStatus.mock.calls.filter((c) => c[0] === 'twitch').length;
+      expect(after).toBe(twitchCallsBefore + 1);
+    });
   });
 });

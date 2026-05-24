@@ -88,6 +88,13 @@ export const IPC_CHANNELS = {
 
   // Auth - Status
   AUTH_GET_STATUS: "auth:get-status",
+  /**
+   * Read-only token-status probe (Xtra port U14). Per platform, returns
+   * connected/valid + login/userId/scopes/expiry ONLY — never a token value.
+   * Validates live (Twitch /validate; Kick current-user re-fetch). Handler
+   * checks `event.senderFrame.url` like the other privileged channels.
+   */
+  AUTH_TOKEN_STATUS: "auth:token-status",
 
   // Auth - Session Events (main → renderer push)
   AUTH_KICK_SESSION_EXPIRED: "auth:kick-session-expired",
@@ -219,6 +226,7 @@ export interface IpcPayloads {
   [IPC_CHANNELS.THEME_SET]: { theme: "light" | "dark" | "system" };
 
   // Auth tokens
+  [IPC_CHANNELS.AUTH_TOKEN_STATUS]: { platform: Platform };
   [IPC_CHANNELS.AUTH_GET_TOKEN]: { platform: Platform };
   [IPC_CHANNELS.AUTH_SAVE_TOKEN]: { platform: Platform; token: AuthToken };
   [IPC_CHANNELS.AUTH_CLEAR_TOKEN]: { platform: Platform };
@@ -286,6 +294,41 @@ export interface ProxyApplyResult {
   hasCredentials: boolean;
   /** Present only on failure; a sanitized message safe to surface in the UI. */
   error?: string;
+}
+
+// ========== Token Status Types (Xtra port U14) ==========
+
+/**
+ * Strict read-only result of `AUTH_TOKEN_STATUS`. Reports the signed-in
+ * identity, validity, expiry, and granted scopes for a platform — and NOTHING
+ * that could leak a credential. There is deliberately NO `accessToken` /
+ * `token` / `refreshToken` / `access_token` key; token values never leave main
+ * (R28). The API/Tokens panel (U14) renders four states from this:
+ *   - `connected:false`                → not signed in
+ *   - `connected:true, valid:false`    → token invalid or expired (reconnect)
+ *   - `connected:true, valid:true`     → show login/userId/expiry/scopes
+ *
+ * Notes on the two platforms:
+ *   - Twitch fields come from `id.twitch.tv/oauth2/validate` (which takes only
+ *     the OAuth bearer header — no Client-Id).
+ *   - Kick has no `/validate`; validity is a current-user re-fetch and `userId`
+ *     is the Kick OAuth `user_id`. Kick reports no expiry, so `expiresAt` falls
+ *     back to the STORED token's `expiresAt` (null when none).
+ */
+export interface TokenStatusResult {
+  platform: Platform;
+  /** Whether a stored token exists at all. */
+  connected: boolean;
+  /** Whether the stored token validated live just now. */
+  valid: boolean;
+  /** Account login / username (Twitch login, Kick name). Absent when invalid. */
+  login?: string;
+  /** Platform user id (Twitch user_id; Kick OAuth user_id). Absent when invalid. */
+  userId?: string;
+  /** Granted OAuth scopes. A 200 does NOT imply sufficient scopes — shown honestly. */
+  scopes?: string[];
+  /** Expiry as a Unix ms timestamp; `null` when unknown (no stored expiry). */
+  expiresAt?: number | null;
 }
 
 // ========== Response Types for IPC Calls ==========

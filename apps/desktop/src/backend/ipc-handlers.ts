@@ -19,6 +19,7 @@ import { registerSearchHandlers } from "./ipc/handlers/search-handlers";
 import { registerStorageHandlers } from "./ipc/handlers/storage-handlers";
 import { registerStreamHandlers } from "./ipc/handlers/stream-handlers";
 import { registerSystemHandlers } from "./ipc/handlers/system-handlers";
+import { registerTokenStatusHandlers } from "./ipc/handlers/token-status-handlers";
 import { registerUpdateHandlers } from "./ipc/handlers/update-handlers";
 import { registerVideoHandlers } from "./ipc/handlers/video-handlers";
 
@@ -37,6 +38,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerAdBlockHandlers(mainWindow);
   registerUpdateHandlers(mainWindow);
   registerProxyHandlers();
+  registerTokenStatusHandlers();
 
   // Apply the persisted outbound proxy at boot if the user enabled it (R20).
   // No-op when disabled/empty; never blocks startup (fire-and-forget).
