@@ -167,6 +167,28 @@ export interface PredictionPreferences {
   style: "native" | "unified";
 }
 
+/**
+ * Visibility of the player chrome controls (Twitch + Kick, live + VOD).
+ *
+ * Its own top-level group so older installs hydrate the whole group with
+ * defaults under the shallow top-level preferences merge. Each flag gates ONLY
+ * the chrome — hiding a control never disables the underlying capability
+ * (hiding Volume removes the button but audio keeps playing; hiding Quality
+ * removes the menu item but the selected quality is unchanged). Controls that
+ * are naturally absent on a surface (e.g. playback speed on live) stay absent
+ * regardless of the flag. Fields cover only the controls that exist today —
+ * see plan U8. (Xtra port.)
+ */
+export interface PlayerControlsPreferences {
+  showQuality: boolean;
+  showPlaybackSpeed: boolean;
+  showVolume: boolean;
+  showFullscreen: boolean;
+  showTheater: boolean;
+  showPictureInPicture: boolean;
+  showVideoStats: boolean;
+}
+
 export type TimestampFormat = "HH:mm" | "h:mm a";
 export type ChatDensity = "cozy" | "compact";
 
@@ -231,6 +253,8 @@ export interface UserPreferences {
   playback: PlaybackPreferences;
   advanced: AdvancedPreferences;
   predictions: PredictionPreferences;
+  /** Visibility of the player chrome controls (Xtra port, U8). */
+  playerControls: PlayerControlsPreferences;
   startMinimized: boolean;
   minimizeToTray: boolean;
 }
@@ -329,6 +353,16 @@ export const DEFAULT_PREDICTION_PREFERENCES: PredictionPreferences = {
   style: "native",
 };
 
+export const DEFAULT_PLAYER_CONTROLS_PREFERENCES: PlayerControlsPreferences = {
+  showQuality: true,
+  showPlaybackSpeed: true,
+  showVolume: true,
+  showFullscreen: true,
+  showTheater: true,
+  showPictureInPicture: true,
+  showVideoStats: true,
+};
+
 export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   // Appearance
   boldUsernames: false,
@@ -368,6 +402,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   playback: DEFAULT_PLAYBACK_PREFERENCES,
   advanced: DEFAULT_ADVANCED_PREFERENCES,
   predictions: DEFAULT_PREDICTION_PREFERENCES,
+  playerControls: DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   startMinimized: false,
   minimizeToTray: true,
 };

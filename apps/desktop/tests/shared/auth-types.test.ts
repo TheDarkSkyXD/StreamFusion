@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
+  type PlayerControlsPreferences,
   type PredictionPreferences,
   type UserPreferences,
 } from "@/shared/auth-types";
@@ -73,5 +75,42 @@ describe("ChatDisplayPreferences defaults (U1)", () => {
     const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
     expect(hydrated.chatDisplay).toEqual(DEFAULT_CHAT_DISPLAY_PREFERENCES);
     expect(hydrated.chatDisplay.messageLimit).toBe(100);
+  });
+});
+
+describe("PlayerControlsPreferences defaults (U8)", () => {
+  it("defaults every player control to visible", () => {
+    for (const visible of [
+      DEFAULT_PLAYER_CONTROLS_PREFERENCES.showQuality,
+      DEFAULT_PLAYER_CONTROLS_PREFERENCES.showPlaybackSpeed,
+      DEFAULT_PLAYER_CONTROLS_PREFERENCES.showVolume,
+      DEFAULT_PLAYER_CONTROLS_PREFERENCES.showFullscreen,
+      DEFAULT_PLAYER_CONTROLS_PREFERENCES.showTheater,
+      DEFAULT_PLAYER_CONTROLS_PREFERENCES.showPictureInPicture,
+      DEFAULT_PLAYER_CONTROLS_PREFERENCES.showVideoStats,
+    ]) {
+      expect(visible).toBe(true);
+    }
+  });
+
+  it("wires playerControls onto the top-level UserPreferences shape", () => {
+    const prefs: UserPreferences = DEFAULT_USER_PREFERENCES;
+    // Type-level check: playerControls is a required field. If U8 forgot to wire
+    // it into UserPreferences, this assignment would fail to compile.
+    const controls: PlayerControlsPreferences = prefs.playerControls;
+    expect(controls).toBe(DEFAULT_PLAYER_CONTROLS_PREFERENCES);
+  });
+
+  it("hydrates the whole playerControls group for installs predating it (shallow top-level merge)", () => {
+    // Mirrors storageService.getPreferences: `{ ...DEFAULT_USER_PREFERENCES, ...stored }`.
+    // A persisted prefs object from before playerControls existed has no such key,
+    // so the spread falls back to the full default group rather than `undefined`.
+    const legacyStored: Partial<UserPreferences> = {
+      theme: "dark",
+      language: "en",
+    };
+    const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
+    expect(hydrated.playerControls).toEqual(DEFAULT_PLAYER_CONTROLS_PREFERENCES);
+    expect(hydrated.playerControls.showVolume).toBe(true);
   });
 });

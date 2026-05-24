@@ -2,6 +2,9 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize, LuRadio } from "react-icons/lu";
 
+import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
+
 import { useRenderCount } from "../../dev/use-render-count";
 import { Button } from "../../ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
@@ -105,6 +108,9 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
     onGoLive,
     progressBarRef,
   } = props;
+
+  const controls =
+    useAuthStore((s) => s.preferences?.playerControls) ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
 
   const [isVisible, setIsVisible] = useState(true);
   const hideTimeoutRef = useRef<NodeJS.Timeout>(null);
@@ -300,7 +306,7 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
               container={containerRef.current}
             />
 
-            {onToggleTheater && !isFullscreen && (
+            {controls.showTheater && onToggleTheater && !isFullscreen && (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <Button
@@ -322,25 +328,27 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
               </Tooltip>
             )}
 
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/20 cursor-pointer"
-                  onClick={onToggleFullscreen}
-                >
-                  {isFullscreen ? (
-                    <LuMinimize className="w-6 h-6" strokeWidth={3} />
-                  ) : (
-                    <LuMaximize className="w-6 h-6" strokeWidth={3} />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent container={containerRef.current}>
-                <p>{isFullscreen ? "Exit Fullscreen (f)" : "Fullscreen (f)"}</p>
-              </TooltipContent>
-            </Tooltip>
+            {controls.showFullscreen && (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 cursor-pointer"
+                    onClick={onToggleFullscreen}
+                  >
+                    {isFullscreen ? (
+                      <LuMinimize className="w-6 h-6" strokeWidth={3} />
+                    ) : (
+                      <LuMaximize className="w-6 h-6" strokeWidth={3} />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent container={containerRef.current}>
+                  <p>{isFullscreen ? "Exit Fullscreen (f)" : "Fullscreen (f)"}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
       </div>

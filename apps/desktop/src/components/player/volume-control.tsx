@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
 import { LuVolume1, LuVolume2, LuVolumeX } from "react-icons/lu";
 
+import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
+
 import { Button } from "../ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
@@ -19,6 +22,10 @@ export function VolumeControl({
   onMuteToggle,
   className,
 }: VolumeControlProps) {
+  const showVolume =
+    useAuthStore((s) => s.preferences?.playerControls?.showVolume) ??
+    DEFAULT_PLAYER_CONTROLS_PREFERENCES.showVolume;
+
   const [isHovering, setIsHovering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   // Keep the thumb Tooltip fully controlled — mixing `open={isDragging || undefined}`
@@ -26,6 +33,11 @@ export function VolumeControl({
   // every drag cycle, which logs the "controlled to uncontrolled" warning.
   const [thumbTooltipOpen, setThumbTooltipOpen] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
+
+  // Gate only the chrome: hiding the control removes the button/slider but never
+  // touches audio state (the parent still owns volume/mute). All hooks above run
+  // unconditionally so this early return is hook-safe.
+  if (!showVolume) return null;
 
   const getIcon = () => {
     if (muted || volume === 0) return <LuVolumeX className="w-6 h-6 fill-current" />;

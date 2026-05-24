@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize, LuMonitor } from "react-icons/lu";
 
 import { formatDuration } from "@/lib/utils";
+import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
 
 import { Button } from "../../ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
@@ -79,6 +81,9 @@ export function KickVodPlayerControls(props: KickVodPlayerControlsProps) {
     onSeekHover,
     previewImage,
   } = props;
+
+  const controls =
+    useAuthStore((s) => s.preferences?.playerControls) ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
 
   const [isVisible, setIsVisible] = useState(true);
   const hideTimeoutRef = useRef<NodeJS.Timeout>(null);
@@ -160,7 +165,7 @@ export function KickVodPlayerControls(props: KickVodPlayerControlsProps) {
             onPlaybackRateChange={onPlaybackRateChange}
           />
 
-          {onToggleTheater && (
+          {controls.showTheater && onToggleTheater && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -179,25 +184,27 @@ export function KickVodPlayerControls(props: KickVodPlayerControlsProps) {
             </Tooltip>
           )}
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20"
-                onClick={onToggleFullscreen}
-              >
-                {isFullscreen ? (
-                  <LuMinimize className="w-6 h-6" />
-                ) : (
-                  <LuMaximize className="w-6 h-6" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{isFullscreen ? "Exit Fullscreen (f)" : "Fullscreen (f)"}</p>
-            </TooltipContent>
-          </Tooltip>
+          {controls.showFullscreen && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20"
+                  onClick={onToggleFullscreen}
+                >
+                  {isFullscreen ? (
+                    <LuMinimize className="w-6 h-6" />
+                  ) : (
+                    <LuMaximize className="w-6 h-6" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isFullscreen ? "Exit Fullscreen (f)" : "Fullscreen (f)"}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </div>
     </div>

@@ -10,6 +10,9 @@ import {
   LuTimer,
 } from "react-icons/lu";
 
+import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
+
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -47,6 +50,9 @@ export function SettingsMenu({
   onToggleVideoStats,
   container,
 }: SettingsMenuProps) {
+  const controls =
+    useAuthStore((s) => s.preferences?.playerControls) ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
+
   const [isOpen, setIsOpen] = useState(false);
   const [activeSubMenu, setActiveSubMenu] = useState<"main" | "quality" | "speed">("main");
 
@@ -108,22 +114,24 @@ export function SettingsMenu({
             {activeSubMenu === "main" && (
               <div className="flex flex-col">
                 {/* Quality Menu Item */}
-                <button
-                  className="w-full px-4 h-12 flex items-center justify-between hover:bg-[rgba(255,255,255,0.1)] transition-colors text-[15px] text-[#eee] font-medium"
-                  onClick={() => setActiveSubMenu("quality")}
-                >
-                  <div className="flex items-center gap-4">
-                    <LuSlidersHorizontal className="w-6 h-6" />
-                    <span>Quality</span>
-                  </div>
-                  <div className="flex items-center text-[#aaaaaa] gap-1">
-                    <span className="text-[13px]">{currentQualityLabel}</span>
-                    <LuChevronRight className="w-5 h-5" />
-                  </div>
-                </button>
+                {controls.showQuality && (
+                  <button
+                    className="w-full px-4 h-12 flex items-center justify-between hover:bg-[rgba(255,255,255,0.1)] transition-colors text-[15px] text-[#eee] font-medium"
+                    onClick={() => setActiveSubMenu("quality")}
+                  >
+                    <div className="flex items-center gap-4">
+                      <LuSlidersHorizontal className="w-6 h-6" />
+                      <span>Quality</span>
+                    </div>
+                    <div className="flex items-center text-[#aaaaaa] gap-1">
+                      <span className="text-[13px]">{currentQualityLabel}</span>
+                      <LuChevronRight className="w-5 h-5" />
+                    </div>
+                  </button>
+                )}
 
                 {/* Speed Menu Item */}
-                {onPlaybackRateChange && (
+                {controls.showPlaybackSpeed && onPlaybackRateChange && (
                   <button
                     className="w-full px-4 h-12 flex items-center justify-between hover:bg-[rgba(255,255,255,0.1)] transition-colors text-[15px] text-[#eee] font-medium"
                     onClick={() => setActiveSubMenu("speed")}
@@ -156,7 +164,7 @@ export function SettingsMenu({
                   </div>
                 </button>
 
-                {onToggleVideoStats && (
+                {controls.showVideoStats && onToggleVideoStats && (
                   <div
                     className="w-full px-4 h-12 flex items-center justify-between hover:bg-[rgba(255,255,255,0.1)] transition-colors text-[15px] text-[#eee] font-medium cursor-pointer"
                     onClick={() => onToggleVideoStats()}
