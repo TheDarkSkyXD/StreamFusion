@@ -56,6 +56,7 @@ import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
 import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
@@ -129,6 +130,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const loadChannelEmotes = useEmoteStore((state) => state.loadChannelEmotes);
   const setActiveChannel = useEmoteStore((state) => state.setActiveChannel);
   const unloadChannelEmotes = useEmoteStore((state) => state.unloadChannelEmotes);
+  const applyProviderPrefs = useEmoteStore((state) => state.applyProviderPrefs);
 
   // Reactive auth gate. Subscribing to the store (instead of a local
   // useState that's only set inside the connect effect) lets the chat
@@ -294,6 +296,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           // Initialize Twitch Emotes
           if (twitchClientId) {
             await initializeTwitchEmotes(twitchClientId, accessToken);
+            // Sync 7TV/BTTV/FFZ enablement to the viewer's prefs BEFORE the
+            // global load so disabled providers are excluded from this fetch
+            // (next-load semantics, R10). Read prefs imperatively to avoid
+            // adding a reactive dep that would re-trigger the connect effect.
+            applyProviderPrefs(
+              useAuthStore.getState().preferences?.chatDisplay ??
+                DEFAULT_CHAT_DISPLAY_PREFERENCES,
+            );
             // Reload global emotes now that we have credentials
             if (isMounted) await loadGlobalEmotes("twitch");
           }
@@ -371,12 +381,19 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   useEffect(() => {
     if (channel && channelId) {
       currentChannelIdRef.current = channelId; // Track for cleanup
+      // Re-sync provider enablement to prefs before the channel load so a
+      // toggle flipped on the Settings/gear surface takes effect on this load
+      // (R10). applyProviderPrefs is a no-op when the set already matches.
+      applyProviderPrefs(
+        useAuthStore.getState().preferences?.chatDisplay ??
+          DEFAULT_CHAT_DISPLAY_PREFERENCES,
+      );
       setActiveChannel(channelId);
       loadChannelEmotes(channelId, channel, "twitch");
     } else {
       setActiveChannel(null);
     }
-  }, [channel, channelId, setActiveChannel, loadChannelEmotes]);
+  }, [channel, channelId, setActiveChannel, loadChannelEmotes, applyProviderPrefs]);
 
   // Mid-session auth-identity swap. The primary connect effect above runs
   // once on mount with the auth state at that moment and doesn't react to

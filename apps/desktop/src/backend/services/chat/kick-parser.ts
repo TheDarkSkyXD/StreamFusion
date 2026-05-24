@@ -275,11 +275,16 @@ function parseKickEmotes(content: string): { cleanContent: string; fragments: Co
       }
     }
 
+    // Native Kick emotes are static, single-glyph emotes — never zero-width
+    // overlays (only third-party 7TV emotes carry that flag). `isZeroWidth` is
+    // threaded through as false so the renderer's overlay gate is uniform
+    // across fragment sources (U3).
     fragments.push({
       type: "emote",
       id: m[1],
       name: m[2],
       url: getKickEmoteUrl(m[1]),
+      isZeroWidth: false,
     });
 
     lastIndex = end;

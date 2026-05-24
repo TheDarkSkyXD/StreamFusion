@@ -11,19 +11,53 @@ interface ChatEmoteProps {
   url: string;
   platform: "twitch" | "kick";
   isAnimated?: boolean;
+  /** Zero-width / overlay emote — stacks on the preceding emote when the
+   *  viewer's `overlayEmotes` pref is on (mirrors EmoteImage's overlay styling). */
+  isZeroWidth?: boolean;
+}
+
+/**
+ * Return a static-frame URL for an animated emote when one can be derived from
+ * the URL alone, otherwise null (caller falls back to the animated URL).
+ *
+ * Only the native-Twitch CDN exposes a clean static variant via a path swap
+ * (`/default/` or `/animated/` → `/static/`). 7TV and BTTV serve animated and
+ * static frames from the same file format at the same URL, so freezing them
+ * isn't possible from the fragment URL alone — see the TODO below.
+ */
+function freezeEmoteUrl(url: string): string | null {
+  // Native Twitch: .../emoticons/v2/{id}/{format}/{theme}/{scale}
+  if (url.includes("static-cdn.jtvnw.net/emoticons/")) {
+    if (url.includes("/animated/")) return url.replace("/animated/", "/static/");
+    if (url.includes("/default/")) return url.replace("/default/", "/static/");
+    return url; // already a /static/ url
+  }
+  // TODO(U3): 7TV (*.7tv.app) and BTTV (cdn.betterttv.net) animated emotes have
+  // no static-frame variant reachable by URL transform — both serve the animated
+  // and "static" forms from the same animated WEBP/AVIF/GIF at the same URL. A
+  // true freeze for these needs either a non-animated size variant from the
+  // provider record (not carried on the flattened ContentFragment) or a
+  // canvas/first-frame paint. Returning null keeps the animated URL rather than
+  // faking a freeze. Note third-party emotes are not yet woven into chat-message
+  // fragments today, so this path is currently unreachable in production.
+  return null;
 }
 
 /**
  * ChatEmote Component - Performance Optimized
  *
- * Renders inline emotes in chat messages with tooltip support.
+ * Renders inline emotes in chat messages with tooltip support. Honors the
+ * viewer's chatDisplay prefs: `overlayEmotes` stacks zero-width emotes on the
+ * previous emote, `animatedEmotes` (when off) freezes animated emotes to a
+ * static frame where the URL allows it.
+ *
  * Memoized to prevent re-renders when props haven't changed.
  */
 export const ChatEmote: React.FC<ChatEmoteProps> = memo(
-  ({ id, name, url, platform, isAnimated }) => {
-    const emoteSizePx =
-      useAuthStore((s) => s.preferences?.chatDisplay?.emoteSizePx) ??
-      DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx;
+  ({ id, name, url, platform, isAnimated, isZeroWidth }) => {
+    const cd =
+      useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const emoteSizePx = cd.emoteSizePx;
     const [showTooltip, setShowTooltip] = useState(false);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
 
@@ -40,6 +74,17 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
       setShowTooltip(false);
     }, []);
 
+    // When animation is disabled, render a static frame if the URL exposes one;
+    // otherwise fall back to the original (animated) URL — never fake a freeze.
+    const renderUrl = useMemo(() => {
+      if (!isAnimated || cd.animatedEmotes) return url;
+      return freezeEmoteUrl(url) ?? url;
+    }, [url, isAnimated, cd.animatedEmotes]);
+
+    // Treat as an overlay only when the emote is zero-width AND the viewer has
+    // overlays enabled. With overlays off, zero-width emotes render inline.
+    const renderAsOverlay = !!isZeroWidth && cd.overlayEmotes;
+
     // Memoized emote object for tooltip
     const emoteObj = useMemo<Emote>(() => {
       // Infer provider from URL
@@ -54,22 +99,30 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
         provider,
         isGlobal: false,
         isAnimated: !!isAnimated,
-        isZeroWidth: false,
+        isZeroWidth: !!isZeroWidth,
         urls: {
           url1x: url,
           url2x: url,
           url4x: url,
         },
       };
-    }, [id, name, url, platform, isAnimated]);
+    }, [id, name, url, platform, isAnimated, isZeroWidth]);
+
+    // Zero-width overlay positioning mirrors EmoteImage.tsx: pull the emote back
+    // over the preceding one with a negative margin equal to the emote width and
+    // take it out of flow so it doesn't consume horizontal space.
+    const overlayStyle: React.CSSProperties = renderAsOverlay
+      ? { height: emoteSizePx, position: "absolute", marginLeft: `-${emoteSizePx}px` }
+      : { height: emoteSizePx };
 
     return (
       <>
         <img
-          src={url}
+          src={renderUrl}
           alt={name}
           loading="lazy"
-          style={{ height: emoteSizePx }}
+          data-zero-width={renderAsOverlay ? "true" : undefined}
+          style={overlayStyle}
           className="inline-block w-auto mx-0.5 align-middle cursor-pointer transition-transform hover:scale-110"
           onMouseEnter={handleMouseEnter}
           onMouseMove={handleMouseMove}

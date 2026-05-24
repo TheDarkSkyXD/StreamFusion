@@ -158,6 +158,7 @@ const PinnedFragment: React.FC<{ fragment: ContentFragment; platform: "twitch" |
             url={fragment.url}
             platform={platform}
             isAnimated={fragment.isAnimated}
+            isZeroWidth={fragment.isZeroWidth}
           />
         );
       case "mention":

@@ -24,17 +24,44 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const loadGlobalEmotesMock = vi.fn();
 const loadChannelEmotesMock = vi.fn();
 const clearChannelEmotesMock = vi.fn();
+const clearAllMock = vi.fn();
+
+// Mutable enabled-provider set so applyProviderPrefs's get/set/clear flow can be
+// exercised against a realistic manager surface. Reset in beforeEach.
+let enabledProviders = new Set<string>(["twitch", "kick", "bttv", "ffz", "7tv"]);
 
 vi.mock("@/backend/services/emotes", () => ({
   emoteManager: {
     loadGlobalEmotes: (...args: unknown[]) => loadGlobalEmotesMock(...args),
     loadChannelEmotes: (...args: unknown[]) => loadChannelEmotesMock(...args),
     clearChannelEmotes: (...args: unknown[]) => clearChannelEmotesMock(...args),
+    clearAll: (...args: unknown[]) => clearAllMock(...args),
+    isProviderEnabled: (provider: string) => enabledProviders.has(provider),
+    setProviderEnabled: (provider: string, enabled: boolean) => {
+      if (enabled) enabledProviders.add(provider);
+      else enabledProviders.delete(provider);
+    },
     searchEmotes: () => [],
     getEmotesByProvider: () => new Map(),
     getAllEmotes: () => [],
   },
 }));
+
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+} from "@/shared/auth-types";
+
+function providerPrefs(
+  overrides: Partial<Pick<ChatDisplayPreferences, "enable7tv" | "enableBttv" | "enableFfz">> = {}
+) {
+  return {
+    enable7tv: DEFAULT_CHAT_DISPLAY_PREFERENCES.enable7tv,
+    enableBttv: DEFAULT_CHAT_DISPLAY_PREFERENCES.enableBttv,
+    enableFfz: DEFAULT_CHAT_DISPLAY_PREFERENCES.enableFfz,
+    ...overrides,
+  };
+}
 
 import { useEmoteStore } from "@/store/emote-store";
 
@@ -56,6 +83,8 @@ beforeEach(() => {
   loadChannelEmotesMock.mockReset();
   loadChannelEmotesMock.mockResolvedValue(undefined);
   clearChannelEmotesMock.mockReset();
+  clearAllMock.mockReset();
+  enabledProviders = new Set(["twitch", "kick", "bttv", "ffz", "7tv"]);
   resetStore();
 });
 
@@ -134,5 +163,62 @@ describe("emote-store loadGlobalEmotes", () => {
     expect(useEmoteStore.getState().loadedGlobalPlatforms.size).toBe(0);
     await useEmoteStore.getState().loadGlobalEmotes("twitch");
     expect(useEmoteStore.getState().loadedGlobalPlatforms.size).toBeGreaterThan(0);
+  });
+});
+
+describe("emote-store applyProviderPrefs (U3)", () => {
+  it("disabling a provider then reloading a channel excludes that provider", async () => {
+    // Load globals + a channel so the tracking Sets are populated.
+    const store = useEmoteStore.getState();
+    await store.loadGlobalEmotes("twitch");
+    await store.loadChannelEmotes("chan-1", "channel", "twitch");
+    expect(useEmoteStore.getState().loadedGlobalPlatforms.has("twitch")).toBe(true);
+    expect(useEmoteStore.getState().loadedChannels.has("chan-1")).toBe(true);
+
+    // Disable 7TV — provider flips off, manager cache cleared, Sets reset so the
+    // next load re-fetches with 7TV excluded.
+    useEmoteStore.getState().applyProviderPrefs(providerPrefs({ enable7tv: false }));
+    expect(enabledProviders.has("7tv")).toBe(false);
+    expect(enabledProviders.has("bttv")).toBe(true);
+    expect(enabledProviders.has("ffz")).toBe(true);
+    expect(clearAllMock).toHaveBeenCalledTimes(1);
+    expect(useEmoteStore.getState().loadedGlobalPlatforms.size).toBe(0);
+    expect(useEmoteStore.getState().loadedChannels.size).toBe(0);
+
+    // The reload gate is open again — the channel re-fetches.
+    loadChannelEmotesMock.mockClear();
+    await useEmoteStore.getState().loadChannelEmotes("chan-1", "channel", "twitch");
+    expect(loadChannelEmotesMock).toHaveBeenCalledTimes(1);
+    expect(useEmoteStore.getState().loadedChannels.has("chan-1")).toBe(true);
+  });
+
+  it("never toggles the first-party twitch/kick providers", () => {
+    useEmoteStore.getState().applyProviderPrefs(providerPrefs({ enable7tv: false }));
+    expect(enabledProviders.has("twitch")).toBe(true);
+    expect(enabledProviders.has("kick")).toBe(true);
+  });
+
+  it("is a no-op when the enabled set already matches prefs", async () => {
+    const store = useEmoteStore.getState();
+    await store.loadGlobalEmotes("twitch");
+    // All third-party providers already enabled — applying the all-on defaults
+    // changes nothing, so the manager cache + tracking Sets are left intact.
+    useEmoteStore.getState().applyProviderPrefs(providerPrefs());
+    expect(clearAllMock).not.toHaveBeenCalled();
+    expect(useEmoteStore.getState().loadedGlobalPlatforms.has("twitch")).toBe(true);
+  });
+
+  it("re-enabling a provider clears the Sets so its emotes reload", async () => {
+    // Start with 7TV disabled.
+    useEmoteStore.getState().applyProviderPrefs(providerPrefs({ enable7tv: false }));
+    clearAllMock.mockClear();
+    await useEmoteStore.getState().loadGlobalEmotes("twitch");
+    expect(useEmoteStore.getState().loadedGlobalPlatforms.has("twitch")).toBe(true);
+
+    // Re-enable 7TV — the set changes, so the cache + Sets are cleared again.
+    useEmoteStore.getState().applyProviderPrefs(providerPrefs({ enable7tv: true }));
+    expect(enabledProviders.has("7tv")).toBe(true);
+    expect(clearAllMock).toHaveBeenCalledTimes(1);
+    expect(useEmoteStore.getState().loadedGlobalPlatforms.size).toBe(0);
   });
 });

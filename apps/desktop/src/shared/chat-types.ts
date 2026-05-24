@@ -77,7 +77,17 @@ export type MessageType =
 /** A fragment of message content */
 export type ContentFragment =
   | { type: "text"; content: string }
-  | { type: "emote"; id: string; name: string; url: string; isAnimated?: boolean }
+  | {
+      type: "emote";
+      id: string;
+      name: string;
+      url: string;
+      isAnimated?: boolean;
+      /** Zero-width / overlay emote — stacks on the preceding emote when the
+       *  viewer's `overlayEmotes` pref is on. Populated from the matched `Emote`
+       *  record; native Twitch/Kick emotes are never zero-width (U3). */
+      isZeroWidth?: boolean;
+    }
   | { type: "mention"; username: string }
   | { type: "link"; url: string; text: string }
   | { type: "cheermote"; id: string; name: string; url: string; bits: number };

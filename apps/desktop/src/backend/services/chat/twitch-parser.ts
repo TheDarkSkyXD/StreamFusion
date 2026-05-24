@@ -163,12 +163,16 @@ function parseContent(message: string, emoteTags: TwitchEmoteTag[]): ContentFrag
       fragments.push(...parseTextFragment(textBefore));
     }
 
-    // Add emote
+    // Add emote. Native Twitch emotes are never zero-width overlays (only
+    // third-party 7TV/FFZ emotes carry that flag), so `isZeroWidth` is always
+    // false here — the field is threaded through so the renderer's overlay
+    // gate is uniform across fragment sources (U3).
     fragments.push({
       type: "emote",
       id: emotePos.emote.id,
       name: emotePos.emote.name,
       url: emotePos.emote.url,
+      isZeroWidth: false,
     });
 
     currentIndex = emotePos.end;

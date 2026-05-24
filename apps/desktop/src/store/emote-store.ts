@@ -8,7 +8,7 @@
 import { create } from "zustand";
 import { emoteManager } from "../backend/services/emotes";
 import type { Emote, EmoteProvider } from "../backend/services/emotes/emote-types";
-import type { Platform } from "../shared/auth-types";
+import type { ChatDisplayPreferences, Platform } from "../shared/auth-types";
 
 /**
  * Single-flight dedup for per-platform global emote fetches. Module-scoped
@@ -44,6 +44,15 @@ interface EmoteState {
   // Actions
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  /**
+   * Sync the third-party emote providers (7TV/BTTV/FFZ) to the viewer's
+   * chatDisplay prefs. First-party `twitch`/`kick` providers are never toggled.
+   * When the enabled set actually changes, clears the loaded-tracking Sets and
+   * the manager's cached emotes so the NEXT channel/global load re-fetches with
+   * the new provider set (next-load semantics, R10) — already-buffered messages
+   * are intentionally left untouched.
+   */
+  applyProviderPrefs: (prefs: Pick<ChatDisplayPreferences, "enable7tv" | "enableBttv" | "enableFfz">) => void;
   loadGlobalEmotes: (platform?: Platform) => Promise<void>;
   loadChannelEmotes: (
     channelId: string,
@@ -75,6 +84,34 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
 
   setError: (error) => set({ error }),
+
+  applyProviderPrefs: (prefs) => {
+    const desired: Record<"7tv" | "bttv" | "ffz", boolean> = {
+      "7tv": prefs.enable7tv,
+      bttv: prefs.enableBttv,
+      ffz: prefs.enableFfz,
+    };
+
+    let changed = false;
+    for (const [provider, enabled] of Object.entries(desired) as Array<[EmoteProvider, boolean]>) {
+      if (emoteManager.isProviderEnabled(provider) !== enabled) {
+        emoteManager.setProviderEnabled(provider, enabled);
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+
+    // A provider was toggled — drop everything loaded so the next channel/global
+    // load re-fetches with the new provider set. clearAll() purges the manager's
+    // cached emotes (disabled providers stop rendering); resetting the tracking
+    // Sets re-opens the load gates in loadGlobalEmotes/loadChannelEmotes. The
+    // in-flight global map is module-scoped and self-clears on settle, so no
+    // separate reset is needed. We do NOT re-parse already-buffered messages —
+    // next-load semantics only (R10).
+    emoteManager.clearAll();
+    set({ loadedGlobalPlatforms: new Set(), loadedChannels: new Set() });
+  },
 
   loadGlobalEmotes: async (platform) => {
     const state = get();

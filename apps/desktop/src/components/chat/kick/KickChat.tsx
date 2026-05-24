@@ -27,6 +27,7 @@ import type {
   NormalizedPinnedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
 import { useAuthStore } from "../../../store/auth-store";
 import { useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
@@ -116,6 +117,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   const loadChannelEmotes = useEmoteStore((state) => state.loadChannelEmotes);
   const setActiveChannel = useEmoteStore((state) => state.setActiveChannel);
   const unloadChannelEmotes = useEmoteStore((state) => state.unloadChannelEmotes);
+  const applyProviderPrefs = useEmoteStore((state) => state.applyProviderPrefs);
 
   // Reactive auth gate. Subscribing to the store (instead of a local
   // useState that's only set inside the connect effect) lets the chat
@@ -207,6 +209,16 @@ export const KickChat: React.FC<KickChatProps> = ({
         const kickToken = await window.electronAPI.auth.getToken("kick");
 
         if (!isMounted) return;
+
+        // Sync 7TV enablement to the viewer's prefs BEFORE the global + channel
+        // loads below so a disabled provider is excluded from this channel's
+        // fetch (next-load semantics, R10). Read prefs imperatively — adding a
+        // reactive dep here would re-run the whole connect effect. No-op when
+        // the enabled set already matches.
+        applyProviderPrefs(
+          useAuthStore.getState().preferences?.chatDisplay ??
+            DEFAULT_CHAT_DISPLAY_PREFERENCES,
+        );
 
         if (kickToken) {
           // Authenticated
@@ -389,6 +401,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     loadChannelEmotes,
     setActiveChannel,
     unloadChannelEmotes,
+    applyProviderPrefs,
     addMessage,
     prependMessages,
   ]);

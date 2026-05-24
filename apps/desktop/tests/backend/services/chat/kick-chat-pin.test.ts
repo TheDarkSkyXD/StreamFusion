@@ -229,6 +229,8 @@ describe("kickPinToNormalized", () => {
         id: "12345",
         name: "KEKW",
         url: "https://files.kick.com/emotes/12345/fullsize",
+        // Native Kick emotes are never zero-width overlays (U3).
+        isZeroWidth: false,
       },
       { type: "text", content: " funny" },
     ]);

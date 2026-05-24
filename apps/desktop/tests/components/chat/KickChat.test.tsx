@@ -103,6 +103,7 @@ vi.mock('@/store/emote-store', () => {
     loadChannelEmotes: vi.fn(),
     loadGlobalEmotes: (...args: unknown[]) => loadGlobalEmotesMock(...args),
     unloadChannelEmotes: vi.fn(),
+    applyProviderPrefs: vi.fn(),
   };
   return {
     useEmoteStore: (selector?: (s: typeof state) => unknown) =>
