@@ -18,6 +18,22 @@ import {
 
 vi.mock('@tanstack/react-router', () => routerMock());
 
+// Updater hook stub. The Updates-tab assertions need to read back the auto-check
+// state and assert on the setters, so the mock is backed by hoisted spies +
+// mutable state the tests can drive.
+const updaterMock = vi.hoisted(() => ({
+  state: {
+    autoCheckEnabled: false,
+    checkFrequency: 'daily' as 'hourly' | 'daily' | 'weekly',
+  },
+  setAllowPrerelease: vi.fn(),
+  setAutoCheckEnabled: vi.fn(),
+  setCheckFrequency: vi.fn(),
+  checkForUpdates: vi.fn(),
+  downloadUpdate: vi.fn(),
+  installUpdate: vi.fn(),
+}));
+
 vi.mock('@/hooks', () => ({
   useAppVersion: () => '1.0.0-test',
   useAppVersionInfo: () => ({ name: 'StreamFusion', version: '1.0.0-test' }),
@@ -27,15 +43,19 @@ vi.mock('@/hooks', () => ({
     progress: null,
     error: null,
     allowPrerelease: false,
+    autoCheckEnabled: updaterMock.state.autoCheckEnabled,
+    checkFrequency: updaterMock.state.checkFrequency,
     isChecking: false,
     isDownloading: false,
     isUpdateAvailable: false,
     isUpdateDownloaded: false,
     hasError: false,
-    checkForUpdates: vi.fn(),
-    downloadUpdate: vi.fn(),
-    installUpdate: vi.fn(),
-    setAllowPrerelease: vi.fn(),
+    checkForUpdates: updaterMock.checkForUpdates,
+    downloadUpdate: updaterMock.downloadUpdate,
+    installUpdate: updaterMock.installUpdate,
+    setAllowPrerelease: updaterMock.setAllowPrerelease,
+    setAutoCheckEnabled: updaterMock.setAutoCheckEnabled,
+    setCheckFrequency: updaterMock.setCheckFrequency,
   }),
 }));
 
@@ -536,5 +556,61 @@ describe('SettingsPage — API / Tokens tab (U14)', () => {
       const after = tokenStatus.mock.calls.filter((c) => c[0] === 'twitch').length;
       expect(after).toBe(twitchCallsBefore + 1);
     });
+  });
+});
+
+describe('SettingsPage — Updates tab (U15)', () => {
+  beforeEach(() => {
+    updaterMock.state.autoCheckEnabled = false;
+    updaterMock.state.checkFrequency = 'daily';
+    updaterMock.setAutoCheckEnabled.mockReset();
+    updaterMock.setCheckFrequency.mockReset();
+    updaterMock.setAllowPrerelease.mockReset();
+  });
+
+  async function openUpdatesTab() {
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByText('Updates'));
+    return user;
+  }
+
+  it('renders the auto-check toggle and the frequency select', async () => {
+    await openUpdatesTab();
+    expect(
+      screen.getByRole('switch', { name: /automatically check for updates/i })
+    ).toBeInTheDocument();
+    // The frequency trigger is a Radix combobox labelled "Check frequency".
+    expect(screen.getByRole('combobox', { name: /check frequency/i })).toBeInTheDocument();
+    // Existing controls remain.
+    expect(screen.getByRole('button', { name: /check now/i })).toBeInTheDocument();
+  });
+
+  it('toggling the auto-check switch calls setAutoCheckEnabled', async () => {
+    const user = await openUpdatesTab();
+    await user.click(screen.getByRole('switch', { name: /automatically check for updates/i }));
+    expect(updaterMock.setAutoCheckEnabled).toHaveBeenCalledTimes(1);
+    expect(updaterMock.setAutoCheckEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('the frequency select is disabled while auto-check is off', async () => {
+    await openUpdatesTab();
+    // Radix sets aria-disabled / disabled on the trigger when `disabled`.
+    const trigger = screen.getByRole('combobox', { name: /check frequency/i });
+    expect(trigger).toBeDisabled();
+  });
+
+  it('choosing a frequency (auto-check on) calls setCheckFrequency with the preset', async () => {
+    // Enable so the Select is interactive.
+    updaterMock.state.autoCheckEnabled = true;
+    await openUpdatesTab();
+
+    const trigger = screen.getByRole('combobox', { name: /check frequency/i });
+    expect(trigger).not.toBeDisabled();
+    // Radix Select opens on click; pick "Weekly".
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByText('Weekly'));
+
+    expect(updaterMock.setCheckFrequency).toHaveBeenCalledWith('weekly');
   });
 });

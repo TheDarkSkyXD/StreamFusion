@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect } from "react";
-import type { UpdateInfo, UpdateProgress, UpdateStatus } from "@/store/update-store";
+import type { CheckFrequency, UpdateInfo, UpdateProgress, UpdateStatus } from "@/store/update-store";
 import { useUpdateStore } from "@/store/update-store";
 
 interface UseUpdaterReturn {
@@ -16,6 +16,8 @@ interface UseUpdaterReturn {
   progress: UpdateProgress | null;
   error: string | null;
   allowPrerelease: boolean;
+  autoCheckEnabled: boolean;
+  checkFrequency: CheckFrequency;
   isInitialized: boolean;
 
   // Computed
@@ -30,6 +32,8 @@ interface UseUpdaterReturn {
   downloadUpdate: () => Promise<void>;
   installUpdate: () => Promise<void>;
   setAllowPrerelease: (allow: boolean) => Promise<void>;
+  setAutoCheckEnabled: (enabled: boolean) => Promise<void>;
+  setCheckFrequency: (frequency: CheckFrequency) => Promise<void>;
 }
 
 export function useUpdater(): UseUpdaterReturn {
@@ -132,6 +136,38 @@ export function useUpdater(): UseUpdaterReturn {
     [store]
   );
 
+  // Toggle automatic interval checking (U15)
+  const setAutoCheckEnabled = useCallback(
+    async (enabled: boolean) => {
+      if (!window.electronAPI?.updater) return;
+
+      try {
+        const result = await window.electronAPI.updater.setAutoCheck({ enabled });
+        store.setAutoCheckEnabled(result.autoCheckEnabled);
+        store.setCheckFrequency(result.checkFrequency);
+      } catch (error) {
+        console.error("[useUpdater] Failed to set auto-check preference:", error);
+      }
+    },
+    [store]
+  );
+
+  // Set the auto-check frequency preset (U15)
+  const setCheckFrequency = useCallback(
+    async (frequency: CheckFrequency) => {
+      if (!window.electronAPI?.updater) return;
+
+      try {
+        const result = await window.electronAPI.updater.setAutoCheck({ frequency });
+        store.setAutoCheckEnabled(result.autoCheckEnabled);
+        store.setCheckFrequency(result.checkFrequency);
+      } catch (error) {
+        console.error("[useUpdater] Failed to set check frequency:", error);
+      }
+    },
+    [store]
+  );
+
   return {
     // State
     status: store.status,
@@ -139,6 +175,8 @@ export function useUpdater(): UseUpdaterReturn {
     progress: store.progress,
     error: store.error,
     allowPrerelease: store.allowPrerelease,
+    autoCheckEnabled: store.autoCheckEnabled,
+    checkFrequency: store.checkFrequency,
     isInitialized: store.isInitialized,
 
     // Computed
@@ -153,6 +191,8 @@ export function useUpdater(): UseUpdaterReturn {
     downloadUpdate,
     installUpdate,
     setAllowPrerelease,
+    setAutoCheckEnabled,
+    setCheckFrequency,
   };
 }
 

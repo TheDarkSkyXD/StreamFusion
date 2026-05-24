@@ -39,7 +39,7 @@ import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAuthError } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
-import type { TokenStatusResult } from "@/shared/ipc-channels";
+import type { CheckFrequency, TokenStatusResult } from "@/shared/ipc-channels";
 import {
   type BufferPreferences,
   DEFAULT_BUFFER_PREFERENCES,
@@ -174,6 +174,8 @@ export function SettingsPage() {
     progress,
     error: updateError,
     allowPrerelease,
+    autoCheckEnabled,
+    checkFrequency,
     isChecking,
     isDownloading,
     isUpdateAvailable,
@@ -183,6 +185,8 @@ export function SettingsPage() {
     downloadUpdate,
     installUpdate,
     setAllowPrerelease,
+    setAutoCheckEnabled,
+    setCheckFrequency,
   } = useUpdater();
 
   const [saved, setSaved] = useState(false);
@@ -1180,6 +1184,58 @@ export function SettingsPage() {
                       onCheckedChange={setAllowPrerelease}
                       className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
                     />
+                  </div>
+
+                  {/* Automatic Check Toggle */}
+                  <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
+                    <div>
+                      <p className="font-medium text-zinc-200">
+                        Automatically check for updates
+                      </p>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Check for new versions in the background on a schedule
+                      </p>
+                    </div>
+                    <Switch
+                      aria-label="Automatically check for updates"
+                      checked={autoCheckEnabled}
+                      onCheckedChange={setAutoCheckEnabled}
+                      className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
+                    />
+                  </div>
+
+                  {/* Check Frequency */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p
+                        className={cn(
+                          "font-medium",
+                          autoCheckEnabled ? "text-zinc-200" : "text-zinc-500"
+                        )}
+                      >
+                        Check frequency
+                      </p>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        How often to check when automatic updates are on
+                      </p>
+                    </div>
+                    <Select
+                      value={checkFrequency}
+                      onValueChange={(v) => setCheckFrequency(v as CheckFrequency)}
+                      disabled={!autoCheckEnabled}
+                    >
+                      <SelectTrigger
+                        aria-label="Check frequency"
+                        className="w-[180px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-blue-500/20 disabled:opacity-50"
+                      >
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
+                        <SelectItem value="hourly">Hourly</SelectItem>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Check Button */}

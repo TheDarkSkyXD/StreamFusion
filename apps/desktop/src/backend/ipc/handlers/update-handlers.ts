@@ -7,6 +7,7 @@
 import { type BrowserWindow, ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import type { CheckFrequency } from "../../../shared/ipc-channels";
 import {
   checkForUpdates,
   downloadUpdate,
@@ -15,7 +16,10 @@ import {
   initUpdateService,
   installUpdate,
   setAllowPrerelease,
+  setAutoCheck,
 } from "../../services/update-service";
+
+const VALID_FREQUENCIES: readonly CheckFrequency[] = ["hourly", "daily", "weekly"];
 
 export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
   // IMPORTANT: Register IPC handlers FIRST, before initializing the service
@@ -34,6 +38,8 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
         progress: null,
         error: error instanceof Error ? error.message : "Failed to check for updates",
         allowPrerelease: false,
+        autoCheckEnabled: false,
+        checkFrequency: "daily" as CheckFrequency,
       };
     }
   });
@@ -85,6 +91,8 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
         progress: null,
         error: error instanceof Error ? error.message : "Failed to get update status",
         allowPrerelease: false,
+        autoCheckEnabled: false,
+        checkFrequency: "daily" as CheckFrequency,
       };
     }
   });
@@ -102,6 +110,8 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
           progress: null,
           error: "Invalid payload: allow must be a boolean",
           allowPrerelease: false,
+          autoCheckEnabled: false,
+          checkFrequency: "daily" as CheckFrequency,
         };
       }
       try {
@@ -114,6 +124,41 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
           progress: null,
           error: error instanceof Error ? error.message : "Failed to set prerelease preference",
           allowPrerelease: false,
+          autoCheckEnabled: false,
+          checkFrequency: "daily" as CheckFrequency,
+        };
+      }
+    }
+  );
+
+  // Set auto-check toggle and/or frequency (U15)
+  // Defensively validate the payload — a bad frequency falls through unset
+  // (the service clamps the effective interval regardless).
+  ipcMain.handle(
+    IPC_CHANNELS.UPDATE_SET_AUTO_CHECK,
+    (_event, payload: { enabled?: boolean; frequency?: CheckFrequency } = {}) => {
+      const settings: { enabled?: boolean; frequency?: CheckFrequency } = {};
+      if (typeof payload.enabled === "boolean") {
+        settings.enabled = payload.enabled;
+      }
+      if (
+        typeof payload.frequency === "string" &&
+        VALID_FREQUENCIES.includes(payload.frequency)
+      ) {
+        settings.frequency = payload.frequency;
+      }
+      try {
+        return setAutoCheck(settings);
+      } catch (error) {
+        console.error("[Update] Set auto-check failed:", error);
+        return {
+          status: "error",
+          updateInfo: null,
+          progress: null,
+          error: error instanceof Error ? error.message : "Failed to set auto-check settings",
+          allowPrerelease: false,
+          autoCheckEnabled: false,
+          checkFrequency: "daily" as CheckFrequency,
         };
       }
     }
@@ -125,7 +170,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       return getUpdateSettings();
     } catch (error) {
       console.error("[Update] Get settings failed:", error);
-      return { allowPrerelease: false };
+      return { allowPrerelease: false, autoCheckEnabled: false, checkFrequency: "daily" };
     }
   });
 

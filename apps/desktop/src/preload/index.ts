@@ -19,6 +19,7 @@ import type {
 } from "../shared/auth-types";
 import {
   type AuthStatus,
+  type CheckFrequency,
   IPC_CHANNELS,
   type ProxyApplyConfig,
   type ProxyApplyResult,
@@ -659,6 +660,8 @@ const electronAPI = {
       } | null;
       error: string | null;
       allowPrerelease: boolean;
+      autoCheckEnabled: boolean;
+      checkFrequency: CheckFrequency;
     }> => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_GET_STATUS),
 
     setAllowPrerelease: (
@@ -668,8 +671,21 @@ const electronAPI = {
       allowPrerelease: boolean;
     }> => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SET_ALLOW_PRERELEASE, { allow }),
 
-    getSettings: (): Promise<{ allowPrerelease: boolean }> =>
-      ipcRenderer.invoke(IPC_CHANNELS.UPDATE_GET_SETTINGS),
+    setAutoCheck: (settings: {
+      enabled?: boolean;
+      frequency?: CheckFrequency;
+    }): Promise<{
+      status: string;
+      allowPrerelease: boolean;
+      autoCheckEnabled: boolean;
+      checkFrequency: CheckFrequency;
+    }> => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SET_AUTO_CHECK, settings),
+
+    getSettings: (): Promise<{
+      allowPrerelease: boolean;
+      autoCheckEnabled: boolean;
+      checkFrequency: CheckFrequency;
+    }> => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_GET_SETTINGS),
 
     onStatusChange: (
       callback: (state: {
@@ -688,6 +704,8 @@ const electronAPI = {
         } | null;
         error: string | null;
         allowPrerelease: boolean;
+        autoCheckEnabled: boolean;
+        checkFrequency: CheckFrequency;
       }) => void
     ): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, state: unknown) =>

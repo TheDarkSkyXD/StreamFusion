@@ -206,6 +206,7 @@ export const IPC_CHANNELS = {
   UPDATE_INSTALL: "update:install",
   UPDATE_GET_STATUS: "update:get-status",
   UPDATE_SET_ALLOW_PRERELEASE: "update:set-allow-prerelease",
+  UPDATE_SET_AUTO_CHECK: "update:set-auto-check",
   UPDATE_GET_SETTINGS: "update:get-settings",
   UPDATE_ON_STATUS_CHANGE: "update:on-status-change",
   UPDATE_ON_PROGRESS: "update:on-progress",
@@ -259,6 +260,10 @@ export interface IpcPayloads {
 
   // Notifications
   [IPC_CHANNELS.NOTIFICATION_SHOW]: { title: string; body: string };
+
+  // App auto-update — auto-check toggle + frequency (U15). Either field is
+  // optional so the renderer can update one without resending the other.
+  [IPC_CHANNELS.UPDATE_SET_AUTO_CHECK]: { enabled?: boolean; frequency?: CheckFrequency };
 }
 
 // ========== Stream Proxy Types (Xtra port U11) ==========
@@ -375,6 +380,13 @@ export type UpdateStatus =
   | "downloaded"
   | "error";
 
+/**
+ * How often the auto-check scheduler may fire. A discrete preset (never a
+ * free-form number) so a tampered value can't drive a sub-minimum interval; the
+ * scheduler still clamps the derived interval to a 1-hour floor regardless.
+ */
+export type CheckFrequency = "hourly" | "daily" | "weekly";
+
 export interface UpdateInfo {
   version: string;
   releaseDate: string;
@@ -395,8 +407,14 @@ export interface UpdateState {
   progress: UpdateProgress | null;
   error: string | null;
   allowPrerelease: boolean;
+  /** Whether the interval auto-check scheduler is active (U15). */
+  autoCheckEnabled: boolean;
+  /** How often the scheduler may fire when enabled (U15). */
+  checkFrequency: CheckFrequency;
 }
 
 export interface UpdateSettings {
   allowPrerelease: boolean;
+  autoCheckEnabled: boolean;
+  checkFrequency: CheckFrequency;
 }
