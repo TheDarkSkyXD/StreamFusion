@@ -1,20 +1,52 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LuLayoutGrid, LuMaximize, LuMessageSquare } from "react-icons/lu";
 
 import { AddStreamDialog } from "@/components/multistream/add-stream-dialog";
 import { MultiStreamGrid } from "@/components/multistream/grid-layout";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
 import { useMultiStreamStore } from "@/store/multistream-store";
+
+// Docked chat width is dragged in px but persisted as a % of the window so it
+// scales across displays. Clamp matches the drag handler's 300–600px bounds.
+const CHAT_MIN_PX = 300;
+const CHAT_MAX_PX = 600;
+function pctToPx(pct: number): number {
+  const px = Math.round((pct / 100) * window.innerWidth);
+  return Math.min(CHAT_MAX_PX, Math.max(CHAT_MIN_PX, px));
+}
 
 export function MultiStreamPage() {
   const { streams, layout, setLayout, isChatOpen, toggleChat, chatStreamId } =
     useMultiStreamStore();
 
+  // Chat display prefs — chatWidthPct seeds the docked width; persisted on drag
+  // end. Pre-load `preferences` is null, so the raw pct is undefined until prefs
+  // hydrate (see seed effect below).
+  const persistedChatWidthPct = useAuthStore((s) => s.preferences?.chatDisplay?.chatWidthPct);
+  const updatePreferences = useAuthStore((s) => s.updatePreferences);
+
   // Chat Resizing Logic (Copied from StreamPage)
-  const [chatWidth, setChatWidth] = useState(350);
+  const [chatWidth, setChatWidth] = useState(() =>
+    pctToPx(persistedChatWidthPct ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.chatWidthPct)
+  );
   const [isResizing, setIsResizing] = useState(false);
+  // Latest dragged width + a one-shot seed guard (prefs load after mount).
+  const chatWidthRef = useRef(chatWidth);
+  const widthSeededRef = useRef(false);
+
+  // Apply the persisted width once prefs hydrate, unless the user already dragged.
+  useEffect(() => {
+    if (widthSeededRef.current || persistedChatWidthPct === undefined) return;
+    widthSeededRef.current = true;
+    const px = pctToPx(persistedChatWidthPct);
+    chatWidthRef.current = px;
+    setChatWidth(px);
+  }, [persistedChatWidthPct]);
 
   const startResizing = useCallback(() => {
+    widthSeededRef.current = true; // user owns the width now; stop seeding
     setIsResizing(true);
     document.body.style.userSelect = "none";
   }, []);
@@ -22,13 +54,22 @@ export function MultiStreamPage() {
   const stopResizing = useCallback(() => {
     setIsResizing(false);
     document.body.style.userSelect = "";
-  }, []);
+    // Persist the final width as a % of the window; read freshest prefs from the
+    // store so this callback needs no `cd` dependency (stays stable).
+    const current =
+      useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const chatWidthPct = Math.round((chatWidthRef.current / window.innerWidth) * 100);
+    if (chatWidthPct !== current.chatWidthPct) {
+      void updatePreferences({ chatDisplay: { ...current, chatWidthPct } });
+    }
+  }, [updatePreferences]);
 
   const resize = useCallback(
     (mouseMoveEvent: MouseEvent) => {
       if (isResizing) {
         const newWidth = window.innerWidth - mouseMoveEvent.clientX;
-        if (newWidth > 300 && newWidth < 600) {
+        if (newWidth > CHAT_MIN_PX && newWidth < CHAT_MAX_PX) {
+          chatWidthRef.current = newWidth;
           setChatWidth(newWidth);
         }
       }

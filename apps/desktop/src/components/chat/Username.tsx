@@ -1,6 +1,53 @@
 import type React from "react";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
 import type { ChatPlatform } from "../../shared/chat-types";
+import { useAuthStore } from "../../store/auth-store";
 import { useOpenUserPopout } from "./mod/UserPopout/UserPopoutProvider";
+
+/** Deterministic readable color for users who never picked one. Hashes the
+ *  username into a hue and renders it at a fixed saturation/lightness tuned to
+ *  read on the dark chat background. Same input always yields the same color. */
+function deterministicColor(username: string): string {
+  let hash = 0;
+  for (let i = 0; i < username.length; i++) {
+    hash = username.charCodeAt(i) + ((hash << 5) - hash);
+    hash |= 0; // keep in 32-bit range
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 65%, 65%)`;
+}
+
+/** Relative luminance (0–1) of a `#rrggbb` color, per WCAG. Used to lift
+ *  too-dark colors for the dark theme. Non-hex inputs return 1 (treated as
+ *  already bright enough — no lift). */
+function hexLuminance(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 1;
+  const int = Number.parseInt(m[1], 16);
+  const channel = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const r = channel((int >> 16) & 0xff);
+  const g = channel((int >> 8) & 0xff);
+  const b = channel(int & 0xff);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Lifts a low-luminance `#rrggbb` color toward white so it reads on the dark
+ *  chat background, leaving already-bright colors untouched. */
+function liftForDarkTheme(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const LUMINANCE_FLOOR = 0.18;
+  if (hexLuminance(hex) >= LUMINANCE_FLOOR) return hex;
+  const int = Number.parseInt(m[1], 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * 0.5);
+  const r = mix((int >> 16) & 0xff);
+  const g = mix((int >> 8) & 0xff);
+  const b = mix(int & 0xff);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
 
 /**
  * Optional channel-scope passed through ChatMessageList -> ChatMessage so
@@ -37,8 +84,22 @@ export const Username: React.FC<UsernameProps> = ({
   onClick,
   currentChannelContext,
 }) => {
-  const defaultColor = platform === "kick" ? "#53fc18" : "#9146ff";
+  const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  const platformDefaultColor = platform === "kick" ? "#53fc18" : "#9146ff";
   const openUserPopout = useOpenUserPopout();
+
+  // Resolve the effective username color from prefs:
+  // - no chosen color + readable-color on  -> deterministic per-username color
+  // - no chosen color + readable-color off -> the platform default
+  // - chosen color + theme-adapt on        -> lift if too dark for the dark bg
+  let resolvedColor: string;
+  if (!color) {
+    resolvedColor = cd.readableColorForUncolored
+      ? deterministicColor(username)
+      : platformDefaultColor;
+  } else {
+    resolvedColor = cd.themeAdaptUsernameColor ? liftForDarkTheme(color) : color;
+  }
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -65,8 +126,8 @@ export const Username: React.FC<UsernameProps> = ({
 
   return (
     <span
-      className={`font-bold cursor-pointer hover:underline ${className || ""}`}
-      style={{ color: color || defaultColor }}
+      className={`${cd.boldUsernames ? "font-bold " : ""}cursor-pointer hover:underline ${className || ""}`}
+      style={{ color: resolvedColor }}
       onClick={handleClick}
       role="button"
       tabIndex={0}

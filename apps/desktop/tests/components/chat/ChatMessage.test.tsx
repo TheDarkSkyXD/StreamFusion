@@ -1,8 +1,37 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatMessage } from '@/components/chat/ChatMessage';
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+} from '@/shared/auth-types';
 import type { ChatBadge, ChatMessage as ChatMessageType } from '@/shared/chat-types';
+import { useAuthStore } from '@/store/auth-store';
+
+// Seed the chatDisplay prefs the renderer reads. Leaving the store at its
+// natural null default (the afterEach reset) gives DEFAULT_CHAT_DISPLAY_PREFERENCES.
+function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
+  useAuthStore.setState((s) => ({
+    ...s,
+    preferences: {
+      ...(s.preferences ?? {}),
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...overrides },
+    } as typeof s.preferences,
+  }));
+}
+
+beforeEach(() => {
+  // Reset chatDisplay to defaults before each render so the existing tests see
+  // the shipped defaults (timestamps off) and new-test overrides don't leak.
+  useAuthStore.setState((s) => ({
+    ...s,
+    preferences: {
+      ...(s.preferences ?? {}),
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES },
+    } as typeof s.preferences,
+  }));
+});
 
 function badge(setId: string): ChatBadge {
   return { setId, version: '1', imageUrl: 'https://example.com/b.png', title: setId };
@@ -53,6 +82,85 @@ describe('ChatMessage', () => {
     );
     expect(screen.getByText('spammer')).toBeInTheDocument();
     expect(screen.getByText(/timed out for 10m/)).toBeInTheDocument();
+  });
+});
+
+describe('ChatMessage chatDisplay appearance (U2)', () => {
+  // 2026-05-24T14:05:00 local — distinguishes 12h (2:05 PM) from 24h (14:05).
+  const FIXED_TS = new Date(2026, 4, 24, 14, 5, 0).getTime();
+
+  it('hides the timestamp when timestamps is false (default)', () => {
+    render(<ChatMessage message={baseMessage({ timestamp: FIXED_TS as unknown as Date })} />);
+    expect(screen.queryByText(/14:05|2:05/)).toBeNull();
+  });
+
+  it('shows a 24-hour timestamp when format is HH:mm', () => {
+    setChatDisplay({ timestamps: true, timestampFormat: 'HH:mm' });
+    render(<ChatMessage message={baseMessage({ timestamp: FIXED_TS as unknown as Date })} />);
+    expect(screen.getByText('14:05')).toBeInTheDocument();
+  });
+
+  it('shows a 12-hour timestamp when format is h:mm a', () => {
+    setChatDisplay({ timestamps: true, timestampFormat: 'h:mm a' });
+    render(<ChatMessage message={baseMessage({ timestamp: FIXED_TS as unknown as Date })} />);
+    // jsdom renders e.g. "2:05 PM"; match the 12-hour shape, not the 24-hour one.
+    expect(screen.getByText(/\b2:05\s?PM/i)).toBeInTheDocument();
+    expect(screen.queryByText('14:05')).toBeNull();
+  });
+
+  it('applies fontSizePx to the message row as an inline style', () => {
+    setChatDisplay({ fontSizePx: 18 });
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.style.fontSize).toBe('18px');
+  });
+
+  it('uses cozy padding/line-height by default', () => {
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.className).toContain('py-1');
+    expect(row.className).toContain('leading-[1.4]');
+  });
+
+  it('uses tighter padding/line-height when density is compact', () => {
+    setChatDisplay({ density: 'compact' });
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.className).toContain('py-0.5');
+    expect(row.className).toContain('leading-[1.2]');
+    expect(row.className).not.toContain('leading-[1.4]');
+  });
+
+  it('applies emoteSizePx to rendered emote images', () => {
+    setChatDisplay({ emoteSizePx: 40 });
+    const msg = baseMessage({
+      content: [
+        { type: 'emote', id: 'e1', name: 'Kappa', url: 'https://example.com/kappa.png' },
+      ],
+    });
+    render(<ChatMessage message={msg} />);
+    const img = screen.getByAltText('Kappa') as HTMLImageElement;
+    expect(img.style.height).toBe('40px');
+  });
+
+  it('preserves truncation-safe wrapping at min font size with a long username + message', () => {
+    // Regression guard for the truncation-trio learning: a very long username +
+    // message at the smallest font must not strip the break-words wrapper.
+    setChatDisplay({ fontSizePx: 10 });
+    const longName = 'a'.repeat(40);
+    const longText = 'lorem ipsum '.repeat(20).trim();
+    const { container } = render(
+      <ChatMessage
+        message={baseMessage({
+          username: longName,
+          displayName: longName,
+          content: [{ type: 'text', content: longText }],
+        })}
+      />
+    );
+    // The content wrapper keeps break-words so long tokens wrap instead of overflow.
+    expect(container.querySelector('.break-words')).not.toBeNull();
+    expect(screen.getByText(longName)).toBeInTheDocument();
   });
 });
 

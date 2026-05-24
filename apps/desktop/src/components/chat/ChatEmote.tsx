@@ -1,6 +1,8 @@
 import type React from "react";
 import { memo, useCallback, useMemo, useState } from "react";
 import type { Emote } from "../../backend/services/emotes/emote-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
+import { useAuthStore } from "../../store/auth-store";
 import { EmoteTooltip } from "./tooltips/EmoteTooltip";
 
 interface ChatEmoteProps {
@@ -19,6 +21,9 @@ interface ChatEmoteProps {
  */
 export const ChatEmote: React.FC<ChatEmoteProps> = memo(
   ({ id, name, url, platform, isAnimated }) => {
+    const emoteSizePx =
+      useAuthStore((s) => s.preferences?.chatDisplay?.emoteSizePx) ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx;
     const [showTooltip, setShowTooltip] = useState(false);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
 
@@ -64,7 +69,8 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           src={url}
           alt={name}
           loading="lazy"
-          className="inline-block h-6 w-auto mx-0.5 align-middle cursor-pointer transition-transform hover:scale-110"
+          style={{ height: emoteSizePx }}
+          className="inline-block w-auto mx-0.5 align-middle cursor-pointer transition-transform hover:scale-110"
           onMouseEnter={handleMouseEnter}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}

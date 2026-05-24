@@ -13,9 +13,19 @@ import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useStreamByChannel } from "@/hooks/queries/useStreams";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
-import type { Platform } from "@/shared/auth-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, type Platform } from "@/shared/auth-types";
 import { useAppStore } from "@/store/app-store";
+import { useAuthStore } from "@/store/auth-store";
 import { usePipStore } from "@/store/pip-store";
+
+// Docked chat width is dragged in px but persisted as a % of the window so it
+// scales across displays. Clamp matches the drag handler's 200–600px bounds.
+const CHAT_MIN_PX = 200;
+const CHAT_MAX_PX = 600;
+function pctToPx(pct: number): number {
+  const px = Math.round((pct / 100) * window.innerWidth);
+  return Math.min(CHAT_MAX_PX, Math.max(CHAT_MIN_PX, px));
+}
 
 export function StreamPage() {
   const { platform, channel: channelName } = useParams({ from: "/_app/stream/$platform/$channel" });
@@ -40,9 +50,22 @@ export function StreamPage() {
     platform as Platform
   );
 
-  // Chat Resizing Logic
-  const [chatWidth, setChatWidth] = useState(300);
+  // Chat display prefs — chatWidthPct seeds the docked width; updatePreferences
+  // persists the new width (as a %) on drag end. Pre-load `preferences` is null,
+  // so the raw pct is undefined until prefs hydrate (see seed effect below).
+  const persistedChatWidthPct = useAuthStore((s) => s.preferences?.chatDisplay?.chatWidthPct);
+  const updatePreferences = useAuthStore((s) => s.updatePreferences);
+
+  // Chat Resizing Logic. Seed from the persisted chatWidthPct (lazy init reads
+  // window.innerWidth once); if prefs aren't loaded yet, start at the default %.
+  const [chatWidth, setChatWidth] = useState(() =>
+    pctToPx(persistedChatWidthPct ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.chatWidthPct)
+  );
   const [isResizing, setIsResizing] = useState(false);
+  // Prefs load asynchronously after mount, so the lazy seed above may have used
+  // the default. Apply the persisted width once it arrives, but only before the
+  // user has dragged or toggled theater (those own the width afterward).
+  const widthSeededRef = useRef(false);
   // Mirror isResizing into a ref so the global mousemove/mouseup handlers
   // can read the current value without becoming new function identities on
   // each toggle. Lets the listener-attach effect run once per drag start
@@ -159,8 +182,25 @@ export function StreamPage() {
     };
   }, [setIsOnStreamPage, setTheaterModeActive]);
 
-  // Match Twitch's exact theater mode chat width (measured at 1920x1080)
+  // Apply the persisted chat width once prefs hydrate (the lazy useState seed
+  // above ran before they loaded). One-shot: skips if the user already dragged
+  // or toggled theater, so we never stomp an in-session width.
   useEffect(() => {
+    if (widthSeededRef.current || persistedChatWidthPct === undefined) return;
+    widthSeededRef.current = true;
+    setChatWidth(pctToPx(persistedChatWidthPct));
+  }, [persistedChatWidthPct]);
+
+  // Match Twitch's exact theater mode chat width (measured at 1920x1080).
+  // Skip the initial mount so the persisted chatWidthPct seed isn't clobbered;
+  // only snap to 340 on an actual theater toggle.
+  const theaterSnapMountedRef = useRef(false);
+  useEffect(() => {
+    if (!theaterSnapMountedRef.current) {
+      theaterSnapMountedRef.current = true;
+      return;
+    }
+    widthSeededRef.current = true; // theater now owns the width; stop seeding
     if (isTheater) {
       setChatWidth(340); // Twitch theater mode: exactly 340px chat width
     } else {
@@ -212,16 +252,22 @@ export function StreamPage() {
 
   const startResizing = useCallback(() => {
     isResizingRef.current = true;
+    widthSeededRef.current = true; // user owns the width now; stop seeding from prefs
     setIsResizing(true);
     // Disable iframe pointer events globally to prevent capturing mouse events during drag
     document.body.style.userSelect = "none";
   }, []);
 
+  // Latest dragged width, mirrored so stopResizing can persist it without
+  // becoming a new identity on every width change.
+  const chatWidthRef = useRef(chatWidth);
+
   // Stable callbacks: read isResizing via ref so identity never changes.
   const resize = useCallback((mouseMoveEvent: MouseEvent) => {
     if (!isResizingRef.current) return;
     const newWidth = window.innerWidth - mouseMoveEvent.clientX;
-    if (newWidth > 200 && newWidth < 600) {
+    if (newWidth > CHAT_MIN_PX && newWidth < CHAT_MAX_PX) {
+      chatWidthRef.current = newWidth;
       setChatWidth(newWidth);
     }
   }, []);
@@ -230,7 +276,14 @@ export function StreamPage() {
     isResizingRef.current = false;
     setIsResizing(false);
     document.body.style.userSelect = "";
-  }, []);
+    // Persist the final width as a % of the window. Read the freshest prefs from
+    // the store so this callback needs no `cd` dependency (stays stable).
+    const current = useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const chatWidthPct = Math.round((chatWidthRef.current / window.innerWidth) * 100);
+    if (chatWidthPct !== current.chatWidthPct) {
+      void updatePreferences({ chatDisplay: { ...current, chatWidthPct } });
+    }
+  }, [updatePreferences]);
 
   useEffect(() => {
     if (!isResizing) return;

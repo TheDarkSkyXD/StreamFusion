@@ -8,7 +8,12 @@ import {
   BsTrashFill,
   BsUnlock,
 } from "react-icons/bs";
+import {
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  type TimestampFormat,
+} from "../../shared/auth-types";
 import type { ChatMessage as ChatMessageType, ContentFragment } from "../../shared/chat-types";
+import { useAuthStore } from "../../store/auth-store";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
 import { Username, type UsernameChannelContext } from "./Username";
@@ -90,6 +95,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
   selfUserId,
   currentChannelContext,
 }) => {
+  const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  // Density drives row padding + line-height; font size is applied inline so it
+  // can be any px value from prefs (replacing the hardcoded `text-sm`).
+  const densityClass = cd.density === "compact" ? "px-4 py-0.5 leading-[1.2]" : "px-4 py-1 leading-[1.4]";
+  const fontSizeStyle = { fontSize: cd.fontSizePx };
   const isDeleted = message.isDeleted;
 
   if (message.type === "ban" && message.banInfo) {
@@ -129,12 +139,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
 
   return (
     <div
-      className={`group relative px-4 py-1 text-sm hover:bg-white/5 leading-[1.4] ${message.isHighlighted ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
-      style={style}
+      className={`group relative ${densityClass} hover:bg-white/5 ${message.isHighlighted ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
+      style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}
     >
       <div className="break-words">
-        {/* Timestamp - memoized to prevent recalculation */}
-        <Timestamp timestamp={message.timestamp} />
+        {/* Timestamp - gated + format-driven by chat display prefs */}
+        {cd.timestamps && (
+          <Timestamp timestamp={message.timestamp} format={cd.timestampFormat} />
+        )}
 
         {/* Badges */}
         {message.badges.length > 0 && (
@@ -274,18 +286,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
 
 ChatMessage.displayName = "ChatMessage";
 
-// Memoized timestamp component
-const Timestamp: React.FC<{ timestamp: Date }> = memo(({ timestamp }) => {
-  const formattedTime = useMemo(() => {
-    return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }, [timestamp]);
+// Memoized timestamp component. Format follows `chatDisplay.timestampFormat`:
+// "HH:mm" = 24-hour (hour12:false), "h:mm a" = 12-hour with AM/PM.
+const Timestamp: React.FC<{ timestamp: Date; format: TimestampFormat }> = memo(
+  ({ timestamp, format }) => {
+    const formattedTime = useMemo(() => {
+      return new Date(timestamp).toLocaleTimeString([], {
+        hour: format === "h:mm a" ? "numeric" : "2-digit",
+        minute: "2-digit",
+        hour12: format === "h:mm a",
+      });
+    }, [timestamp, format]);
 
-  return (
-    <span className="text-xs text-white font-bold mr-1 select-none align-middle inline-block">
-      {formattedTime}
-    </span>
-  );
-});
+    return (
+      <span className="text-xs text-white font-bold mr-1 select-none align-middle inline-block">
+        {formattedTime}
+      </span>
+    );
+  }
+);
 
 Timestamp.displayName = "Timestamp";
 
