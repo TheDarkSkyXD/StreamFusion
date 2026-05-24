@@ -106,6 +106,12 @@ export function normalizeKickPrediction(
       : null;
   const predictionWindowSeconds =
     typeof raw.duration === "number" ? raw.duration : null;
+  // `created_at` anchors the time-remaining countdown (lock = created_at +
+  // duration). Already parsed for `computeEndedAt`; surface it for the widget.
+  const createdAt =
+    typeof raw.created_at === "string" && raw.created_at.length > 0
+      ? raw.created_at
+      : null;
   const endedAt = computeEndedAt(raw, status);
 
   return {
@@ -118,6 +124,7 @@ export function normalizeKickPrediction(
     outcomes,
     winningOutcomeId,
     predictionWindowSeconds,
+    createdAt,
     endedAt,
     viewerOutcomeId,
     viewerStake,

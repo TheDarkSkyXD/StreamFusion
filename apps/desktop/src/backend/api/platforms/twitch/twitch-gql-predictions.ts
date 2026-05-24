@@ -109,6 +109,7 @@ interface TwitchGqlPredictionRaw {
   outcomes?: unknown;
   winningOutcomeID?: unknown;
   predictionWindowSeconds?: unknown;
+  createdAt?: unknown;
   endedAt?: unknown;
   /** Self-state block, present only when a Bearer token is supplied. */
   self?: unknown;
@@ -267,6 +268,8 @@ export function normalizeTwitchPrediction(
     typeof r.predictionWindowSeconds === "number"
       ? r.predictionWindowSeconds
       : null;
+  const createdAt =
+    typeof r.createdAt === "string" && r.createdAt.length > 0 ? r.createdAt : null;
   const endedAt =
     typeof r.endedAt === "string" && r.endedAt.length > 0 ? r.endedAt : null;
 
@@ -288,6 +291,7 @@ export function normalizeTwitchPrediction(
     outcomes,
     winningOutcomeId,
     predictionWindowSeconds,
+    createdAt,
     endedAt,
     viewerOutcomeId,
     viewerStake,
@@ -373,6 +377,7 @@ const CHANNEL_PREDICTION_CONTEXT_QUERY = `query ChannelPredictionContext($channe
       title
       status
       predictionWindowSeconds
+      createdAt
       winningOutcomeID
       endedAt
       outcomes {

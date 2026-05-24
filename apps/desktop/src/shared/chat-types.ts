@@ -373,6 +373,14 @@ export interface UnifiedPrediction {
   winningOutcomeId: string | null;
   /** Original prediction window in seconds, when known. */
   predictionWindowSeconds: number | null;
+  /**
+   * ISO timestamp of when the prediction opened. Combined with
+   * `predictionWindowSeconds` it gives the lock time (`createdAt + window`)
+   * the widget's time-remaining bar counts down to. Optional because some
+   * construction paths (legacy fixtures) predate the field; absent → the bar
+   * falls back to a static fill instead of a live countdown.
+   */
+  createdAt?: string | null;
   /** ISO timestamp of resolve / cancel, otherwise null. */
   endedAt: string | null;
   /** Outcome id the signed-in viewer has already voted on, otherwise null. */

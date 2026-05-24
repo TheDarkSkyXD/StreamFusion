@@ -303,6 +303,9 @@ export function parsePredictionEvent(
     typeof event.winning_outcome_id === "string" && event.winning_outcome_id.length > 0
       ? event.winning_outcome_id
       : null;
+  const createdAt = typeof event.created_at === "string" && event.created_at.length > 0
+    ? event.created_at
+    : null;
   const endedAt = typeof event.ended_at === "string" && event.ended_at.length > 0
     ? event.ended_at
     : null;
@@ -321,6 +324,7 @@ export function parsePredictionEvent(
     outcomes,
     winningOutcomeId,
     predictionWindowSeconds: windowSeconds,
+    createdAt,
     endedAt,
     viewerOutcomeId: null,
     viewerStake: null,

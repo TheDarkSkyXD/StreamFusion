@@ -445,6 +445,9 @@ export function ChatSimTool() {
       ],
       winningOutcomeId: status === "RESOLVED" ? outcomeA : null,
       predictionWindowSeconds: 120,
+      // Anchor the countdown at injection time so the time-remaining bar
+      // visibly drains over the 120s window for an ACTIVE sim prediction.
+      createdAt: new Date().toISOString(),
       endedAt: status === "RESOLVED" ? new Date().toISOString() : null,
       viewerOutcomeId: null,
       viewerStake: null,

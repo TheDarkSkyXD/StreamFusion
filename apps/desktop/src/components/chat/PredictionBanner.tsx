@@ -1,11 +1,20 @@
 /**
- * Viewer-side prediction widget (read-only) for both Twitch and Kick chats.
+ * Viewer-side prediction widget — a read-only mirror of Twitch's community-
+ * highlight prediction card. Captured live from https://www.twitch.tv/adinross
+ * (2026-05-24):
+ *   - "Predict with Channel Points" subtitle: 12px / 400 / #efeff1
+ *   - bold title: 18px / 500 / -0.18px tracking / #efeff1 (wraps when expanded)
+ *   - purple "See Details" pill (14px / 600 / #9147ff) + vertical-dots overflow
+ *   - numbered outcome rows: "1. Title … [icon] amount" at 14px / #efeff1, with
+ *     NO per-row percentage and NO leader badge (Twitch's compact card shows
+ *     amounts only)
+ *   - a slim purple time-remaining bar that counts down to the lock time
+ *     (createdAt + predictionWindowSeconds)
  *
- * The `twitch-native` branch mirrors the real twitch.tv community-highlight
- * card captured live from `https://www.twitch.tv/lirik` (2026-05-23): the
- * "Predict with Channel Points" subtitle, bold title, purple pill CTA,
- * vertical-dots overflow, expanded outcome rows ("1. Title  [icon] amount"),
- * and the slim purple progress bar.
+ * Read-only by design: in-app voting is intentionally not offered (the platform
+ * vote APIs aren't wired for viewers), so the expanded panel shows the same
+ * information Twitch does without any vote affordance. The server-provided
+ * `viewerOutcomeId` still highlights the outcome the viewer picked on-platform.
  *
  * Three style variants picked from useAuthStore.preferences.predictions.style ×
  * prediction.platform: twitch-native | kick-native | unified.
@@ -13,27 +22,13 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  PredictionVoteForm,
-  type PredictionVoteFormBalance,
-} from "@/components/chat/PredictionVoteForm";
-import {
-  clearForChannel,
-  clearForPrediction,
-} from "@/lib/prediction-vote-gate";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const ENDED_AUTO_DISMISS_MS = 60_000;
-/**
- * `localVoteSubmittedAt` window — see plan U5. After a successful vote,
- * suppress incoming `viewerOutcomeId === null` updates for this many ms so
- * the just-cast vote doesn't get visually "uncast" by a poll-tick echo.
- */
-const LOCAL_VOTE_SUPPRESSION_MS = 10_000;
 
-// Twitch palette captured from live computed styles on twitch.tv/lirik.
-const TW_PURPLE = "#9146ff";
+// Twitch palette captured from live computed styles on twitch.tv (adinross, 2026-05-24).
+const TW_PURPLE = "#9147ff";
 const TW_PURPLE_LIGHT = "#a970ff";
 const TW_TRACK = "rgba(83, 83, 95, 0.55)";
 
@@ -41,88 +36,17 @@ type Style = "twitch-native" | "kick-native" | "unified";
 
 interface PredictionBannerProps {
   prediction: UnifiedPrediction;
-  /**
-   * Real channel slug (Kick) / login (Twitch) for the panel hosting this
-   * banner. Used as the destination for vote-mutation API calls. Falls back
-   * to `prediction.channelSlug`, but the dev-injection sentinel has an empty
-   * channelSlug — so callers should always pass the real channel from their
-   * own props to keep voting working against dev-injected predictions too.
-   */
-  channelLogin?: string;
   onAutoDismiss?: () => void;
   onDismiss?: () => void;
 }
 
 export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   prediction,
-  channelLogin,
   onAutoDismiss,
   onDismiss,
 }) => {
   const styleSetting = useAuthStore((s) => s.preferences?.predictions.style ?? "native");
-  const twitchUser = useAuthStore((s) => s.twitchUser);
-  const kickUser = useAuthStore((s) => s.kickUser);
   const [expanded, setExpanded] = useState(false);
-
-  // Track the timestamp of the last successful local vote per prediction id.
-  // When a `predictionUpdate` arrives with `viewerOutcomeId === null` within
-  // LOCAL_VOTE_SUPPRESSION_MS of a successful vote, we suppress just that
-  // field — other fields flow through unchanged.
-  const localVoteSubmittedAtRef = useRef<Map<string, number>>(new Map());
-  const [localViewer, setLocalViewer] = useState<{
-    outcomeId: string;
-    stake: number;
-  } | null>(null);
-  const [suppressionExpired, setSuppressionExpired] = useState(false);
-  const suppressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setLocalViewer(null);
-    setSuppressionExpired(false);
-    if (suppressionTimerRef.current) {
-      clearTimeout(suppressionTimerRef.current);
-      suppressionTimerRef.current = null;
-    }
-  }, [prediction.id]);
-
-  useEffect(() => {
-    return () => {
-      if (suppressionTimerRef.current) {
-        clearTimeout(suppressionTimerRef.current);
-      }
-    };
-  }, []);
-
-  const effectiveViewerOutcomeId = useMemo(() => {
-    if (prediction.viewerOutcomeId !== null) return prediction.viewerOutcomeId;
-    if (!localViewer) return null;
-    if (suppressionExpired) return null;
-    const submittedAt = localVoteSubmittedAtRef.current.get(prediction.id);
-    if (submittedAt && Date.now() - submittedAt < LOCAL_VOTE_SUPPRESSION_MS) {
-      return localViewer.outcomeId;
-    }
-    return null;
-  }, [prediction.id, prediction.viewerOutcomeId, localViewer, suppressionExpired]);
-
-  const effectiveViewerStake = useMemo(() => {
-    if (prediction.viewerStake !== null) return prediction.viewerStake;
-    if (!localViewer) return null;
-    if (suppressionExpired) return null;
-    const submittedAt = localVoteSubmittedAtRef.current.get(prediction.id);
-    if (submittedAt && Date.now() - submittedAt < LOCAL_VOTE_SUPPRESSION_MS) {
-      return localViewer.stake;
-    }
-    return null;
-  }, [prediction.id, prediction.viewerStake, localViewer, suppressionExpired]);
-
-  const effectivePrediction = useMemo<UnifiedPrediction>(
-    () => ({
-      ...prediction,
-      viewerOutcomeId: effectiveViewerOutcomeId,
-      viewerStake: effectiveViewerStake,
-    }),
-    [prediction, effectiveViewerOutcomeId, effectiveViewerStake],
-  );
 
   const style: Style = useMemo(() => {
     if (styleSetting === "unified") return "unified";
@@ -131,19 +55,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
 
   const isEnded = prediction.status === "RESOLVED" || prediction.status === "CANCELED";
   const isLocked = prediction.status === "LOCKED";
-
-  useEffect(() => {
-    if (prediction.status === "RESOLVED" || prediction.status === "CANCELED") {
-      clearForPrediction(prediction.id);
-    }
-  }, [prediction.status, prediction.id]);
-
-  useEffect(() => {
-    const slug = prediction.channelSlug;
-    return () => {
-      clearForChannel(slug);
-    };
-  }, [prediction.channelSlug]);
 
   const onAutoDismissRef = useRef(onAutoDismiss);
   useEffect(() => {
@@ -162,20 +73,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     setExpanded(false);
   }, [prediction.id]);
 
-  const hasPlatformToken =
-    prediction.platform === "twitch" ? !!twitchUser : !!kickUser;
-
-  const handleVoteSuccess = (outcomeId: string, amount: number) => {
-    localVoteSubmittedAtRef.current.set(prediction.id, Date.now());
-    setLocalViewer({ outcomeId, stake: amount });
-    setSuppressionExpired(false);
-    if (suppressionTimerRef.current) clearTimeout(suppressionTimerRef.current);
-    suppressionTimerRef.current = setTimeout(() => {
-      setSuppressionExpired(true);
-      suppressionTimerRef.current = null;
-    }, LOCAL_VOTE_SUPPRESSION_MS);
-  };
-
   return (
     <section
       data-testid="prediction-banner"
@@ -186,7 +83,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     >
       {!expanded ? (
         <CollapsedView
-          prediction={effectivePrediction}
+          prediction={prediction}
           style={style}
           isEnded={isEnded}
           isLocked={isLocked}
@@ -195,21 +92,18 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
         />
       ) : isEnded ? (
         <EndedPanel
-          prediction={effectivePrediction}
+          prediction={prediction}
           style={style}
           onCollapse={() => setExpanded(false)}
           onDismiss={onDismiss}
         />
       ) : (
         <ActivePanel
-          prediction={effectivePrediction}
+          prediction={prediction}
           style={style}
           isLocked={isLocked}
-          hasPlatformToken={hasPlatformToken}
-          channelLogin={channelLogin}
           onCollapse={() => setExpanded(false)}
           onDismiss={onDismiss}
-          onVoteSuccess={handleVoteSuccess}
         />
       )}
     </section>
@@ -239,6 +133,7 @@ const CollapsedView: React.FC<CollapsedProps> = ({
 }) => {
   const totalAmount = sumAmount(prediction);
   const leader = topOutcome(prediction);
+  const { locksAtMs, windowMs } = predictionCountdown(prediction);
   const ctaLabel = isEnded ? "View Result" : prediction.platform === "twitch" ? "See Details" : "Predict";
 
   // Twitch shows two header layouts:
@@ -280,7 +175,15 @@ const CollapsedView: React.FC<CollapsedProps> = ({
           )}
         </div>
       </div>
-      {!isEnded && <TimeRemainingBar style={style} isLocked={isLocked} thick />}
+      {!isEnded && (
+        <TimeRemainingBar
+          style={style}
+          isLocked={isLocked}
+          thick
+          locksAtMs={locksAtMs}
+          windowMs={windowMs}
+        />
+      )}
       {isLocked && <span className="sr-only">Locked</span>}
     </div>
   );
@@ -300,11 +203,11 @@ const CollapsedHeaderText: React.FC<{
 
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
-      <p className="truncate text-[12px] leading-tight text-[#adadb8]">
+      <p className="truncate text-[12px] leading-[1.4] text-[#efeff1]">
         {subtitle}
       </p>
       <div
-        className="mt-0.5 truncate text-[15px] font-semibold leading-tight text-white"
+        className="mt-0.5 truncate text-[18px] font-medium leading-[1.1] tracking-[-0.18px] text-[#efeff1]"
         title={prediction.title}
       >
         {prediction.title}
@@ -386,60 +289,25 @@ function endedTeaser(prediction: UnifiedPrediction, total: number): React.ReactN
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// EXPANDED — ACTIVE / LOCKED
+// EXPANDED — ACTIVE / LOCKED (read-only)
 // ────────────────────────────────────────────────────────────────────────────
 
 interface ActivePanelProps {
   prediction: UnifiedPrediction;
   style: Style;
   isLocked: boolean;
-  hasPlatformToken: boolean;
-  channelLogin?: string;
   onCollapse: () => void;
   onDismiss?: () => void;
-  onVoteSuccess: (outcomeId: string, amount: number) => void;
 }
 
 const ActivePanel: React.FC<ActivePanelProps> = ({
   prediction,
   style,
   isLocked,
-  hasPlatformToken,
-  channelLogin,
   onCollapse,
   onDismiss,
-  onVoteSuccess,
 }) => {
-  const total = sumAmount(prediction);
-  const leader = topOutcome(prediction);
-  const deeplink = prediction.platform === "twitch" ? "https://www.twitch.tv/" : "https://kick.com/";
-
-  // Form-vs-deeplink branch rules (plan U5, unchanged):
-  //   - Active + viewer hasn't voted + token present + real channel + Twitch → in-app form
-  //   - Active + viewer hasn't voted + no token                              → deeplink
-  //   - Active + viewer hasn't voted + token present + no real channel       → deeplink
-  //   - Active + viewer hasn't voted + Kick                                  → deeplink
-  //   - Active + viewer already voted                                        → neither
-  //   - Locked                                                               → neither
-  const KICK_IN_APP_VOTING_SUPPORTED = false;
-  const viewerHasVoted = prediction.viewerOutcomeId !== null;
-  const resolvedChannelLogin = (channelLogin ?? "").trim() || prediction.channelSlug.trim();
-  const hasRealChannel = resolvedChannelLogin.length > 0;
-  const platformSupportsInAppVote =
-    prediction.platform === "twitch" || KICK_IN_APP_VOTING_SUPPORTED;
-  const showVoteForm =
-    !isLocked &&
-    !viewerHasVoted &&
-    hasPlatformToken &&
-    hasRealChannel &&
-    platformSupportsInAppVote;
-  const showDeeplink = !isLocked && !viewerHasVoted && !showVoteForm;
-
-  // TODO(predictions-backend U5): wire real balance fetches once U3 / U1 land.
-  const balance: PredictionVoteFormBalance = {
-    state: "failed",
-    reason: "not implemented",
-  };
+  const { locksAtMs, windowMs } = predictionCountdown(prediction);
 
   return (
     <div className="px-2.5 pt-2 pb-3">
@@ -451,7 +319,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
       />
 
       <ul
-        className="mt-3 mb-2 flex flex-col gap-1"
+        className="mt-3 mb-2 flex flex-col"
         data-testid="prediction-outcomes"
       >
         {prediction.outcomes.map((o, i) => (
@@ -459,8 +327,6 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
             key={o.id}
             outcome={o}
             index={i}
-            total={total}
-            isLeader={o.id === leader?.id}
             isWinner={o.id === prediction.winningOutcomeId}
             isViewerPick={o.id === prediction.viewerOutcomeId}
             style={style}
@@ -468,7 +334,13 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
         ))}
       </ul>
 
-      <TimeRemainingBar style={style} isLocked={isLocked} thick={false} />
+      <TimeRemainingBar
+        style={style}
+        isLocked={isLocked}
+        thick={false}
+        locksAtMs={locksAtMs}
+        windowMs={windowMs}
+      />
 
       {isLocked && (
         <div className="mt-3">
@@ -477,67 +349,43 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
           </span>
         </div>
       )}
-
-      {showVoteForm && (
-        <div className="mt-3">
-          <PredictionVoteForm
-            prediction={prediction}
-            channelLogin={resolvedChannelLogin}
-            balance={balance}
-            onVoteSuccess={onVoteSuccess}
-          />
-        </div>
-      )}
-
-      {showDeeplink && (
-        <a
-          href={deeplink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={"mt-3 block text-center " + ctaPillClass(style)}
-          data-testid="prediction-vote-deeplink"
-        >
-          Vote on {prediction.platform === "twitch" ? "twitch.tv" : "kick.com"} ↗
-        </a>
-      )}
     </div>
   );
 };
 
+/**
+ * One outcome row in the read-only expanded card. Mirrors twitch.tv's compact
+ * layout: "{n}. {title}" on the left, "[icon] {amount}" on the right — at
+ * 14px / #efeff1, with no per-row percentage. A check badge marks the winner
+ * (only reachable from the resolved view) and the viewer's on-platform pick is
+ * highlighted with a faint purple ring.
+ */
 const ActiveOutcomeRow: React.FC<{
   outcome: UnifiedPredictionOutcome;
   index: number;
-  total: number;
-  isLeader: boolean;
   isWinner: boolean;
   isViewerPick: boolean;
   style: Style;
-}> = ({ outcome, index, total, isLeader, isWinner, isViewerPick, style }) => {
-  const pct = total > 0 ? Math.round((outcome.totalAmount / total) * 100) : 0;
+}> = ({ outcome, index, isWinner, isViewerPick, style }) => {
   return (
     <li
       data-testid={`prediction-outcome-${outcome.id}`}
       data-viewer-pick={isViewerPick || undefined}
       className={
-        "flex items-center justify-between gap-2 rounded px-1.5 py-1 text-[13px] " +
-        (isViewerPick ? "bg-[#9146ff]/15 ring-1 ring-[#9146ff]/40" : "")
+        "flex items-center justify-between rounded text-[14px] leading-[1.4] " +
+        (isViewerPick ? "bg-[#9147ff]/15 ring-1 ring-[#9147ff]/40" : "")
       }
     >
       <span className="flex min-w-0 items-center gap-2">
-        <span className="w-4 flex-shrink-0 text-right text-[13px] font-medium text-[#adadb8]">
+        <span className="flex-shrink-0 text-[14px] text-[#efeff1]">
           {index + 1}.
         </span>
-        <span className="truncate text-white">
+        <span className="truncate text-[#efeff1]">
           {outcome.title}
         </span>
         {isWinner && (
           <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white" aria-label="Winner">
             <CheckIcon size={10} />
-          </span>
-        )}
-        {isLeader && !isWinner && (
-          <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[#adadb8]">
-            Lead
           </span>
         )}
         {style === "kick-native" && (
@@ -548,10 +396,9 @@ const ActiveOutcomeRow: React.FC<{
           />
         )}
       </span>
-      <span className="flex flex-shrink-0 items-center gap-1.5 tabular-nums text-white">
-        <ChannelPointsIcon size={14} />
+      <span className="flex flex-shrink-0 items-center gap-[3px] tabular-nums text-[#efeff1]">
+        <ChannelPointsIcon size={12} />
         <span>{short(outcome.totalAmount)}</span>
-        <span className="ml-1 w-9 text-right text-[11px] text-[#adadb8]">{pct}%</span>
       </span>
     </li>
   );
@@ -569,13 +416,10 @@ const EndedPanel: React.FC<{
 }> = ({ prediction, style, onCollapse, onDismiss }) => {
   const total = sumAmount(prediction);
   const endedAtLabel = endedRelativeLabel(prediction.endedAt);
-  const winner = prediction.outcomes.find((o) => o.id === prediction.winningOutcomeId) ?? null;
-  // Hoist the winner into the visible pair for 3+ outcome predictions.
-  let pair: UnifiedPredictionOutcome[] = prediction.outcomes.slice(0, 2);
-  if (winner && !pair.some((o) => o.id === winner.id)) {
-    pair = [pair[0], winner].filter(Boolean) as UnifiedPredictionOutcome[];
-  }
-  const [a, b] = pair;
+  // Single accent for the resolved list, mirroring twitch.tv's "Prediction"
+  // results panel: every outcome shares the prediction-blue, and the numbered
+  // circles + "Winner" badge distinguish them rather than per-outcome colors.
+  const accent = resolvedAccent(style);
 
   return (
     <div className="px-2.5 pt-2 pb-3">
@@ -592,84 +436,86 @@ const EndedPanel: React.FC<{
           : `Prediction ended ${endedAtLabel}`}
       </div>
 
-      <div
-        className="mt-3 grid grid-cols-2 gap-3"
-        data-testid="prediction-outcomes"
-      >
-        {a && (
-          <EndedOutcomeColumn
-            outcome={a}
-            index={0}
+      {/* All outcomes in declaration order — supports 3+ results like twitch.tv. */}
+      <div className="mt-3 flex flex-col gap-3" data-testid="prediction-outcomes">
+        {prediction.outcomes.map((o, i) => (
+          <EndedOutcomeRow
+            key={o.id}
+            outcome={o}
+            index={i}
             total={total}
-            isWinner={a.id === winner?.id}
-            style={style}
+            isWinner={o.id === prediction.winningOutcomeId}
+            accent={accent}
           />
-        )}
-        {b && (
-          <EndedOutcomeColumn
-            outcome={b}
-            index={1}
-            total={total}
-            isWinner={b.id === winner?.id}
-            style={style}
-          />
-        )}
+        ))}
       </div>
     </div>
   );
 };
 
-const EndedOutcomeColumn: React.FC<{
+/**
+ * One resolved-outcome row, mirroring twitch.tv's "Prediction" results panel:
+ * a numbered circle + title on the left, a large percentage with the points
+ * total beneath it on the right, a trailing chevron, and a full-width progress
+ * bar underneath. The broadcaster-chosen winner (winningOutcomeId — not the
+ * highest percentage) carries the "✓ Winner" badge above its row.
+ */
+const EndedOutcomeRow: React.FC<{
   outcome: UnifiedPredictionOutcome;
   index: number;
   total: number;
   isWinner: boolean;
-  style: Style;
-}> = ({ outcome, index, total, isWinner, style }) => {
+  accent: string;
+}> = ({ outcome, index, total, isWinner, accent }) => {
   const pct = total > 0 ? Math.round((outcome.totalAmount / total) * 100) : 0;
-  const color =
-    style === "kick-native"
-      ? kickDotColor(index)
-      : twitchColorHex(outcome.color ?? (index === 0 ? "blue" : "pink"));
-
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5 text-[12px]">
-        {isWinner ? (
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
-            <CheckIcon size={10} />
+    <div
+      className="flex flex-col gap-1.5"
+      data-testid={`prediction-outcome-${outcome.id}`}
+      data-winner={isWinner || undefined}
+    >
+      {isWinner && (
+        <div className="flex items-center gap-1.5 text-[13px] font-semibold text-white">
+          <span className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-white text-[#0e0e10]">
+            <CheckIcon size={11} />
           </span>
-        ) : (
-          <span className="h-4 w-4 flex-shrink-0" aria-hidden />
-        )}
-        <span className="truncate font-semibold" style={{ color }} title={outcome.title}>
-          {outcome.title}
+          Winner
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white tabular-nums"
+            style={{ backgroundColor: accent }}
+          >
+            {index + 1}
+          </span>
+          <span
+            className="truncate text-[16px] font-medium"
+            style={{ color: accent }}
+            title={outcome.title}
+          >
+            {outcome.title}
+          </span>
         </span>
-        {isWinner && (
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
-            Winner
+        <span className="flex flex-shrink-0 items-center gap-1.5">
+          <span className="flex flex-col items-end leading-tight">
+            <span className="text-[20px] font-semibold tabular-nums" style={{ color: accent }}>
+              {pct}%
+            </span>
+            <span className="flex items-center gap-1 text-[12px] text-[#adadb8] tabular-nums">
+              <ChannelPointsIcon size={12} />
+              {short(outcome.totalAmount)}
+            </span>
           </span>
-        )}
+          {ChevronRightIcon}
+        </span>
       </div>
-      <div
-        className="text-[32px] font-bold leading-none tabular-nums"
-        style={{ color }}
-      >
-        {pct}%
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+      <div className="h-1 w-full overflow-hidden rounded-full" style={{ backgroundColor: TW_TRACK }}>
         <div
           className="h-full rounded-full"
-          style={{ width: `${Math.max(pct, 4)}%`, backgroundColor: color }}
+          style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: accent }}
         />
-      </div>
-      <div className="flex items-center gap-1.5 text-[11px] text-white tabular-nums">
-        <ChannelPointsIcon size={12} />
-        <span>{short(outcome.totalAmount)}</span>
-        <span className="text-[#adadb8]">·</span>
-        <span className="text-[#adadb8]">
-          {outcome.userCount.toLocaleString()} predictor{outcome.userCount === 1 ? "" : "s"}
-        </span>
       </div>
     </div>
   );
@@ -709,11 +555,11 @@ const ExpandedHeader: React.FC<{
         </svg>
       </button>
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <p className="truncate text-[12px] leading-tight text-[#adadb8]">
+        <p className="truncate text-[12px] leading-[1.4] text-[#efeff1]">
           {subtitle}
         </p>
         <div
-          className="mt-0.5 truncate text-[15px] font-semibold leading-tight text-white"
+          className="mt-0.5 text-[18px] font-medium leading-[1.1] tracking-[-0.18px] text-[#efeff1]"
           title={prediction.title}
         >
           {prediction.title}
@@ -758,31 +604,57 @@ const ExpandedHeader: React.FC<{
 };
 
 /**
- * Twitch-style time-remaining strip. We don't have a real countdown timestamp
- * in `UnifiedPrediction` today (only `predictionWindowSeconds`), so the bar is
- * a visual indicator: full purple when active, drained when locked, hidden on
- * ended. When the backend grows a `lockedAt` / `windowEndsAt` field this can
- * animate the actual remaining ratio.
+ * Twitch-style time-remaining strip. Counts down from full to empty over the
+ * prediction window using `locksAtMs` (the epoch ms when voting locks) and
+ * `windowMs` (total window). When those anchors are unavailable (a payload
+ * without `createdAt`) the bar falls back to a static full-when-active /
+ * empty-when-locked indicator.
  */
 const TimeRemainingBar: React.FC<{
   style: Style;
   isLocked: boolean;
   thick: boolean;
-}> = ({ style, isLocked, thick }) => {
+  locksAtMs: number | null;
+  windowMs: number | null;
+}> = ({ style, isLocked, thick, locksAtMs, windowMs }) => {
   const fillColor =
     style === "kick-native" ? "#53FC18" : style === "unified" ? "#dc143c" : TW_PURPLE_LIGHT;
-  const widthPct = isLocked ? 0 : 100;
+
+  // Live countdown only when we have a real start anchor + window and voting is
+  // still open. Otherwise the bar is static (full active / empty locked).
+  const canCountdown =
+    !isLocked && locksAtMs !== null && windowMs !== null && windowMs > 0;
+
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!canCountdown) return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [canCountdown, locksAtMs, windowMs]);
+
+  let widthPct: number;
+  if (isLocked) {
+    widthPct = 0;
+  } else if (canCountdown && locksAtMs !== null && windowMs !== null) {
+    const remainingMs = Math.max(0, locksAtMs - now);
+    widthPct = Math.min(100, Math.max(0, (remainingMs / windowMs) * 100));
+  } else {
+    widthPct = 100;
+  }
+
   return (
     <div
       role="progressbar"
-      aria-valuenow={widthPct}
+      aria-valuenow={Math.round(widthPct)}
       aria-valuemin={0}
       aria-valuemax={100}
       className={"mt-2 w-full overflow-hidden rounded-full " + (thick ? "h-2" : "h-1")}
       style={{ backgroundColor: TW_TRACK }}
     >
       <div
-        className="h-full transition-[width] duration-500"
+        className={
+          "h-full transition-[width] duration-500 " + (canCountdown ? "ease-linear" : "")
+        }
         style={{ width: `${widthPct}%`, backgroundColor: fillColor }}
       />
     </div>
@@ -792,6 +664,24 @@ const TimeRemainingBar: React.FC<{
 const VerticalDotsIcon = (
   <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
     <path d="M10 5a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm0 7a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm2 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />
+  </svg>
+);
+
+// Decorative trailing chevron on resolved-outcome rows (matches twitch.tv's
+// results panel). Read-only — purely visual, hence aria-hidden.
+const ChevronRightIcon = (
+  <svg
+    aria-hidden
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="#adadb8"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M9 6l6 6-6 6" />
   </svg>
 );
 
@@ -830,12 +720,34 @@ const ChannelPointsIcon: React.FC<{ size: number }> = ({ size }) => (
 
 function ctaPillClass(style: Style): string {
   if (style === "twitch-native") {
-    return "flex h-8 items-center justify-center rounded-full bg-[#9146ff] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#772ce8]";
+    return "flex h-8 items-center justify-center rounded-full bg-[#9147ff] px-2 text-[14px] font-semibold text-white transition-colors hover:bg-[#772ce8]";
   }
   if (style === "kick-native") {
-    return "flex h-8 items-center justify-center rounded-full bg-[#53FC18] px-4 text-[13px] font-semibold text-black transition-colors hover:bg-[#3dd912]";
+    return "flex h-8 items-center justify-center rounded-full bg-[#53FC18] px-2 text-[14px] font-semibold text-black transition-colors hover:bg-[#3dd912]";
   }
-  return "flex h-8 items-center justify-center rounded-full bg-[#dc143c] px-4 text-[13px] font-semibold text-white transition-colors hover:opacity-90";
+  return "flex h-8 items-center justify-center rounded-full bg-[#dc143c] px-2 text-[14px] font-semibold text-white transition-colors hover:opacity-90";
+}
+
+/**
+ * Derive the countdown anchors for the time-remaining bar. `locksAtMs` is the
+ * epoch ms when voting locks (`createdAt + window`); `windowMs` is the total
+ * window in ms. `locksAtMs` is null when the prediction lacks a parseable
+ * `createdAt` anchor — the bar then renders static instead of counting down.
+ */
+function predictionCountdown(prediction: UnifiedPrediction): {
+  locksAtMs: number | null;
+  windowMs: number | null;
+} {
+  const windowSeconds = prediction.predictionWindowSeconds;
+  if (windowSeconds === null || windowSeconds <= 0) {
+    return { locksAtMs: null, windowMs: null };
+  }
+  const windowMs = windowSeconds * 1000;
+  const createdMs = prediction.createdAt ? Date.parse(prediction.createdAt) : Number.NaN;
+  if (!Number.isFinite(createdMs)) {
+    return { locksAtMs: null, windowMs };
+  }
+  return { locksAtMs: createdMs + windowMs, windowMs };
 }
 
 function sumAmount(prediction: UnifiedPrediction): number {
@@ -868,20 +780,16 @@ function endedRelativeLabel(endedAt: string | null): string {
   return `${hours} hour${hours === 1 ? "" : "s"} ago`;
 }
 
-function twitchColorHex(color: string): string {
-  const map: Record<string, string> = {
-    blue: "#4a8eff",
-    pink: "#ff5fa8",
-    yellow: "#facc15",
-    green: "#22c55e",
-    orange: "#fb923c",
-    purple: "#9146ff",
-    red: "#ef4444",
-    cyan: "#06b6d4",
-    brown: "#a16207",
-    gray: "#6b7280",
-  };
-  return map[color] ?? "#9146ff";
+/**
+ * Accent for the resolved-results list. Mirrors twitch.tv, whose "Prediction"
+ * results panel renders every outcome in the prediction-blue (#4a8eff) — the
+ * numbered circles and "Winner" badge carry the distinction, not per-outcome
+ * colors. Kick and unified styles swap in their own brand accent.
+ */
+function resolvedAccent(style: Style): string {
+  if (style === "kick-native") return "#53FC18";
+  if (style === "unified") return "#dc143c";
+  return "#4a8eff";
 }
 
 function kickDotColor(index: number): string {

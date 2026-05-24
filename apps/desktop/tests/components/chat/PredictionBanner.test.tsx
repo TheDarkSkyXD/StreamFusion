@@ -1,23 +1,9 @@
-import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 
 import { PredictionBanner } from "@/components/chat/PredictionBanner";
-import {
-  __resetForTests as resetGate,
-  acquire as acquireGate,
-  predictionVoteGateKey,
-} from "@/lib/prediction-vote-gate";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
-
-const makePredictionMock = vi.fn();
-const voteOnPredictionMock = vi.fn();
-vi.mock("@/backend/api/platforms/twitch/twitch-gql-prediction-mutations", () => ({
-  makePrediction: (...args: unknown[]) => makePredictionMock(...args),
-}));
-vi.mock("@/backend/api/platforms/kick/kick-prediction-mutations", () => ({
-  voteOnPrediction: (...args: unknown[]) => voteOnPredictionMock(...args),
-}));
 
 function makePrediction(overrides: Partial<UnifiedPrediction> = {}): UnifiedPrediction {
   return {
@@ -45,6 +31,7 @@ function makePrediction(overrides: Partial<UnifiedPrediction> = {}): UnifiedPred
     ],
     winningOutcomeId: null,
     predictionWindowSeconds: 120,
+    createdAt: null,
     endedAt: null,
     viewerOutcomeId: null,
     viewerStake: null,
@@ -63,14 +50,6 @@ beforeEach(() => {
     twitchUser: null,
     kickUser: null,
   }));
-  resetGate();
-  makePredictionMock.mockReset();
-  voteOnPredictionMock.mockReset();
-  (globalThis.window as unknown as { electronAPI: unknown }).electronAPI = {
-    auth: {
-      getToken: vi.fn().mockResolvedValue({ accessToken: "tok-1" }),
-    },
-  };
 });
 
 afterEach(() => {
@@ -91,17 +70,6 @@ function setTwitchUser() {
   }));
 }
 
-function setKickUser() {
-  useAuthStore.setState((s) => ({
-    ...s,
-    kickUser: {
-      id: "kv1",
-      login: "kickviewer",
-      displayName: "KickViewer",
-    } as unknown as typeof s.kickUser,
-  }));
-}
-
 describe("PredictionBanner (read-only viewer widget)", () => {
   it("renders collapsed by default with the platform-native CTA label (Twitch → 'See Details')", () => {
     render(<PredictionBanner prediction={makePrediction()} />);
@@ -115,14 +83,12 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     expect(screen.getByLabelText("Predict")).toBeTruthy();
   });
 
-  it("expands to detail panel on CTA click, showing outcome list + 'Vote on twitch.tv' deeplink", () => {
+  it("expands to a detail panel showing the numbered outcome list on CTA click", () => {
     render(<PredictionBanner prediction={makePrediction()} />);
     fireEvent.click(screen.getByLabelText("See Details"));
     expect(screen.getByText("Sodapoppin")).toBeTruthy();
     expect(screen.getByText("EggsQc")).toBeTruthy();
-    const deeplink = screen.getByTestId("prediction-vote-deeplink") as HTMLAnchorElement;
-    expect(deeplink.href).toBe("https://www.twitch.tv/");
-    expect(deeplink.textContent).toContain("Vote on twitch.tv");
+    expect(screen.getByTestId("prediction-outcomes")).toBeTruthy();
   });
 
   it("collapses back when the Back / Close control is clicked", () => {
@@ -290,7 +256,7 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
   });
 
-  it("expanded ended state renders two-column layout with progress bars (visual-faithful)", () => {
+  it("expanded ended state renders all outcomes as a vertical results list with percentages + Winner badge", () => {
     render(
       <PredictionBanner
         prediction={makePrediction({
@@ -301,12 +267,13 @@ describe("PredictionBanner (read-only viewer widget)", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("View Result"));
-    // Both outcomes render in the side-by-side columns
     expect(screen.getByText("Sodapoppin")).toBeTruthy();
     expect(screen.getByText("EggsQc")).toBeTruthy();
-    // Big-number percentage display (53% leader in our test fixture)
-    const percentNodes = Array.from(document.querySelectorAll("div")).filter(
-      (d) => /^\d+%$/.test(d.textContent || ""),
+    // "Winner" badge marks the broadcaster-chosen outcome (twitch.tv results layout).
+    expect(screen.getByText("Winner")).toBeTruthy();
+    // Each outcome shows a percentage (now in spans, not a 2-column grid of divs).
+    const percentNodes = Array.from(document.querySelectorAll("span")).filter(
+      (s) => /^\d+%$/.test(s.textContent || ""),
     );
     expect(percentNodes.length).toBeGreaterThanOrEqual(2);
   });
@@ -325,11 +292,15 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     // Short amount label rendered ("979.1K" + "848.9K" from the fixture).
     expect(rowA.textContent).toMatch(/979\.1K/);
     expect(rowB.textContent).toMatch(/848\.9K/);
+    // Twitch's compact card shows amounts only — no per-row percentage.
+    expect(rowA.textContent).not.toMatch(/%/);
+    expect(rowB.textContent).not.toMatch(/%/);
   });
 
-  it("EndedPanel hoists the winner into the displayed pair for 3+ outcome predictions", () => {
-    // Winner is outcomes[2] — declared order would hide it. The panel must
-    // promote it into the right slot so the resolution is always visible.
+  it("renders every outcome in the resolved list (3+) with the Winner badge on the broadcaster-chosen outcome", () => {
+    // Winner is outcomes[2] AND the lowest amount — the badge follows
+    // winningOutcomeId, not the highest percentage (mirrors twitch.tv, where
+    // No Neck Jay won at 40% over Shane Chance's 59%).
     const prediction = makePrediction({
       status: "RESOLVED",
       winningOutcomeId: "outcome-c",
@@ -359,10 +330,14 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     });
     render(<PredictionBanner prediction={prediction} />);
     fireEvent.click(screen.getByLabelText("View Result"));
-    // Winner outcome must render even though it's outcomes[2].
+    // All three outcomes render (no 2-column truncation / hoisting).
+    expect(screen.getByText("Sodapoppin")).toBeTruthy();
+    expect(screen.getByText("EggsQc")).toBeTruthy();
     expect(screen.getByText("Roflgator")).toBeTruthy();
-    // The "Winner" tag points at it.
-    expect(screen.getByText(/Winner/)).toBeTruthy();
+    // Winner badge present, pinned to the broadcaster-chosen (lowest-amount) outcome.
+    expect(screen.getByText("Winner")).toBeTruthy();
+    const winnerRow = screen.getByTestId("prediction-outcome-outcome-c");
+    expect(winnerRow.getAttribute("data-winner")).toBe("true");
   });
 
   it("PredictionBanner auto-dismiss timer does NOT reset on parent re-render with a new inline callback", () => {
@@ -407,164 +382,95 @@ describe("PredictionBanner (read-only viewer widget)", () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
-// U5 — form-vs-deeplink branch + localVoteSubmittedAt defense + gate cleanup
+// Read-only: the widget mirrors Twitch's card but offers no vote affordance.
 // ────────────────────────────────────────────────────────────────────────────
 
-describe("PredictionBanner — U5 form/deeplink branch", () => {
-  it("shows in-app vote form (not deeplink) when prediction is ACTIVE and Twitch user is signed in", () => {
-    setTwitchUser();
+describe("PredictionBanner — read-only (no in-app voting)", () => {
+  it("expanded active view shows outcomes but neither a vote form nor a deeplink", () => {
     render(<PredictionBanner prediction={makePrediction()} />);
     fireEvent.click(screen.getByLabelText("See Details"));
-    expect(screen.getByTestId("prediction-vote-form")).toBeTruthy();
+    expect(screen.getByTestId("prediction-outcomes")).toBeTruthy();
+    expect(screen.getByText("Sodapoppin")).toBeTruthy();
+    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
     expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
+    expect(screen.queryByText(/Vote on/)).toBeNull();
   });
 
-  it("shows deeplink (not form) when prediction is ACTIVE and no Twitch user is signed in", () => {
+  it("stays read-only even when a Twitch user is signed in", () => {
+    setTwitchUser();
     render(<PredictionBanner prediction={makePrediction()} />);
-    fireEvent.click(screen.getByLabelText("See Details"));
-    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
-    expect(screen.getByTestId("prediction-vote-deeplink")).toBeTruthy();
-  });
-
-  it("shows deeplink (not in-app form) for Kick even when Kick user is signed in — Kick voting requires session cookies + CSRF; deferred to BrowserWindow scrape", () => {
-    setKickUser();
-    render(<PredictionBanner prediction={makePrediction({ platform: "kick" })} />);
-    fireEvent.click(screen.getByLabelText("Predict"));
-    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
-    expect(screen.getByTestId("prediction-vote-deeplink")).toBeTruthy();
-  });
-
-  it("Twitch user signed in does NOT enable Kick form on a Kick prediction (per-platform branch)", () => {
-    setTwitchUser();
-    render(<PredictionBanner prediction={makePrediction({ platform: "kick" })} />);
-    fireEvent.click(screen.getByLabelText("Predict"));
-    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
-    expect(screen.getByTestId("prediction-vote-deeplink")).toBeTruthy();
-  });
-
-  it("hides both form and deeplink when prediction is LOCKED", () => {
-    setTwitchUser();
-    render(<PredictionBanner prediction={makePrediction({ status: "LOCKED" })} />);
     fireEvent.click(screen.getByLabelText("See Details"));
     expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
     expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
   });
 
-  it("hides both form and deeplink when viewer already voted (viewerOutcomeId set)", () => {
-    setTwitchUser();
+  it("highlights the viewer's on-platform pick without exposing a vote control", () => {
     render(
-      <PredictionBanner prediction={makePrediction({ viewerOutcomeId: "outcome-a", viewerStake: 100 })} />,
+      <PredictionBanner
+        prediction={makePrediction({ viewerOutcomeId: "outcome-a", viewerStake: 500 })}
+      />,
     );
     fireEvent.click(screen.getByLabelText("See Details"));
+    const picked = screen.getByTestId("prediction-outcome-outcome-a");
+    expect(picked.getAttribute("data-viewer-pick")).toBe("true");
     expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
-    expect(screen.queryByTestId("prediction-vote-deeplink")).toBeNull();
   });
 });
 
-describe("PredictionBanner — localVoteSubmittedAt suppression", () => {
-  it("suppresses incoming viewerOutcomeId=null update within 10s of successful vote", async () => {
-    setTwitchUser();
-    makePredictionMock.mockResolvedValue({ ok: true });
-    const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
-    fireEvent.click(screen.getByLabelText("See Details"));
-    expect(screen.getByTestId("prediction-vote-form")).toBeTruthy();
-    // Cast a vote.
-    fireEvent.click(screen.getByTestId("vote-outcome-outcome-a"));
-    fireEvent.change(screen.getByTestId("vote-stake-input"), { target: { value: "100" } });
-    fireEvent.click(screen.getByTestId("vote-submit"));
-    await waitFor(() => expect(makePredictionMock).toHaveBeenCalledTimes(1));
-    // Form should disappear since the local optimistic state now has the
-    // viewer's outcome.
-    await waitFor(() => expect(screen.queryByTestId("prediction-vote-form")).toBeNull());
+// ────────────────────────────────────────────────────────────────────────────
+// Time-remaining bar countdown (createdAt + predictionWindowSeconds).
+// ────────────────────────────────────────────────────────────────────────────
 
-    // Now the server poll comes back with the stale null update. Without
-    // suppression this would re-show the form.
-    rerender(<PredictionBanner prediction={makePrediction({ viewerOutcomeId: null })} />);
-    expect(screen.queryByTestId("prediction-vote-form")).toBeNull();
-    // The picked outcome row carries the viewer-pick attr from the
-    // optimistic state.
-    const outcomeA = screen.getByTestId("prediction-outcome-outcome-a");
-    expect(outcomeA.getAttribute("data-viewer-pick")).toBe("true");
-  });
-
-  it("accepts viewerOutcomeId=null update AFTER 10s suppression window expires", async () => {
+describe("PredictionBanner — time-remaining countdown", () => {
+  it("counts the bar down from full toward empty as the window elapses", () => {
     vi.useFakeTimers();
     try {
-      setTwitchUser();
-      makePredictionMock.mockResolvedValue({ ok: true });
-      const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
-      fireEvent.click(screen.getByLabelText("See Details"));
-      fireEvent.click(screen.getByTestId("vote-outcome-outcome-a"));
-      fireEvent.change(screen.getByTestId("vote-stake-input"), { target: { value: "100" } });
-      // Drive the promise resolution under fake timers — we await the
-      // settled mutation by manually running pending microtasks.
-      await act(async () => {
-        fireEvent.click(screen.getByTestId("vote-submit"));
-        // Flush the microtask queue created by the resolved mock.
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      const start = Date.now();
+      vi.setSystemTime(start);
+      render(
+        <PredictionBanner
+          prediction={makePrediction({
+            predictionWindowSeconds: 100,
+            createdAt: new Date(start).toISOString(),
+          })}
+        />,
+      );
+      const bar = screen.getByRole("progressbar");
+      // Full at the start of the window.
+      expect(Number(bar.getAttribute("aria-valuenow"))).toBe(100);
 
-      // Advance past the suppression window.
-      await act(async () => {
-        vi.advanceTimersByTime(11_000);
+      // Halfway through the 100s window → ~50%.
+      act(() => {
+        vi.advanceTimersByTime(50_000);
       });
+      const mid = Number(bar.getAttribute("aria-valuenow"));
+      expect(mid).toBeGreaterThan(40);
+      expect(mid).toBeLessThan(60);
 
-      // Server still returns null — but now we're past 10s, so the
-      // suppression no longer applies. The component should not be in
-      // optimistic-voted state anymore.
-      rerender(<PredictionBanner prediction={makePrediction({ viewerOutcomeId: null })} />);
-      // Re-expand to check the panel state (re-render may have collapsed).
-      const cta = screen.queryByLabelText("See Details");
-      if (cta) fireEvent.click(cta);
-      // Form is back since suppression expired and server says null.
-      expect(screen.queryByTestId("prediction-vote-form")).toBeTruthy();
+      // Past the end → clamped at 0.
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(Number(bar.getAttribute("aria-valuenow"))).toBe(0);
     } finally {
       vi.useRealTimers();
     }
   });
-});
 
-describe("PredictionBanner — gate cleanup", () => {
-  it("calls clearForPrediction when status transitions to RESOLVED", () => {
-    setTwitchUser();
-    const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
-    // Seed the gate with this prediction so clearForPrediction has work to do.
-    const key = predictionVoteGateKey("twitch", "fitzbro", "pred-1");
-    acquireGate(key);
-    expect(acquireGate(key)).toBe(false); // confirm seeded
-    rerender(
+  it("renders a static full bar when no createdAt anchor is present", () => {
+    render(<PredictionBanner prediction={makePrediction({ createdAt: null })} />);
+    expect(Number(screen.getByRole("progressbar").getAttribute("aria-valuenow"))).toBe(100);
+  });
+
+  it("renders an empty bar when the prediction is LOCKED", () => {
+    render(
       <PredictionBanner
-        prediction={makePrediction({ status: "RESOLVED", winningOutcomeId: "outcome-a" })}
+        prediction={makePrediction({
+          status: "LOCKED",
+          createdAt: new Date().toISOString(),
+        })}
       />,
     );
-    // Gate cleared → a fresh acquire of the same key succeeds again.
-    expect(acquireGate(key)).toBe(true);
-  });
-
-  it("calls clearForPrediction when status transitions to CANCELED", () => {
-    setTwitchUser();
-    const { rerender } = render(<PredictionBanner prediction={makePrediction()} />);
-    const key = predictionVoteGateKey("twitch", "fitzbro", "pred-1");
-    acquireGate(key);
-    expect(acquireGate(key)).toBe(false);
-    rerender(<PredictionBanner prediction={makePrediction({ status: "CANCELED" })} />);
-    expect(acquireGate(key)).toBe(true);
-  });
-
-  it("calls clearForChannel on widget unmount", () => {
-    setTwitchUser();
-    const { unmount } = render(<PredictionBanner prediction={makePrediction()} />);
-    // Seed: acquire keys for two predictions on the same channel.
-    const k1 = predictionVoteGateKey("twitch", "fitzbro", "pred-1");
-    const k2 = predictionVoteGateKey("twitch", "fitzbro", "pred-2");
-    acquireGate(k1);
-    acquireGate(k2);
-    unmount();
-    // Both should now be releasable / re-acquirable since clearForChannel
-    // matched both keys' slug segment.
-    expect(acquireGate(k1)).toBe(true);
-    expect(acquireGate(k2)).toBe(true);
+    expect(Number(screen.getByRole("progressbar").getAttribute("aria-valuenow"))).toBe(0);
   });
 });

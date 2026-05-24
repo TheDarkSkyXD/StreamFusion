@@ -501,9 +501,7 @@ class StorageService {
    * to distinguish pending pushes from completed external state changes.
    *
    * The caller is responsible for sanitizing `lastError` of any token-shaped
-   * substrings before passing — this layer stores what it's given. The
-   * existing `sanitizeMessage` helper in `twitch-gql-prediction-mutations.ts`
-   * is the convention.
+   * substrings before passing — this layer stores what it's given.
    */
   addPendingFollowWrite(input: {
     platform: Platform;
