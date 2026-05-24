@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  type BufferPreferences,
   type ChatDisplayPreferences,
+  DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
@@ -112,5 +114,40 @@ describe("PlayerControlsPreferences defaults (U8)", () => {
     const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
     expect(hydrated.playerControls).toEqual(DEFAULT_PLAYER_CONTROLS_PREFERENCES);
     expect(hydrated.playerControls.showVolume).toBe(true);
+  });
+});
+
+describe("BufferPreferences defaults (U10)", () => {
+  it("defaults equal the values previously hardcoded in both player files (no behavior change)", () => {
+    // R17: untouched install must build an identical HLS config. These four are
+    // exactly the constants that lived in twitch-hls-player.tsx / hls-player.tsx.
+    expect(DEFAULT_BUFFER_PREFERENCES).toEqual({
+      lowLatencyMode: true,
+      liveSyncDurationCount: 2,
+      maxBufferLengthSec: 15,
+      maxMaxBufferLengthSec: 30,
+    });
+    expect(DEFAULT_USER_PREFERENCES.buffer).toBe(DEFAULT_BUFFER_PREFERENCES);
+  });
+
+  it("wires buffer onto the top-level UserPreferences shape", () => {
+    const prefs: UserPreferences = DEFAULT_USER_PREFERENCES;
+    // Type-level check: buffer is a required field. If U10 forgot to wire it into
+    // UserPreferences, this assignment would fail to compile.
+    const buffer: BufferPreferences = prefs.buffer;
+    expect(buffer).toBe(DEFAULT_BUFFER_PREFERENCES);
+  });
+
+  it("hydrates the whole buffer group for installs predating it (shallow top-level merge)", () => {
+    // Mirrors storageService.getPreferences: `{ ...DEFAULT_USER_PREFERENCES, ...stored }`.
+    // A persisted prefs object from before buffer existed has no such key, so the
+    // spread falls back to the full default group rather than `undefined`.
+    const legacyStored: Partial<UserPreferences> = {
+      theme: "dark",
+      language: "en",
+    };
+    const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
+    expect(hydrated.buffer).toEqual(DEFAULT_BUFFER_PREFERENCES);
+    expect(hydrated.buffer.liveSyncDurationCount).toBe(2);
   });
 });

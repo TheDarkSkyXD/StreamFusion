@@ -316,6 +316,7 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
         <HlsPlayer
           ref={videoRef}
           src={streamUrl}
+          isLive
           poster={poster}
           muted={isMuted}
           autoPlay={autoPlay}

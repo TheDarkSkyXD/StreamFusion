@@ -189,6 +189,37 @@ export interface PlayerControlsPreferences {
   showVideoStats: boolean;
 }
 
+/**
+ * Live playback buffer / latency tuning, applied to the HLS.js config at the
+ * `new Hls({...})` construction site for LIVE streams on both platforms (Twitch
+ * runs its own ad-block-aware player; Kick live + both VOD paths share one).
+ *
+ * Its own top-level group so older installs hydrate the whole group with
+ * defaults under the shallow top-level preferences merge. Defaults equal the
+ * values that were previously hardcoded in both player files, so an untouched
+ * install sees no behavior change (R17).
+ *
+ * The latency knob maps to `liveSyncDurationCount` (segment count) rather than
+ * `liveSyncDuration` (seconds): the count is what both players already used, the
+ * sibling `liveMaxLatencyDurationCount` is also count-based, and HLS.js treats
+ * the seconds form as a mutually-exclusive override — keeping the family
+ * count-based avoids mixing the two. These keys are live-only (inert on VOD), so
+ * the consumer applies the group only on the LIVE path. See plan U10. (Xtra port.)
+ */
+export interface BufferPreferences {
+  /** HLS.js `lowLatencyMode`. */
+  lowLatencyMode: boolean;
+  /**
+   * Target live latency as a count of segments from the live edge
+   * (HLS.js `liveSyncDurationCount`). Lower = closer to live, less stable.
+   */
+  liveSyncDurationCount: number;
+  /** Forward buffer length in seconds (HLS.js `maxBufferLength`). */
+  maxBufferLengthSec: number;
+  /** Hard cap on buffer length in seconds (HLS.js `maxMaxBufferLength`). */
+  maxMaxBufferLengthSec: number;
+}
+
 export type TimestampFormat = "HH:mm" | "h:mm a";
 export type ChatDensity = "cozy" | "compact";
 
@@ -255,6 +286,8 @@ export interface UserPreferences {
   predictions: PredictionPreferences;
   /** Visibility of the player chrome controls (Xtra port, U8). */
   playerControls: PlayerControlsPreferences;
+  /** Live playback buffer / latency tuning (Xtra port, U10). */
+  buffer: BufferPreferences;
   startMinimized: boolean;
   minimizeToTray: boolean;
 }
@@ -363,6 +396,18 @@ export const DEFAULT_PLAYER_CONTROLS_PREFERENCES: PlayerControlsPreferences = {
   showVideoStats: true,
 };
 
+/**
+ * Defaults equal the values previously hardcoded in both player files
+ * (twitch-hls-player.tsx / hls-player.tsx), so an untouched install builds an
+ * identical HLS config (R17). See plan U10.
+ */
+export const DEFAULT_BUFFER_PREFERENCES: BufferPreferences = {
+  lowLatencyMode: true,
+  liveSyncDurationCount: 2,
+  maxBufferLengthSec: 15,
+  maxMaxBufferLengthSec: 30,
+};
+
 export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   // Appearance
   boldUsernames: false,
@@ -403,6 +448,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   advanced: DEFAULT_ADVANCED_PREFERENCES,
   predictions: DEFAULT_PREDICTION_PREFERENCES,
   playerControls: DEFAULT_PLAYER_CONTROLS_PREFERENCES,
+  buffer: DEFAULT_BUFFER_PREFERENCES,
   startMinimized: false,
   minimizeToTray: true,
 };

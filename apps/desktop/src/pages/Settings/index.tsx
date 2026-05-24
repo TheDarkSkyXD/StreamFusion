@@ -5,6 +5,7 @@ import {
   LuCircleAlert,
   LuCircleHelp,
   LuDownload,
+  LuGauge,
   LuLink,
   LuMessageSquare,
   LuMonitor,
@@ -32,6 +33,8 @@ import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAuthError } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import {
+  type BufferPreferences,
+  DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_PLAYBACK_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
@@ -45,6 +48,7 @@ import { useAuthStore } from "@/store/auth-store";
 const SETTINGS_TABS = [
   "playback",
   "player-controls",
+  "buffer",
   "chat",
   "adblock",
   "predictions",
@@ -52,6 +56,46 @@ const SETTINGS_TABS = [
   "updates",
   "about",
 ] as const;
+
+// Numeric buffer controls surfaced in Settings → Buffer (U10). Each maps to one
+// BufferPreferences number field; ranges keep values in HLS.js-sane bounds.
+const BUFFER_RANGE_CONTROLS: {
+  field: Exclude<keyof BufferPreferences, "lowLatencyMode">;
+  label: string;
+  description: string;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+}[] = [
+  {
+    field: "liveSyncDurationCount",
+    label: "Target live latency",
+    description: "Segments from the live edge. Lower stays closer to live but is less stable.",
+    min: 1,
+    max: 10,
+    step: 1,
+    unit: "seg",
+  },
+  {
+    field: "maxBufferLengthSec",
+    label: "Forward buffer",
+    description: "Seconds of video buffered ahead. Higher resists stalls but adds latency.",
+    min: 5,
+    max: 60,
+    step: 1,
+    unit: "s",
+  },
+  {
+    field: "maxMaxBufferLengthSec",
+    label: "Max buffer",
+    description: "Hard cap on buffered seconds. The byte budget scales with this value.",
+    min: 10,
+    max: 120,
+    step: 5,
+    unit: "s",
+  },
+];
 
 // Player-control visibility toggles surfaced in the Settings → Player controls tab (U9).
 // Covers only the controls that actually render in the UI (wired in U8). Picture-in-Picture
@@ -157,6 +201,24 @@ export function SettingsPage() {
   };
 
   const playerControls = preferences?.playerControls ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
+  const buffer = preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES;
+
+  const handleBufferChange = async (field: keyof BufferPreferences, value: number | boolean) => {
+    await updatePreferences({
+      buffer: {
+        ...(preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES),
+        [field]: value,
+      },
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleBufferReset = async () => {
+    await updatePreferences({ buffer: { ...DEFAULT_BUFFER_PREFERENCES } });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <div className="flex h-full bg-[#09090b] text-zinc-100 overflow-hidden">
@@ -192,6 +254,13 @@ export function SettingsPage() {
               description="Show or hide player buttons"
               isActive={activeTab === "player-controls"}
               onClick={() => setActiveTab("player-controls")}
+            />
+            <SidebarItem
+              icon={LuGauge}
+              label="Buffer"
+              description="Live latency & stability"
+              isActive={activeTab === "buffer"}
+              onClick={() => setActiveTab("buffer")}
             />
             <SidebarItem
               icon={LuMessageSquare}
@@ -325,6 +394,92 @@ export function SettingsPage() {
                       />
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Buffer Tab */}
+          {activeTab === "buffer" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Buffer</h2>
+                <p className="text-zinc-400">
+                  Tune the latency-vs-stability tradeoff for live streams (Twitch + Kick). These
+                  apply to live playback only.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Live buffer
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    {saved && (
+                      <span className="text-xs text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
+                        Saved
+                      </span>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleBufferReset}
+                      className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
+                    >
+                      Reset to defaults
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="px-6 py-2 divide-y divide-[#27272a]/60">
+                  {/* Low-latency mode switch */}
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Low-latency mode</p>
+                      <p className="text-sm text-zinc-500 mt-0.5">
+                        Track the live edge aggressively. Disable for steadier playback on flaky
+                        connections.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={buffer.lowLatencyMode}
+                      onCheckedChange={(v) => handleBufferChange("lowLatencyMode", v)}
+                    />
+                  </div>
+
+                  {/* Numeric range controls */}
+                  {BUFFER_RANGE_CONTROLS.map(
+                    ({ field, label, description, min, max, step, unit }) => (
+                      <div key={field} className="flex items-center justify-between gap-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-zinc-200">{label}</p>
+                          <p className="text-sm text-zinc-500 mt-0.5">{description}</p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <input
+                            type="range"
+                            min={min}
+                            max={max}
+                            step={step}
+                            value={buffer[field]}
+                            onChange={(e) =>
+                              handleBufferChange(field, Number.parseFloat(e.target.value))
+                            }
+                            className="w-40 accent-yellow-500"
+                            aria-label={label}
+                          />
+                          <span className="w-16 text-right text-sm tabular-nums text-zinc-300">
+                            {buffer[field]} {unit}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+
+                <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
+                  Changes apply when the stream next loads.
                 </div>
               </div>
             </div>

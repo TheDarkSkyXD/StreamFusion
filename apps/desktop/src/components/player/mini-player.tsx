@@ -263,6 +263,7 @@ export function MiniPlayer() {
           <HlsPlayer
             ref={videoRef}
             src={streamUrl}
+            isLive
             muted={isMuted}
             volume={volume / 100}
             autoPlay={true}

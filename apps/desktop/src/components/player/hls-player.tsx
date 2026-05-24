@@ -2,6 +2,10 @@ import Hls from "hls.js";
 import type React from "react";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
+import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
+
+import { resolveHlsBufferConfig } from "./hls-buffer-config";
 import type { PlayerError, QualityLevel } from "./types";
 
 export interface HlsPlayerProps
@@ -14,6 +18,13 @@ export interface HlsPlayerProps
   currentLevel?: string; // 'auto' or level index as string
   volume?: number;
   sources?: { quality: string; url: string }[];
+  /**
+   * Whether this is a LIVE stream. The user's buffer/latency prefs are applied
+   * only when live — the live-tuning keys are inert on VOD, and VOD buffer
+   * controls are out of scope (U10). Defaults to false (VOD) since this shared
+   * player serves Kick/Twitch VOD; the Kick live player passes `isLive`.
+   */
+  isLive?: boolean;
 }
 
 export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
@@ -27,6 +38,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       currentLevel,
       sources,
       volume,
+      isLive = false,
       ...props
     },
     ref
@@ -214,21 +226,31 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           `[HLS] Connection type: ${effectiveType}, timeout multiplier: ${timeoutMultiplier}x`
         );
 
+        // User buffer/latency prefs apply only on LIVE streams (these keys are
+        // inert on VOD, and VOD buffer controls are out of scope, U10). Read at
+        // construction so the value applies on the next stream load (R18); the
+        // periodic cleanup below only mutates backBufferLength, not these.
+        const bufferConfig = resolveHlsBufferConfig(
+          isLive
+            ? (useAuthStore.getState().preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES)
+            : DEFAULT_BUFFER_PREFERENCES
+        );
+
         hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: true,
+          lowLatencyMode: bufferConfig.lowLatencyMode,
           startFragPrefetch: true, // Start fetching fragment immediately for faster start
 
           // === AGGRESSIVE MEMORY MANAGEMENT FOR LONG-RUNNING STREAMS ===
           // These settings prevent memory creep during 4-12+ hour sessions
           // HLS.js leaks ~5-15MB/hour from segment accumulation without these limits
           backBufferLength: 30, // Reduced from 90: Only keep 30s behind (was causing memory buildup)
-          maxBufferLength: 15, // Reduced from 30: 15s forward buffer is plenty for live
-          maxMaxBufferLength: 30, // Reduced from 60: Hard cap at 30s to prevent runaway buffering
-          maxBufferSize: 20 * 1000 * 1000, // 20MB max buffer size (soft limit)
+          maxBufferLength: bufferConfig.maxBufferLength, // Forward buffer (user-tunable on live)
+          maxMaxBufferLength: bufferConfig.maxMaxBufferLength, // Hard cap (user-tunable on live)
+          maxBufferSize: bufferConfig.maxBufferSize, // Scaled with maxMaxBufferLength so it isn't clamped
 
           // Low-latency live streaming optimizations
-          liveSyncDurationCount: 2, // Stay closer to live edge (reduced from 3)
+          liveSyncDurationCount: bufferConfig.liveSyncDurationCount, // Target live latency (user-tunable on live)
           liveMaxLatencyDurationCount: 6, // Reduced from 8: Jump to live sooner if behind
 
           // Buffer stall recovery settings (HLS.js handles these automatically)
@@ -777,7 +799,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
         }
       };
-    }, [src, autoPlay, currentLevel, onHlsInstance]); // Removed callbacks from dependency array
+    }, [src, autoPlay, currentLevel, onHlsInstance, isLive]); // Removed callbacks from dependency array
     // removed currentLevel (except initial read in manifest parsed) to prevent re-init.
     // Logic for dynamic switching is in the first useEffect.
 

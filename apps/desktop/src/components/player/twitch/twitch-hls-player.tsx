@@ -10,8 +10,11 @@ import Hls from "hls.js";
 import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
+import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import type { AdBlockStatus } from "@/shared/adblock-types";
+import { useAuthStore } from "@/store/auth-store";
 
+import { resolveHlsBufferConfig } from "../hls-buffer-config";
 import type { PlayerError, QualityLevel } from "../types";
 
 import { getAdBlockHlsConfig } from "./twitch-adblock-loader";
@@ -253,18 +256,25 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         const adBlockConfig =
           enableAdBlock && isAdBlockEnabled() ? getAdBlockHlsConfig(channelName) : {};
 
+        // User buffer/latency prefs (live-only keys). Read at construction so the
+        // value applies on the next stream load (R18); the periodic cleanup below
+        // only mutates backBufferLength, so it won't fight these.
+        const bufferConfig = resolveHlsBufferConfig(
+          useAuthStore.getState().preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES
+        );
+
         hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: true,
+          lowLatencyMode: bufferConfig.lowLatencyMode,
           startFragPrefetch: true,
 
           // === AGGRESSIVE MEMORY MANAGEMENT FOR LONG-RUNNING STREAMS ===
           // These settings prevent memory creep during 4-12+ hour Twitch sessions
           backBufferLength: 30, // Reduced from 90: Only keep 30s behind
-          maxBufferLength: 15, // Reduced from 30: 15s forward buffer for live
-          maxMaxBufferLength: 30, // Reduced from 60: Hard cap at 30s
-          maxBufferSize: 20 * 1000 * 1000, // 20MB max buffer size
-          liveSyncDurationCount: 2, // Stay closer to live edge
+          maxBufferLength: bufferConfig.maxBufferLength, // Forward buffer (user-tunable)
+          maxMaxBufferLength: bufferConfig.maxMaxBufferLength, // Hard cap (user-tunable)
+          maxBufferSize: bufferConfig.maxBufferSize, // Scaled with maxMaxBufferLength so it isn't clamped
+          liveSyncDurationCount: bufferConfig.liveSyncDurationCount, // Target live latency (user-tunable)
           liveMaxLatencyDurationCount: 6, // Reduced from 8
 
           // Buffer hole handling - tuned for live streaming resilience

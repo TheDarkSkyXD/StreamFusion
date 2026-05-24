@@ -1,6 +1,7 @@
+import { fireEvent, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from '@/shared/auth-types';
+import { DEFAULT_BUFFER_PREFERENCES, DEFAULT_PLAYER_CONTROLS_PREFERENCES } from '@/shared/auth-types';
 
 import { renderWithProviders, routerMock, screen, userEvent } from '../test-utils';
 
@@ -35,10 +36,12 @@ const updatePreferences = vi.fn();
 // playerControls carries a non-default sibling (showQuality:false) so the spread-
 // preservation assertion below has something to prove: toggling one field must keep it.
 const playerControls = { ...DEFAULT_PLAYER_CONTROLS_PREFERENCES, showQuality: false };
+// buffer carries a non-default sibling (liveSyncDurationCount:5) for the same reason.
+const buffer = { ...DEFAULT_BUFFER_PREFERENCES, liveSyncDurationCount: 5 };
 vi.mock('@/store/auth-store', () => ({
   useAuthStore: (selector?: (s: unknown) => unknown) => {
     const state = {
-      preferences: { playback: { defaultQuality: 'auto', autoplay: true }, playerControls },
+      preferences: { playback: { defaultQuality: 'auto', autoplay: true }, playerControls, buffer },
       updatePreferences,
     };
     return selector ? selector(state) : state;
@@ -123,5 +126,67 @@ describe('SettingsPage — Player controls tab (U9)', () => {
     // Exactly six controls are surfaced (PiP omitted): Quality, Playback speed,
     // Volume, Fullscreen, Theater, Video Stats.
     expect(screen.getAllByRole('switch')).toHaveLength(6);
+  });
+});
+
+describe('SettingsPage — Buffer tab (U10)', () => {
+  beforeEach(() => {
+    updatePreferences.mockReset();
+  });
+
+  async function openBufferTab() {
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByText('Buffer'));
+    return user;
+  }
+
+  it('toggling low-latency persists to buffer with the spread preserved', async () => {
+    const user = await openBufferTab();
+
+    // The only switch in the Buffer tab is low-latency mode.
+    const toggle = screen.getByRole('switch');
+    await user.click(toggle);
+
+    expect(updatePreferences).toHaveBeenCalledTimes(1);
+    expect(updatePreferences).toHaveBeenCalledWith({
+      buffer: { ...buffer, lowLatencyMode: false },
+    });
+    // Spread preserved: the non-default sibling survives the single-field write.
+    const arg = updatePreferences.mock.calls[0][0] as { buffer: typeof buffer };
+    expect(arg.buffer.liveSyncDurationCount).toBe(5);
+  });
+
+  it('changing a range control persists the parsed number with the spread preserved', async () => {
+    await openBufferTab();
+
+    // "Forward buffer" range maps to maxBufferLengthSec.
+    const slider = screen.getByLabelText('Forward buffer') as HTMLInputElement;
+    // userEvent doesn't drive <input type=range> well; fire a native change.
+    fireEvent.change(slider, { target: { value: '42' } });
+
+    // The handler is async (await updatePreferences -> setSaved); waitFor flushes
+    // the resulting state update so no act(...) warning leaks.
+    await waitFor(() => {
+      expect(updatePreferences).toHaveBeenCalledWith({
+        buffer: { ...buffer, maxBufferLengthSec: 42 },
+      });
+    });
+    expect(updatePreferences).toHaveBeenCalledTimes(1);
+  });
+
+  it('reset to defaults writes DEFAULT_BUFFER_PREFERENCES', async () => {
+    const user = await openBufferTab();
+
+    await user.click(screen.getByRole('button', { name: /reset to defaults/i }));
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      buffer: { ...DEFAULT_BUFFER_PREFERENCES },
+    });
+  });
+
+  it('states that changes apply on the next stream load', async () => {
+    await openBufferTab();
+    expect(screen.getByText(/changes apply when the stream next loads/i)).toBeInTheDocument();
   });
 });
