@@ -633,6 +633,51 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
       });
   }, [providers, activeSubSection, emotesByProvider, matchesSearch, applySubSectionFilter]);
 
+  /* --------------------- prefetch images on open --------------------- */
+  // Warm the browser image cache for the whole in-scope set when the picker
+  // opens, so scrolling down reveals already-loaded emotes instead of fetching
+  // each new row just-in-time (the "loads slow while scrolling" feel). Keyed
+  // off the unfiltered per-provider lists (not search/scroll state), so it runs
+  // once per open / emote-load — never on keystroke or scroll. Requests are
+  // low-priority and idle-paced so they don't compete with the visible page or
+  // the live stream; the loop cancels on close.
+  useEffect(() => {
+    if (!isOpen) return;
+    const urls: string[] = [];
+    for (const provider of providers) {
+      const list = emotesByProvider.get(provider);
+      if (list) {
+        for (const e of list) urls.push(e.urls.url2x);
+      }
+    }
+    if (urls.length === 0) return;
+
+    const ric = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : null;
+    let idx = 0;
+    let handle: number | null = null;
+
+    const pump = () => {
+      const end = Math.min(idx + 16, urls.length);
+      for (; idx < end; idx++) {
+        const img = new Image();
+        img.decoding = "async";
+        img.setAttribute("fetchpriority", "low");
+        img.src = urls[idx];
+      }
+      handle = idx < urls.length ? (ric ? ric(pump) : window.setTimeout(pump, 32)) : null;
+    };
+
+    // Let the visible page claim the connection first, then drip the rest.
+    const start = window.setTimeout(pump, 150);
+    return () => {
+      window.clearTimeout(start);
+      if (handle != null) {
+        if (ric) window.cancelIdleCallback(handle);
+        else window.clearTimeout(handle);
+      }
+    };
+  }, [isOpen, providers, emotesByProvider]);
+
   /* ----------------------------- handlers ---------------------------- */
   const handleEmoteClick = useCallback(
     (emote: Emote) => {
