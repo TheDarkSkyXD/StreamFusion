@@ -122,6 +122,26 @@ describe("update-service auto-check scheduler", () => {
     expect(h.checkForUpdates).toHaveBeenCalledTimes(5);
   });
 
+  it("a failed auto-check restores the timestamp so the next tick retries (not blocked a full interval)", async () => {
+    // The immediate due-check rejects (offline); later checks resolve.
+    h.checkForUpdates.mockRejectedValueOnce(new Error("offline"));
+    const svc = await loadService({
+      isPackaged: true,
+      store: { autoCheckEnabled: true, checkFrequency: "daily", lastCheckAt: 0 },
+    });
+    svc.initUpdateService(fakeWindow);
+
+    // Immediate due-check fired and failed.
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
+    // Flush the rejection + catch so the timestamp is restored to its prior value.
+    await vi.advanceTimersByTimeAsync(0);
+
+    // With the bug (failed check leaves lastCheckAt advanced) the next retry
+    // would wait a full 24h. With the fix it retries on the very next hourly tick.
+    await vi.advanceTimersByTimeAsync(HOUR);
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(2);
+  });
+
   it("auto-check OFF: no scheduled checks fire", async () => {
     const svc = await loadService({
       isPackaged: true,

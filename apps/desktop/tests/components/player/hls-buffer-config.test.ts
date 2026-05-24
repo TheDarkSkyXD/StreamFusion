@@ -14,6 +14,7 @@ describe("resolveHlsBufferConfig (U10)", () => {
     expect(resolveHlsBufferConfig(DEFAULT_BUFFER_PREFERENCES)).toEqual({
       lowLatencyMode: true,
       liveSyncDurationCount: 2,
+      liveMaxLatencyDurationCount: 6,
       maxBufferLength: 15,
       maxMaxBufferLength: 30,
       maxBufferSize: DEFAULT_MAX_BUFFER_SIZE_BYTES,
@@ -79,5 +80,25 @@ describe("resolveHlsBufferConfig (U10)", () => {
     expect(config.lowLatencyMode).toBe(DEFAULT_BUFFER_PREFERENCES.lowLatencyMode);
     // And crucially, no NaN leaked into the byte budget.
     expect(Number.isNaN(config.maxBufferSize)).toBe(false);
+  });
+
+  it("derives liveMaxLatencyDurationCount above liveSyncDurationCount so the config stays valid", () => {
+    // Default (liveSync 2) reproduces the old hardcoded 6.
+    expect(resolveHlsBufferConfig(DEFAULT_BUFFER_PREFERENCES).liveMaxLatencyDurationCount).toBe(6);
+    // Slider at its max (10) must not produce sync >= max (HLS.js requires sync < max).
+    const high = resolveHlsBufferConfig({ ...DEFAULT_BUFFER_PREFERENCES, liveSyncDurationCount: 10 });
+    expect(high.liveMaxLatencyDurationCount).toBeGreaterThan(high.liveSyncDurationCount);
+    expect(high.liveMaxLatencyDurationCount).toBe(14);
+  });
+
+  it("clamps forward buffer so it never exceeds the max-buffer ceiling", () => {
+    // forward 60s with a 10s hard cap is an inverted (invalid) HLS config.
+    const inverted = resolveHlsBufferConfig({
+      ...DEFAULT_BUFFER_PREFERENCES,
+      maxBufferLengthSec: 60,
+      maxMaxBufferLengthSec: 10,
+    });
+    expect(inverted.maxBufferLength).toBeLessThanOrEqual(inverted.maxMaxBufferLength);
+    expect(inverted.maxBufferLength).toBe(10);
   });
 });

@@ -251,7 +251,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
           // Low-latency live streaming optimizations
           liveSyncDurationCount: bufferConfig.liveSyncDurationCount, // Target live latency (user-tunable on live)
-          liveMaxLatencyDurationCount: 6, // Reduced from 8: Jump to live sooner if behind
+          liveMaxLatencyDurationCount: bufferConfig.liveMaxLatencyDurationCount, // Derived > liveSync so config stays valid
 
           // Buffer stall recovery settings (HLS.js handles these automatically)
           maxBufferHole: 0.5, // Increased tolerance for buffer gaps (default 0.1)

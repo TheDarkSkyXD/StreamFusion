@@ -293,7 +293,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           maxMaxBufferLength: bufferConfig.maxMaxBufferLength, // Hard cap (user-tunable)
           maxBufferSize: bufferConfig.maxBufferSize, // Scaled with maxMaxBufferLength so it isn't clamped
           liveSyncDurationCount: bufferConfig.liveSyncDurationCount, // Target live latency (user-tunable)
-          liveMaxLatencyDurationCount: 6, // Reduced from 8
+          liveMaxLatencyDurationCount: bufferConfig.liveMaxLatencyDurationCount, // Derived > liveSync so config stays valid
 
           // Buffer hole handling - tuned for live streaming resilience
           maxBufferHole: 0.5, // Max gap size before seeking over (seconds)

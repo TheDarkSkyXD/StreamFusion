@@ -227,10 +227,16 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
  * leave a stale timestamp blocking retries.
  */
 async function runAutoCheck(): Promise<void> {
+  // Claim the interval slot synchronously so a concurrent tick can't double-fire,
+  // but remember the prior timestamp: a failed/offline check restores it so the
+  // next tick (MIN_INTERVAL_MS) retries instead of blocking checks for a whole
+  // effective interval.
+  const prevCheckAt = updateStore.get("lastCheckAt", 0);
   updateStore.set("lastCheckAt", Date.now());
   try {
     await autoUpdater.checkForUpdates();
   } catch (err) {
+    updateStore.set("lastCheckAt", prevCheckAt);
     console.warn("[Update] Auto-check failed:", err);
   }
 }

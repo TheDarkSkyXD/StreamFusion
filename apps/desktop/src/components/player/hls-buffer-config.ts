@@ -24,6 +24,7 @@ import { type BufferPreferences, DEFAULT_BUFFER_PREFERENCES } from "@/shared/aut
 export interface HlsBufferConfig {
   lowLatencyMode: boolean;
   liveSyncDurationCount: number;
+  liveMaxLatencyDurationCount: number;
   maxBufferLength: number;
   maxMaxBufferLength: number;
   maxBufferSize: number;
@@ -31,6 +32,17 @@ export interface HlsBufferConfig {
 
 /** Original hardcoded soft cap; the floor for the scaled value. */
 const DEFAULT_MAX_BUFFER_SIZE_BYTES = 20 * 1000 * 1000;
+
+/**
+ * Original hardcoded `liveMaxLatencyDurationCount`. HLS.js requires
+ * `liveSyncDurationCount < liveMaxLatencyDurationCount`, so we derive the max as
+ * `liveSync + MARGIN` floored at this default — a user raising the live-sync
+ * target (slider goes to 10) can't produce an invalid config where sync >= max.
+ * The margin matches the original default gap (6 - 2 = 4), so default prefs
+ * (liveSync 2 → max 6) reproduce the old hardcoded value exactly.
+ */
+const DEFAULT_LIVE_MAX_LATENCY_COUNT = 6;
+const LIVE_LATENCY_COUNT_MARGIN = 4;
 
 /** A finite, positive number, else the default. Guards NaN/empty/≤0 input. */
 function positiveOr(value: unknown, fallback: number): number {
@@ -47,13 +59,24 @@ export function resolveHlsBufferConfig(prefs?: Partial<BufferPreferences>): HlsB
     prefs?.liveSyncDurationCount,
     DEFAULT_BUFFER_PREFERENCES.liveSyncDurationCount
   );
-  const maxBufferLength = positiveOr(
-    prefs?.maxBufferLengthSec,
-    DEFAULT_BUFFER_PREFERENCES.maxBufferLengthSec
+  // HLS.js requires liveSyncDurationCount < liveMaxLatencyDurationCount. The two
+  // sliders are independent, so derive the max from the sync value (never the
+  // other way) to keep the config valid no matter where the user drags it.
+  const liveMaxLatencyDurationCount = Math.max(
+    DEFAULT_LIVE_MAX_LATENCY_COUNT,
+    liveSyncDurationCount + LIVE_LATENCY_COUNT_MARGIN
   );
   const maxMaxBufferLength = positiveOr(
     prefs?.maxMaxBufferLengthSec,
     DEFAULT_BUFFER_PREFERENCES.maxMaxBufferLengthSec
+  );
+  // Forward buffer must not exceed the hard cap — HLS.js treats
+  // maxMaxBufferLength as the ceiling and would silently clamp a larger forward
+  // value, so a user setting forward=60s / max=10s wouldn't get the 60s they
+  // asked for. Clamp here so the effective value is honest.
+  const maxBufferLength = Math.min(
+    positiveOr(prefs?.maxBufferLengthSec, DEFAULT_BUFFER_PREFERENCES.maxBufferLengthSec),
+    maxMaxBufferLength
   );
   const lowLatencyMode =
     typeof prefs?.lowLatencyMode === "boolean"
@@ -73,6 +96,7 @@ export function resolveHlsBufferConfig(prefs?: Partial<BufferPreferences>): HlsB
   return {
     lowLatencyMode,
     liveSyncDurationCount,
+    liveMaxLatencyDurationCount,
     maxBufferLength,
     maxMaxBufferLength,
     maxBufferSize,
