@@ -9,6 +9,7 @@
 
 import type React from "react";
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -335,13 +336,13 @@ interface EmoteDialogItemProps {
   onFavoriteClick: (emote: Emote) => void;
 }
 
-const EmoteDialogItem: React.FC<EmoteDialogItemProps> = ({
+const EmoteDialogItem = memo(function EmoteDialogItem({
   emote,
   locked,
   favorited,
   onSelect,
   onFavoriteClick,
-}) => {
+}: EmoteDialogItemProps) {
   const [hovered, setHovered] = useState(false);
 
   const handleClick = useCallback(() => {
@@ -373,6 +374,13 @@ const EmoteDialogItem: React.FC<EmoteDialogItemProps> = ({
         onClick={handleClick}
         aria-label={ariaLabel}
         aria-disabled={locked ? "true" : undefined}
+        // content-visibility lets the browser skip layout/paint/decode for
+        // emotes scrolled off-screen — the main scroll-jank cost when paging
+        // through a large set. Applied to the image button (not the outer
+        // cell) so the hover "favorite" star, an overflowing sibling, isn't
+        // clipped by paint containment. contain-intrinsic-size reserves the
+        // row height so skipped rows don't collapse and shift the scroll.
+        style={{ contentVisibility: "auto", containIntrinsicSize: "auto 28px" }}
         className={`flex items-center justify-center w-full h-full ${
           locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
         }`}
@@ -403,7 +411,9 @@ const EmoteDialogItem: React.FC<EmoteDialogItemProps> = ({
       )}
     </div>
   );
-};
+});
+
+EmoteDialogItem.displayName = "EmoteDialogItem";
 
 /* ------------------------------------------------------------------------ */
 /* Main dialog                                                              */
@@ -506,11 +516,22 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
       setPosition({ top, left });
     };
     updatePosition();
+    // Reposition only when the anchor itself moves (page/ancestor scroll or
+    // resize) — never on the picker's own inner scroll. The capture-phase
+    // listener sees every scroll in the document, including the dialog body's
+    // overflow-y-auto; recomputing position (getBoundingClientRect + setState
+    // → full dialog re-render) on each inner-scroll frame was the scroll jank.
+    // Passive: this listener never calls preventDefault.
+    const onAncestorScroll = (e: Event) => {
+      const target = e.target as Node | null;
+      if (target && containerRef.current?.contains(target)) return;
+      updatePosition();
+    };
     window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("scroll", onAncestorScroll, { capture: true, passive: true });
     return () => {
       window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("scroll", onAncestorScroll, true);
     };
   }, [isOpen, anchorRef]);
 
