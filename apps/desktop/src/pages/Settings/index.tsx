@@ -1,14 +1,17 @@
 import { useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 import {
   LuCircleAlert,
   LuCircleHelp,
   LuDownload,
+  LuEye,
+  LuEyeOff,
   LuGauge,
   LuLink,
   LuMessageSquare,
   LuMonitor,
+  LuNetwork,
   LuRefreshCw,
   LuRocket,
   LuShieldCheck,
@@ -38,6 +41,7 @@ import {
   DEFAULT_PLAYBACK_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
+  DEFAULT_PROXY_PREFERENCES,
   type PlayerControlsPreferences,
   type PredictionPreferences,
   type VideoQuality,
@@ -51,6 +55,7 @@ const SETTINGS_TABS = [
   "buffer",
   "chat",
   "adblock",
+  "proxy",
   "predictions",
   "integrations",
   "updates",
@@ -220,6 +225,115 @@ export function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  // ===== Proxy (U12) =====
+  // Drives the U11 main-process proxy. `enabled`/`host`/`port` persist to
+  // `preferences.proxy`; credentials are write-only (encrypted in main, never
+  // round-tripped) and flow only through `proxy.setCredentials`.
+  const proxyPrefs = preferences?.proxy ?? DEFAULT_PROXY_PREFERENCES;
+  const [proxyEnabled, setProxyEnabled] = useState(proxyPrefs.enabled);
+  const [proxyHost, setProxyHost] = useState(proxyPrefs.host);
+  // Port is kept as a string for the controlled input; parsed/validated on use.
+  const [proxyPort, setProxyPort] = useState(proxyPrefs.port == null ? "" : String(proxyPrefs.port));
+  const [proxyUsername, setProxyUsername] = useState("");
+  // Write-only: empty means "leave the stored password unchanged".
+  const [proxyPassword, setProxyPassword] = useState("");
+  const [showProxyPassword, setShowProxyPassword] = useState(false);
+  const [proxyPortError, setProxyPortError] = useState<string | null>(null);
+  // Persistent in-section banner for an apply-IPC failure (not a toast).
+  const [proxyApplyError, setProxyApplyError] = useState<string | null>(null);
+  // Status line: "saved" (applied), "disabled" (enabled but no host), or null.
+  const [proxyStatus, setProxyStatus] = useState<"saved" | "disabled" | null>(null);
+  // Advisory: whether encrypted credentials are stored in main. Drives the
+  // saved-password placeholder. Seeded from `proxy.hasCredentials()` on mount.
+  const [proxyHasCredentials, setProxyHasCredentials] = useState(proxyPrefs.hasCredentials);
+
+  // Re-sync the host/port/enabled inputs to persisted prefs (e.g. when the auth
+  // store finishes hydrating). The form's own save is the only writer of these,
+  // so this is idempotent and won't clobber unsaved typing in practice.
+  useEffect(() => {
+    setProxyEnabled(proxyPrefs.enabled);
+    setProxyHost(proxyPrefs.host);
+    setProxyPort(proxyPrefs.port == null ? "" : String(proxyPrefs.port));
+  }, [proxyPrefs.enabled, proxyPrefs.host, proxyPrefs.port]);
+
+  // On mount, ask main whether credentials are stored so a saved-placeholder can
+  // show without ever round-tripping the password. Optional-chained because this
+  // effect runs on every SettingsPage mount regardless of the active tab (the
+  // preload always provides the API in the app; guards the test/SSR context).
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI?.proxy
+      ?.hasCredentials()
+      .then((result) => {
+        if (!cancelled) setProxyHasCredentials(result.hasCredentials);
+      })
+      .catch(() => {
+        /* advisory only — fall back to the prefs hint already in state */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Validate the port field (numeric, 1–65535). Empty is allowed here — an empty
+  // host already disables the proxy, so an empty port isn't an error on its own.
+  const validateProxyPort = (raw: string): boolean => {
+    const trimmed = raw.trim();
+    if (trimmed === "") {
+      setProxyPortError(null);
+      return true;
+    }
+    const port = Number(trimmed);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setProxyPortError("Port must be a number between 1 and 65535.");
+      return false;
+    }
+    setProxyPortError(null);
+    return true;
+  };
+
+  const handleProxySave = async () => {
+    const host = proxyHost.trim();
+    const portRaw = proxyPort.trim();
+    if (!validateProxyPort(portRaw)) return;
+    const port = portRaw === "" ? null : Number(portRaw);
+    const config = { enabled: proxyEnabled, host, port };
+
+    // Persist host/port/enabled (never the password). Spread-preserve so the
+    // main-owned `hasCredentials` advisory field survives the write.
+    await updatePreferences({ proxy: { ...proxyPrefs, ...config } });
+
+    // Apply credential changes (write-only) before applying the proxy so a 407
+    // can be answered on the first proxied request.
+    if (proxyPassword !== "") {
+      const result = await window.electronAPI.proxy.setCredentials({
+        username: proxyUsername,
+        password: proxyPassword,
+      });
+      setProxyHasCredentials(result.hasCredentials);
+      // Clear the password field after a successful write — it's never re-shown.
+      setProxyPassword("");
+    }
+
+    const applyResult = await window.electronAPI.proxy.apply(config);
+    if (applyResult.error) {
+      setProxyApplyError(applyResult.error);
+      setProxyStatus(null);
+      return;
+    }
+    setProxyApplyError(null);
+    // Enabled with no host applied → honest "disabled" status, not "Saved".
+    setProxyStatus(proxyEnabled && host === "" ? "disabled" : "saved");
+    setTimeout(() => setProxyStatus(null), 4000);
+  };
+
+  const handleProxyClearCredentials = async () => {
+    const result = await window.electronAPI.proxy.setCredentials(null);
+    setProxyHasCredentials(result.hasCredentials);
+    setProxyUsername("");
+    setProxyPassword("");
+  };
+
   return (
     <div className="flex h-full bg-[#09090b] text-zinc-100 overflow-hidden">
       {/* Sidebar Navigation */}
@@ -275,6 +389,13 @@ export function SettingsPage() {
               description="Twitch ad-blocking settings"
               isActive={activeTab === "adblock"}
               onClick={() => setActiveTab("adblock")}
+            />
+            <SidebarItem
+              icon={LuNetwork}
+              label="Proxy"
+              description="Route Twitch traffic via a proxy"
+              isActive={activeTab === "proxy"}
+              onClick={() => setActiveTab("proxy")}
             />
             <SidebarItem
               icon={LuTrophy}
@@ -535,6 +656,206 @@ export function SettingsPage() {
                   This uses the VAFT technique to request ad-free streams via backup player types.
                   It works without external proxies. A shield icon will appear in the player when
                   active.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Proxy Tab (U12 — drives the U11 main-process proxy) */}
+          {activeTab === "proxy" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Proxy</h2>
+                <p className="text-zinc-400">
+                  Route the app's outbound Twitch traffic through an HTTP/HTTPS proxy.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                <div className="p-6 border-b border-[#27272a]">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
+                      <LuNetwork className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Outbound Proxy</h3>
+                      <p className="text-sm text-zinc-500">Applied to the app's Twitch requests</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Enable switch */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Enable proxy</p>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Off by default. Routes Twitch traffic through the host below.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={proxyEnabled}
+                      onCheckedChange={setProxyEnabled}
+                      aria-label="Enable proxy"
+                      className="data-[state=checked]:!bg-sky-500 data-[state=checked]:!border-sky-500"
+                    />
+                  </div>
+
+                  {/* Host */}
+                  <div className="space-y-2">
+                    <label htmlFor="proxy-host" className="block font-medium text-zinc-200">
+                      Host
+                    </label>
+                    <input
+                      id="proxy-host"
+                      type="text"
+                      value={proxyHost}
+                      onChange={(e) => setProxyHost(e.target.value)}
+                      placeholder="127.0.0.1"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/40"
+                    />
+                    <p className="text-xs text-zinc-500">
+                      Host or IP only — no scheme (e.g. <code>127.0.0.1</code>, not{" "}
+                      <code>http://…</code>).
+                    </p>
+                  </div>
+
+                  {/* Port */}
+                  <div className="space-y-2">
+                    <label htmlFor="proxy-port" className="block font-medium text-zinc-200">
+                      Port
+                    </label>
+                    <input
+                      id="proxy-port"
+                      type="text"
+                      inputMode="numeric"
+                      value={proxyPort}
+                      onChange={(e) => {
+                        // Numbers only as the user types.
+                        setProxyPort(e.target.value.replace(/[^0-9]/g, ""));
+                        if (proxyPortError) setProxyPortError(null);
+                      }}
+                      onBlur={(e) => validateProxyPort(e.target.value)}
+                      placeholder="8080"
+                      autoComplete="off"
+                      aria-invalid={proxyPortError ? true : undefined}
+                      className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/40"
+                    />
+                    {proxyPortError ? (
+                      <p className="text-xs text-red-400">{proxyPortError}</p>
+                    ) : (
+                      <p className="text-xs text-zinc-500">A number between 1 and 65535.</p>
+                    )}
+                  </div>
+
+                  {/* Credentials */}
+                  <div className="pt-6 border-t border-[#27272a] space-y-4">
+                    <div>
+                      <p className="font-medium text-zinc-200">Credentials (optional)</p>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        For a proxy that requires authentication. Stored encrypted on this device
+                        and never displayed again.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label htmlFor="proxy-username" className="block text-sm text-zinc-400">
+                        Username
+                      </label>
+                      <input
+                        id="proxy-username"
+                        type="text"
+                        value={proxyUsername}
+                        onChange={(e) => setProxyUsername(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/40"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label htmlFor="proxy-password" className="block text-sm text-zinc-400">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="proxy-password"
+                          type={showProxyPassword ? "text" : "password"}
+                          value={proxyPassword}
+                          onChange={(e) => setProxyPassword(e.target.value)}
+                          placeholder={
+                            proxyHasCredentials && proxyPassword === ""
+                              ? "••••• (saved)"
+                              : undefined
+                          }
+                          autoComplete="new-password"
+                          className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 pr-10 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/40"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowProxyPassword((v) => !v)}
+                          aria-label={showProxyPassword ? "Hide password" : "Show password"}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500 hover:text-zinc-300"
+                        >
+                          {showProxyPassword ? (
+                            <LuEyeOff className="w-4 h-4" />
+                          ) : (
+                            <LuEye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                      {proxyHasCredentials && (
+                        <button
+                          type="button"
+                          onClick={handleProxyClearCredentials}
+                          className="text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:underline"
+                        >
+                          Clear credentials
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Apply-failure banner (persistent, not a toast) */}
+                  {proxyApplyError && (
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
+                      <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Couldn't apply the proxy</p>
+                        <p className="text-sm mt-0.5 opacity-80">{proxyApplyError}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Save row + status */}
+                  <div className="flex items-center justify-between gap-4 pt-6 border-t border-[#27272a]">
+                    <div className="min-h-[1.25rem]">
+                      {proxyStatus === "saved" && (
+                        <span className="text-sm text-yellow-500 font-medium animate-in fade-in slide-in-from-left-2 duration-300">
+                          Saved
+                        </span>
+                      )}
+                      {proxyStatus === "disabled" && (
+                        <span className="text-sm text-zinc-500 font-medium">
+                          Proxy disabled (no host set)
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      onClick={handleProxySave}
+                      className="bg-sky-500 hover:bg-sky-400 text-white"
+                    >
+                      Save & apply
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-[#27272a] text-xs text-zinc-500 leading-relaxed">
+                  When enabled, the app's Twitch traffic — video, chat, API calls, and sign-in —
+                  routes through this proxy, applied on the next requests. This is a single
+                  app-wide proxy, not per-feature. It's off by default.
                 </div>
               </div>
             </div>
