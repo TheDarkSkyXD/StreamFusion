@@ -27,8 +27,12 @@ vi.mock('@/backend/api/platforms/kick/kick-mod-mutations', () => ({
   deleteKickMessage: (...args: unknown[]) => deleteKickMessageMock(...args),
 }));
 
+// Mutable mod flag. Defaults to mod (most existing tests exercise the
+// mod-action paths). The U7 viewer-path gear test flips it to false so
+// ChatPanelTabs takes its single-tab (no-chrome) branch.
+const mockIsKickMod = { value: true };
 vi.mock('@/hooks/useIsKickMod', () => ({
-  useIsKickMod: () => true,
+  useIsKickMod: () => mockIsKickMod.value,
 }));
 
 // Mutable chatDisplay prefs the mocked auth store hands back. Tests flip
@@ -196,6 +200,7 @@ describe('KickChat', () => {
     loadGlobalEmotesMock.mockReset();
     storeState.addMessage = vi.fn();
     setMockChatDisplay({});
+    mockIsKickMod.value = true;
     for (const k of Object.keys(mockServiceHandlers)) delete mockServiceHandlers[k];
   });
 
@@ -203,6 +208,17 @@ describe('KickChat', () => {
     render(<KickChat channel="xqc" chatroomId={12345} />);
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
+  });
+
+  // U7 — the chat-settings gear lives in the panel header chrome OUTSIDE
+  // ChatPanelTabs, so it must survive the single-tab (viewer) path that strips
+  // tab chrome. Lock it with a POSITIVE render assertion per the
+  // chat-header-banner-lost-in-tab-shell-refactor learning.
+  it('renders the chat-settings gear in the single-tab viewer path', () => {
+    mockIsKickMod.value = false; // viewer → ChatPanelTabs single-tab branch
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByRole('button', { name: /chat settings/i })).toBeInTheDocument();
   });
 
   it("loads global emotes scoped to 'kick' after connect", async () => {

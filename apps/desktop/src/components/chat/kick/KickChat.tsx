@@ -34,6 +34,7 @@ import { useEmoteStore } from "../../../store/emote-store";
 import { useRenderCount } from "../../dev/use-render-count";
 import { type ChatInputHandle, ChatInput } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
+import { ChatQuickSettingsPopover } from "../ChatQuickSettingsPopover";
 import { InlineModStrip, type InlineModAction } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
@@ -834,43 +835,18 @@ export const KickChat: React.FC<KickChatProps> = ({
       </div>
 
       <div className="border-t border-[var(--color-border)]">
-        {showChatSettings && (
-          <div className="p-2 border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => clearMessages()}
-              className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
-            >
-              Clear local chat
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowChatSettings(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              <BsX size={16} />
-            </button>
-          </div>
-        )}
-        <div className="p-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowChatSettings((v) => !v)}
-            className="text-gray-400 hover:text-white flex-shrink-0"
-            title="Chat settings"
-          >
-            <BsGear size={16} />
-          </button>
-          <div className="flex-1">
-            <ChatInput
-              ref={chatInputRef}
-              platform="kick"
-              channel={channel}
-              channelId={kickRoomKey || null}
-              chatroomId={chatroomId}
-              canSend={isAuthenticated && isKickConnected}
-            />
-          </div>
+        {/* U7 — the gear + its "Clear local chat" action moved to the panel
+         *  header popover (outside ChatPanelTabs). The footer is now just the
+         *  message composer. */}
+        <div className="p-3">
+          <ChatInput
+            ref={chatInputRef}
+            platform="kick"
+            channel={channel}
+            channelId={kickRoomKey || null}
+            chatroomId={chatroomId}
+            canSend={isAuthenticated && isKickConnected}
+          />
         </div>
       </div>
     </div>
@@ -883,7 +859,31 @@ export const KickChat: React.FC<KickChatProps> = ({
         <h2 className="font-semibold flex items-center gap-2">
           <span className="text-white">Chat</span>
         </h2>
-        <div className="flex space-x-2">{/* Status indicators can go here */}</div>
+        {/* U7 — gear lives in the header chrome OUTSIDE ChatPanelTabs so the
+         *  single-tab viewer path doesn't strip it (chat-header-banner learning).
+         *  `relative` anchors the popover; the gear gets an accent state while open. */}
+        <div className="relative flex space-x-2">
+          <button
+            type="button"
+            onClick={() => setShowChatSettings((v) => !v)}
+            aria-label="Chat settings"
+            aria-expanded={showChatSettings}
+            title="Chat settings"
+            className={
+              showChatSettings
+                ? "text-[#dc143c] flex-shrink-0"
+                : "text-gray-400 hover:text-white flex-shrink-0"
+            }
+          >
+            <BsGear size={16} />
+          </button>
+          {showChatSettings && (
+            <ChatQuickSettingsPopover
+              onClose={() => setShowChatSettings(false)}
+              onClearChat={() => clearMessages()}
+            />
+          )}
+        </div>
       </div>
       <ChatPanelTabs visibleTabs={visibleTabs}>
         {{

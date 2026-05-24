@@ -38,8 +38,12 @@ vi.mock('@/hooks/useRequireModScopes', () => ({
   }),
 }));
 
+// Mutable mod flag. Defaults to mod (most existing tests exercise the
+// mod-action paths). The U7 viewer-path gear test flips it to false so
+// ChatPanelTabs takes its single-tab (no-chrome) branch.
+const mockIsTwitchMod = { value: true };
 vi.mock('@/hooks/useIsTwitchMod', () => ({
-  useIsTwitchMod: () => true,
+  useIsTwitchMod: () => mockIsTwitchMod.value,
 }));
 
 // Mutable chatDisplay prefs the mocked auth store hands back. Tests flip
@@ -234,6 +238,7 @@ describe('TwitchChat', () => {
     storeState.addMessage = vi.fn();
     storeState.clearMessages = vi.fn();
     setMockChatDisplay({});
+    mockIsTwitchMod.value = true;
     for (const k of Object.keys(mockServiceHandlers)) delete mockServiceHandlers[k];
   });
 
@@ -241,6 +246,19 @@ describe('TwitchChat', () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
+  });
+
+  // U7 — the chat-settings gear lives in the panel header chrome OUTSIDE
+  // ChatPanelTabs, so it must survive the single-tab (viewer) path that strips
+  // tab chrome. Lock it with a POSITIVE render assertion per the
+  // chat-header-banner-lost-in-tab-shell-refactor learning.
+  it('renders the chat-settings gear in the single-tab viewer path', () => {
+    mockIsTwitchMod.value = false; // viewer → ChatPanelTabs single-tab branch
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    // No tab strip is rendered for a viewer...
+    expect(screen.queryByRole('tablist')).toBeNull();
+    // ...but the gear (header chrome, sibling of ChatPanelTabs) is still there.
+    expect(screen.getByRole('button', { name: /chat settings/i })).toBeInTheDocument();
   });
 
   it("loads global emotes scoped to 'twitch' after auth/connect", async () => {
