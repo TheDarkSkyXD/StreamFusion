@@ -311,16 +311,20 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     expect(percentNodes.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("expanded active state renders bubble cluster for Twitch native with leader-percentage", () => {
+  it("expanded active state renders numbered outcome rows with amounts (twitch.tv layout)", () => {
     render(<PredictionBanner prediction={makePrediction()} />);
     fireEvent.click(screen.getByLabelText("See Details"));
-    // Big leader percentage is rendered with a large font size class.
-    const bigNumber = Array.from(document.querySelectorAll("div")).find(
-      (d) =>
-        /^\d+%$/.test(d.textContent || "") &&
-        /text-\[(32|36|40|44|48)px\]/.test(d.className || ""),
-    );
-    expect(bigNumber).toBeTruthy();
+    // Each outcome row is a list item with the platform-amount short label.
+    const rowA = screen.getByTestId("prediction-outcome-outcome-a");
+    const rowB = screen.getByTestId("prediction-outcome-outcome-b");
+    expect(rowA.textContent).toMatch(/Sodapoppin/);
+    expect(rowB.textContent).toMatch(/EggsQc/);
+    // Numbered prefix on each row (matches twitch.tv's "1." / "2." pattern).
+    expect(rowA.textContent).toMatch(/1\./);
+    expect(rowB.textContent).toMatch(/2\./);
+    // Short amount label rendered ("979.1K" + "848.9K" from the fixture).
+    expect(rowA.textContent).toMatch(/979\.1K/);
+    expect(rowB.textContent).toMatch(/848\.9K/);
   });
 
   it("EndedPanel hoists the winner into the displayed pair for 3+ outcome predictions", () => {

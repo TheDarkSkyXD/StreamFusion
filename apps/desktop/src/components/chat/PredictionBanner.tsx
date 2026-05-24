@@ -1,14 +1,11 @@
 /**
  * Viewer-side prediction widget (read-only) for both Twitch and Kick chats.
  *
- * Visual reference: the four screenshots from the original brainstorm —
- *   1. Twitch collapsed: dark card, title + payout-teaser, purple "See Details" pill
- *   2. Twitch expanded ACTIVE: back / title / dismiss header, "<N> points contributed"
- *      subtitle, big leader-percentage, grey bubble cluster, Options list with
- *      circled-number badges + colored dots + odds (1:1.9 / 1:2.2 etc.)
- *   3. Twitch expanded ENDED: two-column side-by-side, big % per side, blue/pink
- *      progress bars, stat row (points / odds / voters), payout-line at bottom
- *   4. Kick collapsed: dark card, green-dot Xk vs pink-dot Yk, green "Predict" pill
+ * The `twitch-native` branch mirrors the real twitch.tv community-highlight
+ * card captured live from `https://www.twitch.tv/lirik` (2026-05-23): the
+ * "Predict with Channel Points" subtitle, bold title, purple pill CTA,
+ * vertical-dots overflow, expanded outcome rows ("1. Title  [icon] amount"),
+ * and the slim purple progress bar.
  *
  * Three style variants picked from useAuthStore.preferences.predictions.style ×
  * prediction.platform: twitch-native | kick-native | unified.
@@ -34,6 +31,11 @@ const ENDED_AUTO_DISMISS_MS = 60_000;
  * the just-cast vote doesn't get visually "uncast" by a poll-tick echo.
  */
 const LOCAL_VOTE_SUPPRESSION_MS = 10_000;
+
+// Twitch palette captured from live computed styles on twitch.tv/lirik.
+const TW_PURPLE = "#9146ff";
+const TW_PURPLE_LIGHT = "#a970ff";
+const TW_TRACK = "rgba(83, 83, 95, 0.55)";
 
 type Style = "twitch-native" | "kick-native" | "unified";
 
@@ -67,10 +69,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   // LOCAL_VOTE_SUPPRESSION_MS of a successful vote, we suppress just that
   // field — other fields flow through unchanged.
   const localVoteSubmittedAtRef = useRef<Map<string, number>>(new Map());
-  // The viewer's local optimistic self-state. Survives a stale incoming
-  // null update within the suppression window. We pair it with a "vote
-  // expired" tick so the suppression window naturally lapses without
-  // needing an external update to trigger a re-render.
   const [localViewer, setLocalViewer] = useState<{
     outcomeId: string;
     stake: number;
@@ -78,7 +76,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   const [suppressionExpired, setSuppressionExpired] = useState(false);
   const suppressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset local optimistic state when the prediction id changes.
   useEffect(() => {
     setLocalViewer(null);
     setSuppressionExpired(false);
@@ -88,7 +85,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     }
   }, [prediction.id]);
 
-  // Cleanup any pending suppression timer on unmount.
   useEffect(() => {
     return () => {
       if (suppressionTimerRef.current) {
@@ -97,8 +93,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     };
   }, []);
 
-  // Effective viewer outcome / stake: prefer the local optimistic value when
-  // the incoming server null update is inside the suppression window.
   const effectiveViewerOutcomeId = useMemo(() => {
     if (prediction.viewerOutcomeId !== null) return prediction.viewerOutcomeId;
     if (!localViewer) return null;
@@ -121,8 +115,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     return null;
   }, [prediction.id, prediction.viewerStake, localViewer, suppressionExpired]);
 
-  // Effective prediction view: forwards the platform payload but with the
-  // suppression-aware viewerOutcomeId / viewerStake.
   const effectivePrediction = useMemo<UnifiedPrediction>(
     () => ({
       ...prediction,
@@ -140,17 +132,12 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   const isEnded = prediction.status === "RESOLVED" || prediction.status === "CANCELED";
   const isLocked = prediction.status === "LOCKED";
 
-  // Gate cleanup on settled status transitions. Iteration on the raw status
-  // string keeps the dependency simple and matches plan U5.
   useEffect(() => {
     if (prediction.status === "RESOLVED" || prediction.status === "CANCELED") {
       clearForPrediction(prediction.id);
     }
   }, [prediction.status, prediction.id]);
 
-  // Gate cleanup on unmount / channel switch. The widget represents one
-  // prediction-per-channel mount, so unmount → clearForChannel(slug) per
-  // plan U5.
   useEffect(() => {
     const slug = prediction.channelSlug;
     return () => {
@@ -158,11 +145,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     };
   }, [prediction.channelSlug]);
 
-  // Read the latest onAutoDismiss through a ref so the timer effect doesn't
-  // depend on the callback's identity. Parents historically passed an inline
-  // arrow here, which gave the prop a fresh identity on every re-render and
-  // bounced the 60s dismiss timer indefinitely on busy chats. (Code review
-  // P1-3.)
   const onAutoDismissRef = useRef(onAutoDismiss);
   useEffect(() => {
     onAutoDismissRef.current = onAutoDismiss;
@@ -180,11 +162,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     setExpanded(false);
   }, [prediction.id]);
 
-  // Token-presence check drives the form-vs-deeplink branch in the active
-  // panel. Token retrieval at submit time happens inside the form — this
-  // store selector is only a proxy for "is a platform OAuth session present
-  // right now". The Zustand subscription auto-renders when the user
-  // connects/disconnects mid-prediction.
   const hasPlatformToken =
     prediction.platform === "twitch" ? !!twitchUser : !!kickUser;
 
@@ -205,7 +182,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
       data-status={prediction.status}
       data-style={style}
       data-platform={prediction.platform}
-      className="border-b border-black/40 bg-[#0f0f10]"
+      className="border-b border-black/40 bg-[#1f1f23]"
     >
       {!expanded ? (
         <CollapsedView
@@ -263,61 +240,106 @@ const CollapsedView: React.FC<CollapsedProps> = ({
   const totalAmount = sumAmount(prediction);
   const leader = topOutcome(prediction);
   const ctaLabel = isEnded ? "View Result" : prediction.platform === "twitch" ? "See Details" : "Predict";
-  const teaser = isEnded
-    ? endedTeaser(prediction, totalAmount)
-    : activeTeaser(prediction, totalAmount, leader, style);
 
+  // Twitch shows two header layouts:
+  //   1. Fresh / no top predictors → "Predict with Channel Points" / bold title
+  //   2. Once top predictors exist → "Predict with Channel Points" / [icon]
+  //      "{amount} go to {user} and {N} others"
+  // We render the same two-row layout for kick-native and unified, just with
+  // their own platform-themed subtitle copy and icon color.
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2">
-      <div className="flex-1 min-w-0">
-        <div
-          className="truncate text-[12px] font-semibold text-white"
-          title={prediction.title}
-        >
-          {prediction.title}
+    <div className="px-2.5 pt-2 pb-1.5">
+      <div className="flex items-start gap-2">
+        <CollapsedHeaderText
+          prediction={prediction}
+          style={style}
+          isEnded={isEnded}
+          totalAmount={totalAmount}
+          leader={leader}
+        />
+        <div className="flex flex-shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onExpand}
+            aria-label={ctaLabel}
+            className={ctaPillClass(style)}
+          >
+            {ctaLabel}
+          </button>
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label="Dismiss prediction"
+              title="Dismiss"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10"
+              data-testid="prediction-dismiss"
+            >
+              {VerticalDotsIcon}
+            </button>
+          )}
         </div>
-        <div className="mt-0.5 truncate text-[11px] text-zinc-400">{teaser}</div>
       </div>
-      <button
-        type="button"
-        onClick={onExpand}
-        aria-label={ctaLabel}
-        className={ctaPillClass(style)}
-      >
-        {ctaLabel}
-      </button>
-      {onDismiss && (
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Dismiss prediction"
-          title="Dismiss"
-          className="rounded p-1 text-zinc-500 hover:bg-white/5 hover:text-white"
-          data-testid="prediction-dismiss"
-        >
-          {VerticalDotsIcon}
-        </button>
-      )}
-      {/* Backward-compat: tests assert the LOCKED token via the locked badge in
-          the expanded panel; collapsed view just shows the teaser. Keep a
-          visually-hidden marker so existing tests pass without DOM noise. */}
+      {!isEnded && <TimeRemainingBar style={style} isLocked={isLocked} thick />}
       {isLocked && <span className="sr-only">Locked</span>}
     </div>
   );
 };
 
-function activeTeaser(
+const CollapsedHeaderText: React.FC<{
+  prediction: UnifiedPrediction;
+  style: Style;
+  isEnded: boolean;
+  totalAmount: number;
+  leader: UnifiedPredictionOutcome | null;
+}> = ({ prediction, style, isEnded, totalAmount, leader }) => {
+  const subtitle = headerSubtitle(prediction, style);
+  const detail = isEnded
+    ? endedTeaser(prediction, totalAmount)
+    : detailTeaser(prediction, totalAmount, leader, style);
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col justify-center">
+      <p className="truncate text-[12px] leading-tight text-[#adadb8]">
+        {subtitle}
+      </p>
+      <div
+        className="mt-0.5 truncate text-[15px] font-semibold leading-tight text-white"
+        title={prediction.title}
+      >
+        {prediction.title}
+      </div>
+      {detail && (
+        <div className="mt-1 truncate text-[12px] leading-tight text-[#adadb8]">
+          {detail}
+        </div>
+      )}
+    </div>
+  );
+};
+
+function headerSubtitle(prediction: UnifiedPrediction, style: Style): string {
+  if (prediction.status === "CANCELED") return "Refunded";
+  if (prediction.status === "RESOLVED") return "Result";
+  if (prediction.status === "LOCKED") {
+    return style === "kick-native" ? "Predictions locked" : "Submissions closed";
+  }
+  if (style === "kick-native") return "Predict with KCP";
+  if (style === "unified") return "Open prediction";
+  return "Predict with Channel Points";
+}
+
+function detailTeaser(
   prediction: UnifiedPrediction,
   total: number,
   leader: UnifiedPredictionOutcome | null,
   style: Style,
 ): React.ReactNode {
-  if (!leader) return "—";
+  if (!leader || total <= 0) return null;
   if (style === "kick-native") {
-    // Kick image shows "<dot> 177.7K vs <dot> 107K"
     const a = prediction.outcomes[0];
     const b = prediction.outcomes[1];
-    if (!a || !b) return short(leader.totalAmount) + " leader";
+    if (!a || !b) return null;
     return (
       <span className="inline-flex items-center gap-1.5">
         <span className="inline-block h-2 w-2 rounded-full bg-[#53FC18]" aria-hidden />
@@ -328,18 +350,26 @@ function activeTeaser(
       </span>
     );
   }
-  // Twitch + unified: payout-teaser pattern from the screenshot.
-  // "3.1M go to <topPredictor>..." (winner side) or "<short> contributed".
+  // Twitch + unified: "<icon> {amount} go to {user} and {N} others"
   const topUser = leader.topPredictors?.[0]?.userName;
   if (topUser) {
+    const others = (leader.topPredictors?.length ?? 1) - 1;
     return (
-      <span>
-        <span className="text-white">{short(total)}</span> go to {topUser}
-        {leader.topPredictors && leader.topPredictors.length > 1 ? "…" : ""}
+      <span className="inline-flex items-center gap-1.5">
+        <ChannelPointsIcon size={14} />
+        <span className="text-white">{short(total)}</span>
+        <span>go to {topUser}</span>
+        {others > 0 && <span>and {others} others</span>}
       </span>
     );
   }
-  return <span>{short(total)} contributed</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <ChannelPointsIcon size={14} />
+      <span className="text-white">{short(total)}</span>
+      <span>contributed</span>
+    </span>
+  );
 }
 
 function endedTeaser(prediction: UnifiedPrediction, total: number): React.ReactNode {
@@ -351,7 +381,7 @@ function endedTeaser(prediction: UnifiedPrediction, total: number): React.ReactN
       </span>
     );
   }
-  if (prediction.status === "CANCELED") return "Prediction canceled — refunded";
+  if (prediction.status === "CANCELED") return "Refunded to predictors";
   return `${short(total)} pool`;
 }
 
@@ -363,18 +393,7 @@ interface ActivePanelProps {
   prediction: UnifiedPrediction;
   style: Style;
   isLocked: boolean;
-  /**
-   * True when a platform OAuth token is present (Twitch login for Twitch
-   * predictions, Kick login for Kick predictions). Drives the form-vs-
-   * deeplink branch in the active panel.
-   */
   hasPlatformToken: boolean;
-  /**
-   * Real channel slug / login from the parent chat panel. Used as the
-   * destination for vote-mutation API calls. Falls back to
-   * `prediction.channelSlug` (which is the multiview-filter sentinel and
-   * may be empty for dev injection).
-   */
   channelLogin?: string;
   onCollapse: () => void;
   onDismiss?: () => void;
@@ -393,30 +412,15 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
 }) => {
   const total = sumAmount(prediction);
   const leader = topOutcome(prediction);
-  const leaderPct = leader && total > 0 ? Math.round((leader.totalAmount / total) * 100) : 0;
-  const leaderIndex = leader ? prediction.outcomes.findIndex((o) => o.id === leader.id) : 0;
   const deeplink = prediction.platform === "twitch" ? "https://www.twitch.tv/" : "https://kick.com/";
 
-  // Form-vs-deeplink branch. Rules from plan U5 + auth-surface follow-up:
-  //   - Active + viewer hasn't voted + token present + real channel + Twitch → in-app vote form
-  //   - Active + viewer hasn't voted + no token                              → deeplink chip
-  //   - Active + viewer hasn't voted + token present + no real channel       → deeplink (form would build a broken URL)
-  //   - Active + viewer hasn't voted + Kick                                  → deeplink (Kick in-app vote disabled — see below)
-  //   - Active + viewer already voted                                        → no form, no deeplink
-  //     (the panel just shows the highlighted-outcome state via outcome row)
-  //   - Locked                                                               → no form, no deeplink
-  //
-  // KICK_IN_APP_VOTING_SUPPORTED is false because Kick's
-  // /api/v2/channels/{slug}/predictions/vote endpoint requires session
-  // cookies + X-XSRF-TOKEN from a real kick.com browser context. A renderer
-  // Bearer-only POST gets 401 even with a fresh OAuth login (verified
-  // 2026-05-22 against a live prediction on lordkebun). The architectural
-  // fix is the BrowserWindow scrape pattern at
-  // apps/desktop/src/backend/api/platforms/kick/endpoints/follow-endpoints.ts:231
-  // — significant rework deferred to a separate plan. Until that lands,
-  // Kick viewers see the read-only banner + deeplink to kick.com to vote.
-  // Twitch in-app voting (U4 MakePrediction GQL) is unaffected — it uses
-  // a different auth path that doesn't need session cookies.
+  // Form-vs-deeplink branch rules (plan U5, unchanged):
+  //   - Active + viewer hasn't voted + token present + real channel + Twitch → in-app form
+  //   - Active + viewer hasn't voted + no token                              → deeplink
+  //   - Active + viewer hasn't voted + token present + no real channel       → deeplink
+  //   - Active + viewer hasn't voted + Kick                                  → deeplink
+  //   - Active + viewer already voted                                        → neither
+  //   - Locked                                                               → neither
   const KICK_IN_APP_VOTING_SUPPORTED = false;
   const viewerHasVoted = prediction.viewerOutcomeId !== null;
   const resolvedChannelLogin = (channelLogin ?? "").trim() || prediction.channelSlug.trim();
@@ -431,76 +435,58 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
     platformSupportsInAppVote;
   const showDeeplink = !isLocked && !viewerHasVoted && !showVoteForm;
 
-  // TODO(predictions-backend U5): wire real balance fetches once U3
-  // (twitch-gql-predictions) and U1 (kick-predictions service) confirm
-  // whether prediction read responses already carry viewer balance. For
-  // v1 the form renders with `failed` balance — submit still works,
-  // server is source of truth, three-state UI handles the messaging.
+  // TODO(predictions-backend U5): wire real balance fetches once U3 / U1 land.
   const balance: PredictionVoteFormBalance = {
     state: "failed",
     reason: "not implemented",
   };
 
   return (
-    <div className="flex flex-col gap-3 px-3 pt-2 pb-3">
-      <PanelHeader title="Predictions" onCollapse={onCollapse} onDismiss={onDismiss} />
+    <div className="px-2.5 pt-2 pb-3">
+      <ExpandedHeader
+        prediction={prediction}
+        style={style}
+        onCollapse={onCollapse}
+        onDismiss={onDismiss}
+      />
 
-      <div className="text-center">
-        <div
-          className="text-[14px] font-bold text-white truncate"
-          title={prediction.title}
-        >
-          {prediction.title}
-        </div>
-        <div className="mt-0.5 text-[11px] text-zinc-500">
-          {total.toLocaleString()} {amountUnit(prediction.platform)} contributed
-        </div>
-      </div>
+      <ul
+        className="mt-3 mb-2 flex flex-col gap-1"
+        data-testid="prediction-outcomes"
+      >
+        {prediction.outcomes.map((o, i) => (
+          <ActiveOutcomeRow
+            key={o.id}
+            outcome={o}
+            index={i}
+            total={total}
+            isLeader={o.id === leader?.id}
+            isWinner={o.id === prediction.winningOutcomeId}
+            isViewerPick={o.id === prediction.viewerOutcomeId}
+            style={style}
+          />
+        ))}
+      </ul>
 
-      {style === "twitch-native" && leader && (
-        <BubbleCluster leader={leader} leaderIndex={leaderIndex} leaderPct={leaderPct} />
-      )}
-
-      {style !== "twitch-native" && leader && (
-        <SimpleLeaderBar leader={leader} leaderPct={leaderPct} style={style} />
-      )}
+      <TimeRemainingBar style={style} isLocked={isLocked} thick={false} />
 
       {isLocked && (
-        <div className="text-center">
+        <div className="mt-3">
           <span className="inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
             Voting locked
           </span>
         </div>
       )}
 
-      <div>
-        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-          Options
-        </div>
-        <ul className="flex flex-col gap-1.5" data-testid="prediction-outcomes">
-          {prediction.outcomes.map((o, i) => (
-            <ActiveOutcomeRow
-              key={o.id}
-              outcome={o}
-              index={i}
-              total={total}
-              isLeader={o.id === leader?.id}
-              isWinner={o.id === prediction.winningOutcomeId}
-              isViewerPick={o.id === prediction.viewerOutcomeId}
-              style={style}
-              platform={prediction.platform}
-            />
-          ))}
-        </ul>
-      </div>
-
       {showVoteForm && (
-        <PredictionVoteForm
-          prediction={prediction}
-          channelLogin={resolvedChannelLogin}
-          balance={balance}
-          onVoteSuccess={onVoteSuccess}
-        />
+        <div className="mt-3">
+          <PredictionVoteForm
+            prediction={prediction}
+            channelLogin={resolvedChannelLogin}
+            balance={balance}
+            onVoteSuccess={onVoteSuccess}
+          />
+        </div>
       )}
 
       {showDeeplink && (
@@ -508,74 +494,12 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
           href={deeplink}
           target="_blank"
           rel="noopener noreferrer"
-          className={ctaPillClass(style) + " text-center"}
+          className={"mt-3 block text-center " + ctaPillClass(style)}
           data-testid="prediction-vote-deeplink"
         >
           Vote on {prediction.platform === "twitch" ? "twitch.tv" : "kick.com"} ↗
         </a>
       )}
-    </div>
-  );
-};
-
-const BubbleCluster: React.FC<{
-  leader: UnifiedPredictionOutcome;
-  leaderIndex: number;
-  leaderPct: number;
-}> = ({ leader, leaderIndex, leaderPct }) => {
-  const color = twitchColorHex(leader.color ?? (leaderIndex === 0 ? "blue" : "pink"));
-  // 5x4 dot grid as a static bubble cluster approximation. The leader's
-  // percentage drives the % of dots filled with the outcome color.
-  const total = 20;
-  const filled = Math.round((leaderPct / 100) * total);
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-        Winner{" "}
-        <span
-          className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold"
-          style={{ backgroundColor: color, color: "white" }}
-        >
-          {leaderIndex + 1}
-        </span>
-      </div>
-      <div className="text-[36px] font-bold leading-none" style={{ color }}>
-        {leaderPct}%
-      </div>
-      <div className="mt-1 grid grid-cols-10 gap-1 opacity-90">
-        {Array.from({ length: total }).map((_, i) => (
-          <span
-            key={i}
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: i < filled ? color : "#27272a" }}
-            aria-hidden
-          />
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const SimpleLeaderBar: React.FC<{
-  leader: UnifiedPredictionOutcome;
-  leaderPct: number;
-  style: Style;
-}> = ({ leader, leaderPct, style }) => {
-  const color = style === "kick-native" ? "#53FC18" : "#dc143c"; // unified → storm-accent
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-        Leader · {leader.title}
-      </div>
-      <div className="text-[36px] font-bold leading-none" style={{ color }}>
-        {leaderPct}%
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-        <div
-          className="h-full rounded-full transition-all duration-300"
-          style={{ width: `${leaderPct}%`, backgroundColor: color }}
-        />
-      </div>
     </div>
   );
 };
@@ -588,60 +512,46 @@ const ActiveOutcomeRow: React.FC<{
   isWinner: boolean;
   isViewerPick: boolean;
   style: Style;
-  platform: "twitch" | "kick";
-}> = ({ outcome, index, total, isLeader, isWinner, isViewerPick, style, platform }) => {
-  const pct = total > 0 ? (outcome.totalAmount / total) * 100 : 0;
-  const odds = total > 0 && outcome.totalAmount > 0
-    ? `1:${(total / outcome.totalAmount).toFixed(1)}`
-    : null;
-  const color = twitchColorHex(outcome.color ?? (index === 0 ? "blue" : "pink"));
-
+}> = ({ outcome, index, total, isLeader, isWinner, isViewerPick, style }) => {
+  const pct = total > 0 ? Math.round((outcome.totalAmount / total) * 100) : 0;
   return (
     <li
       data-testid={`prediction-outcome-${outcome.id}`}
       data-viewer-pick={isViewerPick || undefined}
       className={
-        "flex items-center justify-between gap-3 rounded-md bg-[#18181b] px-2 py-1.5 " +
-        (isWinner ? "ring-1 ring-emerald-500/30 " : "") +
-        (isViewerPick ? "ring-1 ring-storm-accent/60" : "")
+        "flex items-center justify-between gap-2 rounded px-1.5 py-1 text-[13px] " +
+        (isViewerPick ? "bg-[#9146ff]/15 ring-1 ring-[#9146ff]/40" : "")
       }
     >
       <span className="flex min-w-0 items-center gap-2">
-        {style === "twitch-native" && (
-          <span
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-            style={{ backgroundColor: color }}
-            aria-hidden
-          >
-            {index + 1}
+        <span className="w-4 flex-shrink-0 text-right text-[13px] font-medium text-[#adadb8]">
+          {index + 1}.
+        </span>
+        <span className="truncate text-white">
+          {outcome.title}
+        </span>
+        {isWinner && (
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white" aria-label="Winner">
+            <CheckIcon size={10} />
+          </span>
+        )}
+        {isLeader && !isWinner && (
+          <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[#adadb8]">
+            Lead
           </span>
         )}
         {style === "kick-native" && (
           <span
-            className="inline-block h-2.5 w-2.5 rounded-full"
+            className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
             style={{ backgroundColor: kickDotColor(index) }}
             aria-hidden
           />
         )}
-        {style === "unified" && (
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-storm-accent/50 text-[10px] font-bold text-storm-accent">
-            {index + 1}
-          </span>
-        )}
-        <span className="truncate text-[12px] font-semibold text-white">{outcome.title}</span>
-        {isWinner && (
-          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-300">
-            Winner
-          </span>
-        )}
-        {isLeader && !isWinner && (
-          <span className="text-[9px] uppercase tracking-wide text-zinc-500">Leader</span>
-        )}
       </span>
-      <span className="flex flex-shrink-0 items-center gap-2 text-[11px] text-zinc-400">
-        <span className="text-white">{short(outcome.totalAmount)}</span>
-        {odds && <span className="rounded bg-black/40 px-1 py-0.5 text-[10px]">{odds}</span>}
-        <span className="w-9 text-right tabular-nums">{pct.toFixed(0)}%</span>
+      <span className="flex flex-shrink-0 items-center gap-1.5 tabular-nums text-white">
+        <ChannelPointsIcon size={14} />
+        <span>{short(outcome.totalAmount)}</span>
+        <span className="ml-1 w-9 text-right text-[11px] text-[#adadb8]">{pct}%</span>
       </span>
     </li>
   );
@@ -660,150 +570,86 @@ const EndedPanel: React.FC<{
   const total = sumAmount(prediction);
   const endedAtLabel = endedRelativeLabel(prediction.endedAt);
   const winner = prediction.outcomes.find((o) => o.id === prediction.winningOutcomeId) ?? null;
-  // Default: show outcomes[0]/[1] in declared order — matches twitch.tv's
-  // 2-outcome layout exactly. Hoist exception: if the winner sits in
-  // outcomes[2+], promote it into the right slot so a 3+ outcome resolution
-  // can never hide its winner. (Code review P1-6.)
-  let [a, b] = prediction.outcomes;
-  if (winner && a?.id !== winner.id && b?.id !== winner.id) {
-    b = winner;
+  // Hoist the winner into the visible pair for 3+ outcome predictions.
+  let pair: UnifiedPredictionOutcome[] = prediction.outcomes.slice(0, 2);
+  if (winner && !pair.some((o) => o.id === winner.id)) {
+    pair = [pair[0], winner].filter(Boolean) as UnifiedPredictionOutcome[];
   }
+  const [a, b] = pair;
 
   return (
-    <div className="flex flex-col gap-3 px-3 pt-2 pb-3">
-      <PanelHeader title="Prediction" onCollapse={onCollapse} onDismiss={onDismiss} />
+    <div className="px-2.5 pt-2 pb-3">
+      <ExpandedHeader
+        prediction={prediction}
+        style={style}
+        onCollapse={onCollapse}
+        onDismiss={onDismiss}
+      />
 
-      {/* Inset question card — dark grey background, centered text. */}
-      <div className="rounded-md bg-[#1c1c1f] px-3 py-3 text-center">
-        <div
-          className="text-[16px] font-bold leading-tight text-white"
-          title={prediction.title}
-        >
-          {prediction.title}
-        </div>
-        <div className="mt-1.5 text-[12px] text-zinc-400">
-          {prediction.status === "CANCELED"
-            ? "Prediction canceled — refunded"
-            : `Prediction ended ${endedAtLabel}`}
-        </div>
+      <div className="mt-2 text-[12px] text-[#adadb8]">
+        {prediction.status === "CANCELED"
+          ? "Prediction canceled — refunded"
+          : `Prediction ended ${endedAtLabel}`}
       </div>
 
-      {/* 4-column grid:
-          [1] left stats  (left-aligned, hugs panel left edge)
-          [2] left outcome (right-aligned, hugs center divider)
-          [3] right outcome (left-aligned, hugs center divider)
-          [4] right stats (right-aligned, hugs panel right edge)
-          A vertical divider line sits between cols 2 and 3. */}
       <div
-        className="relative grid grid-cols-[auto_1fr_1fr_auto] items-center gap-x-3"
+        className="mt-3 grid grid-cols-2 gap-3"
         data-testid="prediction-outcomes"
       >
-        <div
-          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/10"
-          aria-hidden
-        />
-        {/* Column 1 — left stats */}
-        {a && <StatColumn outcome={a} total={total} align="left" />}
-        {/* Column 2 — left outcome cluster */}
         {a && (
-          <OutcomeCluster
+          <EndedOutcomeColumn
             outcome={a}
             index={0}
             total={total}
             isWinner={a.id === winner?.id}
-            align="right"
             style={style}
-            platform={prediction.platform}
           />
         )}
-        {/* Column 3 — right outcome cluster */}
         {b && (
-          <OutcomeCluster
+          <EndedOutcomeColumn
             outcome={b}
             index={1}
             total={total}
             isWinner={b.id === winner?.id}
-            align="left"
             style={style}
-            platform={prediction.platform}
           />
         )}
-        {/* Column 4 — right stats */}
-        {b && <StatColumn outcome={b} total={total} align="right" />}
       </div>
-
     </div>
   );
 };
 
-/**
- * Column 1 / Column 4 — outer stat strips. Left variant left-aligns icons +
- * values; right variant right-aligns (icons on the right side of each row).
- */
-const StatColumn: React.FC<{
-  outcome: UnifiedPredictionOutcome;
-  total: number;
-  align: "left" | "right";
-}> = ({ outcome, total, align }) => {
-  const topUser = outcome.topPredictors?.[0];
-  const odds =
-    total > 0 && outcome.totalAmount > 0
-      ? `1:${(total / outcome.totalAmount).toFixed(2)}`
-      : "—";
-  return (
-    <div className="flex flex-col gap-2 px-1 text-[12px] text-zinc-300">
-      <StatLine icon="clock" value={short(outcome.totalAmount)} align={align} />
-      <StatLine icon="trophy" value={odds} align={align} />
-      <StatLine icon="users" value={outcome.userCount.toString()} align={align} />
-      {topUser && (
-        <StatLine icon="chart" value={short(topUser.amount)} align={align} />
-      )}
-    </div>
-  );
-};
-
-/**
- * Column 2 / Column 3 — outcome cluster. Aligned against the center divider:
- * left cluster right-aligns its content (so it hugs the divider on its right),
- * right cluster left-aligns its content (so it hugs the divider on its left).
- */
-const OutcomeCluster: React.FC<{
+const EndedOutcomeColumn: React.FC<{
   outcome: UnifiedPredictionOutcome;
   index: number;
   total: number;
   isWinner: boolean;
-  align: "left" | "right";
   style: Style;
-  platform: "twitch" | "kick";
-}> = ({ outcome, index, total, isWinner, align, style, platform }) => {
+}> = ({ outcome, index, total, isWinner, style }) => {
   const pct = total > 0 ? Math.round((outcome.totalAmount / total) * 100) : 0;
   const color =
     style === "kick-native"
       ? kickDotColor(index)
       : twitchColorHex(outcome.color ?? (index === 0 ? "blue" : "pink"));
-  const alignClass = align === "right" ? "items-end text-right" : "items-start text-left";
+
   return (
-    <div className={"flex min-w-0 flex-col gap-1.5 px-2 " + alignClass}>
-      {isWinner ? (
-        <div className="flex items-center gap-1 text-[12px] font-bold text-white">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
-            <circle cx="12" cy="12" r="11" fill="white" />
-            <path
-              d="M7 12l3 3 7-7"
-              stroke="#000"
-              strokeWidth="3"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span>Winner</span>
-        </div>
-      ) : (
-        <div className="h-[18px]" aria-hidden />
-      )}
-      <div className="text-[14px] font-bold leading-tight" style={{ color }}>
-        {outcome.title}
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 text-[12px]">
+        {isWinner ? (
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+            <CheckIcon size={10} />
+          </span>
+        ) : (
+          <span className="h-4 w-4 flex-shrink-0" aria-hidden />
+        )}
+        <span className="truncate font-semibold" style={{ color }} title={outcome.title}>
+          {outcome.title}
+        </span>
+        {isWinner && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+            Winner
+          </span>
+        )}
       </div>
       <div
         className="text-[32px] font-bold leading-none tabular-nums"
@@ -811,188 +657,185 @@ const OutcomeCluster: React.FC<{
       >
         {pct}%
       </div>
-      <div className="mt-1 h-2 w-full max-w-[80%] overflow-hidden rounded-full bg-white/5">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
         <div
           className="h-full rounded-full"
-          style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: color }}
+          style={{ width: `${Math.max(pct, 4)}%`, backgroundColor: color }}
         />
+      </div>
+      <div className="flex items-center gap-1.5 text-[11px] text-white tabular-nums">
+        <ChannelPointsIcon size={12} />
+        <span>{short(outcome.totalAmount)}</span>
+        <span className="text-[#adadb8]">·</span>
+        <span className="text-[#adadb8]">
+          {outcome.userCount.toLocaleString()} predictor{outcome.userCount === 1 ? "" : "s"}
+        </span>
       </div>
     </div>
   );
 };
 
-const StatLine: React.FC<{
-  icon: "clock" | "trophy" | "users" | "chart";
-  value: string;
-  align: "left" | "right";
-}> = ({ icon, value, align }) => {
-  // Per-icon color palette pulled from the screenshot — each stat icon
-  // carries its own semantic color rather than tinting by column.
-  const iconColor = {
-    clock: "#5fb4ff",
-    trophy: "#facc15",
-    users: "#ff5fa8",
-    chart: "#c084fc",
-  }[icon];
+// ────────────────────────────────────────────────────────────────────────────
+// SHARED — HEADER, PROGRESS BAR, ICONS
+// ────────────────────────────────────────────────────────────────────────────
+
+const ExpandedHeader: React.FC<{
+  prediction: UnifiedPrediction;
+  style: Style;
+  onCollapse: () => void;
+  onDismiss?: () => void;
+}> = ({ prediction, style, onCollapse, onDismiss }) => {
+  const subtitle = headerSubtitle(prediction, style);
+  return (
+    <header className="flex items-start gap-2">
+      <button
+        type="button"
+        onClick={onCollapse}
+        aria-label="Collapse prediction panel"
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <p className="truncate text-[12px] leading-tight text-[#adadb8]">
+          {subtitle}
+        </p>
+        <div
+          className="mt-0.5 truncate text-[15px] font-semibold leading-tight text-white"
+          title={prediction.title}
+        >
+          {prediction.title}
+        </div>
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-1">
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss prediction"
+            title="Dismiss"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
+            data-testid="prediction-dismiss-expanded"
+          >
+            {VerticalDotsIcon}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onCollapse}
+          aria-label="Close prediction panel"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </header>
+  );
+};
+
+/**
+ * Twitch-style time-remaining strip. We don't have a real countdown timestamp
+ * in `UnifiedPrediction` today (only `predictionWindowSeconds`), so the bar is
+ * a visual indicator: full purple when active, drained when locked, hidden on
+ * ended. When the backend grows a `lockedAt` / `windowEndsAt` field this can
+ * animate the actual remaining ratio.
+ */
+const TimeRemainingBar: React.FC<{
+  style: Style;
+  isLocked: boolean;
+  thick: boolean;
+}> = ({ style, isLocked, thick }) => {
+  const fillColor =
+    style === "kick-native" ? "#53FC18" : style === "unified" ? "#dc143c" : TW_PURPLE_LIGHT;
+  const widthPct = isLocked ? 0 : 100;
   return (
     <div
-      className={
-        "flex items-center gap-1.5 " + (align === "left" ? "flex-row" : "flex-row-reverse")
-      }
+      role="progressbar"
+      aria-valuenow={widthPct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className={"mt-2 w-full overflow-hidden rounded-full " + (thick ? "h-2" : "h-1")}
+      style={{ backgroundColor: TW_TRACK }}
     >
-      <StatIcon icon={icon} color={iconColor} />
-      <span className="font-medium text-white tabular-nums">{value}</span>
+      <div
+        className="h-full transition-[width] duration-500"
+        style={{ width: `${widthPct}%`, backgroundColor: fillColor }}
+      />
     </div>
   );
 };
 
-const StatIcon: React.FC<{ icon: "clock" | "trophy" | "users" | "chart"; color: string }> = ({
-  icon,
-  color,
-}) => {
-  const common = {
-    width: 14,
-    height: 14,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: color,
-    strokeWidth: 2,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  if (icon === "clock") {
-    return (
-      <svg {...common}>
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
-      </svg>
-    );
-  }
-  if (icon === "trophy") {
-    return (
-      <svg {...common}>
-        <path d="M6 9H4.5a2.5 2.5 0 010-5H6" />
-        <path d="M18 9h1.5a2.5 2.5 0 000-5H18" />
-        <path d="M4 22h16" />
-        <path d="M10 14.66V17c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-2.34" />
-        <path d="M18 2H6v7a6 6 0 0012 0V2z" />
-      </svg>
-    );
-  }
-  if (icon === "users") {
-    return (
-      <svg {...common}>
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 00-3-3.87" />
-        <path d="M16 3.13a4 4 0 010 7.75" />
-      </svg>
-    );
-  }
-  // chart
-  return (
-    <svg {...common}>
-      <line x1="18" y1="20" x2="18" y2="10" />
-      <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-  );
-};
-
-// ────────────────────────────────────────────────────────────────────────────
-// HEADERS / HELPERS
-// ────────────────────────────────────────────────────────────────────────────
-
-const PanelHeader: React.FC<{
-  title: string;
-  onCollapse: () => void;
-  onDismiss?: () => void;
-}> = ({ title, onCollapse, onDismiss }) => (
-  <header className="flex items-center gap-1">
-    {/* Left cluster: back arrow + title (screenshot pattern: '< Prediction'
-        left-aligned on the same row, NOT centered). */}
-    <button
-      type="button"
-      onClick={onCollapse}
-      aria-label="Collapse prediction panel"
-      className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
-    >
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M15 18l-6-6 6-6" />
-      </svg>
-    </button>
-    <h3 className="flex-1 text-[14px] font-semibold text-white">{title}</h3>
-    {/* Right cluster: ⋮ + ✕ when dismiss is available; plain ✕ otherwise. */}
-    {onDismiss && (
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss prediction"
-        title="Dismiss"
-        className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
-        data-testid="prediction-dismiss-expanded"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <circle cx="12" cy="5" r="1.5" />
-          <circle cx="12" cy="12" r="1.5" />
-          <circle cx="12" cy="19" r="1.5" />
-        </svg>
-      </button>
-    )}
-    <button
-      type="button"
-      onClick={onCollapse}
-      aria-label="Close prediction panel"
-      className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
-    >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M18 6L6 18M6 6l12 12" />
-      </svg>
-    </button>
-  </header>
+const VerticalDotsIcon = (
+  <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M10 5a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm0 7a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm2 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />
+  </svg>
 );
 
-const VerticalDotsIcon = (
-  <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <circle cx="12" cy="5" r="1.5" />
-    <circle cx="12" cy="12" r="1.5" />
-    <circle cx="12" cy="19" r="1.5" />
+const CheckIcon: React.FC<{ size: number }> = ({ size }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M5 12l5 5L20 7" />
+  </svg>
+);
+
+/**
+ * Twitch's prediction widget renders the channel-points icon as a CDN PNG that
+ * comes from a per-channel asset URL. We don't have that asset on hand and
+ * loading remote channel images for chrome would slow render. Instead, we draw
+ * the recognizable filled-circle "P" mark Twitch uses as the generic
+ * channel-points / KCP fallback.
+ */
+const ChannelPointsIcon: React.FC<{ size: number }> = ({ size }) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden focusable="false">
+    <circle cx="10" cy="10" r="9" fill={TW_PURPLE} />
+    <path
+      d="M7.5 5.5h3.7c1.7 0 2.9 1.05 2.9 2.65 0 1.6-1.2 2.65-2.9 2.65H9.4v3.7H7.5v-9Zm3.5 4c.85 0 1.4-.5 1.4-1.35 0-.85-.55-1.35-1.4-1.35H9.4v2.7H11Z"
+      fill="white"
+    />
   </svg>
 );
 
 function ctaPillClass(style: Style): string {
   if (style === "twitch-native") {
-    return "flex-shrink-0 rounded-full bg-[#9146ff] px-3.5 py-1 text-[11px] font-semibold text-white hover:bg-[#772ce8]";
+    return "flex h-8 items-center justify-center rounded-full bg-[#9146ff] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#772ce8]";
   }
   if (style === "kick-native") {
-    return "flex-shrink-0 rounded-full bg-[#53FC18] px-3.5 py-1 text-[11px] font-semibold text-black hover:bg-[#3dd912]";
+    return "flex h-8 items-center justify-center rounded-full bg-[#53FC18] px-4 text-[13px] font-semibold text-black transition-colors hover:bg-[#3dd912]";
   }
-  return "flex-shrink-0 rounded-full bg-[#dc143c] px-3.5 py-1 text-[11px] font-semibold text-white hover:opacity-90";
-}
-
-function amountUnit(platform: "twitch" | "kick"): string {
-  return platform === "twitch" ? "points" : "KCP";
+  return "flex h-8 items-center justify-center rounded-full bg-[#dc143c] px-4 text-[13px] font-semibold text-white transition-colors hover:opacity-90";
 }
 
 function sumAmount(prediction: UnifiedPrediction): number {
@@ -1026,8 +869,6 @@ function endedRelativeLabel(endedAt: string | null): string {
 }
 
 function twitchColorHex(color: string): string {
-  // Saturations tuned against the screenshot — twitch's web client uses a
-  // brighter blue/pink for prediction outcomes than the standard brand swatch.
   const map: Record<string, string> = {
     blue: "#4a8eff",
     pink: "#ff5fa8",
