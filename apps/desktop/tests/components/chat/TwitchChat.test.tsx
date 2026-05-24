@@ -39,16 +39,25 @@ vi.mock('@/hooks/useIsTwitchMod', () => ({
 }));
 
 vi.mock('@/store/auth-store', () => {
+  // TwitchChat's `isAuthenticated` is a useAuthStore selector reading
+  // `twitchConnected && !twitchReconnectRequired` (commit 9c4bbf7). The
+  // mock has to expose those fields or the selector returns `undefined`
+  // and `canSend` becomes `undefined && bool === undefined` — which masks
+  // the booleanness the chat input gate depends on.
   const state = {
     twitchUser: { id: 'mod-1', login: 'modder', displayName: 'Modder' },
+    twitchConnected: false,
+    twitchReconnectRequired: false,
+    kickConnected: false,
+    kickReconnectRequired: false,
   };
-  const useAuthStore = (selector?: (s: unknown) => unknown) => {
+  const useAuthStore = (selector?: (s: typeof state) => unknown) => {
     return selector ? selector(state) : state;
   };
   // useTwitchEventSub (mounted via mod tabs) calls
   // useAuthStore.getState() — provide a static version so the new mod tabs
   // don't crash the existing TwitchChat tests.
-  (useAuthStore as unknown as { getState: () => unknown }).getState = () =>
+  (useAuthStore as unknown as { getState: () => typeof state }).getState = () =>
     state;
   return { useAuthStore };
 });

@@ -27,14 +27,25 @@ vi.mock('@/hooks/useIsKickMod', () => ({
   useIsKickMod: () => true,
 }));
 
-vi.mock('@/store/auth-store', () => ({
-  useAuthStore: (selector?: (s: unknown) => unknown) => {
-    const state = {
-      kickUser: { id: 42, username: 'modder', slug: 'modder' },
-    };
+vi.mock('@/store/auth-store', () => {
+  // KickChat's `isAuthenticated` is a useAuthStore selector reading
+  // `kickConnected && !kickReconnectRequired` (commit 9c4bbf7). Without
+  // these fields the selector returns `undefined` and `canSend` collapses
+  // to `undefined` instead of a boolean.
+  const state = {
+    kickUser: { id: 42, username: 'modder', slug: 'modder' },
+    kickConnected: false,
+    kickReconnectRequired: false,
+    twitchConnected: false,
+    twitchReconnectRequired: false,
+  };
+  const useAuthStore = (selector?: (s: typeof state) => unknown) => {
     return selector ? selector(state) : state;
-  },
-}));
+  };
+  (useAuthStore as unknown as { getState: () => typeof state }).getState = () =>
+    state;
+  return { useAuthStore };
+});
 
 vi.mock('@/backend/services/chat/kick-chat', () => ({
   kickChatService: {

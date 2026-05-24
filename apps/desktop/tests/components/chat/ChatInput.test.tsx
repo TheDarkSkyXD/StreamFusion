@@ -46,14 +46,23 @@ vi.mock('@/store/emote-store', () => {
     isLoading: false,
     getProviderEmotes: () => [],
     getEmotesByProvider: () => new Map(),
+    getAllEmotes: () => [],
     addRecentEmote: vi.fn(),
     toggleFavorite: vi.fn(),
     isFavorite: () => false,
   };
-  return {
-    useEmoteStore: (selector?: (s: typeof state) => unknown) =>
-      selector ? selector(state) : state,
+  // ChatInput now reads emotes for inline rendering via
+  // `useEmoteStore.getState().getAllEmotes()` and resubscribes via
+  // `useEmoteStore.subscribe(refresh)` — the selector-callable shape alone
+  // isn't enough.
+  const useEmoteStore = ((selector?: (s: typeof state) => unknown) =>
+    selector ? selector(state) : state) as ((selector?: (s: typeof state) => unknown) => unknown) & {
+    getState: () => typeof state;
+    subscribe: (fn: (s: typeof state) => void) => () => void;
   };
+  useEmoteStore.getState = () => state;
+  useEmoteStore.subscribe = () => () => {};
+  return { useEmoteStore };
 });
 
 // Mock InfoBanner — we control its visibility per test via the impl.
@@ -332,7 +341,9 @@ describe('ChatInput — Enter / Shift+Enter', () => {
     await act(async () => {
       fireEvent.keyDown(ta, { key: 'Enter' });
     });
-    expect(kickChatService.sendMessage).toHaveBeenCalledWith('ninja', '*hi*');
+    // ChatInput passes `kickUser ?? undefined` as the third arg so Kick's
+    // optimistic echo can stamp the local user's badges on outbound messages.
+    expect(kickChatService.sendMessage).toHaveBeenCalledWith('ninja', '*hi*', undefined);
   });
 });
 
