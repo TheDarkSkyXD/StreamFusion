@@ -1,7 +1,7 @@
 ---
 title: "feat: Additive Settings Expansion — Port Xtra Chat + Player/Stream Settings"
 type: feat
-status: active
+status: completed
 date: 2026-05-24
 origin: docs/brainstorms/2026-05-24-settings-expansion-xtra-port-requirements.md
 ---
