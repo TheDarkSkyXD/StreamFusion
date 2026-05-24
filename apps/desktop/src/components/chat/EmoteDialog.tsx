@@ -369,7 +369,13 @@ const EmoteDialogItem: React.FC<EmoteDialogItemProps> = ({
           locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
         }`}
       >
-        <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
+        <EmoteImage
+          emote={emote}
+          size="medium"
+          imageSize="1x"
+          showTooltip={false}
+          lazyLoad={true}
+        />
         {locked && (
           <span
             data-testid="emote-lock-overlay"
