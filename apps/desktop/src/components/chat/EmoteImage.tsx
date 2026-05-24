@@ -31,13 +31,6 @@ interface EmoteImageProps {
   onClick?: (emote: Emote) => void;
   /** Whether to lazy load the image */
   lazyLoad?: boolean;
-  /**
-   * Override the CDN size variant independent of the display `size`. Lets the
-   * emote picker request 1x thumbnails (≈¼ the pixels of 2x) while still
-   * displaying at the medium height — much faster to download and decode for
-   * grids of many emotes. Defaults to the variant implied by `size`.
-   */
-  imageSize?: "1x" | "2x" | "4x";
 }
 
 /** Size configurations in pixels */
@@ -49,15 +42,7 @@ const SIZE_CONFIG: Record<EmoteSize, { height: number; urlSize: "1x" | "2x" | "4
 };
 
 export const EmoteImage: React.FC<EmoteImageProps> = memo(
-  ({
-    emote,
-    size = "medium",
-    className = "",
-    showTooltip = true,
-    onClick,
-    lazyLoad = true,
-    imageSize,
-  }) => {
+  ({ emote, size = "medium", className = "", showTooltip = true, onClick, lazyLoad = true }) => {
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
 
@@ -69,11 +54,9 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
 
     const config = SIZE_CONFIG[size];
 
-    // Memoize URL calculation. `imageSize` (when set) overrides the variant
-    // implied by the display `size` — used by the picker to pull 1x thumbnails.
-    const variant = imageSize ?? config.urlSize;
+    // Memoize URL calculation
     const url = useMemo(() => {
-      switch (variant) {
+      switch (config.urlSize) {
         case "1x":
           return emote.urls.url1x;
         case "2x":
@@ -83,7 +66,7 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
         default:
           return emote.urls.url2x;
       }
-    }, [variant, emote.urls.url1x, emote.urls.url2x, emote.urls.url4x]);
+    }, [config.urlSize, emote.urls.url1x, emote.urls.url2x, emote.urls.url4x]);
 
     const handleLoad = useCallback(() => {
       setIsLoaded(true);
