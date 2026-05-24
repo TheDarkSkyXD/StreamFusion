@@ -56,6 +56,8 @@ export interface KickChatProps {
   channelId?: string;
   /** Chatroom ID (required for Kick) */
   chatroomId?: number;
+  /** Kick broadcaster user_id — used to resolve the channel's 7TV emotes. */
+  kickUserId?: string;
   /** Subscriber badges for the channel (for badge rendering) */
   subscriberBadges?: any[];
 }
@@ -88,6 +90,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   channel,
   channelId,
   chatroomId,
+  kickUserId,
   subscriberBadges,
 }) => {
   useRenderCount("KickChat");
@@ -237,7 +240,9 @@ export const KickChat: React.FC<KickChatProps> = ({
 
         if (isMounted && emoteChannelId) {
           setActiveChannel(emoteChannelId);
-          await loadChannelEmotes(emoteChannelId, channel, "kick");
+          // `kickUserId` (broadcaster user_id) is what 7TV keys Kick channels
+          // by — distinct from `emoteChannelId` (the chatroom/slug map key).
+          await loadChannelEmotes(emoteChannelId, channel, "kick", kickUserId);
         } else if (isMounted) {
           setActiveChannel(null);
         }
@@ -378,6 +383,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     channel,
     channelId,
     chatroomId,
+    kickUserId,
     clearMessages,
     loadGlobalEmotes,
     loadChannelEmotes,

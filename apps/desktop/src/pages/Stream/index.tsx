@@ -447,6 +447,7 @@ export function StreamPage() {
           initialChannel={channelName}
           channelId={channelData?.id}
           chatroomId={platform === "kick" ? channelData?.chatroomId : undefined}
+          kickUserId={platform === "kick" ? channelData?.kickUserId : undefined}
           subscriberBadges={memoizedSubscriberBadges}
         />
       </div>

@@ -80,11 +80,17 @@ export interface EmoteProviderService {
   /** Fetch global emotes from this provider */
   fetchGlobalEmotes(): Promise<Emote[]>;
 
-  /** Fetch channel-specific emotes */
+  /**
+   * Fetch channel-specific emotes.
+   * @param kickUserId - Kick broadcaster user_id. Only the 7TV provider consumes
+   *   it (7TV's KICK connection is keyed by the user_id, which differs from the
+   *   chatroom/channel id used as `channelId`). Other providers ignore it.
+   */
   fetchChannelEmotes(
     channelId: string,
     channelName?: string,
-    platform?: Platform
+    platform?: Platform,
+    kickUserId?: string
   ): Promise<Emote[]>;
 
   /** Get URL for an emote at a specific size */

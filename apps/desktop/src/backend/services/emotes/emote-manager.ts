@@ -173,11 +173,14 @@ class EmoteManager extends EventEmitter {
    * @param channelId - Channel ID (Twitch user ID or Kick chatroom ID)
    * @param channelName - Channel name/slug
    * @param platform - Platform identifier (used to filter third-party providers)
+   * @param kickUserId - Kick broadcaster user_id; forwarded to the 7TV provider,
+   *   which keys Kick lookups by the user_id (distinct from the chatroom id).
    */
   async loadChannelEmotes(
     channelId: string,
     channelName?: string,
-    platform: Platform = "twitch"
+    platform: Platform = "twitch",
+    kickUserId?: string
   ): Promise<void> {
     // Track channel access for LRU eviction
     this.trackChannelAccess(channelId);
@@ -212,7 +215,12 @@ class EmoteManager extends EventEmitter {
           let pending = this.channelEmoteInFlight.get(cacheKey);
           if (!pending) {
             pending = (async () => {
-              const emotes = await provider.fetchChannelEmotes(channelId, channelName, platform);
+              const emotes = await provider.fetchChannelEmotes(
+                channelId,
+                channelName,
+                platform,
+                kickUserId
+              );
               this.cacheEmotes(cacheKey, emotes, channelId);
               this.emit("emotesFetched", name, false, channelId);
               return emotes;

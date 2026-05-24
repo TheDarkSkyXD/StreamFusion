@@ -48,7 +48,8 @@ interface EmoteState {
   loadChannelEmotes: (
     channelId: string,
     channelName?: string,
-    platform?: Platform
+    platform?: Platform,
+    kickUserId?: string
   ) => Promise<void>;
   unloadChannelEmotes: (channelId: string) => void;
   setActiveChannel: (channelId: string | null) => void;
@@ -123,14 +124,14 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
     }
   },
 
-  loadChannelEmotes: async (channelId, channelName, platform = "twitch") => {
+  loadChannelEmotes: async (channelId, channelName, platform = "twitch", kickUserId) => {
     const state = get();
     if (state.loadedChannels.has(channelId)) return;
 
     set({ isLoading: true, error: null });
 
     try {
-      await emoteManager.loadChannelEmotes(channelId, channelName, platform);
+      await emoteManager.loadChannelEmotes(channelId, channelName, platform, kickUserId);
 
       set((state) => ({
         loadedChannels: new Set([...state.loadedChannels, channelId]),

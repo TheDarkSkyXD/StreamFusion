@@ -47,6 +47,9 @@ export function transformKickChannel(channel: KickApiChannel): UnifiedChannel {
   return {
     id: channel.broadcaster_user_id.toString(),
     platform: "kick",
+    // Official API exposes only the broadcaster user_id; it doubles as the 7TV
+    // KICK connection key (see UnifiedChannel.kickUserId).
+    kickUserId: channel.broadcaster_user_id.toString(),
     username: channel.slug,
     displayName: channel.slug,
     avatarUrl: "", // Not provided in official API

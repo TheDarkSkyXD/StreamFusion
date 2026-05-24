@@ -465,6 +465,9 @@ async function _doFetchPublicChannel(
       categoryName,
       lastStreamTitle,
       chatroomId: typeof chatroomId === "number" ? chatroomId : undefined,
+      // Keep the broadcaster `user_id` distinct from `id` above (which is the
+      // channel/db id). 7TV's KICK connection is keyed by this user_id.
+      kickUserId: data.user_id != null ? String(data.user_id) : undefined,
       subscriberBadges: data.subscriber_badges,
       chatroomSettings,
     };

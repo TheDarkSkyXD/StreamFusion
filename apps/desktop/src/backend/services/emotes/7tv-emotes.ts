@@ -86,14 +86,6 @@ interface SevenTVUserConnection {
   emote_set: SevenTVEmoteSet | null;
 }
 
-/** 7TV user response */
-interface SevenTVUserResponse {
-  id: string;
-  username: string;
-  display_name: string;
-  connections: SevenTVUserConnection[];
-}
-
 /** 7TV emote flags */
 const SevenTVEmoteFlags = {
   ZERO_WIDTH: 1 << 8, // 256
@@ -138,68 +130,70 @@ class SevenTVEmoteProvider implements EmoteProviderService {
   }
 
   /**
-   * Fetch channel-specific 7TV emotes
-   * @param channelId - Platform user ID (for Twitch) or chatroom ID (for Kick)
-   * @param channelName - Channel name/slug (required for Kick)
-   * @param platform - Platform to look up (default: twitch)
+   * Fetch channel-specific 7TV emotes (including the channel's custom set).
+   *
+   * 7TV's `GET /v3/users/{platform}/{id}` is keyed by the platform's *user id*:
+   *   - Twitch: the numeric Twitch user id — already what we pass as channelId.
+   *   - Kick:   the broadcaster `user_id`. NOT the slug, NOT the channel id,
+   *             NOT the chatroom id (all three 404). Resolved upstream from the
+   *             Kick channel payload and passed in as `kickUserId`.
+   *
+   * @param channelId - Emote-map key (Twitch user id, or Kick chatroom/channel id).
+   *                    Used to tag returned emotes, not to address 7TV for Kick.
+   * @param channelName - Channel name/slug (unused here; kept for interface parity).
+   * @param platform - Platform to look up (default: twitch).
+   * @param kickUserId - Kick broadcaster user_id; required to resolve Kick emotes.
    */
   async fetchChannelEmotes(
     channelId: string,
-    channelName?: string,
-    platform: "twitch" | "kick" = "twitch"
+    _channelName?: string,
+    platform: "twitch" | "kick" = "twitch",
+    kickUserId?: string
   ): Promise<Emote[]> {
-    // Determine the correct identifier for each platform
     let identifier: string;
 
     if (platform === "twitch") {
-      // For Twitch, use the numeric user ID
       if (!/^\d+$/.test(channelId)) {
         console.log(`[7TVEmotes] Skipping - Channel ID ${channelId} is not a valid Twitch ID`);
         return [];
       }
       identifier = channelId;
     } else {
-      // For Kick, 7TV expects the channel slug/username, not the chatroom ID
-      if (channelName) {
-        identifier = channelName.toLowerCase();
-      } else if (!/^\d+$/.test(channelId)) {
-        // If channelId is not numeric, assume it's a slug
-        identifier = channelId.toLowerCase();
-      } else {
-        // Numeric chatroom ID won't work with 7TV - skip silently
+      // Kick: without the resolved broadcaster user_id we can't address 7TV's
+      // KICK connection. Return nothing rather than 404-spamming the console
+      // with the slug or chatroom id (the previous behavior).
+      if (!kickUserId) {
         return [];
       }
+      identifier = kickUserId;
     }
 
+    const platformName = platform.toUpperCase();
+
     try {
-      // 7TV uses platform connections to find users
-      const platformName = platform.toUpperCase();
+      // The platform lookup returns a flat UserConnection: `emote_set` sits at
+      // the TOP LEVEL. (The `connections[]` array only exists on the 7TV-native
+      // /users/{stvId} endpoint, which this is not.)
+      const connection = await api
+        .get(`${SevenTVEmoteProvider.BASE_URL}/users/${platformName}/${identifier}`)
+        .json<SevenTVUserConnection>();
 
-      try {
-        const userData = await api
-          .get(`${SevenTVEmoteProvider.BASE_URL}/users/${platformName}/${identifier}`)
-          .json<SevenTVUserResponse>();
-
-        // Find the correct platform connection
-        const connection = userData.connections?.find((c) => c.platform === platformName);
-
-        if (!connection?.emote_set?.emotes) {
-          return [];
-        }
-
-        return connection.emote_set.emotes.map((emote) =>
-          this.transformEmote(emote, false, channelId)
-        );
-      } catch (err: any) {
-        // Handle 404 cleanly (user not found)
-        if (err.response?.status === 404) {
-          console.log(`[7TVEmotes] Channel "${identifier}" has no 7TV emotes`);
-          return [];
-        }
-        throw err;
+      const emotes = connection?.emote_set?.emotes;
+      if (!emotes) {
+        return [];
       }
-    } catch (error) {
-      console.warn(`[7TVEmotes] Failed to fetch channel emotes for ${identifier}:`, error);
+
+      return emotes.map((emote) => this.transformEmote(emote, false, channelId));
+    } catch (err: any) {
+      // 404 = channel has no linked 7TV account; not an error worth surfacing.
+      if (err.response?.status === 404) {
+        console.log(`[7TVEmotes] No 7TV channel emotes for ${platformName}/${identifier}`);
+        return [];
+      }
+      console.warn(
+        `[7TVEmotes] Failed to fetch channel emotes for ${platformName}/${identifier}:`,
+        err
+      );
       return []; // Fail silently for individual channels so we don't crash
     }
   }
