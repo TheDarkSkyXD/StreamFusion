@@ -17,7 +17,14 @@ import type {
   TwitchUser,
   UserPreferences,
 } from "../shared/auth-types";
-import { type AuthStatus, IPC_CHANNELS, type VersionInfo } from "../shared/ipc-channels";
+import {
+  type AuthStatus,
+  IPC_CHANNELS,
+  type ProxyApplyConfig,
+  type ProxyApplyResult,
+  type ProxyCredentialsInput,
+  type VersionInfo,
+} from "../shared/ipc-channels";
 import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../shared/mod-log-types";
 
 // Define the API exposed to the renderer
@@ -259,6 +266,28 @@ const electronAPI = {
     update: (updates: Partial<UserPreferences>): Promise<UserPreferences> =>
       ipcRenderer.invoke(IPC_CHANNELS.PREFERENCES_UPDATE, { updates }),
     reset: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.PREFERENCES_RESET),
+  },
+
+  // ========== Outbound Stream Proxy (Xtra port U11) ==========
+  proxy: {
+    /**
+     * Apply (or clear) the outbound proxy on the window session. Pass
+     * host/port/enabled only — credentials go via `setCredentials` and never
+     * leave main. Returns what main actually did (applied / cleared / error).
+     */
+    apply: (config: ProxyApplyConfig): Promise<ProxyApplyResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROXY_APPLY, { config }),
+    /**
+     * Store (or clear with `null`) the proxy credentials. Write-only: the
+     * password is encrypted in main and is never returned by any channel.
+     */
+    setCredentials: (
+      credentials: ProxyCredentialsInput | null
+    ): Promise<{ hasCredentials: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROXY_SET_CREDENTIALS, { credentials }),
+    /** Advisory: whether encrypted credentials are stored (never the values). */
+    hasCredentials: (): Promise<{ hasCredentials: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROXY_HAS_CREDENTIALS),
   },
 
   // ========== External Links ==========

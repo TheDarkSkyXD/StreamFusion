@@ -10,6 +10,7 @@ import type {
   KickUser,
   LocalFollow,
   Platform,
+  ProxyPreferences,
   TwitchUser,
   UserPreferences,
 } from "./auth-types";
@@ -111,6 +112,14 @@ export const IPC_CHANNELS = {
   PREFERENCES_GET: "preferences:get",
   PREFERENCES_UPDATE: "preferences:update",
   PREFERENCES_RESET: "preferences:reset",
+
+  // ========== Outbound Stream Proxy (main-process, Xtra port U11) ==========
+  // Apply/clear the proxy on the window's session from a host/port/enabled
+  // config. Credentials are NOT passed here — they go via PROXY_SET_CREDENTIALS
+  // and stay encrypted in main. Both handlers validate `event.senderFrame.url`.
+  PROXY_APPLY: "proxy:apply",
+  PROXY_SET_CREDENTIALS: "proxy:set-credentials",
+  PROXY_HAS_CREDENTIALS: "proxy:has-credentials",
 
   // External links
   SHELL_OPEN_EXTERNAL: "shell:open-external",
@@ -231,11 +240,52 @@ export interface IpcPayloads {
   // Preferences
   [IPC_CHANNELS.PREFERENCES_UPDATE]: { updates: Partial<UserPreferences> };
 
+  // Stream proxy — config carries host/port/enabled only (no credentials).
+  [IPC_CHANNELS.PROXY_APPLY]: { config: ProxyApplyConfig };
+  // Credentials are write-only: a null clears the stored pair; a value stores
+  // it encrypted. The password is never returned by any channel.
+  [IPC_CHANNELS.PROXY_SET_CREDENTIALS]: { credentials: ProxyCredentialsInput | null };
+
   // External links
   [IPC_CHANNELS.SHELL_OPEN_EXTERNAL]: { url: string };
 
   // Notifications
   [IPC_CHANNELS.NOTIFICATION_SHOW]: { title: string; body: string };
+}
+
+// ========== Stream Proxy Types (Xtra port U11) ==========
+
+/**
+ * The proxy config the renderer passes to `PROXY_APPLY`. Mirrors the
+ * persistable `ProxyPreferences` MINUS `hasCredentials` (main-owned advisory
+ * flag). No credential fields — those flow only through `PROXY_SET_CREDENTIALS`
+ * and never leave main thereafter.
+ */
+export type ProxyApplyConfig = Pick<ProxyPreferences, "enabled" | "host" | "port">;
+
+/**
+ * Write-only credentials input for `PROXY_SET_CREDENTIALS`. The password is
+ * encrypted via safeStorage in main and is NEVER returned to the renderer by
+ * any channel (no read counterpart exists).
+ */
+export interface ProxyCredentialsInput {
+  username: string;
+  password: string;
+}
+
+/**
+ * Result of `PROXY_APPLY`. Reports what main actually did so U12's UI can show
+ * an accurate status (disabled / applied / error) — but never the credentials.
+ */
+export interface ProxyApplyResult {
+  /** True when a proxy is now active on the session. */
+  applied: boolean;
+  /** True when the config was a safe no-op (disabled or empty host). */
+  cleared: boolean;
+  /** Whether encrypted credentials are stored (advisory; never the values). */
+  hasCredentials: boolean;
+  /** Present only on failure; a sanitized message safe to surface in the UI. */
+  error?: string;
 }
 
 // ========== Response Types for IPC Calls ==========

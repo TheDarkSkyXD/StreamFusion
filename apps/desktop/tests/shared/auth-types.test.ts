@@ -7,9 +7,11 @@ import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
+  DEFAULT_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   type PlayerControlsPreferences,
   type PredictionPreferences,
+  type ProxyPreferences,
   type UserPreferences,
 } from "@/shared/auth-types";
 
@@ -149,5 +151,55 @@ describe("BufferPreferences defaults (U10)", () => {
     const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
     expect(hydrated.buffer).toEqual(DEFAULT_BUFFER_PREFERENCES);
     expect(hydrated.buffer.liveSyncDurationCount).toBe(2);
+  });
+});
+
+describe("ProxyPreferences defaults (U11)", () => {
+  it("is off by default with an empty host (safe no-op on fresh install, R21)", () => {
+    expect(DEFAULT_PROXY_PREFERENCES.enabled).toBe(false);
+    expect(DEFAULT_PROXY_PREFERENCES.host).toBe("");
+    expect(DEFAULT_PROXY_PREFERENCES.port).toBeNull();
+    expect(DEFAULT_PROXY_PREFERENCES.hasCredentials).toBe(false);
+    expect(DEFAULT_USER_PREFERENCES.proxy).toBe(DEFAULT_PROXY_PREFERENCES);
+  });
+
+  it("carries NO password field — credentials live in safeStorage, not prefs", () => {
+    // Security invariant: the prefs group (which PREFERENCES_GET returns to the
+    // renderer) must never contain a password/secret. Assert the key set.
+    expect(Object.keys(DEFAULT_PROXY_PREFERENCES).sort()).toEqual([
+      "enabled",
+      "hasCredentials",
+      "host",
+      "port",
+    ]);
+    expect(DEFAULT_PROXY_PREFERENCES).not.toHaveProperty("password");
+    expect(DEFAULT_PROXY_PREFERENCES).not.toHaveProperty("username");
+  });
+
+  it("carries no per-class flags (setProxy is session-level — spike finding)", () => {
+    // The egress spike proved per-class selectivity is not achievable via
+    // session.setProxy. Pin that the type stays honest (no proxyToken/
+    // proxyPlaylist/etc. flags that wouldn't function).
+    const keys = Object.keys(DEFAULT_PROXY_PREFERENCES);
+    expect(keys.some((k) => /class|playlist|token|media|multivariant/i.test(k))).toBe(false);
+  });
+
+  it("wires proxy onto the top-level UserPreferences shape", () => {
+    const prefs: UserPreferences = DEFAULT_USER_PREFERENCES;
+    // Type-level check: proxy is a required field. If U11 forgot to wire it into
+    // UserPreferences, this assignment would fail to compile.
+    const proxy: ProxyPreferences = prefs.proxy;
+    expect(proxy).toBe(DEFAULT_PROXY_PREFERENCES);
+  });
+
+  it("hydrates the whole proxy group for installs predating it (shallow top-level merge)", () => {
+    // Mirrors storageService.getPreferences: `{ ...DEFAULT_USER_PREFERENCES, ...stored }`.
+    const legacyStored: Partial<UserPreferences> = {
+      theme: "dark",
+      language: "en",
+    };
+    const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
+    expect(hydrated.proxy).toEqual(DEFAULT_PROXY_PREFERENCES);
+    expect(hydrated.proxy.enabled).toBe(false);
   });
 });

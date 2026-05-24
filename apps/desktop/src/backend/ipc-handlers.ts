@@ -14,6 +14,7 @@ import { registerCategoryHandlers } from "./ipc/handlers/category-handlers";
 import { registerChannelHandlers } from "./ipc/handlers/channel-handlers";
 import { registerChatHandlers } from "./ipc/handlers/chat-handlers";
 import { registerModLogHandlers } from "./ipc/handlers/modlog-handlers";
+import { applyPersistedProxyOnStart, registerProxyHandlers } from "./ipc/handlers/proxy-handlers";
 import { registerSearchHandlers } from "./ipc/handlers/search-handlers";
 import { registerStorageHandlers } from "./ipc/handlers/storage-handlers";
 import { registerStreamHandlers } from "./ipc/handlers/stream-handlers";
@@ -35,6 +36,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerVideoHandlers();
   registerAdBlockHandlers(mainWindow);
   registerUpdateHandlers(mainWindow);
+  registerProxyHandlers();
+
+  // Apply the persisted outbound proxy at boot if the user enabled it (R20).
+  // No-op when disabled/empty; never blocks startup (fire-and-forget).
+  applyPersistedProxyOnStart();
 
   // Start the Twitch proactive-refresh timer at boot. If a stored token
   // exists, this schedules a refresh 5 minutes before its expiry so idle

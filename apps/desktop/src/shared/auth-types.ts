@@ -220,6 +220,51 @@ export interface BufferPreferences {
   maxMaxBufferLengthSec: number;
 }
 
+/**
+ * Outbound HTTP/HTTPS proxy for Twitch stream requests, applied in the Electron
+ * MAIN process via `session.defaultSession.setProxy(...)`. Off by default; an
+ * empty `host` is a safe no-op (clears any prior proxy, never breaks requests).
+ *
+ * Its own top-level group so older installs hydrate the whole group with
+ * defaults under the shallow top-level preferences merge.
+ *
+ * EGRESS-SPIKE FINDING (plan U11, R19/R20): the main BrowserWindow uses
+ * `session.defaultSession` (no `partition`/`session` in webPreferences), so the
+ * three target classes — playback access token (`fetch("https://gql.twitch.tv
+ * /gql")` in the renderer ad-block service AND the main token path), the
+ * multivariant playlist, and the media playlist (renderer HLS.js `fetch`/XHR +
+ * the main-process manifest proxy's `fetch`) — ALL egress through
+ * `defaultSession`. `session.setProxy` is session-level (all-or-nothing): it
+ * applies to every request on that session and CANNOT select by request class.
+ *
+ * Therefore per-class selectivity (token vs multivariant vs media
+ * independently) is NOT achievable with `setProxy`, and this group deliberately
+ * carries NO per-class flags — three toggles that don't function would be worse
+ * than one honest switch. `enabled` routes ALL of the window session's traffic
+ * (the three Twitch stream classes plus everything else on defaultSession)
+ * through the proxy. The Kick CDN partition (`persist:kick-cdn-direct`) is set
+ * to `mode:"direct"` separately, so Kick CDN images bypass the proxy.
+ *
+ * The proxy username/password are NOT in this group — they are encrypted via
+ * Electron `safeStorage` in the main process (mirroring the OAuth-token path)
+ * and never round-tripped to the renderer or carried by `PREFERENCES_GET`.
+ * See plan U11.
+ */
+export interface ProxyPreferences {
+  /** Master switch. When false (default), no proxy is applied. */
+  enabled: boolean;
+  /** Proxy host, no scheme (e.g. "127.0.0.1"). Empty = safe no-op. */
+  host: string;
+  /** Proxy port (1–65535). `null` when unset. */
+  port: number | null;
+  /**
+   * Read-only hint for the renderer/UI: whether encrypted proxy credentials are
+   * currently stored in the main process. Never carries the credential values.
+   * Maintained by the main process; the renderer treats it as advisory only.
+   */
+  hasCredentials: boolean;
+}
+
 export type TimestampFormat = "HH:mm" | "h:mm a";
 export type ChatDensity = "cozy" | "compact";
 
@@ -288,6 +333,8 @@ export interface UserPreferences {
   playerControls: PlayerControlsPreferences;
   /** Live playback buffer / latency tuning (Xtra port, U10). */
   buffer: BufferPreferences;
+  /** Outbound Twitch-stream proxy (host/port/enabled only — creds via safeStorage; Xtra port, U11). */
+  proxy: ProxyPreferences;
   startMinimized: boolean;
   minimizeToTray: boolean;
 }
@@ -408,6 +455,18 @@ export const DEFAULT_BUFFER_PREFERENCES: BufferPreferences = {
   maxMaxBufferLengthSec: 30,
 };
 
+/**
+ * Off by default with an empty host, so a fresh install applies no proxy and
+ * stream requests are never affected (R21). `hasCredentials` starts false and
+ * is set true by the main process once credentials are stored.
+ */
+export const DEFAULT_PROXY_PREFERENCES: ProxyPreferences = {
+  enabled: false,
+  host: "",
+  port: null,
+  hasCredentials: false,
+};
+
 export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   // Appearance
   boldUsernames: false,
@@ -449,6 +508,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   predictions: DEFAULT_PREDICTION_PREFERENCES,
   playerControls: DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   buffer: DEFAULT_BUFFER_PREFERENCES,
+  proxy: DEFAULT_PROXY_PREFERENCES,
   startMinimized: false,
   minimizeToTray: true,
 };
