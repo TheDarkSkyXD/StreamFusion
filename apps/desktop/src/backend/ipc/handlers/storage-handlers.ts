@@ -49,7 +49,11 @@ export function registerStorageHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_ADD,
     (_event, { follow }: { follow: Omit<LocalFollow, "id" | "followedAt"> }) => {
-      return storageService.addLocalFollow(follow);
+      // Route the source by the channel's OWN platform login state: signed in
+      // to that platform → "local" (survives sync; locally unfollowable),
+      // signed out of it → "guest". hasToken checks only follow.platform.
+      const source = storageService.hasToken(follow.platform) ? "local" : "guest";
+      return storageService.addLocalFollow(follow, source);
     }
   );
 

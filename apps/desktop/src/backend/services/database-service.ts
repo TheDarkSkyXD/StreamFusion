@@ -5,7 +5,7 @@ import { app } from "electron";
 
 import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../../shared/mod-log-types";
 
-export type FollowSource = "guest" | "account";
+export type FollowSource = "guest" | "account" | "local";
 
 export type PendingFollowAction = "follow" | "unfollow";
 

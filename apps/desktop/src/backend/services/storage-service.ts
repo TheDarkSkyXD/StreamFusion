@@ -311,27 +311,62 @@ class StorageService {
    * Get the "active" follows for a platform — what the UI should surface.
    *
    * Semantics:
-   *   - No token (signed out / session expired) → guest follows. Forces the
-   *     guest fallback even when stale account-source rows linger in the DB
-   *     (e.g., a logout that crashed before clearAccountFollows fired). This
-   *     mirrors how Twitch's logout flow surfaces guest follows again after
-   *     sign-out, and is what U6's cookie-clear logout chain converges on.
-   *   - Token present + account follows in DB → account follows.
-   *   - Token present but no account follows yet (fresh login mid-sync, or
-   *     a sync that returned empty/error) → guest follows.
+   *   - No token (signed out / session expired) → guest follows ONLY. Forces
+   *     the guest fallback even when stale account-source rows linger in the
+   *     DB (e.g., a logout that crashed before clearAccountFollows fired).
+   *     "local" rows are intentionally NOT surfaced while signed out — they
+   *     stay in the DB and reappear on the next login for that platform.
+   *   - Token present + any account OR local rows → account ∪ local, deduped
+   *     with the account row preferred when the same channel appears in both
+   *     ("account" is sync-owned; "local" is the in-app signed-in follow that
+   *     sync must never delete).
+   *   - Token present but neither account nor local rows yet (fresh login
+   *     mid-sync, or a sync that returned empty/error) → guest follows.
    *
    * The token check is the source of truth for "is the user signed in?",
    * not DB presence. A user with stale account-source rows in the DB but no
    * valid token is effectively signed out and must see guest follows.
+   *
+   * Dedup mirrors database-service's `localMatchesFetched` dual-id rule
+   * (channelId match, else case-insensitive channelName) — we deliberately do
+   * NOT import the renderer's `channelsMatch` into the main process.
    */
   getActiveFollowsByPlatform(platform: Platform): LocalFollow[] {
     if (!this.hasToken(platform)) {
       return dbService.getFollowsByPlatformAndSource(platform, "guest");
     }
-    if (dbService.hasAccountFollows(platform)) {
-      return dbService.getFollowsByPlatformAndSource(platform, "account");
+
+    const accountFollows = dbService.getFollowsByPlatformAndSource(platform, "account");
+    const localFollows = dbService.getFollowsByPlatformAndSource(platform, "local");
+
+    // Token present but nothing synced and nothing followed in-app yet (fresh
+    // login mid-sync, or a sync that returned empty/error) → preserve the
+    // guest fallback so the user still sees their signed-out follows.
+    if (accountFollows.length === 0 && localFollows.length === 0) {
+      return dbService.getFollowsByPlatformAndSource(platform, "guest");
     }
-    return dbService.getFollowsByPlatformAndSource(platform, "guest");
+
+    const sameChannel = (a: LocalFollow, b: LocalFollow): boolean => {
+      if (a.channelId && b.channelId && a.channelId === b.channelId) return true;
+      if (
+        a.channelName &&
+        b.channelName &&
+        a.channelName.toLowerCase() === b.channelName.toLowerCase()
+      ) {
+        return true;
+      }
+      return false;
+    };
+
+    // Account rows win: seed with them, then append only the local rows that
+    // don't match an already-included channel.
+    const merged: LocalFollow[] = [...accountFollows];
+    for (const local of localFollows) {
+      if (!merged.some((existing) => sameChannel(existing, local))) {
+        merged.push(local);
+      }
+    }
+    return merged;
   }
 
   /**
@@ -349,7 +384,7 @@ class StorageService {
    */
   addLocalFollow(
     follow: Omit<LocalFollow, "id" | "followedAt">,
-    source: "guest" | "account" = "guest"
+    source: "guest" | "account" | "local" = "guest"
   ): LocalFollow {
     const newFollow = dbService.addFollow(follow, source);
     console.debug(`➕ Added ${source} follow: ${follow.displayName}`);

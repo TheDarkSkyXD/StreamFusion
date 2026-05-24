@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import type { LocalFollow } from "@/shared/auth-types";
+import type { FollowSource, LocalFollow } from "@/shared/auth-types";
 import { useFollowStore } from "@/store/follow-store";
 
 function makeChannel(overrides: Partial<UnifiedChannel> = {}): UnifiedChannel {
@@ -166,6 +166,33 @@ describe("follow-store followChannel", () => {
     expect(useFollowStore.getState().localFollows).toHaveLength(1);
     expect(mockApi.add).not.toHaveBeenCalled();
   });
+
+  it("adopts the source the backend assigns (e.g. 'local' when signed in to the platform)", async () => {
+    const channel = makeChannel({ id: "411439", username: "chickenandy" });
+    mockApi.add.mockResolvedValueOnce(
+      makeRow({ channelId: "411439", channelName: "chickenandy", source: "local" })
+    );
+
+    await useFollowStore.getState().followChannel(channel);
+
+    expect(useFollowStore.getState().getFollowSource(channel)).toBe("local");
+  });
+
+  it("functional-merges the returned source without clobbering other channels' entries", async () => {
+    // Seed an unrelated source entry that must survive the post-add merge.
+    useFollowStore.setState({
+      localFollows: [],
+      sourceByKey: new Map<string, FollowSource>([["kick:999", "account"]]),
+    });
+    const channel = makeChannel({ id: "411439", username: "chickenandy" });
+    mockApi.add.mockResolvedValueOnce(makeRow({ channelId: "411439", source: "local" }));
+
+    await useFollowStore.getState().followChannel(channel);
+
+    const sources = useFollowStore.getState().sourceByKey;
+    expect(sources.get("kick:411439")).toBe("local");
+    expect(sources.get("kick:999")).toBe("account");
+  });
 });
 
 describe("follow-store unfollowChannel", () => {
@@ -276,5 +303,22 @@ describe("follow-store upgradeFollowIfNeeded", () => {
 
     expect(mockApi.getAll).not.toHaveBeenCalled();
     expect(mockApi.add).not.toHaveBeenCalled();
+  });
+
+  it("adopts the backend source after upgrading an empty-id row to the canonical id", async () => {
+    useFollowStore.setState({
+      localFollows: [makeChannel({ id: "", username: "chickenandy" })],
+    });
+    mockApi.getAll.mockResolvedValueOnce([
+      makeRow({ id: "empty-id-row", channelId: "", channelName: "chickenandy" }),
+    ]);
+    mockApi.add.mockResolvedValueOnce(
+      makeRow({ channelId: "411439", channelName: "chickenandy", source: "local" })
+    );
+
+    const canonical = makeChannel({ id: "411439", username: "chickenandy" });
+    await useFollowStore.getState().upgradeFollowIfNeeded(canonical);
+
+    expect(useFollowStore.getState().getFollowSource(canonical)).toBe("local");
   });
 });

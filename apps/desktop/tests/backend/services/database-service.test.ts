@@ -392,6 +392,89 @@ describeDb("DatabaseService follow-row safety", () => {
   });
 });
 
+describeDb("DatabaseService local-source follows", () => {
+  it("round-trips a source='local' row via getFollowsByPlatformAndSource and isolates it from account/guest", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "411439",
+        channelName: "summit1g",
+        displayName: "Summit1G",
+        profileImage: "",
+      },
+      "local"
+    );
+
+    const localRows = svc.getFollowsByPlatformAndSource("kick", "local");
+    expect(localRows).toHaveLength(1);
+    expect(localRows[0]).toMatchObject({ channelId: "411439", source: "local" });
+
+    // The same row must NOT leak into the account or guest buckets.
+    expect(svc.getFollowsByPlatformAndSource("kick", "account")).toHaveLength(0);
+    expect(svc.getFollowsByPlatformAndSource("kick", "guest")).toHaveLength(0);
+  });
+
+  it("clearFollowsByPlatformAndSource('account') leaves source='local' rows intact (logout survival)", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      { platform: "kick", channelId: "1", channelName: "acct", displayName: "Acct", profileImage: "" },
+      "account"
+    );
+    svc.addFollow(
+      { platform: "kick", channelId: "2", channelName: "loc", displayName: "Loc", profileImage: "" },
+      "local"
+    );
+
+    // Logout (clearAccountFollows) clears ONLY account-source rows.
+    svc.clearFollowsByPlatformAndSource("kick", "account");
+
+    expect(svc.getFollowsByPlatformAndSource("kick", "account")).toHaveLength(0);
+    expect(svc.getFollowsByPlatformAndSource("kick", "local").map((r) => r.channelId)).toEqual(["2"]);
+  });
+
+  it("replaceAccountFollowsRespectingPending does NOT delete source='local' rows when the fetched list omits them (sync survival)", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    // A local follow the user made in-app while signed in.
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "411439",
+        channelName: "summit1g",
+        displayName: "Summit1G",
+        profileImage: "",
+      },
+      "local"
+    );
+
+    // Background sync runs with a fetched list that does NOT include the local
+    // channel (the platform never knew about it — push is infeasible).
+    svc.replaceAccountFollowsRespectingPending("kick", [
+      {
+        platform: "kick",
+        channelId: "999",
+        channelName: "someoneelse",
+        displayName: "Someone Else",
+        profileImage: "",
+      },
+    ]);
+
+    // Local row survives untouched; the synced channel lands as account.
+    expect(svc.getFollowsByPlatformAndSource("kick", "local").map((r) => r.channelId)).toEqual([
+      "411439",
+    ]);
+    expect(svc.getFollowsByPlatformAndSource("kick", "account").map((r) => r.channelId)).toEqual([
+      "999",
+    ]);
+  });
+});
+
 describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
   // Helper to build a minimal "fetched follow" row.
   const fetched = (channelId: string, channelName: string, displayName = channelName) => ({

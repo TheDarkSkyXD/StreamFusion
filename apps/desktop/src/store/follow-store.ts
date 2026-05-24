@@ -53,20 +53,33 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
       // follow keyed on the canonical channel.id.
       if (currentFollows.some((c) => channelsMatch(c, channel))) return;
 
-      // Renderer-side adds always default to guest — the only writer of
-      // 'account' rows is the main-process syncFollowsOnLogin.
+      // Optimistic source stays "guest": it only gates local-toggle vs.
+      // platform redirect in FollowButton, and we never optimistically write
+      // "account". The authoritative source ("local" when signed in to this
+      // platform, else "guest") is decided server-side and adopted below.
       const nextSources = new Map(currentSources);
       nextSources.set(key, "guest");
       set({ localFollows: [...currentFollows, channel], sourceByKey: nextSources });
 
       try {
-        await window.electronAPI.follows.add({
+        const added = await window.electronAPI.follows.add({
           platform: channel.platform as "twitch" | "kick",
           channelId: channel.id,
           channelName: channel.username,
           displayName: channel.displayName,
           profileImage: channel.avatarUrl,
         });
+        // Adopt the source the backend actually assigned. Functional update so
+        // we merge into the latest sourceByKey rather than clobbering entries
+        // written by concurrent follow/unfollow calls while add() was in flight.
+        const assignedSource = added?.source;
+        if (assignedSource) {
+          set((state) => {
+            const merged = new Map(state.sourceByKey);
+            merged.set(key, assignedSource);
+            return { sourceByKey: merged };
+          });
+        }
       } catch (err) {
         console.error("Failed to save follow to backend:", err);
         set({ localFollows: currentFollows, sourceByKey: currentSources });
@@ -105,8 +118,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
         const matches = backendFollows.filter(
           (f) =>
             f.platform === followToRemove.platform &&
-            (f.channelId === followToRemove.id ||
-              (!!slug && f.channelName?.toLowerCase() === slug))
+            (f.channelId === followToRemove.id || (!!slug && f.channelName?.toLowerCase() === slug))
         );
 
         for (const m of matches) {
@@ -162,10 +174,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
 
     const currentFollows = get().localFollows;
     const stale = currentFollows.find(
-      (c) =>
-        c.platform === channel.platform &&
-        !c.id &&
-        c.username?.toLowerCase() === slug
+      (c) => c.platform === channel.platform && !c.id && c.username?.toLowerCase() === slug
     );
     if (!stale) return;
 
@@ -190,13 +199,24 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
           await window.electronAPI.follows.remove(m.id);
         }
 
-        await window.electronAPI.follows.add({
+        const added = await window.electronAPI.follows.add({
           platform: channel.platform as "twitch" | "kick",
           channelId: channel.id,
           channelName: channel.username,
           displayName: channel.displayName,
           profileImage: channel.avatarUrl,
         });
+        // Keep the source correct after the empty-id → canonical-id upgrade:
+        // adopt whatever the backend assigned (functional merge, as in
+        // followChannel) instead of leaving the row to fall back to "guest".
+        const assignedSource = added?.source;
+        if (assignedSource) {
+          set((state) => {
+            const merged = new Map(state.sourceByKey);
+            merged.set(key, assignedSource);
+            return { sourceByKey: merged };
+          });
+        }
       } catch (err) {
         console.error("Failed to upgrade follow to canonical id:", err);
         await get().hydrate();
