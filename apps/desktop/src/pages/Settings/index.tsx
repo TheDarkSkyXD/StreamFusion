@@ -11,6 +11,7 @@ import {
   LuRefreshCw,
   LuRocket,
   LuShieldCheck,
+  LuSlidersHorizontal,
   LuTriangleAlert,
   LuTrophy,
 } from "react-icons/lu";
@@ -32,7 +33,9 @@ import { useAuthError } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_PLAYBACK_PREFERENCES,
+  DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
+  type PlayerControlsPreferences,
   type PredictionPreferences,
   type VideoQuality,
 } from "@/shared/auth-types";
@@ -41,6 +44,7 @@ import { useAuthStore } from "@/store/auth-store";
 
 const SETTINGS_TABS = [
   "playback",
+  "player-controls",
   "chat",
   "adblock",
   "predictions",
@@ -48,6 +52,27 @@ const SETTINGS_TABS = [
   "updates",
   "about",
 ] as const;
+
+// Player-control visibility toggles surfaced in the Settings → Player controls tab (U9).
+// Covers only the controls that actually render in the UI (wired in U8). Picture-in-Picture
+// is intentionally omitted: no PiP control renders today, so a toggle would be a dead control
+// (the `showPictureInPicture` pref field still exists, just unsurfaced here).
+const PLAYER_CONTROL_TOGGLES: {
+  field: Exclude<keyof PlayerControlsPreferences, "showPictureInPicture">;
+  label: string;
+  description?: string;
+}[] = [
+  { field: "showQuality", label: "Quality", description: "Stream quality selector menu item." },
+  {
+    field: "showPlaybackSpeed",
+    label: "Playback speed",
+    description: "Speed selector (VOD playback).",
+  },
+  { field: "showVolume", label: "Volume", description: "Volume slider and mute button." },
+  { field: "showFullscreen", label: "Fullscreen", description: "Fullscreen toggle button." },
+  { field: "showTheater", label: "Theater", description: "Theater-mode toggle button." },
+  { field: "showVideoStats", label: "Video Stats", description: "Live video stats overlay." },
+];
 
 export function SettingsPage() {
   const appVersion = useAppVersion();
@@ -117,6 +142,22 @@ export function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handlePlayerControlToggle = async (
+    field: keyof PlayerControlsPreferences,
+    value: boolean
+  ) => {
+    await updatePreferences({
+      playerControls: {
+        ...(preferences?.playerControls ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES),
+        [field]: value,
+      },
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const playerControls = preferences?.playerControls ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
+
   return (
     <div className="flex h-full bg-[#09090b] text-zinc-100 overflow-hidden">
       {/* Sidebar Navigation */}
@@ -144,6 +185,13 @@ export function SettingsPage() {
               description="Stream quality & preferences"
               isActive={activeTab === "playback"}
               onClick={() => setActiveTab("playback")}
+            />
+            <SidebarItem
+              icon={LuSlidersHorizontal}
+              label="Player controls"
+              description="Show or hide player buttons"
+              isActive={activeTab === "player-controls"}
+              onClick={() => setActiveTab("player-controls")}
             />
             <SidebarItem
               icon={LuMessageSquare}
@@ -235,6 +283,48 @@ export function SettingsPage() {
                       </Select>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Player Controls Tab */}
+          {activeTab === "player-controls" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Player controls</h2>
+                <p className="text-zinc-400">
+                  Choose which buttons appear in the player. Hiding a control only removes its
+                  button — it never changes playback (audio keeps playing, quality stays selected).
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Visible controls
+                  </h3>
+                  {saved && (
+                    <span className="text-xs text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
+                      Saved
+                    </span>
+                  )}
+                </div>
+                <div className="px-6 py-2 divide-y divide-[#27272a]/60">
+                  {PLAYER_CONTROL_TOGGLES.map(({ field, label, description }) => (
+                    <div key={field} className="flex items-center justify-between gap-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-zinc-200">{label}</p>
+                        {description && (
+                          <p className="text-sm text-zinc-500 mt-0.5">{description}</p>
+                        )}
+                      </div>
+                      <Switch
+                        checked={playerControls[field]}
+                        onCheckedChange={(v) => handlePlayerControlToggle(field, v)}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
