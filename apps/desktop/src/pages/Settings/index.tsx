@@ -1,3 +1,4 @@
+import { useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 import {
@@ -5,6 +6,7 @@ import {
   LuCircleHelp,
   LuDownload,
   LuLink,
+  LuMessageSquare,
   LuMonitor,
   LuRefreshCw,
   LuRocket,
@@ -14,6 +16,7 @@ import {
 } from "react-icons/lu";
 
 import { AccountConnect } from "@/components/auth";
+import { ChatSettingsSection } from "@/components/settings/ChatSettingsSection";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -36,10 +39,25 @@ import {
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAuthStore } from "@/store/auth-store";
 
+const SETTINGS_TABS = [
+  "playback",
+  "chat",
+  "adblock",
+  "predictions",
+  "integrations",
+  "updates",
+  "about",
+] as const;
+
 export function SettingsPage() {
   const appVersion = useAppVersion();
   const versionInfo = useAppVersionInfo();
-  const [activeTab, setActiveTab] = useState("playback");
+  // Deep-link support (e.g. the in-chat gear's "More settings" → /settings?tab=chat, U7).
+  const search = useSearch({ from: "/_app/settings" });
+  const initialTab = SETTINGS_TABS.includes(search.tab as (typeof SETTINGS_TABS)[number])
+    ? (search.tab as string)
+    : "playback";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Get auth state
   const { error, clearError } = useAuthError();
@@ -128,6 +146,13 @@ export function SettingsPage() {
               onClick={() => setActiveTab("playback")}
             />
             <SidebarItem
+              icon={LuMessageSquare}
+              label="Chat"
+              description="Appearance, emotes & events"
+              isActive={activeTab === "chat"}
+              onClick={() => setActiveTab("chat")}
+            />
+            <SidebarItem
               icon={LuShieldCheck}
               label="Ad-Block"
               description="Twitch ad-blocking settings"
@@ -212,6 +237,20 @@ export function SettingsPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Chat Tab */}
+          {activeTab === "chat" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Chat</h2>
+                <p className="text-zinc-400">
+                  Appearance, emotes, events, and behavior for the unified Twitch + Kick chat.
+                </p>
+              </div>
+
+              <ChatSettingsSection />
             </div>
           )}
 
