@@ -106,6 +106,15 @@ app.commandLine.appendSwitch("enable-features", "V8MemoryCage");
 // Disable accessibility runtime (saves ~10-20MB if not needed)
 app.commandLine.appendSwitch("disable-renderer-accessibility");
 
+// Disable QUIC/HTTP3. Chromium's HTTP/3 transport intermittently fails against
+// the emote CDNs (cdn.7tv.app, fronted by Cloudflare) with
+// ERR_QUIC_PROTOCOL_ERROR, forcing a slow per-image TCP fallback and spamming
+// the console. Emote grids fire dozens of these at once, so the failed-QUIC
+// latency is felt directly in the picker/chat. Forcing HTTP/1.1+2 over TCP
+// makes emote/thumbnail loads reliable and quiet; HTTP/3 is only ever an
+// optimization, never required (servers always negotiate down).
+app.commandLine.appendSwitch("disable-quic");
+
 // Register kick-image:// + twitch-image:// as privileged schemes so the renderer
 // can use them in <img src> for CDN avatars/thumbnails. Must happen before app.ready.
 protocol.registerSchemesAsPrivileged([
