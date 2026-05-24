@@ -167,11 +167,67 @@ export interface PredictionPreferences {
   style: "native" | "unified";
 }
 
+export type TimestampFormat = "HH:mm" | "h:mm a";
+export type ChatDensity = "cozy" | "compact";
+
+/**
+ * Viewer-facing chat display preferences (Twitch + Kick unified renderer).
+ *
+ * Its own top-level group — distinct from the legacy `ChatPreferences`
+ * (position/size) — so older installs hydrate the whole group with defaults
+ * under the shallow top-level preferences merge. Appearance fields live-apply
+ * to the renderer; emote-provider and event toggles apply on the next channel
+ * load. (Xtra port — see plan U1–U5.)
+ */
+export interface ChatDisplayPreferences {
+  // Appearance
+  boldUsernames: boolean;
+  /** Assign a deterministic readable color to users with no chosen color. */
+  readableColorForUncolored: boolean;
+  /** Lift low-contrast username colors for the dark theme. */
+  themeAdaptUsernameColor: boolean;
+  timestamps: boolean;
+  timestampFormat: TimestampFormat;
+  fontSizePx: number; // ~10-20
+  emoteSizePx: number; // ~16-56
+  density: ChatDensity;
+  /** Docked chat panel width as a percentage of the stream area (Stream/MultiStream pages, U2). */
+  chatWidthPct: number; // 0-100
+  // Emotes & badges
+  enable7tv: boolean;
+  enableBttv: boolean;
+  enableFfz: boolean;
+  /** Play animated emotes vs. render a static frame. */
+  animatedEmotes: boolean;
+  /** Stack zero-width / overlay emotes on the previous emote. */
+  overlayEmotes: boolean;
+  /** Render emotes inside system / notice messages. */
+  systemMessageEmotes: boolean;
+  // Messages & events
+  showUserNotices: boolean;
+  showClearMsg: boolean;
+  showClearChat: boolean;
+  firstMsgHighlight: boolean;
+  showPolls: boolean;
+  showPredictions: boolean;
+  recentMessagesOnJoin: boolean;
+  recentMessagesLimit: number;
+  /**
+   * Max messages retained in the live buffer before the oldest are pruned.
+   * Default 100 matches the shipped RAM-safe cap; the consumer clamps to <= 400
+   * (raising it regresses the 5 GB-spike mitigation; the array is shared across
+   * multiview panels). See plan U4.
+   */
+  messageLimit: number;
+}
+
 export interface UserPreferences {
   theme: Theme;
   language: string;
   notifications: NotificationPreferences;
   chat: ChatPreferences;
+  /** Viewer-facing chat display settings (Xtra port, U1). */
+  chatDisplay: ChatDisplayPreferences;
   playback: PlaybackPreferences;
   advanced: AdvancedPreferences;
   predictions: PredictionPreferences;
@@ -273,11 +329,42 @@ export const DEFAULT_PREDICTION_PREFERENCES: PredictionPreferences = {
   style: "native",
 };
 
+export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
+  // Appearance
+  boldUsernames: false,
+  readableColorForUncolored: true,
+  themeAdaptUsernameColor: true,
+  timestamps: false,
+  timestampFormat: "HH:mm",
+  fontSizePx: 13,
+  emoteSizePx: 28,
+  density: "cozy",
+  chatWidthPct: 30,
+  // Emotes & badges
+  enable7tv: true,
+  enableBttv: true,
+  enableFfz: true,
+  animatedEmotes: true,
+  overlayEmotes: true,
+  systemMessageEmotes: true,
+  // Messages & events
+  showUserNotices: true,
+  showClearMsg: true,
+  showClearChat: true,
+  firstMsgHighlight: true,
+  showPolls: true,
+  showPredictions: true,
+  recentMessagesOnJoin: true,
+  recentMessagesLimit: 100,
+  messageLimit: 100,
+};
+
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   theme: "dark",
   language: "en",
   notifications: DEFAULT_NOTIFICATION_PREFERENCES,
   chat: DEFAULT_CHAT_PREFERENCES,
+  chatDisplay: DEFAULT_CHAT_DISPLAY_PREFERENCES,
   playback: DEFAULT_PLAYBACK_PREFERENCES,
   advanced: DEFAULT_ADVANCED_PREFERENCES,
   predictions: DEFAULT_PREDICTION_PREFERENCES,

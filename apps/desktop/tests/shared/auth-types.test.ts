@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   type PredictionPreferences,
@@ -24,5 +26,52 @@ describe("PredictionPreferences defaults (U1)", () => {
   it("accepts 'unified' as a valid style", () => {
     const unifiedPrefs: PredictionPreferences = { style: "unified" };
     expect(unifiedPrefs.style).toBe("unified");
+  });
+});
+
+describe("ChatDisplayPreferences defaults (U1)", () => {
+  it("defaults messageLimit to the shipped RAM-safe cap of 100 (not the origin's 500/150)", () => {
+    // Guards the U4 reconciliation: raising this regresses the 5 GB-spike fix.
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit).toBe(100);
+    expect(DEFAULT_USER_PREFERENCES.chatDisplay.messageLimit).toBe(100);
+  });
+
+  it("wires chatDisplay onto the top-level UserPreferences shape", () => {
+    const prefs: UserPreferences = DEFAULT_USER_PREFERENCES;
+    // Type-level check: chatDisplay is a required field. If U1 forgot to wire it
+    // into UserPreferences, this assignment would fail to compile.
+    const display: ChatDisplayPreferences = prefs.chatDisplay;
+    expect(display).toBe(DEFAULT_CHAT_DISPLAY_PREFERENCES);
+  });
+
+  it("defaults appearance + emote/event toggles to sensible desktop values", () => {
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.timestamps).toBe(false);
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.timestampFormat).toBe("HH:mm");
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.density).toBe("cozy");
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.fontSizePx).toBe(13);
+    // Emote providers + event surfaces are on by default.
+    for (const on of [
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.enable7tv,
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.enableBttv,
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.enableFfz,
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPolls,
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPredictions,
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showUserNotices,
+    ]) {
+      expect(on).toBe(true);
+    }
+  });
+
+  it("hydrates the whole chatDisplay group for installs predating it (shallow top-level merge)", () => {
+    // Mirrors storageService.getPreferences: `{ ...DEFAULT_USER_PREFERENCES, ...stored }`.
+    // A persisted prefs object from before chatDisplay existed has no such key,
+    // so the spread falls back to the full default group rather than `undefined`.
+    const legacyStored: Partial<UserPreferences> = {
+      theme: "dark",
+      language: "en",
+    };
+    const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
+    expect(hydrated.chatDisplay).toEqual(DEFAULT_CHAT_DISPLAY_PREFERENCES);
+    expect(hydrated.chatDisplay.messageLimit).toBe(100);
   });
 });
