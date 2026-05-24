@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../shared/auth-types";
 import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from "../shared/chat-types";
+import { useAuthStore } from "./auth-store";
 
 /**
  * Performance-optimized Chat Store
@@ -18,11 +20,33 @@ import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from "../shared/
 // trim buffer 25→10 to drop the resident chat array on long sessions.
 // Per-add still allocates a new array (Zustand requires immutable updates),
 // but the smaller cap meaningfully reduces GC churn and resident size.
-const MESSAGE_LIMIT_NORMAL = 100;
+//
+// The normal cap is now a user preference (chatDisplay.messageLimit, default
+// 100) resolved via resolveMessageLimit() and clamped to [MESSAGE_LIMIT_MIN,
+// MESSAGE_LIMIT_MAX]. The max stays 400 so a misconfigured value can't
+// reintroduce the RAM spike (the array is shared across multiview panels).
 const MESSAGE_LIMIT_PAUSED = 400;
+const MESSAGE_LIMIT_MIN = 10;
+const MESSAGE_LIMIT_MAX = 400;
 
 // Force trim when this many messages over limit (avoids frequent small trims)
 const TRIM_BUFFER = 10;
+
+/**
+ * The configured normal-buffer cap, clamped to a sane floor and the hard RAM
+ * ceiling. Read lazily from the auth store on each trim so live preference
+ * changes take effect without remounting chat. Falls back to the shipped
+ * default (100) when prefs are absent or non-finite.
+ */
+function resolveMessageLimit(): number {
+  const configured =
+    useAuthStore.getState().preferences?.chatDisplay?.messageLimit ??
+    DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit;
+  if (!Number.isFinite(configured)) {
+    return DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit;
+  }
+  return Math.min(MESSAGE_LIMIT_MAX, Math.max(MESSAGE_LIMIT_MIN, Math.floor(configured)));
+}
 
 // Batching configuration
 interface MessageBatch {
@@ -139,7 +163,7 @@ export const useChatStore = create<ChatState>()(
         }
 
         // Dynamic limit based on pause state
-        const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : MESSAGE_LIMIT_NORMAL;
+        const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : resolveMessageLimit();
 
         // Only trim when significantly over limit (reduces allocation frequency)
         const needsTrim = currentMessages.length >= maxMessages + TRIM_BUFFER;
@@ -205,7 +229,7 @@ export const useChatStore = create<ChatState>()(
 
       set((state) => {
         const currentMessages = state.messages;
-        const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : MESSAGE_LIMIT_NORMAL;
+        const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : resolveMessageLimit();
 
         // Dedup against existing store AND within this batch. The within-batch
         // case matters in multi-view: each KickChat/TwitchChat instance
@@ -257,7 +281,7 @@ export const useChatStore = create<ChatState>()(
         const fresh = incoming.filter((m) => !existing.has(m.id));
         if (fresh.length === 0) return state;
         const merged = [...fresh, ...state.messages];
-        const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : MESSAGE_LIMIT_NORMAL;
+        const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : resolveMessageLimit();
         if (merged.length > maxMessages) {
           // Keep the most recent `maxMessages` — same trim policy as addMessage.
           return { messages: merged.slice(-maxMessages) };

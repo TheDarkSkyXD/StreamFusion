@@ -30,7 +30,7 @@ interface MentionAutocompleteProps {
 }
 
 // Max messages to scan when building the chatter list. Caps per-tick work below
-// the chat-store's MESSAGE_LIMIT_NORMAL.
+// the chat-store's message buffer cap (configurable via chatDisplay.messageLimit).
 const RECENT_CHATTER_SCAN_LIMIT = 100;
 
 export interface RecentChatter {

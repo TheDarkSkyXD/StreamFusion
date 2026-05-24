@@ -1,7 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  DEFAULT_USER_PREFERENCES,
+  type UserPreferences,
+} from '@/shared/auth-types';
 import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from '@/shared/chat-types';
+import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
+
+// Hysteresis constants mirrored from chat-store.ts (not exported): trimming
+// fires at maxMessages + TRIM_BUFFER and trims back to maxMessages - TRIM_BUFFER.
+const TRIM_BUFFER = 10;
+const MESSAGE_LIMIT_MAX = 400;
+
+/**
+ * Set chatDisplay.messageLimit on the auth store so resolveMessageLimit() in
+ * chat-store reads it. Pass undefined to simulate "no chatDisplay configured"
+ * (the default-fallback path).
+ */
+function setMessageLimitPref(messageLimit: number | undefined): void {
+  const chatDisplay =
+    messageLimit === undefined
+      ? undefined
+      : ({ ...DEFAULT_CHAT_DISPLAY_PREFERENCES, messageLimit } as ChatDisplayPreferences);
+  const preferences = {
+    ...DEFAULT_USER_PREFERENCES,
+    // When messageLimit is undefined we omit chatDisplay entirely to exercise
+    // the `preferences?.chatDisplay?.messageLimit ?? default` fallback.
+    ...(chatDisplay ? { chatDisplay } : { chatDisplay: undefined }),
+  } as UserPreferences;
+  useAuthStore.setState({ preferences });
+}
 
 function resetStore(opts: { batching?: boolean; interval?: number } = {}): void {
   // First flush any leftover batches from prior tests, then reset.
@@ -186,5 +217,117 @@ describe('chat-store addMessageBatched', () => {
     // But the batch entry is deleted, so advancing time doesn't double-add.
     vi.advanceTimersByTime(1000);
     expect(useChatStore.getState().messages).toHaveLength(1);
+  });
+});
+
+describe('chat-store configurable message limit (U4)', () => {
+  beforeEach(() => {
+    resetStore(); // batching off — addMessage takes the direct path
+    setMessageLimitPref(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit);
+  });
+
+  afterEach(() => {
+    // Clear the pref leak so other suites see the default-fallback behavior.
+    useAuthStore.setState({ preferences: null });
+  });
+
+  function floodMessages(count: number): void {
+    const add = useChatStore.getState().addMessage;
+    for (let i = 0; i < count; i++) {
+      add(makeMessage(`m-${i}`));
+    }
+  }
+
+  it('keeps the buffer bounded at the configured limit via addMessage (AE3)', () => {
+    const N = 50;
+    setMessageLimitPref(N);
+    // Flood well past the cap so the trim path is exercised repeatedly.
+    floodMessages(N * 4);
+
+    const msgs = useChatStore.getState().messages;
+    // addMessage uses hysteresis: it only trims at N + TRIM_BUFFER, down to
+    // N - TRIM_BUFFER, so the length oscillates within that band and never
+    // exceeds N + TRIM_BUFFER. The buffer tracks the *configured* N, not the
+    // old hardcoded 100.
+    expect(msgs.length).toBeGreaterThan(0);
+    expect(msgs.length).toBeLessThanOrEqual(N + TRIM_BUFFER);
+    expect(msgs.length).toBeGreaterThanOrEqual(N - TRIM_BUFFER);
+    // The retained messages are the most recent ones (oldest pruned).
+    const ids = msgs.map((m) => m.id);
+    expect(ids).toContain(`m-${N * 4 - 1}`); // newest kept
+    expect(ids).not.toContain('m-0'); // oldest pruned
+  });
+
+  it('prunes to exactly the configured limit via prependMessages (AE3)', () => {
+    const N = 30;
+    setMessageLimitPref(N);
+    // prependMessages trims to exactly maxMessages (no hysteresis), so this is
+    // the clean "stays at N" assertion.
+    const batch = Array.from({ length: N + 1 }, (_, i) => makeMessage(`p-${i}`));
+    useChatStore.getState().prependMessages(batch);
+    expect(useChatStore.getState().messages).toHaveLength(N);
+  });
+
+  it('tracks a larger configured limit than the shipped default', () => {
+    // Guards against the limit being hardwired to 100: with N=200 the buffer
+    // must retain well beyond 100.
+    const N = 200;
+    setMessageLimitPref(N);
+    floodMessages(N + 5);
+    expect(useChatStore.getState().messages.length).toBeGreaterThan(150);
+    expect(useChatStore.getState().messages.length).toBeLessThanOrEqual(N + TRIM_BUFFER);
+  });
+
+  it('clamps a configured value above the hard max down to 400', () => {
+    setMessageLimitPref(10_000);
+    // Use prependMessages for the exact-cap assertion. The effective cap is
+    // MESSAGE_LIMIT_MAX (400), not 10_000.
+    const batch = Array.from({ length: MESSAGE_LIMIT_MAX + 50 }, (_, i) => makeMessage(`p-${i}`));
+    useChatStore.getState().prependMessages(batch);
+    expect(useChatStore.getState().messages).toHaveLength(MESSAGE_LIMIT_MAX);
+  });
+
+  it('clamps a configured value below the floor up to the minimum', () => {
+    // Floor is 10. A configured value of 2 must clamp up so a 1-message buffer
+    // isn't enforced.
+    setMessageLimitPref(2);
+    const batch = Array.from({ length: 20 }, (_, i) => makeMessage(`p-${i}`));
+    useChatStore.getState().prependMessages(batch);
+    // Clamped floor is 10, so exactly 10 are retained (not 2).
+    expect(useChatStore.getState().messages).toHaveLength(10);
+  });
+
+  it('falls back to the default 100 when chatDisplay is not configured', () => {
+    setMessageLimitPref(undefined); // no chatDisplay group
+    const batch = Array.from({ length: 150 }, (_, i) => makeMessage(`p-${i}`));
+    useChatStore.getState().prependMessages(batch);
+    // Default messageLimit is 100.
+    expect(useChatStore.getState().messages).toHaveLength(100);
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit).toBe(100);
+  });
+
+  it('retains the larger paused buffer and does not lose messages on resume', () => {
+    // Normal cap small so we can prove the paused buffer (400) is in force.
+    const N = 50;
+    setMessageLimitPref(N);
+
+    useChatStore.getState().setPaused(true);
+    // Seed 300 messages while paused — well above the normal cap but under the
+    // paused cap (400 + TRIM_BUFFER), so none should be trimmed.
+    const batch = Array.from({ length: 300 }, (_, i) => makeMessage(`p-${i}`));
+    useChatStore.getState().prependMessages(batch);
+    expect(useChatStore.getState().messages).toHaveLength(300);
+
+    // Resuming must NOT retroactively trim the buffer — the paused content is
+    // preserved until the next trim-triggering add brings it back toward N.
+    useChatStore.getState().setPaused(false);
+    expect(useChatStore.getState().messages).toHaveLength(300);
+
+    // A subsequent add (now unpaused) trims toward the configured normal cap.
+    useChatStore.getState().addMessage(makeMessage('live-1'));
+    const len = useChatStore.getState().messages.length;
+    expect(len).toBeLessThanOrEqual(N + TRIM_BUFFER);
+    // The newest message survives the trim.
+    expect(useChatStore.getState().messages.map((m) => m.id)).toContain('live-1');
   });
 });
