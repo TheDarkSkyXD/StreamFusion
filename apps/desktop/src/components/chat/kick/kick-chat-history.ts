@@ -28,6 +28,8 @@ import {
   parseKickChatMessage,
   type SubscriberBadge,
 } from "../../../backend/services/chat/kick-parser";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
+import { useAuthStore } from "../../../store/auth-store";
 
 export interface SeedKickChatHistoryParams {
   /** Kick channel's internal db id (from `UnifiedChannel.id`). */
@@ -53,6 +55,17 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
   const { channelId, channel, isMounted, prependMessages, subscriberBadges, onPinnedMessage } =
     params;
 
+  // U5 — `recentMessagesOnJoin` gates the recent-message seed; `recentMessagesLimit`
+  // caps how many seed. The pinned-message restore below is a distinct feature
+  // (its own banner) and is not gated by this toggle.
+  const cd =
+    useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  const seedRecent = cd.recentMessagesOnJoin;
+  const limit =
+    Number.isFinite(cd.recentMessagesLimit) && cd.recentMessagesLimit > 0
+      ? Math.floor(cd.recentMessagesLimit)
+      : DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
+
   try {
     const result = await window.electronAPI.chat.getKickHistory({ channelId });
     if (!isMounted()) return;
@@ -60,13 +73,16 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
 
     const { messages: rawMessages, pinnedMessage: rawPinned } = result.data;
 
-    if (rawMessages.length > 0) {
+    if (seedRecent && rawMessages.length > 0) {
       // v2 returns newest-first; reverse so the prepended block lands in
       // chronological order (oldest at the top, newest just above the
-      // already-stored Connecting/live entries).
+      // already-stored Connecting/live entries). Cap to the most-recent
+      // `limit` entries — slice the head of the newest-first array before
+      // reversing so the kept block is the freshest.
+      const sourced = rawMessages.length > limit ? rawMessages.slice(0, limit) : rawMessages;
       const parsed: ChatMessage[] = [];
-      for (let i = rawMessages.length - 1; i >= 0; i--) {
-        const raw = rawMessages[i];
+      for (let i = sourced.length - 1; i >= 0; i--) {
+        const raw = sourced[i];
         let parsedMetadata: KickChatMessageEvent["metadata"];
         if (raw.metadata) {
           try {

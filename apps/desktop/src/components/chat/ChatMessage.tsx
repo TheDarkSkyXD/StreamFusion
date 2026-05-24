@@ -103,6 +103,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
   const isDeleted = message.isDeleted;
 
   if (message.type === "ban" && message.banInfo) {
+    // U5 — the timeout/ban notice belongs to the clear-chat event family
+    // (emitted as a ClearChat with a targetUserId). When the viewer has
+    // disabled chat-clear notices, suppress the whole line.
+    if (!cd.showClearChat) return null;
     const { bannedUsername, bannedByUsername, lastMessage, duration } = message.banInfo;
     const actionText = duration ? `timed out for ${formatDuration(duration)}` : "permanently banned";
     return (
@@ -130,6 +134,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
   }
 
   if (isDeleted) {
+    // U5 — the "Message deleted" tombstone is the single-message-deletion
+    // notice. When the viewer has disabled it, drop the row entirely rather
+    // than leaving a placeholder.
+    if (!cd.showClearMsg) return null;
     return (
       <div className="px-4 py-1 text-sm text-gray-500 italic opacity-50" style={style}>
         Message deleted
@@ -137,9 +145,21 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
     );
   }
 
+  // U5 — first-time-chatter highlight. `isHighlighted` also marks system /
+  // connection / notice lines (which set it for their own styling); the
+  // viewer toggle only governs the highlight on real chat messages, so gate
+  // on `type === "message"` to leave system-line styling untouched.
+  const showHighlight =
+    message.isHighlighted && (message.type !== "message" || cd.firstMsgHighlight);
+
+  // U5 — when `systemMessageEmotes` is off, emotes inside system / notice
+  // lines render as their literal name instead of an image. Regular chat
+  // messages are unaffected.
+  const renderEmotesAsText = message.type === "system" && !cd.systemMessageEmotes;
+
   return (
     <div
-      className={`group relative ${densityClass} hover:bg-white/5 ${message.isHighlighted ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
+      className={`group relative ${densityClass} hover:bg-white/5 ${showHighlight ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
       style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}
     >
       <div className="break-words">
@@ -189,6 +209,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
               key={fragmentKey(fragment, index)}
               fragment={fragment}
               platform={message.platform}
+              renderEmotesAsText={renderEmotesAsText}
             />
           ))}
         </span>
@@ -309,13 +330,21 @@ const Timestamp: React.FC<{ timestamp: Date; format: TimestampFormat }> = memo(
 Timestamp.displayName = "Timestamp";
 
 // Memoized message fragment component
-const MessageFragment: React.FC<{ fragment: ContentFragment; platform: "twitch" | "kick" }> = memo(
-  ({ fragment, platform }) => {
+const MessageFragment: React.FC<{
+  fragment: ContentFragment;
+  platform: "twitch" | "kick";
+  /** U5 — render emote fragments as their literal name (system-message-emotes off). */
+  renderEmotesAsText?: boolean;
+}> = memo(
+  ({ fragment, platform, renderEmotesAsText }) => {
     switch (fragment.type) {
       case "text":
         return <span>{fragment.content}</span>;
 
       case "emote":
+        if (renderEmotesAsText) {
+          return <span>{fragment.name}</span>;
+        }
         return (
           <ChatEmote
             id={fragment.id}

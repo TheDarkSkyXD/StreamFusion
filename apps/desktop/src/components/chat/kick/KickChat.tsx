@@ -125,6 +125,18 @@ export const KickChat: React.FC<KickChatProps> = ({
   // instant the user signs in or out via the ProfileDropdown — no page
   // refresh required.
   const isAuthenticated = useAuthStore((state) => state.kickConnected);
+  // U5 — gate the in-chat poll + prediction widgets on viewer prefs. Reactive
+  // selectors so toggling them live shows/hides the widget without remounting.
+  const showPolls = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.showPolls ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPolls,
+  );
+  const showPredictions = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.showPredictions ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPredictions,
+  );
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
@@ -488,6 +500,13 @@ export const KickChat: React.FC<KickChatProps> = ({
 
     const handleUserNotice = (notice: UserNotice) => {
       if (notice.platform !== "kick") return;
+      // U5 — viewer can hide sub / gifted-sub / host-raid lines. Read prefs
+      // imperatively so this handler isn't re-registered (and Pusher isn't
+      // resubscribed) on every preference change.
+      const cd =
+        useAuthStore.getState().preferences?.chatDisplay ??
+        DEFAULT_CHAT_DISPLAY_PREFERENCES;
+      if (!cd.showUserNotices) return;
       const systemMessage: ChatMessage = {
         id: notice.id,
         platform: notice.platform,
@@ -516,9 +535,16 @@ export const KickChat: React.FC<KickChatProps> = ({
 
     const handleClearChat = (clear: ClearChat) => {
       if (clear.platform !== "kick") return;
+      // U5 — `showClearChat` gates the chat-cleared NOTICE line, not the
+      // moderation effect: the messages are still removed, only the "Chat was
+      // cleared" / ban marker is hidden.
+      const cd =
+        useAuthStore.getState().preferences?.chatDisplay ??
+        DEFAULT_CHAT_DISPLAY_PREFERENCES;
 
       if (clear.isClearAll) {
         clearMessages(clear.platform);
+        if (!cd.showClearChat) return;
         addMessage({
           id: crypto.randomUUID(),
           platform: clear.platform,
@@ -696,7 +722,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     <div className="flex flex-col h-full w-full">
       {/* Prediction Banner (U6) — read-only viewer widget. Fed by U4 in
           production (TBD) and by ChatSimTool dev injection today. */}
-      {activePrediction && (
+      {showPredictions && activePrediction && (
         <PredictionBanner
           prediction={activePrediction}
           onAutoDismiss={handlePredictionAutoDismiss}
@@ -743,7 +769,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       )}
 
       {/* Poll Widget */}
-      {activePoll && showPoll && (
+      {showPolls && activePoll && showPoll && (
         <KickPollWidget
           poll={activePoll}
           isExpanded={isPollExpanded}

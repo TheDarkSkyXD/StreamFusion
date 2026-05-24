@@ -55,6 +55,11 @@ export function StreamPage() {
   // so the raw pct is undefined until prefs hydrate (see seed effect below).
   const persistedChatWidthPct = useAuthStore((s) => s.preferences?.chatDisplay?.chatWidthPct);
   const updatePreferences = useAuthStore((s) => s.updatePreferences);
+  // U5 — hide-chat-panel reuses the existing ChatPreferences.position field.
+  // When "hidden" the panel (and the chat service it mounts) is never
+  // rendered, so there's no socket to tear down — the safe path per the
+  // websocket-connecting-state learning. The toggle that SETS this lives in U6.
+  const isChatHidden = useAuthStore((s) => s.preferences?.chat?.position === "hidden");
 
   // Chat Resizing Logic. Seed from the persisted chatWidthPct (lazy init reads
   // window.innerWidth once); if prefs aren't loaded yet, start at the default %.
@@ -480,30 +485,35 @@ export function StreamPage() {
         </div>
       </div>
 
-      {/* Resize Handle */}
-      {/* We use a slightly wider invisible hit area for easier grabbing */}
-      <div className="relative z-20 shrink-0">
-        <div
-          className="absolute inset-y-0 -left-1 w-2 cursor-ew-resize"
-          onMouseDown={startResizing}
-        />
-        <div className="w-1 h-full bg-[var(--color-border)] hover:bg-[var(--color-primary)] transition-colors" />
-      </div>
+      {/* Resize Handle + Chat Panel — hidden entirely when the viewer set
+          chat position to "hidden" (U5). Not rendering the panel keeps the
+          chat service unmounted, so there's no CONNECTING socket to tear down. */}
+      {!isChatHidden && (
+        <>
+          {/* We use a slightly wider invisible hit area for easier grabbing */}
+          <div className="relative z-20 shrink-0">
+            <div
+              className="absolute inset-y-0 -left-1 w-2 cursor-ew-resize"
+              onMouseDown={startResizing}
+            />
+            <div className="w-1 h-full bg-[var(--color-border)] hover:bg-[var(--color-primary)] transition-colors" />
+          </div>
 
-      {/* Chat Panel */}
-      <div
-        style={{ width: chatWidth }}
-        className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
-      >
-        <ChatPanel
-          initialPlatform={platform as "twitch" | "kick"}
-          initialChannel={channelName}
-          channelId={channelData?.id}
-          chatroomId={platform === "kick" ? channelData?.chatroomId : undefined}
-          kickUserId={platform === "kick" ? channelData?.kickUserId : undefined}
-          subscriberBadges={memoizedSubscriberBadges}
-        />
-      </div>
+          <div
+            style={{ width: chatWidth }}
+            className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
+          >
+            <ChatPanel
+              initialPlatform={platform as "twitch" | "kick"}
+              initialChannel={channelName}
+              channelId={channelData?.id}
+              chatroomId={platform === "kick" ? channelData?.chatroomId : undefined}
+              kickUserId={platform === "kick" ? channelData?.kickUserId : undefined}
+              subscriberBadges={memoizedSubscriberBadges}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -164,6 +164,125 @@ describe('ChatMessage chatDisplay appearance (U2)', () => {
   });
 });
 
+describe('ChatMessage event/notice visibility (U5)', () => {
+  function banMessage(): ChatMessageType {
+    return baseMessage({
+      type: 'ban',
+      banInfo: {
+        bannedUsername: 'spammer',
+        bannedByUsername: 'mod',
+        duration: 600,
+        lastMessage: 'lol',
+      },
+    }) as ChatMessageType;
+  }
+
+  it('renders the ban/timeout notice by default (showClearChat true)', () => {
+    render(<ChatMessage message={banMessage()} />);
+    expect(screen.getByText('spammer')).toBeInTheDocument();
+  });
+
+  it('hides the ban/timeout notice when showClearChat is false', () => {
+    setChatDisplay({ showClearChat: false });
+    const { container } = render(<ChatMessage message={banMessage()} />);
+    expect(screen.queryByText('spammer')).toBeNull();
+    // The whole row is suppressed, not just the text.
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('renders the "Message deleted" tombstone by default (showClearMsg true)', () => {
+    render(<ChatMessage message={baseMessage({ isDeleted: true })} />);
+    expect(screen.getByText(/message deleted/i)).toBeInTheDocument();
+  });
+
+  it('hides the deletion tombstone when showClearMsg is false', () => {
+    setChatDisplay({ showClearMsg: false });
+    const { container } = render(<ChatMessage message={baseMessage({ isDeleted: true })} />);
+    expect(screen.queryByText(/message deleted/i)).toBeNull();
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('applies the first-message highlight on a highlighted chat message by default', () => {
+    const { container } = render(
+      <ChatMessage message={baseMessage({ isHighlighted: true })} />
+    );
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.className).toContain('border-purple-500');
+  });
+
+  it('removes the highlight on a chat message when firstMsgHighlight is false', () => {
+    setChatDisplay({ firstMsgHighlight: false });
+    const { container } = render(
+      <ChatMessage message={baseMessage({ isHighlighted: true })} />
+    );
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.className).not.toContain('border-purple-500');
+  });
+
+  it('keeps the highlight on system lines even when firstMsgHighlight is false', () => {
+    // System / connection / notice lines set isHighlighted for their own
+    // styling; the viewer toggle only governs real chat messages.
+    setChatDisplay({ firstMsgHighlight: false });
+    const { container } = render(
+      <ChatMessage
+        message={baseMessage({
+          type: 'system',
+          isHighlighted: true,
+          content: [{ type: 'text', content: 'Connected to the channel' }],
+        })}
+      />
+    );
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.className).toContain('border-purple-500');
+  });
+
+  it('renders emotes in a system message as text when systemMessageEmotes is false', () => {
+    setChatDisplay({ systemMessageEmotes: false });
+    render(
+      <ChatMessage
+        message={baseMessage({
+          type: 'system',
+          content: [
+            { type: 'text', content: 'new sub! ' },
+            { type: 'emote', id: 'e1', name: 'PogChamp', url: 'https://example.com/pog.png' },
+          ],
+        })}
+      />
+    );
+    // The emote name shows as text; no <img> is rendered for it.
+    expect(screen.getByText('PogChamp')).toBeInTheDocument();
+    expect(screen.queryByAltText('PogChamp')).toBeNull();
+  });
+
+  it('renders emotes in a system message as images when systemMessageEmotes is true (default)', () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          type: 'system',
+          content: [
+            { type: 'emote', id: 'e1', name: 'PogChamp', url: 'https://example.com/pog.png' },
+          ],
+        })}
+      />
+    );
+    expect(screen.getByAltText('PogChamp')).toBeInTheDocument();
+  });
+
+  it('renders emotes normally in a regular chat message regardless of systemMessageEmotes', () => {
+    setChatDisplay({ systemMessageEmotes: false });
+    render(
+      <ChatMessage
+        message={baseMessage({
+          content: [
+            { type: 'emote', id: 'e1', name: 'Kappa', url: 'https://example.com/kappa.png' },
+          ],
+        })}
+      />
+    );
+    expect(screen.getByAltText('Kappa')).toBeInTheDocument();
+  });
+});
+
 describe('ChatMessage mod toolbar (U10)', () => {
   const allCallbacks = () => ({
     onTimeout: vi.fn(),

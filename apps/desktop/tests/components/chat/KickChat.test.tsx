@@ -2,6 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installElectronAPIMock } from '../../test-utils';
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+} from '@/shared/auth-types';
 
 // U11 — capture ChatMessageList callbacks so tests can simulate toolbar clicks.
 const lastListProps: {
@@ -27,26 +31,44 @@ vi.mock('@/hooks/useIsKickMod', () => ({
   useIsKickMod: () => true,
 }));
 
+// Mutable chatDisplay prefs the mocked auth store hands back. Tests flip
+// individual U5 flags via setMockChatDisplay() before rendering.
+const mockChatDisplay: { value: ChatDisplayPreferences } = {
+  value: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES },
+};
+function setMockChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
+  mockChatDisplay.value = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...overrides };
+}
+
 vi.mock('@/store/auth-store', () => {
   // KickChat's `isAuthenticated` is a useAuthStore selector reading
   // `kickConnected && !kickReconnectRequired` (commit 9c4bbf7). Without
   // these fields the selector returns `undefined` and `canSend` collapses
   // to `undefined` instead of a boolean.
-  const state = {
+  //
+  // `preferences.chatDisplay` is read reactively (showPolls/showPredictions
+  // selectors) and imperatively (handleUserNotice via getState()), so the
+  // getter pulls from the mutable holder above on every access.
+  const buildState = () => ({
     kickUser: { id: 42, username: 'modder', slug: 'modder' },
     kickConnected: false,
     kickReconnectRequired: false,
     twitchConnected: false,
     twitchReconnectRequired: false,
-  };
-  const useAuthStore = (selector?: (s: typeof state) => unknown) => {
+    preferences: { chatDisplay: mockChatDisplay.value },
+  });
+  const useAuthStore = (selector?: (s: ReturnType<typeof buildState>) => unknown) => {
+    const state = buildState();
     return selector ? selector(state) : state;
   };
-  (useAuthStore as unknown as { getState: () => typeof state }).getState = () =>
-    state;
+  (useAuthStore as unknown as { getState: () => ReturnType<typeof buildState> }).getState =
+    () => buildState();
   return { useAuthStore };
 });
 
+// Capture chat-service event handlers so tests can fire userNotice /
+// pollUpdate / predictionUpdate without a real Pusher connection.
+const mockServiceHandlers: Record<string, ((arg: unknown) => void) | undefined> = {};
 vi.mock('@/backend/services/chat/kick-chat', () => ({
   kickChatService: {
     connect: vi.fn(async () => true),
@@ -56,16 +78,39 @@ vi.mock('@/backend/services/chat/kick-chat', () => ({
     release: vi.fn(() => undefined),
     isConnected: vi.fn(() => false),
     sendMessage: vi.fn(async () => true),
-    on: vi.fn(),
-    off: vi.fn(),
+    joinChannel: vi.fn(async () => true),
+    setChannelBadges: vi.fn(),
+    emit: vi.fn(),
+    on: vi.fn((event: string, handler: (arg: unknown) => void) => {
+      mockServiceHandlers[event] = handler;
+    }),
+    off: vi.fn((event: string) => {
+      mockServiceHandlers[event] = undefined;
+    }),
     onMessage: vi.fn(() => () => {}),
     onConnectionStateChange: vi.fn(() => () => {}),
+  },
+}));
+
+// Predictions service acquires a Pusher channel on mount; stub it so the unit
+// test stays offline. U5's prediction path is driven via the predictionUpdate
+// handler, not the real service.
+vi.mock('@/backend/services/chat/kick-predictions-service', () => ({
+  kickPredictionsService: {
+    acquire: vi.fn(async () => undefined),
+    release: vi.fn(() => undefined),
   },
 }));
 
 vi.mock('@/backend/services/emotes', () => ({
   initializeTwitchEmotes: vi.fn(),
   initializeKickEmotes: vi.fn(),
+}));
+
+// Stub the prediction banner to a marker so U5's showPredictions gate can be
+// asserted without the real countdown / dismiss internals.
+vi.mock('@/components/chat/PredictionBanner', () => ({
+  PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
 }));
 
 const storeState = {
@@ -149,6 +194,9 @@ describe('KickChat', () => {
     unbanKickUserMock.mockReset();
     deleteKickMessageMock.mockReset();
     loadGlobalEmotesMock.mockReset();
+    storeState.addMessage = vi.fn();
+    setMockChatDisplay({});
+    for (const k of Object.keys(mockServiceHandlers)) delete mockServiceHandlers[k];
   });
 
   it('renders message list and chat input', () => {
@@ -222,5 +270,103 @@ describe('KickChat', () => {
     await waitFor(() => expect(timeoutKickUserMock).toHaveBeenCalledTimes(1));
     // 10 seconds / 60 → 0 minutes; Math.max(1, …) clamps to 1.
     expect(timeoutKickUserMock.mock.calls[0][0]).toMatchObject({ duration: 1 });
+  });
+
+  // ---------- U5 — event/notice visibility + poll/prediction widgets ----------
+  const addMessageCalledWithText = (text: string): boolean =>
+    (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+      (call: unknown[]) => {
+        const msg = call[0] as { content?: Array<{ content?: string }> } | undefined;
+        return msg?.content?.[0]?.content === text;
+      },
+    );
+
+  const fakeNotice = {
+    id: 'k-notice-1',
+    platform: 'kick' as const,
+    channel: 'xqc',
+    type: 'sub' as const,
+    userId: 'k-sub',
+    username: 'subber',
+    displayName: 'Subber',
+    systemMessage: 'subber just subscribed',
+    timestamp: new Date(),
+  };
+
+  const fakePoll = {
+    title: 'Best emote?',
+    options: [
+      { id: 1, label: 'A', votes: 3 },
+      { id: 2, label: 'B', votes: 5 },
+    ],
+    remaining: 30,
+    duration: 60,
+  };
+
+  const fakePrediction = {
+    id: 'k-pred-1',
+    platform: 'kick',
+    channelId: '12345',
+    channelSlug: 'xqc',
+    title: 'Win or lose?',
+    status: 'ACTIVE',
+    outcomes: [],
+    winningOutcomeId: null,
+    predictionWindowSeconds: 60,
+    endedAt: null,
+    viewerOutcomeId: null,
+    viewerStake: null,
+  } as const;
+
+  it('adds a sub notice to the store by default (showUserNotices true)', () => {
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    expect(mockServiceHandlers.userNotice).toBeTypeOf('function');
+    act(() => {
+      mockServiceHandlers.userNotice?.(fakeNotice);
+    });
+    expect(addMessageCalledWithText('subber just subscribed')).toBe(true);
+  });
+
+  it('suppresses sub notices when showUserNotices is false', () => {
+    setMockChatDisplay({ showUserNotices: false });
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    act(() => {
+      mockServiceHandlers.userNotice?.(fakeNotice);
+    });
+    expect(addMessageCalledWithText('subber just subscribed')).toBe(false);
+  });
+
+  it('renders the poll widget when a poll arrives (showPolls true)', () => {
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    act(() => {
+      mockServiceHandlers.pollUpdate?.(fakePoll);
+    });
+    expect(screen.getByText('Best emote?')).toBeInTheDocument();
+  });
+
+  it('hides the poll widget when showPolls is false', () => {
+    setMockChatDisplay({ showPolls: false });
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    act(() => {
+      mockServiceHandlers.pollUpdate?.(fakePoll);
+    });
+    expect(screen.queryByText('Best emote?')).toBeNull();
+  });
+
+  it('renders the prediction banner when a prediction arrives (showPredictions true)', () => {
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    act(() => {
+      mockServiceHandlers.predictionUpdate?.(fakePrediction);
+    });
+    expect(screen.getByTestId('prediction-banner')).toBeInTheDocument();
+  });
+
+  it('hides the prediction banner when showPredictions is false', () => {
+    setMockChatDisplay({ showPredictions: false });
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    act(() => {
+      mockServiceHandlers.predictionUpdate?.(fakePrediction);
+    });
+    expect(screen.queryByTestId('prediction-banner')).toBeNull();
   });
 });

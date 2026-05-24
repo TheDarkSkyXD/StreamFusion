@@ -17,7 +17,9 @@
 
 import { parseRawTwitchIrcLine } from "../../../backend/services/chat/twitch-irc-parser";
 import { parseTwitchMessage } from "../../../backend/services/chat/twitch-parser";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
 import type { ChatMessage } from "../../../shared/chat-types";
+import { useAuthStore } from "../../../store/auth-store";
 
 export interface SeedTwitchChatHistoryParams {
   /** Channel login (slug) — recent-messages.robotty.de takes the login, not the broadcaster id. */
@@ -35,6 +37,17 @@ export interface SeedTwitchChatHistoryParams {
  */
 export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams): Promise<void> {
   const { channel, isMounted, prependMessages } = params;
+
+  // U5 — viewer can disable history-on-join entirely, or cap how many recent
+  // messages seed. Read prefs imperatively (this is a module function, not a
+  // component) and bail before the network fetch when seeding is off.
+  const cd =
+    useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  if (!cd.recentMessagesOnJoin) return;
+  const limit =
+    Number.isFinite(cd.recentMessagesLimit) && cd.recentMessagesLimit > 0
+      ? Math.floor(cd.recentMessagesLimit)
+      : DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
 
   try {
     const result = await window.electronAPI.chat.getTwitchHistory({ channel });
@@ -90,7 +103,10 @@ export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams)
       }
     }
 
-    if (parsed.length > 0) prependMessages(parsed);
+    // Cap to the most-recent `limit` entries. `parsed` is oldest-first, so the
+    // tail is the newest — keep those so the seed lands the freshest context.
+    const capped = parsed.length > limit ? parsed.slice(-limit) : parsed;
+    if (capped.length > 0) prependMessages(capped);
   } catch (error) {
     console.debug("[seedTwitchChatHistory] failed:", error);
   }

@@ -2,6 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installElectronAPIMock } from '../../test-utils';
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+} from '@/shared/auth-types';
 
 // U11 — capture the latest ChatMessageList props so tests can simulate a
 // toolbar click without rendering the full message virtuoso.
@@ -38,30 +42,47 @@ vi.mock('@/hooks/useIsTwitchMod', () => ({
   useIsTwitchMod: () => true,
 }));
 
+// Mutable chatDisplay prefs the mocked auth store hands back. Tests flip
+// individual U5 flags via setMockChatDisplay() before rendering. Reset in
+// beforeEach so flags don't leak between tests.
+const mockChatDisplay: { value: ChatDisplayPreferences } = {
+  value: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES },
+};
+function setMockChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
+  mockChatDisplay.value = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...overrides };
+}
+
 vi.mock('@/store/auth-store', () => {
   // TwitchChat's `isAuthenticated` is a useAuthStore selector reading
   // `twitchConnected && !twitchReconnectRequired` (commit 9c4bbf7). The
   // mock has to expose those fields or the selector returns `undefined`
   // and `canSend` becomes `undefined && bool === undefined` — which masks
   // the booleanness the chat input gate depends on.
-  const state = {
+  //
+  // `preferences.chatDisplay` is read both reactively (showPredictions
+  // selector) and imperatively (handleUserNotice via getState()), so the
+  // getter pulls from the mutable holder above on every access.
+  const buildState = () => ({
     twitchUser: { id: 'mod-1', login: 'modder', displayName: 'Modder' },
     twitchConnected: false,
     twitchReconnectRequired: false,
     kickConnected: false,
     kickReconnectRequired: false,
-  };
-  const useAuthStore = (selector?: (s: typeof state) => unknown) => {
+    preferences: { chatDisplay: mockChatDisplay.value },
+  });
+  const useAuthStore = (selector?: (s: ReturnType<typeof buildState>) => unknown) => {
+    const state = buildState();
     return selector ? selector(state) : state;
   };
-  // useTwitchEventSub (mounted via mod tabs) calls
-  // useAuthStore.getState() — provide a static version so the new mod tabs
-  // don't crash the existing TwitchChat tests.
-  (useAuthStore as unknown as { getState: () => typeof state }).getState = () =>
-    state;
+  (useAuthStore as unknown as { getState: () => ReturnType<typeof buildState> }).getState =
+    () => buildState();
   return { useAuthStore };
 });
 
+// Capture the chat-service event handlers so tests can fire userNotice /
+// predictionUpdate without a real socket. Keyed by event name; `on` records,
+// `off` clears.
+const mockServiceHandlers: Record<string, ((arg: unknown) => void) | undefined> = {};
 vi.mock('@/backend/services/chat/twitch-chat', () => ({
   twitchChatService: {
     connect: vi.fn(async () => true),
@@ -71,8 +92,13 @@ vi.mock('@/backend/services/chat/twitch-chat', () => ({
     release: vi.fn(() => undefined),
     isConnected: vi.fn(() => false),
     sendMessage: vi.fn(async () => true),
-    on: vi.fn(),
-    off: vi.fn(),
+    on: vi.fn((event: string, handler: (arg: unknown) => void) => {
+      mockServiceHandlers[event] = handler;
+    }),
+    off: vi.fn((event: string) => {
+      mockServiceHandlers[event] = undefined;
+    }),
+    emit: vi.fn(),
     onMessage: vi.fn(() => () => {}),
     onConnectionStateChange: vi.fn(() => () => {}),
     // Needed so the connect-effect doesn't short-circuit on an undefined
@@ -86,6 +112,18 @@ vi.mock('@/backend/services/chat/twitch-chat', () => ({
 vi.mock('@/backend/services/emotes', () => ({
   initializeTwitchEmotes: vi.fn(),
   initializeKickEmotes: vi.fn(),
+}));
+
+// The Hermes client opens a real WebSocket on start(); stub it so the unit
+// test neither hits the network nor surfaces undici's async WS errors. U5's
+// prediction path is exercised by firing the predictionUpdate service handler.
+vi.mock('@/backend/services/chat/twitch-hermes-client', () => ({
+  TwitchHermesClient: class {
+    on() {}
+    off() {}
+    start() {}
+    stop() {}
+  },
 }));
 
 const storeState = {
@@ -150,7 +188,29 @@ vi.mock('@/components/chat/ChatInput', () => ({
   },
 }));
 
+// Stub the prediction banner to a marker so U5's showPredictions gate can be
+// asserted without the real countdown / dismiss internals.
+vi.mock('@/components/chat/PredictionBanner', () => ({
+  PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
+}));
+
 import { TwitchChat } from '@/components/chat/twitch/TwitchChat';
+
+// Minimal active prediction matching the channelId the multiview gate compares.
+const fakePrediction = {
+  id: 'pred-1',
+  platform: 'twitch',
+  channelId: 'ninja-id',
+  channelSlug: 'ninja',
+  title: 'Who wins?',
+  status: 'ACTIVE',
+  outcomes: [],
+  winningOutcomeId: null,
+  predictionWindowSeconds: 60,
+  endedAt: null,
+  viewerOutcomeId: null,
+  viewerStake: null,
+} as const;
 
 describe('TwitchChat', () => {
   beforeEach(() => {
@@ -171,6 +231,10 @@ describe('TwitchChat', () => {
     deleteChatMessageMock.mockReset();
     promptReconnectMock.mockReset();
     loadGlobalEmotesMock.mockReset();
+    storeState.addMessage = vi.fn();
+    storeState.clearMessages = vi.fn();
+    setMockChatDisplay({});
+    for (const k of Object.keys(mockServiceHandlers)) delete mockServiceHandlers[k];
   });
 
   it('renders message list and chat input', () => {
@@ -263,5 +327,96 @@ describe('TwitchChat', () => {
         missingScopes: ['moderator:manage:banned_users'],
       }),
     );
+  });
+
+  // ---------- U5 — event/notice visibility + prediction widget ----------
+  const fakeNotice = {
+    id: 'notice-1',
+    platform: 'twitch' as const,
+    channel: 'ninja',
+    type: 'sub' as const,
+    userId: 'u-sub',
+    username: 'subber',
+    displayName: 'Subber',
+    systemMessage: 'Subber subscribed!',
+    timestamp: new Date(),
+  };
+
+  // The async connect-flow also calls addMessage ("Connecting…"), so assert on
+  // the message CONTENT rather than the call count — this isolates the
+  // notice/clear lines from connect-flow noise. The handler binds to the
+  // render-time addMessage mock, so the mock must stay stable (no reassign).
+  const addMessageCalledWithText = (text: string): boolean =>
+    (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+      (call: unknown[]) => {
+        const msg = call[0] as { content?: Array<{ content?: string }> } | undefined;
+        return msg?.content?.[0]?.content === text;
+      },
+    );
+
+  it('adds a sub/raid notice to the store by default (showUserNotices true)', () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    expect(mockServiceHandlers.userNotice).toBeTypeOf('function');
+    act(() => {
+      mockServiceHandlers.userNotice?.(fakeNotice);
+    });
+    expect(addMessageCalledWithText('Subber subscribed!')).toBe(true);
+  });
+
+  it('suppresses sub/raid notices when showUserNotices is false', () => {
+    setMockChatDisplay({ showUserNotices: false });
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    act(() => {
+      mockServiceHandlers.userNotice?.(fakeNotice);
+    });
+    expect(addMessageCalledWithText('Subber subscribed!')).toBe(false);
+  });
+
+  it('still clears messages but suppresses the clear notice when showClearChat is false', () => {
+    setMockChatDisplay({ showClearChat: false });
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    act(() => {
+      mockServiceHandlers.clearChat?.({
+        platform: 'twitch',
+        channel: 'ninja',
+        isClearAll: true,
+        timestamp: new Date(),
+      });
+    });
+    // The moderation effect runs (chat is cleared for the platform)...
+    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch');
+    // ...but the "Chat was cleared" system line is not added.
+    expect(addMessageCalledWithText('Chat was cleared')).toBe(false);
+  });
+
+  it('adds the "Chat was cleared" notice by default (showClearChat true)', () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    act(() => {
+      mockServiceHandlers.clearChat?.({
+        platform: 'twitch',
+        channel: 'ninja',
+        isClearAll: true,
+        timestamp: new Date(),
+      });
+    });
+    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch');
+    expect(addMessageCalledWithText('Chat was cleared')).toBe(true);
+  });
+
+  it('renders the prediction banner when a prediction arrives (showPredictions true)', () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    act(() => {
+      mockServiceHandlers.predictionUpdate?.(fakePrediction);
+    });
+    expect(screen.getByTestId('prediction-banner')).toBeInTheDocument();
+  });
+
+  it('hides the prediction banner when showPredictions is false', () => {
+    setMockChatDisplay({ showPredictions: false });
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    act(() => {
+      mockServiceHandlers.predictionUpdate?.(fakePrediction);
+    });
+    expect(screen.queryByTestId('prediction-banner')).toBeNull();
   });
 });

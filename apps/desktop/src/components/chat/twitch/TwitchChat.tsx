@@ -142,6 +142,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const isAuthenticated = useAuthStore(
     (state) => state.twitchConnected && !state.twitchReconnectRequired,
   );
+  // U5 — gate the in-chat prediction widget on the viewer pref. Reactive
+  // selector so toggling it live shows/hides the banner without remounting.
+  const showPredictions = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.showPredictions ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPredictions,
+  );
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
@@ -477,6 +484,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     const handleUserNotice = (notice: UserNotice) => {
       if (notice.platform !== "twitch") return;
+      // U5 — viewer can hide sub / resub / raid / user-notice lines. Read
+      // prefs imperatively so this handler isn't re-registered (and the IRC
+      // socket isn't reconnected) on every preference change.
+      const cd =
+        useAuthStore.getState().preferences?.chatDisplay ??
+        DEFAULT_CHAT_DISPLAY_PREFERENCES;
+      if (!cd.showUserNotices) return;
       const systemMessage: ChatMessage = {
         id: notice.id,
         platform: notice.platform,
@@ -505,9 +519,16 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     const handleClearChat = (clear: ClearChat) => {
       if (clear.platform !== "twitch") return;
+      // U5 — `showClearChat` gates the chat-cleared NOTICE line, not the
+      // moderation effect itself: the messages are still removed (a mod
+      // cleared chat), only the "Chat was cleared" / ban marker is hidden.
+      const cd =
+        useAuthStore.getState().preferences?.chatDisplay ??
+        DEFAULT_CHAT_DISPLAY_PREFERENCES;
 
       if (clear.isClearAll) {
         clearMessages(clear.platform);
+        if (!cd.showClearChat) return;
         addMessage({
           id: crypto.randomUUID(),
           platform: clear.platform,
@@ -680,7 +701,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // dialogs stay outside the tab so they overlay regardless of tab.
   const chatBody = (
     <div className="flex flex-col h-full w-full">
-      {activePrediction && (
+      {showPredictions && activePrediction && (
         <PredictionBanner
           prediction={activePrediction}
           onAutoDismiss={handlePredictionAutoDismiss}
