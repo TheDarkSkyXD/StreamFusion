@@ -219,6 +219,13 @@ interface EmoteSectionProps {
   onEmoteClick: (emote: Emote) => void;
   onFavoriteClick: (emote: Emote) => void;
   isFavorite: (emoteId: string) => boolean;
+  /**
+   * The dialog's scrollable body. Used as the IntersectionObserver root so the
+   * infinite-scroll sentinel is measured against the picker's own viewport
+   * (not the browser window). Without it the observer can't tell the sentinel
+   * has scrolled out of the dialog and snowballs the whole list on open.
+   */
+  scrollRoot?: React.RefObject<HTMLElement | null>;
 }
 
 const EmoteSection: React.FC<EmoteSectionProps> = ({
@@ -229,6 +236,7 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
   onEmoteClick,
   onFavoriteClick,
   isFavorite,
+  scrollRoot,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -256,11 +264,11 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
           setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, emotes.length));
         }
       },
-      { threshold: 0.5, rootMargin: "20px" }
+      { root: scrollRoot?.current ?? null, threshold: 0.5, rootMargin: "20px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [isOpen, collapsedHeaderOnly, emotes.length, visibleCount]);
+  }, [isOpen, collapsedHeaderOnly, emotes.length, visibleCount, scrollRoot]);
 
   return (
     <div className="border-b border-[var(--color-border)] last:border-b-0">
@@ -435,6 +443,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   );
 
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -691,7 +700,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
       )}
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <EmoteSection
           title="Recent"
           emotes={recentInScope}
@@ -700,6 +709,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
           onEmoteClick={handleEmoteClick}
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
+          scrollRoot={scrollRef}
         />
         <EmoteSection
           title="Favorites"
@@ -709,6 +719,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
           onEmoteClick={handleEmoteClick}
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
+          scrollRoot={scrollRef}
         />
         {providerLists.map(({ provider, emotes }) => (
           <EmoteSection
@@ -719,6 +730,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
             onEmoteClick={handleEmoteClick}
             onFavoriteClick={toggleFavorite}
             isFavorite={isFavorite}
+            scrollRoot={scrollRef}
           />
         ))}
       </div>
