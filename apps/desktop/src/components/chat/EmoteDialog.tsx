@@ -482,12 +482,20 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   ]);
 
   /* --------------------------- focus on open --------------------------- */
+  // The dialog paints at top/left:-9999 until the positioning layout effect
+  // sets `position`. Focus once it is on-screen (position set) — gating on
+  // `position` (not a 100ms timer) avoids scrolling the off-screen input into
+  // view. `hasFocusedRef` keeps it to one focus per open.
+  const hasFocusedRef = useRef(false);
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      const t = setTimeout(() => searchInputRef.current?.focus(), 100);
-      return () => clearTimeout(t);
-    }
+    if (!isOpen) hasFocusedRef.current = false;
   }, [isOpen]);
+  useLayoutEffect(() => {
+    if (isOpen && position && !hasFocusedRef.current) {
+      hasFocusedRef.current = true;
+      searchInputRef.current?.focus();
+    }
+  }, [isOpen, position]);
 
   /* ---------------------------- positioning ---------------------------- */
   useLayoutEffect(() => {

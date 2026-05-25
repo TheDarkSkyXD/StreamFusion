@@ -390,4 +390,13 @@ describe('EmoteDialog', () => {
     fireEvent.click(star);
     expect(mockState.toggleFavorite).toHaveBeenCalledWith(emote);
   });
+
+  it('focuses the search input when opened', () => {
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
+    ]);
+    renderDialog({ scope: 'native', platform: 'kick' });
+    const input = screen.getByPlaceholderText(/search emotes/i);
+    expect(document.activeElement).toBe(input); // fails on old code: focus is on a 100ms timer
+  });
 });
