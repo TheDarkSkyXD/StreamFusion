@@ -393,6 +393,20 @@ describe('ChatInput — imperative handle', () => {
     expect(ta.value.startsWith('@alice ')).toBe(true);
   });
 
+  it('mentionUser focuses the textarea and sets the caret at the end (synchronously)', () => {
+    infoBannerImpl.mockReturnValue(null);
+    const ref = createRef<ChatInputHandle>();
+    render(
+      <ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />,
+    );
+    act(() => ref.current?.mentionUser('alice'));
+    const ta = screen.getByPlaceholderText(/send a message/i) as HTMLTextAreaElement;
+    expect(ta.value).toBe('@alice ');
+    expect(document.activeElement).toBe(ta); // fails on old code: focus is deferred to setTimeout(0)
+    expect(ta.selectionStart).toBe(ta.value.length);
+    expect(ta.selectionEnd).toBe(ta.value.length);
+  });
+
   it('replyTo sets the reply preview', () => {
     infoBannerImpl.mockReturnValue(null);
     const ref = createRef<ChatInputHandle>();

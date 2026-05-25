@@ -14,6 +14,7 @@
  */
 
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { BsReplyFill, BsXLg } from "react-icons/bs";
 import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
@@ -368,22 +369,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
       const trailing = after.startsWith(" ") || after.length === 0 ? "" : " ";
       const newMessage = `${before}${EMOTE_CHAR}${trailing}${after}`;
       const slotIndex = (before.match(new RegExp(EMOTE_CHAR, "g")) ?? []).length;
-      setEmoteSlots((prev) => [
-        ...prev.slice(0, slotIndex),
-        emote,
-        ...prev.slice(slotIndex),
-      ]);
-      setMessage(newMessage);
-
       const newCursorPos = insertAt + 1 + trailing.length;
-      setCursorPosition(newCursorPos);
-
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-        }
-      }, 0);
+      flushSync(() => {
+        setEmoteSlots((prev) => [
+          ...prev.slice(0, slotIndex),
+          emote,
+          ...prev.slice(slotIndex),
+        ]);
+        setMessage(newMessage);
+        setCursorPosition(newCursorPos);
+      });
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
 
       emoteAutocomplete.deactivate();
       setActiveDialog(null);
@@ -397,17 +396,15 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
       const before = message.slice(0, startPos);
       const after = message.slice(endPos);
       const newMessage = `${before}@${username} ${after}`;
-      setMessage(newMessage);
-
       const newCursorPos = startPos + username.length + 2;
-      setCursorPosition(newCursorPos);
-
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-        }
-      }, 0);
+      flushSync(() => {
+        setMessage(newMessage);
+        setCursorPosition(newCursorPos);
+      });
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
 
       mentionAutocomplete.deactivate();
     },
@@ -427,18 +424,18 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   }, []);
 
   const mentionUser = useCallback((username: string) => {
-    setMessage((prev) => {
-      const mention = `@${username} `;
-      return prev.startsWith(mention) ? prev : `${mention}${prev}`;
+    flushSync(() => {
+      setMessage((prev) => {
+        const mention = `@${username} `;
+        return prev.startsWith(mention) ? prev : `${mention}${prev}`;
+      });
     });
-    setTimeout(() => {
-      const el = inputRef.current;
-      if (el) {
-        el.focus();
-        const pos = el.value.length;
-        el.setSelectionRange(pos, pos);
-      }
-    }, 0);
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      const pos = el.value.length;
+      el.setSelectionRange(pos, pos);
+    }
   }, []);
 
   useImperativeHandle(
