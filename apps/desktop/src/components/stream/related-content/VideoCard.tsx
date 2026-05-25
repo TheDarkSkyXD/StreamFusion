@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import { memo, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { memo, useState, type MouseEvent } from "react";
 import { LuLock, LuPlay, LuSparkles } from "react-icons/lu";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
@@ -37,7 +37,9 @@ export const VideoCard = memo(function VideoCard({
   // so we use duration !== "0:00" to distinguish a finished recording from an active stream.
   const routeAsVod = !video.isLive || (Boolean(video.source) && video.duration !== "0:00");
 
-  const linkProps: any = {
+  const navigate = useNavigate();
+
+  const destination: any = {
     to: routeAsVod ? "/video/$platform/$videoId" : "/stream/$platform/$channel",
     params: routeAsVod
       ? {
@@ -65,15 +67,21 @@ export const VideoCard = memo(function VideoCard({
           isMature: video.isMature || undefined,
         }
       : undefined,
-    onClick: () => {
+  };
+
+  const linkProps: any = {
+    ...destination,
+    onClick: async (e: MouseEvent) => {
       if (!routeAsVod) {
-        // Use setTimeout to ensure scroll happens after any potential navigation/render updates
-        setTimeout(() => {
-          const scrollContainer = document.getElementById("main-content-scroll-area");
-          if (scrollContainer) {
-            scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
-          }
-        }, 50);
+        e.preventDefault();
+        try {
+          await navigate(destination);
+        } catch {
+          return;
+        }
+        document
+          .getElementById("main-content-scroll-area")
+          ?.scrollTo({ top: 0, behavior: "smooth" });
       }
     },
   };
