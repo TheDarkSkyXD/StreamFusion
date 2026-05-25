@@ -568,31 +568,40 @@ class TwitchManifestProxyService {
   }
 
   /**
-   * Try to get backup stream without ads
-   * Uses PARALLEL fetching for all player types to minimize blocking time
+   * Try to get backup stream without ads.
+   *
+   * Fires all player types concurrently but consumes their results in priority
+   * order (embed/popout serve Source quality; autoplay/picture-by-picture are
+   * capped at 360p by Twitch). Returns the highest-priority CLEAN backup as soon
+   * as it resolves, instead of waiting for the slowest player type to settle — a
+   * slow/timing-out type no longer delays a fast clean Source stream and starves
+   * the player into an ABR downshift.
    */
   private async tryGetBackupStream(
     streamInfo: ProxyStreamInfo,
     originalUrl: string
   ): Promise<string | null> {
-    // Fetch ALL player types in PARALLEL
+    // Start every player type in parallel...
     const backupPromises = BACKUP_PLAYER_TYPES.map((playerType) =>
       this.tryPlayerTypeBackup(streamInfo, originalUrl, playerType)
     );
 
-    // Wait for all to complete (each has its own timeout)
-    const results = await Promise.all(backupPromises);
-
-    // Find first CLEAN backup (no ads)
-    const cleanBackup = results.find((r) => r !== null && !this.detectAds(r.m3u8));
-    if (cleanBackup) {
-      console.debug(`[ManifestProxy] Using backup (${cleanBackup.playerType})`);
-      return cleanBackup.m3u8;
+    // ...but consume them in priority order and return on the first clean hit.
+    let firstAvailable: { playerType: PlayerType; m3u8: string } | null = null;
+    for (const promise of backupPromises) {
+      const result = await promise;
+      if (!result) continue;
+      if (!firstAvailable) {
+        firstAvailable = result;
+      }
+      if (!this.detectAds(result.m3u8)) {
+        console.debug(`[ManifestProxy] Using backup (${result.playerType})`);
+        return result.m3u8;
+      }
     }
 
-    // No clean backup - return any result for segment stripping fallback
-    const anyResult = results.find((r) => r !== null);
-    return anyResult?.m3u8 || null;
+    // No clean backup - return the highest-priority result for segment stripping.
+    return firstAvailable?.m3u8 ?? null;
   }
 
   /**

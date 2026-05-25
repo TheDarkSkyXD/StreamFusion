@@ -589,8 +589,12 @@ async function tryPlayerType(
 }
 
 /**
- * Try to get a backup stream without ads
- * Uses PARALLEL fetching with aggressive timeouts to prevent stream freezing
+ * Try to get a backup stream without ads.
+ *
+ * Fires all player types concurrently but consumes their results in priority
+ * order so the highest-quality clean backup (backupPlayerTypes is ordered
+ * Source-first) is returned as soon as it resolves, instead of waiting for the
+ * slowest player type to settle.
  */
 async function tryGetBackupStream(
   streamInfo: StreamInfo,
@@ -601,36 +605,36 @@ async function tryGetBackupStream(
   const startIndex = isDoingMinimalRequests ? config.playerReloadMinimalRequestsPlayerIndex : 0;
   const playerTypesToTry = config.backupPlayerTypes.slice(startIndex);
 
-  // Fetch ALL player types in PARALLEL for maximum speed
+  // Start every player type in parallel...
   const backupPromises = playerTypesToTry.map((playerType) =>
     tryPlayerType(streamInfo, currentResolution, playerType)
   );
 
-  // Wait for all to complete (with individual timeouts)
-  const results = await Promise.all(backupPromises);
-
-  // Find the first CLEAN backup (no ad signifier)
-  const cleanBackup = results.find((r) => r !== null && !r.m3u8.includes(config.adSignifier));
-  if (cleanBackup) {
-    streamInfo.activeBackupPlayerType = cleanBackup.playerType;
-    console.debug(`[AdBlock] Using clean backup (${cleanBackup.playerType})`);
-    return cleanBackup.m3u8;
+  // ...but consume them in priority order and return on the first clean hit.
+  let fallbackResult: { playerType: PlayerType; m3u8: string } | null = null;
+  let anyResult: { playerType: PlayerType; m3u8: string } | null = null;
+  for (const promise of backupPromises) {
+    const result = await promise;
+    if (!result) continue;
+    if (!anyResult) {
+      anyResult = result;
+    }
+    if (!fallbackResult && result.playerType === config.fallbackPlayerType) {
+      fallbackResult = result;
+    }
+    if (!result.m3u8.includes(config.adSignifier)) {
+      streamInfo.activeBackupPlayerType = result.playerType;
+      console.debug(`[AdBlock] Using clean backup (${result.playerType})`);
+      return result.m3u8;
+    }
   }
 
-  // No clean backup - use fallback if available (even with ads, for segment stripping)
-  const fallbackResult = results.find(
-    (r) => r !== null && r.playerType === config.fallbackPlayerType
-  );
-  if (fallbackResult) {
-    streamInfo.activeBackupPlayerType = config.fallbackPlayerType;
-    return fallbackResult.m3u8;
-  }
-
-  // Use any result we got as last resort
-  const anyResult = results.find((r) => r !== null);
-  if (anyResult) {
-    streamInfo.activeBackupPlayerType = anyResult.playerType;
-    return anyResult.m3u8;
+  // No clean backup - prefer the configured fallback player type, else any result
+  // we got (even with ads, for segment stripping).
+  const chosen = fallbackResult ?? anyResult;
+  if (chosen) {
+    streamInfo.activeBackupPlayerType = chosen.playerType;
+    return chosen.m3u8;
   }
 
   return null;
