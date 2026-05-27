@@ -21,6 +21,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useInterval } from "@/hooks/useInterval";
+
 export type ThrottleAction = "pause" | "reduceQuality" | "mute" | "none";
 
 export interface BackgroundThrottleOptions {
@@ -290,18 +292,12 @@ export function useBackgroundThrottle({
   }, [enabled, trackWindowFocus, handleVisibilityChange]);
 
   // Track time since hidden (for UI display)
-  useEffect(() => {
-    if (!hiddenTimestampRef.current) return;
-
-    const interval = setInterval(() => {
-      if (hiddenTimestampRef.current) {
-        const elapsed = Date.now() - hiddenTimestampRef.current;
-        setState((prev) => ({ ...prev, timeSinceHidden: elapsed }));
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+  useInterval(() => {
+    if (hiddenTimestampRef.current) {
+      const elapsed = Date.now() - hiddenTimestampRef.current;
+      setState((prev) => ({ ...prev, timeSinceHidden: elapsed }));
+    }
+  }, 1000);
 
   // Cleanup on unmount
   useEffect(() => {
