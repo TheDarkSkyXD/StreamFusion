@@ -1,5 +1,6 @@
 import Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 
 export interface UseSeekPreviewProps {
   streamUrl: string | null;
@@ -11,7 +12,7 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingSeekTimeRef = useRef<number | null>(null);
 
   // Initialize hidden elements once
   useEffect(() => {
@@ -34,9 +35,6 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
       }
       videoRef.current = null;
       canvasRef.current = null;
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
-      }
     };
   }, []);
 
@@ -137,31 +135,30 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
     }
   }, [streamUrl, thumbnail]);
 
+  const seekTimer = useManagedTimeout(
+    useCallback(() => {
+      const time = pendingSeekTimeRef.current;
+      const video = videoRef.current;
+      if (!video || !streamUrl) {
+        if (thumbnail) setPreviewImage(thumbnail);
+        return;
+      }
+      if (time !== null && Number.isFinite(time)) {
+        video.currentTime = time;
+      }
+    }, [streamUrl, thumbnail]),
+  );
+
   const handleSeekHover = useCallback(
     (time: number | null) => {
       if (time === null) {
         setPreviewImage(undefined);
         return;
       }
-
-      if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
-
-      seekTimeoutRef.current = setTimeout(() => {
-        const video = videoRef.current;
-        if (!video || !streamUrl) {
-          if (thumbnail) setPreviewImage(thumbnail);
-          return;
-        }
-
-        // Seek
-        if (Number.isFinite(time)) {
-          // If the time is very distinct from current, seek.
-          // We don't check currentTime here because we want precise frames.
-          video.currentTime = time;
-        }
-      }, 150); // 150ms debounce
+      pendingSeekTimeRef.current = time;
+      seekTimer.start(150); // 150ms debounce
     },
-    [streamUrl, thumbnail]
+    [seekTimer],
   );
 
   return { previewImage, handleSeekHover };
