@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useVolumeStore } from "../../../store/volume-store";
 
 interface UseVolumeOptions {
@@ -23,6 +24,11 @@ export function useVolume({
   const isFirstMount = useRef(true);
   const isApplyingFromStore = useRef(false);
 
+  // Imperative one-shot: clears the HLS-init guard window after 100 ms.
+  const initGuard = useManagedTimeout(() => {
+    isApplyingFromStore.current = false;
+  });
+
   // Calculate effective muted state (store preference OR forced override)
   const isEffectiveMuted = forcedMuted || storeMuted;
 
@@ -34,9 +40,7 @@ export function useVolume({
     // Block syncFromVideoElement during HLS init window to prevent
     // HLS.js volume reset from corrupting the store
     isApplyingFromStore.current = true;
-    const timer = setTimeout(() => {
-      isApplyingFromStore.current = false;
-    }, 100);
+    initGuard.start(100);
 
     video.volume = volume / 100;
 
@@ -54,11 +58,7 @@ export function useVolume({
     } else {
       video.muted = isEffectiveMuted;
     }
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted, watch]);
+  }, [videoRef, volume, storeMuted, forcedMuted, isEffectiveMuted, watch, initGuard]);
 
   // Handle volume change from UI
   const handleVolumeChange = useCallback(
