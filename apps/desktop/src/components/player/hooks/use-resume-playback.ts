@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { usePlaybackPositionStore } from "@/store/playback-position-store";
+import { useInterval } from "@/hooks/useInterval";
 
 interface UseResumePlaybackOptions {
   platform: "twitch" | "kick";
@@ -26,7 +27,6 @@ export function useResumePlayback({
 }: UseResumePlaybackOptions) {
   const { getPosition, savePosition } = usePlaybackPositionStore();
   const hasRestoredRef = useRef(false);
-  const saveIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Restore position when video is ready
   const restorePosition = useCallback(() => {
@@ -96,9 +96,6 @@ export function useResumePlayback({
     video.addEventListener("pause", handlePause);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    // Periodic save every 30 seconds
-    saveIntervalRef.current = setInterval(() => saveCurrentPositionRef.current(), 30000);
-
     // If metadata is already loaded, try to restore
     if (video.readyState >= 1) {
       restorePositionRef.current();
@@ -109,14 +106,13 @@ export function useResumePlayback({
       video.removeEventListener("pause", handlePause);
       window.removeEventListener("beforeunload", handleBeforeUnload);
 
-      if (saveIntervalRef.current) {
-        clearInterval(saveIntervalRef.current);
-      }
-
       // Final save on unmount
       saveCurrentPositionRef.current();
     };
   }, [enabled, videoRef]);
+
+  // Periodic position save every 30 seconds
+  useInterval(() => saveCurrentPositionRef.current(), enabled ? 30000 : null);
 
   // Reset restoration flag when videoId changes
   useEffect(() => {
