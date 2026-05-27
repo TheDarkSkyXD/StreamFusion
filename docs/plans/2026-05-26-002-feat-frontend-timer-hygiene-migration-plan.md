@@ -318,7 +318,7 @@ Run: `npx vitest run tests/hooks/useManagedTimeout.test.tsx` → FAIL (unresolve
 `apps/desktop/src/hooks/useManagedTimeout.ts`:
 
 ```ts
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 /**
  * Imperative, self-cancelling, unmount-safe one-shot timer.
@@ -360,9 +360,12 @@ export function useManagedTimeout(callback: () => void): {
   // Clear any pending timer when the consuming component unmounts.
   useEffect(() => clear, [clear]);
 
-  return { start, clear };
+  // Stable object so consumers can safely list it in effect/callback deps.
+  return useMemo(() => ({ start, clear }), [start, clear]);
 }
 ```
+
+(Add a test asserting the returned object is referentially stable across re-renders — `result.current` identical after `rerender()` — so consumers can list it in dependency arrays.)
 
 - [ ] **Step 4: Run it; verify it passes**
 
@@ -554,7 +557,7 @@ One task per file. Apply Pattern B (auto-dismiss) or C (imperative) per site.
 - [ ] `pages/Settings/index.tsx:380` (status auto-dismiss → B). **Re-confirm line — file is in WIP.**
 - [ ] `components/chat/PredictionBanner.tsx:66` (auto-dismiss → B)
 - [ ] `components/chat/PinnedMessageBanner.tsx:211` (arm window → B; the worked example)
-- [ ] `components/chat/kick/KickChat.tsx:623` (auto-dismiss → B)
+- [ ] `components/chat/kick/KickChat.tsx:623` (poll restart-on-event → **C** / `useManagedTimeout` — verified imperative, NOT declarative auto-dismiss)
 - [ ] `components/stream/related-content/index.tsx:351` (auto-dismiss → B)
 - [ ] `components/discovery/category-card.tsx:33` (hover-intent prefetch → C)
 - [ ] `components/stream/stream-card.tsx:34` (hover-intent prefetch → C)
