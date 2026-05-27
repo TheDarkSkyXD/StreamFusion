@@ -17,8 +17,9 @@
  */
 
 import type React from "react";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { BsChevronDown, BsReplyFill } from "react-icons/bs";
+import { useTimeout } from "@/hooks/useTimeout";
 import type { ContentFragment, NormalizedPinnedMessage } from "../../shared/chat-types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatBadge } from "./ChatBadge";
@@ -204,15 +205,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   onReply,
 }) => {
   const [unpinArmed, setUnpinArmed] = useState(false);
-  const armTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!unpinArmed) return;
-    armTimeoutRef.current = setTimeout(() => setUnpinArmed(false), UNPIN_CONFIRM_WINDOW_MS);
-    return () => {
-      if (armTimeoutRef.current) clearTimeout(armTimeoutRef.current);
-    };
-  }, [unpinArmed]);
+  useTimeout(() => setUnpinArmed(false), unpinArmed ? UNPIN_CONFIRM_WINDOW_MS : null);
 
   // Reset confirm-armed state whenever the pin itself changes (new pin
   // arriving in place of the old one should never inherit a half-confirmed
