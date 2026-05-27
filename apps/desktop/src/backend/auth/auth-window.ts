@@ -18,6 +18,27 @@ import {
   type PkceChallenge,
 } from "./oauth-config";
 
+import { waitForWebContentsCondition } from "../services/web-contents-ready";
+
+/**
+ * Readiness predicate (page-context JS) for kick.com's header: true once EITHER
+ * auth state's markers have rendered — a Sign In/Up button (anonymous) OR an
+ * avatar/user-menu element (logged in). Either proves the SPA header finished
+ * rendering, so the subsequent `_isKickWebAuthenticated` check runs against real
+ * DOM rather than a half-rendered page. Markers mirror `_isKickWebAuthenticated`;
+ * keep them in sync. Exported for unit testing against fixture DOM.
+ */
+export const HEADER_RENDERED_PREDICATE = `(() => {
+  const els = Array.from(document.querySelectorAll('button, a'));
+  const hasAuthButton = els.some((el) => /^\\s*(Sign\\s*In|Log\\s*In|Sign\\s*Up)\\s*$/i.test((el.textContent || '').trim()));
+  const hasAvatar =
+    !!document.querySelector('img[alt][src*="profile"]') ||
+    !!document.querySelector('img[alt][src*="default-avatar"]') ||
+    !!document.querySelector('button[aria-haspopup="menu"]') ||
+    !!document.querySelector('[data-testid*="user"]');
+  return hasAuthButton || hasAvatar;
+})()`;
+
 // ========== Types ==========
 
 export interface AuthSession {
@@ -181,9 +202,15 @@ class AuthWindowManager {
       window.webContents.once("did-finish-load", async () => {
         if (window.isDestroyed()) return;
 
-        // Give the SPA ~1.2s to bootstrap and render the header (logged-in
-        // users see avatar; anonymous users see Sign In button).
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        // Wait for the header to actually render (avatar for logged-in users,
+        // Sign In button for anonymous) instead of guessing ~1.2s, so the auth
+        // check below runs against real DOM. On a slow machine the old fixed
+        // wait could fire pre-render, fail-close to "not authed", and needlessly
+        // re-prompt an already-signed-in user. Return value ignored — the auth
+        // check runs either way.
+        await waitForWebContentsCondition(window.webContents, HEADER_RENDERED_PREDICATE, {
+          timeoutMs: 4000,
+        });
         if (window.isDestroyed()) return;
 
         const alreadyAuthed = await this._isKickWebAuthenticated(window);
