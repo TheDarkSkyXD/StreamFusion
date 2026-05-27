@@ -2,6 +2,7 @@ import { Link, useSearch } from "@tanstack/react-router";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import {
   Select,
   SelectContent,
@@ -108,16 +109,11 @@ export function RelatedContent({
   // Intersection Observer for infinite scroll
   // Intersection Observer for infinite scroll
   const loadMoreRef = React.useRef<HTMLDivElement>(null);
-  const errorTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  // Clean up timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-      }
-    };
-  }, []);
+  const errorDismissTimer = useManagedTimeout(
+    useCallback(() => {
+      setError(null);
+    }, []),
+  );
 
   const [clipLoading, setClipLoading] = useState(false);
   const [clipError, setClipError] = useState<string | null>(null);
@@ -343,15 +339,8 @@ export function RelatedContent({
       }
     } catch (err) {
       console.error("Error loading more items:", err);
-      // Clear any existing error timeout
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-      }
       setError("Failed to load more items. Please try again.");
-      errorTimeoutRef.current = setTimeout(() => {
-        setError(null);
-        errorTimeoutRef.current = null;
-      }, 3000);
+      errorDismissTimer.start(3000);
     } finally {
       setIsFetchingMore(false);
     }
@@ -370,6 +359,7 @@ export function RelatedContent({
     clipCursor,
     videos,
     clips,
+    errorDismissTimer,
   ]);
 
   // Intersection Observer Effect
