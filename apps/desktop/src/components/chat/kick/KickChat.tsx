@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import {
@@ -179,9 +180,8 @@ export const KickChat: React.FC<KickChatProps> = ({
   const [showPoll, setShowPoll] = useState(true);
   const [isPollExpanded, setIsPollExpanded] = useState(false);
   const chatInputRef = useRef<ChatInputHandle>(null);
-  // Tracks the 15 s "auto-dismiss ended poll" timeout so we can cancel it on a
-  // follow-up poll or on unmount — otherwise setActivePoll fires on a stale tree.
-  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Auto-dismiss ended poll after 15 s; cancels on follow-up poll or unmount.
+  const pollTimer = useManagedTimeout(useCallback(() => setActivePoll(null), []));
   // Latest subscriber badges, mirrored from the prop so the history-fetch
   // closure can resolve badge images without re-running the connection effect
   // every time the badges prop updates.
@@ -617,13 +617,9 @@ export const KickChat: React.FC<KickChatProps> = ({
       setActivePoll(poll);
       setShowPoll(true);
       if (poll.remaining <= 0) {
-        // Auto-dismiss after result_display_duration or 15 s. Cancel any prior
-        // pending dismissal first so back-to-back polls don't stack timeouts.
-        if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-        pollTimeoutRef.current = setTimeout(() => {
-          pollTimeoutRef.current = null;
-          setActivePoll(null);
-        }, 15000);
+        // Auto-dismiss after 15 s. start() cancels any prior pending dismissal
+        // so back-to-back polls don't stack timeouts.
+        pollTimer.start(15000);
       }
     };
 
@@ -676,10 +672,6 @@ export const KickChat: React.FC<KickChatProps> = ({
       kickChatService.off("pinnedMessageCleared", handlePinnedMessageCleared);
       kickChatService.off("pollUpdate", handlePollUpdate);
       kickChatService.off("predictionUpdate", handlePredictionUpdate);
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
-        pollTimeoutRef.current = null;
-      }
     };
   }, [
     addMessage,
@@ -691,6 +683,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     kickRoomKey,
     channel,
     predictionDismissGate,
+    pollTimer,
   ]);
 
   const handleReply = useCallback((message: ChatMessage) => {
