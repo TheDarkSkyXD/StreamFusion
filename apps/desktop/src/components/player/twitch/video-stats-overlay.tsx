@@ -1,6 +1,8 @@
 import Hls from "hls.js";
 import { useEffect, useMemo, useState } from "react";
 
+import { useInterval } from "@/hooks/useInterval";
+
 interface VideoStatsOverlayProps {
   hls?: Hls | null;
   video?: HTMLVideoElement | null;
@@ -39,68 +41,70 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
     []
   );
 
-  useEffect(() => {
+  const updateStats = () => {
     if (!hls || !video) return;
 
-    const updateStats = () => {
-      const level = hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
-      const videoWidth = video.videoWidth;
-      const videoHeight = video.videoHeight;
-      const viewportWidth = video.clientWidth;
-      const viewportHeight = video.clientHeight;
+    const level = hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+    const viewportWidth = video.clientWidth;
+    const viewportHeight = video.clientHeight;
 
-      // Calculate buffer size in seconds
-      let bufferSize = 0;
-      if (video.buffered.length > 0) {
-        for (let i = 0; i < video.buffered.length; i++) {
-          if (
-            video.buffered.start(i) <= video.currentTime &&
-            video.buffered.end(i) >= video.currentTime
-          ) {
-            bufferSize = video.buffered.end(i) - video.currentTime;
-            break;
-          }
+    // Calculate buffer size in seconds
+    let bufferSize = 0;
+    if (video.buffered.length > 0) {
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (
+          video.buffered.start(i) <= video.currentTime &&
+          video.buffered.end(i) >= video.currentTime
+        ) {
+          bufferSize = video.buffered.end(i) - video.currentTime;
+          break;
         }
       }
+    }
 
-      // Get dropped frames using standard API
-      const playbackQuality = video.getVideoPlaybackQuality?.();
-      const droppedFrames = playbackQuality?.droppedVideoFrames ?? 0;
+    // Get dropped frames using standard API
+    const playbackQuality = video.getVideoPlaybackQuality?.();
+    const droppedFrames = playbackQuality?.droppedVideoFrames ?? 0;
 
-      // Bandwidth estimate
-      const bandwidth = hls.bandwidthEstimate ?? 0;
+    // Bandwidth estimate
+    const bandwidth = hls.bandwidthEstimate ?? 0;
 
-      // Codecs
-      const videoCodec = level?.videoCodec;
-      const audioCodec = level?.audioCodec;
-      const codecs = [videoCodec, audioCodec].filter(Boolean).join(",") || "N/A";
+    // Codecs
+    const videoCodec = level?.videoCodec;
+    const audioCodec = level?.audioCodec;
+    const codecs = [videoCodec, audioCodec].filter(Boolean).join(",") || "N/A";
 
-      setStats({
-        downloadResolution: level ? `${level.width}x${level.height}` : "N/A",
-        renderResolution: `${videoWidth}x${videoHeight}`,
-        viewportResolution: `${viewportWidth}x${viewportHeight}`,
-        downloadBitrate: level ? `${(level.bitrate / 1000).toFixed(0)} Kbps` : "N/A",
-        bandwidthEstimate: `${(bandwidth / 1000).toFixed(0)} Kbps`,
-        fps: level?.frameRate ? `${level.frameRate}` : "N/A",
-        skippedFrames: droppedFrames,
-        bufferSize: `${bufferSize.toFixed(2)} sec.`,
-        latencyToBroadcaster: hls.latency != null ? `${hls.latency.toFixed(2)} sec.` : "N/A",
-        playbackRate: `${video.playbackRate}`,
-        codecs: codecs,
-        protocol: "HLS",
-        latencyMode: hls.config.lowLatencyMode ? "Low Latency" : "Standard",
-        renderSurface: "video",
-        backendVersion: Hls.version,
-        playSessionId: sessionIds.playSessionId,
-        servingId: sessionIds.servingId,
-      });
-    };
+    setStats({
+      downloadResolution: level ? `${level.width}x${level.height}` : "N/A",
+      renderResolution: `${videoWidth}x${videoHeight}`,
+      viewportResolution: `${viewportWidth}x${viewportHeight}`,
+      downloadBitrate: level ? `${(level.bitrate / 1000).toFixed(0)} Kbps` : "N/A",
+      bandwidthEstimate: `${(bandwidth / 1000).toFixed(0)} Kbps`,
+      fps: level?.frameRate ? `${level.frameRate}` : "N/A",
+      skippedFrames: droppedFrames,
+      bufferSize: `${bufferSize.toFixed(2)} sec.`,
+      latencyToBroadcaster: hls.latency != null ? `${hls.latency.toFixed(2)} sec.` : "N/A",
+      playbackRate: `${video.playbackRate}`,
+      codecs: codecs,
+      protocol: "HLS",
+      latencyMode: hls.config.lowLatencyMode ? "Low Latency" : "Standard",
+      renderSurface: "video",
+      backendVersion: Hls.version,
+      playSessionId: sessionIds.playSessionId,
+      servingId: sessionIds.servingId,
+    });
+  };
 
-    const interval = setInterval(updateStats, 1000);
+  // Immediate update when hls/video/sessionIds change
+  useEffect(() => {
     updateStats();
-
-    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hls, video, sessionIds]);
+
+  // 1 Hz stats refresh while hls and video are available
+  useInterval(updateStats, hls && video ? 1000 : null);
 
   if (!stats) return null;
 
