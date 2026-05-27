@@ -2,6 +2,7 @@ import type React from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { ChatMessage as ChatMessageType } from "../../shared/chat-types";
+import { useManagedTimeout } from "../../hooks/useManagedTimeout";
 import { useChatStore } from "../../store/chat-store";
 import { useRenderCount } from "../dev/use-render-count";
 import { ChatMessage } from "./ChatMessage";
@@ -50,9 +51,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerRef = useRef<HTMLElement | null>(null);
-  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userScrolledUpRef = useRef(false);
   const pendingPauseRef = useRef(false);
+  const pauseTimer = useManagedTimeout(useCallback(() => setPaused(true), [setPaused]));
 
   // Latest-ref pattern: keep `itemContent`'s identity stable across renders so
   // Virtuoso doesn't see it change (which would unmount/remount rows). A
@@ -123,16 +124,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
   }, [messages.length, isPaused]);
 
   useEffect(() => {
-    if (pauseTimerRef.current) {
-      clearTimeout(pauseTimerRef.current);
-      pauseTimerRef.current = null;
-    }
     userScrolledUpRef.current = false;
     pendingPauseRef.current = false;
     setPaused(false);
-    return () => {
-      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-    };
   }, [setPaused]);
 
   const onWheelScroll = useCallback((e: Event) => {
@@ -198,22 +192,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(({
       if (isAtBottom) {
         userScrolledUpRef.current = false;
         pendingPauseRef.current = false;
-        if (pauseTimerRef.current) {
-          clearTimeout(pauseTimerRef.current);
-          pauseTimerRef.current = null;
-        }
+        pauseTimer.clear();
         setPaused(false);
       } else {
         if (!userScrolledUpRef.current) return;
         pendingPauseRef.current = true;
-        if (pauseTimerRef.current) return;
-        pauseTimerRef.current = setTimeout(() => {
-          pauseTimerRef.current = null;
-          setPaused(true);
-        }, 200);
+        pauseTimer.start(200);
       }
     },
-    [setPaused],
+    [setPaused, pauseTimer],
   );
 
   const scrollToBottom = useCallback(() => {
