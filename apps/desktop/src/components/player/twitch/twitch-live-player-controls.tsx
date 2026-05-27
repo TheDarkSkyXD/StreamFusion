@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize, LuShieldCheck } from "react-icons/lu";
 
 import type { AdBlockStatus } from "@/shared/adblock-types";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -117,29 +118,20 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
     useAuthStore((s) => s.preferences?.playerControls) ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
 
   const [isVisible, setIsVisible] = useState(true);
-  const hideTimeoutRef = useRef<NodeJS.Timeout>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isHoveringControlsRef = useRef(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Clear timeout helper
-  const clearHideTimeout = useCallback(() => {
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
-    }
-  }, []);
+  const hideTimer = useManagedTimeout(() => setIsVisible(false));
 
   // Start idle timeout
   const startIdleTimeout = useCallback(() => {
-    clearHideTimeout();
     if (isPlaying && !isSettingsOpen) {
-      const timeout = isHoveringControlsRef.current ? 3000 : 1000;
-      hideTimeoutRef.current = setTimeout(() => {
-        setIsVisible(false);
-      }, timeout);
+      hideTimer.start(isHoveringControlsRef.current ? 3000 : 1000);
+    } else {
+      hideTimer.clear();
     }
-  }, [isPlaying, clearHideTimeout, isSettingsOpen]);
+  }, [isPlaying, isSettingsOpen, hideTimer]);
 
   // Handle mouse move anywhere on the overlay
   const handleMouseMove = useCallback(() => {
@@ -149,20 +141,18 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
 
   // Handle mouse leaving the player area (200ms quick hide)
   const handleMouseLeave = useCallback(() => {
-    clearHideTimeout();
     if (isPlaying && !isSettingsOpen) {
-      hideTimeoutRef.current = setTimeout(() => {
-        setIsVisible(false);
-      }, 200);
+      hideTimer.start(200);
+    } else {
+      hideTimer.clear();
     }
-  }, [isPlaying, clearHideTimeout, isSettingsOpen]);
+  }, [isPlaying, isSettingsOpen, hideTimer]);
 
   // Handle mouse entering the player area
   const handleMouseEnter = useCallback(() => {
-    clearHideTimeout();
     setIsVisible(true);
     startIdleTimeout();
-  }, [clearHideTimeout, startIdleTimeout]);
+  }, [startIdleTimeout]);
 
   // Handle controls specific hover
   const handleControlsEnter = useCallback(() => {
@@ -179,29 +169,24 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
     (open: boolean) => {
       setIsSettingsOpen(open);
       if (open) {
-        clearHideTimeout();
+        hideTimer.clear();
         setIsVisible(true);
       } else {
         startIdleTimeout();
       }
     },
-    [clearHideTimeout, startIdleTimeout]
+    [hideTimer, startIdleTimeout]
   );
 
   // Reset when playing state changes
   useEffect(() => {
     if (!isPlaying) {
-      clearHideTimeout();
+      hideTimer.clear();
       setIsVisible(true);
     } else {
       startIdleTimeout();
     }
-  }, [isPlaying, clearHideTimeout, startIdleTimeout]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => clearHideTimeout();
-  }, [clearHideTimeout]);
+  }, [isPlaying, hideTimer, startIdleTimeout]);
 
   return (
     /* Parent Overlay - Handles Mouse Tracking & Video Clicks */
