@@ -194,6 +194,9 @@ export function PlayerControls(props: PlayerControlsProps) {
 
   const handleOverlayDoubleClick = useCallback(() => {
     clickTimer.clear();
+    // The 2nd click of a double-click already resets this via handleOverlayClick,
+    // but reset here too so the handler is self-contained regardless of event order.
+    clickPendingRef.current = false;
     onToggleFullscreen();
   }, [clickTimer, onToggleFullscreen]);
 
