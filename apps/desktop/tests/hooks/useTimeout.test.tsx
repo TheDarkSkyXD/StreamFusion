@@ -45,4 +45,15 @@ describe("useTimeout", () => {
     act(() => vi.advanceTimersByTime(2000));
     expect(cb).toHaveBeenCalledTimes(0);
   });
+
+  it("cancels the pending timer when delay changes to null", () => {
+    const cb = vi.fn();
+    const { rerender } = renderHook(({ d }) => useTimeout(cb, d), {
+      initialProps: { d: 1000 as number | null },
+    });
+    act(() => vi.advanceTimersByTime(500));
+    rerender({ d: null });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(cb).toHaveBeenCalledTimes(0);
+  });
 });

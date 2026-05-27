@@ -43,4 +43,16 @@ describe("useInterval", () => {
     act(() => vi.advanceTimersByTime(5000));
     expect(cb).toHaveBeenCalledTimes(0);
   });
+
+  it("stops an already-running interval when delay becomes null", () => {
+    const cb = vi.fn();
+    const { rerender } = renderHook(({ d }) => useInterval(cb, d), {
+      initialProps: { d: 1000 as number | null },
+    });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(cb).toHaveBeenCalledTimes(1);
+    rerender({ d: null });
+    act(() => vi.advanceTimersByTime(5000));
+    expect(cb).toHaveBeenCalledTimes(1); // paused — no further fires
+  });
 });
