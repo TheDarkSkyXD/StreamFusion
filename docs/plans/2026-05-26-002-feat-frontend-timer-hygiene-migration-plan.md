@@ -171,17 +171,17 @@ describe("useTimeout", () => {
     expect(cb).toHaveBeenCalledTimes(0);
   });
 
-  it("re-arms (cancelling the old timer) when delay changes", () => {
+  it("re-arms with the new delay (cancelling the old timer) when delay changes", () => {
     const cb = vi.fn();
     const { rerender } = renderHook(({ d }) => useTimeout(cb, d), {
       initialProps: { d: 1000 as number | null },
     });
-    act(() => vi.advanceTimersByTime(500));
-    rerender({ d: 1000 }); // re-arm; old 500ms-elapsed timer is cancelled
-    act(() => vi.advanceTimersByTime(999));
-    expect(cb).toHaveBeenCalledTimes(0);
-    act(() => vi.advanceTimersByTime(1));
-    expect(cb).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(500)); // t=500; old timer would fire at t=1000
+    rerender({ d: 2000 }); // delay changed: cancel old, arm new (fires at t=2500)
+    act(() => vi.advanceTimersByTime(700)); // t=1200, past the old timer's fire time
+    expect(cb).toHaveBeenCalledTimes(0); // old timer was cancelled
+    act(() => vi.advanceTimersByTime(1300)); // t=2500
+    expect(cb).toHaveBeenCalledTimes(1); // new timer fired
   });
 
   it("does not fire after unmount", () => {
