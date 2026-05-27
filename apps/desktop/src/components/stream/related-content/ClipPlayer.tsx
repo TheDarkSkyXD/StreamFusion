@@ -1,5 +1,7 @@
 import Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import {
   LuMaximize,
   LuMinimize,
@@ -42,7 +44,7 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
   const [showControls, setShowControls] = useState(true);
   const [isDraggingVolume, setIsDraggingVolume] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const hideTimeoutRef = useRef<NodeJS.Timeout>(null);
+  const hideTimer = useManagedTimeout(() => setShowControls(false));
 
   // Initialize HLS or native video
   useEffect(() => {
@@ -236,9 +238,10 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
   useEffect(() => {
     const handleMouseMove = () => {
       setShowControls(true);
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
       if (isPlaying) {
-        hideTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+        hideTimer.start(3000);
+      } else {
+        hideTimer.clear();
       }
     };
 
@@ -247,7 +250,7 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
       container.addEventListener("mousemove", handleMouseMove);
       return () => container.removeEventListener("mousemove", handleMouseMove);
     }
-  }, [isPlaying]);
+  }, [isPlaying, hideTimer]);
 
   // Get volume icon
   const getVolumeIcon = () => {
