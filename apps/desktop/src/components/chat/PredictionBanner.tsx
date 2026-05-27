@@ -25,6 +25,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { useInterval } from "@/hooks/useInterval";
 
 const ENDED_AUTO_DISMISS_MS = 60_000;
 
@@ -627,11 +628,7 @@ const TimeRemainingBar: React.FC<{
     !isLocked && locksAtMs !== null && windowMs !== null && windowMs > 0;
 
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!canCountdown) return;
-    const id = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(id);
-  }, [canCountdown, locksAtMs, windowMs]);
+  useInterval(() => setNow(Date.now()), canCountdown ? 500 : null);
 
   let widthPct: number;
   if (isLocked) {
