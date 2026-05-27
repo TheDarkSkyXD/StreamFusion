@@ -27,9 +27,29 @@ import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
 
 import { storageService } from "../../../../services/storage-service";
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
+import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
 
 const FOLLOWED_CHANNELS_URL = `${KICK_LEGACY_API_V2_BASE}/channels/followed`;
 const FETCH_TIMEOUT_MS = 10000;
+
+/**
+ * Readiness predicate (page-context JS) for the /following/channels scrape:
+ * true once the "Followed Channels" heading exists AND its container holds at
+ * least one channel anchor with an avatar image. Mirrors the scoping logic of
+ * the scrape itself. Exported for unit testing against fixture DOM.
+ */
+export const GRID_READY_PREDICATE = `(() => {
+  for (const h of document.querySelectorAll('h2, h3, [role="heading"]')) {
+    if (/followed channel|channels you follow|following channels/i.test((h.textContent || '').trim())) {
+      let p = h.parentElement;
+      for (let i = 0; i < 6 && p; i++) {
+        if (p.querySelectorAll('a[href] img').length >= 1) return true;
+        p = p.parentElement;
+      }
+    }
+  }
+  return false;
+})()`;
 
 export type FollowedChannelsResult =
   | { status: "ok"; channels: UnifiedChannel[] }
@@ -331,13 +351,18 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       return { status: "error", reason: "network-error" };
     }
 
-    // Give the SPA time to fetch + render the follows grid. Kick's SPA does
-    // its own auth-aware API call here; we just wait for it to populate the
-    // DOM. 6s is conservative; if performance allows, tighten later.
+    // Wait for the SPA to render the follows grid rather than guessing a fixed
+    // delay. Resolves as soon as the grid is present (typically < 6s); a slow
+    // render is covered up to the 8s cap; a zero-follow account never populates
+    // the grid, so the poll hits the cap and the scrape below returns empty
+    // (same outcome as the old flat wait). Return value intentionally ignored —
+    // the scrape runs either way.
     console.debug(
-      "[KickFollows] BrowserWindow fallback: waiting 6s for /following SPA render"
+      "[KickFollows] BrowserWindow fallback: waiting for /following grid to render"
     );
-    await new Promise((resolve) => setTimeout(resolve, 6000));
+    await waitForWebContentsCondition(win.webContents, GRID_READY_PREDICATE, {
+      timeoutMs: 8000,
+    });
 
     let scrapeResult: string;
     try {
