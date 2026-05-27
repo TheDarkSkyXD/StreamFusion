@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
+import { useTimeout } from "@/hooks/useTimeout";
 import { cn } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
 import { useMultiStreamStore } from "@/store/multistream-store";
@@ -63,14 +64,13 @@ export function StreamSlot({
   const [isVisible, setIsVisible] = useState(() => !lazyMount);
   const slotRootRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (isStaggerReady) return;
-    const timer = setTimeout(
-      () => setIsStaggerReady(true),
-      initialSlotIndexRef.current * STAGGER_DELAY_MS
-    );
-    return () => clearTimeout(timer);
-  }, [isStaggerReady]);
+  // Declarative one-shot: fires once after slotIndex * STAGGER_DELAY_MS,
+  // then becomes a no-op (null) because setIsStaggerReady flips the state
+  // that gates the delay.
+  useTimeout(
+    () => setIsStaggerReady(true),
+    isStaggerReady ? null : initialSlotIndexRef.current * STAGGER_DELAY_MS,
+  );
 
   useEffect(() => {
     if (!lazyMount || isVisible) return;
