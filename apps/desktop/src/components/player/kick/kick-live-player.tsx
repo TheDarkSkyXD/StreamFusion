@@ -2,6 +2,8 @@ import type Hls from "hls.js";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { sleep } from "@/lib/sleep";
+
 import { useRenderCount } from "@/components/dev/use-render-count";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 
@@ -353,12 +355,12 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
               setIsLoading(true);
 
               // Wait before retrying (gives CDN time to update, prevents hammering)
-              setTimeout(() => {
+              void sleep(delay).then(() => {
                 if (isRetryingRef.current) {
                   isRetryingRef.current = false;
                   onRefresh(); // Request fresh playback URL from parent
                 }
-              }, delay);
+              });
 
               return; // Don't show error to user yet
             }
