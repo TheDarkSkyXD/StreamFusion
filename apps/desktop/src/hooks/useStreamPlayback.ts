@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import type { StreamPlayback } from "@/components/player/types";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import type { Platform } from "@/shared/auth-types";
 
 // Maximum reload attempts before giving up (prevents infinite loops)
@@ -185,11 +186,19 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     };
   }, [instanceId]);
 
+  // Ref holds the pending fetchUrl for the current effect run so the stable
+  // useManagedTimeout callback can invoke whichever fetchUrl is current.
+  const pendingFetchRef = useRef<(() => void) | null>(null);
+  const staggerTimer = useManagedTimeout(
+    useCallback(() => {
+      pendingFetchRef.current?.();
+    }, []),
+  );
+
   useEffect(() => {
     if (!identifier) return;
 
     let isMounted = true;
-    let staggerTimeout: ReturnType<typeof setTimeout> | null = null;
     let release: (() => void) | null = null;
 
     setIsLoading(true);
@@ -238,8 +247,8 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
       }
     };
 
-    // Calculate stagger delay based on instance order
-    // This spreads out API requests when multiple streams load simultaneously
+    // Calculate stagger delay based on instance order.
+    // This spreads out API requests when multiple streams load simultaneously.
     const instanceOrder = activeInstances.get(instanceId) ?? 0;
     const staggerDelay = instanceOrder * STAGGER_DELAY_MS;
 
@@ -247,21 +256,21 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
       console.debug(
         `[useStreamPlayback] Staggering ${platform}/${identifier} by ${staggerDelay}ms (instance ${instanceOrder})`
       );
-      staggerTimeout = setTimeout(fetchUrl, staggerDelay);
+      pendingFetchRef.current = fetchUrl;
+      staggerTimer.start(staggerDelay);
     } else {
       fetchUrl();
     }
 
     return () => {
       isMounted = false;
-      if (staggerTimeout) {
-        clearTimeout(staggerTimeout);
-      }
+      pendingFetchRef.current = null;
+      staggerTimer.clear();
       if (release) {
         release();
       }
     };
-  }, [platform, identifier, forceNoProxy, instanceId]);
+  }, [platform, identifier, forceNoProxy, instanceId, staggerTimer]);
 
   const retryWithoutProxy = useCallback(() => {
     console.debug("[useStreamPlayback] Retrying without proxy (fallback to direct)");
