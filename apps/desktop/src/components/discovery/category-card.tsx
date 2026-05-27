@@ -1,12 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback } from "react";
 
 import type { UnifiedCategory } from "@/backend/api/unified/platform-types";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useCategoryMetadata } from "@/hooks/queries/useCategories";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatViewerCount } from "@/lib/utils";
 
 interface CategoryCardProps {
@@ -26,11 +27,8 @@ export const CategoryCard = React.memo(({ category }: CategoryCardProps) => {
   const { data: metadata } = useCategoryMetadata(category);
   const tags = category.tags && category.tags.length > 0 ? category.tags : metadata?.tags;
 
-  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleMouseEnter = useCallback(() => {
-    if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
-    prefetchTimerRef.current = setTimeout(() => {
+  const prefetchTimer = useManagedTimeout(
+    useCallback(() => {
       queryClient.prefetchQuery({
         queryKey: STREAM_KEYS.byCategory(category.id, category.platform),
         queryFn: async () => {
@@ -43,21 +41,16 @@ export const CategoryCard = React.memo(({ category }: CategoryCardProps) => {
           return response.data;
         },
       });
-    }, HOVER_PREFETCH_DELAY_MS);
-  }, [category.id, category.platform, queryClient]);
+    }, [category.id, category.platform, queryClient]),
+  );
+
+  const handleMouseEnter = useCallback(() => {
+    prefetchTimer.start(HOVER_PREFETCH_DELAY_MS);
+  }, [prefetchTimer]);
 
   const handleMouseLeave = useCallback(() => {
-    if (prefetchTimerRef.current) {
-      clearTimeout(prefetchTimerRef.current);
-      prefetchTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
-    };
-  }, []);
+    prefetchTimer.clear();
+  }, [prefetchTimer]);
 
   return (
     <Link
