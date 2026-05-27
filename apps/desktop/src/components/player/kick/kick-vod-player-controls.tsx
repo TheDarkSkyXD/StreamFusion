@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { LuMaximize, LuMinimize, LuMonitor } from "react-icons/lu";
 
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatDuration } from "@/lib/utils";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -86,26 +87,21 @@ export function KickVodPlayerControls(props: KickVodPlayerControlsProps) {
     useAuthStore((s) => s.preferences?.playerControls) ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
 
   const [isVisible, setIsVisible] = useState(true);
-  const hideTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   // Kick brand green color
   const kickGreen = "#53fc18";
 
+  const hideTimer = useManagedTimeout(() => setIsVisible(false));
+
   // Auto-hide controls logic
   useEffect(() => {
-    const showControls = () => {
-      setIsVisible(true);
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-
-      if (isPlaying) {
-        hideTimeoutRef.current = setTimeout(() => {
-          setIsVisible(false);
-        }, 3000);
-      }
-    };
-
-    showControls();
-  }, [isPlaying]);
+    setIsVisible(true);
+    if (isPlaying) {
+      hideTimer.start(3000);
+    } else {
+      hideTimer.clear();
+    }
+  }, [isPlaying, hideTimer]);
 
   return (
     <div
@@ -115,12 +111,12 @@ export function KickVodPlayerControls(props: KickVodPlayerControlsProps) {
             ${isVisible || !isPlaying ? "opacity-100" : "opacity-0"}
         `}
       onMouseEnter={() => {
-        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+        hideTimer.clear();
         setIsVisible(true);
       }}
       onMouseLeave={() => {
         if (isPlaying) {
-          hideTimeoutRef.current = setTimeout(() => setIsVisible(false), 2000);
+          hideTimer.start(2000);
         }
       }}
     >
