@@ -1,7 +1,8 @@
 import Hls from "hls.js";
 import type React from "react";
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
+import { useInterval } from "@/hooks/useInterval";
 import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -48,6 +49,18 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     const isMountedRef = useRef(true);
     const sourcesRef = useRef(sources);
 
+    // Mutable heartbeat state lifted into refs so useInterval callbacks can read them
+    const isEffectActiveRef = useRef(false);
+    const lastFragLoadedTimeRef = useRef(Date.now());
+    const manifestParsedTimeRef = useRef<number | null>(null);
+    const hasReceivedFirstFragmentRef = useRef(false);
+    const fragErrorCountRef = useRef(0);
+    const videoRefForInterval = useRef<HTMLVideoElement | null>(null);
+
+    // Delay state: null = paused, number = running. Set when HLS initialises, cleared on teardown.
+    const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
+    const [memoryCleanupDelay, setMemoryCleanupDelay] = useState<number | null>(null);
+
     useEffect(() => {
       sourcesRef.current = sources;
     }, [sources]);
@@ -65,6 +78,106 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
     // Expose video ref to parent
     useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
+
+    // Heartbeat: check every 5s that fragments are still arriving (fast offline detection).
+    // Active only while heartbeatDelay is a number (set by MANIFEST_PARSED, cleared on teardown).
+    useInterval(() => {
+      const hls = hlsRef.current;
+      const video = videoRefForInterval.current;
+      if (!isEffectActiveRef.current || !hls) {
+        setHeartbeatDelay(null);
+        return;
+      }
+
+      // Skip while paused — no new fragments is expected
+      if (video?.paused) {
+        lastFragLoadedTimeRef.current = Date.now();
+        return;
+      }
+
+      const now = Date.now();
+      const timeSinceLastFrag = now - lastFragLoadedTimeRef.current;
+      const manifestParsedTime = manifestParsedTimeRef.current;
+      const timeSinceManifest = manifestParsedTime ? now - manifestParsedTime : 0;
+
+      // CASE 1: No fragment ever received after manifest parsed
+      if (!hasReceivedFirstFragmentRef.current && timeSinceManifest > 30000) {
+        console.debug(
+          `[HLS] No fragments received in ${Math.round(timeSinceManifest / 1000)}s after manifest - stream unavailable`
+        );
+        setHeartbeatDelay(null);
+        hls.destroy();
+        onErrorRef.current?.({
+          code: "NO_FRAGMENTS",
+          message: "No video data received - stream may be offline or token expired",
+          fatal: true,
+          shouldRefresh: true,
+          originalError: null,
+        });
+        return;
+      }
+
+      // CASE 2: Was receiving fragments but they stopped
+      if (hasReceivedFirstFragmentRef.current && timeSinceLastFrag > 45000) {
+        console.debug(
+          `[HLS] No fragments in ${Math.round(timeSinceLastFrag / 1000)}s - stream appears to have ended`
+        );
+        setHeartbeatDelay(null);
+        hls.destroy();
+        onErrorRef.current?.({
+          code: "STREAM_OFFLINE",
+          message: "Stream ended or became unavailable",
+          fatal: true,
+          originalError: null,
+        });
+        return;
+      }
+
+      // CASE 3: Mild delay - try to recover by reloading
+      if (timeSinceLastFrag > 15000) {
+        console.debug(
+          `[HLS] Heartbeat: No fragments in ${Math.round(timeSinceLastFrag / 1000)}s, attempting reload...`
+        );
+        try {
+          hls.startLoad(-1);
+        } catch (_e) {
+          // HLS may be in an invalid state, ignore
+        }
+      }
+    }, heartbeatDelay);
+
+    // Memory cleanup every 30 minutes: reset to live edge and trigger browser GC.
+    useInterval(() => {
+      const hls = hlsRef.current;
+      if (!isEffectActiveRef.current || !hls) {
+        setMemoryCleanupDelay(null);
+        return;
+      }
+
+      try {
+        console.debug("[HLS] Periodic cleanup: resetting to live edge and trimming buffers");
+
+        hls.startLevel = -1;
+
+        const originalBackBuffer = hls.config.backBufferLength;
+        hls.config.backBufferLength = 10;
+
+        // Restore after a tick to let HLS.js process the trim
+        setTimeout(() => {
+          if (hls && isEffectActiveRef.current) {
+            hls.config.backBufferLength = originalBackBuffer;
+          }
+        }, 1000);
+
+        const globalGc = (globalThis as unknown as { gc?: () => void }).gc;
+        if (typeof globalGc === "function") {
+          globalGc();
+          console.debug("[HLS] Forced garbage collection");
+        }
+      } catch (e) {
+        console.debug("[HLS] Cleanup error (non-fatal):", e);
+      }
+    }, memoryCleanupDelay);
 
     // Handle quality change
     useEffect(() => {
@@ -136,19 +249,23 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
       // Scoped active flag to handle rapid stream switching robustly
       let isEffectActive = true;
+      isEffectActiveRef.current = true;
       isMountedRef.current = true;
       // Reset recovery attempt tracker for new stream
       lastRecoveryAttemptRef.current = null;
+
+      // Reset heartbeat mutable state for this stream
+      lastFragLoadedTimeRef.current = Date.now();
+      manifestParsedTimeRef.current = null;
+      hasReceivedFirstFragmentRef.current = false;
+      fragErrorCountRef.current = 0;
+      videoRefForInterval.current = video;
 
       let hls: Hls | null = null;
       // Track event handlers for cleanup (used by native HLS and standard playback)
       let handleLoadedMetadata: (() => void) | null = null;
       let handleError: ((e: Event) => void) | null = null;
       let handlePlayReset: (() => void) | null = null;
-      // Heartbeat interval for fast offline detection (cleaned up in effect cleanup)
-      let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-      // Memory cleanup interval for long-running streams (cleaned up in effect cleanup)
-      let memoryCleanupInterval: ReturnType<typeof setInterval> | null = null;
 
       // Safe play helper that handles interruption gracefully
       const safePlay = () => {
@@ -512,37 +629,31 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // === FAST OFFLINE DETECTION & FRAGMENT TIMEOUT ===
         // For live streams, aggressively detect when fragments stop arriving
         // This catches: token expiration, stream offline, CDN issues, CORS problems
-        let lastFragLoadedTime = Date.now();
-        let manifestParsedTime: number | null = null;
-        let hasReceivedFirstFragment = false;
-        let fragErrorCount = 0;
         const MAX_FRAG_ERRORS_BEFORE_REFRESH = 3;
-        const INITIAL_FRAGMENT_TIMEOUT_MS = 30000; // 30s timeout for first fragment after manifest
-        const ONGOING_FRAGMENT_TIMEOUT_MS = 45000; // 45s timeout during playback
 
         // Track successful fragment loads
         hls.on(Hls.Events.FRAG_LOADED, () => {
-          lastFragLoadedTime = Date.now();
-          hasReceivedFirstFragment = true;
-          fragErrorCount = 0; // Reset error count on success
+          lastFragLoadedTimeRef.current = Date.now();
+          hasReceivedFirstFragmentRef.current = true;
+          fragErrorCountRef.current = 0; // Reset error count on success
         });
 
         // Reset fragment timer on play so we don't false-positive immediately after resuming from pause
         handlePlayReset = () => {
-          lastFragLoadedTime = Date.now();
+          lastFragLoadedTimeRef.current = Date.now();
         };
         video.addEventListener("play", handlePlayReset);
 
         // Track fragment load errors (may indicate token expiration)
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.details === "fragLoadError" && !data.fatal) {
-            fragErrorCount++;
-            console.debug(`[HLS] Fragment load error #${fragErrorCount}`);
+            fragErrorCountRef.current++;
+            console.debug(`[HLS] Fragment load error #${fragErrorCountRef.current}`);
 
             // After multiple fragment errors, likely token expired
-            if (fragErrorCount >= MAX_FRAG_ERRORS_BEFORE_REFRESH) {
+            if (fragErrorCountRef.current >= MAX_FRAG_ERRORS_BEFORE_REFRESH) {
               console.debug("[HLS] Multiple fragment errors - token may have expired");
-              if (heartbeatInterval) clearInterval(heartbeatInterval);
+              setHeartbeatDelay(null);
               hls?.destroy();
               onErrorRef.current?.({
                 code: "TOKEN_EXPIRED",
@@ -555,122 +666,15 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
         });
 
-        // Start heartbeat after manifest is parsed (stream should be playing)
+        // Start heartbeat after manifest is parsed (stream should be playing).
+        // The actual interval logic lives in the useInterval hook above; here we
+        // record manifestParsedTime and activate the interval via state.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          manifestParsedTime = Date.now();
-
-          // Clear any existing heartbeat
-          if (heartbeatInterval) clearInterval(heartbeatInterval);
-
-          // Check every 5 seconds if fragments are arriving (faster detection)
-          heartbeatInterval = setInterval(() => {
-            if (!isEffectActive || !hls) {
-              if (heartbeatInterval) clearInterval(heartbeatInterval);
-              return;
-            }
-
-            // Skip fragment timeout checks while paused — no new fragments is expected
-            if (video && video.paused) {
-              lastFragLoadedTime = Date.now(); // Reset timer so we don't false-positive on resume
-              return;
-            }
-
-            const now = Date.now();
-            const timeSinceLastFrag = now - lastFragLoadedTime;
-            const timeSinceManifest = manifestParsedTime ? now - manifestParsedTime : 0;
-
-            // CASE 1: No fragment ever received after manifest parsed
-            // This is the key fix for the reported issue - fail fast!
-            if (!hasReceivedFirstFragment && timeSinceManifest > INITIAL_FRAGMENT_TIMEOUT_MS) {
-              console.debug(
-                `[HLS] No fragments received in ${Math.round(timeSinceManifest / 1000)}s after manifest - stream unavailable`
-              );
-              if (heartbeatInterval) clearInterval(heartbeatInterval);
-              hls?.destroy();
-              onErrorRef.current?.({
-                code: "NO_FRAGMENTS",
-                message: "No video data received - stream may be offline or token expired",
-                fatal: true,
-                shouldRefresh: true,
-                originalError: null,
-              });
-              return;
-            }
-
-            // CASE 2: Was receiving fragments but they stopped (stream went offline mid-playback)
-            if (hasReceivedFirstFragment && timeSinceLastFrag > ONGOING_FRAGMENT_TIMEOUT_MS) {
-              console.debug(
-                `[HLS] No fragments in ${Math.round(timeSinceLastFrag / 1000)}s - stream appears to have ended`
-              );
-              if (heartbeatInterval) clearInterval(heartbeatInterval);
-              hls?.destroy();
-              onErrorRef.current?.({
-                code: "STREAM_OFFLINE",
-                message: "Stream ended or became unavailable",
-                fatal: true,
-                originalError: null,
-              });
-              return;
-            }
-
-            // CASE 3: Mild delay - try to recover by reloading
-            if (timeSinceLastFrag > 15000) {
-              console.debug(
-                `[HLS] Heartbeat: No fragments in ${Math.round(timeSinceLastFrag / 1000)}s, attempting reload...`
-              );
-              try {
-                hls.startLoad(-1); // -1 means start from live edge
-              } catch (_e) {
-                // HLS may be in an invalid state, ignore
-              }
-            }
-          }, 5000); // Check every 5 seconds for faster detection
+          manifestParsedTimeRef.current = Date.now();
+          // Activate heartbeat (5 000 ms) and memory cleanup (30 min) via useInterval
+          setHeartbeatDelay(5000);
+          setMemoryCleanupDelay(30 * 60 * 1000);
         });
-
-        // === PERIODIC MEMORY CLEANUP FOR LONG-RUNNING STREAMS ===
-        // Every 30 minutes: reset to live edge and trigger browser GC. This
-        // is the safety valve that prevented OOM crashes at 2-6 hours before
-        // the targeted backBufferLength toggle existed; cadence is loosened
-        // from 10 → 30 min because the chat-store trim and badge cache both
-        // reduce upstream allocation pressure. --expose-gc itself stays on
-        // (see main.ts) so the safety net is intact.
-        const memoryCleanupInterval = setInterval(
-          () => {
-            if (!isEffectActive || !hls) {
-              clearInterval(memoryCleanupInterval);
-              return;
-            }
-
-            try {
-              console.debug("[HLS] Periodic cleanup: resetting to live edge and trimming buffers");
-
-              // Reset to live edge (clears accumulated segments in HLS.js internal state)
-              hls.startLevel = -1;
-
-              // Force back buffer trim by setting it lower temporarily
-              // This clears detached MediaSource buffers that accumulate over time
-              const originalBackBuffer = hls.config.backBufferLength;
-              hls.config.backBufferLength = 10;
-
-              // Restore after a tick to let HLS.js process the trim
-              setTimeout(() => {
-                if (hls && isEffectActive) {
-                  hls.config.backBufferLength = originalBackBuffer;
-                }
-              }, 1000);
-
-              // Trigger garbage collection if available (requires --expose-gc flag)
-              const globalGc = (globalThis as unknown as { gc?: () => void }).gc;
-              if (typeof globalGc === "function") {
-                globalGc();
-                console.debug("[HLS] Forced garbage collection");
-              }
-            } catch (e) {
-              console.debug("[HLS] Cleanup error (non-fatal):", e);
-            }
-          },
-          30 * 60 * 1000
-        ); // Every 30 minutes
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
         console.debug("Using native HLS");
@@ -746,20 +750,13 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       return () => {
         // Mark as inactive to filter out stale errors
         isEffectActive = false;
+        isEffectActiveRef.current = false;
         isMountedRef.current = false;
         pendingPlayRef.current = null;
 
-        // Clean up heartbeat interval first (before HLS destroy)
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-
-        // Clean up memory cleanup interval
-        if (memoryCleanupInterval) {
-          clearInterval(memoryCleanupInterval);
-          memoryCleanupInterval = null;
-        }
+        // Pause the useInterval hooks (they read isEffectActiveRef, but null delay is cleaner)
+        setHeartbeatDelay(null);
+        setMemoryCleanupDelay(null);
 
         if (hls) {
           hls.destroy();
