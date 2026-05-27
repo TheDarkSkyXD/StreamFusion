@@ -10,6 +10,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useInterval } from "@/hooks/useInterval";
+
 import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import {
   getPolls,
@@ -68,13 +70,7 @@ export function ChannelEngagement({
     void refetch();
   }, [refetch, refreshCounter]);
 
-  useEffect(() => {
-    if (!broadcasterId) return;
-    const handle = setInterval(() => {
-      void refetch();
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(handle);
-  }, [broadcasterId, refetch]);
+  useInterval(refetch, broadcasterId ? POLL_INTERVAL_MS : null);
 
   const hasActivity = prediction || poll;
 
