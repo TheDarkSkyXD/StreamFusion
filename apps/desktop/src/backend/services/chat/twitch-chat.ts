@@ -85,8 +85,10 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   private isModerator: Map<string, boolean> = new Map(); // channel -> isMod
 
   // Connection tracking for React Strict Mode race condition prevention
-  private isConnecting = false;
   private currentConnectionId = 0;
+  // Single-flight: a concurrent connect() awaits the in-flight attempt instead
+  // of racing a second one. Mirrors the `_inFlight` pattern in follow-endpoints.
+  private connectingPromise: Promise<void> | null = null;
 
   // Platform isolation: prevents zombie reconnections when service should be inactive
   // When false, ALL connection attempts and reconnections are blocked
@@ -114,11 +116,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       return;
     }
 
-    // If already connecting, wait for that connection or abort
-    if (this.isConnecting) {
-      this.log("Connection already in progress, waiting...");
-      // Wait a bit and check if connection completed
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    // If a connection attempt is already in flight, ride it rather than guessing
+    // a delay or racing a second attempt. A failed in-flight attempt (.catch)
+    // falls through to a fresh connect below.
+    if (this.connectingPromise) {
+      this.log("Connection already in progress, awaiting it...");
+      await this.connectingPromise.catch(() => {});
       if (this.connectionState === "connected") {
         this.log("Connection completed while waiting");
         return;
@@ -131,9 +134,23 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       return;
     }
 
+    const attempt = this._doConnect(options);
+    this.connectingPromise = attempt;
+    try {
+      await attempt;
+    } finally {
+      // Only clear if a newer attempt hasn't replaced this one.
+      if (this.connectingPromise === attempt) this.connectingPromise = null;
+    }
+  }
+
+  /**
+   * Run a single Twitch IRC connection attempt. Wrapped by `connect()` so that
+   * concurrent callers share one in-flight attempt (see `connectingPromise`).
+   */
+  private async _doConnect(options: TwitchChatOptions): Promise<void> {
     // Generate a unique connection ID for this attempt
     const connectionId = ++this.currentConnectionId;
-    this.isConnecting = true;
 
     this.debugMode = options.debug ?? false;
     this.isAnonymous = options.anonymous ?? false;
@@ -240,11 +257,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       }
       // Otherwise, silently ignore - this connection was superseded
       this.log(`Connection ${connectionId} error ignored (superseded)`);
-    } finally {
-      // Only clear isConnecting if this is the current connection
-      if (connectionId === this.currentConnectionId) {
-        this.isConnecting = false;
-      }
     }
   }
 
@@ -256,7 +268,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   async disconnect(): Promise<void> {
     // Increment connection ID to abort any in-progress connection attempts
     this.currentConnectionId++;
-    this.isConnecting = false;
+    this.connectingPromise = null;
 
     // Cancel any pending reconnect
     if (this.reconnectTimeoutId) {
@@ -356,7 +368,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     // Increment connection ID to abort any in-progress connection attempts
     this.currentConnectionId++;
-    this.isConnecting = false;
+    this.connectingPromise = null;
     this.reconnectAttempts = 0;
 
     // Cancel any pending reconnect timeout
