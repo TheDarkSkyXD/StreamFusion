@@ -17,6 +17,8 @@
 import type Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useInterval } from "@/hooks/useInterval";
+
 import type { QualityLevel } from "../types";
 
 // Network Information API types (not in default TypeScript lib)
@@ -359,31 +361,25 @@ export function useAdaptiveQuality({
     };
   }, [enabled, getConnection, updateNetworkState, maybeAdjustQuality]);
 
-  // Periodic buffer health check
-  useEffect(() => {
-    if (!enabled) return;
-
-    const interval = setInterval(() => {
-      const health = checkBufferHealth();
-      setState((prev) => {
-        if (prev.bufferHealth !== health) {
-          // Log significant changes
-          if (health === "critical" || prev.bufferHealth === "critical") {
-            console.debug(`[AdaptiveQuality] Buffer health: ${prev.bufferHealth} -> ${health}`);
-          }
-          return { ...prev, bufferHealth: health };
+  // Periodic buffer health check every 2 seconds
+  useInterval(() => {
+    const health = checkBufferHealth();
+    setState((prev) => {
+      if (prev.bufferHealth !== health) {
+        // Log significant changes
+        if (health === "critical" || prev.bufferHealth === "critical") {
+          console.debug(`[AdaptiveQuality] Buffer health: ${prev.bufferHealth} -> ${health}`);
         }
-        return prev;
-      });
-
-      // Check if we need to adjust quality
-      if (health === "critical" || health === "low") {
-        maybeAdjustQuality();
+        return { ...prev, bufferHealth: health };
       }
-    }, 2000); // Check every 2 seconds
+      return prev;
+    });
 
-    return () => clearInterval(interval);
-  }, [enabled, checkBufferHealth, maybeAdjustQuality]);
+    // Check if we need to adjust quality
+    if (health === "critical" || health === "low") {
+      maybeAdjustQuality();
+    }
+  }, enabled ? 2000 : null);
 
   return state;
 }
