@@ -24,7 +24,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
-import { useTimeout } from "@/hooks/useTimeout";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 
 const ENDED_AUTO_DISMISS_MS = 60_000;
 
@@ -62,7 +62,13 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     onAutoDismissRef.current = onAutoDismiss;
   }, [onAutoDismiss]);
 
-  useTimeout(() => { onAutoDismissRef.current?.(); }, isEnded ? ENDED_AUTO_DISMISS_MS : null);
+  const autoDismiss = useManagedTimeout(() => {
+    onAutoDismissRef.current?.();
+  });
+  useEffect(() => {
+    if (isEnded) autoDismiss.start(ENDED_AUTO_DISMISS_MS);
+    else autoDismiss.clear();
+  }, [isEnded, prediction.id, autoDismiss]);
 
   useEffect(() => {
     setExpanded(false);
