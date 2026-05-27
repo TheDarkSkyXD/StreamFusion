@@ -1,6 +1,8 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { sleep } from "@/lib/sleep";
+
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAdElementObserver } from "@/hooks/use-ad-element-observer";
 import type { AdBlockStatus } from "@/shared/adblock-types";
@@ -304,12 +306,12 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
               setIsLoading(true);
 
               // Wait before retrying (gives CDN time to update, prevents hammering)
-              setTimeout(() => {
+              void sleep(delay).then(() => {
                 if (isRetryingRef.current) {
                   isRetryingRef.current = false;
                   onRefresh(); // Request fresh playback URL from parent
                 }
-              }, delay);
+              });
 
               return; // Don't show error to user yet
             }
