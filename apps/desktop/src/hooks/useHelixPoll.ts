@@ -13,6 +13,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useInterval } from "@/hooks/useInterval";
+
 export interface UseHelixPollOptions<T> {
   /** Async fetcher. Errors are caught and surfaced via the returned `error`. */
   fetcher: () => Promise<T>;
@@ -72,58 +74,40 @@ export function useHelixPoll<T>(
     void run();
   }, [run]);
 
+  const docVisible = () =>
+    typeof document === "undefined" || document.visibilityState === "visible";
+
+  const [isVisible, setIsVisible] = useState<boolean>(docVisible);
+
+  // Immediate fire on mount (when enabled and visible). useInterval won't fire
+  // at t=0, so this separate effect preserves that behaviour.
   useEffect(() => {
-    if (!enabled) return;
-
-    let intervalHandle: ReturnType<typeof setInterval> | null = null;
-
-    const isVisible = () =>
-      typeof document === "undefined" || document.visibilityState === "visible";
-
-    const start = () => {
-      if (intervalHandle !== null) return;
-      intervalHandle = setInterval(() => {
-        if (isVisible()) {
-          void run();
-        }
-      }, intervalMs);
-    };
-
-    const stop = () => {
-      if (intervalHandle !== null) {
-        clearInterval(intervalHandle);
-        intervalHandle = null;
-      }
-    };
-
-    // First fetch fires immediately on mount (if visible).
-    if (isVisible()) {
+    if (enabled && isVisible) {
       void run();
     }
-    start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
+  // Track visibility state; fire immediately when returning to foreground.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
 
     const handleVisibility = () => {
-      if (isVisible()) {
-        // Coming back to foreground — fire once immediately, keep interval.
+      const visible = docVisible();
+      setIsVisible(visible);
+      if (enabled && visible) {
         void run();
-        start();
-      } else {
-        // Hidden — pause the interval; resumes on next visibilitychange.
-        stop();
       }
     };
 
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", handleVisibility);
-    }
-
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
-      stop();
-      if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", handleVisibility);
-      }
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [enabled, intervalMs, run]);
+  }, [enabled, run]);
+
+  // Recurring interval — pauses when hidden or disabled.
+  useInterval(run, enabled && isVisible ? intervalMs : null);
 
   return { data, loading, error, refresh };
 }
