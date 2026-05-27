@@ -10,6 +10,8 @@ import Hls from "hls.js";
 import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
+import { useInterval } from "@/hooks/useInterval";
+
 import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -69,6 +71,14 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const lastRecoveryAttemptRef = useRef<number | null>(null);
     const [_adBlockStatus, setAdBlockStatus] = useState<AdBlockStatus | null>(null);
 
+    // Mutable heartbeat state lifted into refs so useInterval callbacks can read them
+    const isEffectActiveRef = useRef(false);
+    const lastFragLoadedTimeRef = useRef(Date.now());
+
+    // Delay state: null = paused, number = running. Set on MANIFEST_PARSED, cleared on teardown.
+    const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
+    const [memoryCleanupDelay, setMemoryCleanupDelay] = useState<number | null>(null);
+
     // Apple volume on mount and change
     useEffect(() => {
       if (videoRef.current && volume !== undefined) {
@@ -78,6 +88,62 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
     // Expose video ref to parent
     useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
+
+    // Heartbeat: check every 10s that fragments are still arriving.
+    // Active only while heartbeatDelay is a number (set by MANIFEST_PARSED, cleared on teardown).
+    useInterval(() => {
+      const hls = hlsRef.current;
+      if (!isEffectActiveRef.current || !hls) {
+        setHeartbeatDelay(null);
+        return;
+      }
+      const timeSinceLastFrag = Date.now() - lastFragLoadedTimeRef.current;
+      if (timeSinceLastFrag > 15000) {
+        console.debug(
+          `[TwitchHLS] No fragments in ${Math.round(timeSinceLastFrag / 1000)}s, checking stream...`
+        );
+        try {
+          hls.startLoad(-1);
+        } catch {
+          // HLS may be in invalid state
+        }
+      }
+    }, heartbeatDelay);
+
+    // Memory cleanup every 10 minutes: reset to live edge and trigger browser GC.
+    useInterval(() => {
+      const hls = hlsRef.current;
+      if (!isEffectActiveRef.current || !hls) {
+        setMemoryCleanupDelay(null);
+        return;
+      }
+
+      try {
+        console.debug(
+          "[TwitchHLS] Periodic cleanup: resetting to live edge and trimming buffers"
+        );
+
+        hls.startLevel = -1;
+
+        const originalBackBuffer = hls.config.backBufferLength;
+        hls.config.backBufferLength = 10;
+
+        // Restore after a tick to let HLS.js process the trim
+        setTimeout(() => {
+          if (hls && isEffectActiveRef.current) {
+            hls.config.backBufferLength = originalBackBuffer;
+          }
+        }, 1000);
+
+        const globalGc = (globalThis as unknown as { gc?: () => void }).gc;
+        if (typeof globalGc === "function") {
+          globalGc();
+          console.debug("[TwitchHLS] Forced garbage collection");
+        }
+      } catch (e) {
+        console.debug("[TwitchHLS] Cleanup error (non-fatal):", e);
+      }
+    }, memoryCleanupDelay);
 
     // Store callbacks in refs
     const onQualityLevelsRef = useRef(onQualityLevels);
@@ -220,14 +286,16 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       }
 
       let isEffectActive = true;
+      isEffectActiveRef.current = true;
       isMountedRef.current = true;
       lastRecoveryAttemptRef.current = null;
+
+      // Reset heartbeat mutable state for this stream
+      lastFragLoadedTimeRef.current = Date.now();
 
       let hls: Hls | null = null;
       let handleLoadedMetadata: (() => void) | null = null;
       let handleError: ((e: Event) => void) | null = null;
-      let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-      let memoryCleanupInterval: ReturnType<typeof setInterval> | null = null;
 
       const safePlay = () => {
         if (!isEffectActive || !video) return;
@@ -520,71 +588,15 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         });
 
         // Fragment loading tracker for offline detection
-        let lastFragLoadedTime = Date.now();
         hls.on(Hls.Events.FRAG_LOADED, () => {
-          lastFragLoadedTime = Date.now();
+          lastFragLoadedTimeRef.current = Date.now();
         });
 
+        // Activate heartbeat (10 000 ms) and memory cleanup (10 min) via useInterval.
+        // The actual interval logic lives in the useInterval hooks above.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          if (heartbeatInterval) clearInterval(heartbeatInterval);
-          heartbeatInterval = setInterval(() => {
-            if (!isEffectActive || !hls) {
-              if (heartbeatInterval) clearInterval(heartbeatInterval);
-              return;
-            }
-            const timeSinceLastFrag = Date.now() - lastFragLoadedTime;
-            if (timeSinceLastFrag > 15000) {
-              console.debug(
-                `[TwitchHLS] No fragments in ${Math.round(timeSinceLastFrag / 1000)}s, checking stream...`
-              );
-              try {
-                hls.startLoad(-1);
-              } catch {
-                // HLS may be in invalid state
-              }
-            }
-          }, 10000);
-
-          // === PERIODIC MEMORY CLEANUP FOR LONG-RUNNING STREAMS ===
-          // Every 10 minutes: reset to live edge and trigger browser GC
-          if (memoryCleanupInterval) clearInterval(memoryCleanupInterval);
-          memoryCleanupInterval = setInterval(
-            () => {
-              if (!isEffectActive || !hls) {
-                if (memoryCleanupInterval) clearInterval(memoryCleanupInterval);
-                return;
-              }
-
-              try {
-                console.debug(
-                  "[TwitchHLS] Periodic cleanup: resetting to live edge and trimming buffers"
-                );
-
-                // Reset to live edge
-                hls.startLevel = -1;
-
-                // Force back buffer trim
-                const originalBackBuffer = hls.config.backBufferLength;
-                hls.config.backBufferLength = 10;
-
-                setTimeout(() => {
-                  if (hls && isEffectActive) {
-                    hls.config.backBufferLength = originalBackBuffer;
-                  }
-                }, 1000);
-
-                // Trigger garbage collection if available
-                const globalGc = (globalThis as unknown as { gc?: () => void }).gc;
-                if (typeof globalGc === "function") {
-                  globalGc();
-                  console.debug("[TwitchHLS] Forced garbage collection");
-                }
-              } catch (e) {
-                console.debug("[TwitchHLS] Cleanup error (non-fatal):", e);
-              }
-            },
-            10 * 60 * 1000
-          ); // Every 10 minutes
+          setHeartbeatDelay(10000);
+          setMemoryCleanupDelay(10 * 60 * 1000);
         });
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
@@ -641,18 +653,13 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
       return () => {
         isEffectActive = false;
+        isEffectActiveRef.current = false;
         isMountedRef.current = false;
         pendingPlayRef.current = null;
 
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-
-        if (memoryCleanupInterval) {
-          clearInterval(memoryCleanupInterval);
-          memoryCleanupInterval = null;
-        }
+        // Pause the useInterval hooks
+        setHeartbeatDelay(null);
+        setMemoryCleanupDelay(null);
 
         if (hls) {
           hls.destroy();
