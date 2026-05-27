@@ -291,13 +291,13 @@ export function useBackgroundThrottle({
     };
   }, [enabled, trackWindowFocus, handleVisibilityChange]);
 
-  // Track time since hidden (for UI display)
+  // Track time since hidden (for UI display) — only run the interval while hidden
   useInterval(() => {
     if (hiddenTimestampRef.current) {
       const elapsed = Date.now() - hiddenTimestampRef.current;
       setState((prev) => ({ ...prev, timeSinceHidden: elapsed }));
     }
-  }, 1000);
+  }, !state.isVisible ? 1000 : null);
 
   // Cleanup on unmount
   useEffect(() => {
