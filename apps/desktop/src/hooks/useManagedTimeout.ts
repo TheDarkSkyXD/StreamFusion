@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 /**
  * Imperative, self-cancelling, unmount-safe one-shot timer.
@@ -40,5 +40,6 @@ export function useManagedTimeout(callback: () => void): {
   // Clear any pending timer when the consuming component unmounts.
   useEffect(() => clear, [clear]);
 
-  return { start, clear };
+  // Stable object so consumers can safely list it in effect/callback deps.
+  return useMemo(() => ({ start, clear }), [start, clear]);
 }

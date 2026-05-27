@@ -59,4 +59,11 @@ describe("useManagedTimeout", () => {
     act(() => vi.advanceTimersByTime(2000));
     expect(cb).toHaveBeenCalledTimes(0);
   });
+
+  it("returns a referentially stable object across re-renders", () => {
+    const { result, rerender } = renderHook(() => useManagedTimeout(vi.fn()));
+    const first = result.current;
+    rerender();
+    expect(result.current).toBe(first);
+  });
 });
