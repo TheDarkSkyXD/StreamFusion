@@ -528,15 +528,7 @@ async function fetchWithTimeout(
   url: string,
   timeoutMs: number = BACKUP_FETCH_TIMEOUT
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    return response;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
 }
 
 /**
@@ -737,20 +729,12 @@ async function gqlRequest(body: object): Promise<Response> {
     headers["Client-Session-Id"] = clientSession;
   }
 
-  // Use AbortController for timeout to prevent indefinite blocking
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), GQL_REQUEST_TIMEOUT);
-
-  try {
-    return await fetch("https://gql.twitch.tv/gql", {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return fetch("https://gql.twitch.tv/gql", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT),
+  });
 }
 
 /**
