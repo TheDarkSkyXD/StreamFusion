@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
 
 import { formatDuration } from "@/lib/utils";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -116,29 +117,25 @@ export function PlayerControls(props: PlayerControlsProps) {
     useAuthStore((s) => s.preferences?.playerControls) ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
 
   const [isVisible, setIsVisible] = useState(true);
-  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isHoveringControlsRef = useRef(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Clear timeout helper
-  const clearHideTimeout = useCallback(() => {
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
-    }
-  }, []);
+  const hideTimer = useManagedTimeout(() => setIsVisible(false));
+  const clickPendingRef = useRef(false);
+  const clickTimer = useManagedTimeout(() => {
+    clickPendingRef.current = false;
+    onTogglePlay();
+  });
 
   // Start idle timeout
   const startIdleTimeout = useCallback(() => {
-    clearHideTimeout();
     if (isPlaying && !isSettingsOpen) {
-      const timeout = isHoveringControlsRef.current ? 3000 : 1000;
-      hideTimeoutRef.current = setTimeout(() => {
-        setIsVisible(false);
-      }, timeout);
+      hideTimer.start(isHoveringControlsRef.current ? 3000 : 1000);
+    } else {
+      hideTimer.clear();
     }
-  }, [isPlaying, clearHideTimeout, isSettingsOpen]);
+  }, [isPlaying, isSettingsOpen, hideTimer]);
 
   // Handle mouse move anywhere on the overlay
   const handleMouseMove = useCallback(() => {
@@ -148,20 +145,18 @@ export function PlayerControls(props: PlayerControlsProps) {
 
   // Handle mouse leaving the player area (200ms quick hide)
   const handleMouseLeave = useCallback(() => {
-    clearHideTimeout();
     if (isPlaying && !isSettingsOpen) {
-      hideTimeoutRef.current = setTimeout(() => {
-        setIsVisible(false);
-      }, 200);
+      hideTimer.start(200);
+    } else {
+      hideTimer.clear();
     }
-  }, [isPlaying, clearHideTimeout, isSettingsOpen]);
+  }, [isPlaying, isSettingsOpen, hideTimer]);
 
   // Handle mouse entering the player area
   const handleMouseEnter = useCallback(() => {
-    clearHideTimeout();
     setIsVisible(true);
     startIdleTimeout();
-  }, [clearHideTimeout, startIdleTimeout]);
+  }, [startIdleTimeout]);
 
   // Handle controls specific hover
   const handleControlsEnter = useCallback(() => {
@@ -178,52 +173,39 @@ export function PlayerControls(props: PlayerControlsProps) {
     (open: boolean) => {
       setIsSettingsOpen(open);
       if (open) {
-        clearHideTimeout();
+        hideTimer.clear();
         setIsVisible(true);
       } else {
         startIdleTimeout();
       }
     },
-    [clearHideTimeout, startIdleTimeout]
+    [hideTimer, startIdleTimeout]
   );
 
-  // Click/Double-click race condition handling
-  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const handleOverlayClick = useCallback(() => {
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
+    if (clickPendingRef.current) {
+      clickTimer.clear();
+      clickPendingRef.current = false;
       return;
     }
-    clickTimeoutRef.current = setTimeout(() => {
-      onTogglePlay();
-      clickTimeoutRef.current = null;
-    }, 250);
-  }, [onTogglePlay]);
+    clickPendingRef.current = true;
+    clickTimer.start(250);
+  }, [clickTimer]);
 
   const handleOverlayDoubleClick = useCallback(() => {
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-    }
+    clickTimer.clear();
     onToggleFullscreen();
-  }, [onToggleFullscreen]);
+  }, [clickTimer, onToggleFullscreen]);
 
   // Reset when playing state changes
   useEffect(() => {
     if (!isPlaying) {
-      clearHideTimeout();
+      hideTimer.clear();
       setIsVisible(true);
     } else {
       startIdleTimeout();
     }
-  }, [isPlaying, clearHideTimeout, startIdleTimeout]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => clearHideTimeout();
-  }, [clearHideTimeout]);
+  }, [isPlaying, hideTimer, startIdleTimeout]);
 
   const isLive = !duration || duration === Infinity;
 
