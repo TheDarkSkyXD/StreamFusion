@@ -1,7 +1,7 @@
 ---
 date: 2026-05-24
 topic: ui-timer-hygiene-migration
-status: scoping — needs its own brainstorm to finalize open decisions before planning
+status: SUPERSEDED by 2026-05-26-frontend-timer-hygiene-migration-requirements.md (open decisions finalized there)
 ---
 
 # UI Timer-Hygiene Migration — No Raw `setTimeout`/`setInterval` in the UI Layer
