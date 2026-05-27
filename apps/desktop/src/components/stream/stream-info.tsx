@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
 import { useIsKickMod } from "@/hooks/useIsKickMod";
 import { useIsTwitchMod } from "@/hooks/useIsTwitchMod";
+import { useInterval } from "@/hooks/useInterval";
 import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
 
 /**
@@ -19,17 +20,15 @@ import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/util
 const UptimeCounter = React.memo(({ startedAt }: { startedAt: string }) => {
   const [uptime, setUptime] = useState(() => formatUptime(startedAt));
 
+  // Update immediately when startedAt changes
   useEffect(() => {
-    // Update immediately
     setUptime(formatUptime(startedAt));
-
-    // Update every second
-    const interval = setInterval(() => {
-      setUptime(formatUptime(startedAt));
-    }, 1000);
-
-    return () => clearInterval(interval);
   }, [startedAt]);
+
+  // Update every second
+  useInterval(() => {
+    setUptime(formatUptime(startedAt));
+  }, 1000);
 
   return <span className="font-semibold tabular-nums text-white">{uptime}</span>;
 });
