@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useMemo } from "react";
 
 import type { UnifiedStream } from "@/backend/api/unified/platform-types";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
@@ -9,6 +9,7 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatLanguageLabel, formatViewerCount } from "@/lib/utils";
 
 interface StreamCardProps {
@@ -27,11 +28,9 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
   const platformColor = stream.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
 
   const queryClient = useQueryClient();
-  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleMouseEnter = useCallback(() => {
-    if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
-    prefetchTimerRef.current = setTimeout(() => {
+  const prefetchTimer = useManagedTimeout(
+    useCallback(() => {
       queryClient.prefetchQuery({
         queryKey: CHANNEL_KEYS.byUsername(stream.channelName, stream.platform),
         queryFn: async () => {
@@ -56,21 +55,16 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
           return response.data;
         },
       });
-    }, HOVER_PREFETCH_DELAY_MS);
-  }, [queryClient, stream.channelName, stream.platform]);
+    }, [queryClient, stream.channelName, stream.platform]),
+  );
+
+  const handleMouseEnter = useCallback(() => {
+    prefetchTimer.start(HOVER_PREFETCH_DELAY_MS);
+  }, [prefetchTimer]);
 
   const handleMouseLeave = useCallback(() => {
-    if (prefetchTimerRef.current) {
-      clearTimeout(prefetchTimerRef.current);
-      prefetchTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
-    };
-  }, []);
+    prefetchTimer.clear();
+  }, [prefetchTimer]);
 
   const displayTags = useMemo<string[] | null>(() => {
     const tags: string[] = [];
