@@ -174,6 +174,11 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   // When false, ALL connection attempts and reconnections are blocked
   private isActive = false;
 
+  // Generation counter for soft-disconnect race guard.
+  // Incremented by disconnect() and forceShutdown() so any sleep() callback
+  // that was scheduled before the disconnect can detect it was superseded.
+  private reconnectGeneration = 0;
+
   // Reference counting for multiview support
   // Tracks how many components are actively using this service
   // Only performs full shutdown when count reaches 0
@@ -331,6 +336,10 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   async disconnect(): Promise<void> {
     if (!this.pusher) return;
 
+    // Invalidate any pending sleep-based reconnect so it doesn't fire after
+    // this soft disconnect (forceShutdown covers the hard path via isActive).
+    this.reconnectGeneration += 1;
+
     try {
       // Unsubscribe from all channels
       for (const [_slug, info] of this.channels) {
@@ -418,6 +427,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     // Mark service as inactive FIRST - this blocks all reconnection attempts
     this.isActive = false;
+    this.reconnectGeneration += 1;
     this.activeUsers = 0;
     this.reconnectAttempts = 0;
 
@@ -1005,7 +1015,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
       );
 
+      const capturedGeneration = this.reconnectGeneration;
       void sleep(delay).then(async () => {
+        // Abort if a disconnect() or forceShutdown() was called during the sleep.
+        if (this.reconnectGeneration !== capturedGeneration) {
+          this.log("Reconnect generation changed during delay, aborting");
+          return;
+        }
         // Double-check service is still active before reconnecting
         if (!this.isActive) {
           this.log("Service deactivated during reconnect delay, aborting");
