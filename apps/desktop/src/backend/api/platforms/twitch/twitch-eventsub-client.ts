@@ -26,6 +26,8 @@
  *     `keepalive_timeout_seconds`, force-close and reconnect.
  */
 
+import { sleep } from "@/lib/sleep";
+
 import type {
   NotificationPayload,
   RevocationPayload,
@@ -127,7 +129,6 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private keepaliveSeconds = 10;
   private keepaliveTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set true after `close()` so we don't auto-reconnect. */
   private closed = false;
 
@@ -213,7 +214,6 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     this.subIdToPair.clear();
 
     this.clearKeepaliveTimer();
-    this.clearReconnectTimer();
 
     if (this.ws) {
       try {
@@ -329,7 +329,6 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
   private scheduleReconnect(): void {
     if (this.closed) return;
-    this.clearReconnectTimer();
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       this.setState("error");
       return;
@@ -338,17 +337,9 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     const delay = Math.min(BACKOFF_BASE_MS * 2 ** exponent, BACKOFF_MAX_MS);
     this.reconnectAttempts += 1;
     this.setState("reconnecting");
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
+    void sleep(delay).then(() => {
       this.openSocket();
-    }, delay);
-  }
-
-  private clearReconnectTimer(): void {
-    if (this.reconnectTimer !== null) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    });
   }
 
   private clearKeepaliveTimer(): void {
