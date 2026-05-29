@@ -132,9 +132,6 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
  * validated by live integration testing — see plan task #6.
  */
 export async function _tryBearerFetch(token: string): Promise<FollowedChannelsResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
   let response: Response;
   try {
     response = await fetch(FOLLOWED_CHANNELS_URL, {
@@ -142,21 +139,19 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
       },
-      signal: controller.signal,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (err) {
-    clearTimeout(timeout);
     // Network-level failures (DNS, refused, abort). Debug-log only — these are
-    // transient and re-fire on the next login. AbortError filtered out
-    // explicitly so the warn channel doesn't get noise from rapid retriggers.
-    if (err instanceof Error && err.name === "AbortError") {
+    // transient and re-fire on the next login. AbortError/TimeoutError filtered
+    // out explicitly so the warn channel doesn't get noise from rapid retriggers.
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
       console.debug("[KickFollows] Fetch aborted (timeout or re-trigger)");
     } else {
       console.debug("[KickFollows] Network error:", err);
     }
     return { status: "error", reason: "network-error" };
   }
-  clearTimeout(timeout);
 
   if (response.status === 401 || response.status === 403) {
     _warnOnce("auth-failed", `Kick v2 followed-channels rejected Bearer auth (status ${response.status}). If this persists, the endpoint may require session-cookie auth via BrowserWindow.`);
