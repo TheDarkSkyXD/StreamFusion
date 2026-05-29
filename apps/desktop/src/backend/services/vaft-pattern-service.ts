@@ -180,18 +180,13 @@ class VaftPatternService {
    */
   private async fetchScript(url: string): Promise<string | null> {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-
       const response = await fetch(url, {
-        signal: controller.signal,
+        signal: AbortSignal.timeout(10000),
         headers: {
           Accept: "text/plain",
           "Cache-Control": "no-cache",
         },
       });
-
-      clearTimeout(timeout);
 
       if (!response.ok) {
         console.debug(`[VaftPatterns] HTTP ${response.status} from ${url}`);
