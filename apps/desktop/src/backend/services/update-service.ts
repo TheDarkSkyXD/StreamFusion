@@ -21,6 +21,8 @@ import type {
   UpdateState,
 } from "../../shared/ipc-channels";
 
+import { createManagedInterval } from "@/lib/managed-interval";
+
 /**
  * Persisted shape of the existing `update-settings` store. `allowPrerelease`
  * predates U15; `autoCheckEnabled` / `checkFrequency` / `lastCheckAt` were added
@@ -84,7 +86,7 @@ let currentState: UpdateState = {
 };
 
 // Handle for the auto-check interval timer (null when not scheduled).
-let autoCheckTimer: ReturnType<typeof setInterval> | null = null;
+let autoCheckTimer: { stop: () => void } | null = null;
 
 // Reference to main window for sending updates
 let mainWindowRef: BrowserWindow | null = null;
@@ -262,7 +264,7 @@ function maybeRunScheduledCheck(): void {
  */
 function startAutoCheckScheduler(): void {
   if (autoCheckTimer) {
-    clearInterval(autoCheckTimer);
+    autoCheckTimer.stop();
     autoCheckTimer = null;
   }
 
@@ -278,7 +280,7 @@ function startAutoCheckScheduler(): void {
   // sub-hour loop. Check once on (re)schedule too, so enabling it doesn't wait a
   // full tick when a check is already due.
   maybeRunScheduledCheck();
-  autoCheckTimer = setInterval(maybeRunScheduledCheck, MIN_INTERVAL_MS);
+  autoCheckTimer = createManagedInterval(maybeRunScheduledCheck, MIN_INTERVAL_MS);
   console.log(
     `[Update] Auto-check scheduler started (frequency=${currentState.checkFrequency})`
   );
