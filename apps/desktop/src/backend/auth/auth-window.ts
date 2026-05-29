@@ -19,6 +19,7 @@ import {
 } from "./oauth-config";
 
 import { waitForWebContentsCondition } from "../services/web-contents-ready";
+import { sleep } from "../../lib/sleep";
 
 /**
  * Readiness predicate (page-context JS) for kick.com's header: true once EITHER
@@ -334,7 +335,7 @@ class AuthWindowManager {
         lastReason = `poll error: ${err instanceof Error ? err.message : String(err)}`;
         console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
       }
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await sleep(1500);
     }
     console.warn(
       `⚠️ Kick web sign-in not detected within ${Math.round(maxMs / 1000)}s — aborting OAuth handoff. Last poll reason: ${lastReason}`
