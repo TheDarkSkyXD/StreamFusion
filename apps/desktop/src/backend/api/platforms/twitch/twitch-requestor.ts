@@ -1,5 +1,6 @@
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
+import { sleep } from "@/lib/sleep";
 
 import type { TwitchClientError } from "./twitch-types";
 
@@ -175,7 +176,7 @@ export class TwitchRequestor {
             console.warn(
               `⚠️ Twitch API server error ${response.status} (attempt ${attempt + 1}/${this.MAX_RETRIES + 1}). Retrying in ${delay}ms...`
             );
-            await new Promise((resolve) => setTimeout(resolve, delay));
+            await sleep(delay);
             continue;
           }
         }
@@ -201,7 +202,7 @@ export class TwitchRequestor {
         console.warn(
           `⚠️ Twitch API request failed (attempt ${attempt + 1}/${this.MAX_RETRIES + 1}). Retrying in ${delay}ms... Error: ${errorMsg}`
         );
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await sleep(delay);
       }
     }
 
