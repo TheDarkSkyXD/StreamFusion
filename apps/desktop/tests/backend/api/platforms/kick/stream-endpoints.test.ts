@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Guards: Kick public-stream-cache + fan-out 4-part contract (regressions cb0b7b6 + 6d3606d, refactored in 640870a).
-// Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.request again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
+// Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
 // Guards: stagger fires AFTER cache check — a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
 // Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
 // Guards: a transient timeout does NOT preempt a fresh positive cache — the timeout-TTL (30s) is intentionally suppressed when a successful fetch from the same slug is still within `PUBLIC_STREAM_POLL_HIT_TTL_MS` (90s). Otherwise a single 5s cold-TLS timeout would flash false "channel offline" UI on the stream-detail page.
 
 // The vi.mock factory is hoisted above all top-level declarations and cannot
 // close over variables defined later in this file. `vi.hoisted` runs at the
-// same hoist time, so the shared mutable state + fake-request factory live
+// same hoist time, so the shared mutable state + fake-fetch factory live
 // there together.
 const mockState = vi.hoisted(() => {
   type QueuedResponse =
@@ -20,56 +20,30 @@ const mockState = vi.hoisted(() => {
     netRequestCalls: [] as Array<{ url: string }>,
   };
 
-  function makeFakeNetRequest(url: string) {
+  // Fake net.fetch that dequeues from responseQueue and returns a Response-like object.
+  // If the queue is empty, the promise never resolves (simulating a hung request —
+  // AbortSignal.timeout from the source will fire and reject it).
+  async function fakeFetch(url: string, _options?: unknown): Promise<Response> {
     state.netRequestCalls.push({ url });
-    const responseHandlers: Array<(resp: unknown) => void> = [];
-    const errorHandlers: Array<(err: Error) => void> = [];
-
-    return {
-      setHeader: () => {},
-      abort: () => {},
-      on(event: string, cb: (...args: unknown[]) => void) {
-        if (event === "response")
-          responseHandlers.push(cb as (resp: unknown) => void);
-        else if (event === "error")
-          errorHandlers.push(cb as (err: Error) => void);
-      },
-      end() {
-        queueMicrotask(() => {
-          const next = state.responseQueue.shift();
-          if (!next) return; // Leave hanging — caller's timeout will fire.
-          if (next.kind === "error") {
-            for (const h of errorHandlers) h(new Error(next.message));
-            return;
-          }
-          const dataHandlers: Array<(chunk: Buffer) => void> = [];
-          const endHandlers: Array<() => void> = [];
-          const fakeResponse = {
-            statusCode: 200,
-            on(event: string, cb: (...args: unknown[]) => void) {
-              if (event === "data")
-                dataHandlers.push(cb as (chunk: Buffer) => void);
-              else if (event === "end") endHandlers.push(cb as () => void);
-            },
-          };
-          for (const h of responseHandlers) h(fakeResponse);
-          queueMicrotask(() => {
-            for (const h of dataHandlers) h(Buffer.from(next.body));
-            for (const h of endHandlers) h();
-          });
-        });
-      },
-    };
+    const next = state.responseQueue.shift();
+    if (!next) {
+      // Hang forever — AbortSignal.timeout in the source will abort this.
+      return new Promise<Response>(() => {});
+    }
+    if (next.kind === "error") {
+      throw new Error(next.message);
+    }
+    return new Response(next.body, { status: 200 });
   }
 
-  return { state, makeFakeNetRequest };
+  return { state, fakeFetch };
 });
 
 // `getPublicStreamBySlug` source does `require("electron")` dynamically.
 // vi.mock works for both `import` and `require`.
 vi.mock("electron", () => ({
   net: {
-    request: ({ url }: { url: string }) => mockState.makeFakeNetRequest(url),
+    fetch: (url: string, options?: unknown) => mockState.fakeFetch(url, options),
   },
 }));
 

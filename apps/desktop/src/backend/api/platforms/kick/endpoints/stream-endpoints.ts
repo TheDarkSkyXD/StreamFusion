@@ -123,53 +123,24 @@ async function getChannelDisplayInfo(
   try {
     const { net } = require("electron");
 
-    const data = await new Promise<any>((resolve, _reject) => {
-      const request = net.request({
-        method: "GET",
-        url: `${KICK_LEGACY_API_V1_BASE}/channels/${slug}`,
+    let data: any = null;
+    try {
+      const res: Response = await net.fetch(`${KICK_LEGACY_API_V1_BASE}/channels/${slug}`, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Referer: "https://kick.com/",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+        signal: AbortSignal.timeout(3000),
       });
-
-      request.setHeader("Accept", "application/json");
-      request.setHeader(
-        "User-Agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      );
-      request.setHeader("Referer", "https://kick.com/");
-      request.setHeader("Accept-Language", "en-US,en;q=0.9");
-
-      const timeout = setTimeout(() => {
-        request.abort();
-        resolve(null);
-      }, 3000); // 3 second timeout
-
-      request.on("response", (response: any) => {
-        if (response.statusCode !== 200) {
-          clearTimeout(timeout);
-          resolve(null);
-          return;
-        }
-
-        let body = "";
-        response.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-        response.on("end", () => {
-          clearTimeout(timeout);
-          try {
-            resolve(JSON.parse(body));
-          } catch {
-            resolve(null);
-          }
-        });
-      });
-
-      request.on("error", () => {
-        clearTimeout(timeout);
-        resolve(null);
-      });
-
-      request.end();
-    });
+      if (res.ok) {
+        data = await res.json().catch(() => null);
+      }
+    } catch {
+      // timeout or network error
+    }
 
     if (!data) return null;
 
@@ -368,91 +339,38 @@ async function _doFetchPublicStreamBySlug(
 
     const releaseSlot = await acquireKickRequestSlot();
     try {
-      const data = await new Promise<any>((resolve, reject) => {
-        const request = net.request({
-          method: "GET",
-          url: `${KICK_LEGACY_API_V1_BASE}/channels/${slug}`,
-        });
-
-        request.setHeader("Accept", "application/json");
-        request.setHeader(
-          "User-Agent",
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        );
-        request.setHeader("Referer", "https://kick.com/");
-        request.setHeader("X-Requested-With", "XMLHttpRequest");
-
-        // Without this, hung connections wait for Chromium's TCP timeout (~21s)
-        // before surfacing as ERR_CONNECTION_TIMED_OUT. Fail fast so the 60s
-        // refetch cycle doesn't stack up.
-        let settled = false;
-        const timeout = setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          request.abort();
-          reject(new Error("TRANSIENT:timeout"));
-        }, PUBLIC_STREAM_REQUEST_TIMEOUT_MS);
-
-        request.on("response", (response: any) => {
-          if (response.statusCode === 404) {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
-            resolve(null);
-            return;
-          }
-
-          // Transient server errors - should retry
-          if (
-            response.statusCode === 502 ||
-            response.statusCode === 503 ||
-            response.statusCode === 504
-          ) {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
-            reject(new Error(`TRANSIENT:${response.statusCode}`));
-            return;
-          }
-
-          if (response.statusCode !== 200) {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
-            reject(new Error(`Status ${response.statusCode}`));
-            return;
-          }
-
-          let body = "";
-          response.on("data", (chunk: Buffer) => {
-            body += chunk.toString();
-          });
-
-          response.on("end", () => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
-            try {
-              resolve(JSON.parse(body));
-            } catch (_e) {
-              console.warn(`[KickStream] Failed to parse JSON for ${slug}`);
-              reject(new Error("Failed to parse JSON"));
-            }
-          });
-        });
-
-        request.on("error", (error: Error) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          // Network errors (ERR_CONNECTION_TIMED_OUT, ERR_NAME_NOT_RESOLVED,
-          // etc.) are transient from our perspective — retry with the same
-          // backoff as 5xx.
-          reject(new Error(`TRANSIENT:${error.message}`));
-        });
-
-        request.end();
+      // Without a timeout, hung connections wait for Chromium's TCP timeout
+      // (~21s) before surfacing as ERR_CONNECTION_TIMED_OUT. Fail fast so the
+      // 60s refetch cycle doesn't stack up.
+      const res: Response = await net.fetch(`${KICK_LEGACY_API_V1_BASE}/channels/${slug}`, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Referer: "https://kick.com/",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        signal: AbortSignal.timeout(PUBLIC_STREAM_REQUEST_TIMEOUT_MS),
       });
+
+      // Transient server errors - should retry
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        throw new Error(`TRANSIENT:${res.status}`);
+      }
+
+      if (res.status !== 200 && res.status !== 404) {
+        throw new Error(`Status ${res.status}`);
+      }
+
+      let data: any = null;
+      if (res.status !== 404) {
+        try {
+          data = await res.json();
+        } catch (_e) {
+          console.warn(`[KickStream] Failed to parse JSON for ${slug}`);
+          throw new Error("Failed to parse JSON");
+        }
+      }
 
       // API responded successfully — clear any prior warn flag for this slug
       // so a future failure will warn again instead of being silently debug-ed.
@@ -497,15 +415,31 @@ async function _doFetchPublicStreamBySlug(
       _publicStreamSuccessCache.set(key, { data: result, timestamp: Date.now() });
       return result;
     } catch (error: any) {
-      lastError = error;
+      // Normalize TimeoutError/AbortError from AbortSignal.timeout and raw
+      // network errors (net::ERR_*) from net.fetch into the TRANSIENT: prefix
+      // so the retry/classification logic below is unchanged.
+      let normalizedError: Error;
+      if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+        normalizedError = new Error("TRANSIENT:timeout");
+      } else if (
+        error instanceof Error &&
+        !error.message.startsWith("TRANSIENT:") &&
+        !error.message.startsWith("Status ") &&
+        error.message !== "Failed to parse JSON"
+      ) {
+        normalizedError = new Error(`TRANSIENT:${error.message}`);
+      } else {
+        normalizedError = error instanceof Error ? error : new Error(String(error));
+      }
+      lastError = normalizedError;
 
       // Check if this is a transient error that should be retried
-      if (error.message?.startsWith("TRANSIENT:")) {
-        const reason = error.message.split(":")[1];
+      if (normalizedError.message?.startsWith("TRANSIENT:")) {
+        const reason = normalizedError.message.split(":")[1];
         // Feed net::ERR_* failures into the health tracker so a burst across
         // concurrent slugs flips the global flag and the remaining retries
         // (here and at other Kick call sites) bail out fast.
-        recordTransientNetworkError(error.message);
+        recordTransientNetworkError(normalizedError.message);
         if (isNetworkLikelyDown()) break;
         // Don't delay after the final attempt
         if (attempt < maxRetries - 1) {
@@ -724,48 +658,25 @@ export async function getPublicStreamsByCategorySlug(
   const cursorParam = options.cursor ? `?cursor=${encodeURIComponent(options.cursor)}` : "";
   const url = `https://api.kick.com/private/v1/categories/${encodeURIComponent(slug)}/livestreams${cursorParam}`;
 
-  const data = await new Promise<any>((resolve) => {
-    const request = net.request({ method: "GET", url });
-    request.setHeader("Accept", "application/json");
-    request.setHeader(
-      "User-Agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    );
-    request.setHeader("Referer", "https://kick.com/");
-    request.setHeader("Origin", "https://kick.com");
-    request.setHeader("X-Requested-With", "XMLHttpRequest");
-
-    const timeout = setTimeout(() => {
-      request.abort();
-      resolve(null);
-    }, 5000);
-
-    request.on("response", (response: any) => {
-      let body = "";
-      response.on("data", (chunk: Buffer) => {
-        body += chunk.toString();
-      });
-      response.on("end", () => {
-        clearTimeout(timeout);
-        if (response.statusCode !== 200) {
-          resolve(null);
-          return;
-        }
-        try {
-          resolve(JSON.parse(body));
-        } catch {
-          resolve(null);
-        }
-      });
+  let data: any = null;
+  try {
+    const res: Response = await net.fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Referer: "https://kick.com/",
+        Origin: "https://kick.com",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      signal: AbortSignal.timeout(5000),
     });
-
-    request.on("error", () => {
-      clearTimeout(timeout);
-      resolve(null);
-    });
-
-    request.end();
-  });
+    if (res.ok) {
+      data = await res.json().catch(() => null);
+    }
+  } catch {
+    // timeout or network error
+  }
 
   const livestreams = data?.data?.livestreams || [];
   if (!Array.isArray(livestreams) || livestreams.length === 0) {
@@ -863,54 +774,25 @@ export async function getPublicTopStreams(
 
     for (const url of endpoints) {
       try {
-        const data = await new Promise<any>((resolve) => {
-          const request = net.request({
-            method: "GET",
-            url: url,
+        let data: any = null;
+        try {
+          const res: Response = await net.fetch(url, {
+            headers: {
+              Accept: "application/json",
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              Referer: "https://kick.com/",
+              Origin: "https://kick.com",
+              "X-Requested-With": "XMLHttpRequest",
+            },
+            signal: AbortSignal.timeout(5000),
           });
-
-          request.setHeader("Accept", "application/json");
-          request.setHeader(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-          );
-          request.setHeader("Referer", "https://kick.com/");
-          request.setHeader("Origin", "https://kick.com");
-          request.setHeader("X-Requested-With", "XMLHttpRequest");
-
-          // Timeout after 5 seconds
-          const timeout = setTimeout(() => {
-            request.abort();
-            resolve(null);
-          }, 5000);
-
-          request.on("response", (response: any) => {
-            let body = "";
-            response.on("data", (chunk: Buffer) => {
-              body += chunk.toString();
-            });
-            response.on("end", () => {
-              clearTimeout(timeout);
-              if (response.statusCode === 200) {
-                try {
-                  const parsed = JSON.parse(body);
-                  resolve(parsed);
-                } catch {
-                  resolve(null);
-                }
-              } else {
-                resolve(null);
-              }
-            });
-          });
-
-          request.on("error", () => {
-            clearTimeout(timeout);
-            resolve(null);
-          });
-
-          request.end();
-        });
+          if (res.ok) {
+            data = await res.json().catch(() => null);
+          }
+        } catch {
+          // timeout or network error — try next endpoint
+        }
 
         if (data) {
           const rawList = Array.isArray(data) ? data : data.data || data.livestreams || [];
