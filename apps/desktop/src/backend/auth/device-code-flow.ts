@@ -16,6 +16,7 @@
 
 import type { AuthToken } from "../../shared/auth-types";
 
+import { createManagedInterval } from "@/lib/managed-interval";
 import { getOAuthConfig } from "./oauth-config";
 
 // ========== Types ==========
@@ -58,7 +59,7 @@ const TOKEN_ENDPOINT = "https://id.twitch.tv/oauth2/token";
 // ========== Device Code Flow Service ==========
 
 class DeviceCodeFlowService {
-  private pollingInterval: NodeJS.Timeout | null = null;
+  private pollingInterval: { stop: () => void } | null = null;
 
   /**
    * Step 1: Request a device code and user code from Twitch
@@ -211,7 +212,7 @@ class DeviceCodeFlowService {
 
       // Start polling
       poll();
-      this.pollingInterval = setInterval(poll, interval * 1000);
+      this.pollingInterval = createManagedInterval(poll, interval * 1000);
     });
   }
 
@@ -220,7 +221,7 @@ class DeviceCodeFlowService {
    */
   stopPolling(): void {
     if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
+      this.pollingInterval.stop();
       this.pollingInterval = null;
     }
   }
