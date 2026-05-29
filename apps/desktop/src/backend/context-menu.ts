@@ -30,6 +30,8 @@ export function buildContextMenuTemplate(
   return template;
 }
 
+/** Attach only to the main BrowserWindow's webContents. Spec R10–R12 exclude
+ *  the auth popup and the headless API-fetching windows from this menu. */
 export function installContextMenu(webContents: WebContents): void {
   webContents.on("context-menu", (_event, params) => {
     const template = buildContextMenuTemplate(params);
