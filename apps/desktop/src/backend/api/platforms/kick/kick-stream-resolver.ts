@@ -14,62 +14,37 @@ export class KickStreamResolver {
   private async validatePlaybackUrl(url: string): Promise<boolean> {
     const { net } = require("electron");
 
-    return new Promise<boolean>((resolve) => {
-      const request = net.request({
+    try {
+      const res: Response = await net.fetch(url, {
         method: "GET", // IVS doesn't support HEAD, use GET with Range
-        url: url,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Origin: "https://kick.com",
+          Referer: "https://kick.com/",
+          // Only fetch first 1KB to minimize bandwidth
+          Range: "bytes=0-1024",
+        },
+        signal: AbortSignal.timeout(5000),
       });
 
-      request.setHeader(
-        "User-Agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      // 200-299 or 206 (Partial Content) = valid; 404/403 = stream gone
+      if (res.status === 404 || res.status === 403) {
+        console.debug(`[KickStreamResolver] Playback URL validation failed: ${res.status}`);
+        return false;
+      }
+      if (res.status >= 200 && res.status < 300) {
+        return true;
+      }
+      // Other status codes (e.g., 503) - assume temporary, let player handle
+      console.debug(
+        `[KickStreamResolver] Playback URL returned status ${res.status}, assuming valid`
       );
-      request.setHeader("Origin", "https://kick.com");
-      request.setHeader("Referer", "https://kick.com/");
-      // Only fetch first 1KB to minimize bandwidth
-      request.setHeader("Range", "bytes=0-1024");
-
-      // Set a short timeout for validation (5 seconds)
-      const timeout = setTimeout(() => {
-        request.abort();
-        // On timeout, assume URL might be valid (don't block on slow CDN)
-        resolve(true);
-      }, 5000);
-
-      request.on("response", (response: any) => {
-        clearTimeout(timeout);
-        // Abort the request immediately after getting status - we don't need the body
-        request.abort();
-
-        // 200-299 or 206 (Partial Content) = valid
-        // 404/403 = stream gone
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          resolve(true);
-        } else if (response.statusCode === 206) {
-          // Partial Content - Range request successful
-          resolve(true);
-        } else if (response.statusCode === 404 || response.statusCode === 403) {
-          console.debug(
-            `[KickStreamResolver] Playback URL validation failed: ${response.statusCode}`
-          );
-          resolve(false);
-        } else {
-          // Other status codes (e.g., 503) - assume temporary, let player handle
-          console.debug(
-            `[KickStreamResolver] Playback URL returned status ${response.statusCode}, assuming valid`
-          );
-          resolve(true);
-        }
-      });
-
-      request.on("error", () => {
-        clearTimeout(timeout);
-        // Network error - assume URL might be valid, let player handle
-        resolve(true);
-      });
-
-      request.end();
-    });
+      return true;
+    } catch {
+      // Timeout or network error — assume URL might be valid, let player handle
+      return true;
+    }
   }
 
   /**
@@ -78,79 +53,36 @@ export class KickStreamResolver {
   private async netRequest<T>(url: string, context?: string): Promise<T> {
     const { net } = require("electron");
 
-    return new Promise<T>((resolve, reject) => {
-      const request = net.request({
-        method: "GET",
-        url: url,
-      });
-
-      request.setHeader("Accept", "application/json");
-      request.setHeader(
-        "User-Agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      );
-      request.setHeader("Referer", "https://kick.com/");
-      request.setHeader("X-Requested-With", "XMLHttpRequest");
-
-      // Without this, the player hangs ~21s on Chromium's TCP timeout per
-      // attempt; getStreamPlaybackUrl's 2-retry loop on top would mean ~42s
-      // before the user sees an error.
-      let settled = false;
-      const timeout = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        request.abort();
-        reject(new Error("Request timeout"));
-      }, 5000);
-
-      request.on("response", (response: any) => {
-        if (response.statusCode === 404) {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          const contextInfo = context ? ` for ${context}` : "";
-          reject(
-            new Error(
-              `Channel not found${contextInfo} - the channel may not exist or has been renamed`
-            )
-          );
-          return;
-        }
-
-        if (response.statusCode !== 200) {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          reject(new Error(`Kick API error: ${response.statusCode}`));
-          return;
-        }
-
-        let body = "";
-        response.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-
-        response.on("end", () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          try {
-            resolve(JSON.parse(body) as T);
-          } catch (_e) {
-            reject(new Error("Failed to parse JSON"));
-          }
-        });
-      });
-
-      request.on("error", (error: Error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        reject(error);
-      });
-
-      request.end();
+    // Without a timeout, the player hangs ~21s on Chromium's TCP timeout per
+    // attempt; getStreamPlaybackUrl's 2-retry loop on top would mean ~42s
+    // before the user sees an error.
+    const res: Response = await net.fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Referer: "https://kick.com/",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      signal: AbortSignal.timeout(5000),
     });
+
+    if (res.status === 404) {
+      const contextInfo = context ? ` for ${context}` : "";
+      throw new Error(
+        `Channel not found${contextInfo} - the channel may not exist or has been renamed`
+      );
+    }
+
+    if (!res.ok) {
+      throw new Error(`Kick API error: ${res.status}`);
+    }
+
+    try {
+      return (await res.json()) as T;
+    } catch (_e) {
+      throw new Error("Failed to parse JSON");
+    }
   }
 
   /**
