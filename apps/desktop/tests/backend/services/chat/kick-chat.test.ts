@@ -7,6 +7,13 @@ vi.mock("pusher-js", () => ({
   default: vi.fn(),
 }));
 
+vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+  ensureSendWindowReady: vi.fn(() => Promise.resolve()),
+  sendKickChatMessage: vi.fn(),
+  disposeSendWindow: vi.fn(() => Promise.resolve()),
+}));
+
+import * as sendWindow from "@/backend/api/platforms/kick/kick-send-window";
 import { KickChatService } from "@/backend/services/chat/kick-chat";
 
 // Guards: kick-chat sendMessage wire format — POST /public/v1/chat must carry the
@@ -98,5 +105,20 @@ describe("KickChatService.sendMessage", () => {
       /broadcaster user_id not set/i,
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("KickChatService.joinChannel triggers warmup", () => {
+  it("calls ensureSendWindowReady without awaiting", async () => {
+    const { service, internals } = makeService();
+    // Fake Pusher state so joinChannel doesn't blow up on the WebSocket path.
+    (service as any).pusher = {
+      connection: { state: "connected" },
+      subscribe: vi.fn(() => ({ bind: vi.fn() })),
+    };
+    (service as any).connectionState = "connected";
+    await service.joinChannel("ac7ionman", 999_111, 42);
+    expect(sendWindow.ensureSendWindowReady).toHaveBeenCalledOnce();
+    expect(internals.channels.has("ac7ionman")).toBe(true);
   });
 });

@@ -8,6 +8,11 @@
 import Pusher from "pusher-js";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import { sleep } from "@/lib/sleep";
+import {
+  disposeSendWindow,
+  ensureSendWindowReady,
+  sendKickChatMessage,
+} from "../../api/platforms/kick/kick-send-window";
 
 // ... imports
 import type {
@@ -529,6 +534,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       this.setupChannelEventHandlers(pusherChannel, normalizedChannel, chatroomId);
 
       // NOTE: Channel badges should be set by caller via setChannelBadges()
+
+      // Begin send-window warmup in parallel with the Pusher subscription. We
+      // don't await — the chat input remains usable; sendMessage will await this
+      // promise before each send.
+      void ensureSendWindowReady().catch((err) => {
+        this.log(`send-window warmup failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
 
       this.emitConnectionStatus();
       this.log(`Joined channel: ${normalizedChannel} (chatroom: ${chatroomId})`);
