@@ -214,6 +214,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   // so it can prompt the user to re-authenticate.
   kickAuthService.on("session-expired", () => {
     safeSend(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED);
+    void disposeSendWindow();
   });
 
   // ========== Auth - Token Management ==========

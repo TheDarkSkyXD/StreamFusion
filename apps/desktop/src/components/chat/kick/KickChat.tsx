@@ -320,11 +320,11 @@ export const KickChat: React.FC<KickChatProps> = ({
 
           // 3. Subscribe to Pusher; live messages start flowing after this.
           //    `channelId` here is the broadcaster's user_id (v2 channel
-          //    `data.id`) — required by `kickChatService.sendMessage` so the
-          //    official `POST /public/v1/chat` endpoint addresses the right
-          //    channel. Distinct from chatroomId; if it hasn't resolved yet
-          //    we still join (Pusher receive only) and sendMessage throws
-          //    with a clear message until the next mount supplies it.
+          //    `data.id`) — passed to `joinChannel` so the optimistic-echo
+          //    broadcaster-badge synthesis in `sendMessage` can identify the
+          //    broadcaster's own messages. Distinct from chatroomId; if it
+          //    hasn't resolved yet we still join (Pusher receive-only) and
+          //    the badge synth falls back.
           const parsedBroadcasterId = Number(channelId);
           const broadcasterUserId = Number.isFinite(parsedBroadcasterId)
             ? parsedBroadcasterId
@@ -432,10 +432,11 @@ export const KickChat: React.FC<KickChatProps> = ({
   // once on mount with the auth state at that moment and doesn't react to
   // sign-in / sign-out via the ProfileDropdown. Without this effect, a
   // fresh sign-in keeps using the anonymous Pusher subscription, so the
-  // POST /public/v1/chat send path can't address the right user; the
-  // reverse leaves an authenticated socket alive after logout. We track
-  // the last seen value in a ref so the very first render — which is
-  // always handled by the primary effect — is a no-op here.
+  // optimistic-echo path can't attach a sender identity and the send window
+  // keeps running under the old session cookies; the reverse leaves an
+  // authenticated socket alive after logout. We track the last seen value
+  // in a ref so the very first render — which is always handled by the
+  // primary effect — is a no-op here.
   const lastAuthRef = useRef(isAuthenticated);
   useEffect(() => {
     if (lastAuthRef.current === isAuthenticated) return;

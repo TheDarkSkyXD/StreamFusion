@@ -213,10 +213,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Signed-in Kick user — needed to attach a sender identity to the optimistic
-  // local echo of outbound messages, because Kick's `POST /public/v1/chat`
-  // doesn't reliably re-broadcast the sender's own message via Pusher.
-  // Subscribed reactively so a mid-session sign-in/out updates the value
-  // without remounting this component.
+  // local echo of outbound messages. Kick's web v2 send path delivers the
+  // sender's own message via Pusher ~150-400ms later with full identity; the
+  // local optimistic echo bridges that latency and dedup-by-message-id
+  // collapses the duplicate. Subscribed reactively so a mid-session
+  // sign-in/out updates the value without remounting this component.
   const kickUser = useAuthStore((state) => state.kickUser);
 
   // Autocomplete hooks

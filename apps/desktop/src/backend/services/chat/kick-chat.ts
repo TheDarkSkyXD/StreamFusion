@@ -115,9 +115,10 @@ interface ChannelInfo {
   slug: string;
   /** Chatroom ID for WebSocket subscription (Pusher `chatrooms.{id}.v2`). */
   chatroomId: number;
-  /** Broadcaster's user_id (channel.id). Currently unused by the send path
-   *  (kick-send-window uses chatroomId), retained because UI/state consumers
-   *  reference it for ownership checks. */
+  /** Broadcaster's user_id (channel.id). Used by sendMessage's optimistic-echo
+   *  broadcaster-badge synthesis; not used by the page-context HTTP layer
+   *  (which addresses by chatroomId). Distinct from chatroomId — they're
+   *  different numbers on most channels. */
   broadcasterUserId?: number;
   /** Pusher channel subscription (using ReturnType to avoid type conflicts) */
   pusherChannel?: ReturnType<Pusher["subscribe"]>;
