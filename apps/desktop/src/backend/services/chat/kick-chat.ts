@@ -438,6 +438,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     if (!this.pusher) {
       this.setConnectionState("disconnected");
+      void disposeSendWindow();
       return;
     }
 
@@ -466,6 +467,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.channelBadges.clear();
     this.setConnectionState("disconnected");
     this.log("Kick chat service shutdown complete");
+
+    void disposeSendWindow();
   }
 
   /**
@@ -580,6 +583,10 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.senderBadgesCache.delete(normalizedChannel);
     this.emitConnectionStatus();
     this.log(`Left channel: ${normalizedChannel}`);
+
+    if (this.channels.size === 0) {
+      void disposeSendWindow();
+    }
   }
 
   /**

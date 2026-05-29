@@ -113,3 +113,40 @@ describe("KickChatService.joinChannel triggers warmup", () => {
     expect(internals.channels.has("ac7ionman")).toBe(true);
   });
 });
+
+describe("send-window disposal", () => {
+  it("leaveChannel that empties the active set disposes the window", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    (service as any).pusher = {
+      connection: { state: "connected" },
+      unsubscribe: vi.fn(),
+    };
+    await service.leaveChannel("ac7ionman");
+    expect(sendWindow.disposeSendWindow).toHaveBeenCalled();
+  });
+
+  it("leaveChannel that leaves other channels active does NOT dispose", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", { slug: "ac7ionman", chatroomId: 999_111, broadcasterUserId: 42 });
+    internals.channels.set("xqc", { slug: "xqc", chatroomId: 1, broadcasterUserId: 2 });
+    (service as any).pusher = {
+      connection: { state: "connected" },
+      unsubscribe: vi.fn(),
+    };
+    vi.mocked(sendWindow.disposeSendWindow).mockClear();
+    await service.leaveChannel("ac7ionman");
+    expect(sendWindow.disposeSendWindow).not.toHaveBeenCalled();
+  });
+
+  it("forceShutdown disposes the window", async () => {
+    const { service } = makeService();
+    vi.mocked(sendWindow.disposeSendWindow).mockClear();
+    await service.forceShutdown();
+    expect(sendWindow.disposeSendWindow).toHaveBeenCalled();
+  });
+});
