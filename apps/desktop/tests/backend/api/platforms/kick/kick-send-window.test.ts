@@ -12,6 +12,7 @@ vi.mock("electron", () => ({
 
 import {
   buildSendIIFE,
+  classifySendResult,
   clearBearerForTest,
   getBearerForTest,
   setBearerForTest,
@@ -87,5 +88,103 @@ describe("buildSendIIFE", () => {
     expect(src).toContain("try");
     expect(src).toContain("catch");
     expect(src).toContain("JSON.stringify");
+  });
+});
+
+describe("classifySendResult", () => {
+  it("200 with body.data.id returns ok+messageId", () => {
+    const r = classifySendResult({
+      status: 200,
+      body: JSON.stringify({ data: { id: "01JAXK8N" } }),
+      retryAfter: null,
+    });
+    expect(r).toEqual({ ok: true, messageId: "01JAXK8N" });
+  });
+
+  it("200 with body.data.message_id returns ok+messageId", () => {
+    const r = classifySendResult({
+      status: 200,
+      body: JSON.stringify({ data: { message_id: "abc" } }),
+      retryAfter: null,
+    });
+    expect(r).toEqual({ ok: true, messageId: "abc" });
+  });
+
+  it("201 with no id still returns ok+undefined", () => {
+    const r = classifySendResult({ status: 201, body: "{}", retryAfter: null });
+    expect(r).toEqual({ ok: true, messageId: undefined });
+  });
+
+  it("401 produces auth-expired", () => {
+    const r = classifySendResult({ status: 401, body: "{}", retryAfter: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.kind).toBe("auth-expired");
+  });
+
+  it("419 produces auth-expired", () => {
+    const r = classifySendResult({ status: 419, body: "{}", retryAfter: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.kind).toBe("auth-expired");
+  });
+
+  it("403 with 'User is not authenticated.' produces auth-expired", () => {
+    const r = classifySendResult({
+      status: 403,
+      body: JSON.stringify({ message: "User is not authenticated." }),
+      retryAfter: null,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.kind).toBe("auth-expired");
+  });
+
+  it("403 with a different body produces forbidden", () => {
+    const r = classifySendResult({
+      status: 403,
+      body: JSON.stringify({ message: "You are banned." }),
+      retryAfter: null,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.kind).toBe("forbidden");
+  });
+
+  it("429 with Retry-After parses to integer seconds", () => {
+    const r = classifySendResult({
+      status: 429,
+      body: "{}",
+      retryAfter: "12",
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.kind).toBe("rate-limited");
+      expect(r.retryAfterSeconds).toBe(12);
+    }
+  });
+
+  it("429 without Retry-After leaves retryAfterSeconds undefined", () => {
+    const r = classifySendResult({ status: 429, body: "{}", retryAfter: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.kind).toBe("rate-limited");
+      expect(r.retryAfterSeconds).toBeUndefined();
+    }
+  });
+
+  it("status:0 from the IIFE catch path produces network", () => {
+    const r = classifySendResult({
+      status: 0,
+      body: "TypeError: fetch failed",
+      retryAfter: null,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.kind).toBe("network");
+  });
+
+  it("500 produces unknown with the status interpolated", () => {
+    const r = classifySendResult({ status: 500, body: "{}", retryAfter: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.kind).toBe("unknown");
+      expect(r.message).toContain("500");
+    }
   });
 });

@@ -94,6 +94,85 @@ export function buildSendIIFE(
 })()`;
 }
 
+/**
+ * Pure: turn the {status, body, retryAfter} the IIFE returned into a tagged
+ * KickSendResult. Per spec R23-R29.
+ *
+ * The 403-with-"User is not authenticated." carve-out matches Kick's quirk
+ * of returning 403 for both "session dead" and "banned/timed out" — these
+ * are surfaced as different `kind` values so the caller can decide whether
+ * to retry (auth-expired) or escalate to the user (forbidden).
+ */
+export function classifySendResult(input: {
+  status: number;
+  body: string;
+  retryAfter: string | null;
+}): KickSendResult {
+  const { status, body, retryAfter } = input;
+
+  if (status >= 200 && status < 300) {
+    let messageId: string | undefined;
+    try {
+      const parsed = JSON.parse(body) as
+        | { data?: { id?: string; message_id?: string } }
+        | undefined;
+      messageId = parsed?.data?.id ?? parsed?.data?.message_id;
+    } catch {
+      // Body wasn't JSON — leave messageId undefined.
+    }
+    return { ok: true, messageId };
+  }
+
+  if (status === 401 || status === 419) {
+    return {
+      ok: false,
+      kind: "auth-expired",
+      message: "Kick session expired — reconnect Kick in Settings.",
+    };
+  }
+
+  if (status === 403) {
+    // Distinguish "session dead" from "banned in channel" by body content.
+    if (body.includes("User is not authenticated")) {
+      return {
+        ok: false,
+        kind: "auth-expired",
+        message: "Kick session expired — reconnect Kick in Settings.",
+      };
+    }
+    return {
+      ok: false,
+      kind: "forbidden",
+      message: "You are banned or timed out in this channel.",
+    };
+  }
+
+  if (status === 429) {
+    const parsed = retryAfter ? Number.parseInt(retryAfter, 10) : Number.NaN;
+    const retryAfterSeconds = Number.isFinite(parsed) ? parsed : undefined;
+    return {
+      ok: false,
+      kind: "rate-limited",
+      message: "Slow down — Kick rate limit.",
+      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+    };
+  }
+
+  if (status === 0) {
+    return {
+      ok: false,
+      kind: "network",
+      message: "Network error sending message, please try again.",
+    };
+  }
+
+  return {
+    ok: false,
+    kind: "unknown",
+    message: `Send failed (${status}).`,
+  };
+}
+
 export async function ensureSendWindowReady(): Promise<void> {
   throw new Error("not implemented");
 }
