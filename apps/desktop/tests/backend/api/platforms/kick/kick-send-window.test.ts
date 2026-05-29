@@ -516,6 +516,95 @@ describe("sendKickChatMessage auth-retry", () => {
   });
 });
 
+describe("render-process-gone", () => {
+  it("clears the bearer and forces a re-spawn on next send", async () => {
+    setBearerForTest("Bearer 1|abc");
+    const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+    const executeJavaScript = vi.fn(() => Promise.resolve(true));
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn((evt: string, cb: any) => {
+          (handlers[evt] ||= []).push(cb);
+        }),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    let constructCount = 0;
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        constructCount++;
+        setBearerForTest("Bearer 1|abc");
+        return fakeWin;
+      } as unknown as () => unknown,
+    );
+
+    await ensureSendWindowReady();
+    expect(getBearerForTest()).toBe("Bearer 1|abc");
+
+    // Simulate renderer crash.
+    handlers["render-process-gone"]?.[0]?.({}, { reason: "crashed" });
+    expect(getBearerForTest()).toBeNull();
+
+    // Next ensure call should construct a fresh window.
+    setBearerForTest("Bearer 1|fresh");
+    await ensureSendWindowReady();
+    expect(constructCount).toBe(2);
+  });
+
+  it("identity-guards the listener so a stale window does not clobber successor state", async () => {
+    setBearerForTest("Bearer 1|first");
+    const handlers1: Record<string, ((...args: unknown[]) => void)[]> = {};
+    const win1 = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript: vi.fn(() => Promise.resolve(true)),
+        on: vi.fn((evt: string, cb: any) => {
+          (handlers1[evt] ||= []).push(cb);
+        }),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const win2 = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript: vi.fn(() => Promise.resolve(true)),
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    let n = 0;
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return n++ === 0 ? win1 : win2;
+      } as unknown as () => unknown,
+    );
+
+    await ensureSendWindowReady();
+    // Option (a) adaptation: disposeSendWindow is still the Task 1 throwing
+    // stub, so we substitute clearBearerForTest() which nulls sendWindow +
+    // bearer + warmupPromise (per its existing Task 1 impl). This keeps
+    // Task 9 independent of Task 10.
+    clearBearerForTest();
+    setBearerForTest("Bearer 1|second");
+    await ensureSendWindowReady();
+    expect(getBearerForTest()).toBe("Bearer 1|second");
+
+    // Now fire win1's stale render-process-gone listener. Guard MUST prevent state clobber.
+    handlers1["render-process-gone"]?.[0]?.({}, { reason: "crashed" });
+    expect(getBearerForTest()).toBe("Bearer 1|second");
+  });
+});
+
 // Touch disposeSendWindow so the import isn't TS6133-unused; later tasks
 // will exercise it directly.
 void disposeSendWindow;

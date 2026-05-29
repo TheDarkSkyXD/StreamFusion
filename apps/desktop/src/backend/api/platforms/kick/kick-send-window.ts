@@ -248,6 +248,7 @@ export async function ensureSendWindowReady(): Promise<void> {
       });
       installBearerInterceptor(win.webContents.session);
       win.webContents.on("render-process-gone", () => {
+        if (sendWindow !== win) return;
         sendWindow = null;
         latestKickWebBearer = null;
         warmupPromise = null;
