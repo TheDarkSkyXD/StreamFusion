@@ -28,6 +28,7 @@ import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
 import { storageService } from "../../../../services/storage-service";
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
+import { sleep } from "@/lib/sleep";
 
 const FOLLOWED_CHANNELS_URL = `${KICK_LEGACY_API_V2_BASE}/channels/followed`;
 const FETCH_TIMEOUT_MS = 10000;
@@ -279,7 +280,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       // Give Kick's SPA a moment to bootstrap and make its auth-bridge API
       // calls (the homepage typically fetches /api/v2/user on load to set the
       // apex session cookie if the user is authed on id.kick.com).
-      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await sleep(2500);
 
       // Diagnostic: log what cookies actually landed for kick.com.
       const defaultSession = session.defaultSession;
