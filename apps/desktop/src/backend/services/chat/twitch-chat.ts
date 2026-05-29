@@ -8,6 +8,7 @@
 import tmi from "tmi.js";
 import type { TwitchUser } from "../../../shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
+import { sleep } from "@/lib/sleep";
 import type {
   ChatConnectionState,
   ChatConnectionStatus,
@@ -93,7 +94,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   // Platform isolation: prevents zombie reconnections when service should be inactive
   // When false, ALL connection attempts and reconnections are blocked
   private isActive = false;
-  private reconnectTimeoutId: NodeJS.Timeout | null = null;
 
   // Reference counting for multiview support
   // Tracks how many components are actively using this service
@@ -270,12 +270,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.currentConnectionId++;
     this.connectingPromise = null;
 
-    // Cancel any pending reconnect
-    if (this.reconnectTimeoutId) {
-      clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = null;
-    }
-
     if (!this.client) {
       this.setConnectionState("disconnected");
       return;
@@ -370,12 +364,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.currentConnectionId++;
     this.connectingPromise = null;
     this.reconnectAttempts = 0;
-
-    // Cancel any pending reconnect timeout
-    if (this.reconnectTimeoutId) {
-      clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = null;
-    }
 
     if (!this.client) {
       this.setConnectionState("disconnected");
@@ -845,13 +833,17 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
         `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
       );
 
-      // Store timeout ID so we can cancel it on shutdown
-      this.reconnectTimeoutId = setTimeout(async () => {
-        this.reconnectTimeoutId = null;
-
+      // Capture connection ID so a disconnect() during the delay aborts the reconnect
+      const capturedConnectionId = this.currentConnectionId;
+      void sleep(delay).then(async () => {
         // Double-check service is still active before reconnecting
         if (!this.isActive) {
           this.log("Service deactivated during reconnect delay, aborting");
+          return;
+        }
+        // Abort if disconnect() was called during the delay (bumps currentConnectionId)
+        if (this.currentConnectionId !== capturedConnectionId) {
+          this.log("Disconnect called during reconnect delay, aborting");
           return;
         }
 
@@ -882,7 +874,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
         } catch (error) {
           console.error("Reconnection failed:", error);
         }
-      }, delay);
+      });
     } else {
       this.log("Max reconnection attempts reached");
       this.emit("error", new Error("Max reconnection attempts reached"));
