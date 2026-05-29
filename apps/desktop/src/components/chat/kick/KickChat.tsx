@@ -236,7 +236,6 @@ export const KickChat: React.FC<KickChatProps> = ({
         if (kickToken) {
           // Authenticated
           await kickChatService.connect({
-            accessToken: kickToken.accessToken,
             debug: import.meta.env.DEV,
           });
 
@@ -459,7 +458,6 @@ export const KickChat: React.FC<KickChatProps> = ({
         if (cancelled) return;
 
         await kickChatService.connect({
-          accessToken: kickToken?.accessToken,
           debug: import.meta.env.DEV,
         });
         if (cancelled) return;

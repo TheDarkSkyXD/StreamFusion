@@ -108,8 +108,6 @@ export function kickPinToNormalized(pin: KickPinnedMessage): NormalizedPinnedMes
 interface KickChatOptions {
   /** Enable debug logging */
   debug?: boolean;
-  /** Kick OAuth Access Token (required for sending messages) */
-  accessToken?: string;
 }
 
 interface ChannelInfo {
@@ -117,12 +115,9 @@ interface ChannelInfo {
   slug: string;
   /** Chatroom ID for WebSocket subscription (Pusher `chatrooms.{id}.v2`). */
   chatroomId: number;
-  /** Broadcaster's user_id (Kick channel's internal db id, i.e. `data.id` on
-   *  the v2 channel response). Distinct from `chatroomId`; required by the
-   *  official `POST /public/v1/chat` endpoint as `broadcaster_user_id`.
-   *  Optional so callers can join receive-only when the broadcaster id hasn't
-   *  resolved yet — `sendMessage` throws a clear error in that case rather
-   *  than POSTing the wrong id. */
+  /** Broadcaster's user_id (channel.id). Currently unused by the send path
+   *  (kick-send-window uses chatroomId), retained because UI/state consumers
+   *  reference it for ownership checks. */
   broadcasterUserId?: number;
   /** Pusher channel subscription (using ReturnType to avoid type conflicts) */
   pusherChannel?: ReturnType<Pusher["subscribe"]>;
@@ -160,7 +155,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   private connectionState: ChatConnectionState = "disconnected";
   private reconnectAttempts = 0;
   private debugMode = false;
-  private accessToken: string | null = null;
 
   // Rate limiting
   private messageTimestamps: number[] = [];
@@ -217,7 +211,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     }
 
     this.debugMode = options.debug ?? false;
-    this.accessToken = options.accessToken || null;
     this.setConnectionState("connecting");
 
     try {
@@ -590,28 +583,18 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   }
 
   /**
-   * Send a message to a channel via Kick's official OAuth chat API.
+   * Send a message to a channel via the kick.com page-context v2 endpoint.
    *
-   * Caveat (verified 2026-05-22): `POST /public/v1/chat` returns
-   * `200 { is_sent: true, message_id }` for every call but does NOT
-   * actually broadcast the message to the chatroom Pusher subscription
-   * unless the OAuth app has been verified by Kick (email
-   * developers@kick.com). For un-verified apps the call appears to
-   * succeed but the message never reaches other viewers. We still call
-   * it and emit the optimistic local echo below so the sender sees
-   * their own messages — Kick may relax this gating later, and either
-   * way the verified-app path will work transparently once it lands.
-   * The alternative — kick.com web-internal `/api/v2/messages/send/{id}`
-   * — requires a kick.com web session our OAuth flow doesn't establish
-   * (we authenticate against id.kick.com only) and was investigated and
-   * ruled out 2026-05-22.
+   * The actual POST + auth handshake lives in `kick-send-window`; this
+   * method orchestrates rate-limiting, optimistic echo, and error mapping
+   * for the renderer-facing IPC contract. See
+   * docs/adr/0001-kick-chat-page-context-send.md for the architecture.
    *
    * `sender` is optional so anonymous / test callers still work; when
    * provided we emit a synthetic "message" event so the local UI shows
-   * the user's own outbound messages (IRC-style echo for Kick). If Kick
-   * ever does deliver via Pusher, `chat-store.flushBatch`'s dedup-by-id
-   * collapses the duplicate (we use the server-issued `message_id` as
-   * the dedup key).
+   * the user's own outbound message (IRC-style echo). The Pusher echo
+   * arrives ~150-400ms later with full identity; dedup-by-message-id
+   * collapses the duplicate.
    */
   async sendMessage(
     channel: string,
@@ -628,10 +611,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     // Rate limiting
     if (!this.checkRateLimit(normalizedChannel)) {
       throw new Error("Message rate limit exceeded");
-    }
-
-    if (!this.accessToken) {
-      throw new Error("Not authenticated with Kick");
     }
 
     // Delegate to the page-context sender. The send-window owns auth and
@@ -693,7 +672,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       platform: "kick",
       state: this.connectionState,
       channels: Array.from(this.channels.keys()),
-      isAuthenticated: !!this.accessToken && this.connectionState === "connected",
+      isAuthenticated: this.connectionState === "connected",
     };
   }
 

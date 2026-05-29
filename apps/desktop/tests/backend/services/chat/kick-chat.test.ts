@@ -31,14 +31,12 @@ interface InternalChannelInfo {
 }
 
 interface ServiceInternals {
-  accessToken: string | null;
   channels: Map<string, InternalChannelInfo>;
 }
 
 function makeService(): { service: KickChatService; internals: ServiceInternals } {
   const service = new KickChatService();
   const internals = service as unknown as ServiceInternals;
-  internals.accessToken = "test-bearer";
   return { service, internals };
 }
 
