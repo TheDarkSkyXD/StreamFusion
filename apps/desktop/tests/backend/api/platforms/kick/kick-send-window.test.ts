@@ -14,6 +14,8 @@ import {
   buildSendIIFE,
   classifySendResult,
   clearBearerForTest,
+  disposeSendWindow,
+  ensureSendWindowReady,
   getBearerForTest,
   installBearerInterceptor,
   isSanctumBearer,
@@ -268,3 +270,63 @@ describe("isSanctumBearer", () => {
     expect(isSanctumBearer("Bearer 1|")).toBe(false);
   });
 });
+
+describe("ensureSendWindowReady", () => {
+  it("two concurrent calls share one warmup promise", async () => {
+    const acquired: number[] = [];
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        // Predicate uses strict `=== true`; mock returns boolean true so the
+        // warmup resolves on the first poll once the bearer is captured.
+        executeJavaScript: vi.fn(() => Promise.resolve(true)),
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    // vitest 4 requires `function` or `class` in mock impls for `new`
+    // constructability — arrow functions throw "is not a constructor".
+    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      acquired.push(1);
+      // Simulate bearer capture happening during loadURL.
+      setBearerForTest("Bearer 1|cap");
+      return fakeWin;
+    });
+
+    const [a, b] = await Promise.all([ensureSendWindowReady(), ensureSendWindowReady()]);
+    expect(a).toBeUndefined();
+    expect(b).toBeUndefined();
+    expect(acquired.length).toBe(1);
+  });
+
+  it("rejects with send-window-warmup-timeout when predicate never resolves", async () => {
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        // Predicate returns false forever — never bearer-ready.
+        executeJavaScript: vi.fn(() => Promise.resolve(false)),
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    });
+    // Bearer cache stays null so even a cookie-true predicate wouldn't pass.
+    await expect(ensureSendWindowReady()).rejects.toThrow(/send-window-warmup-timeout/);
+  }, 15_000);
+});
+
+// Touch disposeSendWindow so the import isn't TS6133-unused; later tasks
+// will exercise it directly.
+void disposeSendWindow;

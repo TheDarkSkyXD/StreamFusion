@@ -11,6 +11,8 @@
 import { BrowserWindow, session } from "electron";
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
 
+import { acquireBrowserWindowSlot } from "./endpoints/channel-endpoints";
+
 export type KickSendResult =
   | { ok: true; messageId: string | undefined }
   | {
@@ -207,8 +209,63 @@ export function installBearerInterceptor(targetSession: Session): void {
   );
 }
 
+const WARMUP_TIMEOUT_MS = 10_000;
+const PREDICATE_POLL_MS = 200;
+
+const COOKIE_PREDICATE_IIFE = `(() => document.cookie.indexOf("session_token=") >= 0)()`;
+
+async function _pollPredicate(win: BrowserWindow, deadline: number): Promise<void> {
+  // Poll until both: session_token cookie is set AND latestKickWebBearer was
+  // captured by the interceptor on some kick.com request.
+  while (Date.now() < deadline) {
+    if (win.isDestroyed()) {
+      throw new Error("send-window-warmup-timeout: window destroyed during warmup");
+    }
+    const cookieOk = (await win.webContents.executeJavaScript(COOKIE_PREDICATE_IIFE)) === true;
+    if (cookieOk && latestKickWebBearer !== null) return;
+    await new Promise<void>((r) => setTimeout(r, PREDICATE_POLL_MS));
+  }
+  throw new Error("send-window-warmup-timeout: predicate did not resolve within 10s");
+}
+
 export async function ensureSendWindowReady(): Promise<void> {
-  throw new Error("not implemented");
+  if (warmupPromise) return warmupPromise;
+  if (sendWindow && !sendWindow.isDestroyed() && latestKickWebBearer !== null) {
+    return;
+  }
+  warmupPromise = (async () => {
+    const releaseSlot = await acquireBrowserWindowSlot();
+    try {
+      const win = new BrowserWindow({
+        show: false,
+        width: 800,
+        height: 600,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          sandbox: true,
+        },
+      });
+      installBearerInterceptor(win.webContents.session);
+      win.webContents.on("render-process-gone", () => {
+        sendWindow = null;
+        latestKickWebBearer = null;
+        warmupPromise = null;
+      });
+      sendWindow = win;
+      await win.loadURL("https://kick.com/");
+      await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS);
+    } finally {
+      releaseSlot();
+    }
+  })();
+  try {
+    await warmupPromise;
+  } finally {
+    // Clear the promise slot only after it has fully resolved so concurrent
+    // callers from step (1) keep sharing it.
+    warmupPromise = null;
+  }
 }
 export async function sendKickChatMessage(
   _chatroomId: number,
