@@ -8,6 +8,7 @@ import {
 } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { normalizeKickDate, transformKickLivestream } from "../kick-transformers";
+import { sleep } from "@/lib/sleep";
 import {
   KICK_LEGACY_API_V1_BASE,
   type KickApiLivestream,
@@ -452,7 +453,7 @@ async function _doFetchPublicStreamBySlug(
           console.debug(
             `[KickStream] ${reason} for ${slug}, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${maxRetries})`
           );
-          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          await sleep(backoffMs);
         }
         continue;
       }
@@ -1016,7 +1017,7 @@ export async function getTopStreams(
         for (let i = 0; i < uniqueSlugs.length; i += batchSize) {
           // Add delay between batches (not before first batch)
           if (i > 0) {
-            await new Promise((resolve) => setTimeout(resolve, batchDelayMs));
+            await sleep(batchDelayMs);
           }
 
           const batch = uniqueSlugs.slice(i, i + batchSize);
