@@ -61,46 +61,22 @@ export async function getTwitchChannelHistory(
  * this endpoint is public, unauthenticated, and not Twitch's own API — it has
  * its own base URL and shouldn't go through the worker proxy.
  */
-function netGetJson<T>(url: string): Promise<T | null> {
+async function netGetJson<T>(url: string): Promise<T | null> {
   const { net } = require("electron") as typeof import("electron");
 
-  return new Promise((resolve, reject) => {
-    const request = net.request({ method: "GET", url });
-
-    const timeout = setTimeout(() => {
-      request.abort();
-      reject(new Error(`Request timeout after ${REQUEST_TIMEOUT_MS}ms`));
-    }, REQUEST_TIMEOUT_MS);
-
-    request.on("response", (response) => {
-      clearTimeout(timeout);
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        // Drain the body so the socket can close, but treat as failure.
-        response.on("data", () => {});
-        response.on("end", () => resolve(null));
-        return;
-      }
-
-      let body = "";
-      response.on("data", (chunk: Buffer) => {
-        body += chunk.toString();
-      });
-      response.on("end", () => {
-        try {
-          resolve(body ? (JSON.parse(body) as T) : null);
-        } catch {
-          resolve(null);
-        }
-      });
-      response.on("error", (error: Error) => reject(error));
-    });
-
-    request.on("error", (error: Error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-
-    request.end();
+  const response = await net.fetch(url, {
+    method: "GET",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
+
+  if (response.status < 200 || response.status >= 300) {
+    return null;
+  }
+
+  const text = await response.text();
+  try {
+    return text ? (JSON.parse(text) as T) : null;
+  } catch {
+    return null;
+  }
 }
