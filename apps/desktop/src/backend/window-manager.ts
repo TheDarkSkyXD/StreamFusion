@@ -9,6 +9,7 @@ import path from "node:path";
 
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
+import { installContextMenu } from "./context-menu";
 import { markCleanShutdown } from "./shutdown-marker";
 
 // No longer using Electron Forge globals - electron-vite provides:
@@ -133,6 +134,8 @@ class WindowManager {
         backgroundThrottling: false, // Prevent Chromium from pausing media when window is minimized
       },
     });
+
+    installContextMenu(this.mainWindow.webContents);
 
     // Restore maximized state
     if (savedWindowState?.isMaximized) {
