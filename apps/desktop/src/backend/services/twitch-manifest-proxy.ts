@@ -104,22 +104,12 @@ class TwitchManifestProxyService {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // Add timeout via AbortController
-        const controller = new AbortController();
-        const timeoutId = setTimeout(
-          () => controller.abort(),
-          TwitchManifestProxyService.FETCH_TIMEOUT
-        );
-
-        try {
-          const response = await fetch(url, {
-            ...options,
-            signal: controller.signal,
-          });
-          return response;
-        } finally {
-          clearTimeout(timeoutId);
-        }
+        // Add timeout via AbortSignal
+        const response = await fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(TwitchManifestProxyService.FETCH_TIMEOUT),
+        });
+        return response;
       } catch (error) {
         lastError = error as Error;
         const isRetryable = this.isRetryableError(error);
