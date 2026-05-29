@@ -18,6 +18,7 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
+import { createManagedInterval } from "../../../lib/managed-interval";
 import { storageService } from "../../services/storage-service";
 
 /**
@@ -200,8 +201,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     syncFollowsOnLogin(platform).catch(() => {});
   }
 
-  setInterval(() => maybeRefreshFollows("kick", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
-  setInterval(() => maybeRefreshFollows("twitch", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
+  createManagedInterval(() => maybeRefreshFollows("kick", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
+  createManagedInterval(() => maybeRefreshFollows("twitch", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
   mainWindow.on("focus", () => {
     maybeRefreshFollows("kick", "focus");
     maybeRefreshFollows("twitch", "focus");
