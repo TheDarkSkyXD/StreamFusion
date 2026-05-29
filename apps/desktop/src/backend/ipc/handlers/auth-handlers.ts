@@ -8,6 +8,7 @@ import type {
 } from "../../../shared/auth-types";
 import { type AuthStatus, IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { FollowedChannelsResult } from "../../api/platforms/kick/endpoints/follow-endpoints";
+import { disposeSendWindow } from "../../api/platforms/kick/kick-send-window";
 import {
   authWindowManager,
   deviceCodeFlowService,
@@ -534,6 +535,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       storageService.clearAccountFollows("twitch");
     } else if (platform === "kick") {
       await kickAuthService.logout();
+      await disposeSendWindow();
       storageService.clearAccountFollows("kick");
     }
 
@@ -550,6 +552,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     console.debug("🚪 Logging out from Kick...");
     try {
       await kickAuthService.logout();
+      await disposeSendWindow();
       // Clear account follows → guest follows become active again
       storageService.clearAccountFollows("kick");
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
