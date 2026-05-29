@@ -47,6 +47,7 @@ import type {
   NormalizedPinnedMessage,
 } from "../../../shared/chat-types";
 
+import { createManagedInterval } from "@/lib/managed-interval";
 import { twitchChatService } from "./twitch-chat";
 
 // Twitch's chat-message fragments come back as plain text — twitch.tv parses
@@ -120,7 +121,7 @@ interface PollState {
   /** Channel login (e.g. "fitzbro") this poller targets. */
   login: string;
   /** Active interval timer. */
-  timer: ReturnType<typeof setInterval>;
+  timer: { stop: () => void };
   /** Last seen chat message id ("" when no pin). Used for change detection. */
   lastMessageId: string;
   /** Set once the poller has completed its first poll, so callers can tell
@@ -138,7 +139,7 @@ export function startTwitchPinPolling(channelLogin: string): void {
 
   const state: PollState = {
     login,
-    timer: setInterval(() => void poll(login), POLL_INTERVAL_MS),
+    timer: createManagedInterval(() => void poll(login), POLL_INTERVAL_MS),
     lastMessageId: "",
     bootstrapped: false,
   };
@@ -152,13 +153,13 @@ export function stopTwitchPinPolling(channelLogin: string): void {
   const login = channelLogin.toLowerCase();
   const state = pollers.get(login);
   if (!state) return;
-  clearInterval(state.timer);
+  state.timer.stop();
   pollers.delete(login);
 }
 
 /** Test/debug helper — drop all pollers (used between test cases). */
 export function __resetTwitchPinPollers(): void {
-  for (const state of pollers.values()) clearInterval(state.timer);
+  for (const state of pollers.values()) state.timer.stop();
   pollers.clear();
 }
 
