@@ -137,92 +137,36 @@ class KickClient implements KickRequestor {
     headers: Record<string, string>,
     body?: string
   ): Promise<{ data: T; statusCode: number; responseHeaders: Record<string, string> }> {
-    // Cap concurrent Kick `net.request` calls so authenticated traffic can't
+    // Cap concurrent Kick net.fetch calls so authenticated traffic can't
     // pile on top of the public-API fetches (followed-streams refresh, display
     // name enrichment, image proxy) and oversubscribe the network service.
     const releaseSlot = await acquireKickRequestSlot();
     try {
-      return await new Promise((resolve, reject) => {
-        const { net } = require("electron");
+      const { net } = require("electron");
 
-        const request = net.request({
-          method,
-          url,
-        });
-
-        // Set headers
-        for (const [key, value] of Object.entries(headers)) {
-          request.setHeader(key, value);
-        }
-
-        // Track completion
-        let completed = false;
-
-        // Timeout after 30 seconds
-        const timeout = setTimeout(() => {
-          if (completed) return;
-          completed = true;
-          request.abort();
-          reject(new Error("Request timeout after 30s"));
-        }, 30000);
-
-        request.on("response", (response: any) => {
-          let responseBody = "";
-          const responseHeaders: Record<string, string> = {};
-
-          // Collect response headers
-          if (response.headers) {
-            for (const [key, value] of Object.entries(response.headers)) {
-              responseHeaders[key.toLowerCase()] = Array.isArray(value)
-                ? value[0]
-                : (value as string);
-            }
-          }
-
-          response.on("data", (chunk: Buffer) => {
-            responseBody += chunk.toString();
-          });
-
-          response.on("end", () => {
-            if (completed) return;
-            completed = true;
-            clearTimeout(timeout);
-            try {
-              const data = responseBody ? JSON.parse(responseBody) : null;
-              resolve({
-                data: data as T,
-                statusCode: response.statusCode,
-                responseHeaders,
-              });
-            } catch (_e) {
-              reject(new Error(`Failed to parse JSON response: ${responseBody.substring(0, 200)}`));
-            }
-          });
-
-          response.on("error", (error: Error) => {
-            if (completed) return;
-            completed = true;
-            clearTimeout(timeout);
-            reject(error);
-          });
-        });
-
-        request.on("error", (error: Error) => {
-          if (completed) return;
-          completed = true;
-          clearTimeout(timeout);
-          reject(error);
-        });
-
-        // Send body if present
-        if (body) {
-          const contentLength = Buffer.byteLength(body, "utf8");
-          request.setHeader("Content-Length", contentLength.toString());
-          request.write(body);
-        }
-
-        request.end();
+      // Timeout after 30 seconds
+      const res: Response = await net.fetch(url, {
+        method,
+        headers,
+        body: body ?? undefined,
+        signal: AbortSignal.timeout(30000),
       });
+
+      // Collect response headers
+      const responseHeaders: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        responseHeaders[key.toLowerCase()] = value;
+      });
+
+      const responseBody = await res.text();
+      let data: T;
+      try {
+        data = responseBody ? (JSON.parse(responseBody) as T) : (null as T);
+      } catch (_e) {
+        throw new Error(`Failed to parse JSON response: ${responseBody.substring(0, 200)}`);
+      }
+
+      return { data, statusCode: res.status, responseHeaders };
     } finally {
       releaseSlot();
     }
@@ -284,77 +228,23 @@ class KickClient implements KickRequestor {
     // can't fully starve API traffic.
     const releaseSlot = await acquireKickRequestSlot();
     try {
-      return await new Promise<{ buffer: Buffer; statusCode: number; contentType: string }>(
-        (resolve, reject) => {
-          const { net } = require("electron");
+      // Use the CDN session's own fetch so the direct-proxy setting applies;
+      // useSessionCookies is implicitly false because we don't pass credentials.
+      const res: Response = await directSession.fetch(url, {
+        headers,
+        credentials: "omit", // Don't send cookies to avoid 403 errors
+        signal: AbortSignal.timeout(timeoutMs),
+      });
 
-          const request = net.request({
-            method: "GET",
-            url,
-            session: directSession, // Use direct session (no proxy)
-            useSessionCookies: false, // Don't send cookies to avoid 403 errors
-          });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
-          for (const [key, value] of Object.entries(headers)) {
-            request.setHeader(key, value);
-          }
+      const contentType = res.headers.get("content-type") || "image/jpeg";
+      const arrayBuffer = await res.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
 
-          let completed = false;
-
-          // Timeout
-          const timeout = setTimeout(() => {
-            if (completed) return;
-            completed = true;
-            request.abort();
-            reject(new Error("Request timeout"));
-          }, timeoutMs);
-
-          request.on("response", (response: any) => {
-            if (response.statusCode !== 200) {
-              if (completed) return;
-              completed = true;
-              clearTimeout(timeout);
-              reject(new Error(`HTTP ${response.statusCode}`));
-              return;
-            }
-
-            const chunks: Buffer[] = [];
-            const contentType = response.headers["content-type"]?.[0] || "image/jpeg";
-
-            response.on("data", (chunk: Buffer) => {
-              chunks.push(chunk);
-            });
-
-            response.on("end", () => {
-              if (completed) return;
-              completed = true;
-              clearTimeout(timeout);
-              const buffer = Buffer.concat(chunks);
-              resolve({
-                buffer,
-                statusCode: response.statusCode,
-                contentType,
-              });
-            });
-
-            response.on("error", (error: Error) => {
-              if (completed) return;
-              completed = true;
-              clearTimeout(timeout);
-              reject(error);
-            });
-          });
-
-          request.on("error", (error: Error) => {
-            if (completed) return;
-            completed = true;
-            clearTimeout(timeout);
-            reject(error);
-          });
-
-          request.end();
-        }
-      );
+      return { buffer, statusCode: res.status, contentType };
     } finally {
       releaseSlot();
     }
