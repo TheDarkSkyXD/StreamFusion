@@ -355,6 +355,59 @@ describe("ensureSendWindowReady", () => {
   }, 15_000);
 });
 
+import { sendKickChatMessage } from "@/backend/api/platforms/kick/kick-send-window";
+
+describe("sendKickChatMessage happy path", () => {
+  it("returns ok+messageId on a 200 response with body.data.id", async () => {
+    setBearerForTest("Bearer 1|abc");
+    const executeJavaScript = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    // vitest 4 requires `function` or `class` in mock impls for `new`
+    // constructability — arrow functions throw "is not a constructor".
+    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      setBearerForTest("Bearer 1|abc");
+      return fakeWin;
+    });
+
+    // Warmup predicate calls (cookie check) return true, then the send IIFE
+    // returns a 200 payload.
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      return Promise.resolve(
+        JSON.stringify({
+          ok: true,
+          status: 200,
+          body: JSON.stringify({ data: { id: "msg-123" } }),
+          retryAfter: null,
+        }),
+      );
+    });
+
+    await ensureSendWindowReady();
+    const result = await sendKickChatMessage(14161546, "hello");
+    expect(result).toEqual({ ok: true, messageId: "msg-123" });
+
+    // The send IIFE was called with the chatroom id and bearer interpolated.
+    const sendCalls = executeJavaScript.mock.calls.filter((c: any[]) =>
+      String(c[0]).includes("/api/v2/messages/send/14161546"),
+    );
+    expect(sendCalls.length).toBe(1);
+    expect(String(sendCalls[0][0])).toContain(`"Bearer 1|abc"`);
+  });
+});
+
 // Touch disposeSendWindow so the import isn't TS6133-unused; later tasks
 // will exercise it directly.
 void disposeSendWindow;

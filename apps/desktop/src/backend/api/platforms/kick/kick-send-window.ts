@@ -285,10 +285,43 @@ export async function ensureSendWindowReady(): Promise<void> {
   }
 }
 export async function sendKickChatMessage(
-  _chatroomId: number,
-  _content: string,
+  chatroomId: number,
+  content: string,
 ): Promise<KickSendResult> {
-  throw new Error("not implemented");
+  await ensureSendWindowReady();
+  if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
+    return {
+      ok: false,
+      kind: "network",
+      message: "Send window failed to initialize.",
+    };
+  }
+  const iife = buildSendIIFE(chatroomId, content, latestKickWebBearer);
+  let raw: string;
+  try {
+    raw = (await sendWindow.webContents.executeJavaScript(iife)) as string;
+  } catch (err) {
+    return {
+      ok: false,
+      kind: "network",
+      message: `Send window error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  let parsed: { ok: boolean; status: number; body: string; retryAfter: string | null };
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    return {
+      ok: false,
+      kind: "unknown",
+      message: "Send window returned non-JSON response.",
+    };
+  }
+  return classifySendResult({
+    status: parsed.status,
+    body: parsed.body,
+    retryAfter: parsed.retryAfter,
+  });
 }
 export async function disposeSendWindow(): Promise<void> {
   throw new Error("not implemented");
