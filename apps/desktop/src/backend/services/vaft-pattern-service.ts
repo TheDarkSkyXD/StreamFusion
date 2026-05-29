@@ -17,6 +17,8 @@ import {
 } from "@shared/adblock-types";
 import Store from "electron-store";
 
+import { createManagedInterval } from "@/lib/managed-interval";
+
 // ========== Constants ==========
 
 const VAFT_SCRIPT_URL =
@@ -40,7 +42,7 @@ interface PatternStoreSchema {
 
 class VaftPatternService {
   private store: Store<PatternStoreSchema> | null = null;
-  private updateTimer: ReturnType<typeof setInterval> | null = null;
+  private updateTimer: { stop: () => void } | null = null;
   private lastCheckTime: number = 0;
   private isInitialized: boolean = false;
 
@@ -100,12 +102,12 @@ class VaftPatternService {
    */
   private schedulePeriodicUpdates(): void {
     if (this.updateTimer) {
-      clearInterval(this.updateTimer);
+      this.updateTimer.stop();
     }
 
     // Check daily, but only update if > UPDATE_INTERVAL_MS has passed
-    this.updateTimer = setInterval(
-      async () => {
+    this.updateTimer = createManagedInterval(
+      () => {
         const stored = this.getStoredPatterns();
         if (!stored.autoUpdateEnabled) {
           return;
@@ -113,7 +115,7 @@ class VaftPatternService {
 
         const lastChecked = new Date(stored.lastChecked).getTime();
         if (Date.now() - lastChecked > UPDATE_INTERVAL_MS) {
-          await this.fetchAndUpdatePatterns();
+          void this.fetchAndUpdatePatterns();
         }
       },
       24 * 60 * 60 * 1000
@@ -428,7 +430,7 @@ class VaftPatternService {
    */
   destroy(): void {
     if (this.updateTimer) {
-      clearInterval(this.updateTimer);
+      this.updateTimer.stop();
       this.updateTimer = null;
     }
   }
