@@ -41,6 +41,7 @@
 
 import type { UnifiedPrediction } from "../../../shared/chat-types";
 
+import { createManagedInterval } from "@/lib/managed-interval";
 import { fetchChannelPrediction } from "../../api/platforms/twitch/twitch-gql-predictions";
 import { twitchChatService } from "./twitch-chat";
 
@@ -60,7 +61,7 @@ interface PollState {
   /** Channel login (lowercased) this poller targets. */
   login: string;
   /** Active interval timer. */
-  timer: ReturnType<typeof setInterval>;
+  timer: { stop: () => void };
   /** Last emitted snapshot. Diffing key for emit-on-change. */
   lastSnapshot: UnifiedPrediction | null;
   /** Consecutive null responses since the last non-null. Hits
@@ -87,7 +88,7 @@ export function startTwitchPredictionPolling(channelLogin: string): void {
     login,
     // Timer set below — needs the state object to exist first for `poll` to
     // look it up by login.
-    timer: 0 as unknown as ReturnType<typeof setInterval>,
+    timer: { stop: () => {} },
     lastSnapshot: null,
     nullStreak: 0,
     pendingRefresh: false,
@@ -95,7 +96,7 @@ export function startTwitchPredictionPolling(channelLogin: string): void {
     cancelled: false,
   };
   pollers.set(login, state);
-  state.timer = setInterval(() => {
+  state.timer = createManagedInterval(() => {
     if (!isVisible()) return;
     void poll(login);
   }, POLL_INTERVAL_MS);
@@ -112,7 +113,7 @@ export function stopTwitchPredictionPolling(channelLogin: string): void {
   const state = pollers.get(login);
   if (!state) return;
   state.cancelled = true;
-  clearInterval(state.timer);
+  state.timer.stop();
   pollers.delete(login);
 }
 
@@ -120,7 +121,7 @@ export function stopTwitchPredictionPolling(channelLogin: string): void {
 export function __resetTwitchPredictionPollers(): void {
   for (const state of pollers.values()) {
     state.cancelled = true;
-    clearInterval(state.timer);
+    state.timer.stop();
   }
   pollers.clear();
 }
