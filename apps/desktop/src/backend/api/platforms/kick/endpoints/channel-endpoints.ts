@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
+import { createManagedInterval } from "@/lib/managed-interval";
 import { isNetworkLikelyDown } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
@@ -57,7 +58,7 @@ const _channelCache = new Map<string, { channel: UnifiedChannel; timestamp: numb
 const CHANNEL_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
 // Periodically clean expired channel cache entries
-setInterval(
+createManagedInterval(
   () => {
     const now = Date.now();
     for (const [key, value] of _channelCache.entries()) {
@@ -66,8 +67,9 @@ setInterval(
       }
     }
   },
-  1000 * 60 * 5
-).unref(); // Clean every 5 minutes
+  1000 * 60 * 5,
+  { unref: true }
+); // Clean every 5 minutes
 
 /**
  * Get channel info by slug
