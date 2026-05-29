@@ -475,10 +475,9 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * Join a channel's chat
    * @param channel - Channel slug
    * @param chatroomId - Chatroom ID from Kick API (used for Pusher subscription)
-   * @param broadcasterUserId - Broadcaster's user_id (channel's internal db id).
-   *   Required for `sendMessage` to address the right channel on Kick's official
-   *   chat endpoint. Distinct from `chatroomId` — they are different numbers on
-   *   most channels.
+   * @param broadcasterUserId - Broadcaster's user_id (channel.id). Distinct from
+   *   `chatroomId` — they're different numbers on most channels. Used by the
+   *   optimistic-echo broadcaster-badge synthesis in `sendMessage`.
    */
   async joinChannel(
     channel: string,
@@ -977,8 +976,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
           if (this.isActive) {
             for (const [slug, info] of this.channels) {
               // We need to resubscribe with the stored chatroomId, and
-              // preserve broadcasterUserId so post-reconnect sends still
-              // address the right channel on the official chat endpoint.
+              // preserve broadcasterUserId across reconnect so the optimistic-echo
+              // broadcaster-badge synthesis keeps working after reconnect.
               await this.joinChannel(slug, info.chatroomId, info.broadcasterUserId);
             }
           }

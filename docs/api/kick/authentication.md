@@ -28,7 +28,7 @@ The app currently requests:
 |---|---|
 | `user:read` | Profile, email, slug |
 | `channel:read` | Channel details for own channel |
-| `chat:write` | Send chat via official `POST /chat` (currently unused — chat sending goes through internal `POST /api/v2/messages/send/{chatroomId}`) |
+| `chat:write` | **No longer requested** as of 2026-05-29. Chat send now uses `POST kick.com/api/v2/messages/send/{chatroomId}` from inside a hidden BrowserWindow parked on `kick.com` — the public `POST /public/v1/chat` returns 200 but does not broadcast for un-verified apps. See `apps/desktop/src/backend/api/platforms/kick/kick-send-window.ts` and `docs/adr/0001-kick-chat-page-context-send.md`. Existing user tokens carrying this scope are not invalidated. |
 
 When adding a new scope, update both the OAuth start URL in `kick-auth.ts` AND the Cloudflare Worker's scope allow-list.
 
