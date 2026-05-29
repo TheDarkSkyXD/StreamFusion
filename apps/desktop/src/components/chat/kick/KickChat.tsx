@@ -481,15 +481,21 @@ export const KickChat: React.FC<KickChatProps> = ({
     };
   }, [isAuthenticated, channel, chatroomId, channelId]);
 
-  // Reset pin state on channel change. Without this, switching from a
-  // channel-with-pin to a channel-without-pin leaves the previous banner
-  // stuck on screen — the next pin event won't fire to clear it, and the
-  // local pinnedMessage state is keyed only to the React tree, not the channel.
+  // Reset pin + prediction + poll banner state on channel change. Without
+  // this, switching from a channel-with-{pin,prediction,poll} to one without
+  // leaves the previous banner stuck on screen — no "nothing here" signal
+  // fires for the new channel to overwrite the stale React state. Local
+  // state is keyed only to the React tree, not the channel.
   useEffect(() => {
     setPinnedMessage(null);
     setShowPinned(true);
     setIsPinExpanded(false);
-  }, [channel]);
+    setActivePrediction(null);
+    setActivePoll(null);
+    setShowPoll(true);
+    setIsPollExpanded(false);
+    pollTimer.clear();
+  }, [channel, pollTimer]);
 
   // Event Listeners
   useEffect(() => {
