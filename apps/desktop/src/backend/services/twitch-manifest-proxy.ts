@@ -11,6 +11,7 @@
 import { DEFAULT_DATERANGE_PATTERNS } from "@shared/adblock-types";
 import { session } from "electron";
 
+import { sleep } from "@/lib/sleep";
 import { httpClient } from "./http-client";
 import { vaftPatternService } from "./vaft-pattern-service";
 
@@ -122,7 +123,7 @@ class TwitchManifestProxyService {
         console.debug(
           `[ManifestProxy] Fetch failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`
         );
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await sleep(delay);
       }
     }
 
