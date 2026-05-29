@@ -107,82 +107,53 @@ export async function searchChannels(
       if (data) break; // Found results, stop trying
 
       try {
-        data = await new Promise<any>((resolve, _reject) => {
-          const { net } = require("electron");
-          const request = net.request({
-            method: "GET",
-            url: searchUrl,
-          });
-
-          request.setHeader("Accept", "application/json");
-          request.setHeader(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-          );
-          request.setHeader("Referer", "https://kick.com/");
-          request.setHeader("Origin", "https://kick.com");
-          request.setHeader("X-Requested-With", "XMLHttpRequest");
-
-          // Kick's search endpoint typically responds in ~3s (Cloudflare adds
-          // 1-2s on top of the API). The previous 1500ms cap meant the request
-          // was aborted before any data arrived, which made search fall back
-          // to Step 4 (top-streams fuzzy match) only — and Step 4 has no
-          // follower counts. 6000ms covers the observed p99 latency while
-          // still bounding worst-case wait. Failed status codes still resolve
-          // immediately via the `response.on("end")` path, so this only kicks
-          // in for genuinely slow/hanging requests.
-          const timeout = setTimeout(() => {
-            request.abort();
-            resolve(null);
-          }, 6000);
-
-          request.on("response", (response: any) => {
-            let body = "";
-            response.on("data", (chunk: Buffer) => {
-              body += chunk.toString();
-            });
-            response.on("end", () => {
-              clearTimeout(timeout);
-              if (response.statusCode === 200) {
-                try {
-                  const parsed = JSON.parse(body);
-                  if (parsed && (Array.isArray(parsed) || parsed.channels || parsed.data)) {
-                    console.debug(`[KickSearch] Step 2: Got results from ${searchUrl}`);
-                    resolve(parsed);
-                  } else {
-                    resolve(null);
-                  }
-                } catch (_e) {
-                  // Common case: 200 OK but body is cloudflare HTML
-                  if (body.trim().startsWith("<")) {
-                    console.warn(
-                      `[KickSearch] Step 2: Endpoint returned HTML (likely bot protection)`
-                    );
-                  }
-                  resolve(null);
-                }
-              } else {
-                // Try next endpoint on 4xx errors
-                if (response.statusCode >= 400 && response.statusCode < 500) {
-                  console.debug(
-                    `[KickSearch] Step 2: ${searchUrl} returned ${response.statusCode}, trying next...`
-                  );
-                }
-                resolve(null);
-              }
-            });
-          });
-
-          request.on("error", (_error: Error) => {
-            clearTimeout(timeout);
-            console.debug(`[KickSearch] Step 2: ${searchUrl} error, trying next...`);
-            resolve(null);
-          });
-
-          request.end();
+        const { net } = require("electron");
+        // Kick's search endpoint typically responds in ~3s (Cloudflare adds
+        // 1-2s on top of the API). The previous 1500ms cap meant the request
+        // was aborted before any data arrived, which made search fall back
+        // to Step 4 (top-streams fuzzy match) only — and Step 4 has no
+        // follower counts. 6000ms covers the observed p99 latency while
+        // still bounding worst-case wait. Non-200 statuses still resolve
+        // immediately via the response path, so this only kicks in for
+        // genuinely slow/hanging requests.
+        const res: Response = await net.fetch(searchUrl, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            Referer: "https://kick.com/",
+            Origin: "https://kick.com",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          signal: AbortSignal.timeout(6000),
         });
+        if (res.ok) {
+          const body = await res.text();
+          try {
+            const parsed = JSON.parse(body);
+            if (parsed && (Array.isArray(parsed) || parsed.channels || parsed.data)) {
+              console.debug(`[KickSearch] Step 2: Got results from ${searchUrl}`);
+              data = parsed;
+            }
+          } catch (_e) {
+            // Common case: 200 OK but body is cloudflare HTML
+            if (body.trim().startsWith("<")) {
+              console.warn(
+                `[KickSearch] Step 2: Endpoint returned HTML (likely bot protection)`
+              );
+            }
+          }
+        } else {
+          // Try next endpoint on 4xx errors
+          if (res.status >= 400 && res.status < 500) {
+            console.debug(
+              `[KickSearch] Step 2: ${searchUrl} returned ${res.status}, trying next...`
+            );
+          }
+        }
       } catch (_e) {
-        // Continue to next endpoint
+        // timeout or network error — try next endpoint
+        console.debug(`[KickSearch] Step 2: ${searchUrl} error, trying next...`);
       }
     }
 
