@@ -120,7 +120,14 @@ export const KICK_OAUTH_CONFIG: OAuthConfig = {
   scopes: [
     "user:read", // View user information (username, streamer ID, etc.)
     "channel:read", // View channel information (description, category, etc.)
-    "chat:write", // Send chat messages via POST /public/v1/chat (required for ChatInput on Kick — without this, every send returns 401 Unauthorized)
+    // chat:write removed 2026-05-29: chat send moved to
+    // kick.com/api/v2/messages/send/{chatroomId} via page-context fetch
+    // (see kick-send-window.ts). The public-API path is gated behind
+    // App Verification and silently drops un-verified sends. Existing
+    // tokens carrying chat:write are NOT invalidated — Kick's OAuth
+    // server doesn't revoke server-side when we stop requesting; the
+    // scope becomes unused on the next refresh.
+    //
     // Future scopes:
     // 'events:subscribe', // Subscribe to channel events
   ],
