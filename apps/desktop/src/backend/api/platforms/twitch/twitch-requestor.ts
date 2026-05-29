@@ -89,73 +89,27 @@ export class TwitchRequestor {
   ): Promise<{ data: T; status: number; headers: Record<string, string> }> {
     const { net } = require("electron");
 
-    return new Promise((resolve, reject) => {
-      const request = net.request({
-        method: options.method || "GET",
-        url: url,
-      });
-
-      // Set headers
-      if (options.headers) {
-        for (const [key, value] of Object.entries(options.headers)) {
-          request.setHeader(key, value);
-        }
-      }
-
-      // Set timeout
-      const timeout = setTimeout(() => {
-        request.abort();
-        reject(new Error(`Request timeout after ${this.REQUEST_TIMEOUT}ms`));
-      }, this.REQUEST_TIMEOUT);
-
-      request.on("response", (response: any) => {
-        clearTimeout(timeout);
-
-        const responseHeaders: Record<string, string> = {};
-        const rawHeaders = response.headers || {};
-        for (const [key, value] of Object.entries(rawHeaders)) {
-          if (Array.isArray(value)) {
-            responseHeaders[key.toLowerCase()] = value[0];
-          } else if (typeof value === "string") {
-            responseHeaders[key.toLowerCase()] = value;
-          }
-        }
-
-        let body = "";
-        response.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-
-        response.on("end", () => {
-          try {
-            const data = body ? JSON.parse(body) : {};
-            resolve({
-              data: data as T,
-              status: response.statusCode,
-              headers: responseHeaders,
-            });
-          } catch (_e) {
-            reject(new Error("Failed to parse JSON response"));
-          }
-        });
-
-        response.on("error", (error: Error) => {
-          reject(error);
-        });
-      });
-
-      request.on("error", (error: Error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-
-      // Send body if present
-      if (options.body) {
-        request.write(options.body);
-      }
-
-      request.end();
+    const response = await net.fetch(url, {
+      method: options.method || "GET",
+      headers: options.headers,
+      body: options.body,
+      signal: AbortSignal.timeout(this.REQUEST_TIMEOUT),
     });
+
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value: string, key: string) => {
+      responseHeaders[key.toLowerCase()] = value;
+    });
+
+    const text = await response.text();
+    let data: T;
+    try {
+      data = text ? (JSON.parse(text) as T) : ({} as T);
+    } catch (_e) {
+      throw new Error("Failed to parse JSON response");
+    }
+
+    return { data, status: response.status, headers: responseHeaders };
   }
 
   /**
