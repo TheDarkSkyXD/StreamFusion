@@ -43,68 +43,59 @@ function makeService(): { service: KickChatService; internals: ServiceInternals 
 }
 
 describe("KickChatService.sendMessage", () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
-
   beforeEach(() => {
-    fetchMock = vi.fn(() =>
-      Promise.resolve(new Response('{"data":{}}', { status: 200 })),
-    );
-    vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(sendWindow.sendKickChatMessage).mockResolvedValue({
+      ok: true,
+      messageId: "01JAXK8N",
+    });
   });
-
   afterEach(() => {
-    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("posts broadcaster_user_id from broadcasterUserId, not chatroomId", async () => {
-    const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111, // Pusher chatroom id
-      broadcasterUserId: 42, // Broadcaster's user_id (different number)
-    });
-
-    await service.sendMessage("ac7ionman", "hello");
-
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-    expect(body.broadcaster_user_id).toBe(42);
-    expect(body.broadcaster_user_id).not.toBe(999_111);
-    expect(body.content).toBe("hello");
-    expect(body.type).toBe("user");
-  });
-
-  it("throws an actionable reconnect message on 401 (chat:write scope missing)", async () => {
+  it("calls sendKickChatMessage with chatroomId, not broadcaster_user_id", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {
       slug: "ac7ionman",
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    fetchMock.mockResolvedValueOnce(
-      new Response('{"message":"Unauthorized"}', { status: 401 }),
-    );
-
-    await expect(service.sendMessage("ac7ionman", "hi")).rejects.toThrow(
-      /disconnect and reconnect/i,
-    );
+    await service.sendMessage("ac7ionman", "hello");
+    expect(sendWindow.sendKickChatMessage).toHaveBeenCalledWith(999_111, "hello");
+    // Sanity: the OLD broadcaster_user_id MUST NOT be the first arg.
+    const [firstArg] = vi.mocked(sendWindow.sendKickChatMessage).mock.calls[0]!;
+    expect(firstArg).not.toBe(42);
   });
 
-  it("throws (without calling fetch) when broadcasterUserId is missing on the channel record", async () => {
+  it("surfaces auth-expired as an actionable error with reconnect hint", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("receive-only", {
-      slug: "receive-only",
-      chatroomId: 555,
-      // broadcasterUserId intentionally absent — the channelId-still-resolving
-      // case where join succeeded but send must not silently use chatroomId.
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
     });
+    vi.mocked(sendWindow.sendKickChatMessage).mockResolvedValueOnce({
+      ok: false,
+      kind: "auth-expired",
+      message: "Kick session expired — reconnect Kick in Settings.",
+    });
+    await expect(service.sendMessage("ac7ionman", "hi")).rejects.toThrow(/reconnect Kick/i);
+  });
 
-    await expect(service.sendMessage("receive-only", "hi")).rejects.toThrow(
-      /broadcaster user_id not set/i,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
+  it("surfaces rate-limited cleanly", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    vi.mocked(sendWindow.sendKickChatMessage).mockResolvedValueOnce({
+      ok: false,
+      kind: "rate-limited",
+      message: "Slow down — Kick rate limit.",
+      retryAfterSeconds: 5,
+    });
+    await expect(service.sendMessage("ac7ionman", "hi")).rejects.toThrow(/Slow down/);
   });
 });
 

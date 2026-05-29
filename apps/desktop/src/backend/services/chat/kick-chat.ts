@@ -627,76 +627,20 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       throw new Error("Not authenticated with Kick");
     }
 
-    // Kick's `POST /public/v1/chat` expects `broadcaster_user_id` = the channel
-    // owner's user_id (the v2 channel `data.id`), NOT the chatroom id used by
-    // Pusher. These are two different numeric ids on Kick; the join path is
-    // responsible for supplying the user_id when the channel needs send
-    // capability. A receive-only join (anonymous or channelId-still-resolving)
-    // legitimately has no broadcaster id — surface that as a clear actionable
-    // error here rather than POSTing the wrong id and waiting for Kick to 4xx.
-    if (channelInfo.broadcasterUserId === undefined) {
-      throw new Error(
-        `Cannot send to ${normalizedChannel}: broadcaster user_id not set. ` +
-          "Rejoin the channel once its broadcaster id has loaded.",
-      );
+    // Delegate to the page-context sender. The send-window owns auth and
+    // the actual HTTP — this service just orchestrates rate limit, error
+    // surfacing, and optimistic echo.
+    const result = await sendKickChatMessage(channelInfo.chatroomId, message);
+    if (!result.ok) {
+      // Match the historical error shape — sendMessage's callers in
+      // ChatInput catch on `error.message` and surface a toast.
+      throw new Error(result.message);
     }
+    this.recordMessageSent();
 
-    let serverMessageId: string | undefined;
-    try {
-      const response = await fetch("https://api.kick.com/public/v1/chat", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          broadcaster_user_id: channelInfo.broadcasterUserId,
-          content: message,
-          type: "user",
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        // 401 on this endpoint almost always means the user's bearer token
-        // predates the chat:write scope grant (commit 306a8e5). The only fix
-        // is for them to disconnect and reconnect Kick so a fresh token is
-        // minted with the scope — a generic 401 message strands them.
-        if (response.status === 401) {
-          throw new Error(
-            "Kick chat permission missing — please disconnect and reconnect " +
-              "your Kick account in Settings to grant the chat:write scope.",
-          );
-        }
-        throw new Error(`Failed to send message: ${response.status} ${errorText}`);
-      }
-
-      // Read message_id from the response body so the optimistic echo
-      // below can use it as the dedup key against any future Pusher echo.
-      try {
-        const parsed = (await response.clone().json()) as
-          | { data?: { id?: string | number; message_id?: string } }
-          | undefined;
-        const raw = parsed?.data?.message_id ?? parsed?.data?.id;
-        if (raw !== undefined) serverMessageId = String(raw);
-      } catch {
-        // Body wasn't JSON — fall back to a synthetic id in the echo.
-      }
-
-      this.recordMessageSent();
-    } catch (error) {
-      console.error(`Failed to send message to ${normalizedChannel}:`, error);
-      throw error;
-    }
-
-    // Optimistic local echo. Kick's OAuth chat API doesn't echo the
-    // sender's own message back via Pusher (the chatroom subscription
-    // delivers others' messages but not the sender's own from this
-    // endpoint), so without this the user types into chat and sees
-    // nothing happen locally. The badge synthesis fallback covers
-    // broadcaster / moderator cold-start before the Pusher cache
-    // catches richer badge data from any of the user's prior messages.
+    // Optimistic local echo. The new send path triggers a Pusher delivery
+    // ~150-400ms later that carries real color + badges; this echo bridges
+    // the latency. Dedup-by-id collapses the duplicate.
     if (sender) {
       const cachedForChannel = this.senderBadgesCache.get(normalizedChannel);
       const cachedBadges = cachedForChannel?.get(String(sender.id));
@@ -713,7 +657,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         echoBadges = parseKickBadges(synthBadges);
       }
       this.emit("message", {
-        id: serverMessageId ?? crypto.randomUUID(),
+        id: result.messageId ?? crypto.randomUUID(),
         platform: "kick",
         type: "message",
         channel: normalizedChannel,
