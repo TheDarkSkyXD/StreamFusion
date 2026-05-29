@@ -408,6 +408,114 @@ describe("sendKickChatMessage happy path", () => {
   });
 });
 
+describe("sendKickChatMessage auth-retry", () => {
+  it("on 401, reloads the window and retries once", async () => {
+    setBearerForTest("Bearer 1|stale");
+    const executeJavaScript = vi.fn();
+    // Tooling adaptation: paralleling the warmup test's pattern of setting
+    // the bearer inside the BrowserWindow constructor mock, we set the
+    // bearer inside loadURL so reload's _pollPredicate sees a fresh capture
+    // (the real interceptor would do this on the post-reload kick.com
+    // request — mocked out here).
+    const loadURL = vi.fn(() => {
+      setBearerForTest("Bearer 1|fresh");
+      return Promise.resolve();
+    });
+    const fakeWin = {
+      loadURL,
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown,
+    );
+
+    let sendCallCount = 0;
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/messages/send/")) {
+        sendCallCount++;
+        if (sendCallCount === 1) {
+          return Promise.resolve(
+            JSON.stringify({ ok: false, status: 401, body: "{}", retryAfter: null }),
+          );
+        }
+        // After reload, fresh bearer is captured.
+        setBearerForTest("Bearer 1|fresh");
+        return Promise.resolve(
+          JSON.stringify({
+            ok: true,
+            status: 200,
+            body: JSON.stringify({ data: { id: "msg-after-retry" } }),
+            retryAfter: null,
+          }),
+        );
+      }
+      return Promise.resolve(true);
+    });
+
+    await ensureSendWindowReady();
+    const result = await sendKickChatMessage(1, "hi");
+    expect(result).toEqual({ ok: true, messageId: "msg-after-retry" });
+    // Initial load + reload-on-401 = 2 loadURL calls.
+    expect(loadURL.mock.calls.length).toBe(2);
+    expect(sendCallCount).toBe(2);
+  });
+
+  it("if the retry also returns 401, surfaces auth-expired", async () => {
+    setBearerForTest("Bearer 1|stale");
+    const executeJavaScript = vi.fn();
+    // Same tooling adaptation as above — set bearer during loadURL so the
+    // reload's _pollPredicate resolves and we actually reach the retry path.
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|stale");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown,
+    );
+
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/messages/send/")) {
+        return Promise.resolve(
+          JSON.stringify({ ok: false, status: 401, body: "{}", retryAfter: null }),
+        );
+      }
+      return Promise.resolve(true);
+    });
+
+    await ensureSendWindowReady();
+    const result = await sendKickChatMessage(1, "hi");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe("auth-expired");
+  });
+});
+
 // Touch disposeSendWindow so the import isn't TS6133-unused; later tasks
 // will exercise it directly.
 void disposeSendWindow;

@@ -284,6 +284,22 @@ export async function ensureSendWindowReady(): Promise<void> {
     warmupPromise = null;
   }
 }
+async function _reloadAndRecapture(win: BrowserWindow): Promise<void> {
+  // Single-flight: if a reload is already in progress, share its promise.
+  if (reloadPromise) return reloadPromise;
+  // Clear bearer so the predicate genuinely waits for a fresh capture.
+  latestKickWebBearer = null;
+  reloadPromise = (async () => {
+    try {
+      await win.loadURL("https://kick.com/");
+      await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS);
+    } finally {
+      reloadPromise = null;
+    }
+  })();
+  return reloadPromise;
+}
+
 export async function sendKickChatMessage(
   chatroomId: number,
   content: string,
@@ -294,6 +310,29 @@ export async function sendKickChatMessage(
       ok: false,
       kind: "network",
       message: "Send window failed to initialize.",
+    };
+  }
+  let result = await _fireSend(chatroomId, content);
+  if (!result.ok && result.kind === "auth-expired") {
+    // One reload + one retry. Failing again surfaces auth-expired without
+    // a second reload (per spec R25).
+    try {
+      await _reloadAndRecapture(sendWindow);
+    } catch {
+      return result;
+    }
+    if (latestKickWebBearer === null || sendWindow.isDestroyed()) return result;
+    result = await _fireSend(chatroomId, content);
+  }
+  return result;
+}
+
+async function _fireSend(chatroomId: number, content: string): Promise<KickSendResult> {
+  if (!sendWindow || latestKickWebBearer === null) {
+    return {
+      ok: false,
+      kind: "network",
+      message: "Send window not ready.",
     };
   }
   const iife = buildSendIIFE(chatroomId, content, latestKickWebBearer);
