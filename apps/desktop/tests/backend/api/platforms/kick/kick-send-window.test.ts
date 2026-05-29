@@ -605,6 +605,36 @@ describe("render-process-gone", () => {
   });
 });
 
-// Touch disposeSendWindow so the import isn't TS6133-unused; later tasks
-// will exercise it directly.
-void disposeSendWindow;
+describe("disposeSendWindow", () => {
+  it("destroys the window and clears the bearer cache", async () => {
+    setBearerForTest("Bearer 1|abc");
+    const destroy = vi.fn();
+    const executeJavaScript = vi.fn(() => Promise.resolve(true));
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy,
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown,
+    );
+
+    await ensureSendWindowReady();
+    await disposeSendWindow();
+
+    expect(destroy).toHaveBeenCalled();
+    expect(getBearerForTest()).toBeNull();
+  });
+
+  it("is a no-op when no window exists", async () => {
+    await expect(disposeSendWindow()).resolves.toBeUndefined();
+  });
+});

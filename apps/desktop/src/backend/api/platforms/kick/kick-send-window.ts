@@ -364,5 +364,16 @@ async function _fireSend(chatroomId: number, content: string): Promise<KickSendR
   });
 }
 export async function disposeSendWindow(): Promise<void> {
-  throw new Error("not implemented");
+  const w = sendWindow;
+  sendWindow = null;
+  latestKickWebBearer = null;
+  warmupPromise = null;
+  reloadPromise = null;
+  if (w && !w.isDestroyed()) {
+    try {
+      w.destroy();
+    } catch {
+      // Already gone.
+    }
+  }
 }
