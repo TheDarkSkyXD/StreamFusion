@@ -171,6 +171,13 @@ export const IPC_CHANNELS = {
   // ========== Chat ==========
   CHAT_GET_KICK_HISTORY: "chat:get-kick-history",
   CHAT_GET_TWITCH_HISTORY: "chat:get-twitch-history",
+  // Kick send-window IPC bridge. The send-window owns electron BrowserWindow +
+  // a webRequest interceptor + the kick.com session bearer — all main-only.
+  // Renderer goes through these channels so kick-chat.ts stays renderer-safe
+  // (no transitive better-sqlite3 / electron import via channel-endpoints).
+  KICK_CHAT_ENSURE_SEND_WINDOW_READY: "kick-chat:ensure-send-window-ready",
+  KICK_CHAT_SEND_MESSAGE: "kick-chat:send-message",
+  KICK_CHAT_DISPOSE_SEND_WINDOW: "kick-chat:dispose-send-window",
 
   // ========== Network Ad Blocking ==========
   ADBLOCK_GET_STATUS: "adblock:get-status",
@@ -264,6 +271,10 @@ export interface IpcPayloads {
   // App auto-update — auto-check toggle + frequency (U15). Either field is
   // optional so the renderer can update one without resending the other.
   [IPC_CHANNELS.UPDATE_SET_AUTO_CHECK]: { enabled?: boolean; frequency?: CheckFrequency };
+
+  // Kick chat send — chatroomId addresses the v2 broadcast endpoint; content
+  // is the raw message text. ensure-ready and dispose take no payload.
+  [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: { chatroomId: number; content: string };
 }
 
 // ========== Stream Proxy Types (Xtra port U11) ==========

@@ -9,6 +9,7 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 
+import type { KickSendResult } from "../backend/api/platforms/kick/kick-send-window";
 import type {
   AuthToken,
   KickUser,
@@ -564,6 +565,23 @@ const electronAPI = {
       data?: { rawMessages: string[] } | null;
       error?: string;
     }> => ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY, params),
+  },
+
+  // ========== Kick Chat Send (main-only send-window over IPC) ==========
+  // The Kick send-window owns a hidden BrowserWindow, a webRequest
+  // bearer interceptor, and runs executeJavaScript on kick.com to fire
+  // chat sends from inside the page. All of that is main-only; the
+  // renderer's kick-chat service goes through these three calls so it
+  // never statically imports `kick-send-window` (which would drag
+  // electron + the storage / database-service chain into the renderer
+  // bundle and break the build).
+  kickChat: {
+    ensureSendWindowReady: (): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY),
+    sendMessage: (chatroomId: number, content: string): Promise<KickSendResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE, { chatroomId, content }),
+    disposeSendWindow: (): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW),
   },
 
   // ========== Ad Blocking ==========

@@ -8,11 +8,11 @@
 import Pusher from "pusher-js";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import { sleep } from "@/lib/sleep";
-import {
-  disposeSendWindow,
-  ensureSendWindowReady,
-  sendKickChatMessage,
-} from "../../api/platforms/kick/kick-send-window";
+// Type-only import: lets us reference the KickSendResult shape without pulling
+// kick-send-window's main-only deps (electron / better-sqlite3 via the
+// storage-service chain) into the renderer bundle. The runtime calls go
+// through window.electronAPI.kickChat below.
+import type { KickSendResult } from "../../api/platforms/kick/kick-send-window";
 
 // ... imports
 import type {
@@ -51,6 +51,23 @@ import {
   chatroomUpdatedEventToPatch,
   type KickChatroomUpdatedEventPayload,
 } from "./kick-roomstate";
+
+// ========== Send-window IPC wrappers ==========
+// kick-chat.ts is consumed by the renderer (KickChat.tsx). The send-window
+// module is main-only — it imports electron's BrowserWindow + session and
+// transitively pulls in better-sqlite3 via the channel-endpoints / kick-auth
+// / storage-service chain. Going through window.electronAPI.kickChat keeps
+// the renderer bundle clean. See docs/brainstorms/2026-05-29-kick-chat-send-...
+// and shared/mod-log-types.ts for the same pattern.
+
+const sendKickChatMessage = (chatroomId: number, content: string): Promise<KickSendResult> =>
+  window.electronAPI.kickChat.sendMessage(chatroomId, content);
+
+const ensureSendWindowReady = (): Promise<void> =>
+  window.electronAPI.kickChat.ensureSendWindowReady();
+
+const disposeSendWindow = (): Promise<void> =>
+  window.electronAPI.kickChat.disposeSendWindow();
 
 /**
  * Convert a raw Kick pinned-message Pusher payload into the platform-agnostic

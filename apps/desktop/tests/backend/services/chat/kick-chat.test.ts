@@ -7,13 +7,23 @@ vi.mock("pusher-js", () => ({
   default: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+// The kick-chat service now goes through `window.electronAPI.kickChat` for all
+// send-window operations (the direct kick-send-window import was leaking
+// electron + better-sqlite3 into the renderer bundle). Stub the window surface
+// here so the tests can assert on the bridge surface instead of the underlying
+// module. See `apps/desktop/src/backend/ipc/handlers/kick-chat-handlers.ts`.
+const kickChatApi = {
   ensureSendWindowReady: vi.fn(() => Promise.resolve()),
-  sendKickChatMessage: vi.fn(),
+  sendMessage: vi.fn(),
   disposeSendWindow: vi.fn(() => Promise.resolve()),
-}));
+};
 
-import * as sendWindow from "@/backend/api/platforms/kick/kick-send-window";
+vi.stubGlobal("window", {
+  electronAPI: {
+    kickChat: kickChatApi,
+  },
+} as unknown as Window);
+
 import { KickChatService } from "@/backend/services/chat/kick-chat";
 
 // Guards: kick-chat sendMessage wire format — POST /public/v1/chat must carry the
@@ -42,13 +52,16 @@ function makeService(): { service: KickChatService; internals: ServiceInternals 
 
 describe("KickChatService.sendMessage", () => {
   beforeEach(() => {
-    vi.mocked(sendWindow.sendKickChatMessage).mockResolvedValue({
+    kickChatApi.sendMessage.mockResolvedValue({
       ok: true,
       messageId: "01JAXK8N",
     });
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    kickChatApi.sendMessage.mockReset();
+    kickChatApi.ensureSendWindowReady.mockClear();
+    kickChatApi.disposeSendWindow.mockClear();
   });
 
   it("calls sendKickChatMessage with chatroomId, not broadcaster_user_id", async () => {
@@ -59,9 +72,9 @@ describe("KickChatService.sendMessage", () => {
       broadcasterUserId: 42,
     });
     await service.sendMessage("ac7ionman", "hello");
-    expect(sendWindow.sendKickChatMessage).toHaveBeenCalledWith(999_111, "hello");
+    expect(kickChatApi.sendMessage).toHaveBeenCalledWith(999_111, "hello");
     // Sanity: the OLD broadcaster_user_id MUST NOT be the first arg.
-    const [firstArg] = vi.mocked(sendWindow.sendKickChatMessage).mock.calls[0]!;
+    const [firstArg] = kickChatApi.sendMessage.mock.calls[0]!;
     expect(firstArg).not.toBe(42);
   });
 
@@ -72,7 +85,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    vi.mocked(sendWindow.sendKickChatMessage).mockResolvedValueOnce({
+    kickChatApi.sendMessage.mockResolvedValueOnce({
       ok: false,
       kind: "auth-expired",
       message: "Kick session expired — reconnect Kick in Settings.",
@@ -87,7 +100,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    vi.mocked(sendWindow.sendKickChatMessage).mockResolvedValueOnce({
+    kickChatApi.sendMessage.mockResolvedValueOnce({
       ok: false,
       kind: "rate-limited",
       message: "Slow down — Kick rate limit.",
@@ -107,7 +120,7 @@ describe("KickChatService.joinChannel triggers warmup", () => {
     };
     (service as any).connectionState = "connected";
     await service.joinChannel("ac7ionman", 999_111, 42);
-    expect(sendWindow.ensureSendWindowReady).toHaveBeenCalledOnce();
+    expect(kickChatApi.ensureSendWindowReady).toHaveBeenCalledOnce();
     expect(internals.channels.has("ac7ionman")).toBe(true);
   });
 });
@@ -125,7 +138,7 @@ describe("send-window disposal", () => {
       unsubscribe: vi.fn(),
     };
     await service.leaveChannel("ac7ionman");
-    expect(sendWindow.disposeSendWindow).toHaveBeenCalled();
+    expect(kickChatApi.disposeSendWindow).toHaveBeenCalled();
   });
 
   it("leaveChannel that leaves other channels active does NOT dispose", async () => {
@@ -136,15 +149,15 @@ describe("send-window disposal", () => {
       connection: { state: "connected" },
       unsubscribe: vi.fn(),
     };
-    vi.mocked(sendWindow.disposeSendWindow).mockClear();
+    kickChatApi.disposeSendWindow.mockClear();
     await service.leaveChannel("ac7ionman");
-    expect(sendWindow.disposeSendWindow).not.toHaveBeenCalled();
+    expect(kickChatApi.disposeSendWindow).not.toHaveBeenCalled();
   });
 
   it("forceShutdown disposes the window", async () => {
     const { service } = makeService();
-    vi.mocked(sendWindow.disposeSendWindow).mockClear();
+    kickChatApi.disposeSendWindow.mockClear();
     await service.forceShutdown();
-    expect(sendWindow.disposeSendWindow).toHaveBeenCalled();
+    expect(kickChatApi.disposeSendWindow).toHaveBeenCalled();
   });
 });
