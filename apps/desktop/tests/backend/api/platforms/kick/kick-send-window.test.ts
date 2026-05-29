@@ -15,6 +15,7 @@ import {
   classifySendResult,
   clearBearerForTest,
   getBearerForTest,
+  isSanctumBearer,
   setBearerForTest,
   type KickSendResult,
 } from "@/backend/api/platforms/kick/kick-send-window";
@@ -186,5 +187,24 @@ describe("classifySendResult", () => {
       expect(r.kind).toBe("unknown");
       expect(r.message).toContain("500");
     }
+  });
+});
+
+describe("isSanctumBearer", () => {
+  it("matches Sanctum id|secret format", () => {
+    expect(isSanctumBearer("Bearer 369328786|PnWu1AkLBf6XzxexXX4Lo")).toBe(true);
+  });
+  it("rejects JWT-shaped bearers", () => {
+    expect(isSanctumBearer("Bearer eyJhbGciOiJIUzI1NiJ9.abc.xyz")).toBe(false);
+  });
+  it("rejects empty values", () => {
+    expect(isSanctumBearer("")).toBe(false);
+    expect(isSanctumBearer("Bearer ")).toBe(false);
+  });
+  it("rejects bearers missing the numeric id", () => {
+    expect(isSanctumBearer("Bearer |abc")).toBe(false);
+  });
+  it("rejects bearers missing the secret", () => {
+    expect(isSanctumBearer("Bearer 1|")).toBe(false);
   });
 });

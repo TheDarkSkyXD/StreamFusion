@@ -25,6 +25,18 @@ let latestKickWebBearer: string | null = null;
 let warmupPromise: Promise<void> | null = null;
 let reloadPromise: Promise<void> | null = null;
 
+const SANCTUM_BEARER_RE = /^Bearer \d+\|[A-Za-z0-9]+$/;
+
+/**
+ * Recognise the Laravel Sanctum personal-access-token format kick.com web
+ * attaches to /api/v2/* requests. We use this to filter the webRequest
+ * interceptor's capture so JWT-shaped bearers (e.g. id.kick.com OAuth
+ * tokens that may leak into the same session) don't poison the cache.
+ */
+export function isSanctumBearer(value: string): boolean {
+  return SANCTUM_BEARER_RE.test(value);
+}
+
 // @internal — exported only for tests
 export function setBearerForTest(value: string | null): void {
   latestKickWebBearer = value;
