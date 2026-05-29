@@ -10,6 +10,7 @@ import type {
 } from "../kick-types";
 
 import { rememberCategorySlug } from "./stream-endpoints";
+import { sleep } from "@/lib/sleep";
 
 const _publicCategoryListCache: {
   data: UnifiedCategory[];
@@ -283,13 +284,6 @@ export async function getCategoryById(
 }
 
 /**
- * Helper to add delay between requests to respect rate limits
- */
-async function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
  * Get ALL categories from Kick that have live streams.
  * Extracts categories from multiple pages of top streams (sequential with rate limiting).
  * This is a workaround since Kick lacks a "browse all" endpoint.
@@ -350,7 +344,7 @@ export async function getAllCategories(client: KickRequestor): Promise<UnifiedCa
 
         // Add delay between requests to respect rate limits
         if (offset < offsets[offsets.length - 1]) {
-          await delay(300);
+          await sleep(300);
         }
       } catch (err) {
         console.warn(`Failed to fetch Kick streams at offset ${offset}:`, err);
