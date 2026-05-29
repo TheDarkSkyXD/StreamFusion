@@ -9,6 +9,7 @@
  * Spec: docs/brainstorms/2026-05-29-kick-chat-send-via-v2-broadcast-requirements.md
  */
 import { BrowserWindow, session } from "electron";
+import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
 
 export type KickSendResult =
   | { ok: true; messageId: string | undefined }
@@ -183,6 +184,27 @@ export function classifySendResult(input: {
     kind: "unknown",
     message: `Send failed (${status}).`,
   };
+}
+
+/**
+ * Register a read-only Authorization-header watcher on the session.
+ * Updates the module-level bearer cache whenever kick.com fires an
+ * authenticated request. We pass requestHeaders straight through so the
+ * filter has zero behavioural effect on kick.com's traffic.
+ *
+ * Per spec R6-R9.
+ */
+export function installBearerInterceptor(targetSession: Session): void {
+  targetSession.webRequest.onBeforeSendHeaders(
+    { urls: ["https://*.kick.com/*"] },
+    (details: OnBeforeSendHeadersListenerDetails, callback) => {
+      const auth = details.requestHeaders?.Authorization;
+      if (typeof auth === "string" && isSanctumBearer(auth)) {
+        latestKickWebBearer = auth;
+      }
+      callback({ requestHeaders: details.requestHeaders });
+    },
+  );
 }
 
 export async function ensureSendWindowReady(): Promise<void> {

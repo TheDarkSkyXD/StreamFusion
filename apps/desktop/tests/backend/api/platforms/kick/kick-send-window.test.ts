@@ -15,6 +15,7 @@ import {
   classifySendResult,
   clearBearerForTest,
   getBearerForTest,
+  installBearerInterceptor,
   isSanctumBearer,
   setBearerForTest,
   type KickSendResult,
@@ -187,6 +188,65 @@ describe("classifySendResult", () => {
       expect(r.kind).toBe("unknown");
       expect(r.message).toContain("500");
     }
+  });
+});
+
+describe("installBearerInterceptor", () => {
+  function makeFakeSession(): {
+    listener: ((d: any, cb: (r: { requestHeaders: any }) => void) => void) | null;
+    session: any;
+  } {
+    let listener: any = null;
+    const session = {
+      webRequest: {
+        onBeforeSendHeaders: vi.fn((_filter: unknown, l: any) => {
+          listener = l;
+        }),
+      },
+    };
+    return { session, get listener() { return listener; } };
+  }
+
+  it("captures a Sanctum bearer and updates the cache", () => {
+    const fake = makeFakeSession();
+    installBearerInterceptor(fake.session);
+    const cb = vi.fn();
+    fake.listener!({
+      requestHeaders: { Authorization: "Bearer 1|abc" },
+      url: "https://kick.com/api/v2/anything",
+    }, cb);
+    expect(getBearerForTest()).toBe("Bearer 1|abc");
+    expect(cb).toHaveBeenCalledWith({ requestHeaders: { Authorization: "Bearer 1|abc" } });
+  });
+
+  it("ignores non-Sanctum Authorization values", () => {
+    setBearerForTest("Bearer 1|previous");
+    const fake = makeFakeSession();
+    installBearerInterceptor(fake.session);
+    const cb = vi.fn();
+    fake.listener!({
+      requestHeaders: { Authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.x.y" },
+      url: "https://kick.com/api/v2/anything",
+    }, cb);
+    expect(getBearerForTest()).toBe("Bearer 1|previous");
+  });
+
+  it("does not mutate requestHeaders", () => {
+    const fake = makeFakeSession();
+    installBearerInterceptor(fake.session);
+    const cb = vi.fn();
+    const headers = { Authorization: "Bearer 1|abc", "X-Other": "v" };
+    fake.listener!({ requestHeaders: headers, url: "https://kick.com/" }, cb);
+    expect(cb.mock.calls[0][0].requestHeaders).toBe(headers);
+  });
+
+  it("registers the filter with the *.kick.com URL pattern", () => {
+    const fake = makeFakeSession();
+    installBearerInterceptor(fake.session);
+    expect(fake.session.webRequest.onBeforeSendHeaders).toHaveBeenCalledWith(
+      { urls: ["https://*.kick.com/*"] },
+      expect.any(Function),
+    );
   });
 });
 
