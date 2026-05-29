@@ -354,6 +354,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     const graceMs = Math.ceil(
       this.keepaliveSeconds * KEEPALIVE_GRACE_MULTIPLIER * 1000,
     );
+    // timer-allowlist: EventSub keepalive watchdog reset on message (SP1/SP3 out-of-scope)
     this.keepaliveTimer = setTimeout(() => {
       this.keepaliveTimer = null;
       console.warn(

@@ -124,6 +124,7 @@ function subscribePlayback(
     if (!cur) return;
     cur.refCount--;
     if (cur.refCount <= 0 && !cur.evictionTimer) {
+      // timer-allowlist: TTL eviction in subscribePlayback (module-level, non-React; SP2 out-of-scope)
       cur.evictionTimer = setTimeout(() => {
         const c = playbackCache.get(key);
         if (c && c.refCount <= 0) playbackCache.delete(key);

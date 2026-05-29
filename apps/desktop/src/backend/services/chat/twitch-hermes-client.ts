@@ -150,6 +150,7 @@ export class TwitchHermesClient {
 
   private resetPongTimer(): void {
     if (this.pongTimer) clearTimeout(this.pongTimer);
+    // timer-allowlist: pong watchdog reset on heartbeat (SP1/SP3 out-of-scope)
     this.pongTimer = setTimeout(() => {
       // Null the ref before closing so a same-tick clearTimers can't operate
       // on a stale already-fired ID. (R2)

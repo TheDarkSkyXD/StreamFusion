@@ -293,7 +293,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         if (currentState === "connecting" || currentState === "unavailable") {
           this.log(`Connection still in progress (state: ${currentState}), extending timeout...`);
           // Give it another 15 seconds
-          timeoutId = setTimeout(onTimeout, 15000);
+          timeoutId = setTimeout(onTimeout, 15000); // timer-allowlist: Pusher connect deadline (SP1/SP3 out-of-scope)
           return;
         }
 
@@ -319,7 +319,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       };
 
       // Set up initial timeout
-      timeoutId = setTimeout(onTimeout, CONNECTION_TIMEOUT_MS);
+      timeoutId = setTimeout(onTimeout, CONNECTION_TIMEOUT_MS); // timer-allowlist: Pusher connect deadline (SP1/SP3 out-of-scope)
 
       // Set up one-time listeners for connection result
       this.pusher.connection.bind("connected", onConnected);

@@ -672,10 +672,11 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
         img.setAttribute("fetchpriority", "low");
         img.src = urls[idx];
       }
-      handle = idx < urls.length ? (ric ? ric(pump) : window.setTimeout(pump, 32)) : null;
+      handle = idx < urls.length ? (ric ? ric(pump) : window.setTimeout(pump, 32)) : null; // timer-allowlist: self-rescheduling pump() prefetch loop (rIC fallback; SP2 out-of-scope)
     };
 
     // Let the visible page claim the connection first, then drip the rest.
+    // timer-allowlist: self-rescheduling pump() prefetch loop (rIC fallback; SP2 out-of-scope)
     const start = window.setTimeout(pump, 150);
     return () => {
       window.clearTimeout(start);

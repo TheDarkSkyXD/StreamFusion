@@ -129,6 +129,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         hls.config.backBufferLength = 10;
 
         // Restore after a tick to let HLS.js process the trim
+        // timer-allowlist: HLS.js backBufferLength restore — no awaitable completion signal (SP2 explicitly out-of-scope)
         setTimeout(() => {
           if (hls && isEffectActiveRef.current) {
             hls.config.backBufferLength = originalBackBuffer;
@@ -245,6 +246,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       console.debug("[TwitchHlsPlayer] Ad-block triggered pause/resume");
       if (!video.paused) {
         video.pause();
+        // timer-allowlist: ad-block triggered video.play() retry delay (SP2 explicitly out-of-scope)
         setTimeout(() => {
           video.play().catch(() => {});
         }, 100);
@@ -302,6 +304,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
         const currentRequestId = ++playRequestIdRef.current;
 
+        // timer-allowlist: HLS.js safePlay browser-settle delay (SP2 explicitly out-of-scope)
         setTimeout(() => {
           if (!isEffectActive || currentRequestId !== playRequestIdRef.current) return;
           if (!video.paused) return;

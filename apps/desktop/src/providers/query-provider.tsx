@@ -93,6 +93,7 @@ function DraggableDevtools({ children }: { children: React.ReactNode }) {
       // onClickCapture below swallows the trailing click; the timer clears the
       // flag if Chromium already suppressed the synthesized click.
       wasDraggingRef.current = true;
+      // timer-allowlist: defer to next macrotask after drag-end so Chromium click-suppression fires first
       setTimeout(() => {
         wasDraggingRef.current = false;
       }, 0);

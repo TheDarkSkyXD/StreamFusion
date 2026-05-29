@@ -228,7 +228,7 @@ function staggerDelay(ms: number, signal?: AbortSignal): Promise<void> {
       reject(new Error("AbortError"));
       return;
     }
-    const timeoutId = setTimeout(resolve, ms);
+    const timeoutId = setTimeout(resolve, ms); // timer-allowlist: staggerDelay cancellable helper — needs a backend createManagedTimeout primitive (out of SP3 scope)
     signal?.addEventListener(
       "abort",
       () => {

@@ -356,6 +356,7 @@ app.on("before-quit", (event) => {
     // Renderer already gone — nothing to signal.
   }
 
+  // timer-allowlist: force-quit deadline (shutdown)
   const killTimer = setTimeout(() => {
     console.warn("[Main] Renderer didn't quit within 3s — force-destroying");
     if (!win.isDestroyed()) win.destroy();

@@ -194,7 +194,7 @@ export function useVideoLifecycle({
           idleCallbackId = window.requestIdleCallback(checkMemoryPressure, { timeout: 60000 });
         } else {
           // Fallback: try again soon
-          scheduledTimeoutId = setTimeout(() => checkMemoryPressure(), 1000);
+          scheduledTimeoutId = setTimeout(() => checkMemoryPressure(), 1000); // timer-allowlist: self-rescheduling memory-pressure rIC+setTimeout loop (SP2 out-of-scope)
         }
         return;
       }
@@ -219,6 +219,7 @@ export function useVideoLifecycle({
 
     const scheduleNextCheck = () => {
       // Schedule next check in 30 seconds, but only during idle time
+      // timer-allowlist: self-rescheduling memory-pressure rIC+setTimeout loop (SP2 out-of-scope)
       scheduledTimeoutId = setTimeout(() => {
         if ("requestIdleCallback" in window) {
           idleCallbackId = window.requestIdleCallback(checkMemoryPressure, { timeout: 60000 });
@@ -229,6 +230,7 @@ export function useVideoLifecycle({
     };
 
     // Initial check after 10 seconds (allow app to settle)
+    // timer-allowlist: self-rescheduling memory-pressure rIC+setTimeout loop (SP2 out-of-scope)
     scheduledTimeoutId = setTimeout(() => {
       if ("requestIdleCallback" in window) {
         idleCallbackId = window.requestIdleCallback(checkMemoryPressure, { timeout: 60000 });

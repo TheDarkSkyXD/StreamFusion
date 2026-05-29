@@ -174,6 +174,7 @@ class AuthWindowManager {
       if (this.isCallbackUrl(url, port, platform)) {
         console.debug(`✅ Auth callback page loaded for ${platform}`);
         // Close window after the success page displays briefly
+        // timer-allowlist: 1.5s success-page dwell before closing OAuth window (deliberate UX pause)
         setTimeout(() => {
           this.closeAuthWindow(platform);
         }, 1500);
@@ -230,6 +231,7 @@ class AuthWindowManager {
           .executeJavaScript(
             `(function() {
               let attempts = 0;
+              // timer-allowlist: 100ms click poll inside executeJavaScript template (runs in page DOM, not Node)
               const interval = setInterval(() => {
                 attempts++;
                 const el = document.querySelector('div.flex.items-center.gap-4 > button:last-child');

@@ -203,6 +203,7 @@ export const useChatStore = create<ChatState>()(
 
       // Set up flush timer if not already running
       if (!batch.timer) {
+        // timer-allowlist: Zustand-store message-batch coalescing timer (non-React; future backend ManagedTimeout primitive could replace)
         batch.timer = setTimeout(() => {
           get().flushBatch(channelKey);
         }, state.batchingInterval);

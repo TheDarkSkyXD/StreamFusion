@@ -330,6 +330,7 @@ async function _doFetchPublicChannel(
     // Set a timeout for page load
     const loadPromise = win.loadURL(url);
     const timeoutPromise = new Promise<never>((_, reject) =>
+      // timer-allowlist: Promise.race nav-timeout on win.loadURL (SP3 out-of-scope)
       setTimeout(() => reject(new Error("Page load timeout")), PUBLIC_CHANNEL_LOAD_TIMEOUT_MS)
     );
 

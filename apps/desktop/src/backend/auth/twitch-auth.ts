@@ -183,6 +183,7 @@ class TwitchAuthService {
     if (this.refreshTimeoutId) {
       clearTimeout(this.refreshTimeoutId);
     }
+    // timer-allowlist: self-rescheduling scheduleRefreshIn chain for proactive token refresh (SP3 out-of-scope)
     this.refreshTimeoutId = setTimeout(() => {
       this.refreshTimeoutId = null;
       this.refreshToken().catch((err) => {

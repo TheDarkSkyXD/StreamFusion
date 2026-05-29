@@ -193,6 +193,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
       // Connect with proper await - wait for 'connected' event
       await new Promise<void>((resolve, reject) => {
+        // timer-allowlist: IRC connection-timeout watchdog inside _doConnect connected-event waiter (SP1/SP3 out-of-scope)
         const timeout = setTimeout(() => {
           reject(new Error("Twitch IRC connection timed out"));
         }, CONNECTION_TIMEOUT_MS);

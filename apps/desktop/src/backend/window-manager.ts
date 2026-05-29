@@ -166,6 +166,7 @@ class WindowManager {
         `[WindowManager] Renderer unresponsive — starting ${UNRESPONSIVE_FORCE_QUIT_MS}ms force-quit timer`
       );
       if (this.unresponsiveTimer) clearTimeout(this.unresponsiveTimer);
+      // timer-allowlist: force-quit grace if renderer unresponsive (shutdown deadline)
       this.unresponsiveTimer = setTimeout(() => {
         console.warn(
           `[WindowManager] Renderer still unresponsive after ${UNRESPONSIVE_FORCE_QUIT_MS}ms — force-destroying`

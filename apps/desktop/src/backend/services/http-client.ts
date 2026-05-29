@@ -13,6 +13,8 @@
  * connections are opened.
  */
 
+import { sleep } from "@/lib/sleep";
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -208,7 +210,7 @@ class RobustHttpClient {
 
         // Wait if at concurrency limit
         if (activeCount >= maxConcurrent) {
-          await this.sleep(QUEUE_PROCESS_DELAY_MS);
+          await sleep(QUEUE_PROCESS_DELAY_MS);
           continue;
         }
 
@@ -234,7 +236,7 @@ class RobustHttpClient {
           });
 
         // Small delay between starting requests to stagger TLS handshakes
-        await this.sleep(QUEUE_PROCESS_DELAY_MS);
+        await sleep(QUEUE_PROCESS_DELAY_MS);
       }
     } finally {
       this.isProcessing.set(origin, false);
@@ -285,7 +287,7 @@ class RobustHttpClient {
             console.warn(
               `⚠️ Server error ${response.status} from ${origin} (attempt ${attempt + 1}/${retryOpts.maxRetries + 1}). Retrying in ${delay}ms...`
             );
-            await this.sleep(delay);
+            await sleep(delay);
             continue;
           }
           throw new Error(
@@ -314,7 +316,7 @@ class RobustHttpClient {
           `⚠️ Request failed [${errorType}] to ${origin} (attempt ${attempt + 1}/${retryOpts.maxRetries + 1}). Retrying in ${delay}ms... Error: ${errorMsg}`
         );
 
-        await this.sleep(delay);
+        await sleep(delay);
       }
     }
 
@@ -426,13 +428,6 @@ class RobustHttpClient {
         `[HttpClient] Circuit breaker OPEN for ${origin} after ${state.failures} failures`
       );
     }
-  }
-
-  /**
-   * Helper sleep function
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

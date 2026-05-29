@@ -163,6 +163,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         hls.config.backBufferLength = 10;
 
         // Restore after a tick to let HLS.js process the trim
+        // timer-allowlist: HLS.js backBufferLength restore — no awaitable completion signal (SP2 explicitly out-of-scope)
         setTimeout(() => {
           if (hls && isEffectActiveRef.current) {
             hls.config.backBufferLength = originalBackBuffer;
@@ -275,6 +276,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         const currentRequestId = ++playRequestIdRef.current;
 
         // Small delay to let the browser settle after load
+        // timer-allowlist: HLS.js safePlay browser-settle delay (SP2 explicitly out-of-scope)
         setTimeout(() => {
           // Check if this request is still valid
           if (!isEffectActive || currentRequestId !== playRequestIdRef.current) {

@@ -88,6 +88,7 @@ export async function getKickChannelHistory(
 
     const loadPromise = win.loadURL(url);
     const timeoutPromise = new Promise<never>((_, reject) =>
+      // timer-allowlist: Promise.race nav-timeout on win.loadURL (SP3 out-of-scope)
       setTimeout(() => reject(new Error("Page load timeout")), LOAD_TIMEOUT_MS),
     );
     await Promise.race([loadPromise, timeoutPromise]);

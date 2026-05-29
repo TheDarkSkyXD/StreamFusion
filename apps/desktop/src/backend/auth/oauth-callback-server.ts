@@ -236,6 +236,7 @@ class OAuthCallbackServer {
       });
 
       // Set timeout
+      // timer-allowlist: raw new Promise reject timeout for callback-server wait (no fetch/AbortSignal integration)
       setTimeout(() => {
         if (!resolved) {
           resolved = true;

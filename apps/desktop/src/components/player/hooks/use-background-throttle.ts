@@ -236,6 +236,7 @@ export function useBackgroundThrottle({
 
         // Start grace period timer
         if (enabled && !state.isThrottled && throttleAction !== "none") {
+          // timer-allowlist: throttle-application grace period (SP2 follow-up — could migrate to useTimeout)
           throttleTimeoutRef.current = setTimeout(() => {
             applyThrottle();
           }, gracePeriod);

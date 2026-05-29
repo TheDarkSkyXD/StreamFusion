@@ -272,6 +272,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     try {
       const warmLoad = win.loadURL(WARM_VISIT_URL);
       const warmTimeout = new Promise<never>((_, reject) =>
+        // timer-allowlist: Promise.race warm-visit nav-timeout (SP3 out-of-scope)
         setTimeout(() => reject(new Error("warm-timeout")), WARM_VISIT_TIMEOUT_MS)
       );
       await Promise.race([warmLoad, warmTimeout]);
@@ -333,6 +334,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     try {
       const navPromise = win.loadURL(FOLLOWING_PAGE_URL);
       const navTimeout = new Promise<never>((_, reject) =>
+        // timer-allowlist: Promise.race page-load nav-timeout (SP3 out-of-scope)
         setTimeout(() => reject(new Error("following-page-load-timeout")), PAGE_LOAD_TIMEOUT_MS)
       );
       await Promise.race([navPromise, navTimeout]);
@@ -469,6 +471,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
         })()`
       );
       const scrapeTimeout = new Promise<never>((_, reject) =>
+        // timer-allowlist: Promise.race executeJavaScript timeout (SP3 out-of-scope)
         setTimeout(
           () => reject(new Error("execute-js-timeout")),
           EXECUTE_JS_TIMEOUT_MS
