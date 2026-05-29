@@ -9,6 +9,7 @@
 
 import type { KickUser } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
+import { sleep } from "@/lib/sleep";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
@@ -82,7 +83,7 @@ class KickRateLimiter {
       const waitTime = Math.max(0, this.minDelay - timeSinceLastRequest);
 
       if (waitTime > 0) {
-        await new Promise((r) => setTimeout(r, waitTime));
+        await sleep(waitTime);
       }
 
       const next = this.requestQueue.shift();
@@ -409,7 +410,7 @@ class KickClient implements KickRequestor {
             console.warn(
               `⚠️ Kick API 429 Too Many Requests. Retrying in ${backoff}ms (Attempt ${attempt}/${maxRetries})...`
             );
-            await new Promise((resolve) => setTimeout(resolve, backoff));
+            await sleep(backoff);
             continue;
           }
 
@@ -428,7 +429,7 @@ class KickClient implements KickRequestor {
             console.warn(
               `⚠️ Kick API ${response.statusCode} Server Error. Retrying in ${backoff}ms (Attempt ${attempt}/${maxRetries})...`
             );
-            await new Promise((resolve) => setTimeout(resolve, backoff));
+            await sleep(backoff);
             continue;
           }
 
