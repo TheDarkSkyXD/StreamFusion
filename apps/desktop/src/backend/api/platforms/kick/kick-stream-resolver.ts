@@ -1,5 +1,6 @@
 import type { StreamPlayback } from "../../../../components/player/types";
 
+import { sleep } from "@/lib/sleep";
 import { KICK_LEGACY_API_V1_BASE } from "./kick-types";
 
 export class KickStreamResolver {
@@ -150,7 +151,7 @@ export class KickStreamResolver {
 
         // Wait before retrying (exponential backoff)
         if (attempt < maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+          await sleep(500 * attempt);
         }
       }
     }
