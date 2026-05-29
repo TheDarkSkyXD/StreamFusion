@@ -325,6 +325,34 @@ describe("ensureSendWindowReady", () => {
     // Bearer cache stays null so even a cookie-true predicate wouldn't pass.
     await expect(ensureSendWindowReady()).rejects.toThrow(/send-window-warmup-timeout/);
   }, 15_000);
+
+  it("destroys the leaked window on warmup failure (timeout)", async () => {
+    const destroyCalls: Array<unknown> = [];
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript: vi.fn(() => Promise.resolve(false)),
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(() => { destroyCalls.push(1); }),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown,
+    );
+
+    await expect(ensureSendWindowReady()).rejects.toThrow(/send-window-warmup-timeout/);
+    // The window MUST have been destroyed during cleanup so it doesn't
+    // leak and shadow a successor window's state.
+    expect(destroyCalls.length).toBe(1);
+    expect(getBearerForTest()).toBeNull();
+  }, 15_000);
 });
 
 // Touch disposeSendWindow so the import isn't TS6133-unused; later tasks

@@ -253,8 +253,25 @@ export async function ensureSendWindowReady(): Promise<void> {
         warmupPromise = null;
       });
       sendWindow = win;
-      await win.loadURL("https://kick.com/");
-      await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS);
+      try {
+        await win.loadURL("https://kick.com/");
+        await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS);
+      } catch (err) {
+        // Warmup failed (timeout, navigation error, etc.). Without this
+        // cleanup the hidden window would stay resident and the next
+        // ensureSendWindowReady call would construct a SECOND window
+        // (because the fast-path requires latestKickWebBearer !== null,
+        // which a failed warmup never sets). The old window's
+        // render-process-gone listener would also race with the
+        // successor's state. Destroy now, null the slot, re-throw.
+        sendWindow = null;
+        try {
+          win.destroy();
+        } catch {
+          // Already torn down — ignore.
+        }
+        throw err;
+      }
     } finally {
       releaseSlot();
     }
