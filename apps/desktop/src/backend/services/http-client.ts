@@ -272,13 +272,10 @@ class RobustHttpClient {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= retryOpts.maxRetries; attempt++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), retryOpts.timeoutMs);
-
       try {
         const response = await fetch(url, {
           ...options,
-          signal: controller.signal,
+          signal: AbortSignal.timeout(retryOpts.timeoutMs),
         });
 
         // Retry on transient server errors (502, 503, 504)
@@ -318,8 +315,6 @@ class RobustHttpClient {
         );
 
         await this.sleep(delay);
-      } finally {
-        clearTimeout(timeoutId);
       }
     }
 
