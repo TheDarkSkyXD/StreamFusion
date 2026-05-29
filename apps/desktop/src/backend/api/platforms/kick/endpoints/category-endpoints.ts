@@ -60,48 +60,23 @@ async function getPublicCategoryList(): Promise<UnifiedCategory[]> {
       cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""
     }`;
 
-    const data = await new Promise<any>((resolve) => {
-      const request = net.request({ method: "GET", url });
-      request.setHeader("Accept", "application/json");
-      request.setHeader(
-        "User-Agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      );
-      request.setHeader("Referer", "https://kick.com/");
-      request.setHeader("Origin", "https://kick.com");
-      request.setHeader("X-Requested-With", "XMLHttpRequest");
-
-      const timeout = setTimeout(() => {
-        request.abort();
-        resolve(null);
-      }, 5000);
-
-      request.on("response", (response: any) => {
-        let body = "";
-        response.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-        response.on("end", () => {
-          clearTimeout(timeout);
-          if (response.statusCode !== 200) {
-            resolve(null);
-            return;
-          }
-          try {
-            resolve(JSON.parse(body));
-          } catch {
-            resolve(null);
-          }
-        });
+    let data: any = null;
+    try {
+      const res: Response = await net.fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Referer: "https://kick.com/",
+          Origin: "https://kick.com",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        signal: AbortSignal.timeout(5000),
       });
-
-      request.on("error", () => {
-        clearTimeout(timeout);
-        resolve(null);
-      });
-
-      request.end();
-    });
+      data = res.ok ? await res.json() : null;
+    } catch {
+      // timeout or network error — stop paging
+    }
 
     if (!data) break;
     const categories = data?.data?.categories || [];
