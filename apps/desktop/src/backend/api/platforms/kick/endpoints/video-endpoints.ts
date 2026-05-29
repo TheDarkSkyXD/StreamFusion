@@ -23,74 +23,26 @@ export async function getVideosByChannelSlug(
     // Switch to V2 API to match clips implementation
     const url = `${KICK_LEGACY_API_V2_BASE}/channels/${slug}/videos?cursor=${cursor}&limit=${limit}&sort=${sortParam}`;
 
-    const data = await new Promise<any>((resolve, reject) => {
-      const request = net.request({
-        method: "GET",
-        url: url,
-      });
-
-      request.setHeader("Accept", "application/json");
-      request.setHeader(
-        "User-Agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      );
-      request.setHeader("Referer", "https://kick.com/");
-      request.setHeader("X-Requested-With", "XMLHttpRequest");
-
-      // Without this, hung connections wait ~21s for Chromium's TCP timeout
-      // before surfacing as ERR_CONNECTION_TIMED_OUT, blocking the Videos tab.
-      let settled = false;
-      const timeout = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        request.abort();
-        reject(new Error("Request timeout"));
-      }, 5000);
-
-      request.on("response", (response: any) => {
-        if (response.statusCode === 404) {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          resolve([]);
-          return;
-        }
-
-        if (response.statusCode !== 200) {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          reject(new Error(`Status ${response.statusCode}`));
-          return;
-        }
-
-        let body = "";
-        response.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-
-        response.on("end", () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          try {
-            resolve(JSON.parse(body));
-          } catch (_e) {
-            console.warn(`[KickVideo] Failed to parse JSON for ${slug}`);
-            reject(new Error("Failed to parse JSON"));
-          }
-        });
-      });
-
-      request.on("error", (error: Error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        reject(error);
-      });
-
-      request.end();
+    // Without this, hung connections wait ~21s for Chromium's TCP timeout
+    // before surfacing as ERR_CONNECTION_TIMED_OUT, blocking the Videos tab.
+    const response = await net.fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Referer: "https://kick.com/",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      signal: AbortSignal.timeout(5000),
     });
+
+    if (response.status === 404) {
+      return { data: [] };
+    }
+    if (!response.ok) {
+      throw new Error(`Status ${response.status}`);
+    }
+    const data = await response.json();
 
     let videos: any[] = [];
     let nextCursor: string | undefined;
