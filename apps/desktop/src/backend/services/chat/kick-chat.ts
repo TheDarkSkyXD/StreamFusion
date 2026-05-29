@@ -7,6 +7,7 @@
 
 import Pusher from "pusher-js";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
+import { sleep } from "@/lib/sleep";
 
 // ... imports
 import type {
@@ -172,7 +173,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   // Platform isolation: prevents zombie reconnections when service should be inactive
   // When false, ALL connection attempts and reconnections are blocked
   private isActive = false;
-  private reconnectTimeoutId: NodeJS.Timeout | null = null;
 
   // Reference counting for multiview support
   // Tracks how many components are actively using this service
@@ -329,12 +329,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * Note: This is a soft disconnect - service remains active for reconnection
    */
   async disconnect(): Promise<void> {
-    // Cancel any pending reconnect
-    if (this.reconnectTimeoutId) {
-      clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = null;
-    }
-
     if (!this.pusher) return;
 
     try {
@@ -426,12 +420,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.isActive = false;
     this.activeUsers = 0;
     this.reconnectAttempts = 0;
-
-    // Cancel any pending reconnect timeout
-    if (this.reconnectTimeoutId) {
-      clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = null;
-    }
 
     if (!this.pusher) {
       this.setConnectionState("disconnected");
@@ -1017,10 +1005,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
       );
 
-      // Store timeout ID so we can cancel it on shutdown
-      this.reconnectTimeoutId = setTimeout(async () => {
-        this.reconnectTimeoutId = null;
-
+      void sleep(delay).then(async () => {
         // Double-check service is still active before reconnecting
         if (!this.isActive) {
           this.log("Service deactivated during reconnect delay, aborting");
@@ -1042,7 +1027,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         } catch (error) {
           console.error("Reconnection failed:", error);
         }
-      }, delay);
+      });
     } else {
       this.log("Max reconnection attempts reached");
       this.emit("error", new Error("Max reconnection attempts reached"));
