@@ -7,6 +7,7 @@
 
 import type { Platform } from "@/shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
+import { createManagedInterval } from "@/lib/managed-interval";
 import type { Emote, EmoteManagerConfig, EmoteProvider, EmoteProviderService } from "./emote-types";
 import { DEFAULT_EMOTE_CONFIG } from "./emote-types";
 
@@ -50,7 +51,7 @@ class EmoteManager extends EventEmitter {
   /** Track channel access order for LRU eviction */
   private channelAccessOrder: string[] = [];
   /** Cleanup interval timer */
-  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private cleanupTimer: { stop: () => void } | null = null;
   /**
    * Single-flight dedup for per-provider channel fetches. When two consumers
    * (e.g. two multistream tiles on the same channel) load simultaneously, the
@@ -78,7 +79,7 @@ class EmoteManager extends EventEmitter {
   private startCleanupTimer(): void {
     if (this.cleanupTimer) return;
 
-    this.cleanupTimer = setInterval(() => {
+    this.cleanupTimer = createManagedInterval(() => {
       this.cleanupExpiredCache();
     }, CACHE_CLEANUP_INTERVAL);
 
@@ -90,7 +91,7 @@ class EmoteManager extends EventEmitter {
    */
   stopCleanupTimer(): void {
     if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
+      this.cleanupTimer.stop();
       this.cleanupTimer = null;
       console.debug("[EmoteManager] Stopped cleanup timer");
     }
