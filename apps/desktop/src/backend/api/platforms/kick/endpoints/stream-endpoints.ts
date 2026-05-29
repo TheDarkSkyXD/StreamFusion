@@ -8,6 +8,7 @@ import {
 } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { normalizeKickDate, transformKickLivestream } from "../kick-transformers";
+import { createManagedInterval } from "@/lib/managed-interval";
 import { sleep } from "@/lib/sleep";
 import {
   KICK_LEGACY_API_V1_BASE,
@@ -67,8 +68,8 @@ const DISPLAY_NAME_CACHE_TTL = 1000 * 60 * 60; // 60 minutes — streamer rename
 const MAX_CACHE_SIZE = 1000; // Limit cache to 1000 entries
 
 // Periodically clean expired entries to prevent memory leaks
-// Using .unref() so the interval doesn't prevent graceful shutdown
-setInterval(
+// Using unref so the interval doesn't prevent graceful shutdown
+createManagedInterval(
   () => {
     const now = Date.now();
     for (const [key, value] of _displayNameCache.entries()) {
@@ -99,8 +100,9 @@ setInterval(
       }
     }
   },
-  1000 * 60 * 5
-).unref(); // Clean every 5 minutes
+  1000 * 60 * 5,
+  { unref: true }
+); // Clean every 5 minutes
 
 /**
  * Lightweight function to fetch just display name and avatar for a channel
