@@ -25,6 +25,8 @@
  * defensively — present when twitch.tv sends them, null otherwise.
  */
 
+import { sleep } from "@/lib/sleep";
+
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type {
   UnifiedPrediction,
@@ -62,7 +64,6 @@ type Listener<T extends keyof HermesClientEvents> = HermesClientEvents[T];
 export class TwitchHermesClient {
   private ws: WebSocket | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private keepaliveMs = DEFAULT_KEEPALIVE_MS;
   private reconnectAttempts = 0;
   private subscriptionId: string | null = null;
@@ -129,26 +130,21 @@ export class TwitchHermesClient {
   }
 
   private scheduleReconnect(): void {
-    if (!this.active || this.reconnectTimer) return;
+    if (!this.active) return;
     const delay = Math.min(
       RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts),
       RECONNECT_MAX_DELAY_MS,
     );
     this.reconnectAttempts += 1;
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
+    void sleep(delay).then(() => {
       this.connect();
-    }, delay);
+    });
   }
 
   private clearTimers(): void {
     if (this.pongTimer) {
       clearTimeout(this.pongTimer);
       this.pongTimer = null;
-    }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
     }
   }
 
