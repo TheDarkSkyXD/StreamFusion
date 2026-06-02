@@ -20,16 +20,51 @@ export async function getVideosByChannelSlug(
     // Map sort option: 'views' -> 'view', 'date' -> 'date' (Kick API uses 'view' not 'views')
     const sortParam = options.sort === "views" ? "view" : "date";
 
-    // Switch to V2 API to match clips implementation
-    const url = `${KICK_LEGACY_API_V2_BASE}/channels/${slug}/videos?cursor=${cursor}&limit=${limit}&sort=${sortParam}`;
+    // Switch to V2 API to match clips implementation.
+    // `_=Date.now()` is a CDN cache-buster: without it, Kick's edge keeps
+    // serving the just-ended stream's VOD with is_live=true / duration=0 /
+    // partial views for minutes after finalisation, so the videos tab stays
+    // stuck on the LIVE-badged card after the player flips to offline.
+    const cacheBust = Date.now();
+    const url = `${KICK_LEGACY_API_V2_BASE}/channels/${slug}/videos?cursor=${cursor}&limit=${limit}&sort=${sortParam}&_=${cacheBust}`;
 
     // Without this, hung connections wait ~21s for Chromium's TCP timeout
     // before surfacing as ERR_CONNECTION_TIMED_OUT, blocking the Videos tab.
+    // cache:'no-store' is required because Kick keeps returning a stale
+    // snapshot of the just-ended stream's VOD (is_live=true, duration=0,
+    // partial view count) for minutes after the stream actually finalises;
+    // a clean-context fetch returns the finalised record immediately.
+    // Kick's CDN (Cloudflare) caches the videos list and returns a snapshot
+    // that omits the in-progress LIVE recording and shows stale duration/
+    // view counts for the just-ended VOD. `cache: 'no-store'` and `?_=ts`
+    // alone don't bust it because CF can ignore unknown query params for
+    // cache keys. Sending request-side `Cache-Control: no-cache` forces a
+    // revalidation hop to origin so we get the current list (including the
+    // LIVE-badged first card) on every refetch.
+    // Kick's CDN serves a smaller, cached snapshot to bare main-process
+    // net.fetch requests: it omits the in-progress LIVE recording entirely
+    // and returns the previous (finalised) VOD with stale duration / view
+    // counts. The combination below — `cache:'no-store'`, request-side
+    // `Cache-Control: no-cache`, the `?_=ts` buster, and a renderer-style
+    // header set (sec-fetch-*, Origin, Accept-Language) — makes the request
+    // look enough like the kick.com SPA's own XHR that the CDN returns the
+    // current list including the LIVE-badged first card.
     const response = await net.fetch(url, {
+      cache: "no-store",
       headers: {
         Accept: "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Chromium";v="120", "Not(A:Brand";v="24", "Google Chrome";v="120"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        Origin: "https://kick.com",
         Referer: "https://kick.com/",
         "X-Requested-With": "XMLHttpRequest",
       },

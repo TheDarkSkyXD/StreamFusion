@@ -9,42 +9,42 @@ import { syncKickFollowsAfterLogin } from "@/backend/ipc/handlers/auth-handlers"
 
 describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
   it("on getFollows error: returns the error AND does not touch storage", async () => {
-    const replaceAccountFollowsRespectingPending = vi.fn();
+    const upsertSyncedFollows = vi.fn();
     const getFollows = vi.fn().mockResolvedValue({
       status: "error",
       reason: "cloudflare-challenge",
     });
 
     const outcome = await syncKickFollowsAfterLogin(getFollows, {
-      replaceAccountFollowsRespectingPending,
+      upsertSyncedFollows,
     });
 
     expect(outcome).toEqual({ status: "error", reason: "cloudflare-challenge" });
-    expect(replaceAccountFollowsRespectingPending).not.toHaveBeenCalled();
+    expect(upsertSyncedFollows).not.toHaveBeenCalled();
   });
 
   it("on auth-failed (401/403): returns the error AND does not touch storage", async () => {
     // Cloudflare-challenge isn't the only error reason. Pin the contract for
     // auth-failed too so a future refactor that narrows the error-bail
     // condition (e.g. 'only bail on cloudflare-challenge') is caught.
-    const replaceAccountFollowsRespectingPending = vi.fn();
+    const upsertSyncedFollows = vi.fn();
     const getFollows = vi.fn().mockResolvedValue({
       status: "error",
       reason: "auth-failed",
     });
 
     const outcome = await syncKickFollowsAfterLogin(getFollows, {
-      replaceAccountFollowsRespectingPending,
+      upsertSyncedFollows,
     });
 
     expect(outcome).toEqual({ status: "error", reason: "auth-failed" });
-    expect(replaceAccountFollowsRespectingPending).not.toHaveBeenCalled();
+    expect(upsertSyncedFollows).not.toHaveBeenCalled();
   });
 
   it("on ok with channels: atomically replaces account follows respecting pending writes; surfaces pendingCount", async () => {
-    const replaceAccountFollowsRespectingPending = vi
+    const upsertSyncedFollows = vi
       .fn()
-      .mockReturnValue({ accountCount: 2, pendingCount: 0 });
+      .mockReturnValue({ accountCount: 2, pendingCount: 0, addedCount: 2, removedCount: 0 });
     const getFollows = vi.fn().mockResolvedValue({
       status: "ok",
       channels: [
@@ -76,12 +76,18 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
     });
 
     const outcome = await syncKickFollowsAfterLogin(getFollows, {
-      replaceAccountFollowsRespectingPending,
+      upsertSyncedFollows,
     });
 
-    expect(outcome).toEqual({ status: "ok", count: 2, pendingCount: 0 });
-    expect(replaceAccountFollowsRespectingPending).toHaveBeenCalledTimes(1);
-    expect(replaceAccountFollowsRespectingPending).toHaveBeenCalledWith("kick", [
+    expect(outcome).toEqual({
+      status: "ok",
+      count: 2,
+      pendingCount: 0,
+      addedCount: 2,
+      removedCount: 0,
+    });
+    expect(upsertSyncedFollows).toHaveBeenCalledTimes(1);
+    expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", [
       expect.objectContaining({
         platform: "kick",
         channelId: "411439",
@@ -103,37 +109,75 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
     // The Twitch-parity semantic: a successful sync that returns zero
     // follows IS authoritative — the user unfollowed everything. Distinct
     // from the error path where prior state is preserved.
-    const replaceAccountFollowsRespectingPending = vi
+    const upsertSyncedFollows = vi
       .fn()
-      .mockReturnValue({ accountCount: 0, pendingCount: 0 });
+      .mockReturnValue({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 0 });
     const getFollows = vi.fn().mockResolvedValue({
       status: "ok",
       channels: [],
     });
 
     const outcome = await syncKickFollowsAfterLogin(getFollows, {
-      replaceAccountFollowsRespectingPending,
+      upsertSyncedFollows,
     });
 
-    expect(outcome).toEqual({ status: "ok", count: 0, pendingCount: 0 });
-    expect(replaceAccountFollowsRespectingPending).toHaveBeenCalledWith("kick", []);
+    expect(outcome).toEqual({
+      status: "ok",
+      count: 0,
+      pendingCount: 0,
+      addedCount: 0,
+      removedCount: 0,
+    });
+    expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", []);
   });
 
   it("surfaces pendingCount from the storage call so the AUTH_FOLLOWS_SYNCED IPC can drive the U8 banner", async () => {
     // Reconciliation reported 1 still-unconfirmed pending write — the IPC
     // payload needs to carry that through for the banner to surface it.
-    const replaceAccountFollowsRespectingPending = vi
+    const upsertSyncedFollows = vi
       .fn()
-      .mockReturnValue({ accountCount: 3, pendingCount: 1 });
+      .mockReturnValue({ accountCount: 3, pendingCount: 1, addedCount: 0, removedCount: 0 });
     const getFollows = vi.fn().mockResolvedValue({
       status: "ok",
       channels: [],
     });
 
     const outcome = await syncKickFollowsAfterLogin(getFollows, {
-      replaceAccountFollowsRespectingPending,
+      upsertSyncedFollows,
     });
 
-    expect(outcome).toEqual({ status: "ok", count: 3, pendingCount: 1 });
+    expect(outcome).toEqual({
+      status: "ok",
+      count: 3,
+      pendingCount: 1,
+      addedCount: 0,
+      removedCount: 0,
+    });
+  });
+
+  it("surfaces addedCount/removedCount from the storage call so the renderer can skip cache invalidation on no-op syncs", async () => {
+    // The renderer-gate contract: the IPC payload carries the diff through so
+    // the renderer only refetches the followed-channels query when something
+    // actually changed. This is what stops periodic background syncs from
+    // disrupting the sidebar.
+    const upsertSyncedFollows = vi
+      .fn()
+      .mockReturnValue({ accountCount: 5, pendingCount: 0, addedCount: 1, removedCount: 2 });
+    const getFollows = vi.fn().mockResolvedValue({
+      status: "ok",
+      channels: [],
+    });
+
+    const outcome = await syncKickFollowsAfterLogin(getFollows, {
+      upsertSyncedFollows,
+    });
+
+    expect(outcome).toEqual({
+      status: "ok",
+      count: 5,
+      pendingCount: 0,
+      addedCount: 1,
+      removedCount: 2,
+    });
   });
 });

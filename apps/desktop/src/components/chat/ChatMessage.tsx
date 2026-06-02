@@ -52,7 +52,7 @@ const PROTECTED_BADGE_SET_IDS = new Set([
 ]);
 
 const TOOLBAR_BUTTON_CLASS =
-  "opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-opacity";
+  "opacity-0 group-hover:opacity-100 p-1 rounded text-foreground-secondary hover:text-foreground hover:bg-white/10 transition-opacity";
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -118,12 +118,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
           <span className="text-red-400 flex-shrink-0">🚫</span>
           <div className="min-w-0">
             <span className="font-bold text-red-400">{bannedUsername}</span>
-            <span className="text-gray-300"> was {actionText}</span>
+            <span className="text-foreground-secondary"> was {actionText}</span>
             {bannedByUsername && (
-              <span className="text-gray-400"> by {bannedByUsername}</span>
+              <span className="text-foreground-secondary"> by {bannedByUsername}</span>
             )}
             {lastMessage && (
-              <div className="text-gray-500 italic text-xs mt-0.5 truncate">
+              <div className="text-foreground-muted italic text-xs mt-0.5 truncate">
                 Last: {lastMessage}
               </div>
             )}
@@ -139,7 +139,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
     // than leaving a placeholder.
     if (!cd.showClearMsg) return null;
     return (
-      <div className="px-4 py-1 text-sm text-gray-500 italic opacity-50" style={style}>
+      <div className="px-4 py-1 text-sm text-foreground-muted italic opacity-50" style={style}>
         Message deleted
       </div>
     );
@@ -220,7 +220,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({
         <button
           type="button"
           onClick={() => onReply(message)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-opacity"
+          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-foreground-secondary hover:text-foreground hover:bg-white/10 transition-opacity"
           title="Reply"
         >
           <BsReplyFill size={13} />
@@ -320,7 +320,7 @@ const Timestamp: React.FC<{ timestamp: Date; format: TimestampFormat }> = memo(
     }, [timestamp, format]);
 
     return (
-      <span className="text-xs text-white font-bold mr-1 select-none align-middle inline-block">
+      <span className="text-xs text-foreground font-bold mr-1 select-none align-middle inline-block">
         {formattedTime}
       </span>
     );
@@ -358,7 +358,7 @@ const MessageFragment: React.FC<{
 
       case "mention":
         return (
-          <span className="bg-white/10 font-bold px-1 rounded mx-0.5 text-white">
+          <span className="bg-white/10 font-bold px-1 rounded mx-0.5 text-foreground">
             {fragment.username}
           </span>
         );

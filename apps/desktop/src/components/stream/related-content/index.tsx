@@ -24,6 +24,7 @@ export function RelatedContent({
   platform,
   channelName,
   channelData,
+  streamStartedAt,
   onClipSelectionChange,
 }: RelatedContentProps) {
   const { tab: urlTab } = useSearch({ from: "/_app/stream/$platform/$channel" });
@@ -98,6 +99,29 @@ export function RelatedContent({
       console.error("Failed to save time range preference:", error);
     }
   }, [timeRange]);
+
+  // Bumped to force the initial-fetch effect to rerun (e.g. when the stream
+  // ends and the latest VOD needs to appear).
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Detect the stream's live→offline transition. The new VOD record is
+  // published right around stream end (created_at is stream start), so a short
+  // delay lets Kick/Twitch finalize it before we refetch. Fires at most once
+  // per transition; if the stream comes back live and ends again, it rearms.
+  const prevStartedAtRef = React.useRef<string | null | undefined>(streamStartedAt);
+  const offlineRefetchTimer = useManagedTimeout(
+    useCallback(() => {
+      setReloadKey((k) => k + 1);
+    }, []),
+  );
+  useEffect(() => {
+    const wasLive = Boolean(prevStartedAtRef.current);
+    const isLive = Boolean(streamStartedAt);
+    prevStartedAtRef.current = streamStartedAt;
+    if (wasLive && !isLive) {
+      offlineRefetchTimer.start(5000);
+    }
+  }, [streamStartedAt, offlineRefetchTimer]);
 
   // Pagination State
   const [videoCursor, setVideoCursor] = useState<string | undefined>(undefined);
@@ -217,7 +241,7 @@ export function RelatedContent({
     if (platform && channelName && channelData?.id) {
       fetchInitialData();
     }
-  }, [activeTab, platform, channelName, channelData?.id, sortBy, timeRange]);
+  }, [activeTab, platform, channelName, channelData?.id, sortBy, timeRange, reloadKey]);
 
   // Load More Function
   const loadMore = useCallback(async () => {

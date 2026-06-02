@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback } from "react";
 
 import {
   Select,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { notifySettingsSaved } from "@/lib/settings-toast";
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
@@ -23,21 +24,19 @@ import { useAuthStore } from "@/store/auth-store";
  *
  * Reads the global `chatDisplay` preference group and writes back through
  * `updatePreferences` with the spread-existing idiom (sibling fields intact).
- * Each group card carries its OWN transient "Saved" indicator — a single
- * page-level bool races across ~20 controls.
+ * Saves auto-fire on change and surface a single unified "Saved" toast (see
+ * `notifySettingsSaved`), shared with the rest of the Settings page.
  */
 
 export type ChatSettingsGroup = "appearance" | "emotes" | "events" | "behavior";
-
-const SAVED_MS = 2000;
 
 // ───────────────────────────── shared writer hook ─────────────────────────────
 
 /**
  * Resolves the current `chatDisplay` group (falling back to defaults) and
  * returns a `set` writer that persists a single-field patch with the spread
- * preserved. The optional `onSaved` fires after a successful write so a group
- * card (or the gear) can flash its own "Saved" indicator.
+ * preserved. The optional `onSaved` fires after a successful write (the
+ * Settings groups pass `notifySettingsSaved`; the in-chat gear omits it).
  */
 export function useChatDisplay(onSaved?: () => void) {
   const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
@@ -58,30 +57,9 @@ export function useChatDisplay(onSaved?: () => void) {
   return { cd, set };
 }
 
-/** Local transient "Saved" flag — one per group card. */
-function useSavedFlag(): [boolean, () => void] {
-  const [saved, setSaved] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flash = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    setSaved(true);
-    timer.current = setTimeout(() => setSaved(false), SAVED_MS);
-  }, []);
-  return [saved, flash];
-}
-
 // ───────────────────────────── row primitives ─────────────────────────────
 // Exported so U7's gear can compose its own subset without inheriting the
 // group/card chrome.
-
-export function SavedTag({ show }: { show: boolean }) {
-  if (!show) return null;
-  return (
-    <span className="text-xs text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
-      Saved
-    </span>
-  );
-}
 
 export function SettingRow({
   label,
@@ -219,18 +197,15 @@ function SelectRow<T extends string>({
 
 function GroupCard({
   title,
-  saved,
   children,
 }: {
   title: string;
-  saved: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{title}</h3>
-        <SavedTag show={saved} />
       </div>
       <div className="px-6 py-2 divide-y divide-[#27272a]/60">{children}</div>
     </div>
@@ -260,10 +235,9 @@ export function ChatSettingsSection({
 }
 
 function AppearanceGroup() {
-  const [saved, flash] = useSavedFlag();
-  const { cd, set } = useChatDisplay(flash);
+  const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
-    <GroupCard title="Appearance" saved={saved}>
+    <GroupCard title="Appearance">
       <SwitchRow
         label="Bold usernames"
         checked={cd.boldUsernames}
@@ -334,11 +308,10 @@ function AppearanceGroup() {
 }
 
 function EmotesGroup() {
-  const [saved, flash] = useSavedFlag();
-  const { cd, set } = useChatDisplay(flash);
+  const { cd, set } = useChatDisplay(notifySettingsSaved);
   const nextLoadNote = "Applies on next channel load.";
   return (
-    <GroupCard title="Emotes & badges" saved={saved}>
+    <GroupCard title="Emotes & badges">
       <div className="py-3 text-xs text-zinc-600 leading-relaxed">
         Third-party emotes currently affect the emote picker. In-message rendering is upcoming.
       </div>
@@ -384,10 +357,9 @@ function EmotesGroup() {
 }
 
 function EventsGroup() {
-  const [saved, flash] = useSavedFlag();
-  const { cd, set } = useChatDisplay(flash);
+  const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
-    <GroupCard title="Messages & events" saved={saved}>
+    <GroupCard title="Messages & events">
       <RangeRow
         label="Message limit"
         description="Messages kept in the buffer before the oldest are removed."
@@ -443,18 +415,17 @@ function EventsGroup() {
 }
 
 function BehaviorGroup() {
-  const [saved, flash] = useSavedFlag();
   const updatePreferences = useAuthStore((s) => s.updatePreferences);
   const hidden = useAuthStore((s) => s.preferences?.chat?.position) === "hidden";
 
   const onHideChange = async (next: boolean) => {
     const current = useAuthStore.getState().preferences?.chat ?? DEFAULT_CHAT_PREFERENCES;
     await updatePreferences({ chat: { ...current, position: next ? "hidden" : "right" } });
-    flash();
+    notifySettingsSaved();
   };
 
   return (
-    <GroupCard title="Behavior" saved={saved}>
+    <GroupCard title="Behavior">
       <SwitchRow
         label="Hide chat panel"
         description="Collapse the docked chat panel on stream pages."

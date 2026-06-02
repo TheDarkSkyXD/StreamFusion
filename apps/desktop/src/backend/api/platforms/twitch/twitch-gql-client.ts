@@ -1409,7 +1409,11 @@ export async function gqlGetClipsByChannel(
   const result: UnifiedClip[] = clips.edges.map((edge) => {
     const c = edge.node;
     return {
-      id: c.id,
+      // Slug (URL identifier), not numeric c.id: VideoAccessToken_Clip and the
+      // clips.twitch.tv/embed?clip=... fallback both key off the slug. Helix
+      // /clips also returns the slug as `id`, so this keeps the two paths
+      // consistent with UnifiedClip.
+      id: c.slug,
       platform: "twitch" as const,
       channelId: c.broadcaster?.id || "",
       channelName: c.broadcaster?.login || channelLogin,

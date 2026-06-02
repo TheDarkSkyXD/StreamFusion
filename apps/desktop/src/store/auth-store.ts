@@ -231,11 +231,27 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // signed-in user's account follow list — re-hydrate so FollowButton
       // flips to "Following", invalidate the React-Query caches so the
       // Following page and sidebar refetch with the new rows.
-      window.electronAPI.auth.onFollowsSynced(({ platform }) => {
-        console.debug(`🔁 Follows synced for ${platform} — re-hydrating renderer caches`);
+      window.electronAPI.auth.onFollowsSynced(({ platform, addedCount, removedCount }) => {
+        const netChanged = (addedCount ?? 0) > 0 || (removedCount ?? 0) > 0;
+        console.debug(
+          `🔁 Follows synced for ${platform} (added=${addedCount ?? 0}, removed=${removedCount ?? 0})`
+        );
+        // Hydrate is cheap and idempotent — covers the guest-follows store that
+        // doesn't ride React Query.
         void useFollowStore.getState().hydrate();
-        queryClient.invalidateQueries({ queryKey: CHANNEL_KEYS.followed(platform) });
-        queryClient.invalidateQueries({ queryKey: STREAM_KEYS.followed() });
+        // Only refetch the channels list when something actually changed. A
+        // background sync that finds the same channels (the common case) is
+        // a no-op for the renderer — the sidebar keeps its existing rows
+        // mounted and doesn't repaint.
+        if (netChanged) {
+          queryClient.invalidateQueries({ queryKey: CHANNEL_KEYS.followed(platform) });
+        }
+        // Intentionally NOT invalidating STREAM_KEYS.followed() here. The
+        // 60-second `useFollowedStreams` polling picks up new live status
+        // naturally. The previous unconditional invalidation raced with the
+        // in-flight Kick stagger fan-out in stream-handlers' _kickFollowsAbort,
+        // causing the older poll to return a truncated list first and briefly
+        // hide live Kick streams from the sidebar.
       });
 
       window.electronAPI.auth.onTwitchAuthLost(() => {
@@ -288,12 +304,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // After the window closes, refresh auth status to get updated user
       await get().refreshAuthStatus();
 
-      // Warm the Live Channels grid as soon as auth lands so the next /following
-      // navigation paints from cache. The background `syncFollowsOnLogin` writes
-      // freshly imported account follows into the DB after this returns; the
-      // `onFollowsSynced` listener wired in initializeAuth invalidates this
-      // query then, so the prefetched data refreshes once with the post-sync
-      // truth instead of blocking the UI on the import.
+      // Warm the followed-streams cache so /following paints from cache on
+      // first nav. The auth'd platform API returns the current followed list
+      // even before the background sync writes follows to local DB, so the
+      // prefetch is correct without waiting on the sync to complete.
       if (get().twitchConnected) {
         void queryClient.prefetchQuery({
           queryKey: STREAM_KEYS.followed(),

@@ -72,7 +72,7 @@ describeDb("DatabaseService schema", () => {
     );
   });
 
-  it("preserves existing key_value + local_follows data when migrating from a prior-version DB that only had those two tables", () => {
+  it("preserves existing key_value + local_follows data when migrating from a prior-version DB, retagging legacy source='account' rows to the platform name", () => {
     // Build an old-style DB by hand at the expected path.
     const dbPath = path.join(currentTmpDir, "streamfusion.db");
     const old = new Database(dbPath);
@@ -101,13 +101,15 @@ describeDb("DatabaseService schema", () => {
     // Existing key_value content survives.
     expect(svc.get<string>("greeting")).toBe("hi");
 
-    // Existing follows survive.
+    // Existing follows survive — the row's data is preserved, but the
+    // 2026-05-29 source-collapse migration retags 'account' to the platform
+    // name ('twitch' here).
     const follows = svc.getAllFollows();
     expect(follows).toHaveLength(1);
     expect(follows[0]).toMatchObject({
       platform: "twitch",
       channelId: "12345",
-      source: "account",
+      source: "twitch",
     });
 
     // New tables were created.
@@ -292,7 +294,7 @@ describeDb("DatabaseService follow-row safety", () => {
         displayName: "Summit1G",
         profileImage: "",
       },
-      "account"
+      "kick"
     );
     svc.addFollow(
       {
@@ -302,98 +304,18 @@ describeDb("DatabaseService follow-row safety", () => {
         displayName: "ChickenAndy",
         profileImage: "",
       },
-      "account"
+      "kick"
     );
 
-    const rows = svc.getFollowsByPlatformAndSource("kick", "account");
+    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
     expect(rows).toHaveLength(2);
     expect(rows.map((r) => r.channelId).sort()).toEqual(["chickenandy", "summit1g"]);
   });
 
-  it("replaceAccountFollows atomically swaps the account-source rows for a platform", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-
-    // Seed prior account-source rows and a guest-source row that must survive.
-    svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "stale1",
-        channelName: "stale-one",
-        displayName: "Stale One",
-        profileImage: "",
-      },
-      "account"
-    );
-    svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "guest1",
-        channelName: "guest-channel",
-        displayName: "Guest Channel",
-        profileImage: "",
-      },
-      "guest"
-    );
-
-    svc.replaceAccountFollows("kick", [
-      {
-        platform: "kick",
-        channelId: "411439",
-        channelName: "summit1g",
-        displayName: "Summit1G",
-        profileImage: "",
-      },
-      {
-        platform: "kick",
-        channelId: "550022",
-        channelName: "chickenandy",
-        displayName: "ChickenAndy",
-        profileImage: "",
-      },
-    ]);
-
-    const accountRows = svc.getFollowsByPlatformAndSource("kick", "account");
-    expect(accountRows.map((r) => r.channelId).sort()).toEqual(["411439", "550022"]);
-    // Guest row is untouched.
-    const guestRows = svc.getFollowsByPlatformAndSource("kick", "guest");
-    expect(guestRows.map((r) => r.channelId)).toEqual(["guest1"]);
-  });
-
-  it("replaceAccountFollows with an empty batch clears prior account-source rows but leaves guest rows intact", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-
-    svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "prior1",
-        channelName: "prior-channel",
-        displayName: "Prior",
-        profileImage: "",
-      },
-      "account"
-    );
-    svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "g1",
-        channelName: "g",
-        displayName: "G",
-        profileImage: "",
-      },
-      "guest"
-    );
-
-    svc.replaceAccountFollows("kick", []);
-
-    expect(svc.getFollowsByPlatformAndSource("kick", "account")).toHaveLength(0);
-    expect(svc.getFollowsByPlatformAndSource("kick", "guest")).toHaveLength(1);
-  });
 });
 
-describeDb("DatabaseService local-source follows", () => {
-  it("round-trips a source='local' row via getFollowsByPlatformAndSource and isolates it from account/guest", () => {
+describeDb("DatabaseService platform-source follows", () => {
+  it("round-trips a source='kick' row via getFollowsByPlatformAndSource and isolates it from guest", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
@@ -405,77 +327,59 @@ describeDb("DatabaseService local-source follows", () => {
         displayName: "Summit1G",
         profileImage: "",
       },
-      "local"
+      "kick"
     );
 
-    const localRows = svc.getFollowsByPlatformAndSource("kick", "local");
-    expect(localRows).toHaveLength(1);
-    expect(localRows[0]).toMatchObject({ channelId: "411439", source: "local" });
+    const kickRows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    expect(kickRows).toHaveLength(1);
+    expect(kickRows[0]).toMatchObject({ channelId: "411439", source: "kick" });
 
-    // The same row must NOT leak into the account or guest buckets.
-    expect(svc.getFollowsByPlatformAndSource("kick", "account")).toHaveLength(0);
+    // The same row must NOT leak into the guest bucket.
     expect(svc.getFollowsByPlatformAndSource("kick", "guest")).toHaveLength(0);
   });
 
-  it("clearFollowsByPlatformAndSource('account') leaves source='local' rows intact (logout survival)", () => {
+  it("clearFollowsByPlatformAndSource('kick') wipes kick-source rows but leaves guest intact", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
     svc.addFollow(
-      { platform: "kick", channelId: "1", channelName: "acct", displayName: "Acct", profileImage: "" },
-      "account"
+      { platform: "kick", channelId: "1", channelName: "synced", displayName: "Synced", profileImage: "" },
+      "kick"
     );
     svc.addFollow(
-      { platform: "kick", channelId: "2", channelName: "loc", displayName: "Loc", profileImage: "" },
-      "local"
+      { platform: "kick", channelId: "2", channelName: "guest", displayName: "Guest", profileImage: "" },
+      "guest"
     );
 
-    // Logout (clearAccountFollows) clears ONLY account-source rows.
-    svc.clearFollowsByPlatformAndSource("kick", "account");
+    svc.clearFollowsByPlatformAndSource("kick", "kick");
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "account")).toHaveLength(0);
-    expect(svc.getFollowsByPlatformAndSource("kick", "local").map((r) => r.channelId)).toEqual(["2"]);
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
+    expect(svc.getFollowsByPlatformAndSource("kick", "guest").map((r) => r.channelId)).toEqual(["2"]);
   });
 
-  it("replaceAccountFollowsRespectingPending does NOT delete source='local' rows when the fetched list omits them (sync survival)", () => {
+  it("source values are isolated per platform — a kick row stays out of the twitch bucket and vice versa", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    // A local follow the user made in-app while signed in.
     svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "411439",
-        channelName: "summit1g",
-        displayName: "Summit1G",
-        profileImage: "",
-      },
-      "local"
+      { platform: "kick", channelId: "1", channelName: "k1", displayName: "K1", profileImage: "" },
+      "kick"
+    );
+    svc.addFollow(
+      { platform: "twitch", channelId: "2", channelName: "t1", displayName: "T1", profileImage: "" },
+      "twitch"
     );
 
-    // Background sync runs with a fetched list that does NOT include the local
-    // channel (the platform never knew about it — push is infeasible).
-    svc.replaceAccountFollowsRespectingPending("kick", [
-      {
-        platform: "kick",
-        channelId: "999",
-        channelName: "someoneelse",
-        displayName: "Someone Else",
-        profileImage: "",
-      },
-    ]);
-
-    // Local row survives untouched; the synced channel lands as account.
-    expect(svc.getFollowsByPlatformAndSource("kick", "local").map((r) => r.channelId)).toEqual([
-      "411439",
-    ]);
-    expect(svc.getFollowsByPlatformAndSource("kick", "account").map((r) => r.channelId)).toEqual([
-      "999",
-    ]);
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick").map((r) => r.channelId)).toEqual(["1"]);
+    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch").map((r) => r.channelId)).toEqual(["2"]);
+    // Cross-platform query returns nothing — the (platform, source) filter
+    // composes both columns.
+    expect(svc.getFollowsByPlatformAndSource("kick", "twitch")).toHaveLength(0);
+    expect(svc.getFollowsByPlatformAndSource("twitch", "kick")).toHaveLength(0);
   });
 });
 
-describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
+describeDb("DatabaseService upsertSyncedFollows", () => {
   // Helper to build a minimal "fetched follow" row.
   const fetched = (channelId: string, channelName: string, displayName = channelName) => ({
     platform: "kick",
@@ -485,68 +389,96 @@ describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
     profileImage: `https://example.com/${channelName}.jpg`,
   });
 
-  it("with no pending writes behaves like the existing replaceAccountFollows", () => {
+  it("with no pending writes, every fetched row becomes a platform-source row", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    // Pre-existing account row that should be dropped (not in fetched).
+    const result = svc.upsertSyncedFollows("kick", [
+      fetched("111", "alice"),
+      fetched("222", "bob"),
+    ]);
+
+    expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 2, removedCount: 0 });
+    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    expect(rows.map((r) => r.channelId).sort()).toEqual(["111", "222"]);
+  });
+
+  it("pre-existing platform rows NOT in fetched list survive (additive sync, no deletion)", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    // A kick row already in DB (e.g. user clicked Follow in-app while signed in,
+    // OR a prior sync imported it and a later sync no longer sees it because
+    // the user unfollowed externally — additive sync preserves it either way).
     svc.addFollow(
+      { platform: "kick", channelId: "411439", channelName: "summit1g", displayName: "Summit1G", profileImage: "" },
+      "kick"
+    );
+
+    const result = svc.upsertSyncedFollows("kick", [fetched("999", "other")]);
+
+    // Both rows present after sync — additive semantics.
+    expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 1, removedCount: 0 });
+    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    expect(rows.map((r) => r.channelId).sort()).toEqual(["411439", "999"]);
+  });
+
+  it("external unfollow is NOT auto-detected — row in DB but absent from fetched list survives", () => {
+    // Explicit contract test: under the additive model, sync NEVER removes
+    // rows. If you unfollow on kick.com / twitch.tv, the row stays in DB
+    // until you click Unfollow inside the app.
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      { platform: "twitch", channelId: "12345", channelName: "alice", displayName: "Alice", profileImage: "" },
+      "twitch"
+    );
+
+    const result = svc.upsertSyncedFollows("twitch", []);
+
+    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
+    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(1);
+  });
+
+  it("re-fetching the same channels updates metadata in place and reports addedCount=0 (no-op sync gate)", () => {
+    // Locks in the renderer-gate contract: a steady-state sync that finds the
+    // same channels reports no diff so the renderer skips its
+    // followed-channels invalidation. Sidebar doesn't repaint.
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      { platform: "kick", channelId: "111", channelName: "alice", displayName: "Alice", profileImage: "" },
+      "kick"
+    );
+    svc.addFollow(
+      { platform: "kick", channelId: "222", channelName: "bob", displayName: "Bob", profileImage: "" },
+      "kick"
+    );
+
+    const result = svc.upsertSyncedFollows("kick", [
       {
         platform: "kick",
         channelId: "111",
-        channelName: "oldchan",
-        displayName: "OldChan",
-        profileImage: "",
+        channelName: "alice",
+        displayName: "Alice (new banner)",
+        profileImage: "https://example.com/alice-new.jpg",
       },
-      "account"
-    );
+      { platform: "kick", channelId: "222", channelName: "bob", displayName: "Bob", profileImage: "" },
+    ]);
 
-    const result = svc.replaceAccountFollowsRespectingPending("kick", [fetched("222", "newchan")]);
-
-    expect(result).toEqual({ accountCount: 1, pendingCount: 0 });
-    const rows = svc.getFollowsByPlatformAndSource("kick", "account");
-    expect(rows).toHaveLength(1);
-    expect(rows[0].channelId).toBe("222");
+    expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 0, removedCount: 0 });
+    // Metadata still flushed to DB.
+    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    const alice = rows.find((r) => r.channelId === "111");
+    expect(alice?.displayName).toBe("Alice (new banner)");
   });
 
-  it("preserves a local account row when a pending follow protects it from being absent in fetched", () => {
+  it("does NOT adopt a fetched row blocked by a pending unfollow tombstone", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "999",
-        channelName: "ramees",
-        displayName: "Ramees",
-        profileImage: "",
-      },
-      "account"
-    );
-    // User clicked Follow on ramees, push hasn't confirmed yet.
-    svc.addPendingFollowWrite({
-      platform: "kick",
-      channelId: "999",
-      slug: "ramees",
-      action: "follow",
-    });
-
-    // Platform doesn't yet show ramees in fetched list.
-    const result = svc.replaceAccountFollowsRespectingPending("kick", [fetched("111", "other")]);
-
-    // Row preserved + 'other' adopted = 2 account rows. Pending row remains.
-    expect(result).toEqual({ accountCount: 2, pendingCount: 1 });
-    const rows = svc.getFollowsByPlatformAndSource("kick", "account");
-    expect(rows.map((r) => r.channelId).sort()).toEqual(["111", "999"]);
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
-  });
-
-  it("does NOT re-adopt a fetched row blocked by a pending unfollow (tombstone honored)", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-
-    // User clicked Unfollow on summit1g; push hasn't confirmed yet. Local
-    // row was removed at click time. Tombstone present.
     svc.addPendingFollowWrite({
       platform: "kick",
       channelId: "411439",
@@ -554,15 +486,31 @@ describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
       action: "unfollow",
     });
 
-    // Platform still shows summit1g as followed (delete didn't land yet).
-    const result = svc.replaceAccountFollowsRespectingPending("kick", [
-      fetched("411439", "summit1g"),
-    ]);
+    const result = svc.upsertSyncedFollows("kick", [fetched("411439", "summit1g")]);
 
-    expect(result).toEqual({ accountCount: 0, pendingCount: 1 });
-    const rows = svc.getFollowsByPlatformAndSource("kick", "account");
-    expect(rows).toHaveLength(0);
+    expect(result).toEqual({ accountCount: 0, pendingCount: 1, addedCount: 0, removedCount: 0 });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
     expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
+  });
+
+  it("matches pending unfollow via slug bridge when fetched row carries a different channel.id (dual-id)", () => {
+    // Regression: kick-guest-follows-dual-id-bridge-2026-05-15.md.
+    // Pending row stored with numeric id "999" + slug "ramees"; platform
+    // returns the same slug with a different numeric id "12345". Slug
+    // matching must still block adoption.
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "999",
+      slug: "ramees",
+      action: "unfollow",
+    });
+
+    const result = svc.upsertSyncedFollows("kick", [fetched("12345", "ramees")]);
+
+    expect(result).toEqual({ accountCount: 0, pendingCount: 1, addedCount: 0, removedCount: 0 });
   });
 
   it("clears pending follow when fetched list confirms the push landed externally", () => {
@@ -570,14 +518,8 @@ describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
     svc.initialize();
 
     svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "999",
-        channelName: "ramees",
-        displayName: "Ramees",
-        profileImage: "",
-      },
-      "account"
+      { platform: "kick", channelId: "999", channelName: "ramees", displayName: "Ramees", profileImage: "" },
+      "kick"
     );
     svc.addPendingFollowWrite({
       platform: "kick",
@@ -586,15 +528,13 @@ describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
       action: "follow",
     });
 
-    // Fetched list now includes the row — push confirmed externally between syncs.
-    const result = svc.replaceAccountFollowsRespectingPending("kick", [fetched("999", "ramees")]);
+    const result = svc.upsertSyncedFollows("kick", [fetched("999", "ramees")]);
 
-    // 1 account row, pending cleared.
-    expect(result).toEqual({ accountCount: 1, pendingCount: 0 });
+    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
     expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(0);
   });
 
-  it("clears pending unfollow when fetched list confirms the unfollow landed externally", () => {
+  it("clears pending unfollow when channel NOT in fetched (unfollow landed externally)", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
@@ -605,81 +545,23 @@ describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
       action: "unfollow",
     });
 
-    // Fetched list no longer includes the row — unfollow confirmed.
-    const result = svc.replaceAccountFollowsRespectingPending("kick", []);
+    const result = svc.upsertSyncedFollows("kick", []);
 
-    expect(result).toEqual({ accountCount: 0, pendingCount: 0 });
+    expect(result).toEqual({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 0 });
     expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(0);
   });
 
-  it("matches pending unfollow via slug bridge when fetched row carries channel.id (dual-id)", () => {
-    // Regression: docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md.
-    // Pending row inserted with the numeric channel id ("999") AND slug ("ramees").
-    // Platform's fetched list returns the slug as channelName but a DIFFERENT id
-    // (the user_id "12345"). Matching by slug must still block adoption.
-    const svc = new DatabaseService();
-    svc.initialize();
-
-    svc.addPendingFollowWrite({
-      platform: "kick",
-      channelId: "999",
-      slug: "ramees",
-      action: "unfollow",
-    });
-
-    const result = svc.replaceAccountFollowsRespectingPending("kick", [
-      fetched("12345", "ramees"), // different numeric id, same slug
-    ]);
-
-    expect(result).toEqual({ accountCount: 0, pendingCount: 1 });
-  });
-
-  it("removes a local account row that is absent from fetched AND has no pending follow (external unfollow)", () => {
+  it("platforms are isolated — twitch sync does not touch kick rows or pending writes", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
     svc.addFollow(
-      {
-        platform: "twitch",
-        channelId: "12345",
-        channelName: "alice",
-        displayName: "Alice",
-        profileImage: "",
-      },
-      "account"
-    );
-
-    // No pending follow. Fetched list doesn't include alice. Treat as
-    // external unfollow — remove.
-    const result = svc.replaceAccountFollowsRespectingPending("twitch", []);
-
-    expect(result).toEqual({ accountCount: 0, pendingCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("twitch", "account")).toHaveLength(0);
-  });
-
-  it("isolates platforms — Twitch reconciliation does not touch Kick rows or pending writes", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-
-    svc.addFollow(
-      {
-        platform: "twitch",
-        channelId: "12345",
-        channelName: "alice",
-        displayName: "Alice",
-        profileImage: "",
-      },
-      "account"
+      { platform: "twitch", channelId: "12345", channelName: "alice", displayName: "Alice", profileImage: "" },
+      "twitch"
     );
     svc.addFollow(
-      {
-        platform: "kick",
-        channelId: "999",
-        channelName: "ramees",
-        displayName: "Ramees",
-        profileImage: "",
-      },
-      "account"
+      { platform: "kick", channelId: "999", channelName: "ramees", displayName: "Ramees", profileImage: "" },
+      "kick"
     );
     svc.addPendingFollowWrite({
       platform: "kick",
@@ -688,26 +570,25 @@ describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
       action: "follow",
     });
 
-    // Twitch sync with empty fetched list. Kick row + pending stay intact.
-    const result = svc.replaceAccountFollowsRespectingPending("twitch", []);
+    const result = svc.upsertSyncedFollows("twitch", []);
 
-    expect(result).toEqual({ accountCount: 0, pendingCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "account")).toHaveLength(1);
+    // twitch alice survives (additive). kick row + pending untouched.
+    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
+    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(1);
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
     expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
   });
 
-  it("handles co-existing pending follow AND pending unfollow on the same platform for different channels", () => {
+  it("co-existing pending follow + pending unfollow for different channels on the same platform", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    // User clicked Follow on ramees; push pending.
     svc.addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "follow",
     });
-    // User clicked Unfollow on summit1g; push pending.
     svc.addPendingFollowWrite({
       platform: "kick",
       channelId: "411439",
@@ -715,17 +596,33 @@ describeDb("DatabaseService replaceAccountFollowsRespectingPending", () => {
       action: "unfollow",
     });
 
-    // Platform still has summit1g (delete didn't land), no ramees (follow didn't land).
-    const result = svc.replaceAccountFollowsRespectingPending("kick", [
-      fetched("411439", "summit1g"),
-    ]);
+    // Platform shows summit1g (unfollow didn't land), no ramees (follow didn't land).
+    const result = svc.upsertSyncedFollows("kick", [fetched("411439", "summit1g")]);
 
-    // Neither lands externally → both pending rows stay; account rows = 0
-    // (summit1g blocked by tombstone, ramees has no row to preserve since
-    // we removed at click time + no local row was added before — pending
-    // follow protects EXISTING local rows from removal, doesn't insert new ones).
+    // summit1g blocked by tombstone; ramees can't be adopted (not in fetched).
     expect(result.accountCount).toBe(0);
     expect(result.pendingCount).toBe(2);
+    expect(result.addedCount).toBe(0);
+    expect(result.removedCount).toBe(0);
+  });
+
+  it("removedCount is always 0 — sync never deletes under the additive model", () => {
+    // Pin the contract: even when the fetched list shrinks substantially
+    // relative to existing rows, removedCount stays 0.
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    for (const id of ["1", "2", "3", "4", "5"]) {
+      svc.addFollow(
+        { platform: "kick", channelId: id, channelName: `c${id}`, displayName: `C${id}`, profileImage: "" },
+        "kick"
+      );
+    }
+
+    const result = svc.upsertSyncedFollows("kick", [fetched("1", "c1")]);
+
+    expect(result.removedCount).toBe(0);
+    expect(result.accountCount).toBe(5);
   });
 });
 

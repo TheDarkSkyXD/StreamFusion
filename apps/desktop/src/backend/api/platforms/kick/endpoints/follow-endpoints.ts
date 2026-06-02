@@ -224,11 +224,128 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
 const WARM_VISIT_URL = "https://kick.com/";
 const WARM_VISIT_TIMEOUT_MS = 6000;
 const PAGE_LOAD_TIMEOUT_MS = 10000;
-// Upper bound on the DOM-scrape executeJavaScript call. Without this, a
-// hung renderer (Kick SPA crash, infinite loop in our scrape JS, GPU stall)
-// would hold `_inFlight` forever and never release the BrowserWindow slot
-// mutex — wedging all future sync attempts process-wide.
-const EXECUTE_JS_TIMEOUT_MS = 8000;
+// Outer cap on the scroll-and-scrape phase (wall clock). Bounds the worst
+// case where a hung renderer / GPU stall / unending lazy-loader would hold
+// `_inFlight` forever and wedge the BrowserWindow slot mutex.
+const SCROLL_AND_SCRAPE_TIMEOUT_MS = 30_000;
+
+/**
+ * Page-context script that scrolls the kick.com/following/channels list and
+ * collects channels DURING each scroll step (not after). kick.com's grid
+ * lazy-renders ~20 cards per viewport, and may virtualize (unmount off-screen
+ * cards). Collecting at each step accumulates the full list into a Map keyed
+ * by slug regardless of whether earlier cards are still mounted by the end.
+ *
+ * Terminates when STABLE_ROUNDS consecutive scrolls add no new channels, or
+ * after MAX_ROUNDS, whichever comes first. Returns the same JSON shape the
+ * original single-pass scrape returned, so the caller's parsing is unchanged.
+ */
+const SCROLL_AND_SCRAPE = `(async () => {
+  // timer-allowlist: page-context script literal — runs inside kick.com via executeJavaScript
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const STABLE_ROUNDS = 3;
+  const MAX_ROUNDS = 80;
+  const SCROLL_DELAY_MS = 350;
+
+  const reservedPaths = new Set([
+    'login','signup','signin','signout','logout','about','help',
+    'dashboard','settings','profile','admin','browse','category',
+    'categories','games','search','following','followers','vods',
+    'clips','subscriptions','community','dmca','privacy','terms',
+    'rules','features','app','schedule','wallet','partner','support',
+  ]);
+
+  const findScope = () => {
+    for (const h of document.querySelectorAll('h2, h3, [role="heading"]')) {
+      const text = (h.textContent || '').trim().toLowerCase();
+      if (/followed channel|channels you follow|following channels/.test(text)) {
+        let p = h.parentElement;
+        for (let i = 0; i < 6 && p; i++) {
+          if (p.querySelectorAll('a[href]').length >= 5) return p;
+          p = p.parentElement;
+        }
+      }
+    }
+    return null;
+  };
+
+  const seen = new Map();
+  // Returns the number of slugs that were newly added on this pass.
+  const collect = () => {
+    const root = findScope() || document;
+    const anchors = root.querySelectorAll('a[href]');
+    let added = 0;
+    for (const a of anchors) {
+      const href = a.getAttribute('href') || '';
+      const m = href.match(/^\\/([^\\/?#]+)\\/?$/);
+      if (!m) continue;
+      const slug = m[1].toLowerCase();
+      if (reservedPaths.has(slug)) continue;
+      if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
+      const img = a.querySelector('img');
+      if (!img) continue;
+      const alt = (img.alt || '').trim();
+      const src = img.getAttribute('src') || '';
+      const existing = seen.get(slug);
+      if (!existing) {
+        seen.set(slug, { slug, displayName: (alt || slug).slice(0, 100), avatarUrl: src, _altLen: alt.length });
+        added += 1;
+      } else if (alt.length < existing._altLen) {
+        seen.set(slug, { slug, displayName: (alt || slug).slice(0, 100), avatarUrl: src, _altLen: alt.length });
+      }
+    }
+    return added;
+  };
+
+  collect();
+  let stable = 0;
+  let rounds = 0;
+  while (stable < STABLE_ROUNDS && rounds < MAX_ROUNDS) {
+    window.scrollTo(0, document.body.scrollHeight);
+    await sleep(SCROLL_DELAY_MS);
+    const added = collect();
+    if (added > 0) {
+      stable = 0;
+    } else {
+      stable += 1;
+    }
+    rounds += 1;
+  }
+
+  for (const v of seen.values()) delete v._altLen;
+
+  const headings = [];
+  for (const h of document.querySelectorAll('h1, h2, h3, h4, [role="heading"]')) {
+    const text = (h.textContent || '').trim().slice(0, 80);
+    if (text) headings.push({ tag: h.tagName, text });
+    if (headings.length >= 20) break;
+  }
+  const navLinks = [];
+  for (const a of document.querySelectorAll('a[href]')) {
+    const href = a.getAttribute('href') || '';
+    const text = (a.textContent || '').trim().slice(0, 40);
+    if (/follow/i.test(href) && href !== '/following') {
+      navLinks.push({ href, text });
+      if (navLinks.length >= 10) break;
+    }
+  }
+
+  return JSON.stringify({
+    channels: Array.from(seen.values()),
+    url: window.location.href,
+    title: document.title,
+    anchorCount: document.querySelectorAll('a[href]').length,
+    cardCount: document.querySelectorAll('a[href]').length,
+    acceptedCardCount: seen.size,
+    channelCount: seen.size,
+    sectionTestids: [],
+    headings,
+    navLinks,
+    scoped: !!findScope(),
+    scrollRounds: rounds,
+    scrollSettled: stable >= STABLE_ROUNDS,
+  });
+})()`;
 
 /**
  * Cookie-auth fallback path: open a hidden BrowserWindow in the DEFAULT
@@ -362,119 +479,19 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       timeoutMs: 8000,
     });
 
+    // Scroll + collect-during-scroll in a single page-context script.
+    // kick.com/following/channels uses a virtualized/lazy-loaded list — first
+    // paint only renders ~20 cards regardless of how many channels the user
+    // follows. Collecting at each scroll step accumulates the full list
+    // regardless of whether earlier cards are still mounted by the end.
     let scrapeResult: string;
     try {
-      const scrapePromise = win.webContents.executeJavaScript(
-        `(() => {
-          const reservedPaths = new Set([
-            'login','signup','signin','signout','logout','about','help',
-            'dashboard','settings','profile','admin','browse','category',
-            'categories','games','search','following','followers','vods',
-            'clips','subscriptions','community','dmca','privacy','terms',
-            'rules','features','app','schedule','wallet','partner','support',
-          ]);
-
-          // /following/channels is the dedicated "all your follows" page
-          // (separate from /following which mixes live-follows + recommendations).
-          // Its DOM structure differs from /following's livestream-results-card
-          // grid — cards are plain anchors with an avatar img, no wrapping
-          // data-testid container.
-          //
-          // Strategy: find the "Followed Channels" H2 and scope to its
-          // sibling/descendant container. Falls back to scanning the whole
-          // page if the H2 isn't found (defensive against Kick UI changes).
-          const seen = new Map();
-          const sectionTestids = new Set();
-          let acceptedCardCount = 0;
-          let scopeContainer = null;
-
-          // Find the "Followed Channels" heading and walk up to a container
-          // big enough to hold the follow grid.
-          for (const h of document.querySelectorAll('h2, h3, [role="heading"]')) {
-            const text = (h.textContent || '').trim().toLowerCase();
-            if (/followed channel|channels you follow|following channels/.test(text)) {
-              let p = h.parentElement;
-              for (let i = 0; i < 6 && p; i++) {
-                if (p.querySelectorAll('a[href]').length >= 5) {
-                  scopeContainer = p;
-                  break;
-                }
-                p = p.parentElement;
-              }
-              if (scopeContainer) break;
-            }
-          }
-
-          const root = scopeContainer || document;
-          const candidateAnchors = root.querySelectorAll('a[href]');
-
-          for (const a of candidateAnchors) {
-            const href = a.getAttribute('href') || '';
-            const m = href.match(/^\\/([^\\/?#]+)\\/?$/);
-            if (!m) continue;
-            const slug = m[1].toLowerCase();
-            if (reservedPaths.has(slug)) continue;
-            if (!/^[a-z0-9_-]{2,}$/.test(slug)) continue;
-            const img = a.querySelector('img');
-            if (!img) continue;
-            acceptedCardCount++;
-
-            const alt = (img.alt || '').trim();
-            const src = img.getAttribute('src') || '';
-
-            const existing = seen.get(slug);
-            if (!existing || alt.length < existing._altLen) {
-              seen.set(slug, {
-                slug,
-                displayName: (alt || slug).slice(0, 100),
-                avatarUrl: src,
-                _altLen: alt.length,
-              });
-            }
-          }
-          // Strip internal _altLen
-          for (const v of seen.values()) delete v._altLen;
-
-          // Diagnostic: capture headings near the "following" section so we
-          // can see if it's labeled "Channels you follow" vs "Live channels
-          // in Following category" or similar. Also dump alternative
-          // navigation paths the page exposes.
-          const headings = [];
-          for (const h of document.querySelectorAll('h1, h2, h3, h4, [role="heading"]')) {
-            const text = (h.textContent || '').trim().slice(0, 80);
-            if (text) headings.push({ tag: h.tagName, text });
-            if (headings.length >= 20) break;
-          }
-          const navLinks = [];
-          for (const a of document.querySelectorAll('a[href]')) {
-            const href = a.getAttribute('href') || '';
-            const text = (a.textContent || '').trim().slice(0, 40);
-            if (/follow/i.test(href) && href !== '/following') {
-              navLinks.push({ href, text });
-              if (navLinks.length >= 10) break;
-            }
-          }
-
-          return JSON.stringify({
-            channels: Array.from(seen.values()),
-            url: window.location.href,
-            title: document.title,
-            anchorCount: document.querySelectorAll('a[href]').length,
-            cardCount: candidateAnchors.length,
-            acceptedCardCount,
-            channelCount: seen.size,
-            sectionTestids: Array.from(sectionTestids).slice(0, 20),
-            headings: headings.slice(0, 20),
-            navLinks: navLinks.slice(0, 10),
-            scoped: !!scopeContainer,
-          });
-        })()`
-      );
+      const scrapePromise = win.webContents.executeJavaScript(SCROLL_AND_SCRAPE);
       const scrapeTimeout = new Promise<never>((_, reject) =>
-        // timer-allowlist: Promise.race executeJavaScript timeout (SP3 out-of-scope)
+        // timer-allowlist: Promise.race wall-clock cap on executeJavaScript (scroll+scrape)
         setTimeout(
-          () => reject(new Error("execute-js-timeout")),
-          EXECUTE_JS_TIMEOUT_MS
+          () => reject(new Error("scroll-and-scrape-timeout")),
+          SCROLL_AND_SCRAPE_TIMEOUT_MS
         )
       );
       scrapeResult = (await Promise.race([scrapePromise, scrapeTimeout])) as string;
@@ -497,6 +514,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       sectionTestids: string[];
       headings: Array<{ tag: string; text: string }>;
       navLinks: Array<{ href: string; text: string }>;
+      scrollRounds?: number;
+      scrollSettled?: boolean;
     };
     try {
       scraped = JSON.parse(scrapeResult);
@@ -509,7 +528,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     }
 
     console.debug(
-      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" cards=${scraped.cardCount} accepted=${scraped.acceptedCardCount} channels=${scraped.channelCount} sectionTestids=[${scraped.sectionTestids.join(", ")}]`
+      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" cards=${scraped.cardCount} accepted=${scraped.acceptedCardCount} channels=${scraped.channelCount} scrollRounds=${scraped.scrollRounds ?? "?"} scrollSettled=${scraped.scrollSettled ?? "?"} sectionTestids=[${scraped.sectionTestids.join(", ")}]`
     );
     console.debug(
       `[KickFollows] page headings: ${scraped.headings.map((h) => h.tag + ":" + h.text).join(" | ")}`

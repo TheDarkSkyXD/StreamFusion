@@ -33,19 +33,23 @@ import { storageService } from "../../services/storage-service";
  *   - On `{status:"error"}` from `getFollows`: returns the error WITHOUT
  *     touching storage. Guards against silent data loss when Cloudflare /
  *     Kasada / auth challenges produce a transient failure mid-session.
- *   - On `{status:"ok"}`: atomically reconciles account-source rows via
- *     `replaceAccountFollowsRespectingPending`, honoring push-sync
- *     tombstones in `pending_follow_writes` (U2). Returns both the
- *     imported account count and the remaining pending count for the
- *     reconciliation banner in U8.
+ *   - On `{status:"ok"}`: additively upserts kick-source rows via
+ *     `upsertSyncedFollows`. The sync never removes rows; pending-unfollow
+ *     tombstones in `pending_follow_writes` still block re-adoption.
  */
 export type KickSyncOutcome =
-  | { status: "ok"; count: number; pendingCount: number }
+  | {
+      status: "ok";
+      count: number;
+      pendingCount: number;
+      addedCount: number;
+      removedCount: number;
+    }
   | { status: "error"; reason: string };
 
 export async function syncKickFollowsAfterLogin(
   getFollows: () => Promise<FollowedChannelsResult>,
-  storage: Pick<typeof storageService, "replaceAccountFollowsRespectingPending"> = storageService
+  storage: Pick<typeof storageService, "upsertSyncedFollows"> = storageService
 ): Promise<KickSyncOutcome> {
   const result = await getFollows();
   if (result.status === "error") {
@@ -61,11 +65,9 @@ export async function syncKickFollowsAfterLogin(
         profileImage: channel.avatarUrl,
       }) as Omit<LocalFollow, "id" | "followedAt">
   );
-  const { accountCount, pendingCount } = storage.replaceAccountFollowsRespectingPending(
-    "kick",
-    kickFollows
-  );
-  return { status: "ok", count: accountCount, pendingCount };
+  const { accountCount, pendingCount, addedCount, removedCount } =
+    storage.upsertSyncedFollows("kick", kickFollows);
+  return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
@@ -100,16 +102,15 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
       let importedCount = 0;
       let pendingCount = 0;
+      let addedCount = 0;
+      let removedCount = 0;
       if (platform === "twitch") {
         const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
         const allFollowed = await twitchClient.getAllFollowedChannels();
 
-        // Pending-aware atomic reconciliation. Replaces the prior
-        // clearAccountFollows + addLocalFollow loop which was both
-        // non-atomic (mid-loop crash left a partial list with no recovery)
-        // and pending-blind (would silently drop a row the user just
-        // clicked Follow on if the platform hadn't registered the push
-        // yet). U7 doc-review P1 fix.
+        // Additive sync via upsertSyncedFollows. INSERT OR REPLACE per row;
+        // never deletes (external unfollows aren't auto-detected); pending
+        // unfollow tombstones block re-adoption.
         const twitchFollows = allFollowed.map(
           (channel) =>
             ({
@@ -120,12 +121,11 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
               profileImage: channel.avatarUrl,
             }) as Omit<LocalFollow, "id" | "followedAt">
         );
-        const result = storageService.replaceAccountFollowsRespectingPending(
-          "twitch",
-          twitchFollows
-        );
+        const result = storageService.upsertSyncedFollows("twitch", twitchFollows);
         importedCount = result.accountCount;
         pendingCount = result.pendingCount;
+        addedCount = result.addedCount;
+        removedCount = result.removedCount;
         console.debug(`✅ Synced ${importedCount} Twitch follows (pending=${pendingCount})`);
       } else if (platform === "kick") {
         // Call FollowEndpoints directly rather than kickClient.getAllFollowedChannels()
@@ -147,19 +147,24 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         }
         importedCount = outcome.count;
         pendingCount = outcome.pendingCount;
+        addedCount = outcome.addedCount;
+        removedCount = outcome.removedCount;
         console.debug(`✅ Synced ${importedCount} Kick follows (pending=${pendingCount})`);
       }
 
       // Tell the renderer the local DB now reflects this platform's account
-      // follow list so it can re-hydrate useFollowStore and invalidate the
-      // followed-channels / followed-streams React-Query caches. Without this
-      // signal the renderer keeps showing pre-login state (empty FollowButton,
-      // stale sidebar) until something else happens to trigger a re-read.
-      // pendingCount drives U8's per-platform reconciliation banner.
+      // follow list so it can re-hydrate useFollowStore and (when there's a
+      // net change) refetch the followed-channels query. We always send the
+      // event so U8's reconciliation banner can react to pendingCount, but
+      // the renderer uses addedCount/removedCount to skip cache invalidation
+      // when nothing in the list actually changed — that gate is what stops
+      // periodic background syncs from disrupting the sidebar.
       safeSend(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, {
         platform,
         count: importedCount,
         pendingCount,
+        addedCount,
+        removedCount,
       });
     } catch (error) {
       console.warn(`⚠️ Failed to sync ${platform} follows:`, error);
@@ -461,8 +466,9 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     console.debug("🚪 Logging out from Twitch...");
     try {
       await twitchAuthService.logout();
-      // Clear account follows → guest follows become active again
-      storageService.clearAccountFollows("twitch");
+      // Twitch-source rows stay in the DB — `getActiveFollowsByPlatform`
+      // hides them via the no-token branch and surfaces guest follows
+      // instead. They reappear on next sign-in. No DB delete needed.
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
         platform: "twitch",
         success: true,
@@ -533,13 +539,13 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async (_event, { platform }: { platform: Platform }) => {
     if (platform === "twitch") {
       await twitchAuthService.logout();
-      storageService.clearAccountFollows("twitch");
     } else if (platform === "kick") {
       await kickAuthService.logout();
       await disposeSendWindow();
-      storageService.clearAccountFollows("kick");
     }
 
+    // Platform-source rows stay in the DB; the no-token branch in
+    // getActiveFollowsByPlatform hides them and shows guest follows instead.
     safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
       platform,
       success: true,
@@ -554,8 +560,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     try {
       await kickAuthService.logout();
       await disposeSendWindow();
-      // Clear account follows → guest follows become active again
-      storageService.clearAccountFollows("kick");
+      // Kick-source rows persist in the DB; getActiveFollowsByPlatform's
+      // no-token branch hides them and surfaces guest follows instead.
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
         platform: "kick",
         success: true,

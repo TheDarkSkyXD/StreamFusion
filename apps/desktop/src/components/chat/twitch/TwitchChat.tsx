@@ -1,6 +1,6 @@
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { BsGear } from "react-icons/bs";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import {
   pinChatMessage,
@@ -24,7 +24,9 @@ import {
   stopTwitchPinPolling,
 } from "../../../backend/services/chat/twitch-pin-poller";
 import { initializeTwitchEmotes } from "../../../backend/services/emotes";
+import { useInterval } from "../../../hooks/useInterval";
 import { useIsTwitchMod } from "../../../hooks/useIsTwitchMod";
+import { useManagedTimeout } from "../../../hooks/useManagedTimeout";
 import { useRequireModScopes } from "../../../hooks/useRequireModScopes";
 import { InlineModStrip, type InlineModAction } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
@@ -43,6 +45,7 @@ import type {
   ChatConnectionStatus,
   ChatMessage,
   ClearChat,
+  KickPoll,
   MessageDeletion,
   NormalizedPinnedMessage,
   UserNotice,
@@ -150,6 +153,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       state.preferences?.chatDisplay?.showPredictions ??
       DEFAULT_CHAT_DISPLAY_PREFERENCES.showPredictions,
   );
+  const showPolls = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.showPolls ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPolls,
+  );
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
@@ -158,6 +166,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // twitchChatService.emit("predictionUpdate", …); dev injection (U9) fires
   // through the same seam, so production + dev paths converge.
   const [activePrediction, setActivePrediction] = useState<UnifiedPrediction | null>(null);
+  const [activePoll, setActivePoll] = useState<KickPoll | null>(null);
+  const [showPoll, setShowPoll] = useState(true);
+  const [isPollExpanded, setIsPollExpanded] = useState(false);
+  const pollTimer = useManagedTimeout(useCallback(() => setActivePoll(null), []));
   // Sticky-dismiss gate. Suppress updates for any id the user has closed,
   // until a *different* id arrives.
   const predictionDismissGate = useStickyDismissedPrediction();
@@ -469,11 +481,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     setPinnedMessage(null);
     setShowPinned(true);
     setIsPinExpanded(false);
+    setActivePoll(null);
+    setShowPoll(true);
+    setIsPollExpanded(false);
+    pollTimer.clear();
     startTwitchPinPolling(channel);
     return () => {
       stopTwitchPinPolling(channel);
     };
-  }, [channel]);
+  }, [channel, pollTimer]);
 
   // Event Listeners
   useEffect(() => {
@@ -597,6 +613,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       setPinnedMessage(null);
     };
 
+    const handlePollUpdate = (poll: KickPoll) => {
+      setActivePoll(poll);
+      setShowPoll(true);
+      if (poll.remaining <= 0) {
+        pollTimer.start(15000);
+      }
+    };
+
     const handlePredictionUpdate = (prediction: UnifiedPrediction) => {
       // Multiview gate: twitchChatService is a singleton, so a prediction
       // emitted for channel A also fires this handler in the chat panel for
@@ -623,6 +647,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     twitchChatService.on("error", handleError);
     twitchChatService.on("pinnedMessage", handlePinnedMessage);
     twitchChatService.on("pinnedMessageCleared", handlePinnedMessageCleared);
+    twitchChatService.on("pollUpdate", handlePollUpdate);
     twitchChatService.on("predictionUpdate", handlePredictionUpdate);
 
     return () => {
@@ -634,6 +659,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       twitchChatService.off("error", handleError);
       twitchChatService.off("pinnedMessage", handlePinnedMessage);
       twitchChatService.off("pinnedMessageCleared", handlePinnedMessageCleared);
+      twitchChatService.off("pollUpdate", handlePollUpdate);
       twitchChatService.off("predictionUpdate", handlePredictionUpdate);
     };
   }, [
@@ -645,6 +671,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     deleteMessagesByUser,
     channelId,
     predictionDismissGate,
+    pollTimer,
   ]);
 
   // U2 — Hermes WebSocket subscription per channelId. Forwards predictions
@@ -707,6 +734,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           prediction={activePrediction}
           onAutoDismiss={handlePredictionAutoDismiss}
           onDismiss={handlePredictionDismiss}
+        />
+      )}
+      {showPolls && activePoll && showPoll && (
+        <TwitchPollWidget
+          poll={activePoll}
+          isExpanded={isPollExpanded}
+          onToggleExpand={() => setIsPollExpanded((v) => !v)}
+          onDismiss={() => setShowPoll(false)}
         />
       )}
       {pinnedMessage && showPinned && (
@@ -1350,5 +1385,115 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       ) : null}
     </div>
     </UserPopoutProvider>
+  );
+};
+
+// ========== Sub-components ==========
+
+interface TwitchPollWidgetProps {
+  poll: KickPoll;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onDismiss: () => void;
+}
+
+const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
+  poll,
+  isExpanded,
+  onToggleExpand,
+  onDismiss,
+}) => {
+  const totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0);
+  const maxVotes = Math.max(...poll.options.map((o) => o.votes), 0);
+  const isPollEnded = poll.remaining <= 0;
+
+  // KickPoll carries `remaining` (seconds left) + `duration` (total). Anchor a
+  // local locks-at timestamp when the prop arrives, then tick `now` so the
+  // bar drains visibly between server updates. Mirrors PredictionBanner.
+  const anchor = useMemo(
+    () => ({
+      locksAtMs: Date.now() + poll.remaining * 1000,
+      windowMs: poll.duration * 1000,
+    }),
+    [poll],
+  );
+  const [now, setNow] = useState(() => Date.now());
+  useInterval(
+    () => setNow(Date.now()),
+    !isPollEnded && anchor.windowMs > 0 ? 500 : null,
+  );
+  const remainingMs = Math.max(0, anchor.locksAtMs - now);
+  const barPct =
+    anchor.windowMs > 0 ? Math.min(100, (remainingMs / anchor.windowMs) * 100) : 0;
+
+  return (
+    <div className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] text-sm">
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-gray-400 text-xs font-medium">Poll:</span>
+          <span className="text-white text-xs font-semibold truncate">{poll.title}</span>
+          {isPollEnded && (
+            <span className="text-xs text-gray-500 flex-shrink-0">Ended</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+            title={isExpanded ? "Collapse" : "Expand"}
+          >
+            <BsChevronDown
+              size={12}
+              style={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+            title="Dismiss"
+          >
+            <BsX size={14} />
+          </button>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="px-3 pb-2 space-y-1.5">
+          {poll.options.map((option) => {
+            const pct = totalVotes === 0 ? 0 : (option.votes / totalVotes) * 100;
+            const isWinner = isPollEnded && option.votes === maxVotes && maxVotes > 0;
+            return (
+              <div key={option.id}>
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span className={isWinner ? "text-[#9146FF] font-semibold" : "text-white"}>
+                    {option.label}
+                    {isWinner && " 🏆"}
+                  </span>
+                  <span className="text-gray-400">
+                    {option.votes} ({pct.toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${isWinner ? "bg-[#9146FF]" : "bg-[var(--color-primary,#9146FF)]"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          {!isPollEnded && anchor.windowMs > 0 && (
+            <div className="h-0.5 rounded-full bg-white/10 overflow-hidden mt-2">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-[width] duration-500 ease-linear"
+                style={{ width: `${barPct}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };

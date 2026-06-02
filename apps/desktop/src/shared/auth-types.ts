@@ -69,7 +69,17 @@ export type PlatformUser = TwitchUser | KickUser;
  *   them off — no platform redirect), and are surfaced only while a token is
  *   present for that platform (hidden when signed out, reappear on re-login).
  */
-export type FollowSource = "guest" | "account" | "local";
+/**
+ * Source tag on a follow row (post-2026-05-29 source-collapse).
+ *   - "guest": followed while signed OUT of the row's platform; visible always.
+ *   - "kick" / "twitch": followed (or sync-imported) while signed in to that
+ *     platform; visible only while signed in (hidden on logout, reappear on
+ *     re-login). The platform value matches the row's platform column.
+ *
+ * Legacy "account" and "local" values are migrated at DB init to the
+ * platform name — see `database-service.ts#init()`.
+ */
+export type FollowSource = "guest" | Platform;
 
 export interface LocalFollow {
   id: string; // Unique identifier (generated)

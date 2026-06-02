@@ -35,20 +35,15 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
   const [isHovering, setIsHovering] = useState(false);
 
   const platform = channel.platform as Platform;
-  // Twitch removed the third-party follow/unfollow Helix endpoints in 2023,
-  // so account-source rows on Twitch can't be mutated from this app. Route
-  // the user to twitch.tv instead of silently dropping the local row
-  // (next post-login sync would just re-add it and the heart would bounce
-  // back, which reads as a broken toggle).
-  const isManagedByTwitch = platform === "twitch" && followSource === "account";
-  // Kick HAS a working DELETE /api/v2/channels/{slug}/follow endpoint, but the
-  // brainstorm scoped this feature as import-only (no bidirectional sync). A
-  // local unfollow without a kick.com-side unfollow would just bounce back on
-  // the next sync — same broken-toggle UX the Twitch branch was built to
-  // prevent. Route to kick.com instead so the user unfollows there and the
-  // change reconciles via the next sync. Import-only by design — see
-  // docs/brainstorms/2026-05-21-kick-account-follows-import-requirements.md.
-  const isManagedByKick = platform === "kick" && followSource === "account";
+  // Platform-tagged rows (source = "kick" or "twitch") represent follows
+  // the user has expressed while signed in to that platform — either
+  // sync-imported from the account's follow list or clicked in-app. A
+  // local unfollow on such a row would just bounce back on the next sync
+  // (which re-adopts platform-side rows unless a pending-unfollow tombstone
+  // blocks it). Route the user to the platform's website instead so the
+  // canonical unfollow happens there and the sync reconciles cleanly.
+  const isManagedByTwitch = platform === "twitch" && followSource === platform;
+  const isManagedByKick = platform === "kick" && followSource === platform;
 
   const handleClick = (e: MouseEvent) => {
     e.preventDefault();

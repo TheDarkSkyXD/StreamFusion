@@ -363,7 +363,7 @@ function DebugPanelImpl() {
           <span style={{ display: "inline-flex", color: DEBUG_TOKENS.textSecondary }}>
             <BugIcon size={15} />
           </span>
-          <strong style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.3 }}>Debug</strong>
+          <strong style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.3 }}>Debug Console</strong>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
           <button
@@ -382,7 +382,7 @@ function DebugPanelImpl() {
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              padding: "6px 8px",
+              padding: "8px 10px",
               borderRadius: 6,
               transition: "background 0.12s, color 0.12s",
             }}
@@ -395,7 +395,7 @@ function DebugPanelImpl() {
               e.currentTarget.style.color = DEBUG_TOKENS.textSecondary;
             }}
           >
-            <ShieldIcon size={14} />
+            <ShieldIcon size={18} />
           </button>
           <button
             type="button"
@@ -411,7 +411,7 @@ function DebugPanelImpl() {
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              padding: "6px 8px",
+              padding: "8px 10px",
               borderRadius: 6,
               transition: "background 0.12s, color 0.12s",
             }}
@@ -424,7 +424,7 @@ function DebugPanelImpl() {
               e.currentTarget.style.color = DEBUG_TOKENS.textSecondary;
             }}
           >
-            <DevToolsIcon size={14} />
+            <DevToolsIcon size={18} />
           </button>
           <button
             type="button"
@@ -437,10 +437,10 @@ function DebugPanelImpl() {
               color: DEBUG_TOKENS.textSecondary,
               border: "none",
               cursor: "pointer",
-              fontSize: 24,
+              fontSize: 28,
               fontWeight: 400,
               lineHeight: 1,
-              padding: "2px 10px 6px",
+              padding: "2px 12px 8px",
               borderRadius: 6,
               transition: "background 0.12s, color 0.12s",
             }}

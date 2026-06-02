@@ -2,6 +2,11 @@ import Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 
+import {
+  createKickClipPlaylistLoader,
+  isKickClipPlaylistUrl,
+} from "../kick/kick-clip-loader";
+
 export interface UseSeekPreviewProps {
   streamUrl: string | null;
   thumbnail?: string;
@@ -93,6 +98,10 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
         maxBufferLength: 5, // Keep buffer small
         maxMaxBufferLength: 10,
         maxBufferHole: 0.5,
+        // See kick-clip-loader.ts for why Kick clips need playlist rewriting.
+        ...(isKickClipPlaylistUrl(streamUrl)
+          ? { pLoader: createKickClipPlaylistLoader() }
+          : {}),
       });
 
       hls.loadSource(streamUrl);

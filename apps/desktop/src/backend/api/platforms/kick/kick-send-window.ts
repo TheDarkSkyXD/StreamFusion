@@ -11,6 +11,8 @@
 import { BrowserWindow, session } from "electron";
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
 
+import { sleep } from "@/lib/sleep";
+
 import { acquireBrowserWindowSlot } from "./endpoints/channel-endpoints";
 
 export type KickSendResult =
@@ -223,7 +225,7 @@ async function _pollPredicate(win: BrowserWindow, deadline: number): Promise<voi
     }
     const cookieOk = (await win.webContents.executeJavaScript(COOKIE_PREDICATE_IIFE)) === true;
     if (cookieOk && latestKickWebBearer !== null) return;
-    await new Promise<void>((r) => setTimeout(r, PREDICATE_POLL_MS));
+    await sleep(PREDICATE_POLL_MS);
   }
   throw new Error("send-window-warmup-timeout: predicate did not resolve within 10s");
 }

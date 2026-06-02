@@ -479,6 +479,7 @@ export function StreamPage() {
               platform={platform as Platform}
               channelName={channelName}
               channelData={channelData}
+              streamStartedAt={streamData?.startedAt}
               onClipSelectionChange={setIsClipDialogOpen}
             />
           </div>

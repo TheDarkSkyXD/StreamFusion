@@ -38,6 +38,26 @@
   /* UI Colors */
   --color-border: #333333;
   --color-ring: #ffffff;
+
+  /* shadcn/ui token bridge — maps shadcn's semantic tokens onto the StreamFusion
+     palette so shadcn components (pasted or added via `npx shadcn add`) render
+     in-theme. Purely additive; the --color-* tokens above are untouched. */
+  --color-primary: var(--color-storm-primary);
+  --color-primary-foreground: #0f0f0f;
+  --color-secondary: var(--color-background-tertiary);
+  --color-secondary-foreground: var(--color-foreground);
+  --color-muted: var(--color-background-tertiary);
+  --color-muted-foreground: var(--color-foreground-secondary);
+  --color-accent: var(--color-background-secondary);
+  --color-accent-foreground: var(--color-foreground);
+  --color-card: var(--color-background-secondary);
+  --color-card-foreground: var(--color-foreground);
+  --color-popover: var(--color-background-elevated);
+  --color-popover-foreground: var(--color-foreground);
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-input: var(--color-border);
+  --radius: 0.5rem;
   
   /* Font Family */
   --font-family-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

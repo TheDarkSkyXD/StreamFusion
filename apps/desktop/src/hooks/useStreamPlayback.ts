@@ -154,7 +154,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   const [playback, setPlayback] = useState<StreamPlayback | null>(null);
   const [isLoading, setIsLoading] = useState(!!identifier);
   const [error, setError] = useState<Error | null>(null);
-  const [_reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   // Track if we're using proxy to enable fallback
   const [isUsingProxy, setIsUsingProxy] = useState(false);
   // Force disable proxy for fallback
@@ -271,7 +271,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
         release();
       }
     };
-  }, [platform, identifier, forceNoProxy, instanceId, staggerTimer]);
+  }, [platform, identifier, forceNoProxy, instanceId, staggerTimer, reloadKey]);
 
   const retryWithoutProxy = useCallback(() => {
     console.debug("[useStreamPlayback] Retrying without proxy (fallback to direct)");
@@ -293,8 +293,11 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     }
     reloadAttemptsRef.current += 1;
     setReloadAttempts(reloadAttemptsRef.current); // Keep state in sync for consumers
+    // Drop the cached URL so the effect's subscribePlayback refetches instead of
+    // re-serving the URL that just 404'd (cache TTL is 90 s).
+    playbackCache.delete(getPlaybackCacheKey(platform, identifier));
     setReloadKey((prev) => prev + 1);
-  }, []);
+  }, [platform, identifier]);
 
   return {
     playback,

@@ -47,7 +47,7 @@ beforeEach(() => {
 });
 
 describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
-  it("signed in to the channel's platform → writes source='local'", () => {
+  it("signed in to the channel's platform → writes source = the platform name", () => {
     vi.mocked(storageService.hasToken).mockReturnValue(true);
     registerStorageHandlers();
 
@@ -55,7 +55,7 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
     getFollowsAddHandler()({}, { follow });
 
     expect(storageService.hasToken).toHaveBeenCalledWith("kick");
-    expect(storageService.addLocalFollow).toHaveBeenCalledWith(follow, "local");
+    expect(storageService.addLocalFollow).toHaveBeenCalledWith(follow, "kick");
   });
 
   it("signed out of the channel's platform → writes source='guest'", () => {
@@ -80,7 +80,7 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
 
     const twitchFollow = makeFollow("twitch");
     getFollowsAddHandler()({}, { follow: twitchFollow });
-    expect(storageService.addLocalFollow).toHaveBeenCalledWith(twitchFollow, "local");
+    expect(storageService.addLocalFollow).toHaveBeenCalledWith(twitchFollow, "twitch");
   });
 
   it("returns whatever addLocalFollow returns (pass-through)", () => {
@@ -93,7 +93,7 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
       displayName: "Summit1G",
       profileImage: "",
       followedAt: "t",
-      source: "local",
+      source: "kick",
     } as LocalFollow;
     vi.mocked(storageService.addLocalFollow).mockReturnValue(row);
     registerStorageHandlers();

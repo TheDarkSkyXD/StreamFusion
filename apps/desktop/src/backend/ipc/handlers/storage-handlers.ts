@@ -22,16 +22,12 @@ export function registerStorageHandlers(): void {
   });
 
   // ========== Local Follows ==========
-  // Account-source rows linger in the DB after a session ends silently
-  // (token revoked at runtime — onTwitchAuthLost / onKickSessionExpired
-  // path doesn't call clearAccountFollows). Treat "no token in storage"
-  // as the source-of-truth for "this platform is not connected" and fall
-  // back to guest follows so a hydrate() during degraded mode doesn't
-  // return the now-revoked account's follows.
+  // Platform-tagged rows persist across logout/login (per the 2026-05-29
+  // source-collapse: logout no longer deletes, just hides via `hasToken`).
+  // This wrapper is now equivalent to `getActiveFollowsByPlatform` — the
+  // function already returns guest follows when no token is present — but
+  // it's kept as the seam for future "degraded mode" handling.
   const activeFollows = (platform: Platform) => {
-    if (!storageService.hasToken(platform)) {
-      return storageService.getGuestFollowsByPlatform(platform);
-    }
     return storageService.getActiveFollowsByPlatform(platform);
   };
 
@@ -50,9 +46,9 @@ export function registerStorageHandlers(): void {
     IPC_CHANNELS.FOLLOWS_ADD,
     (_event, { follow }: { follow: Omit<LocalFollow, "id" | "followedAt"> }) => {
       // Route the source by the channel's OWN platform login state: signed in
-      // to that platform → "local" (survives sync; locally unfollowable),
-      // signed out of it → "guest". hasToken checks only follow.platform.
-      const source = storageService.hasToken(follow.platform) ? "local" : "guest";
+      // to that platform → the platform name (rows visible only while signed
+      // in); signed out → "guest" (visible always).
+      const source = storageService.hasToken(follow.platform) ? follow.platform : "guest";
       return storageService.addLocalFollow(follow, source);
     }
   );

@@ -18,10 +18,6 @@ import type {
 
 import { badgeResolver } from "./badge-resolver";
 import { parseTwitchMessage, type TwitchTags } from "./twitch-parser";
-import {
-  startTwitchPredictionPolling,
-  stopTwitchPredictionPolling,
-} from "./twitch-prediction-poller";
 import { roomStateTagsToPatch, type TmiRoomStateTags } from "./twitch-roomstate";
 
 // ========== Types ==========
@@ -380,12 +376,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       // Ignore disconnect errors
     }
 
-    // U3 — stop any prediction pollers we may have started before clearing
-    // the channels set so we don't leak intervals across a force shutdown.
-    for (const channel of this.channels) {
-      stopTwitchPredictionPolling(channel);
-    }
-
     this.client = null;
     this.channels.clear();
     this.broadcasterId.clear();
@@ -430,13 +420,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
       this.emitConnectionStatus();
       this.log(`Joined channel: ${normalizedChannel}`);
-
-      // U3 — start the viewer-side prediction poll for this channel.
-      // The poller is renderer-only (uses `window.electronAPI.auth`) but it
-      // self-guards when `window` is absent so calling from any context is
-      // safe. Idempotent on repeat — duplicate `joinChannel` calls won't
-      // double-start the poll.
-      startTwitchPredictionPolling(normalizedChannel);
     } catch (error) {
       console.error(`Failed to join channel ${normalizedChannel}:`, error);
       throw error;
@@ -455,9 +438,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     if (!this.client) {
       this.channels.delete(normalizedChannel);
-      // U3 — tear down the prediction poll on the way out even when the
-      // client is already gone (covers shutdown-then-leave ordering).
-      stopTwitchPredictionPolling(normalizedChannel);
       return;
     }
 
@@ -466,9 +446,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.channels.delete(normalizedChannel);
       this.broadcasterId.delete(normalizedChannel);
       this.isModerator.delete(normalizedChannel);
-      // U3 — stop the prediction poll on channel leave so we don't keep
-      // hitting GQL after the user navigated away.
-      stopTwitchPredictionPolling(normalizedChannel);
       this.emitConnectionStatus();
       this.log(`Left channel: ${normalizedChannel}`);
     } catch (error) {

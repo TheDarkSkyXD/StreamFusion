@@ -37,5 +37,7 @@ export interface RelatedContentProps {
   platform: Platform;
   channelName: string;
   channelData: import("@/backend/api/unified/platform-types").UnifiedChannel | null | undefined;
+  /** Truthy while the stream is live; flips to undefined/null when it ends. */
+  streamStartedAt?: string | null;
   onClipSelectionChange?: (isOpen: boolean) => void;
 }

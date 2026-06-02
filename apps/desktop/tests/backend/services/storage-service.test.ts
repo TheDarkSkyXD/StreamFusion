@@ -34,13 +34,10 @@ vi.mock("@/backend/services/database-service", () => ({
 import { storageService } from "@/backend/services/storage-service";
 import { dbService } from "@/backend/services/database-service";
 
-const accountRows = [
-  { id: "r1", platform: "kick", channelId: "411439", channelName: "summit1g", source: "account" },
+const kickPlatformRows = [
+  { id: "r1", platform: "kick", channelId: "411439", channelName: "summit1g", source: "kick" },
 ];
-const localRows = [
-  { id: "r3", platform: "kick", channelId: "777001", channelName: "loco", source: "local" },
-];
-const guestRows = [
+const kickGuestRows = [
   { id: "r2", platform: "kick", channelId: "550022", channelName: "tazo", source: "guest" },
 ];
 
@@ -50,7 +47,7 @@ let rowsBySource: Record<string, any[]>;
 
 beforeEach(() => {
   storageService.initialize();
-  rowsBySource = { account: [], local: [], guest: [] };
+  rowsBySource = { guest: [], kick: [], twitch: [] };
   vi.mocked(dbService.getFollowsByPlatformAndSource).mockImplementation(
     (_p, source) => rowsBySource[source] ?? []
   );
@@ -60,89 +57,66 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("storageService.getActiveFollowsByPlatform — token-aware account ∪ local contract", () => {
-  it("no token: returns GUEST follows only, hiding account AND local rows (A5 guard + signed-out hiding)", () => {
-    // Before A5, the function returned account rows whenever they existed —
-    // even after a silent token loss. The fix gates on hasToken first. local
-    // rows are likewise hidden while signed out (they reappear on re-login).
+describe("storageService.getActiveFollowsByPlatform — token-aware platform/guest gating", () => {
+  it("no token: returns guest follows ONLY (platform-tagged rows stay hidden)", () => {
+    // The token check is the source of truth for "is the user signed in?".
+    // A silent token loss (revoked at runtime, expired credentials) must NOT
+    // continue returning the platform-tagged rows that belong to the dead session.
     vi.spyOn(storageService, "hasToken").mockReturnValue(false);
-    rowsBySource = { account: accountRows, local: localRows, guest: guestRows };
+    rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: [] };
 
     const result = storageService.getActiveFollowsByPlatform("kick");
 
-    expect(result).toEqual(guestRows);
-    // Critical: dbService must NOT have been asked for account or local rows
-    // when there's no token, even if they exist.
+    expect(result).toEqual(kickGuestRows);
     expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "guest");
-    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "account");
-    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "local");
+    // dbService must NOT be asked for platform-tagged rows in the no-token branch.
+    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "kick");
   });
 
-  it("token + account rows only: returns ACCOUNT follows", () => {
+  it("token + platform-tagged rows present: returns platform-tagged rows", () => {
     vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    rowsBySource = { account: accountRows, local: [], guest: guestRows };
+    rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: [] };
 
     const result = storageService.getActiveFollowsByPlatform("kick");
 
-    expect(result).toEqual(accountRows);
+    expect(result).toEqual(kickPlatformRows);
+    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
   });
 
-  it("token + local rows only: returns LOCAL follows (re-login surfaces them again)", () => {
+  it("token + no platform-tagged rows yet: falls back to guest follows (fresh-login bridge)", () => {
+    // Token present but no kick-source rows yet (fresh login mid-sync, or a
+    // sync that returned empty/error). Surface guest follows so the sidebar
+    // isn't briefly empty during the import window.
     vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    rowsBySource = { account: [], local: localRows, guest: guestRows };
+    rowsBySource = { guest: kickGuestRows, kick: [], twitch: [] };
 
     const result = storageService.getActiveFollowsByPlatform("kick");
 
-    expect(result).toEqual(localRows);
-  });
-
-  it("token + both account and local (distinct channels): returns the union", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    rowsBySource = { account: accountRows, local: localRows, guest: guestRows };
-
-    const result = storageService.getActiveFollowsByPlatform("kick");
-
-    expect(result).toEqual([...accountRows, ...localRows]);
-  });
-
-  it("token + same channel in account AND local: dedupes to one, account preferred", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    // Same channel (411439 / summit1g) in both buckets; the local copy must be
-    // dropped in favor of the account row.
-    const dupLocal = [
-      { id: "r9", platform: "kick", channelId: "411439", channelName: "summit1g", source: "local" },
-    ];
-    rowsBySource = { account: accountRows, local: dupLocal, guest: guestRows };
-
-    const result = storageService.getActiveFollowsByPlatform("kick");
-
-    expect(result).toEqual(accountRows);
-    expect(result).toHaveLength(1);
-    expect(result[0].source).toBe("account");
-  });
-
-  it("dedupes via the slug bridge when the local row carries a different (stale) channelId", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    // Account row id 411439; the local row for the same channel carries a
-    // stale numeric id but the same channelName — the case-insensitive name
-    // match must still collapse them (the dual-id rule).
-    const staleLocal = [
-      { id: "r9", platform: "kick", channelId: "421500", channelName: "SUMMIT1G", source: "local" },
-    ];
-    rowsBySource = { account: accountRows, local: staleLocal, guest: guestRows };
-
-    const result = storageService.getActiveFollowsByPlatform("kick");
-
-    expect(result).toEqual(accountRows);
-  });
-
-  it("token + neither account nor local rows yet: returns GUEST follows (sync-pending fallback)", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    rowsBySource = { account: [], local: [], guest: guestRows };
-
-    const result = storageService.getActiveFollowsByPlatform("kick");
-
-    expect(result).toEqual(guestRows);
+    expect(result).toEqual(kickGuestRows);
+    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
     expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "guest");
+  });
+
+  it("token + neither platform-tagged nor guest rows: returns []", () => {
+    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    rowsBySource = { guest: [], kick: [], twitch: [] };
+
+    const result = storageService.getActiveFollowsByPlatform("kick");
+
+    expect(result).toEqual([]);
+  });
+
+  it("scopes the per-platform lookup — twitch query reads twitch buckets, not kick", () => {
+    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    const twitchRows = [
+      { id: "tx", platform: "twitch", channelId: "12345", channelName: "alice", source: "twitch" },
+    ];
+    rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: twitchRows };
+
+    const result = storageService.getActiveFollowsByPlatform("twitch");
+
+    expect(result).toEqual(twitchRows);
+    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("twitch", "twitch");
+    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("twitch", "kick");
   });
 });

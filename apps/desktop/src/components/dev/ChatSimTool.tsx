@@ -380,7 +380,9 @@ export function ChatSimTool() {
         { id: 2, label: "Just Chatting", votes: 41 },
         { id: 3, label: "Slots", votes: 9 },
       ],
-      remaining: 30,
+      // Fresh poll — full window remaining so the widget's bar starts at
+      // 100% and visibly drains over `duration` seconds.
+      remaining: 60,
       duration: 60,
     };
     twitchChatService.emit("pollUpdate", poll);

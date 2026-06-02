@@ -4,33 +4,33 @@
  * (DebugPanel.tsx imports the tools, the tools import these tokens — if they
  * imported them from DebugPanel.tsx they'd hit a TDZ ReferenceError).
  *
- * Monochrome dark surface, soft text, white accent. State colors (success /
- * warning / danger) are reserved for semantic feedback only.
+ * Mirrors the StreamFusion app theme (apps/desktop/src/index.css): dark
+ * backgrounds (#0f0f0f / #252525 / #2d2d2d), crimson brand accent (#dc143c),
+ * white foreground. Surfaces use rgba so backdrop-filter blur reads through.
  */
 
 export const DEBUG_TOKENS = {
-  surface: "rgba(17, 24, 39, 0.92)", // gray-900 with alpha for backdrop blur
-  surfaceRaised: "rgba(31, 41, 55, 0.85)", // gray-800
-  surfaceSubtle: "rgba(55, 65, 81, 0.4)", // gray-700 with low alpha
-  border: "rgba(75, 85, 99, 0.4)", // gray-600 with alpha
-  borderStrong: "rgba(107, 114, 128, 0.5)", // gray-500 with alpha
-  textPrimary: "rgb(243, 244, 246)", // gray-100
-  textSecondary: "rgb(156, 163, 175)", // gray-400
-  textMuted: "rgb(107, 114, 128)", // gray-500
-  // "accent" is now monochrome — points at white/gray for any decorative
-  // emphasis. State communication uses the success/warning/danger tokens
-  // below; nothing else should introduce hue.
-  accent: "rgb(243, 244, 246)", // gray-100 (was cyan-400)
-  accentSoft: "rgba(243, 244, 246, 0.08)", // subtle white ghost (was cyan tint)
+  surface: "rgba(15, 15, 15, 0.92)", // --color-background #0f0f0f + alpha
+  surfaceRaised: "rgba(37, 37, 37, 0.88)", // --color-background-tertiary #252525
+  surfaceSubtle: "rgba(45, 45, 45, 0.45)", // --color-background-elevated #2d2d2d
+  border: "rgba(51, 51, 51, 0.6)", // --color-border #333333
+  borderStrong: "rgba(80, 80, 80, 0.7)",
+  textPrimary: "#ffffff", // --color-foreground
+  textSecondary: "#a0a0a0", // --color-foreground-secondary
+  textMuted: "#666666", // --color-foreground-muted
+  // Brand accent — crimson, matches --color-storm-accent. State communication
+  // still uses success/warning/danger tokens below.
+  accent: "#dc143c",
+  accentSoft: "rgba(220, 20, 60, 0.15)",
   success: "rgb(74, 222, 128)", // green-400
   successSoft: "rgba(74, 222, 128, 0.15)",
   warning: "rgb(250, 204, 21)", // yellow-400
   warningSoft: "rgba(250, 204, 21, 0.15)",
-  danger: "rgb(248, 113, 113)", // red-400
-  dangerSoft: "rgba(248, 113, 113, 0.15)",
-  fontUi: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+  danger: "#ef4444", // --color-destructive
+  dangerSoft: "rgba(239, 68, 68, 0.15)",
+  fontUi: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   fontMono: '"JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace',
-  shadow: "0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.25)",
+  shadow: "0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.35)",
   // Used for scrollbarColor (Chromium supports the CSS standard property in inline style).
-  scrollbarThumb: "rgba(107, 114, 128, 0.45) transparent",
+  scrollbarThumb: "rgba(80, 80, 80, 0.5) transparent",
 } as const;

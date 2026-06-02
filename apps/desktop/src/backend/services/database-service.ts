@@ -3,9 +3,26 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { app } from "electron";
 
+import type { Platform } from "../../shared/auth-types";
 import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../../shared/mod-log-types";
 
-export type FollowSource = "guest" | "account" | "local";
+/**
+ * Source tag on `local_follows`. Three values:
+ *   - "guest"   : user clicked Follow while signed OUT of the row's platform.
+ *                 Visible regardless of sign-in state.
+ *   - "kick"    : the row belongs to Kick. Visible only when signed in to Kick.
+ *   - "twitch"  : the row belongs to Twitch. Visible only when signed in to Twitch.
+ *
+ * Platform-tagged rows are written by BOTH the sync (importing the platform's
+ * account follow list) AND the FollowButton when the user clicks Follow while
+ * signed in. The model is intentionally additive: sync never removes rows.
+ * External unfollows (e.g. on kick.com or twitch.tv) are NOT auto-detected;
+ * the user removes them via in-app Unfollow.
+ *
+ * Pre-2026-05-29 schemas used "account" and "local" as separate sources; the
+ * migration in `init()` collapses them to the row's platform value.
+ */
+export type FollowSource = "guest" | Platform;
 
 export type PendingFollowAction = "follow" | "unfollow";
 
@@ -133,6 +150,36 @@ export class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_follows_source ON local_follows(source);
     `);
 
+    // Migration (2026-05-29): collapse {account, local} → platform-named source.
+    // After this runs, source ∈ {guest, kick, twitch} and matches the row's
+    // platform column for all non-guest rows. Idempotent — re-running on
+    // already-migrated data is a no-op because the WHERE clause finds no rows.
+    const legacyRow = this.database
+      .prepare("SELECT 1 FROM local_follows WHERE source IN ('account', 'local') LIMIT 1")
+      .get();
+    if (legacyRow) {
+      console.debug(
+        "🔄 Migrating local_follows source values: 'account'/'local' → platform name..."
+      );
+      this.database.exec(`
+        -- Step 1: drop the redundant 'local' row when a same-channel 'account' row exists.
+        -- Both would collapse to source=platform and collide on UNIQUE(platform,channel_id,source).
+        -- The account row carries fresher sync-imported metadata, so it wins.
+        DELETE FROM local_follows
+        WHERE source = 'local'
+          AND EXISTS (
+            SELECT 1 FROM local_follows AS other
+            WHERE other.platform = local_follows.platform
+              AND other.channel_id = local_follows.channel_id
+              AND other.source = 'account'
+          );
+
+        -- Step 2: rename source to platform value.
+        UPDATE local_follows SET source = platform WHERE source IN ('account', 'local');
+      `);
+      console.debug("✅ Migration complete: source values are now {guest, kick, twitch}");
+    }
+
     // 3. Mod Log
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS mod_log (
@@ -235,13 +282,16 @@ export class DatabaseService {
   }
 
   /**
-   * Check if account-source follows exist for a platform
+   * Check if platform-source (synced or in-app-followed-while-signed-in) rows
+   * exist for a platform. Returns true when a sync has imported at least one
+   * row for the platform OR the user has clicked Follow in-app while signed
+   * in to it.
    */
   hasAccountFollows(platform: string): boolean {
     const stmt = this.database.prepare(
-      "SELECT 1 FROM local_follows WHERE platform = ? AND source = 'account' LIMIT 1"
+      "SELECT 1 FROM local_follows WHERE platform = ? AND source = ? LIMIT 1"
     );
-    return !!stmt.get(platform);
+    return !!stmt.get(platform, platform);
   }
 
   addFollow(follow: any, source: FollowSource = "guest"): any {
@@ -285,49 +335,37 @@ export class DatabaseService {
   }
 
   /**
-   * Atomically replace all account-source follows for a platform with a new
-   * batch. Wraps clear + insert-loop in a single transaction so a mid-batch
-   * crash leaves the existing rows intact rather than half-deleted with no
-   * recovery path.
-   */
-  replaceAccountFollows(platform: string, follows: any[]): void {
-    const replace = this.database.transaction((rows: any[]) => {
-      const clearStmt = this.database.prepare(
-        "DELETE FROM local_follows WHERE platform = ? AND source = 'account'"
-      );
-      clearStmt.run(platform);
-      for (const follow of rows) {
-        this.addFollow(follow, "account");
-      }
-    });
-    replace(follows);
-  }
-
-  /**
-   * Pending-aware variant of replaceAccountFollows used by push-sync
-   * reconciliation. The naive replaceAccountFollows would silently drop a
-   * row the user just clicked Follow on if the platform's followed list
-   * doesn't include it yet (the push hasn't confirmed). It would also
-   * re-adopt a row the user just clicked Unfollow on (push hasn't confirmed
-   * the DELETE yet) because the platform still shows it.
+   * Apply the platform's authoritative follow list to local rows additively.
    *
-   * This variant consults the `pending_follow_writes` tombstone table to:
-   *   - Preserve local rows with a matching pending follow (push in flight)
-   *   - Skip adopting fetched rows that have a matching pending unfollow
-   *   - Remove pending_writes rows whose divergence has been resolved externally
-   *     (pending follow → channel now appears in fetched list = push landed;
-   *      pending unfollow → channel no longer in fetched list = unfollow landed)
+   * Semantics (post-2026-05-29 source-collapse):
+   *   - Upserts every fetched row as `source = platform` (INSERT OR REPLACE).
+   *     If a row already exists with the same (platform, channel_id, source)
+   *     it gets the fresh display_name / profile_image — metadata-only refresh.
+   *   - SKIPS fetched rows blocked by a `pending_follow_writes` unfollow
+   *     tombstone — the user just clicked Unfollow in-app; don't re-adopt.
+   *   - NEVER deletes rows. External unfollows (on kick.com / twitch.tv) are
+   *     intentionally NOT auto-detected. The user removes them via in-app
+   *     Unfollow. App-clicked follows that never made it to the platform
+   *     account list survive across every sync.
+   *   - Cleans up pending_follow_writes rows that reflect a now-confirmed
+   *     external state (pending follow + channel IN fetched = push landed;
+   *     pending unfollow + channel NOT in fetched = unfollow landed).
    *
-   * Matching uses the dual-id bridge per
+   * Dual-id matching for pending-row lookups per
    * docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md:
-   * a fetched row matches a pending row if platform matches AND either
-   * (id === channel_id) OR (username === slug). channel_name in local_follows
-   * stores the slug per addFollow's slugFallback semantics.
+   * platform AND (channel_id match OR slug/channel_name match, case-insensitive).
    *
-   * @returns accountCount: total account-source rows after the sync;
-   *          pendingCount: rows remaining in pending_follow_writes for platform.
+   * @returns accountCount: total platform-source rows for this platform after the sync;
+   *          pendingCount: rows remaining in pending_follow_writes for platform;
+   *          addedCount: count of fetched-and-adopted channels that DIDN'T already
+   *          have a platform-source row pre-sync. Drives the renderer's decision
+   *          to refetch the followed-channels query. Metadata-only syncs report
+   *          addedCount = 0.
+   *          removedCount: ALWAYS 0 — sync never removes rows. Kept in the return
+   *          shape so the renderer-gate (`added > 0 || removed > 0`) stays valid
+   *          for any future code path that does want to report removals.
    */
-  replaceAccountFollowsRespectingPending(
+  upsertSyncedFollows(
     platform: string,
     fetchedFollows: Array<{
       platform: string;
@@ -336,12 +374,7 @@ export class DatabaseService {
       displayName?: string;
       profileImage?: string;
     }>
-  ): { accountCount: number; pendingCount: number } {
-    // Read pending writes for this platform OUTSIDE the transaction — we
-    // want the snapshot at sync-start time so the diff reflects what was
-    // pending when we began. Writes that arrive mid-sync (via U6's push
-    // handler inserting pending rows before the platform HTTP call) are
-    // a separate sync's concern.
+  ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number } {
     const pendingRows = this.database
       .prepare(
         "SELECT platform, channel_id, slug, action FROM pending_follow_writes WHERE platform = ?"
@@ -356,15 +389,12 @@ export class DatabaseService {
     const pendingFollows = pendingRows.filter((p) => p.action === "follow");
     const pendingUnfollows = pendingRows.filter((p) => p.action === "unfollow");
 
-    // Read current local account rows.
-    const localAccountRows = this.database
-      .prepare("SELECT * FROM local_follows WHERE platform = ? AND source = 'account'")
-      .all(platform)
+    // Snapshot existing platform-source rows so we can compute addedCount.
+    const existingPlatformRows = this.database
+      .prepare("SELECT * FROM local_follows WHERE platform = ? AND source = ?")
+      .all(platform, platform)
       .map(this.mapFollowFromDb);
 
-    // Dual-id match helpers: compare a fetched row against a pending row,
-    // and a local row against a pending row. Matching pairs (channel_id OR
-    // slug/channelName); platform always matches by query scope.
     const fetchedMatchesPending = (
       fetched: { channelId: string; channelName: string },
       pending: { channel_id: string; slug: string }
@@ -380,56 +410,33 @@ export class DatabaseService {
       return false;
     };
 
-    const localMatchesPending = (
-      local: { channelId: string; channelName: string },
-      pending: { channel_id: string; slug: string }
-    ): boolean => {
-      if (local.channelId && local.channelId === pending.channel_id) return true;
-      if (
-        local.channelName &&
-        pending.slug &&
-        local.channelName.toLowerCase() === pending.slug.toLowerCase()
-      ) {
-        return true;
-      }
-      return false;
-    };
-
-    const localMatchesFetched = (
-      local: { channelId: string; channelName: string },
+    const existingMatchesFetched = (
+      existing: { channelId: string; channelName: string },
       fetched: { channelId: string; channelName: string }
     ): boolean => {
-      if (local.channelId && fetched.channelId && local.channelId === fetched.channelId) {
+      if (
+        existing.channelId &&
+        fetched.channelId &&
+        existing.channelId === fetched.channelId
+      ) {
         return true;
       }
       if (
-        local.channelName &&
+        existing.channelName &&
         fetched.channelName &&
-        local.channelName.toLowerCase() === fetched.channelName.toLowerCase()
+        existing.channelName.toLowerCase() === fetched.channelName.toLowerCase()
       ) {
         return true;
       }
       return false;
     };
 
-    // Compute which fetched rows to adopt — skip ones blocked by a pending unfollow.
+    // Skip fetched rows blocked by a pending unfollow.
     const toAdopt = fetchedFollows.filter(
       (f) => !pendingUnfollows.some((p) => fetchedMatchesPending(f, p))
     );
 
-    // Preserve local rows that have a pending follow AND are absent from fetched.
-    // (If a local row IS in fetched, it'll come back through toAdopt — no need to
-    // preserve separately. If pending follow + present in fetched = push landed
-    // externally, also no special preservation needed.)
-    const toPreserve = localAccountRows.filter(
-      (local) =>
-        !toAdopt.some((f) => localMatchesFetched(local, f)) &&
-        pendingFollows.some((p) => localMatchesPending(local, p))
-    );
-
-    // Identify pending rows that have been resolved externally and should be cleared.
-    // Pending follow + channel IS in fetched → push landed.
-    // Pending unfollow + channel NOT in fetched → unfollow landed.
+    // Pending rows resolved by external state — clear from the tombstone table.
     const pendingFollowsToRemove = pendingFollows.filter((p) =>
       fetchedFollows.some((f) => fetchedMatchesPending(f, p))
     );
@@ -437,18 +444,15 @@ export class DatabaseService {
       (p) => !fetchedFollows.some((f) => fetchedMatchesPending(f, p))
     );
 
-    // Combined set of rows that should be present as account-source after the sync.
-    const finalAccountRows = [...toAdopt, ...toPreserve];
+    // addedCount = adopted rows that didn't already exist as platform-source.
+    const addedCount = toAdopt.filter(
+      (f) => !existingPlatformRows.some((existing) => existingMatchesFetched(existing, f))
+    ).length;
 
     const txn = this.database.transaction(() => {
-      // Atomic swap: delete all account rows, re-insert the final set.
-      this.database
-        .prepare("DELETE FROM local_follows WHERE platform = ? AND source = 'account'")
-        .run(platform);
-      for (const follow of finalAccountRows) {
-        this.addFollow(follow, "account");
+      for (const follow of toAdopt) {
+        this.addFollow(follow, platform as FollowSource);
       }
-      // Clean up reconciled pending rows.
       const delPending = this.database.prepare(
         "DELETE FROM pending_follow_writes WHERE platform = ? AND channel_id = ? AND action = ?"
       );
@@ -461,13 +465,23 @@ export class DatabaseService {
     });
     txn();
 
+    const accountCount = (
+      this.database
+        .prepare("SELECT COUNT(*) as c FROM local_follows WHERE platform = ? AND source = ?")
+        .get(platform, platform) as { c: number }
+    ).c;
     const pendingCount = (
       this.database
         .prepare("SELECT COUNT(*) as c FROM pending_follow_writes WHERE platform = ?")
         .get(platform) as { c: number }
     ).c;
 
-    return { accountCount: finalAccountRows.length, pendingCount: Number(pendingCount) };
+    return {
+      accountCount: Number(accountCount),
+      pendingCount: Number(pendingCount),
+      addedCount,
+      removedCount: 0,
+    };
   }
 
   removeFollow(id: string): boolean {

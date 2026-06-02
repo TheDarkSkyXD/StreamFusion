@@ -231,11 +231,23 @@ const electronAPI = {
     // React-Query caches so the sidebar and FollowButton flip to "Following"
     // without waiting for a manual refresh.
     onFollowsSynced: (
-      callback: (data: { platform: Platform; count: number; pendingCount?: number }) => void
+      callback: (data: {
+        platform: Platform;
+        count: number;
+        pendingCount?: number;
+        addedCount?: number;
+        removedCount?: number;
+      }) => void
     ): (() => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
-        data: { platform: Platform; count: number; pendingCount?: number }
+        data: {
+          platform: Platform;
+          count: number;
+          pendingCount?: number;
+          addedCount?: number;
+          removedCount?: number;
+        }
       ) => callback(data);
       ipcRenderer.on(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.AUTH_FOLLOWS_SYNCED, handler);

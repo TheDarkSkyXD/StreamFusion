@@ -73,9 +73,9 @@ describe('FollowButton', () => {
     expect(toastFn).not.toHaveBeenCalled();
   });
 
-  it('routes account-source Twitch row to twitch.tv (no local toggle)', () => {
+  it('routes twitch-source Twitch row to twitch.tv (no local toggle)', () => {
     mockIsFollowing = true;
-    mockFollowSource = 'account';
+    mockFollowSource = 'twitch';
     renderWithProviders(
       <FollowButton channel={fixtures.channel({ platform: 'twitch', username: 'xQc' })} />
     );
@@ -89,14 +89,12 @@ describe('FollowButton', () => {
     expect(openExternal).toHaveBeenCalledWith('https://www.twitch.tv/xqc');
   });
 
-  it('routes account-source Kick row to kick.com (no local toggle)', () => {
-    // After the kick-account-follows-import feature shipped (plan
-    // 2026-05-21-001), Kick account rows behave like Twitch account rows —
-    // unfollow redirects to the platform instead of mutating the local DB,
-    // because import is one-way and a local removal would bounce back on
-    // the next sync.
+  it('routes kick-source Kick row to kick.com (no local toggle)', () => {
+    // After the 2026-05-29 source-collapse, Kick platform-tagged rows
+    // (formerly source='account') trigger the kick.com redirect — local
+    // unfollow would just bounce back on the next sync.
     mockIsFollowing = true;
-    mockFollowSource = 'account';
+    mockFollowSource = 'kick';
     renderWithProviders(
       <FollowButton channel={fixtures.channel({ platform: 'kick', username: 'Summit1G' })} />
     );

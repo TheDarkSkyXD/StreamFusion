@@ -167,31 +167,31 @@ describe("follow-store followChannel", () => {
     expect(mockApi.add).not.toHaveBeenCalled();
   });
 
-  it("adopts the source the backend assigns (e.g. 'local' when signed in to the platform)", async () => {
+  it("adopts the source the backend assigns (e.g. 'kick' when signed in to the platform)", async () => {
     const channel = makeChannel({ id: "411439", username: "chickenandy" });
     mockApi.add.mockResolvedValueOnce(
-      makeRow({ channelId: "411439", channelName: "chickenandy", source: "local" })
+      makeRow({ channelId: "411439", channelName: "chickenandy", source: "kick" })
     );
 
     await useFollowStore.getState().followChannel(channel);
 
-    expect(useFollowStore.getState().getFollowSource(channel)).toBe("local");
+    expect(useFollowStore.getState().getFollowSource(channel)).toBe("kick");
   });
 
   it("functional-merges the returned source without clobbering other channels' entries", async () => {
     // Seed an unrelated source entry that must survive the post-add merge.
     useFollowStore.setState({
       localFollows: [],
-      sourceByKey: new Map<string, FollowSource>([["kick:999", "account"]]),
+      sourceByKey: new Map<string, FollowSource>([["kick:999", "kick"]]),
     });
     const channel = makeChannel({ id: "411439", username: "chickenandy" });
-    mockApi.add.mockResolvedValueOnce(makeRow({ channelId: "411439", source: "local" }));
+    mockApi.add.mockResolvedValueOnce(makeRow({ channelId: "411439", source: "kick" }));
 
     await useFollowStore.getState().followChannel(channel);
 
     const sources = useFollowStore.getState().sourceByKey;
-    expect(sources.get("kick:411439")).toBe("local");
-    expect(sources.get("kick:999")).toBe("account");
+    expect(sources.get("kick:411439")).toBe("kick");
+    expect(sources.get("kick:999")).toBe("kick");
   });
 });
 
@@ -313,12 +313,12 @@ describe("follow-store upgradeFollowIfNeeded", () => {
       makeRow({ id: "empty-id-row", channelId: "", channelName: "chickenandy" }),
     ]);
     mockApi.add.mockResolvedValueOnce(
-      makeRow({ channelId: "411439", channelName: "chickenandy", source: "local" })
+      makeRow({ channelId: "411439", channelName: "chickenandy", source: "kick" })
     );
 
     const canonical = makeChannel({ id: "411439", username: "chickenandy" });
     await useFollowStore.getState().upgradeFollowIfNeeded(canonical);
 
-    expect(useFollowStore.getState().getFollowSource(canonical)).toBe("local");
+    expect(useFollowStore.getState().getFollowSource(canonical)).toBe("kick");
   });
 });

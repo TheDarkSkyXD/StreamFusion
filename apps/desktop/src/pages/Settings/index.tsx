@@ -38,6 +38,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAuthError } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { notifySettingsSaved } from "@/lib/settings-toast";
 import type { Platform } from "@/shared/auth-types";
 import type { CheckFrequency, TokenStatusResult } from "@/shared/ipc-channels";
 import {
@@ -189,8 +190,6 @@ export function SettingsPage() {
     setCheckFrequency,
   } = useUpdater();
 
-  const [saved, setSaved] = useState(false);
-
   const handleQualityChange = async (value: string) => {
     // Cast string to VideoQuality since we know the values are valid
     const quality = value as VideoQuality;
@@ -203,9 +202,7 @@ export function SettingsPage() {
       },
     });
 
-    // Show saved indicator
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    notifySettingsSaved();
   };
 
   const handlePredictionStyleChange = async (value: string) => {
@@ -216,8 +213,7 @@ export function SettingsPage() {
         style,
       },
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    notifySettingsSaved();
   };
 
   const handlePlayerControlToggle = async (
@@ -230,8 +226,7 @@ export function SettingsPage() {
         [field]: value,
       },
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    notifySettingsSaved();
   };
 
   const playerControls = preferences?.playerControls ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
@@ -244,14 +239,12 @@ export function SettingsPage() {
         [field]: value,
       },
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    notifySettingsSaved();
   };
 
   const handleBufferReset = async () => {
     await updatePreferences({ buffer: { ...DEFAULT_BUFFER_PREFERENCES } });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    notifySettingsSaved();
   };
 
   // ===== Advanced stream-token (U13) =====
@@ -270,8 +263,7 @@ export function SettingsPage() {
         [field]: value,
       },
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    notifySettingsSaved();
   };
 
   // Device-id is a localStorage value (not a pref). Seed the displayed id on
@@ -283,8 +275,7 @@ export function SettingsPage() {
   }, []);
   const handleRandomizeDeviceId = () => {
     setAdBlockDeviceId(randomizeAdBlockDeviceId());
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    notifySettingsSaved("Stream device ID randomized");
   };
 
   // ===== Proxy (U12) =====
@@ -519,11 +510,6 @@ export function SettingsPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      {saved && (
-                        <span className="text-sm text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
-                          Saved
-                        </span>
-                      )}
                       <Select
                         value={preferences?.playback?.defaultQuality || "auto"}
                         onValueChange={handleQualityChange}
@@ -552,11 +538,6 @@ export function SettingsPage() {
                   <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                     Advanced (stream token)
                   </h3>
-                  {saved && (
-                    <span className="text-xs text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
-                      Saved
-                    </span>
-                  )}
                 </div>
 
                 {/* Persistent danger banner */}
@@ -664,11 +645,6 @@ export function SettingsPage() {
                   <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                     Visible controls
                   </h3>
-                  {saved && (
-                    <span className="text-xs text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
-                      Saved
-                    </span>
-                  )}
                 </div>
                 <div className="px-6 py-2 divide-y divide-[#27272a]/60">
                   {PLAYER_CONTROL_TOGGLES.map(({ field, label, description }) => (
@@ -707,11 +683,6 @@ export function SettingsPage() {
                     Live buffer
                   </h3>
                   <div className="flex items-center gap-3">
-                    {saved && (
-                      <span className="text-xs text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
-                        Saved
-                      </span>
-                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -820,6 +791,7 @@ export function SettingsPage() {
                     checked={enableAdBlock}
                     onCheckedChange={setEnableAdBlock}
                     className="data-[state=checked]:!bg-green-500 data-[state=checked]:!border-green-500"
+                    thumbClassName="data-[state=checked]:!bg-white"
                   />
                 </div>
                 <div className="mt-4 p-4 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-300/80 leading-relaxed">
@@ -868,6 +840,7 @@ export function SettingsPage() {
                       onCheckedChange={setProxyEnabled}
                       aria-label="Enable proxy"
                       className="data-[state=checked]:!bg-sky-500 data-[state=checked]:!border-sky-500"
+                      thumbClassName="data-[state=checked]:!bg-white"
                     />
                   </div>
 
@@ -1053,11 +1026,6 @@ export function SettingsPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      {saved && (
-                        <span className="text-sm text-yellow-500 font-medium animate-in fade-in slide-in-from-right-2 duration-300">
-                          Saved
-                        </span>
-                      )}
                       <Select
                         value={preferences?.predictions?.style ?? "native"}
                         onValueChange={handlePredictionStyleChange}
@@ -1183,6 +1151,7 @@ export function SettingsPage() {
                       checked={allowPrerelease}
                       onCheckedChange={setAllowPrerelease}
                       className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
+                      thumbClassName="data-[state=checked]:!bg-white"
                     />
                   </div>
 
@@ -1201,6 +1170,7 @@ export function SettingsPage() {
                       checked={autoCheckEnabled}
                       onCheckedChange={setAutoCheckEnabled}
                       className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
+                      thumbClassName="data-[state=checked]:!bg-white"
                     />
                   </div>
 

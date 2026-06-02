@@ -7,6 +7,12 @@
       "skillPath": "skills/agent-browser/SKILL.md",
       "computedHash": "228f87d57035100d9dc6efcfc05aafd4b6e3962adacaa04b8217ab2fadb15dc8"
     },
+    "auditing-skills": {
+      "source": "dbt-labs/dbt-agent-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/auditing-skills/SKILL.md",
+      "computedHash": "819eeb510c7c3ac937ee152ede21dc77553520870d4defddc05e6e8ff2c3d661"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",
