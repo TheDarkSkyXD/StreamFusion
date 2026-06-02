@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Notification, nativeTheme, shell } from "electron";
+import { app, type BrowserWindow, ipcMain, Notification, nativeTheme, shell } from "electron";
 
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
@@ -63,23 +63,26 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
   });
 
   // ========== Window Management ==========
+  // Operate on the registered mainWindow rather than `getFocusedWindow()`:
+  // the title bar these IPCs back is part of the main window, so the target
+  // is unambiguous. `getFocusedWindow()` returns null if a hidden helper
+  // window steals focus or the call arrives during a focus transition,
+  // silently dropping the user's click.
   ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
-    const win = BrowserWindow.getFocusedWindow();
-    win?.minimize();
+    if (!mainWindow.isDestroyed()) mainWindow.minimize();
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_MAXIMIZE, () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win?.isMaximized()) {
-      win.unmaximize();
+    if (mainWindow.isDestroyed()) return;
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
     } else {
-      win?.maximize();
+      mainWindow.maximize();
     }
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_CLOSE, () => {
-    const win = BrowserWindow.getFocusedWindow();
-    win?.close();
+    if (!mainWindow.isDestroyed()) mainWindow.close();
   });
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => {

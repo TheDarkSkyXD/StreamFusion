@@ -17,8 +17,8 @@ import {
   protocol,
   session,
 } from "electron";
-
-import { protocolHandler, twitchAuthService } from "./backend/auth";
+import { disposeSendWindow } from "./backend/api/platforms/kick/kick-send-window";
+import { authWindowManager, protocolHandler, twitchAuthService } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
 import {
   KICK_IMAGE_SCHEME,
@@ -299,6 +299,27 @@ app.on("ready", async () => {
   });
 
   const mainWindow = windowManager.createMainWindow();
+
+  // Tear down every other BrowserWindow when the main window starts to close.
+  // Any hidden helper window (Kick send-window, OAuth popup, future scraper)
+  // counts toward `window-all-closed`; if even one is alive after the user
+  // clicks X, the event never fires, `app.quit()` is never called, and the
+  // Electron process (plus all its child processes — GPU, network service,
+  // utility) lingers in the background. Destroy hidden windows first so the
+  // process can exit, then reset the send-window module's cached refs.
+  mainWindow.on("close", () => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win !== mainWindow && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch {
+          // Already gone — ignore.
+        }
+      }
+    }
+    void disposeSendWindow();
+    authWindowManager.closeAllAuthWindows();
+  });
 
   // Inject cosmetics into main window
   cosmeticInjectionService.injectIntoWindow(mainWindow);
