@@ -17,6 +17,7 @@ import {
 } from "../../../backend/api/platforms/kick/kick-pin-mutations";
 import { kickChatService } from "../../../backend/services/chat/kick-chat";
 import { kickPredictionsService } from "../../../backend/services/chat/kick-predictions-service";
+import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
 import { initializeKickEmotes } from "../../../backend/services/emotes";
 import { useIsKickMod } from "../../../hooks/useIsKickMod";
 import type {
@@ -500,7 +501,19 @@ export const KickChat: React.FC<KickChatProps> = ({
   useEffect(() => {
     const handleMessage = (message: ChatMessage) => {
       if (message.platform === "kick") {
-        addMessageBatched(message, "kick");
+        // Substitute third-party (7TV / BTTV / FFZ) emote NAMES inside the
+        // text fragments with emote fragments. Kick's chat server only knows
+        // its native emote set, so 7TV-style emotes arrive as plain text
+        // tokens; without this they'd render as literal names. Walks every
+        // message (not just text-only ones) — a message can mix a native
+        // emote fragment with a 7TV name in a sibling text fragment. The
+        // helper is a cheap no-op (returns the same array ref) when nothing
+        // matches.
+        const map = new Map(useEmoteStore.getState().getAllEmotes().map((e) => [e.name, e]));
+        const enrichedContent = substituteThirdPartyEmotes(message.content, map);
+        const enriched =
+          enrichedContent === message.content ? message : { ...message, content: enrichedContent };
+        addMessageBatched(enriched, "kick");
       }
     };
 

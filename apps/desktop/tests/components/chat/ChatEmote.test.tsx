@@ -44,6 +44,53 @@ describe('ChatEmote', () => {
   });
 });
 
+describe('ChatEmote sticky tooltip on click (Xtra parity)', () => {
+  it('opens the tooltip on click and keeps it open after mouse leave', () => {
+    render(<ChatEmote id="e1" name="KEKW" url="https://x.test/kekw.png" platform="twitch" />);
+    const img = screen.getByAltText('KEKW');
+    fireEvent.click(img);
+    fireEvent.mouseLeave(img);
+    // Sticky persists after the cursor is gone — tooltip portal still renders an img with the same alt.
+    expect(screen.getAllByAltText('KEKW').length).toBeGreaterThan(1);
+  });
+
+  it('toggles the sticky tooltip off on a second click', () => {
+    render(<ChatEmote id="e1" name="KEKW" url="https://x.test/kekw.png" platform="twitch" />);
+    const img = screen.getByAltText('KEKW');
+    fireEvent.click(img);
+    fireEvent.mouseLeave(img);
+    expect(screen.getAllByAltText('KEKW').length).toBeGreaterThan(1);
+    fireEvent.click(img);
+    expect(screen.getAllByAltText('KEKW').length).toBe(1);
+  });
+
+  it('closes the sticky tooltip when clicking outside the emote', () => {
+    render(
+      <div>
+        <ChatEmote id="e1" name="KEKW" url="https://x.test/kekw.png" platform="twitch" />
+        <div data-testid="outside">outside</div>
+      </div>
+    );
+    const img = screen.getByAltText('KEKW');
+    fireEvent.click(img);
+    fireEvent.mouseLeave(img);
+    expect(screen.getAllByAltText('KEKW').length).toBeGreaterThan(1);
+    // Document-level click outside the emote dismisses the sticky tooltip.
+    fireEvent.click(screen.getByTestId('outside'));
+    expect(screen.getAllByAltText('KEKW').length).toBe(1);
+  });
+
+  it('closes the sticky tooltip when Escape is pressed', () => {
+    render(<ChatEmote id="e1" name="KEKW" url="https://x.test/kekw.png" platform="twitch" />);
+    const img = screen.getByAltText('KEKW');
+    fireEvent.click(img);
+    fireEvent.mouseLeave(img);
+    expect(screen.getAllByAltText('KEKW').length).toBeGreaterThan(1);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getAllByAltText('KEKW').length).toBe(1);
+  });
+});
+
 describe('ChatEmote emote size (U2/U3)', () => {
   it('renders a normal emote at the configured emoteSizePx', () => {
     setChatDisplay({ emoteSizePx: 32 });

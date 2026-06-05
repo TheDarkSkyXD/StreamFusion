@@ -1,5 +1,5 @@
 import type React from "react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Emote } from "../../backend/services/emotes/emote-types";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
 import { useAuthStore } from "../../store/auth-store";
@@ -60,6 +60,12 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     const emoteSizePx = cd.emoteSizePx;
     const [showTooltip, setShowTooltip] = useState(false);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+    // Sticky tooltip — set by click, persists until outside-click or Escape.
+    // Mirrors Xtra's tap-to-show-emote-info behavior so a viewer can keep the
+    // emote name on screen without holding the cursor over the image.
+    const [sticky, setSticky] = useState(false);
+    const [stickyPos, setStickyPos] = useState<{ x: number; y: number } | null>(null);
+    const imgRef = useRef<HTMLImageElement>(null);
 
     const handleMouseEnter = useCallback((e: React.MouseEvent) => {
       setMousePos({ x: e.clientX, y: e.clientY });
@@ -73,6 +79,28 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     const handleMouseLeave = useCallback(() => {
       setShowTooltip(false);
     }, []);
+
+    const handleClick = useCallback((e: React.MouseEvent) => {
+      setStickyPos({ x: e.clientX, y: e.clientY });
+      setSticky((s) => !s);
+    }, []);
+
+    useEffect(() => {
+      if (!sticky) return;
+      const onDocClick = (e: MouseEvent) => {
+        if (imgRef.current?.contains(e.target as Node)) return;
+        setSticky(false);
+      };
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setSticky(false);
+      };
+      document.addEventListener("click", onDocClick);
+      document.addEventListener("keydown", onKey);
+      return () => {
+        document.removeEventListener("click", onDocClick);
+        document.removeEventListener("keydown", onKey);
+      };
+    }, [sticky]);
 
     // When animation is disabled, render a static frame if the URL exposes one;
     // otherwise fall back to the original (animated) URL — never fake a freeze.
@@ -118,6 +146,7 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     return (
       <>
         <img
+          ref={imgRef}
           src={renderUrl}
           alt={name}
           loading="lazy"
@@ -127,9 +156,14 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           onMouseEnter={handleMouseEnter}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
+          onClick={handleClick}
         />
 
-        <EmoteTooltip show={showTooltip} mousePos={mousePos} emote={emoteObj} />
+        <EmoteTooltip
+          show={showTooltip || sticky}
+          mousePos={sticky ? stickyPos : mousePos}
+          emote={emoteObj}
+        />
       </>
     );
   }

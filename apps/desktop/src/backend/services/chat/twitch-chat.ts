@@ -12,12 +12,19 @@ import { sleep } from "@/lib/sleep";
 import type {
   ChatConnectionState,
   ChatConnectionStatus,
+  ChatMessage,
   ChatServiceEvents,
+  ContentFragment,
   UserNotice,
 } from "../../../shared/chat-types";
 
 import { badgeResolver } from "./badge-resolver";
-import { parseTwitchMessage, type TwitchTags } from "./twitch-parser";
+import {
+  getDefaultColor,
+  parseBadgeTags,
+  parseTwitchMessage,
+  type TwitchTags,
+} from "./twitch-parser";
 import { roomStateTagsToPatch, type TmiRoomStateTags } from "./twitch-roomstate";
 
 // ========== Types ==========
@@ -454,9 +461,24 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   }
 
   /**
-   * Send a message to a channel
+   * Send a message to a channel.
+   *
+   * @param localFragments  Pre-rendered fragments for the optimistic local
+   *   echo, mirroring the Kick send-path. Without this the viewer's OWN
+   *   sent emote renders as the raw NAME inside the app: tmi.js does fire
+   *   a synthetic self-`message` event after `say()`, but our client opts
+   *   into `skipUpdatingEmotesets: true` (see `createClient`), so tmi.js
+   *   can't stamp emote tags onto that self-echo. Without tags the parser
+   *   produces a single text fragment and the renderer shows the bare
+   *   emote name. The rich fragments here are built upstream from the
+   *   input's emote slots and cover BOTH native Twitch emotes (whose names
+   *   tmi.js can't resolve here) and third-party 7TV / BTTV / FFZ.
    */
-  async sendMessage(channel: string, message: string): Promise<void> {
+  async sendMessage(
+    channel: string,
+    message: string,
+    localFragments?: ContentFragment[],
+  ): Promise<void> {
     if (this.isAnonymous) {
       throw new Error("Cannot send messages in anonymous mode");
     }
@@ -479,6 +501,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     try {
       await this.client.say(normalizedChannel, message);
       this.recordMessageSent();
+      this.emitSelfEcho(normalizedChannel, message, localFragments, false);
     } catch (error) {
       console.error(`Failed to send message to ${normalizedChannel}:`, error);
       throw error;
@@ -486,9 +509,80 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   }
 
   /**
+   * Emit a synthetic `message` event for the viewer's own outbound message
+   * so it shows up immediately in their chat panel with proper emote images.
+   * tmi.js's self-`message` event STILL fires later (without emote tags
+   * because `skipUpdatingEmotesets` is on) — it lands as a separate stored
+   * row whose text fragment containing only the emote name is fine to
+   * tolerate as a brief duplicate; the chat-store dedup prefers the
+   * emote-richer copy when ids happen to align.
+   */
+  private emitSelfEcho(
+    channel: string,
+    message: string,
+    localFragments: ContentFragment[] | undefined,
+    isAction: boolean,
+  ): void {
+    if (!this.user) return;
+    const fragments: ContentFragment[] =
+      localFragments && localFragments.length > 0
+        ? localFragments
+        : [{ type: "text", content: message }];
+    // tmi.js stores the viewer's USERSTATE per channel (color, badges,
+    // display-name) — accumulated from the USERSTATE IRC frame Twitch emits
+    // on join and after every successful send. Pull color + badges from
+    // there so the echo matches the appearance of the same user's messages
+    // arriving from other clients. Fall back to globaluserstate (set on
+    // GLOBALUSERSTATE at login) for the rare race where channel state isn't
+    // populated yet, then to a sensible default per the parser convention.
+    // tmi.js uses `#channel` keys internally.
+    const tmiChannelKey = channel.startsWith("#") ? channel : `#${channel}`;
+    const tmiClient = this.client as unknown as
+      | {
+          userstate?: Record<string, Record<string, unknown> | undefined>;
+          globaluserstate?: Record<string, unknown>;
+        }
+      | null;
+    const channelState = tmiClient?.userstate?.[tmiChannelKey];
+    const globalState = tmiClient?.globaluserstate;
+    const color =
+      (channelState?.color as string | undefined) ||
+      (globalState?.color as string | undefined) ||
+      getDefaultColor(this.user.login);
+    const badgesTag =
+      (channelState?.badges as Record<string, string> | undefined) ||
+      (globalState?.badges as Record<string, string> | undefined);
+    const broadcasterId = this.broadcasterId.get(this.normalizeChannel(channel));
+    const echo: ChatMessage = {
+      id: crypto.randomUUID(),
+      platform: "twitch",
+      type: "message",
+      channel,
+      userId: this.user.id,
+      username: this.user.login.toLowerCase(),
+      displayName: this.user.displayName ?? this.user.login,
+      color,
+      badges: broadcasterId
+        ? badgeResolver.resolveBadges(parseBadgeTags(badgesTag), broadcasterId)
+        : parseBadgeTags(badgesTag),
+      content: fragments,
+      rawContent: message,
+      timestamp: new Date(),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction,
+    };
+    this.emit("message", echo);
+  }
+
+  /**
    * Send a /me action message
    */
-  async sendAction(channel: string, message: string): Promise<void> {
+  async sendAction(
+    channel: string,
+    message: string,
+    localFragments?: ContentFragment[],
+  ): Promise<void> {
     if (this.isAnonymous) {
       throw new Error("Cannot send messages in anonymous mode");
     }
@@ -506,6 +600,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     try {
       await this.client.action(normalizedChannel, message);
       this.recordMessageSent();
+      this.emitSelfEcho(normalizedChannel, message, localFragments, true);
     } catch (error) {
       console.error(`Failed to send action to ${normalizedChannel}:`, error);
       throw error;
@@ -515,7 +610,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   /**
    * Send a reply to a message
    */
-  async sendReply(channel: string, parentMessageId: string, message: string): Promise<void> {
+  async sendReply(
+    channel: string,
+    parentMessageId: string,
+    message: string,
+    localFragments?: ContentFragment[],
+  ): Promise<void> {
     if (!this.client || this.connectionState !== "connected") {
       throw new Error("Not connected to Twitch IRC");
     }
@@ -532,6 +632,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
         `@reply-parent-msg-id=${parentMessageId} PRIVMSG #${normalizedChannel} :${message}`
       );
       this.recordMessageSent();
+      this.emitSelfEcho(normalizedChannel, message, localFragments, false);
     } catch (error) {
       console.error(`Failed to send reply in ${normalizedChannel}:`, error);
       throw error;
@@ -751,6 +852,14 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    * Handle incoming chat message
    */
   private handleMessage(channel: string, tags: TwitchTags, message: string, self: boolean): void {
+    // Drop tmi.js's synthetic self-echo: every authenticated send path
+    // (sendMessage / sendAction / sendReply) already emits its own optimistic
+    // echo via `emitSelfEcho`, which carries the rich `localFragments` built
+    // from the input's emote slots. Letting tmi.js's later text-only echo
+    // through duplicates the message — once as the proper emote image, once
+    // as the bare name — because the two events carry different random ids
+    // and dedup-by-id can't collapse them.
+    if (self) return;
     const parsedMessage = parseTwitchMessage(channel, tags, message, self);
 
     // Resolve badges with channel-specific ones

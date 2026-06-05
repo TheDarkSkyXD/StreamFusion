@@ -19,7 +19,7 @@ import { BsReplyFill, BsXLg } from "react-icons/bs";
 import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
 import type { Emote } from "../../backend/services/emotes/emote-types";
-import type { ChatMessage, ChatPlatform } from "../../shared/chat-types";
+import type { ChatMessage, ChatPlatform, ContentFragment } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { useEmoteStore } from "../../store/emote-store";
 import { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
@@ -157,11 +157,62 @@ function reconcileEmoteSlots(oldText: string, oldSlots: Emote[], newText: string
   return result;
 }
 
-/** Convert the textarea's placeholder-bearing value into the actual IRC
- *  string by replacing every EMOTE_CHAR with `emote.name`. A trailing
- *  space is inserted after each emote so adjacent emotes stay parseable
- *  by the chat backend. */
-function serializeMessage(message: string, slots: Emote[]): string {
+/** Build ContentFragments from the textarea value + emote slots, mirroring
+ *  what the Kick parser produces for inbound `[emote:id:name]` markers.
+ *  Used by the Kick optimistic local echo so the user's own outbound message
+ *  renders emote IMAGES instead of the raw emote-name text for the
+ *  ~150-400ms before the Pusher delivery confirms. Non-emote runs collapse
+ *  into single text fragments — mentions/URLs aren't broken out here
+ *  (matching the prior single-text echo), the live Pusher message that
+ *  replaces this echo handles them properly. */
+function serializeFragments(message: string, slots: Emote[]): ContentFragment[] {
+  const out: ContentFragment[] = [];
+  let buf = "";
+  let slotIdx = 0;
+  const flush = () => {
+    if (buf.length === 0) return;
+    out.push({ type: "text", content: buf });
+    buf = "";
+  };
+  for (let i = 0; i < message.length; i++) {
+    const ch = message[i];
+    if (ch === EMOTE_CHAR) {
+      const slot = slots[slotIdx++];
+      if (slot) {
+        flush();
+        out.push({
+          type: "emote",
+          id: slot.id,
+          name: slot.name,
+          url: slot.urls.url4x ?? slot.urls.url2x ?? slot.urls.url1x,
+          isAnimated: slot.isAnimated,
+          isZeroWidth: slot.isZeroWidth,
+        });
+        // Mirror serializeMessage: inject a space delimiter so adjacent
+        // emotes stay visually separated (and parseable if anything later
+        // re-runs over the rawContent).
+        const next = message[i + 1];
+        if (next !== undefined && !/\s/.test(next)) buf += " ";
+      }
+    } else {
+      buf += ch;
+    }
+  }
+  flush();
+  return out;
+}
+
+/** Convert the textarea's placeholder-bearing value into the actual chat-server
+ *  string. Native Kick emotes serialize as `[emote:id:name]` so the Kick chat
+ *  server broadcasts them with that markup — without it, kick.com renders our
+ *  sends as plain text for every other viewer (parity with KickTalk's
+ *  EmoteNode.getTextContent). Twitch native emotes and 7TV/BTTV/FFZ fall back
+ *  to the bare name: Twitch IRC tags are stamped server-side from the name,
+ *  and 7TV/BTTV/FFZ aren't known to Kick's server at all (clients with the
+ *  third-party extensions substitute the name client-side). A trailing space
+ *  is inserted after each emote so adjacent emotes stay parseable.
+ *  KickTalk reference: src/renderer/src/components/Chat/Input/EmoteNode.jsx. */
+function serializeMessage(message: string, slots: Emote[], platform: ChatPlatform): string {
   if (slots.length === 0) return message;
   let result = "";
   let slotIdx = 0;
@@ -170,7 +221,11 @@ function serializeMessage(message: string, slots: Emote[]): string {
     if (ch === EMOTE_CHAR) {
       const slot = slots[slotIdx++];
       if (slot) {
-        result += slot.name;
+        if (platform === "kick" && slot.provider === "kick") {
+          result += `[emote:${slot.id}:${slot.name}]`;
+        } else {
+          result += slot.name;
+        }
         // Inject a delimiter unless we're already at end or followed by whitespace.
         const next = message[i + 1];
         if (next !== undefined && !/\s/.test(next)) result += " ";
@@ -451,12 +506,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
 
   // Handle send
   const handleSend = useCallback(async () => {
-    // Convert placeholder-bearing textarea value into the real IRC string
-    // (EMOTE_CHARs → emote.name + separator). This is what goes over the
-    // wire — the chat server has no awareness of our placeholders.
-    const serialized = serializeMessage(message, emoteSlots);
+    // Convert placeholder-bearing textarea value into the real chat-server
+    // string. For Kick, native emote slots become `[emote:id:name]` markup so
+    // kick.com renders them as images for everyone (otherwise they ship as
+    // plain text). The chat server has no awareness of our textarea placeholder.
+    const serialized = serializeMessage(message, emoteSlots, platform);
     const trimmedMessage = serialized.trim();
     if (!trimmedMessage || !canSend || isSending) return;
+
+    // Pre-rendered fragments for the Kick optimistic local echo so the
+    // user's own message shows emote IMAGES (not raw text) until the Pusher
+    // delivery replaces the echo. Twitch's IRC echo carries the parsed
+    // emote tags from tmi.js, so it doesn't need this.
+    const localFragments = serializeFragments(message, emoteSlots);
 
     setIsSending(true);
     setError(null);
@@ -477,33 +539,61 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
         if (command === "me") {
           const actionMessage = args.join(" ");
           if (platform === "twitch") {
+            // /me strips emote-slot context: actionMessage is rebuilt from the
+            // serialized wire string's args, so no fragments to pass.
             await twitchChatService.sendAction(channel, actionMessage);
           } else {
+            // /me strips emote slot context (actionMessage rebuilt from args
+            // of the serialized wire string), so no fragments to pass — the
+            // echo falls back to single text, matching prior behavior.
             await kickChatService.sendMessage(channel, `*${actionMessage}*`, kickUser ?? undefined);
           }
         } else {
           if (platform === "twitch") {
-            await twitchChatService.sendMessage(channel, trimmedMessage);
+            await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
           } else {
-            await kickChatService.sendMessage(channel, trimmedMessage, kickUser ?? undefined);
+            await kickChatService.sendMessage(
+              channel,
+              trimmedMessage,
+              kickUser ?? undefined,
+              localFragments,
+            );
           }
         }
       } else {
         if (reply) {
           if (platform === "twitch") {
-            await twitchChatService.sendReply(channel, reply.messageId, trimmedMessage);
+            await twitchChatService.sendReply(
+              channel,
+              reply.messageId,
+              trimmedMessage,
+              localFragments,
+            );
           } else {
+            // Prepend the @mention so the local echo shows the same
+            // `@user message` shape Kick will broadcast back.
+            const replyFragments: ContentFragment[] = [
+              { type: "mention", username: reply.username },
+              { type: "text", content: " " },
+              ...localFragments,
+            ];
             await kickChatService.sendMessage(
               channel,
               `@${reply.username} ${trimmedMessage}`,
               kickUser ?? undefined,
+              replyFragments,
             );
           }
         } else {
           if (platform === "twitch") {
-            await twitchChatService.sendMessage(channel, trimmedMessage);
+            await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
           } else {
-            await kickChatService.sendMessage(channel, trimmedMessage, kickUser ?? undefined);
+            await kickChatService.sendMessage(
+              channel,
+              trimmedMessage,
+              kickUser ?? undefined,
+              localFragments,
+            );
           }
         }
       }
@@ -580,8 +670,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
   // rather than the placeholder-bearing textarea value — that's what actually
   // gets transmitted and what the platform enforces a length limit on.
   const serializedLength = useMemo(
-    () => serializeMessage(message, emoteSlots).length,
-    [message, emoteSlots],
+    () => serializeMessage(message, emoteSlots, platform).length,
+    [message, emoteSlots, platform],
   );
   const isOverLimit = serializedLength > maxLength;
   const charactersRemaining = maxLength - serializedLength;

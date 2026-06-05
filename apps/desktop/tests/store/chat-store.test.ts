@@ -79,6 +79,55 @@ function makeMessage(id: string, platform: ChatPlatform = 'twitch'): ChatMessage
   };
 }
 
+function makeEmoteMessage(id: string, platform: ChatPlatform = 'kick'): ChatMessage {
+  const base = makeMessage(id, platform);
+  return {
+    ...base,
+    content: [
+      {
+        type: 'emote',
+        id: 'e1',
+        name: 'PeepoClap',
+        url: 'https://cdn.7tv.app/emote/e1/2x.webp',
+      },
+    ],
+    rawContent: 'PeepoClap',
+  };
+}
+
+describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo race)', () => {
+  beforeEach(() => resetStore());
+
+  it('addMessage replaces an existing text-only duplicate with an emote-bearing one', () => {
+    const id = 'race-1';
+    useChatStore.getState().addMessage(makeMessage(id, 'kick'));
+    useChatStore.getState().addMessage(makeEmoteMessage(id, 'kick'));
+    const msgs = useChatStore.getState().messages;
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].content[0]).toMatchObject({ type: 'emote', name: 'PeepoClap' });
+  });
+
+  it('addMessage keeps the emote version when the later duplicate is text-only', () => {
+    const id = 'race-2';
+    useChatStore.getState().addMessage(makeEmoteMessage(id, 'kick'));
+    useChatStore.getState().addMessage(makeMessage(id, 'kick'));
+    const msgs = useChatStore.getState().messages;
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].content[0]).toMatchObject({ type: 'emote', name: 'PeepoClap' });
+  });
+
+  it('flushBatch replaces a previously-stored text-only message with the emote batch entry', () => {
+    resetStore({ batching: true, interval: 16 });
+    const id = 'race-3';
+    useChatStore.getState().addMessage(makeMessage(id, 'kick'));
+    useChatStore.getState().addMessageBatched(makeEmoteMessage(id, 'kick'), 'kick');
+    useChatStore.getState().flushBatch('kick');
+    const msgs = useChatStore.getState().messages;
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].content[0]).toMatchObject({ type: 'emote', name: 'PeepoClap' });
+  });
+});
+
 describe('chat-store updateConnectionStatus', () => {
   beforeEach(() => resetStore());
 

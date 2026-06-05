@@ -19,6 +19,7 @@ import {
   updateChatSettings,
 } from "../../../backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
+import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
 import {
   startTwitchPinPolling,
   stopTwitchPinPolling,
@@ -495,7 +496,22 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   useEffect(() => {
     const handleMessage = (message: ChatMessage) => {
       if (message.platform === "twitch") {
-        addMessageBatched(message, "twitch");
+        // Substitute emote NAMES inside text fragments with emote fragments.
+        // `includeNative: true` because tmi.js's synthetic self-echo arrives
+        // without IRC emote tags (we run with `skipUpdatingEmotesets: true`)
+        // — even native Twitch emotes like `Kappa` need to be resolved by
+        // name in that case. For inbound messages from other users IRC has
+        // already stamped the native emotes into proper fragments, so the
+        // emote text isn't present in any text fragment for the helper to
+        // double-render. Third-party 7TV / BTTV / FFZ always ride along as
+        // plain text either way and are resolved here too.
+        const map = new Map(useEmoteStore.getState().getAllEmotes().map((e) => [e.name, e]));
+        const enrichedContent = substituteThirdPartyEmotes(message.content, map, {
+          includeNative: true,
+        });
+        const enriched =
+          enrichedContent === message.content ? message : { ...message, content: enrichedContent };
+        addMessageBatched(enriched, "twitch");
       }
     };
 

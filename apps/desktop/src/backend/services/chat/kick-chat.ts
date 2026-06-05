@@ -21,6 +21,7 @@ import type {
   ChatConnectionStatus,
   ChatMessage,
   ChatServiceEvents,
+  ContentFragment,
   KickPinnedMessage,
   KickPoll,
   NormalizedPinnedMessage,
@@ -617,6 +618,15 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     channel: string,
     message: string,
     sender?: { id: number; username: string; slug: string; color?: string },
+    /**
+     * Pre-rendered fragments for the optimistic local echo. When provided,
+     * the echo carries real emote/mention fragments built from the input's
+     * emote slots so the user's own outbound message shows emote IMAGES (and
+     * not the raw emote name text) for the ~150-400ms before the Pusher
+     * delivery arrives. Falls back to a single text fragment when omitted,
+     * preserving the historical echo shape for non-input callers.
+     */
+    localFragments?: ContentFragment[],
   ): Promise<void> {
     const normalizedChannel = this.normalizeChannel(channel);
     const channelInfo = this.channels.get(normalizedChannel);
@@ -669,7 +679,10 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         displayName: sender.username,
         color: sender.color || "#FFFFFF",
         badges: echoBadges,
-        content: [{ type: "text", content: message }],
+        content:
+          localFragments && localFragments.length > 0
+            ? localFragments
+            : [{ type: "text", content: message }],
         rawContent: message,
         timestamp: new Date(),
         isDeleted: false,

@@ -93,6 +93,52 @@ describe("KickChatService.sendMessage", () => {
     await expect(service.sendMessage("ac7ionman", "hi")).rejects.toThrow(/reconnect Kick/i);
   });
 
+  it("optimistic echo uses pre-rendered fragments when provided (emote images, not raw text)", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const messages: any[] = [];
+    service.on("message", (m) => messages.push(m));
+    const fragments = [
+      { type: "text" as const, content: "hi " },
+      {
+        type: "emote" as const,
+        id: "12345",
+        name: "PeepoClap",
+        url: "https://files.kick.com/emotes/12345/fullsize",
+        isAnimated: false,
+        isZeroWidth: false,
+      },
+    ];
+    await service.sendMessage(
+      "ac7ionman",
+      "hi PeepoClap",
+      { id: 7, username: "me", slug: "me" },
+      fragments,
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).toEqual(fragments);
+    // rawContent stays the wire string for parity with the inbound Pusher shape.
+    expect(messages[0].rawContent).toBe("hi PeepoClap");
+  });
+
+  it("optimistic echo falls back to a single text fragment when fragments are omitted", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const messages: any[] = [];
+    service.on("message", (m) => messages.push(m));
+    await service.sendMessage("ac7ionman", "hi", { id: 7, username: "me", slug: "me" });
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).toEqual([{ type: "text", content: "hi" }]);
+  });
+
   it("surfaces rate-limited cleanly", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {

@@ -305,7 +305,11 @@ describe('ChatInput — Enter / Shift+Enter', () => {
     await act(async () => {
       fireEvent.keyDown(ta, { key: 'Enter' });
     });
-    expect(twitchChatService.sendMessage).toHaveBeenCalledWith('ninja', 'hello');
+    // Third arg is the optimistic-echo localFragments (built from emote slots;
+    // a plain text message produces a single text fragment).
+    expect(twitchChatService.sendMessage).toHaveBeenCalledWith('ninja', 'hello', [
+      { type: 'text', content: 'hello' },
+    ]);
   });
 
   it('Shift+Enter does NOT send', async () => {

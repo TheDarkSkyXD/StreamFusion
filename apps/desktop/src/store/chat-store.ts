@@ -156,9 +156,27 @@ export const useChatStore = create<ChatState>()(
       set((state) => {
         const currentMessages = state.messages;
 
-        // Duplicate prevention - check last 50 messages only (optimization)
+        // Duplicate prevention - check last 50 messages only (optimization).
+        // When a duplicate id arrives, prefer the version with emote fragments
+        // over the one without. This handles the Kick optimistic-echo race:
+        // the Pusher broadcast of the user's own message (~50-150ms) routinely
+        // beats the HTTP send response that triggers the local echo (~300ms),
+        // so the dropped duplicate is often the richer echo. Without this
+        // preference, third-party / overlay emote info from the local emote
+        // slots would be lost on every send.
         const recentMessages = currentMessages.slice(-50);
-        if (recentMessages.some((m) => m.id === message.id)) {
+        const dupIdx = recentMessages.findIndex((m) => m.id === message.id);
+        if (dupIdx !== -1) {
+          const existing = recentMessages[dupIdx];
+          const newHasEmotes = message.content.some((f) => f.type === "emote");
+          const existingHasEmotes = existing.content.some((f) => f.type === "emote");
+          if (newHasEmotes && !existingHasEmotes) {
+            // Replace the leaner existing with the emote-richer incoming.
+            const absoluteIdx = currentMessages.length - recentMessages.length + dupIdx;
+            const replaced = currentMessages.slice();
+            replaced[absoluteIdx] = message;
+            return { messages: replaced };
+          }
           return state;
         }
 
@@ -236,16 +254,45 @@ export const useChatStore = create<ChatState>()(
         // case matters in multi-view: each KickChat/TwitchChat instance
         // subscribes to its shared service, so the same inbound message is
         // enqueued once per mounted chat panel.
-        const seen = new Set<string>(currentMessages.map((m) => m.id));
+        // When a duplicate id arrives, prefer the version with emote fragments
+        // — same reasoning as the addMessage path above: the Kick optimistic
+        // echo with emote fragments can lose the race to the Pusher text
+        // broadcast, and we don't want to keep the leaner one.
+        const idIndex = new Map<string, number>();
+        currentMessages.forEach((m, i) => idIndex.set(m.id, i));
         const fresh: ChatMessage[] = [];
+        const replacements: { index: number; message: ChatMessage }[] = [];
         for (const m of queued) {
-          if (seen.has(m.id)) continue;
-          seen.add(m.id);
-          fresh.push(m);
+          const existingIdx = idIndex.get(m.id);
+          if (existingIdx === undefined) {
+            idIndex.set(m.id, currentMessages.length + fresh.length);
+            fresh.push(m);
+            continue;
+          }
+          const existing =
+            existingIdx < currentMessages.length
+              ? currentMessages[existingIdx]
+              : fresh[existingIdx - currentMessages.length];
+          const newHasEmotes = m.content.some((f) => f.type === "emote");
+          const existingHasEmotes = existing.content.some((f) => f.type === "emote");
+          if (newHasEmotes && !existingHasEmotes) {
+            if (existingIdx < currentMessages.length) {
+              replacements.push({ index: existingIdx, message: m });
+            } else {
+              fresh[existingIdx - currentMessages.length] = m;
+            }
+          }
         }
-        if (fresh.length === 0) return state;
+        if (fresh.length === 0 && replacements.length === 0) return state;
 
-        const merged = [...currentMessages, ...fresh];
+        let base = currentMessages;
+        if (replacements.length > 0) {
+          base = base.slice();
+          for (const { index, message } of replacements) {
+            base[index] = message;
+          }
+        }
+        const merged = [...base, ...fresh];
         // Hysteresis: only trim once we exceed maxMessages + TRIM_BUFFER, then
         // trim back to maxMessages - TRIM_BUFFER. Same pattern as addMessage's
         // single-message path so a flush of small batches doesn't trigger a
