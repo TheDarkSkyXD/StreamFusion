@@ -7,6 +7,7 @@
  * Handles authentication and data fetching for stream discovery.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import type { KickUser, Platform } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
@@ -328,8 +329,8 @@ class KickClient implements KickRequestor, IPlatformReader {
           recordTransientNetworkError(message);
         }
         const isQuiet = isPermanent || isNetworkLikelyDown();
-        const log = isQuiet ? console.debug : console.warn;
-        log(`[KickClient] Image fetch failed (${message}): ${url}`);
+        const log = isQuiet ? logger.debug : logger.warn;
+        log("Kick:Client", "Image fetch failed", { message, url });
         return null;
       }
     })();
@@ -410,9 +411,11 @@ class KickClient implements KickRequestor, IPlatformReader {
               ? parseInt(retryHeader, 10) * 1000
               : 5000 * 2 ** (attempt - 1); // 5s, 10s, 20s
 
-            console.warn(
-              `⚠️ Kick API 429 Too Many Requests. Retrying in ${backoff}ms (Attempt ${attempt}/${maxRetries})...`
-            );
+            logger.warn("Kick:Client", "Kick API 429 Too Many Requests; retrying", {
+              backoffMs: backoff,
+              attempt,
+              maxRetries,
+            });
             await sleep(backoff);
             continue;
           }
@@ -429,22 +432,31 @@ class KickClient implements KickRequestor, IPlatformReader {
             }
 
             const backoff = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s
-            console.warn(
-              `⚠️ Kick API ${response.statusCode} Server Error. Retrying in ${backoff}ms (Attempt ${attempt}/${maxRetries})...`
-            );
+            logger.warn("Kick:Client", "Kick API server error; retrying", {
+              statusCode: response.statusCode,
+              backoffMs: backoff,
+              attempt,
+              maxRetries,
+            });
             await sleep(backoff);
             continue;
           }
 
           if (response.statusCode === 403) {
-            console.warn("⚠️ Kick API forbidden - may need additional scopes or User Token");
+            logger.warn(
+              "Kick:Client",
+              "Kick API forbidden - may need additional scopes or User Token"
+            );
           }
 
           if (response.statusCode === 401 && !isAppToken && !retriedOn401) {
             // Token may have expired between the pre-flight ensureValidToken() and
             // the actual request. Attempt one refresh and update the Authorization
             // header in-place — no recursive call to avoid infinite loops.
-            console.debug("🔄 Kick user token rejected (401), attempting one-shot refresh...");
+            logger.debug(
+              "Kick:Client",
+              "Kick user token rejected (401); attempting one-shot refresh"
+            );
             retriedOn401 = true;
             const refreshed = await kickAuthService.refreshToken();
             if (refreshed) {
@@ -470,7 +482,13 @@ class KickClient implements KickRequestor, IPlatformReader {
         recordTransientNetworkError(error?.message || String(error));
 
         // Network errors - log and throw
-        console.error(`❌ Kick API request failed: ${endpoint}`, error);
+        logger.error("Kick:Client", "Kick API request failed", {
+          endpoint,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         throw error;
       }
     }

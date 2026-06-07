@@ -9,6 +9,8 @@
  * Cloudflare trick the Kick path needs.
  */
 
+import { logger } from "@/backend/logging/logger";
+
 const RECENT_MESSAGES_BASE = "https://recent-messages.robotty.de/api/v2/recent-messages";
 const HISTORY_LIMIT = 50;
 const REQUEST_TIMEOUT_MS = 10000;
@@ -48,10 +50,13 @@ export async function getTwitchChannelHistory(
     }
     return { rawMessages: payload.messages };
   } catch (error) {
-    console.warn(
-      `[TwitchChatHistory] Failed to load history for channel ${login}:`,
-      error instanceof Error ? error.message : error
-    );
+    logger.warn("Twitch:Endpoints:Chat", "Failed to load chat history for channel", {
+      login,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return null;
   }
 }

@@ -1,4 +1,6 @@
 import { type BrowserWindow, ipcMain } from "electron";
+
+import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "../../../lib/managed-interval";
 import type {
   AuthToken,
@@ -88,7 +90,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         mainWindow.webContents.send(channel, ...args);
       }
     } catch {
-      console.warn(`⚠️ Could not send to ${channel}: Window disposed`);
+      logger.warn("IPC:Auth", "Could not send: window disposed", { channel });
     }
   }
 
@@ -100,7 +102,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
    */
   async function syncFollowsOnLogin(platform: Platform): Promise<void> {
     try {
-      console.debug(`🔄 Syncing ${platform} follows...`);
+      logger.debug("IPC:Auth", "Syncing follows", { platform });
 
       let importedCount = 0;
       let pendingCount = 0;
@@ -128,7 +130,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         pendingCount = result.pendingCount;
         addedCount = result.addedCount;
         removedCount = result.removedCount;
-        console.debug(`✅ Synced ${importedCount} Twitch follows (pending=${pendingCount})`);
+        logger.debug("IPC:Auth", "Synced Twitch follows", {
+          importedCount,
+          pendingCount,
+        });
       } else if (platform === "kick") {
         // Call FollowEndpoints directly rather than kickClient.getAllFollowedChannels()
         // so we get the tagged result. A transient Cloudflare 403 / auth failure
@@ -140,8 +145,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         );
         const outcome = await syncKickFollowsAfterLogin(getAllFollowedChannels);
         if (outcome.status === "error") {
-          console.warn(
-            `⚠️ Kick follow sync skipped (${outcome.reason}); preserving prior account-source rows`
+          logger.warn(
+            "IPC:Auth",
+            "Kick follow sync skipped; preserving prior account-source rows",
+            { reason: outcome.reason }
           );
           // Bail out without firing AUTH_FOLLOWS_SYNCED. The renderer's prior
           // state remains correct.
@@ -151,7 +158,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         pendingCount = outcome.pendingCount;
         addedCount = outcome.addedCount;
         removedCount = outcome.removedCount;
-        console.debug(`✅ Synced ${importedCount} Kick follows (pending=${pendingCount})`);
+        logger.debug("IPC:Auth", "Synced Kick follows", {
+          importedCount,
+          pendingCount,
+        });
       }
 
       // Tell the renderer the local DB now reflects this platform's account
@@ -169,7 +179,13 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         removedCount,
       });
     } catch (error) {
-      console.warn(`⚠️ Failed to sync ${platform} follows:`, error);
+      logger.warn("IPC:Auth", "Failed to sync follows", {
+        platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       // Don't throw — this is non-critical and should not block the login
     }
   }
@@ -205,7 +221,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       if (now - last < FOCUS_REFRESH_COOLDOWN_MS) return;
     }
     lastRefreshAt.set(platform, now);
-    console.debug(`🔄 ${platform} follow refresh (${trigger})`);
+    logger.debug("IPC:Auth", "follow refresh", { platform, trigger });
     syncFollowsOnLogin(platform).catch(() => {});
   }
 
@@ -327,7 +343,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     // Cancel any existing OAuth flow for this platform to prevent state mismatch
     const existingFlow = pendingOAuthFlows.get(platform);
     if (existingFlow) {
-      console.debug(`⚠️ Cancelling previous OAuth flow for ${platform}`);
+      logger.debug("IPC:Auth", "Cancelling previous OAuth flow", { platform });
       existingFlow.cancel();
       pendingOAuthFlows.delete(platform);
     }
@@ -355,11 +371,11 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
       // Check if this flow was cancelled (a newer flow started)
       if (isCancelled) {
-        console.debug(`🛑 OAuth flow for ${platform} was cancelled`);
+        logger.debug("IPC:Auth", "OAuth flow was cancelled", { platform });
         return;
       }
 
-      console.debug(`📥 Received OAuth callback for ${platform}`);
+      logger.debug("IPC:Auth", "Received OAuth callback", { platform });
 
       // Exchange the code for a token
       const token = await tokenExchangeService.exchangeCodeForToken({
@@ -372,7 +388,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       // Save the token
       storageService.saveToken(platform, token);
 
-      console.debug(`✅ Successfully authenticated with ${platform}`);
+      logger.debug("IPC:Auth", "Successfully authenticated", { platform });
 
       // Fetch user info after token is saved
       if (platform === "twitch") {
@@ -386,7 +402,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             storageService.saveTwitchUser(user);
           }
         } catch (userError) {
-          console.error("Failed to fetch Twitch user info:", userError);
+          logger.error("IPC:Auth", "Failed to fetch Twitch user info", {
+            error:
+              userError instanceof Error
+                ? { name: userError.name, message: userError.message, stack: userError.stack }
+                : String(userError),
+          });
         }
       } else if (platform === "kick") {
         try {
@@ -395,7 +416,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             storageService.saveKickUser(user);
           }
         } catch (userError) {
-          console.error("Failed to fetch Kick user info:", userError);
+          logger.error("IPC:Auth", "Failed to fetch Kick user info", {
+            error:
+              userError instanceof Error
+                ? { name: userError.name, message: userError.message, stack: userError.stack }
+                : String(userError),
+          });
         }
       }
 
@@ -410,11 +436,17 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     } catch (error) {
       // Don't report errors for cancelled flows
       if (isCancelled) {
-        console.debug(`🛑 Ignoring error from cancelled OAuth flow for ${platform}`);
+        logger.debug("IPC:Auth", "Ignoring error from cancelled OAuth flow", { platform });
         return;
       }
 
-      console.error(`❌ OAuth failed for ${platform}:`, error);
+      logger.error("IPC:Auth", "OAuth failed", {
+        platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
 
       // Notify renderer of failed auth
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
@@ -436,12 +468,17 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Handle opening Twitch OAuth
   ipcMain.handle(IPC_CHANNELS.AUTH_OPEN_TWITCH, async () => {
-    console.debug("🔐 Opening Twitch login...");
+    logger.debug("IPC:Auth", "Opening Twitch login");
     try {
       await handleOAuthFlow("twitch");
       return { success: true };
     } catch (error) {
-      console.error("Twitch OAuth error:", error);
+      logger.error("IPC:Auth", "Twitch OAuth error", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Authentication failed",
@@ -451,12 +488,17 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Handle opening Kick OAuth
   ipcMain.handle(IPC_CHANNELS.AUTH_OPEN_KICK, async () => {
-    console.debug("🔐 Opening Kick login...");
+    logger.debug("IPC:Auth", "Opening Kick login");
     try {
       await handleOAuthFlow("kick");
       return { success: true };
     } catch (error) {
-      console.error("Kick OAuth error:", error);
+      logger.error("IPC:Auth", "Kick OAuth error", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Authentication failed",
@@ -468,7 +510,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Handle Twitch logout
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT_TWITCH, async () => {
-    console.debug("🚪 Logging out from Twitch...");
+    logger.debug("IPC:Auth", "Logging out from Twitch");
     try {
       await twitchAuthService.logout();
       // Twitch-source rows stay in the DB — `getActiveFollowsByPlatform`
@@ -481,14 +523,19 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       });
       return { success: true };
     } catch (error) {
-      console.error("❌ Twitch logout failed:", error);
+      logger.error("IPC:Auth", "Twitch logout failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return { success: false, error: error instanceof Error ? error.message : "Logout failed" };
     }
   });
 
   // Handle Twitch token refresh
   ipcMain.handle(IPC_CHANNELS.AUTH_REFRESH_TWITCH, async () => {
-    console.debug("🔄 Refreshing Twitch token...");
+    logger.debug("IPC:Auth", "Refreshing Twitch token");
     try {
       const token = await twitchAuthService.refreshToken();
       if (token) {
@@ -496,7 +543,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
       return { success: false, error: "Token refresh failed" };
     } catch (error) {
-      console.error("❌ Twitch token refresh failed:", error);
+      logger.error("IPC:Auth", "Twitch token refresh failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Token refresh failed",
@@ -522,7 +574,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Handle fetching Twitch user info
   ipcMain.handle(IPC_CHANNELS.AUTH_FETCH_TWITCH_USER, async () => {
-    console.debug("👤 Fetching Twitch user info...");
+    logger.debug("IPC:Auth", "Fetching Twitch user info");
     try {
       const user = await twitchAuthService.fetchCurrentUser();
       if (user) {
@@ -530,7 +582,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
       return { success: false, error: "Failed to fetch user info" };
     } catch (error) {
-      console.error("❌ Failed to fetch Twitch user:", error);
+      logger.error("IPC:Auth", "Failed to fetch Twitch user", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to fetch user info",
@@ -561,7 +618,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Handle Kick logout (specific channel)
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT_KICK, async () => {
-    console.debug("🚪 Logging out from Kick...");
+    logger.debug("IPC:Auth", "Logging out from Kick");
     try {
       await kickAuthService.logout();
       await disposeSendWindow();
@@ -574,14 +631,19 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       });
       return { success: true };
     } catch (error) {
-      console.error("❌ Kick logout failed:", error);
+      logger.error("IPC:Auth", "Kick logout failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return { success: false, error: error instanceof Error ? error.message : "Logout failed" };
     }
   });
 
   // Handle Kick token refresh
   ipcMain.handle(IPC_CHANNELS.AUTH_REFRESH_KICK, async () => {
-    console.debug("🔄 Refreshing Kick token...");
+    logger.debug("IPC:Auth", "Refreshing Kick token");
     try {
       const token = await kickAuthService.refreshToken();
       if (token) {
@@ -589,7 +651,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
       return { success: false, error: "Token refresh failed" };
     } catch (error) {
-      console.error("❌ Kick token refresh failed:", error);
+      logger.error("IPC:Auth", "Kick token refresh failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Token refresh failed",
@@ -599,7 +666,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Handle Kick user fetch
   ipcMain.handle(IPC_CHANNELS.AUTH_FETCH_KICK_USER, async () => {
-    console.debug("👤 Fetching Kick user info...");
+    logger.debug("IPC:Auth", "Fetching Kick user info");
     try {
       const user = await kickAuthService.fetchCurrentUser();
       if (user) {
@@ -607,7 +674,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
       return { success: false, error: "Failed to fetch user info" };
     } catch (error) {
-      console.error("❌ Failed to fetch Kick user:", error);
+      logger.error("IPC:Auth", "Failed to fetch Kick user", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to fetch user info",
@@ -619,7 +691,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Start device code flow - returns codes for user to enter
   ipcMain.handle(IPC_CHANNELS.AUTH_DCF_START, async () => {
-    console.debug("🔐 Starting Device Code Flow for Twitch...");
+    logger.debug("IPC:Auth", "Starting Device Code Flow for Twitch");
     try {
       const config = getOAuthConfig("twitch");
 
@@ -642,7 +714,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         interval: result.interval,
       };
     } catch (error) {
-      console.error("❌ Failed to start device code flow:", error);
+      logger.error("IPC:Auth", "Failed to start device code flow", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to start device code flow",
@@ -665,7 +742,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         expiresIn: number;
       }
     ) => {
-      console.debug("🔄 Polling for Twitch authorization...");
+      logger.debug("IPC:Auth", "Polling for Twitch authorization");
       try {
         const token = await deviceCodeFlowService.pollForToken(
           deviceCode,
@@ -701,7 +778,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
         return { success: true, user };
       } catch (error) {
-        console.error("❌ Device code flow failed:", error);
+        logger.error("IPC:Auth", "Device code flow failed", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Authorization failed",
@@ -712,7 +794,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   // Cancel device code flow
   ipcMain.handle(IPC_CHANNELS.AUTH_DCF_CANCEL, () => {
-    console.debug("🛑 Cancelling device code flow...");
+    logger.debug("IPC:Auth", "Cancelling device code flow");
     deviceCodeFlowService.stopPolling();
     return { success: true };
   });

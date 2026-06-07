@@ -24,6 +24,8 @@ import type {
 } from "hls.js";
 import Hls from "hls.js";
 
+import { logger } from "@/renderer/logging/logger";
+
 type PlaylistLoaderConstructor = new (config: HlsConfig) => Loader<PlaylistLoaderContext>;
 
 export function isKickClipPlaylistUrl(url: string | null | undefined): boolean {
@@ -105,7 +107,9 @@ export function createKickClipPlaylistLoader(): PlaylistLoaderConstructor {
             return;
           }
         } catch (err) {
-          console.warn("[KickClipLoader] Playlist rewrite failed, passing through:", err);
+          logger.warn("Player:Kick:ClipLoader", "playlist rewrite failed, passing through", {
+            error: err,
+          });
         }
         originalOnSuccess(response, stats, ctx, networkDetails);
       };

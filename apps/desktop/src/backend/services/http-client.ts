@@ -13,6 +13,7 @@
  * connections are opened.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 
 // ============================================================================
@@ -284,9 +285,13 @@ class RobustHttpClient {
         if (response.status >= 502 && response.status <= 504) {
           if (attempt < retryOpts.maxRetries) {
             const delay = this.calculateDelay(attempt, retryOpts);
-            console.warn(
-              `⚠️ Server error ${response.status} from ${origin} (attempt ${attempt + 1}/${retryOpts.maxRetries + 1}). Retrying in ${delay}ms...`
-            );
+            logger.warn("Service:HTTP", "Server error, retrying", {
+              status: response.status,
+              origin,
+              attempt: attempt + 1,
+              maxAttempts: retryOpts.maxRetries + 1,
+              delayMs: delay,
+            });
             await sleep(delay);
             continue;
           }
@@ -312,9 +317,14 @@ class RobustHttpClient {
         const errorMsg = (error as Error).message || "Unknown error";
         const errorType = isTimeout ? "TIMEOUT" : errorCode || "NETWORK";
 
-        console.warn(
-          `⚠️ Request failed [${errorType}] to ${origin} (attempt ${attempt + 1}/${retryOpts.maxRetries + 1}). Retrying in ${delay}ms... Error: ${errorMsg}`
-        );
+        logger.warn("Service:HTTP", "Request failed, retrying", {
+          errorType,
+          origin,
+          attempt: attempt + 1,
+          maxAttempts: retryOpts.maxRetries + 1,
+          delayMs: delay,
+          message: errorMsg,
+        });
 
         await sleep(delay);
       }
@@ -389,7 +399,7 @@ class RobustHttpClient {
       if (Date.now() - state.lastFailure > CIRCUIT_BREAKER.resetTimeoutMs) {
         state.isOpen = false;
         state.failures = 0;
-        console.debug(`[HttpClient] Circuit breaker reset for ${origin}`);
+        logger.debug("Service:HTTP", "Circuit breaker reset", { origin });
         return false;
       }
       return true;
@@ -424,9 +434,10 @@ class RobustHttpClient {
 
     if (state.failures >= CIRCUIT_BREAKER.failureThreshold) {
       state.isOpen = true;
-      console.warn(
-        `[HttpClient] Circuit breaker OPEN for ${origin} after ${state.failures} failures`
-      );
+      logger.warn("Service:HTTP", "Circuit breaker OPEN", {
+        origin,
+        failures: state.failures,
+      });
     }
   }
 

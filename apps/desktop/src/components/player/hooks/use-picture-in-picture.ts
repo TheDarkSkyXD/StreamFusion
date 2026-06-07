@@ -1,5 +1,7 @@
 import { type RefObject, useCallback, useEffect, useState } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+
 export function usePictureInPicture(videoRef: RefObject<HTMLVideoElement | null>) {
   const [isPip, setIsPip] = useState(false);
 
@@ -30,7 +32,12 @@ export function usePictureInPicture(videoRef: RefObject<HTMLVideoElement | null>
         await video.requestPictureInPicture();
       }
     } catch (error) {
-      console.error("Failed to toggle Picture-in-Picture:", error);
+      logger.error("Player:Hook:PiP", "failed to toggle picture-in-picture", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   }, [videoRef]);
 

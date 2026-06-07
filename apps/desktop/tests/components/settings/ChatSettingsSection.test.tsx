@@ -41,8 +41,10 @@ describe('ChatSettingsSection', () => {
   it('toggling a switch writes chatDisplay with the spread preserved', async () => {
     renderWithProviders(<ChatSettingsSection only={['appearance']} />);
 
-    fireEvent.click(screen.getByText('Bold usernames').closest('div')!.parentElement!
-      .querySelector('[role="switch"]')!);
+    // Traverse to the outer SettingRow div (label <p> → inner text div → left
+     // container → outer flex row), where the Switch lives in the right slot.
+     const row = screen.getByText('Bold usernames').closest('div')!.parentElement!.parentElement!;
+     fireEvent.click(row.querySelector('[role="switch"]')!);
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
     const arg = updatePreferences.mock.calls[0][0] as {

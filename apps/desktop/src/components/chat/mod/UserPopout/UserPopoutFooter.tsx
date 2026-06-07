@@ -42,6 +42,7 @@ import {
   type ModActionType,
 } from "@/components/chat/mod/ModActionConfirmDialog";
 import { TimeoutDurationPicker } from "@/components/chat/mod/TimeoutDurationPicker";
+import { logger } from "@/renderer/logging/logger";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
 export interface UserPopoutFooterProps {
@@ -326,8 +327,7 @@ export function UserPopoutFooter({
 
   const handleWhisper = () => {
     // Plan defers actual whisper-send — the button just surfaces a toast.
-    // biome-ignore lint/suspicious/noConsole: surfacing deferred state for devs.
-    console.warn("Whisper not implemented");
+    logger.warn("UI:Chat:Mod:PopoutFooter", "whisper not implemented");
     toast.info("Whisper isn't wired yet");
   };
 

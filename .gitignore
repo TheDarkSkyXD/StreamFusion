@@ -101,3 +101,7 @@ reference/
 .playwright-cli/
 .playwright/
 .playwright-mcp/
+
+# StreamFusion log + bug-report directories (dev: repo-root; prod-win: install dir)
+/logs/
+/bug-reports/

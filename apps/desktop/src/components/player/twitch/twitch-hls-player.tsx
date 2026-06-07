@@ -11,6 +11,7 @@ import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
+import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -98,9 +99,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       }
       const timeSinceLastFrag = Date.now() - lastFragLoadedTimeRef.current;
       if (timeSinceLastFrag > 15000) {
-        console.debug(
-          `[TwitchHLS] No fragments in ${Math.round(timeSinceLastFrag / 1000)}s, checking stream...`
-        );
+        logger.debug("Player:Twitch:HLS", "no fragments, checking stream", {
+          secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
+        });
         try {
           hls.startLoad(-1);
         } catch {
@@ -118,7 +119,10 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       }
 
       try {
-        console.debug("[TwitchHLS] Periodic cleanup: resetting to live edge and trimming buffers");
+        logger.debug(
+          "Player:Twitch:HLS",
+          "periodic cleanup: resetting to live edge and trimming buffers"
+        );
 
         hls.startLevel = -1;
 
@@ -136,10 +140,10 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         const globalGc = (globalThis as unknown as { gc?: () => void }).gc;
         if (typeof globalGc === "function") {
           globalGc();
-          console.debug("[TwitchHLS] Forced garbage collection");
+          logger.debug("Player:Twitch:HLS", "forced garbage collection");
         }
       } catch (e) {
-        console.debug("[TwitchHLS] Cleanup error (non-fatal):", e);
+        logger.debug("Player:Twitch:HLS", "cleanup error (non-fatal)", { error: e });
       }
     }, memoryCleanupDelay);
 
@@ -194,7 +198,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           localStorage.setItem("twitch_adblock_device_id", deviceId);
         }
         setAuthHeaders(deviceId);
-        console.debug("[TwitchHlsPlayer] Ad-block initialized with device ID");
+        logger.debug("Player:Twitch:HLS", "ad-block initialized with device ID");
       }
 
       return () => {
@@ -231,7 +235,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       const hls = hlsRef.current;
       if (!video || !hls) return;
 
-      console.debug("[TwitchHlsPlayer] Ad-block triggered player reload");
+      logger.debug("Player:Twitch:HLS", "ad-block triggered player reload");
       // Restart from live edge
       hls.startLoad(-1);
     }, []);
@@ -240,7 +244,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       const video = videoRef.current;
       if (!video) return;
 
-      console.debug("[TwitchHlsPlayer] Ad-block triggered pause/resume");
+      logger.debug("Player:Twitch:HLS", "ad-block triggered pause/resume");
       if (!video.paused) {
         video.pause();
         // timer-allowlist: ad-block triggered video.play() retry delay (SP2 explicitly out-of-scope)
@@ -271,7 +275,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           hls.currentLevel = levelIndex;
         } else {
           // If levels aren't loaded yet, this might fail, but MANIFEST_PARSED handles initial set
-          console.warn(`[TwitchHlsPlayer] Invalid level index: ${levelIndex}`);
+          logger.warn("Player:Twitch:HLS", "invalid level index", { levelIndex });
         }
       }
     }, [currentLevel]);
@@ -320,16 +324,16 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
               if (!isEffectActive || currentRequestId !== playRequestIdRef.current) return;
 
               if (e.name === "AbortError") {
-                console.debug("[TwitchHLS] Play request interrupted");
+                logger.debug("Player:Twitch:HLS", "play request interrupted");
               } else if (e.name === "NotAllowedError") {
-                console.warn("[TwitchHLS] Autoplay blocked by browser policy");
+                logger.warn("Player:Twitch:HLS", "autoplay blocked by browser policy");
                 // Try muting and playing again
                 if (!video.muted) {
                   video.muted = true;
                   safePlay();
                 }
               } else {
-                console.error("[TwitchHLS] Playback failed:", e);
+                logger.error("Player:Twitch:HLS", "playback failed", { error: e });
               }
             });
         }, 50);
@@ -403,7 +407,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           hls.loadSource(src);
           hls.attachMedia(video);
         } catch (e) {
-          console.error("Error setting up HLS:", e);
+          logger.error("Player:Twitch:HLS", "error setting up HLS", { error: e });
         }
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
@@ -497,7 +501,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
             (data.networkDetails as any)?.status;
 
           if (data.details === "manifestLoadError" && (statusCode === 404 || statusCode === 403)) {
-            console.debug(`[TwitchHLS] Stream unavailable (${statusCode})`);
+            logger.debug("Player:Twitch:HLS", "stream unavailable", { statusCode });
             hls?.destroy();
             onErrorRef.current?.({
               code: "STREAM_OFFLINE",
@@ -510,10 +514,11 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
           const shouldLog = data.fatal || !silentErrors.includes(data.details);
           if (shouldLog) {
-            console.debug(
-              `[TwitchHLS] Error: ${data.details}, fatal: ${data.fatal}`,
-              statusCode ? `(status: ${statusCode})` : ""
-            );
+            logger.debug("Player:Twitch:HLS", "error", {
+              details: data.details,
+              fatal: data.fatal,
+              statusCode: statusCode ?? null,
+            });
           }
 
           if (data.fatal) {
@@ -527,13 +532,16 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
                 // Allow one recovery attempt every 8 seconds
                 if (!lastAttempt || now - lastAttempt > 8000) {
-                  console.debug("[TwitchHLS] Attempting network error recovery (startLoad)");
+                  logger.debug(
+                    "Player:Twitch:HLS",
+                    "attempting network error recovery (startLoad)"
+                  );
                   lastRecoveryAttemptRef.current = now;
                   try {
                     hls?.startLoad(-1);
                   } catch {
                     // HLS may be in invalid state, fall through to destroy
-                    console.debug("[TwitchHLS] Recovery failed, stream unavailable");
+                    logger.debug("Player:Twitch:HLS", "recovery failed, stream unavailable");
                     onErrorRef.current?.({
                       code: "STREAM_OFFLINE",
                       message: "Stream offline or unavailable",
@@ -544,7 +552,10 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                   }
                 } else {
                   // Already tried recovery recently, stream is likely truly offline
-                  console.debug("[TwitchHLS] Stream ended or unavailable (recovery exhausted)");
+                  logger.debug(
+                    "Player:Twitch:HLS",
+                    "stream ended or unavailable (recovery exhausted)"
+                  );
                   onErrorRef.current?.({
                     code: "STREAM_OFFLINE",
                     message: "Stream offline or unavailable",
@@ -559,7 +570,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                 const now = Date.now();
                 const lastAttempt = lastRecoveryAttemptRef.current;
                 if (!lastAttempt || now - lastAttempt > 5000) {
-                  console.debug("[TwitchHLS] Attempting media error recovery");
+                  logger.debug("Player:Twitch:HLS", "attempting media error recovery");
                   lastRecoveryAttemptRef.current = now;
                   hls?.recoverMediaError();
                 } else {
@@ -574,7 +585,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                 break;
               }
               default:
-                console.error("[TwitchHLS] Unrecoverable error", data);
+                logger.error("Player:Twitch:HLS", "unrecoverable error", { data });
                 onErrorRef.current?.({
                   code: "HLS_FATAL",
                   message: `Fatal HLS Error: ${data.details}`,
@@ -600,7 +611,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         });
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
-        console.debug("[TwitchHLS] Using native HLS");
+        logger.debug("Player:Twitch:HLS", "using native HLS");
         video.src = src;
         handleLoadedMetadata = () => {
           if (autoPlay && isMountedRef.current) safePlay();
@@ -617,7 +628,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         video.addEventListener("error", handleError);
       } else {
         // Standard playback
-        console.debug("[TwitchHLS] Using standard native playback");
+        logger.debug("Player:Twitch:HLS", "using standard native playback");
         handleLoadedMetadata = () => {
           if (autoPlay && isMountedRef.current) safePlay();
 

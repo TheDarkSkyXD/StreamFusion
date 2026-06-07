@@ -25,6 +25,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { BsReplyFill, BsXLg } from "react-icons/bs";
+import { logger } from "@/renderer/logging/logger";
 import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
 import type { Emote } from "../../backend/services/emotes/emote-types";
@@ -617,7 +618,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to send message";
         setError(errorMessage);
-        console.error("Failed to send message:", err);
+        logger.error("UI:Chat:Input", "failed to send message", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       } finally {
         setIsSending(false);
       }

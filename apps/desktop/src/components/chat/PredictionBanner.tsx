@@ -72,7 +72,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   useEffect(() => {
     if (isEnded) autoDismiss.start(ENDED_AUTO_DISMISS_MS);
     else autoDismiss.clear();
-  }, [isEnded, prediction.id, autoDismiss]);
+  }, [isEnded, autoDismiss]);
 
   return (
     <section
@@ -641,11 +641,11 @@ const TimeRemainingBar: React.FC<{
       aria-valuenow={Math.round(widthPct)}
       aria-valuemin={0}
       aria-valuemax={100}
-      className={"mt-2 w-full overflow-hidden rounded-full " + (thick ? "h-2" : "h-1")}
+      className={`mt-2 w-full overflow-hidden rounded-full ${thick ? "h-2" : "h-1"}`}
       style={{ backgroundColor: TW_TRACK }}
     >
       <div
-        className={"h-full transition-[width] duration-500 " + (canCountdown ? "ease-linear" : "")}
+        className={`h-full transition-[width] duration-500 ${canCountdown ? "ease-linear" : ""}`}
         style={{ width: `${widthPct}%`, backgroundColor: fillColor }}
       />
     </div>
@@ -754,8 +754,8 @@ function topOutcome(prediction: UnifiedPrediction): UnifiedPredictionOutcome | n
 }
 
 function short(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
   return n.toLocaleString();
 }
 

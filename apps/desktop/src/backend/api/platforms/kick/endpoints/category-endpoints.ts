@@ -1,3 +1,4 @@
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import type { UnifiedCategory } from "../../../unified/platform-types";
 import type { KickRequestor } from "../kick-requestor";
@@ -142,7 +143,12 @@ async function getPublicTopCategories(): Promise<PaginatedResult<UnifiedCategory
     const categories = await getPublicCategoryList();
     return { data: categories };
   } catch (error) {
-    console.error("Failed to fetch public Kick categories:", error);
+    logger.error("Kick:Endpoints:Category", "Failed to fetch public Kick categories", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return { data: [] };
   }
 }
@@ -193,9 +199,15 @@ export async function getTopCategories(
 
     return { data: categories };
   } catch (error) {
-    console.warn(
-      "Failed to fetch Kick top categories via official API, falling back to public:",
-      error
+    logger.warn(
+      "Kick:Endpoints:Category",
+      "Failed to fetch top categories via official API; falling back to public",
+      {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      }
     );
     // Fallback to public API (no auth required)
     return getPublicTopCategories();
@@ -241,7 +253,12 @@ export async function searchCategories(
       nextPage: categories.length >= 100 ? (options.page || 1) + 1 : undefined,
     };
   } catch (error) {
-    console.error("Failed to search Kick categories:", error);
+    logger.error("Kick:Endpoints:Category", "Failed to search Kick categories", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return { data: [] };
   }
 }
@@ -273,7 +290,16 @@ export async function getCategoryById(
     }
     return null;
   } catch (error) {
-    console.warn("Failed to fetch Kick category via official API, falling back to public:", error);
+    logger.warn(
+      "Kick:Endpoints:Category",
+      "Failed to fetch Kick category via official API; falling back to public",
+      {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      }
+    );
     const publicResult = await getPublicTopCategories();
     return publicResult.data.find((c) => c.id === id) || null;
   }
@@ -343,14 +369,26 @@ export async function getAllCategories(client: KickRequestor): Promise<UnifiedCa
           await sleep(300);
         }
       } catch (err) {
-        console.warn(`Failed to fetch Kick streams at offset ${offset}:`, err);
+        logger.warn("Kick:Endpoints:Category", "Failed to fetch Kick streams at offset", {
+          offset,
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         // Continue with next offset
       }
     }
   } catch (error) {
-    console.warn(
-      "Failed to fetch all Kick categories via official API, falling back to public:",
-      error
+    logger.warn(
+      "Kick:Endpoints:Category",
+      "Failed to fetch all Kick categories via official API; falling back to public",
+      {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      }
     );
     // Fallback to public API
     const publicResult = await getPublicTopCategories();
@@ -359,7 +397,10 @@ export async function getAllCategories(client: KickRequestor): Promise<UnifiedCa
 
   // If official API returned nothing, try fallback
   if (categoryMap.size === 0) {
-    console.warn("Official API returned no categories, using public fallback");
+    logger.warn(
+      "Kick:Endpoints:Category",
+      "Official API returned no categories; using public fallback"
+    );
     const publicResult = await getPublicTopCategories();
     return publicResult.data;
   }

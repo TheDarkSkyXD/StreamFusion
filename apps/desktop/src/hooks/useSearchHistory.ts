@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+
 const STORAGE_KEY = "streamfusion_search_history";
 const MAX_HISTORY_ITEMS = 10;
 
@@ -14,7 +16,12 @@ export function useSearchHistory() {
         setHistory(JSON.parse(stored));
       }
     } catch (error) {
-      console.error("Failed to load search history:", error);
+      logger.error("Hook:SearchHistory", "failed to load search history", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   }, []);
 

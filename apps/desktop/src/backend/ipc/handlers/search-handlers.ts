@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
@@ -117,14 +118,19 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
               data: null,
               timestamp: now,
             });
-            console.debug(
-              `[ChannelVerify] Twitch channel "${login}" does not exist (deleted account)`
-            );
+            logger.debug("IPC:Search", "Twitch channel does not exist (deleted account)", {
+              login,
+            });
           }
         }
       }
     } catch (error) {
-      console.warn("[ChannelVerify] Failed to fetch Twitch channels:", error);
+      logger.warn("IPC:Search", "Failed to fetch Twitch channels", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       // On error, include original channels without enrichment
       for (const { login, originalChannel } of loginsToFetch) {
         enrichedChannels.set(login.toLowerCase(), originalChannel);
@@ -218,7 +224,7 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
 
       if (!fetchedChannel) {
         kickChannelDataCache.set(slugLower, { data: null, timestamp: now });
-        console.debug(`[ChannelVerify] Kick channel "${slug}" does not exist (deleted account)`);
+        logger.debug("IPC:Search", "Kick channel does not exist (deleted account)", { slug });
         continue;
       }
 
@@ -250,7 +256,12 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
       enrichedChannels.set(slugLower, merged);
     }
   } catch (error) {
-    console.warn("[ChannelVerify] Failed to fetch Kick channels batch:", error);
+    logger.warn("IPC:Search", "Failed to fetch Kick channels batch", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     for (const { slug, originalChannel } of slugsToFetch) {
       enrichedChannels.set(slug.toLowerCase(), originalChannel);
     }
@@ -344,7 +355,12 @@ export function registerSearchHandlers(): void {
 
               return { platform: "twitch" as Platform, data: channels, cursor: result.cursor };
             })().catch((err) => {
-              console.warn("⚠️ Failed to search Twitch channels:", err);
+              logger.warn("IPC:Search", "Failed to search Twitch channels", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
               return { platform: "twitch" as Platform, data: [] };
             })
           );
@@ -354,12 +370,16 @@ export function registerSearchHandlers(): void {
         if ((!params.platform || params.platform === "kick") && !params.after) {
           searchPromises.push(
             (async () => {
-              console.debug(`[SearchHandler] Searching Kick for "${params.query}"`);
+              logger.debug("IPC:Search", "Searching Kick", { query: params.query });
               const result = await kickClient.searchChannels(params.query);
-              console.debug(`[SearchHandler] Kick returned ${result.data.length} raw results`);
+              logger.debug("IPC:Search", "Kick returned raw results", {
+                count: result.data.length,
+              });
 
               let channels = result.data.filter(isValidChannel);
-              console.debug(`[SearchHandler] Kick after validation: ${channels.length} channels`);
+              logger.debug("IPC:Search", "Kick channels after validation", {
+                count: channels.length,
+              });
 
               if (kickUser) {
                 channels = channels.filter((c) => {
@@ -376,10 +396,17 @@ export function registerSearchHandlers(): void {
                 channels = await filterVerifiedChannels(channels, "kick");
               }
 
-              console.debug(`[SearchHandler] Kick final: ${channels.length} channels`);
+              logger.debug("IPC:Search", "Kick final channels", {
+                count: channels.length,
+              });
               return { platform: "kick" as Platform, data: channels };
             })().catch((err) => {
-              console.warn("⚠️ Failed to search Kick channels:", err);
+              logger.warn("IPC:Search", "Failed to search Kick channels", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
               return { platform: "kick" as Platform, data: [] };
             })
           );
@@ -390,14 +417,17 @@ export function registerSearchHandlers(): void {
 
         // Log results per platform
         for (const r of results) {
-          console.debug(
-            `[SearchHandler] Platform ${r.platform} returned ${r.data.length} channels`
-          );
+          logger.debug("IPC:Search", "Platform returned channels", {
+            platform: r.platform,
+            count: r.data.length,
+          });
         }
 
         if (!params.platform) {
           const allChannels = results.flatMap((r) => r.data);
-          console.debug(`[SearchHandler] Combined total: ${allChannels.length} channels`);
+          logger.debug("IPC:Search", "Combined total channels", {
+            count: allChannels.length,
+          });
 
           // Sort by: Live status first, then relevance (Exact match -> Starts with -> Others)
           allChannels.sort((a, b) => {
@@ -427,16 +457,22 @@ export function registerSearchHandlers(): void {
           });
 
           const twitchCursor = results.find((r) => r.platform === "twitch")?.cursor;
-          console.debug(
-            `[SearchHandler] Returning ${allChannels.length} channels (cursor: ${twitchCursor ?? "none"})`
-          );
+          logger.debug("IPC:Search", "Returning channels", {
+            count: allChannels.length,
+            cursor: twitchCursor ?? null,
+          });
           return { success: true, data: allChannels, cursor: twitchCursor };
         }
 
         const { platform: _p, ...rest } = results[0];
         return { success: true, ...rest };
       } catch (error) {
-        console.error("❌ Failed to search channels:", error);
+        logger.error("IPC:Search", "Failed to search channels", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return { success: false, error: error instanceof Error ? error.message : "Search failed" };
       }
     }
@@ -509,7 +545,12 @@ export function registerSearchHandlers(): void {
 
             results.categories.push(...categoryResult.data);
           } catch (err) {
-            console.warn("⚠️ Failed to search Twitch:", err);
+            logger.warn("IPC:Search", "Failed to search Twitch", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
         }
 
@@ -562,7 +603,12 @@ export function registerSearchHandlers(): void {
               );
             }
           } catch (err) {
-            console.warn("⚠️ Failed to search Kick:", err);
+            logger.warn("IPC:Search", "Failed to search Kick", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
         }
 
@@ -589,7 +635,12 @@ export function registerSearchHandlers(): void {
 
         return { success: true, data: results };
       } catch (error) {
-        console.error("❌ Full search failed:", error);
+        logger.error("IPC:Search", "Full search failed", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return { success: false, error: error instanceof Error ? error.message : "Search failed" };
       }
     }

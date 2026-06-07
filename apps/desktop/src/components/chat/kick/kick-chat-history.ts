@@ -16,6 +16,7 @@
  *   KickTalk uses with its `is_old` flag.
  */
 
+import { logger } from "@/renderer/logging/logger";
 import { kickPinToNormalized } from "../../../backend/services/chat/kick-chat";
 import {
   type KickChatMessageEvent,
@@ -109,6 +110,8 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
       onPinnedMessage(kickPinToNormalized(rawPinned as KickPinnedMessage));
     }
   } catch (error) {
-    console.debug("[seedKickChatHistory] failed:", error);
+    logger.debug("UI:Chat:KickHistory", "seed failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

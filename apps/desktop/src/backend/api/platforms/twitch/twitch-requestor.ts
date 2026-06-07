@@ -1,3 +1,4 @@
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
@@ -10,8 +11,9 @@ export class TwitchRequestor {
 
   constructor() {
     if (!this.config.clientId) {
-      console.error(
-        "❌ TWITCH_CLIENT_ID is missing! Twitch API requests will fail. Check .env or build configuration."
+      logger.error(
+        "Twitch:Requestor",
+        "TWITCH_CLIENT_ID is missing! Twitch API requests will fail. Check .env or build configuration."
       );
     }
   }
@@ -154,13 +156,13 @@ export class TwitchRequestor {
             message: "Rate limited by Twitch API",
             retryAfter,
           };
-          console.warn(`⚠️ Twitch API rate limited, retry after ${retryAfter}s`);
+          logger.warn("Twitch:Requestor", "Twitch API rate limited", { retryAfter });
           throw error;
         }
 
         // Handle unauthorized (try token refresh)
         if (response.status === 401) {
-          console.debug("🔄 Token expired, refreshing...");
+          logger.debug("Twitch:Requestor", "Token expired, refreshing");
           const refreshed = await twitchAuthService.refreshToken();
           if (refreshed) {
             // Retry the request with new token
@@ -173,9 +175,12 @@ export class TwitchRequestor {
         if (response.status >= 502 && response.status <= 504) {
           if (attempt < this.MAX_RETRIES) {
             const delay = this.BASE_DELAY * 2 ** attempt;
-            console.warn(
-              `⚠️ Twitch API server error ${response.status} (attempt ${attempt + 1}/${this.MAX_RETRIES + 1}). Retrying in ${delay}ms...`
-            );
+            logger.warn("Twitch:Requestor", "Twitch API server error, retrying", {
+              status: response.status,
+              attempt: attempt + 1,
+              maxAttempts: this.MAX_RETRIES + 1,
+              delayMs: delay,
+            });
             await sleep(delay);
             continue;
           }
@@ -193,15 +198,24 @@ export class TwitchRequestor {
 
         // Don't retry non-retryable errors or if we've exhausted retries
         if (!isRetryable || attempt === this.MAX_RETRIES) {
-          console.error(`❌ Twitch API request failed: ${endpoint}`, error);
+          logger.error("Twitch:Requestor", "Twitch API request failed", {
+            endpoint,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
           throw error;
         }
 
         const delay = this.BASE_DELAY * 2 ** attempt;
         const errorMsg = (error as Error).message || "Unknown error";
-        console.warn(
-          `⚠️ Twitch API request failed (attempt ${attempt + 1}/${this.MAX_RETRIES + 1}). Retrying in ${delay}ms... Error: ${errorMsg}`
-        );
+        logger.warn("Twitch:Requestor", "Twitch API request failed, retrying", {
+          attempt: attempt + 1,
+          maxAttempts: this.MAX_RETRIES + 1,
+          delayMs: delay,
+          errorMessage: errorMsg,
+        });
         await sleep(delay);
       }
     }

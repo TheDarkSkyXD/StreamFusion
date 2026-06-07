@@ -4,6 +4,7 @@ import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
+import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import {
@@ -207,6 +208,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const currentChannelIdRef = useRef<string | null>(null);
 
   // Initial Connection & Channel Joining
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadGlobalEmotes, setActiveChannel, and applyProviderPrefs are intentionally excluded — they would re-trigger the connect effect; applyProviderPrefs is called with an imperative getState() read inside the body to avoid making it reactive.
   useEffect(() => {
     // Use AbortController pattern for cleanup with React Strict Mode
     let isMounted = true;
@@ -348,7 +350,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Failed to connect Twitch chat:", error);
+          logger.error("UI:Chat:Twitch", "failed to connect Twitch chat", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     };
@@ -374,10 +378,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       useChatStore.getState().cleanupBatching();
       currentChannelRef.current = null;
     };
-    // loadGlobalEmotes and setActiveChannel are intentionally excluded from deps
-    // to prevent chat reconnection when these store functions change. Global emotes are loaded once during initial connection,
-    // and channel emotes are handled in a separate effect below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     channel,
     clearMessages,
@@ -454,7 +454,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("Failed to swap Twitch chat identity:", err);
+          logger.error("UI:Chat:Twitch", "failed to swap Twitch chat identity", {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
     })();
@@ -609,7 +611,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     };
 
     const handleError = (error: Error) => {
-      console.error("Twitch Chat Error:", error);
+      logger.error("UI:Chat:Twitch", "twitch chat error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     };
 
     const handlePinnedMessage = (pin: NormalizedPinnedMessage) => {
@@ -780,7 +784,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                     }
                   } catch (error) {
                     if (process.env.NODE_ENV !== "production") {
-                      console.error("Unpin failed:", error);
+                      logger.error("UI:Chat:Twitch", "unpin failed", {
+                        error: error instanceof Error ? error.message : String(error),
+                      });
                     }
                   }
                 }
@@ -937,10 +943,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               <BsGear size={16} />
             </button>
             {showChatSettings && (
-              <ChatQuickSettingsPopover
-                onClose={() => setShowChatSettings(false)}
-                onClearChat={() => clearMessages()}
-              />
+              <ChatQuickSettingsPopover onClose={() => setShowChatSettings(false)} />
             )}
           </div>
         </div>

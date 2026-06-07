@@ -17,6 +17,7 @@ import {
 } from "@shared/adblock-types";
 import Store from "electron-store";
 
+import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 
 // ========== Constants ==========
@@ -54,7 +55,7 @@ class VaftPatternService {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.debug("[VaftPatterns] Already initialized");
+      logger.debug("Service:Vaft", "Already initialized");
       return;
     }
 
@@ -69,7 +70,7 @@ class VaftPatternService {
       } as ConstructorParameters<typeof Store<PatternStoreSchema>>[0]);
     }
 
-    console.debug("[VaftPatterns] Initializing pattern service...");
+    logger.debug("Service:Vaft", "Initializing pattern service");
 
     // Check if we need to update on startup
     const stored = this.getStoredPatterns();
@@ -77,12 +78,12 @@ class VaftPatternService {
     const timeSinceCheck = Date.now() - lastChecked;
 
     if (timeSinceCheck > UPDATE_INTERVAL_MS) {
-      console.debug("[VaftPatterns] Patterns are stale, fetching updates...");
+      logger.debug("Service:Vaft", "Patterns are stale, fetching updates");
       await this.fetchAndUpdatePatterns();
     } else {
-      console.debug(
-        `[VaftPatterns] Patterns are fresh (checked ${Math.round(timeSinceCheck / 3600000)}h ago)`
-      );
+      logger.debug("Service:Vaft", "Patterns are fresh", {
+        hoursSinceCheck: Math.round(timeSinceCheck / 3600000),
+      });
     }
 
     // Schedule periodic updates
@@ -130,24 +131,24 @@ class VaftPatternService {
   async fetchAndUpdatePatterns(): Promise<AdPatternUpdate | null> {
     // Rate limit checks
     if (Date.now() - this.lastCheckTime < MIN_CHECK_INTERVAL_MS) {
-      console.debug("[VaftPatterns] Skipping check (rate limited)");
+      logger.debug("Service:Vaft", "Skipping check (rate limited)");
       return this.getCurrentPatterns();
     }
 
     this.lastCheckTime = Date.now();
 
     try {
-      console.debug("[VaftPatterns] Fetching patterns from VAFT repository...");
+      logger.debug("Service:Vaft", "Fetching patterns from VAFT repository");
 
       // Try primary URL first, then backup
       let script = await this.fetchScript(VAFT_SCRIPT_URL);
       if (!script) {
-        console.debug("[VaftPatterns] Primary URL failed, trying backup...");
+        logger.debug("Service:Vaft", "Primary URL failed, trying backup");
         script = await this.fetchScript(VAFT_BACKUP_URL);
       }
 
       if (!script) {
-        console.warn("[VaftPatterns] Failed to fetch VAFT script from all sources");
+        logger.warn("Service:Vaft", "Failed to fetch VAFT script from all sources");
         return null;
       }
 
@@ -162,16 +163,21 @@ class VaftPatternService {
           autoUpdateEnabled: this.storeInstance.get("adPatterns").autoUpdateEnabled,
         });
 
-        console.debug(`[VaftPatterns] Updated to version ${patterns.version}`);
-        console.debug(`[VaftPatterns] DATERANGE patterns: ${patterns.dateRangePatterns.length}`);
-        console.debug(
-          `[VaftPatterns] Backup player types: ${patterns.backupPlayerTypes.join(", ")}`
-        );
+        logger.debug("Service:Vaft", "Updated patterns", {
+          version: patterns.version,
+          dateRangePatternCount: patterns.dateRangePatterns.length,
+          backupPlayerTypes: patterns.backupPlayerTypes,
+        });
 
         return patterns;
       }
     } catch (error) {
-      console.error("[VaftPatterns] Error fetching patterns:", error);
+      logger.error("Service:Vaft", "Error fetching patterns", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
 
     return null;
@@ -191,16 +197,25 @@ class VaftPatternService {
       });
 
       if (!response.ok) {
-        console.debug(`[VaftPatterns] HTTP ${response.status} from ${url}`);
+        logger.debug("Service:Vaft", "HTTP error fetching script", {
+          url,
+          status: response.status,
+        });
         return null;
       }
 
       return await response.text();
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        console.debug(`[VaftPatterns] Timeout fetching ${url}`);
+        logger.debug("Service:Vaft", "Timeout fetching script", { url });
       } else {
-        console.debug(`[VaftPatterns] Error fetching ${url}:`, error);
+        logger.debug("Service:Vaft", "Error fetching script", {
+          url,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
       return null;
     }
@@ -264,7 +279,12 @@ class VaftPatternService {
         source: VAFT_SCRIPT_URL,
       };
     } catch (error) {
-      console.error("[VaftPatterns] Error parsing VAFT script:", error);
+      logger.error("Service:Vaft", "Error parsing VAFT script", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return null;
     }
   }

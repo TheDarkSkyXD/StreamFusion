@@ -4,6 +4,7 @@ import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
+import { logger } from "@/renderer/logging/logger";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import {
   banKickUser,
@@ -365,7 +366,9 @@ export const KickChat: React.FC<KickChatProps> = ({
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Failed to connect Kick chat:", error);
+          logger.error("UI:Chat:Kick", "failed to connect Kick chat", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     };
@@ -465,7 +468,9 @@ export const KickChat: React.FC<KickChatProps> = ({
         await kickChatService.joinChannel(channel, chatroomId, broadcasterUserId);
       } catch (err) {
         if (!cancelled) {
-          console.error("Failed to swap Kick chat identity:", err);
+          logger.error("UI:Chat:Kick", "failed to swap Kick chat identity", {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
     })();
@@ -480,6 +485,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   // leaves the previous banner stuck on screen — no "nothing here" signal
   // fires for the new channel to overwrite the stale React state. Local
   // state is keyed only to the React tree, not the channel.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `channel` is the trigger that fires this reset; it isn't read in the body by design
   useEffect(() => {
     setPinnedMessage(null);
     setShowPinned(true);
@@ -615,7 +621,9 @@ export const KickChat: React.FC<KickChatProps> = ({
     };
 
     const handleError = (error: Error) => {
-      console.error("Kick Chat Error:", error);
+      logger.error("UI:Chat:Kick", "kick chat error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     };
 
     const handlePinnedMessage = (msg: NormalizedPinnedMessage) => {
@@ -760,7 +768,9 @@ export const KickChat: React.FC<KickChatProps> = ({
                     }
                   } catch (error) {
                     if (process.env.NODE_ENV !== "production") {
-                      console.error("Kick unpin failed:", error);
+                      logger.error("UI:Chat:Kick", "kick unpin failed", {
+                        error: error instanceof Error ? error.message : String(error),
+                      });
                     }
                   }
                 }
@@ -905,10 +915,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               <BsGear size={16} />
             </button>
             {showChatSettings && (
-              <ChatQuickSettingsPopover
-                onClose={() => setShowChatSettings(false)}
-                onClearChat={() => clearMessages()}
-              />
+              <ChatQuickSettingsPopover onClose={() => setShowChatSettings(false)} />
             )}
           </div>
         </div>

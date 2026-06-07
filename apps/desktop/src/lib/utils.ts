@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "../shared/auth-types";
 
 /**
@@ -156,7 +157,7 @@ export function formatUptime(startedAt: string | undefined | null): string {
 
   // Final robustness check: if still invalid after UTC fallback, return safe default
   if (Number.isNaN(start.getTime())) {
-    console.warn(`[formatUptime] Unable to parse date: ${startedAt}`);
+    logger.warn("Lib:Utils", "unable to parse date in formatUptime", { startedAt });
     return "0:00:00";
   }
 

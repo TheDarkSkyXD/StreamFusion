@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { logger } from "@/renderer/logging/logger";
+
 import type { UnifiedStream } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
@@ -57,7 +59,9 @@ export function useFollowedStreams(
       if (response.error) {
         // If it fails (e.g. auth error, network), we just return empty list so UI doesn't break
         // But logging it is good
-        console.warn(`Failed to fetch followed streams:`, response.error);
+        logger.warn("Hook:Queries:Streams", "failed to fetch followed streams", {
+          error: response.error,
+        });
         return [];
       }
       return response.data as UnifiedStream[];

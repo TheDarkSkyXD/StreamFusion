@@ -10,7 +10,7 @@
  */
 
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
-import { BrowserWindow, session } from "electron";
+import { BrowserWindow } from "electron";
 
 import { sleep } from "@/lib/sleep";
 

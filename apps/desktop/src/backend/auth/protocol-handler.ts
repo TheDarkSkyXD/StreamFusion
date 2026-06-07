@@ -7,6 +7,7 @@
 
 import { app, BrowserWindow } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../shared/auth-types";
 
 import { PROTOCOL_PREFIX, PROTOCOL_SCHEME } from "./oauth-config";
@@ -36,7 +37,7 @@ class ProtocolHandler {
    */
   registerProtocol(): boolean {
     if (this.isRegistered) {
-      console.debug("🔗 Protocol already registered");
+      logger.debug("Auth:Protocol", "Protocol already registered");
       return true;
     }
 
@@ -54,14 +55,19 @@ class ProtocolHandler {
       }
 
       this.isRegistered = true;
-      console.debug(`✅ Registered protocol: ${PROTOCOL_SCHEME}://`);
+      logger.debug("Auth:Protocol", "Registered protocol", { scheme: `${PROTOCOL_SCHEME}://` });
 
       // Handle protocol URLs on Windows and Linux
       this.setupProtocolUrlHandler();
 
       return true;
     } catch (error) {
-      console.error("❌ Failed to register protocol:", error);
+      logger.error("Auth:Protocol", "Failed to register protocol", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return false;
     }
   }
@@ -73,7 +79,7 @@ class ProtocolHandler {
     if (this.isRegistered) {
       app.removeAsDefaultProtocolClient(PROTOCOL_SCHEME);
       this.isRegistered = false;
-      console.debug(`🗑️ Unregistered protocol: ${PROTOCOL_SCHEME}://`);
+      logger.debug("Auth:Protocol", "Unregistered protocol", { scheme: `${PROTOCOL_SCHEME}://` });
     }
   }
 
@@ -128,7 +134,7 @@ class ProtocolHandler {
    * Parses the URL and calls the appropriate callback handler
    */
   handleProtocolUrl(url: string): void {
-    console.debug(`📥 Received protocol URL: ${url}`);
+    logger.debug("Auth:Protocol", "Received protocol URL", { url });
 
     try {
       const parsed = new URL(url);
@@ -137,7 +143,7 @@ class ProtocolHandler {
       const pathParts = parsed.pathname.split("/").filter(Boolean);
 
       if (pathParts.length < 2 || pathParts[0] !== "auth") {
-        console.warn("⚠️ Invalid protocol URL path:", parsed.pathname);
+        logger.warn("Auth:Protocol", "Invalid protocol URL path", { pathname: parsed.pathname });
         return;
       }
 
@@ -145,7 +151,7 @@ class ProtocolHandler {
 
       // Validate platform
       if (platform !== "twitch" && platform !== "kick") {
-        console.warn("⚠️ Unknown platform in callback:", platform);
+        logger.warn("Auth:Protocol", "Unknown platform in callback", { platform });
         return;
       }
 
@@ -165,7 +171,11 @@ class ProtocolHandler {
 
       // Check for errors from OAuth provider
       if (callback.error) {
-        console.error(`❌ OAuth error for ${platform}:`, callback.error, callback.errorDescription);
+        logger.error("Auth:Protocol", "OAuth error", {
+          platform,
+          error: callback.error,
+          errorDescription: callback.errorDescription,
+        });
       }
 
       // Call the registered handler for this platform
@@ -173,10 +183,15 @@ class ProtocolHandler {
       if (handler) {
         handler(callback);
       } else {
-        console.warn(`⚠️ No handler registered for platform: ${platform}`);
+        logger.warn("Auth:Protocol", "No handler registered for platform", { platform });
       }
     } catch (error) {
-      console.error("❌ Failed to parse protocol URL:", error);
+      logger.error("Auth:Protocol", "Failed to parse protocol URL", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   }
 
@@ -185,7 +200,7 @@ class ProtocolHandler {
    */
   onCallback(platform: Platform, handler: OAuthCallbackHandler): void {
     this.callbackHandlers.set(platform, handler);
-    console.debug(`📝 Registered callback handler for ${platform}`);
+    logger.debug("Auth:Protocol", "Registered callback handler", { platform });
   }
 
   /**

@@ -1,3 +1,4 @@
+import { logger } from "@/backend/logging/logger";
 import type { UnifiedCategory } from "../../../unified/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
 import { transformTwitchCategory } from "../twitch-transformers";
@@ -104,7 +105,7 @@ export async function getAllTopCategories(client: TwitchRequestor): Promise<Unif
 
     // Safety valve to prevent runaway loops if the API misbehaves.
     if (allCategories.length >= 5000) {
-      console.warn("⚠️ Twitch category fetch hit safety limit (5000)");
+      logger.warn("Twitch:Endpoints:Category", "Twitch category fetch hit safety limit (5000)");
       break;
     }
   }

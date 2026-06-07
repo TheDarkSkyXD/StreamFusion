@@ -1,4 +1,5 @@
 import { BrowserWindow } from "electron";
+import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
 import { isNetworkLikelyDown } from "../kick-network-health";
@@ -102,7 +103,17 @@ export async function getChannel(
       return publicChannel;
     }
   } catch (error) {
-    console.warn(`[Kick] Public API failed for channel ${slug}, trying authenticated API:`, error);
+    logger.warn(
+      "Kick:Endpoints:Channel",
+      "Public API failed for channel; trying authenticated API",
+      {
+        slug,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      }
+    );
   }
 
   // Fallback to official API only if public API fails
@@ -119,9 +130,13 @@ export async function getChannel(
         // CRITICAL: Multi-field validation to ensure we got the correct channel
         // Check both slug AND that it's not empty/null
         if (!apiChannel.slug || apiChannel.slug.toLowerCase() !== normalizedSlug) {
-          console.warn(
-            `[Kick] API identity mismatch: requested "${slug}", got "${apiChannel.slug || "null"}". ` +
-              `This indicates a Kick API bug. Rejecting response.`
+          logger.warn(
+            "Kick:Endpoints:Channel",
+            "API identity mismatch; rejecting response (Kick API bug)",
+            {
+              requestedSlug: slug,
+              returnedSlug: apiChannel.slug || "null",
+            }
           );
           return null;
         }
@@ -130,9 +145,13 @@ export async function getChannel(
 
         // Validate transformed channel data
         if (channel.username.toLowerCase() !== normalizedSlug) {
-          console.warn(
-            `[Kick] Post-transform validation failed: channel username "${channel.username}" ` +
-              `doesn't match requested slug "${slug}". Rejecting.`
+          logger.warn(
+            "Kick:Endpoints:Channel",
+            "Post-transform validation failed; channel username does not match requested slug; rejecting",
+            {
+              channelUsername: channel.username,
+              requestedSlug: slug,
+            }
           );
           return null;
         }
@@ -142,7 +161,10 @@ export async function getChannel(
         try {
           const channelIdNum = parseInt(channel.id, 10);
           if (Number.isNaN(channelIdNum)) {
-            console.warn(`[Kick] Invalid channel ID "${channel.id}" for ${slug}`);
+            logger.warn("Kick:Endpoints:Channel", "Invalid channel ID", {
+              channelId: channel.id,
+              slug,
+            });
           } else {
             const users = await getUsersById(client, [channelIdNum]);
             if (users.length > 0) {
@@ -158,16 +180,24 @@ export async function getChannel(
                   channel.displayName = user.name;
                 }
               } else {
-                console.warn(
-                  `[Kick] User ID mismatch for channel ${slug}: ` +
-                    `fetched user ID ${user.user_id}, expected ${channel.id}. ` +
-                    `Skipping user data enrichment.`
+                logger.warn(
+                  "Kick:Endpoints:Channel",
+                  "User ID mismatch for channel; skipping user data enrichment",
+                  {
+                    slug,
+                    fetchedUserId: user.user_id,
+                    expectedChannelId: channel.id,
+                  }
                 );
               }
             }
           }
         } catch (e) {
-          console.debug(`Failed to enrich user info for channel ${slug}:`, e);
+          logger.debug("Kick:Endpoints:Channel", "Failed to enrich user info for channel", {
+            slug,
+            error:
+              e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+          });
           // Not critical - channel data is still valid without user enrichment
         }
 
@@ -181,7 +211,13 @@ export async function getChannel(
       }
     }
   } catch (error) {
-    console.warn(`[Kick] Authenticated API failed for channel ${slug}:`, error);
+    logger.warn("Kick:Endpoints:Channel", "Authenticated API failed for channel", {
+      slug,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
   }
 
   // Both APIs failed
@@ -209,7 +245,12 @@ export async function getChannelsBySlugs(
 
     return (response.data || []).map(transformKickChannel);
   } catch (error) {
-    console.error("Failed to fetch Kick channels:", error);
+    logger.error("Kick:Endpoints:Channel", "Failed to fetch Kick channels", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return [];
   }
 }
@@ -337,7 +378,7 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
         `);
 
     if (!pageContent) {
-      console.warn(`[KickChannel] Empty response for ${slug}`);
+      logger.warn("Kick:Endpoints:Channel", "Empty response for slug", { slug });
       return null;
     }
 
@@ -349,7 +390,10 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       pageContentLower.includes("bad gateway") ||
       pageContentLower.includes("service unavailable")
     ) {
-      console.warn(`[KickChannel] Server error for ${slug}: ${pageContent.substring(0, 100)}`);
+      logger.warn("Kick:Endpoints:Channel", "Server error for slug", {
+        slug,
+        contentPreview: pageContent.substring(0, 100),
+      });
       return null;
     }
 
@@ -360,13 +404,14 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       // Check for Cloudflare challenge or error pages
       const title = win.title;
       if (title.includes("Just a moment") || title.includes("Access denied")) {
-        console.warn(`[KickChannel] Cloudflare challenge triggered for ${slug}`);
+        logger.warn("Kick:Endpoints:Channel", "Cloudflare challenge triggered", { slug });
       } else if (pageContent.includes("404")) {
         return null;
       }
-      console.warn(
-        `[KickChannel] Failed to parse JSON for ${slug}. Content preview: ${pageContent.substring(0, 100)}`
-      );
+      logger.warn("Kick:Endpoints:Channel", "Failed to parse JSON", {
+        slug,
+        contentPreview: pageContent.substring(0, 100),
+      });
       return null;
     }
 
@@ -409,14 +454,15 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
     // numeric id that silently failed against those endpoints.
     const userId = data.id || data.user_id;
     if (!userId) {
-      console.warn(`[KickChannel] Missing user_id/id for ${slug}`);
+      logger.warn("Kick:Endpoints:Channel", "Missing user_id/id for slug", { slug });
       return null;
     }
 
     // Extract chatroom ID for Pusher WebSocket subscription
     const chatroomId = data.chatroom?.id;
     const chatroomSettings = mapKickChatroomToSettings(data.chatroom);
-    console.debug(`[KickChannel] Extracted for ${slug}:`, {
+    logger.debug("Kick:Endpoints:Channel", "Extracted channel data", {
+      slug,
       userId,
       chatroomId,
       hasChatroom: !!data.chatroom,
@@ -474,10 +520,25 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
     // fault — don't penalise it with a 5-minute lockout. Re-check after the
     // failure since the crash event may have fired during loadURL.
     networkBlip = isNetworkLikelyDown();
+    const errorMeta = {
+      slug,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    };
     if (_publicChannelWarnedSlugs.has(key) || networkBlip) {
-      console.debug(`Failed to fetch public Kick channel ${slug} via Window:`, error);
+      logger.debug(
+        "Kick:Endpoints:Channel",
+        "Failed to fetch public Kick channel via Window",
+        errorMeta
+      );
     } else {
-      console.warn(`Failed to fetch public Kick channel ${slug} via Window:`, error);
+      logger.warn(
+        "Kick:Endpoints:Channel",
+        "Failed to fetch public Kick channel via Window",
+        errorMeta
+      );
       _publicChannelWarnedSlugs.add(key);
     }
     return null;

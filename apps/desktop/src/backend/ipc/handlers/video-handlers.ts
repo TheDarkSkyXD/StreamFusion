@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { KickStreamResolver } from "../../api/platforms/kick/kick-stream-resolver";
@@ -204,22 +205,30 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
       let outputCursor: string | undefined;
 
       if (cutoffMs === null) {
-        console.debug(
-          `[TwitchClip] Fetching clips via GQL for channel: ${channelLogin} with filter: ${gqlFilter}`
-        );
+        logger.debug("IPC:Video", "Fetching Twitch clips via GQL", {
+          channelLogin,
+          gqlFilter,
+        });
         const clips = await twitchClient.getClipsByChannel(channelLogin, {
           first: params.limit,
           after: params.cursor,
           filter: gqlFilter,
         });
-        console.debug(`[TwitchClip] Fetched ${clips.data.length} clips for ${channelLogin} (GQL)`);
+        logger.debug("IPC:Video", "Fetched Twitch clips (GQL)", {
+          count: clips.data.length,
+          channelLogin,
+        });
         twitchClips = clips.data;
         outputCursor = clips.cursor;
       } else {
         const uiLimit = params.limit ?? 20;
-        console.debug(
-          `[TwitchClip] strict cutoff ${params.timeRange} cutoff=${new Date(cutoffMs).toISOString()} uiLimit=${uiLimit} initialCursor=${params.cursor ?? "(none)"} gqlFilter=${gqlFilter}`
-        );
+        logger.debug("IPC:Video", "Twitch clip strict cutoff", {
+          timeRange: params.timeRange,
+          cutoff: new Date(cutoffMs).toISOString(),
+          uiLimit,
+          initialCursor: params.cursor ?? null,
+          gqlFilter,
+        });
 
         const result = await fillPageWithCutoff<UnifiedClip>({
           cutoffMs,
@@ -237,9 +246,13 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           getCreatedAtMs: (clip) => new Date(clip.createdAt).getTime(),
         });
 
-        console.debug(
-          `[TwitchClip] strict cutoff result pages=${result.pagesFetched} candidates=${result.candidatesSeen} inRange=${result.inRange.length} reason=${result.reason} nextCursor=${result.nextCursor ?? "(none)"}`
-        );
+        logger.debug("IPC:Video", "Twitch clip strict cutoff result", {
+          pagesFetched: result.pagesFetched,
+          candidatesSeen: result.candidatesSeen,
+          inRange: result.inRange.length,
+          reason: result.reason,
+          nextCursor: result.nextCursor ?? null,
+        });
         twitchClips = result.inRange;
         outputCursor = result.nextCursor;
       }
@@ -275,9 +288,9 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
       let outputCursor: string | undefined;
 
       if (isViewSortWithTimeParams) {
-        console.debug(
-          `[KickClip] executing "Deep Fetch" strategy for ${params.timeRange} view sort`
-        );
+        logger.debug("IPC:Video", "Kick clip executing Deep Fetch strategy for view sort", {
+          timeRange: params.timeRange,
+        });
 
         const now = new Date();
         let cutoffDate = new Date(0);
@@ -299,9 +312,10 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
         const MAX_PAGES = 30;
 
         while (keepFetching && pagesFetched < MAX_PAGES) {
-          console.debug(
-            `[KickClip] Deep Fetch Page ${pagesFetched + 1} (cursor: ${currentCursor})`
-          );
+          logger.debug("IPC:Video", "Kick clip Deep Fetch page", {
+            page: pagesFetched + 1,
+            cursor: currentCursor ?? null,
+          });
           const response = await kickClient.getClips(params.channelName, {
             limit: 100,
             cursor: currentCursor,
@@ -313,7 +327,7 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           const count = pageClips.length;
 
           if (count === 0) {
-            console.debug("[KickClip] Page empty, stopping fetch");
+            logger.debug("IPC:Video", "Kick clip page empty, stopping fetch");
             keepFetching = false;
           } else {
             clipsData.push(...pageClips);
@@ -322,18 +336,22 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
 
             const firstDate = pageClips[0].created_at || pageClips[0].date;
             const lastDate = pageClips[count - 1].created_at || pageClips[count - 1].date;
-            console.debug(`[KickClip] Page ${pagesFetched} range: ${firstDate} -> ${lastDate}`);
+            logger.debug("IPC:Video", "Kick clip page range", {
+              page: pagesFetched,
+              firstDate,
+              lastDate,
+            });
 
             const lastClipDate = new Date(lastDate);
             if (lastClipDate < cutoffDate) {
-              console.debug(
-                `[KickClip] Reached cutoff date (${cutoffDate.toISOString()}), stopping.`
-              );
+              logger.debug("IPC:Video", "Kick clip reached cutoff date, stopping", {
+                cutoffDate: cutoffDate.toISOString(),
+              });
               keepFetching = false;
             }
 
             if (!currentCursor) {
-              console.debug("[KickClip] No next cursor, stopping.");
+              logger.debug("IPC:Video", "Kick clip no next cursor, stopping");
               keepFetching = false;
             }
           }
@@ -344,11 +362,15 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           const d = new Date(c.created_at || c.date);
           return d >= cutoffDate;
         });
-        console.debug(
-          `[KickClip] Deep Fetch Result: ${beforeFilter} -> ${clipsData.length} clips within ${params.timeRange}`
-        );
+        logger.debug("IPC:Video", "Kick clip Deep Fetch Result", {
+          beforeFilter,
+          afterFilter: clipsData.length,
+          timeRange: params.timeRange,
+        });
 
-        console.debug(`[KickClip] Sorting ${clipsData.length} clips by views...`);
+        logger.debug("IPC:Video", "Kick clip sorting by views", {
+          count: clipsData.length,
+        });
         clipsData.sort((a, b) => {
           const vA = parseInt(String(a.views).replace(/,/g, ""), 10) || 0;
           const vB = parseInt(String(b.views).replace(/,/g, ""), 10) || 0;
@@ -356,7 +378,11 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
         });
 
         clipsData.slice(0, 5).forEach((c, i) => {
-          console.debug(`[KickClip] #${i + 1}: ${c.views} views - ${c.title}`);
+          logger.debug("IPC:Video", "Kick clip top result", {
+            rank: i + 1,
+            views: c.views,
+            title: c.title,
+          });
         });
 
         outputCursor = undefined;
@@ -382,9 +408,12 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           }
         } else {
           const uiLimit = params.limit ?? 20;
-          console.debug(
-            `[KickClip] strict cutoff ${params.timeRange} cutoff=${new Date(cutoffMs).toISOString()} uiLimit=${uiLimit} initialCursor=${params.cursor ?? "(none)"}`
-          );
+          logger.debug("IPC:Video", "Kick clip strict cutoff", {
+            timeRange: params.timeRange,
+            cutoff: new Date(cutoffMs).toISOString(),
+            uiLimit,
+            initialCursor: params.cursor ?? null,
+          });
 
           const result = await fillPageWithCutoff<any>({
             cutoffMs,
@@ -403,9 +432,13 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
             getCreatedAtMs: (clip: any) => new Date(clip.created_at || clip.date).getTime(),
           });
 
-          console.debug(
-            `[KickClip] strict cutoff result pages=${result.pagesFetched} candidates=${result.candidatesSeen} inRange=${result.inRange.length} reason=${result.reason} nextCursor=${result.nextCursor ?? "(none)"}`
-          );
+          logger.debug("IPC:Video", "Kick clip strict cutoff result", {
+            pagesFetched: result.pagesFetched,
+            candidatesSeen: result.candidatesSeen,
+            inRange: result.inRange.length,
+            reason: result.reason,
+            nextCursor: result.nextCursor ?? null,
+          });
 
           clipsData = result.inRange;
           outputCursor = result.nextCursor;
@@ -433,7 +466,10 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
             return { ...clip, vodId: hasVod ? clip.vodId : "" };
           });
         } catch (e) {
-          console.warn("[KickClip] VOD check failed", e);
+          logger.warn("IPC:Video", "Kick clip VOD check failed", {
+            error:
+              e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+          });
         }
       }
 
@@ -445,7 +481,12 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
     }
     throw new Error(`Unsupported platform: ${params.platform} `);
   } catch (error) {
-    console.error("❌ Failed to get clips:", error);
+    logger.error("IPC:Video", "Failed to get clips", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return {
       error: error instanceof Error ? error.message : "Failed to fetch clips",
     };
@@ -475,7 +516,12 @@ export function registerVideoHandlers(): void {
         }
         throw new Error(`Unsupported platform: ${params.platform}`);
       } catch (error) {
-        console.error("❌ Failed to get VOD playback URL:", error);
+        logger.error("IPC:Video", "Failed to get VOD playback URL", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to resolve VOD URL",
@@ -533,7 +579,12 @@ export function registerVideoHandlers(): void {
 
         throw new Error(`Unsupported platform: ${params.platform}`);
       } catch (error) {
-        console.error("❌ Failed to get video metadata:", error);
+        logger.error("IPC:Video", "Failed to get video metadata", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch video metadata",
@@ -565,15 +616,16 @@ export function registerVideoHandlers(): void {
         if (params.platform === "twitch") {
           // Use GQL API (no auth required) — fetches videos by channel login
           const channelLogin = params.channelName.toLowerCase();
-          console.debug(`[TwitchVideo] Fetching videos via GQL for channel: ${channelLogin}`);
+          logger.debug("IPC:Video", "Fetching Twitch videos via GQL", { channelLogin });
 
           const videos = await twitchClient.getVideosByChannel(channelLogin, {
             first: params.limit,
             after: params.cursor,
           });
-          console.debug(
-            `[TwitchVideo] Fetched ${videos.data.length} videos for ${channelLogin} (GQL)`
-          );
+          logger.debug("IPC:Video", "Fetched Twitch videos (GQL)", {
+            count: videos.data.length,
+            channelLogin,
+          });
 
           // Sort by views if requested
           let sortedVideos = videos.data;
@@ -589,7 +641,12 @@ export function registerVideoHandlers(): void {
             try {
               gameMap = await twitchClient.getVideosGameData(videoIds);
             } catch (err) {
-              console.error("[TwitchVideo] Failed to resolve game data via GQL:", err);
+              logger.error("IPC:Video", "Failed to resolve Twitch video game data via GQL", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
             }
           }
 
@@ -629,9 +686,9 @@ export function registerVideoHandlers(): void {
 
           // Apply client-side sorting (as fallback since Kick API may not reliably sort by views)
           if (videos.data && videos.data.length > 0 && params.sort === "views") {
-            console.debug(
-              `[KickVideo] Sorting ${videos.data.length} videos by views (client-side)`
-            );
+            logger.debug("IPC:Video", "Sorting Kick videos by views (client-side)", {
+              count: videos.data.length,
+            });
             videos.data = [...videos.data].sort((a: any, b: any) => {
               const viewsA = parseInt(a.views, 10) || 0;
               const viewsB = parseInt(b.views, 10) || 0;
@@ -647,7 +704,12 @@ export function registerVideoHandlers(): void {
         }
         throw new Error(`Unsupported platform: ${params.platform}`);
       } catch (error) {
-        console.error("❌ Failed to get videos:", error);
+        logger.error("IPC:Video", "Failed to get videos", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch videos",
@@ -684,20 +746,24 @@ export function registerVideoHandlers(): void {
           return { success: true, data: result };
         } else if (params.platform === "kick") {
           // Kick clips have a direct video_url (passed as clipUrl)
-          console.debug("[KickClip] Playback request - clipId:", params.clipId);
-          console.debug("[KickClip] Playback request - clipUrl:", params.clipUrl);
-          console.debug("[KickClip] Playback request - thumbnailUrl:", params.thumbnailUrl);
+          logger.debug("IPC:Video", "Kick clip playback request", {
+            clipId: params.clipId,
+            clipUrl: params.clipUrl,
+            thumbnailUrl: params.thumbnailUrl,
+          });
 
           if (!params.clipUrl) {
-            console.error("[KickClip] No clipUrl provided for Kick clip playback");
+            logger.error("IPC:Video", "No clipUrl provided for Kick clip playback");
             throw new Error("Clip URL required for Kick clip playback");
           }
 
-          console.debug("[KickClip] Returning playback URL:", params.clipUrl);
+          logger.debug("IPC:Video", "Kick clip returning playback URL", {
+            clipUrl: params.clipUrl,
+          });
 
           // Detect format based on URL - Kick clips use HLS (.m3u8)
           const format = params.clipUrl.includes(".m3u8") ? "hls" : "mp4";
-          console.debug("[KickClip] Detected format:", format);
+          logger.debug("IPC:Video", "Kick clip detected format", { format });
 
           return {
             success: true,
@@ -709,7 +775,12 @@ export function registerVideoHandlers(): void {
         }
         throw new Error(`Unsupported platform: ${params.platform} `);
       } catch (error) {
-        console.error("❌ Failed to get clip playback URL:", error);
+        logger.error("IPC:Video", "Failed to get clip playback URL", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to resolve clip URL",
@@ -732,9 +803,10 @@ export function registerVideoHandlers(): void {
       }
     ) => {
       try {
-        console.debug(
-          `[KickVodLookup] Looking up VOD for livestream_id: ${params.livestreamId} on channel: ${params.channelSlug} `
-        );
+        logger.debug("IPC:Video", "Kick VOD lookup", {
+          livestreamId: params.livestreamId,
+          channelSlug: params.channelSlug,
+        });
 
         const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
@@ -762,7 +834,10 @@ export function registerVideoHandlers(): void {
             const videoLivestreamId = getKickVideoLivestreamId(video);
 
             if (videoLivestreamId && videoLivestreamId === params.livestreamId?.toString()) {
-              console.debug(`[KickVodLookup] Found matching VOD: `, video.id, video.title);
+              logger.debug("IPC:Video", "Kick VOD lookup found matching VOD", {
+                videoId: video.id,
+                title: video.title,
+              });
 
               // Return the video data with source URL for direct playback
               // Include all metadata needed by the Video page
@@ -796,13 +871,20 @@ export function registerVideoHandlers(): void {
           }
         }
 
-        console.debug(`[KickVodLookup] VOD not found for livestream_id: ${params.livestreamId} `);
+        logger.debug("IPC:Video", "Kick VOD lookup not found", {
+          livestreamId: params.livestreamId,
+        });
         return {
           success: false,
           error: "VOD not found - it may have been deleted or is not yet available",
         };
       } catch (error) {
-        console.error("❌ Failed to lookup Kick VOD by livestream ID:", error);
+        logger.error("IPC:Video", "Failed to lookup Kick VOD by livestream ID", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to lookup VOD",

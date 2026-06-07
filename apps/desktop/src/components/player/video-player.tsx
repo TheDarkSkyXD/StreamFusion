@@ -1,6 +1,8 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+
 import { HlsPlayer } from "./hls-player";
 import { useDefaultQuality } from "./hooks/use-default-quality";
 import { useFullscreen } from "./hooks/use-fullscreen";
@@ -173,7 +175,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch(console.error);
+      video.play().catch((error) => logger.error("Player:Video", "play failed", { error }));
     } else {
       video.pause();
     }

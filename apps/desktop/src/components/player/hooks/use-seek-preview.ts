@@ -1,6 +1,7 @@
 import Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { logger } from "@/renderer/logging/logger";
 
 import { createKickClipPlaylistLoader, isKickClipPlaylistUrl } from "../kick/kick-clip-loader";
 
@@ -62,7 +63,7 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
         const dataUrl = canvas.toDataURL("image/jpeg", 0.6); // 0.6 quality is enough
         setPreviewImage(dataUrl);
       } catch (e) {
-        console.warn("[SeekPreview] Canvas tainted or error", e);
+        logger.warn("Player:Hook:SeekPreview", "canvas tainted or error", { error: e });
       }
     }
   }, []);
@@ -121,13 +122,19 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
           });
 
           hls.currentLevel = lowestLevel;
-          console.debug("[SeekPreview] Using quality level:", lowestLevel, "height:", minHeight);
+          logger.debug("Player:Hook:SeekPreview", "using quality level", {
+            level: lowestLevel,
+            height: minHeight,
+          });
         }
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          console.warn("[SeekPreview] Fatal HLS error:", data.type, data.details);
+          logger.warn("Player:Hook:SeekPreview", "fatal HLS error", {
+            type: data.type,
+            details: data.details,
+          });
           if (thumbnail) setPreviewImage(thumbnail);
         }
       });

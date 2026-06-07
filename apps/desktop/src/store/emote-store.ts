@@ -6,6 +6,8 @@
  */
 
 import { create } from "zustand";
+
+import { logger } from "@/renderer/logging/logger";
 import { emoteManager } from "../backend/services/emotes";
 import type { Emote, EmoteProvider } from "../backend/services/emotes/emote-types";
 import type { ChatDisplayPreferences, Platform } from "../shared/auth-types";
@@ -145,7 +147,12 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
           isLoading: false,
         }));
       } catch (error) {
-        console.error("[EmoteStore] Failed to load global emotes:", error);
+        logger.error("Store:Emote", "failed to load global emotes", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         set({
           error: "Failed to load global emotes",
           isLoading: false,
@@ -177,7 +184,13 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
         isLoading: false,
       }));
     } catch (error) {
-      console.error(`[EmoteStore] Failed to load channel emotes for ${channelId}:`, error);
+      logger.error("Store:Emote", "failed to load channel emotes", {
+        channelId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       set({
         error: `Failed to load channel emotes`,
         isLoading: false,

@@ -18,6 +18,8 @@
 import type Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+
 export interface VideoLifecycleOptions {
   /** Reference to the video element */
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -61,7 +63,7 @@ interface InternalLifecycleState {
 function cleanupVideoElement(video: HTMLVideoElement | null, hls: Hls | null): void {
   if (!video) return;
 
-  console.debug("[VideoLifecycle] Cleaning up video element");
+  logger.debug("Player:Hook:Lifecycle", "cleaning up video element");
 
   // 1. Pause playback
   if (!video.paused) {
@@ -73,7 +75,9 @@ function cleanupVideoElement(video: HTMLVideoElement | null, hls: Hls | null): v
     try {
       hls.destroy();
     } catch (e) {
-      console.debug("[VideoLifecycle] HLS destroy error (may be already destroyed):", e);
+      logger.debug("Player:Hook:Lifecycle", "HLS destroy error (may be already destroyed)", {
+        error: e,
+      });
     }
   }
 
@@ -144,7 +148,7 @@ export function useVideoLifecycle({
           setIsInView(isInView);
 
           if (isInView && !isLoaded && src) {
-            console.debug("[VideoLifecycle] Video entered view, loading");
+            logger.debug("Player:Hook:Lifecycle", "video entered view, loading");
             setIsLoaded(true);
             // The actual loading is handled by HlsPlayer component
           }
@@ -204,10 +208,9 @@ export function useVideoLifecycle({
       const usedRatio = memInfo.usedJSHeapSize / memInfo.jsHeapSizeLimit;
 
       if (usedRatio > 0.9) {
-        console.warn(
-          "[VideoLifecycle] High memory pressure detected:",
-          `${(usedRatio * 100).toFixed(1)}% heap used`
-        );
+        logger.warn("Player:Hook:Lifecycle", "high memory pressure detected", {
+          heapUsedPercent: Number((usedRatio * 100).toFixed(1)),
+        });
 
         // Could trigger quality reduction or pause non-focused streams
         // This is informational - actual response depends on implementation
@@ -258,7 +261,7 @@ export function useVideoLifecycle({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      console.debug("[VideoLifecycle] Component unmounting, cleaning up");
+      logger.debug("Player:Hook:Lifecycle", "component unmounting, cleaning up");
 
       cleanupVideoElement(videoRef.current, hlsRef.current);
       setIsCleaned(true);
@@ -304,16 +307,17 @@ function useMultiVideoLifecycle({
   const registerVideo = useCallback(
     (id: string): boolean => {
       if (activeVideosRef.current.size >= maxConcurrentVideos) {
-        console.warn(`[MultiVideoLifecycle] Video limit reached (${maxConcurrentVideos})`);
+        logger.warn("Player:Hook:Lifecycle", "video limit reached", { maxConcurrentVideos });
         onVideoLimitReached?.();
         return false;
       }
 
       activeVideosRef.current.add(id);
       setActiveVideoCount(activeVideosRef.current.size);
-      console.debug(
-        `[MultiVideoLifecycle] Registered video: ${id}, total: ${activeVideosRef.current.size}`
-      );
+      logger.debug("Player:Hook:Lifecycle", "registered video", {
+        id,
+        total: activeVideosRef.current.size,
+      });
       return true;
     },
     [maxConcurrentVideos, onVideoLimitReached]
@@ -322,9 +326,10 @@ function useMultiVideoLifecycle({
   const unregisterVideo = useCallback((id: string) => {
     activeVideosRef.current.delete(id);
     setActiveVideoCount(activeVideosRef.current.size);
-    console.debug(
-      `[MultiVideoLifecycle] Unregistered video: ${id}, total: ${activeVideosRef.current.size}`
-    );
+    logger.debug("Player:Hook:Lifecycle", "unregistered video", {
+      id,
+      total: activeVideosRef.current.size,
+    });
   }, []);
 
   return {
@@ -357,8 +362,9 @@ function useVideoChurnDetection(): {
         const newCount = prev + 1;
         if (newCount >= 3) {
           setIsChurning(true);
-          console.warn(
-            "[VideoLifecycle] Video churn detected - component is being rapidly recreated"
+          logger.warn(
+            "Player:Hook:Lifecycle",
+            "video churn detected - component is being rapidly recreated"
           );
         }
         return newCount;

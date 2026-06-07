@@ -6,15 +6,20 @@
  */
 
 import type { BrowserWindow } from "electron";
-
+import { getBugReportsDir } from "@/backend/logging/log-paths";
+import { logger } from "@/backend/logging/logger";
 import { twitchAuthService } from "./auth";
 import { registerAdBlockHandlers } from "./ipc/handlers/adblock-handlers";
+import { registerAppHandlers } from "./ipc/handlers/app-handlers";
 import { registerAuthHandlers } from "./ipc/handlers/auth-handlers";
+import { registerBugReportHandlers } from "./ipc/handlers/bug-report-handlers";
 import { registerCategoryHandlers } from "./ipc/handlers/category-handlers";
 import { registerChannelHandlers } from "./ipc/handlers/channel-handlers";
 import { registerChatHandlers } from "./ipc/handlers/chat-handlers";
 import { registerKickChatHandlers } from "./ipc/handlers/kick-chat-handlers";
+import { registerLogHandlers } from "./ipc/handlers/log-handlers";
 import { registerModLogHandlers } from "./ipc/handlers/modlog-handlers";
+import { registerPlatformHealthHandlers } from "./ipc/handlers/platform-health-handlers";
 import { applyPersistedProxyOnStart, registerProxyHandlers } from "./ipc/handlers/proxy-handlers";
 import { registerSearchHandlers } from "./ipc/handlers/search-handlers";
 import { registerStorageHandlers } from "./ipc/handlers/storage-handlers";
@@ -27,6 +32,7 @@ import { registerVideoHandlers } from "./ipc/handlers/video-handlers";
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Register all handlers
   registerSystemHandlers(mainWindow);
+  registerAppHandlers();
   registerStorageHandlers();
   registerAuthHandlers(mainWindow);
   registerStreamHandlers();
@@ -40,7 +46,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerAdBlockHandlers(mainWindow);
   registerUpdateHandlers(mainWindow);
   registerProxyHandlers();
+  registerPlatformHealthHandlers(mainWindow);
   registerTokenStatusHandlers();
+  registerLogHandlers();
+  registerBugReportHandlers(getBugReportsDir());
 
   // Apply the persisted outbound proxy at boot if the user enabled it (R20).
   // No-op when disabled/empty; never blocks startup (fire-and-forget).
@@ -52,5 +61,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // no token (clean install or post-logout state).
   twitchAuthService.scheduleProactiveRefresh();
 
-  console.debug("✅ All IPC handlers registered successfully");
+  logger.debug("IPC:Bootstrap", "All IPC handlers registered successfully");
 }

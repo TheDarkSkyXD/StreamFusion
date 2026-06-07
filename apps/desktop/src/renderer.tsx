@@ -4,6 +4,12 @@
  * This file bootstraps the React application in the Electron renderer process.
  */
 
+import { installConsoleIntercept } from "@/renderer/logging/console-intercept";
+import { installNetworkMonitor } from "@/renderer/logging/network-monitor";
+
+installConsoleIntercept();
+installNetworkMonitor();
+
 import React from "react";
 import { createRoot } from "react-dom/client";
 

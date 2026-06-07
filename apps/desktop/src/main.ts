@@ -8,18 +8,34 @@
 // Load environment variables from .env file FIRST (before other imports)
 import "dotenv/config";
 
+import path from "node:path";
+
 import {
   app,
   BrowserWindow,
+  clipboard,
   globalShortcut,
   Menu,
   powerMonitor,
   protocol,
   session,
+  shell,
 } from "electron";
 import { disposeSendWindow } from "./backend/api/platforms/kick/kick-send-window";
 import { authWindowManager, protocolHandler, twitchAuthService } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
+import { installConsoleIntercept } from "./backend/logging/console-intercept";
+import { installCrashHooks } from "./backend/logging/crash-hooks";
+import { computeLogPaths, setBugReportsDir } from "./backend/logging/log-paths";
+import { getCurrentLogPath, initLogger, logger, shutdownLogger } from "./backend/logging/logger";
+import {
+  getCurrentNoisePath,
+  initNoiseLogger,
+  shutdownNoiseLogger,
+} from "./backend/logging/noise-logger";
+import { startProcessMonitor } from "./backend/logging/process-monitor";
+import { redactObject } from "./backend/logging/redactor";
+import { pruneLogs } from "./backend/logging/rotation";
 import {
   KICK_IMAGE_SCHEME,
   registerKickImageProtocol,
@@ -40,11 +56,22 @@ import { twitchManifestProxy } from "./backend/services/twitch-manifest-proxy";
 import { vaftPatternService } from "./backend/services/vaft-pattern-service";
 import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "./backend/shutdown-marker";
 import { windowManager } from "./backend/window-manager";
+import { setMainLogSink } from "./lib/cross-logger";
 import { IPC_CHANNELS } from "./shared/ipc-channels";
 
 // Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
 // In production builds (electron-forge package/make), NODE_ENV is typically "production"
 const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
+
+// Opt-in net log capture (STREAMFUSION_NETLOG=1) for diagnosing TLS / cert /
+// fetch failures invisible at the JS layer. Must run before app.whenReady().
+// Writes to userData/netlog-<timestamp>.json; finalized on clean app quit.
+if (process.env.STREAMFUSION_NETLOG) {
+  const netlogPath = `${app.getPath("userData")}\\netlog-${Date.now()}.json`;
+  app.commandLine.appendSwitch("log-net-log", netlogPath);
+  app.commandLine.appendSwitch("net-log-capture-mode", "IncludeSensitive");
+  console.log(`📊 [netlog] Capture enabled → ${netlogPath}`);
+}
 
 if (!isProduction) {
   // Suppress the (Disabled webSecurity) + (allowRunningInsecureContent) dev
@@ -82,6 +109,48 @@ if (!isProduction) {
   app.commandLine.appendSwitch("remote-debugging-port", "9005");
   console.debug("🔌 CDP remote debugging enabled on port 9005 for Production");
 }
+
+// Initialize the logging system as early as possible — must run AFTER the
+// dev/prod userData override above so log files land in the matching profile
+// dir, and BEFORE any service import below executes a console.* call we'd
+// want captured.
+//
+// Log destination depends on the environment (computeLogPaths is pure — see
+// log-paths.ts for the rules):
+//   - dev:  <repo-root>/logs + /bug-reports — survive `git clean -fd` review
+//   - win:  <installDir>/logs + /bug-reports — NSIS perMachine:false is writable
+//   - mac/linux prod: app.getPath('logs') — install bundle is read-only
+//
+// Dev repo-root anchor: `npm start` runs from apps/desktop/, so process.cwd()
+// is apps/desktop/, and the repo root is two levels up. We pass it
+// unconditionally; computeLogPaths only consumes it in dev.
+const sessionStamp = new Date().toISOString();
+const { logsDir, bugReportsDir } = computeLogPaths({
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+  exePath: app.getPath("exe"),
+  fallbackLogsPath: app.getPath("logs"),
+  projectRoot: path.resolve(process.cwd(), "..", ".."),
+});
+setBugReportsDir(bugReportsDir);
+
+initLogger({ logsDir, sessionStamp });
+initNoiseLogger({ logsDir, sessionStamp });
+installCrashHooks({ app });
+installConsoleIntercept();
+
+// Wire dual-use modules (those imported by both main and renderer code) to the
+// real backend logger. They import `@/lib/cross-logger` instead of
+// `@/backend/logging/logger` to avoid dragging electron-log into the renderer
+// bundle; this call swaps in the real sink for main-process callers.
+setMainLogSink((level, tag, message, meta) => {
+  logger[level](tag, message, meta);
+});
+
+logger.info("Main", "Logging initialized", {
+  logFile: getCurrentLogPath(),
+  bugReportsDir,
+});
 
 // ============================================================================
 // CRASH-RESISTANT RUNTIME FLAGS
@@ -230,10 +299,57 @@ function setupRequestInterceptors(): void {
 }
 
 // App lifecycle events
+let stopProcessMonitor: (() => void) | null = null;
+
 app.on("ready", async () => {
-  // Disable the default application menu since we use a custom frameless window
-  // This saves memory and avoids unnecessary menu resource allocation
-  Menu.setApplicationMenu(null);
+  // Custom frameless window uses its own titlebar UI, but we still need a
+  // minimal application menu so OS-standard shortcuts (Copy/Paste, Reload,
+  // DevTools, Quit) keep working and the Help menu's log-folder/log-path
+  // affordances are reachable from the OS menu bar (macOS) / Alt menu (Win).
+  const menu = Menu.buildFromTemplate([
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [
+        {
+          label: "Open Logs Folder",
+          click: () => {
+            void shell.openPath(path.dirname(getCurrentLogPath()));
+          },
+        },
+        {
+          label: "Copy Log Path",
+          click: () => {
+            clipboard.writeText(getCurrentLogPath());
+          },
+        },
+        {
+          label: "Copy Noise Log Path",
+          click: () => {
+            try {
+              clipboard.writeText(getCurrentNoisePath());
+            } catch {
+              // Noise logger not initialized — silently skip rather than throw
+              // out of a menu click.
+            }
+          },
+        },
+      ],
+    },
+  ]);
+  Menu.setApplicationMenu(menu);
+
+  // Fire-and-forget prune of old session logs. Awaiting would gate window
+  // creation on disk IO; surfacing failures via logger.warn is sufficient.
+  void pruneLogs(logsDir, { prefix: "streamfusion-", keep: 10 }).catch((error) => {
+    logger.warn("Main", "Failed to prune main log files", { error: String(error) });
+  });
+  void pruneLogs(logsDir, { prefix: "streamfusion-noise-", keep: 10 }).catch((error) => {
+    logger.warn("Main", "Failed to prune noise log files", { error: String(error) });
+  });
 
   // Check if last shutdown was clean - if not, clear cache to fix potential corruption
   // "Invalid cache (current) size" errors happen when cache metadata is inconsistent
@@ -281,6 +397,23 @@ app.on("ready", async () => {
   // MUST be called after app path configuration and before IPC handlers
   dbService.initialize();
   storageService.initialize();
+
+  // Dump effective user preferences once at boot so bug reports include the
+  // user-visible configuration. redactObject scrubs any token-shaped strings
+  // that might have leaked into preference values via copy/paste. Cast to the
+  // logger's meta shape — preferences is a typed record but its concrete keys
+  // are statically known, which is not assignable to Record<string, unknown>.
+  try {
+    const preferences = storageService.getPreferences();
+    const redacted = redactObject(preferences) as unknown as Record<string, unknown>;
+    logger.info("Main", "Settings dump", redacted);
+  } catch (error) {
+    logger.warn("Main", "Could not dump settings", { error: String(error) });
+  }
+
+  // Start the resource probe. Stored at module scope so before-quit can stop
+  // it before the logger shuts down.
+  stopProcessMonitor = startProcessMonitor();
 
   // Register custom protocol handler for OAuth callbacks (streamfusion://)
   protocolHandler.registerProtocol();
@@ -377,13 +510,39 @@ let isQuitting = false;
 app.on("before-quit", (event) => {
   if (isQuitting) return;
   isQuitting = true;
+  logger.info("App", "Quitting");
+  // Stop the resource probe synchronously — any subsequent tick would race
+  // the logger shutdown below.
+  if (stopProcessMonitor) {
+    stopProcessMonitor();
+    stopProcessMonitor = null;
+  }
   // `use-resume-playback.ts` saves position every 30s and on pause; chat is
   // ephemeral; window state saves synchronously in mainWindow.on('close').
   // Worst-case loss from this path is the last 30s of playback position.
   markCleanShutdown();
 
+  // Flush the loggers before the process exits. electron-log 5.x writes
+  // synchronously, so the awaits are short-lived; we still gate `app.exit`
+  // on them so the trailing "Debug closed" header makes it to disk.
+  const finalize = async (): Promise<void> => {
+    try {
+      await shutdownLogger();
+    } catch {
+      // Best-effort — never block exit on logger teardown.
+    }
+    try {
+      await shutdownNoiseLogger();
+    } catch {
+      // Best-effort.
+    }
+  };
+
   const win = windowManager.getMainWindow();
-  if (!win || win.isDestroyed()) return;
+  if (!win || win.isDestroyed()) {
+    void finalize();
+    return;
+  }
 
   event.preventDefault();
   try {
@@ -396,12 +555,12 @@ app.on("before-quit", (event) => {
   const killTimer = setTimeout(() => {
     console.warn("[Main] Renderer didn't quit within 3s — force-destroying");
     if (!win.isDestroyed()) win.destroy();
-    app.exit(0);
+    void finalize().finally(() => app.exit(0));
   }, 3000);
 
   win.once("closed", () => {
     clearTimeout(killTimer);
-    app.exit(0);
+    void finalize().finally(() => app.exit(0));
   });
 });
 

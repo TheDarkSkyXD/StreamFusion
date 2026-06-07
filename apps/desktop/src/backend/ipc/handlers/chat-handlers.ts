@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
 export function registerChatHandlers(): void {
@@ -18,7 +19,12 @@ export function registerChatHandlers(): void {
         const history = await getKickChannelHistory(params.channelId);
         return { success: true, data: history };
       } catch (error) {
-        console.error("[ChatHandlers] getKickChannelHistory failed:", error);
+        logger.error("IPC:Chat", "getKickChannelHistory failed", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch Kick chat history",
@@ -42,7 +48,12 @@ export function registerChatHandlers(): void {
         const history = await getTwitchChannelHistory(params.channel);
         return { success: true, data: history };
       } catch (error) {
-        console.error("[ChatHandlers] getTwitchChannelHistory failed:", error);
+        logger.error("IPC:Chat", "getTwitchChannelHistory failed", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch Twitch chat history",

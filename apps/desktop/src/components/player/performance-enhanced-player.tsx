@@ -25,6 +25,7 @@
 import type Hls from "hls.js";
 import { useCallback, useRef, useState } from "react";
 
+import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 
 import { useAdaptiveQuality } from "./hooks/use-adaptive-quality";
@@ -147,7 +148,7 @@ export function PerformanceEnhancedPlayer({
 
   // Log performance state changes (for debugging)
   if (process.env.NODE_ENV === "development") {
-    console.debug("[PerformanceEnhancedPlayer] State:", {
+    logger.debug("Player:Perf", "state", {
       effectiveType,
       bufferHealth,
       recommendedTier,

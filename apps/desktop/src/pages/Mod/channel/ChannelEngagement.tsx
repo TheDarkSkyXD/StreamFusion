@@ -55,6 +55,7 @@ export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEnga
     }
   }, [broadcasterId]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `refreshCounter` is the re-fetch trigger; the body doesn't read it
   useEffect(() => {
     void refetch();
   }, [refetch, refreshCounter]);

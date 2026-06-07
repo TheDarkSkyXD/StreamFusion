@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
+import { logger } from "@/renderer/logging/logger";
 import type { VideoQuality } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -123,9 +124,10 @@ export function useDefaultQuality(
 
       // Only change if different from current (which defaults to 'auto')
       if (targetQuality !== currentQualityId) {
-        console.debug(
-          `[useDefaultQuality] Applying default quality: ${defaultQuality} -> Level ${targetQuality}`
-        );
+        logger.debug("Player:Hook:Quality", "applying default quality", {
+          defaultQuality,
+          targetQuality,
+        });
         onQualityChange(targetQuality);
       }
 

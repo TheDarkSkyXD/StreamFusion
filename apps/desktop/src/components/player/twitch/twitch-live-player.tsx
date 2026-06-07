@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAdElementObserver } from "@/hooks/use-ad-element-observer";
 import { sleep } from "@/lib/sleep";
+import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 import { useAdBlockStore } from "@/store/adblock-store";
 
@@ -143,7 +144,9 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
       } else if (wasPlaying) {
         video.play().catch((e) => {
           if (e.name !== "AbortError" && e.name !== "NotAllowedError") {
-            console.error("[TwitchPlayer] Failed to resume after window restore:", e);
+            logger.error("Player:Twitch:Live", "failed to resume after window restore", {
+              error: e,
+            });
           }
         });
       }
@@ -200,7 +203,7 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
       video.play().catch((e) => {
         // Ignore AbortError (interrupted by load) and NotAllowedError (autoplay policy)
         if (e.name !== "AbortError" && e.name !== "NotAllowedError") {
-          console.error("Play error:", e);
+          logger.error("Player:Twitch:Live", "play error", { error: e });
         }
       });
     } else {
@@ -296,9 +299,12 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
               const attemptNum = autoRetryCountRef.current;
               const delay = RETRY_DELAY_BASE_MS * attemptNum; // Exponential backoff: 1.5s, 3s
 
-              console.debug(
-                `[TwitchPlayer] ${error.code} error detected, auto-retrying (attempt ${attemptNum}/${MAX_AUTO_RETRY_ATTEMPTS}) in ${delay}ms...`
-              );
+              logger.debug("Player:Twitch:Live", "error detected, auto-retrying", {
+                code: error.code,
+                attempt: attemptNum,
+                maxAttempts: MAX_AUTO_RETRY_ATTEMPTS,
+                delayMs: delay,
+              });
 
               // Show loading state during retry
               setIsLoading(true);
@@ -315,10 +321,10 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
             }
 
             // Either not a refreshable error, or retries exhausted - show error to user
-            console.error(
-              `[TwitchPlayer] Player error (retries: ${autoRetryCountRef.current}):`,
-              error
-            );
+            logger.error("Player:Twitch:Live", "player error", {
+              retries: autoRetryCountRef.current,
+              error,
+            });
             setHasError(true);
             setIsLoading(false);
             isRetryingRef.current = false;
@@ -389,6 +395,7 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
           onToggleVideoStats={() => setShowVideoStats(!showVideoStats)}
           adBlockStatus={adBlockStatus}
           onSeek={() => {}} // Dummy seek handler for visual progress bar
+          onRefresh={onRefresh}
         />
       )}
     </div>

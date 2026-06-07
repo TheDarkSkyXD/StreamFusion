@@ -5,6 +5,7 @@
  * and channel-specific emotes.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
@@ -92,7 +93,12 @@ class FFZEmoteProvider implements EmoteProviderService {
 
       return emotes;
     } catch (error) {
-      console.error("[FFZEmotes] Failed to fetch global emotes:", error);
+      logger.error("Emote:FFZ", "Failed to fetch global emotes", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -110,7 +116,7 @@ class FFZEmoteProvider implements EmoteProviderService {
   ): Promise<Emote[]> {
     // FFZ only supports Twitch - skip for other platforms
     if (platform !== "twitch") {
-      console.log(`[FFZEmotes] Skipping - FFZ only supports Twitch channels`);
+      logger.info("Emote:FFZ", "Skipping - FFZ only supports Twitch channels");
       return [];
     }
 
@@ -135,13 +141,18 @@ class FFZEmoteProvider implements EmoteProviderService {
     } catch (error: any) {
       if (error.response?.status === 404) {
         // Channel not on FFZ - this is common and expected
-        console.log(`[FFZEmotes] Channel "${channelName || channelId}" has no FFZ emotes`);
+        logger.info("Emote:FFZ", "Channel has no FFZ emotes", {
+          channel: channelName || channelId,
+        });
         return [];
       }
-      console.warn(
-        `[FFZEmotes] Failed to fetch channel emotes for ${channelName || channelId}:`,
-        error
-      );
+      logger.warn("Emote:FFZ", "Failed to fetch channel emotes", {
+        channel: channelName || channelId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return [];
     }
   }

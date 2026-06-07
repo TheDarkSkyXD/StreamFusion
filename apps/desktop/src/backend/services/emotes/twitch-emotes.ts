@@ -5,6 +5,7 @@
  * channel emotes, and emote sets.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
@@ -62,8 +63,8 @@ class TwitchEmoteProvider implements EmoteProviderService {
    */
   async fetchGlobalEmotes(): Promise<Emote[]> {
     if (!this.configured) {
-      // Expected when user isn't logged in to Twitch - use log not warn
-      console.log("[TwitchEmotes] Provider not configured, skipping");
+      // Expected when user isn't logged in to Twitch - use info not warn
+      logger.info("Emote:Twitch", "Provider not configured, skipping");
       return [];
     }
 
@@ -79,7 +80,12 @@ class TwitchEmoteProvider implements EmoteProviderService {
 
       return data.data.map((emote) => this.transformEmote(emote, true));
     } catch (error) {
-      console.error("[TwitchEmotes] Failed to fetch global emotes:", error);
+      logger.error("Emote:Twitch", "Failed to fetch global emotes", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -93,8 +99,8 @@ class TwitchEmoteProvider implements EmoteProviderService {
     _platform?: "twitch" | "kick" // Ignored - Twitch emotes are only for Twitch
   ): Promise<Emote[]> {
     if (!this.configured) {
-      // Expected when user isn't logged in to Twitch - use log not warn
-      console.log("[TwitchEmotes] Provider not configured, skipping");
+      // Expected when user isn't logged in to Twitch - use info not warn
+      logger.info("Emote:Twitch", "Provider not configured, skipping");
       return [];
     }
 
@@ -113,7 +119,13 @@ class TwitchEmoteProvider implements EmoteProviderService {
       if (error.response?.status === 404) {
         return []; // Channel has no emotes
       }
-      console.error(`[TwitchEmotes] Failed to fetch channel emotes for ${channelId}:`, error);
+      logger.error("Emote:Twitch", "Failed to fetch channel emotes", {
+        channelId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -138,7 +150,13 @@ class TwitchEmoteProvider implements EmoteProviderService {
 
       return data.data.map((emote) => this.transformEmote(emote, false));
     } catch (error) {
-      console.error(`[TwitchEmotes] Failed to fetch emote set ${emoteSetId}:`, error);
+      logger.error("Emote:Twitch", "Failed to fetch emote set", {
+        emoteSetId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }

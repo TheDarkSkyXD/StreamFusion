@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 
+import { logger } from "@/renderer/logging/logger";
 import { CHANNEL_KEYS } from "../hooks/queries/useChannels";
 import { STREAM_KEYS } from "../hooks/queries/useStreams";
 import { queryClient } from "../providers/query-provider";
@@ -116,16 +117,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       // If Twitch has a token but it's expired, try to refresh it
       if (status.twitch.hasToken && status.twitch.isExpired) {
-        console.debug("🔄 Twitch token expired, attempting auto-refresh...");
+        logger.debug("Store:Auth", "twitch token expired, attempting auto-refresh");
         try {
           const refreshResult = await window.electronAPI.auth.refreshTwitchToken();
           if (refreshResult.success) {
-            console.debug("✅ Twitch token refreshed successfully");
+            logger.debug("Store:Auth", "twitch token refreshed successfully");
             // Re-fetch status after refresh
             status = await window.electronAPI.auth.getStatus();
           } else {
             // Refresh failed - token is likely revoked or invalid
-            console.warn("⚠️ Token refresh failed:", refreshResult.error);
+            logger.warn("Store:Auth", "twitch token refresh failed", {
+              error: refreshResult.error,
+            });
             // Clear the invalid token and user data
             await window.electronAPI.auth.clearToken("twitch");
             await window.electronAPI.auth.clearTwitchUser();
@@ -141,7 +144,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             });
           }
         } catch (refreshError) {
-          console.error("❌ Token refresh error:", refreshError);
+          logger.error("Store:Auth", "twitch token refresh error", {
+            error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+          });
           // Clear invalid credentials
           await window.electronAPI.auth.clearToken("twitch");
           await window.electronAPI.auth.clearTwitchUser();
@@ -155,14 +160,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // fail, kick-auth will clear storage and emit 'session-expired', which the
       // renderer listener below will surface to the user.
       if (status.kick.hasToken && status.kick.isExpired) {
-        console.debug("🔄 Kick token expired at startup, attempting auto-refresh...");
+        logger.debug("Store:Auth", "kick token expired at startup, attempting auto-refresh");
         try {
           const refreshResult = await window.electronAPI.auth.refreshKickToken();
           if (refreshResult.success) {
-            console.debug("✅ Kick token refreshed at startup");
+            logger.debug("Store:Auth", "kick token refreshed at startup");
             status = await window.electronAPI.auth.getStatus();
           } else {
-            console.warn("⚠️ Kick token refresh failed at startup:", refreshResult.error);
+            logger.warn("Store:Auth", "kick token refresh failed at startup", {
+              error: refreshResult.error,
+            });
             // Tokens already cleared by the main process; update status
             status = await window.electronAPI.auth.getStatus();
             set({
@@ -174,7 +181,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             });
           }
         } catch (refreshError) {
-          console.error("❌ Kick token refresh error at startup:", refreshError);
+          logger.error("Store:Auth", "kick token refresh error at startup", {
+            error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+          });
           await window.electronAPI.auth.clearToken("kick");
           await window.electronAPI.auth.clearKickUser();
           status = await window.electronAPI.auth.getStatus();
@@ -204,7 +213,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // This fires when a mid-session refresh fails (e.g. revoked refresh token).
       // The listener is intentionally never unregistered — it lives for the app lifetime.
       window.electronAPI.auth.onKickSessionExpired(() => {
-        console.warn("⚠️ Kick session expired at runtime — clearing state");
+        logger.warn("Store:Auth", "kick session expired at runtime — clearing state");
         queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("kick") });
         queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
         void useFollowStore.getState().hydrate();
@@ -233,9 +242,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Following page and sidebar refetch with the new rows.
       window.electronAPI.auth.onFollowsSynced(({ platform, addedCount, removedCount }) => {
         const netChanged = (addedCount ?? 0) > 0 || (removedCount ?? 0) > 0;
-        console.debug(
-          `🔁 Follows synced for ${platform} (added=${addedCount ?? 0}, removed=${removedCount ?? 0})`
-        );
+        logger.debug("Store:Auth", "follows synced", {
+          platform,
+          added: addedCount ?? 0,
+          removed: removedCount ?? 0,
+        });
         // Hydrate is cheap and idempotent — covers the guest-follows store that
         // doesn't ride React Query.
         void useFollowStore.getState().hydrate();
@@ -255,7 +266,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
 
       window.electronAPI.auth.onTwitchAuthLost(() => {
-        console.warn("⚠️ Twitch session expired at runtime — entering reconnect-required mode");
+        logger.warn(
+          "Store:Auth",
+          "twitch session expired at runtime — entering reconnect-required mode"
+        );
         // Drop renderer-side follow caches the same way explicit logout does;
         // the storage-handlers `activeFollows` fallback (no-token → guest
         // follows) means hydrate() now returns guest data instead of the
@@ -278,7 +292,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         });
       });
     } catch (error) {
-      console.error("Failed to initialize auth:", error);
+      logger.error("Store:Auth", "failed to initialize auth", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         error: {
           code: "UNKNOWN_ERROR",
@@ -292,7 +308,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   loginTwitch: async () => {
     // Prevent rapid clicking - if already loading, ignore
     if (get().twitchLoading) {
-      console.debug("⚠️ Twitch login already in progress, ignoring");
+      logger.debug("Store:Auth", "twitch login already in progress, ignoring");
       return;
     }
 
@@ -314,7 +330,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           queryFn: async () => {
             const response = await window.electronAPI.streams.getFollowed({});
             if (response.error) {
-              console.warn("Prefetch of followed streams failed (non-fatal):", response.error);
+              logger.warn("Store:Auth", "prefetch of followed streams failed (non-fatal)", {
+                error: response.error,
+              });
               return [];
             }
             return response.data ?? [];
@@ -322,7 +340,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         });
       }
     } catch (error) {
-      console.error("Failed to login to Twitch:", error);
+      logger.error("Store:Auth", "failed to login to twitch", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
 
       // Parse error message and make it user-friendly
       let errorMessage = "Failed to connect to Twitch. Please try again.";
@@ -363,7 +386,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   logoutTwitch: async () => {
     // Prevent rapid clicking - if already loading, ignore
     if (get().twitchLoading) {
-      console.debug("⚠️ Twitch operation already in progress, ignoring");
+      logger.debug("Store:Auth", "twitch operation already in progress, ignoring");
       return;
     }
 
@@ -389,7 +412,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         isGuest: !get().kickUser,
       });
     } catch (error) {
-      console.error("Failed to logout from Twitch:", error);
+      logger.error("Store:Auth", "failed to logout from twitch", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       set({
         error: {
           code: "UNKNOWN_ERROR",
@@ -404,7 +432,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   loginKick: async () => {
     // Prevent rapid clicking - if already loading, ignore
     if (get().kickLoading) {
-      console.debug("⚠️ Kick login already in progress, ignoring");
+      logger.debug("Store:Auth", "kick login already in progress, ignoring");
       return;
     }
 
@@ -414,7 +442,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // After the window closes, refresh auth status
       await get().refreshAuthStatus();
     } catch (error) {
-      console.error("Failed to open Kick login:", error);
+      logger.error("Store:Auth", "failed to open kick login", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
 
       // Parse error message and make it user-friendly
       let errorMessage = "Failed to connect to Kick. Please try again.";
@@ -455,7 +488,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   logoutKick: async () => {
     // Prevent rapid clicking - if already loading, ignore
     if (get().kickLoading) {
-      console.debug("⚠️ Kick operation already in progress, ignoring");
+      logger.debug("Store:Auth", "kick operation already in progress, ignoring");
       return;
     }
 
@@ -484,7 +517,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         isGuest: !get().twitchUser,
       });
     } catch (error) {
-      console.error("Failed to logout from Kick:", error);
+      logger.error("Store:Auth", "failed to logout from kick", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       set({
         error: {
           code: "UNKNOWN_ERROR",
@@ -514,7 +552,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         kickLoading: false,
       });
     } catch (error) {
-      console.error("Failed to refresh auth status:", error);
+      logger.error("Store:Auth", "failed to refresh auth status", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   },
 
@@ -530,7 +573,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const follows = await window.electronAPI.follows.getAll();
       set({ localFollows: follows, followsLoading: false });
     } catch (error) {
-      console.error("Failed to load follows:", error);
+      logger.error("Store:Auth", "failed to load follows", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       set({ followsLoading: false });
     }
   },
@@ -541,10 +589,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set((state) => ({
         localFollows: [...state.localFollows, newFollow],
       }));
-      console.debug("➕ Added follow:", follow.displayName);
+      logger.debug("Store:Auth", "added follow", { displayName: follow.displayName });
       return newFollow;
     } catch (error) {
-      console.error("Failed to add follow:", error);
+      logger.error("Store:Auth", "failed to add follow", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return null;
     }
   },
@@ -556,11 +609,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         set((state) => ({
           localFollows: state.localFollows.filter((f) => f.id !== id),
         }));
-        console.debug("➖ Removed follow:", id);
+        logger.debug("Store:Auth", "removed follow", { id });
       }
       return removed;
     } catch (error) {
-      console.error("Failed to remove follow:", error);
+      logger.error("Store:Auth", "failed to remove follow", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return false;
     }
   },
@@ -574,7 +632,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }));
       }
     } catch (error) {
-      console.error("Failed to update follow:", error);
+      logger.error("Store:Auth", "failed to update follow", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   },
 
@@ -582,7 +645,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       return await window.electronAPI.follows.isFollowing(platform, channelId);
     } catch (error) {
-      console.error("Failed to check follow status:", error);
+      logger.error("Store:Auth", "failed to check follow status", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return false;
     }
   },
@@ -594,7 +662,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const preferences = await window.electronAPI.preferences.get();
       set({ preferences });
     } catch (error) {
-      console.error("Failed to load preferences:", error);
+      logger.error("Store:Auth", "failed to load preferences", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   },
 
@@ -603,7 +676,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const updated = await window.electronAPI.preferences.update(updates);
       set({ preferences: updated });
     } catch (error) {
-      console.error("Failed to update preferences:", error);
+      logger.error("Store:Auth", "failed to update preferences", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   },
 }));

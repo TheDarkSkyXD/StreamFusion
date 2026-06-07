@@ -1,5 +1,7 @@
 import { type RefObject, useCallback, useEffect, useState } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+
 export function useFullscreen(containerRef: RefObject<HTMLElement | null>) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -26,7 +28,12 @@ export function useFullscreen(containerRef: RefObject<HTMLElement | null>) {
         await document.exitFullscreen();
       }
     } catch (error) {
-      console.error("Failed to toggle Fullscreen:", error);
+      logger.error("Player:Hook:Fullscreen", "failed to toggle fullscreen", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   }, [containerRef]);
 

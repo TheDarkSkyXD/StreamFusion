@@ -12,6 +12,7 @@
  * @see https://github.com/pixeltris/TwitchAdSolutions
  */
 
+import { logger } from "@/renderer/logging/logger";
 import {
   type AccessTokenResponse,
   type AdBlockConfig,
@@ -95,7 +96,7 @@ export function initAdBlockService(newConfig?: Partial<AdBlockConfig>): void {
   if (newConfig) {
     config = { ...DEFAULT_ADBLOCK_CONFIG, ...newConfig };
   }
-  console.debug("[AdBlock] Service initialized", { enabled: config.enabled });
+  logger.debug("Adblock:TwitchService", "service initialized", { enabled: config.enabled });
 }
 
 /**
@@ -103,7 +104,7 @@ export function initAdBlockService(newConfig?: Partial<AdBlockConfig>): void {
  */
 export function updateAdBlockConfig(updates: Partial<AdBlockConfig>): void {
   config = { ...config, ...updates };
-  console.debug("[AdBlock] Config updated", updates);
+  logger.debug("Adblock:TwitchService", "config updated", { updates });
 }
 
 /**
@@ -155,7 +156,9 @@ export function getAdBlockConfig(): AdBlockConfig {
  */
 function setMainProcessProxyActive(active: boolean): void {
   isMainProcessProxyActive = active;
-  console.debug(`[AdBlock] Main process proxy: ${active ? "active" : "inactive"}`);
+  logger.debug("Adblock:TwitchService", "main process proxy state changed", {
+    state: active ? "active" : "inactive",
+  });
 }
 
 /**
@@ -218,7 +221,9 @@ export function clearStreamInfo(channelName: string): void {
   // Guard against window not defined (e.g., in Node.js test environment)
   if (typeof window !== "undefined") {
     window.electronAPI?.adblock?.clearProxyStreamInfo?.(lowerName).catch((error: unknown) => {
-      console.debug("[AdBlockService] Failed to clear backend stream info:", error);
+      logger.debug("Adblock:TwitchService", "failed to clear backend stream info", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
   }
 }
@@ -395,13 +400,13 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
         streamInfo.isShowingAd = true;
         streamInfo.adStartTime = Date.now();
         streamInfo.isMidroll = text.includes('"MIDROLL"') || text.includes('"midroll"');
-        console.debug(`[AdBlock] Ad state: showing (proxy handling replacement)`);
+        logger.debug("Adblock:TwitchService", "ad state showing (proxy handling replacement)");
         notifyStatusChange(streamInfo);
       } else if (!hasAds && streamInfo.isShowingAd) {
         streamInfo.isShowingAd = false;
         streamInfo.adStartTime = null;
         streamInfo.isMidroll = false;
-        console.debug(`[AdBlock] Ad state: ended`);
+        logger.debug("Adblock:TwitchService", "ad state ended");
         notifyStatusChange(streamInfo);
       }
     }
@@ -411,7 +416,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
   const streamInfo = streamInfosByUrl.get(url.trim());
   if (!streamInfo) {
     // Debug: Log when we can't find stream info (this was silently failing before)
-    console.debug("[AdBlock] No stream info found for URL, skipping processing");
+    logger.debug("Adblock:TwitchService", "no stream info found for URL, skipping processing");
     return text;
   }
 
@@ -429,9 +434,11 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
       streamInfo.isShowingAd = true;
       streamInfo.adStartTime = Date.now();
       streamInfo.isUsingFallbackMode = false;
-      console.debug(
-        `[AdBlock] Ad detected on ${streamInfo.channelName} (midroll: ${streamInfo.isMidroll}, method: ${detectionMethod})`
-      );
+      logger.debug("Adblock:TwitchService", "ad detected", {
+        channelName: streamInfo.channelName,
+        midroll: streamInfo.isMidroll,
+        method: detectionMethod,
+      });
       notifyStatusChange(streamInfo);
     }
 
@@ -443,7 +450,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     // Get current resolution info
     const currentResolution = streamInfo.urls.get(url.trim());
     if (!currentResolution) {
-      console.warn("[AdBlock] Missing resolution info for", url);
+      logger.warn("Adblock:TwitchService", "missing resolution info for url", { url });
       return text;
     }
 
@@ -468,16 +475,18 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
       const backupHasAds = backupResult.includes(config.adSignifier);
       streamInfo.isUsingFallbackMode = backupHasAds; // TRUE if we're stripping
       if (!backupHasAds) {
-        console.debug(`[AdBlock] Using clean backup stream (${streamInfo.activeBackupPlayerType})`);
+        logger.debug("Adblock:TwitchService", "using clean backup stream", {
+          activeBackupPlayerType: streamInfo.activeBackupPlayerType,
+        });
       } else {
-        console.debug(`[AdBlock] Backup has ads, entering stripping/fallback mode`);
+        logger.debug("Adblock:TwitchService", "backup has ads, entering stripping/fallback mode");
         notifyStatusChange(streamInfo);
       }
     } else {
       // All backup types failed - enter fallback mode
       if (!streamInfo.isUsingFallbackMode) {
         streamInfo.isUsingFallbackMode = true;
-        console.debug(`[AdBlock] All backup types failed, entering fallback mode`);
+        logger.debug("Adblock:TwitchService", "all backup types failed, entering fallback mode");
         notifyStatusChange(streamInfo);
       }
     }
@@ -488,7 +497,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     }
   } else if (streamInfo.isShowingAd) {
     // Ad has ended
-    console.debug(`[AdBlock] Ads finished on ${streamInfo.channelName}`);
+    logger.debug("Adblock:TwitchService", "ads finished", { channelName: streamInfo.channelName });
     streamInfo.isShowingAd = false;
     streamInfo.isStrippingAdSegments = false;
     streamInfo.numStrippedAdSegments = 0;
@@ -574,7 +583,10 @@ async function tryPlayerType(
   } catch (err) {
     // Timeout or network error - fail fast, don't log excessively
     if ((err as Error).name !== "AbortError") {
-      console.debug(`[AdBlock] Backup ${playerType} failed:`, (err as Error).message);
+      logger.debug("Adblock:TwitchService", "backup player type failed", {
+        playerType,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
     return null;
   }
@@ -616,7 +628,9 @@ async function tryGetBackupStream(
     }
     if (!result.m3u8.includes(config.adSignifier)) {
       streamInfo.activeBackupPlayerType = result.playerType;
-      console.debug(`[AdBlock] Using clean backup (${result.playerType})`);
+      logger.debug("Adblock:TwitchService", "using clean backup", {
+        playerType: result.playerType,
+      });
       return result.m3u8;
     }
   }
@@ -685,7 +699,10 @@ async function getAccessToken(
       }
     }
   } catch (err) {
-    console.debug(`[AdBlock] GQL request failed for ${playerType}:`, err);
+    logger.debug("Adblock:TwitchService", "GQL request failed", {
+      playerType,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return null;
@@ -1017,7 +1034,10 @@ function createModifiedPlaylist(text: string, streamInfo: StreamInfo): string {
         })[0];
 
         if (replacement) {
-          console.debug(`[AdBlock] ModifiedM3U8: swap ${codecs} to ${replacement.codecs}`);
+          logger.debug("Adblock:TwitchService", "modifiedM3U8 codec swap", {
+            from: codecs,
+            to: replacement.codecs,
+          });
           lines[i] = lines[i].replace(/CODECS="[^"]+"/, `CODECS="${replacement.codecs}"`);
           lines[i + 1] = replacement.url + " ".repeat(i + 1); // Unique URL
         }

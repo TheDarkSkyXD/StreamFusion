@@ -41,6 +41,9 @@
  * the user actually pinned.
  */
 
+// Cross-logger: imported by TwitchChat (renderer) — avoids dragging
+// electron-log into the renderer bundle.
+import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type {
   ChatBadge,
@@ -172,7 +175,13 @@ async function poll(login: string): Promise<void> {
   } catch (error) {
     // Network blip / Twitch hiccup — silent skip; try again on the next tick.
     if (process.env.NODE_ENV !== "production") {
-      console.debug("[twitch-pin-poller] fetch failed:", login, error);
+      logger.debug("Chat:Pin", "Fetch failed", {
+        login,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
     return;
   }

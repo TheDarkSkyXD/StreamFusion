@@ -13,6 +13,7 @@ import { EventEmitter } from "node:events";
 
 import { session } from "electron";
 
+import { logger } from "@/lib/cross-logger";
 import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { storageService } from "../services/storage-service";
@@ -47,7 +48,13 @@ async function clearKickSessionCookies(): Promise<void> {
     try {
       cookies = await defaultSession.cookies.get({ domain });
     } catch (err) {
-      console.debug(`[kickAuth] Failed to enumerate cookies for ${domain}:`, err);
+      logger.debug("Auth:Kick", "Failed to enumerate cookies", {
+        domain,
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
       continue;
     }
 
@@ -64,11 +71,17 @@ async function clearKickSessionCookies(): Promise<void> {
       try {
         await defaultSession.cookies.remove(url, cookie.name);
       } catch (err) {
-        console.debug(`[kickAuth] Failed to remove cookie ${cookie.name}:`, err);
+        logger.debug("Auth:Kick", "Failed to remove cookie", {
+          cookieName: cookie.name,
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
       }
     }
   }
-  console.debug("🍪 Cleared Kick session cookies from default partition");
+  logger.debug("Auth:Kick", "Cleared Kick session cookies from default partition");
 }
 
 // ========== Kick Auth Service Class ==========
@@ -87,7 +100,7 @@ class KickAuthService extends EventEmitter {
     const currentToken = storageService.getToken(this.platform);
 
     if (!currentToken?.refreshToken) {
-      console.warn("⚠️ No refresh token available for Kick");
+      logger.warn("Auth:Kick", "No refresh token available for Kick");
       return null;
     }
 
@@ -98,10 +111,15 @@ class KickAuthService extends EventEmitter {
       });
 
       storageService.saveToken(this.platform, newToken);
-      console.debug("✅ Kick token refreshed successfully");
+      logger.debug("Auth:Kick", "Kick token refreshed successfully");
       return newToken;
     } catch (error) {
-      console.error("❌ Kick token refresh failed:", error);
+      logger.error("Auth:Kick", "Kick token refresh failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
 
       // Any server-side OAuth error (401 invalid/revoked/expired refresh token)
       // means the stored credentials are permanently invalid. Clear them so the
@@ -111,7 +129,7 @@ class KickAuthService extends EventEmitter {
       storageService.clearKickUser();
       await clearKickSessionCookies();
       this.emit("session-expired");
-      console.warn("⚠️ Kick session cleared — user must re-authenticate");
+      logger.warn("Auth:Kick", "Kick session cleared — user must re-authenticate");
       return null;
     }
   }
@@ -145,7 +163,7 @@ class KickAuthService extends EventEmitter {
     const expirationBuffer = 5 * 60 * 1000; // 5 minutes
 
     if (expiresAt > 0 && Date.now() >= expiresAt - expirationBuffer) {
-      console.debug("🔄 Kick token expired or expiring soon, refreshing...");
+      logger.debug("Auth:Kick", "Kick token expired or expiring soon, refreshing");
       const refreshed = await this.refreshToken();
       return refreshed !== null;
     }
@@ -175,7 +193,7 @@ class KickAuthService extends EventEmitter {
     const token = accessToken ?? storageService.getToken(this.platform)?.accessToken;
 
     if (!token) {
-      console.warn("⚠️ No access token available for fetching user");
+      logger.warn("Auth:Kick", "No access token available for fetching user");
       return null;
     }
 
@@ -190,7 +208,7 @@ class KickAuthService extends EventEmitter {
 
       if (!response.ok) {
         if (response.status === 401) {
-          console.debug("🔄 Token expired, attempting refresh...");
+          logger.debug("Auth:Kick", "Token expired, attempting refresh");
           const refreshed = await this.refreshToken();
           if (refreshed) {
             return this.fetchCurrentUser(refreshed.accessToken);
@@ -211,15 +229,15 @@ class KickAuthService extends EventEmitter {
       };
 
       // Log the raw response for debugging
-      console.debug("📥 Kick API /users response:", JSON.stringify(responseData, null, 2));
+      logger.debug("Auth:Kick", "Kick API /users response", { response: responseData });
 
       if (!responseData.data || responseData.data.length === 0) {
-        console.warn("⚠️ No user data returned from Kick API");
+        logger.warn("Auth:Kick", "No user data returned from Kick API");
         return null;
       }
 
       const apiUser = responseData.data[0];
-      console.debug("📥 Kick user data:", {
+      logger.debug("Auth:Kick", "Kick user data", {
         user_id: apiUser.user_id,
         name: apiUser.name,
         profile_picture: apiUser.profile_picture,
@@ -230,15 +248,18 @@ class KickAuthService extends EventEmitter {
       // Update stored user data
       storageService.saveKickUser(user);
 
-      console.debug(
-        "✅ Kick user fetched successfully:",
-        user.username,
-        "Profile pic:",
-        user.profilePic || "(none)"
-      );
+      logger.debug("Auth:Kick", "Kick user fetched successfully", {
+        username: user.username,
+        profilePic: user.profilePic || "(none)",
+      });
       return user;
     } catch (error) {
-      console.error("❌ Failed to fetch Kick user:", error);
+      logger.error("Auth:Kick", "Failed to fetch Kick user", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return null;
     }
   }
@@ -324,14 +345,19 @@ class KickAuthService extends EventEmitter {
 
     // If no token or expired, get a new one
     if (!token || storageService.isAppTokenExpired(this.platform)) {
-      console.debug("🔄 Kick App token missing or expired, fetching new one...");
+      logger.debug("Auth:Kick", "Kick App token missing or expired, fetching new one");
       try {
         // We use tokenExchangeService which handles client_credentials grant
         const newToken = await tokenExchangeService.getAppAccessToken(this.platform);
         storageService.saveAppToken(this.platform, newToken);
         return true;
       } catch (error) {
-        console.error("❌ Failed to get Kick App Token:", error);
+        logger.error("Auth:Kick", "Failed to get Kick App Token", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return false;
       }
     }

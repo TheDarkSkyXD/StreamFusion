@@ -13,6 +13,7 @@ import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useStreamByChannel } from "@/hooks/queries/useStreams";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
+import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES, type Platform } from "@/shared/auth-types";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
@@ -88,13 +89,13 @@ export function StreamPage() {
 
   // Helper to trigger proxy fallback
   const triggerProxyFallback = useCallback(() => {
-    console.debug("[StreamPage] Triggering fallback to direct stream");
+    logger.debug("Page:Stream", "triggering fallback to direct stream");
     retryWithoutProxy();
   }, [retryWithoutProxy]);
 
   const handlePlayerError = useCallback(
     (error: PlayerError) => {
-      console.debug(`[StreamPage] handlePlayerError called:`, {
+      logger.debug("Page:Stream", "handlePlayerError called", {
         code: error.code,
         isUsingProxy,
         platform,
@@ -109,17 +110,19 @@ export function StreamPage() {
       if (error.shouldRefresh || error.code === "TOKEN_EXPIRED" || error.code === "NO_FRAGMENTS") {
         // Check if we haven't hit the max retries yet (3)
         if (reloadAttempts < 3) {
-          console.debug(
-            `[StreamPage] ${error.code} - attempting automatic refresh (${reloadAttempts + 1}/3)`
-          );
+          logger.debug("Page:Stream", "attempting automatic refresh", {
+            code: error.code,
+            attempt: reloadAttempts + 1,
+            maxAttempts: 3,
+          });
 
           reloadPlayback(); // Fetch fresh playback URL
 
           return; // Don't show error, let refresh attempt
         } else {
-          console.debug(
-            `[StreamPage] Max reload attempts reached for ${error.code}. Showing error.`
-          );
+          logger.debug("Page:Stream", "max reload attempts reached, showing error", {
+            code: error.code,
+          });
         }
       }
 
@@ -131,7 +134,7 @@ export function StreamPage() {
 
       // STREAM_OFFLINE is expected when a stream ends - use debug logging
       if (error.code === "STREAM_OFFLINE") {
-        console.debug("Stream ended or went offline");
+        logger.debug("Page:Stream", "stream ended or went offline");
 
         // If we were using proxy and got a network/offline error, try fallback to direct
         if (isUsingProxy && platform === "twitch") {
@@ -139,7 +142,11 @@ export function StreamPage() {
           return; // Don't show error yet, let fallback attempt
         }
       } else {
-        console.error("Player error", error);
+        logger.error("Page:Stream", "player error", {
+          code: error.code,
+          message: error.message,
+          fatal: error.fatal,
+        });
 
         // Also try fallback for other network errors when using proxy
         if (isUsingProxy && platform === "twitch") {
@@ -320,7 +327,7 @@ export function StreamPage() {
                 streamUrl={effectiveStreamUrl}
                 autoPlay={true}
                 muted={isClipDialogOpen}
-                onReady={() => console.debug("Kick Live Player ready")}
+                onReady={() => logger.debug("Page:Stream", "kick live player ready")}
                 onError={handlePlayerError}
                 isTheater={isTheater}
                 onToggleTheater={() => setTheaterModeActive(!isTheater)}
@@ -334,7 +341,7 @@ export function StreamPage() {
                 channelName={channelName}
                 autoPlay={true}
                 muted={isClipDialogOpen}
-                onReady={() => console.debug("Twitch Live Player ready")}
+                onReady={() => logger.debug("Page:Stream", "twitch live player ready")}
                 onError={handlePlayerError}
                 isTheater={isTheater}
                 onToggleTheater={() => setTheaterModeActive(!isTheater)}

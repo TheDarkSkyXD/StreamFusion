@@ -6,7 +6,8 @@ A collection of reusable AI agent skills for Claude Code. Drop them into any pro
 
 ```mermaid
 graph TD
-    Start{New Project or Feature?} -->|Yes| A["/grill-with-docs\nStress-test your idea against\nthe domain model"]
+    Start{New Project or Feature?} -->|Yes| IL["/intent-layer\nScaffold AGENTS.md so agents\nnavigate the codebase"]
+    IL --> A["/grill-with-docs\nStress-test your idea against\nthe domain model"]
     A --> B["/to-prd\nSynthesize into a PRD\nand publish to issue tracker"]
     B --> C["/to-issues\nBreak PRD into vertical\nslice issues"]
     C --> D["/tdd\nBuild each issue with\nred-green-refactor"]
@@ -14,7 +15,8 @@ graph TD
     Start -->|Bug or Regression| E["/diagnose\nReproduce → minimize →\nhypothesize → fix"]
     E --> D
 
-    D --> F["/deslop\nClean AI-generated code\nbefore committing"]
+    D --> ARCH["/improve-codebase-architecture\nSurface shallow modules and\npropose deepening refactors"]
+    ARCH --> F["/deslop\nClean AI-generated code\nbefore committing"]
 
     F --> G{What kind of code?}
     G -->|React / Next.js| H["/react-doctor\nScan for 60+ React\nanti-patterns"]
@@ -26,11 +28,13 @@ graph TD
     I --> J["deepsec\nScan for security\nvulnerabilities"]
     J --> K["✅ Ready to commit"]
 
+    style IL fill:#10b981,color:#fff
     style A fill:#4a9eff,color:#fff
     style B fill:#4a9eff,color:#fff
     style C fill:#4a9eff,color:#fff
     style D fill:#22c55e,color:#fff
     style E fill:#f59e0b,color:#fff
+    style ARCH fill:#8b5cf6,color:#fff
     style F fill:#a855f7,color:#fff
     style H fill:#ef4444,color:#fff
     style H2 fill:#06b6d4,color:#fff
@@ -45,13 +49,15 @@ graph TD
 
 | Step | Skill | What it does |
 |------|-------|--------------|
-| 1 | `/grill-with-docs` | Interview you about every aspect of the plan. Challenges assumptions against the existing domain model, sharpens terminology, and captures decisions in brainstorm logs + CONTEXT.md |
-| 2 | `/to-prd` | Synthesizes the conversation into a full PRD (problem, solution, user stories, test seams) and publishes it to your issue tracker |
-| 3 | `/to-issues` | Breaks the PRD into independently-grabbable vertical slice issues — thin end-to-end tracer bullets, not horizontal layers |
-| 4 | `/tdd` | Build each issue using red-green-refactor. One test → one implementation → repeat. No writing all tests first |
-| 5 | `/deslop` | Before committing: strip unnecessary comments, defensive checks, `any` casts, and other AI-generated slop |
-| 6 | `/proof` | Prove the feature works with real observed evidence (screenshots, test output) — not just "it should work" |
-| 7 | `deepsec` | Run a security scan to catch vulnerabilities before shipping (`pnpm deepsec scan && pnpm deepsec process`) |
+| 1 | `/intent-layer` | Scaffold AGENTS.md hierarchy so agents navigate the codebase like senior engineers. Detects existing state, measures token counts, and generates context nodes for complex subsystems |
+| 2 | `/grill-with-docs` | Interview you about every aspect of the plan. Challenges assumptions against the existing domain model, sharpens terminology, and captures decisions in brainstorm logs + CONTEXT.md |
+| 3 | `/to-prd` | Synthesizes the conversation into a full PRD (problem, solution, user stories, test seams) and publishes it to your issue tracker |
+| 4 | `/to-issues` | Breaks the PRD into independently-grabbable vertical slice issues — thin end-to-end tracer bullets, not horizontal layers |
+| 5 | `/tdd` | Build each issue using red-green-refactor. One test → one implementation → repeat. No writing all tests first |
+| 6 | `/improve-codebase-architecture` | Surface shallow modules and propose deepening refactors. Generates an HTML report with before/after diagrams, then explores alternative interfaces via parallel sub-agents |
+| 7 | `/deslop` | Before committing: strip unnecessary comments, defensive checks, `any` casts, and other AI-generated slop |
+| 8 | `/proof` | Prove the feature works with real observed evidence (screenshots, test output) — not just "it should work" |
+| 9 | `deepsec` | Run a security scan to catch vulnerabilities before shipping (`pnpm deepsec scan && pnpm deepsec process`) |
 
 #### 🐛 Debugging
 
@@ -95,8 +101,8 @@ graph TD
 | Skill | Description |
 |-------|-------------|
 | **grill-with-docs** | Challenge your plan against the existing domain model and sharpen terminology |
-| **improve-codebase-architecture** | Find deepening opportunities informed by domain language and ADRs |
-| **intent-layer** | Set up hierarchical Intent Layer (AGENTS.md files) for codebase navigation |
+| **improve-codebase-architecture** | Surface shallow modules and propose deepening refactors — generates an interactive HTML report with before/after diagrams, then explores alternative interfaces via parallel sub-agents ("Design It Twice") |
+| **intent-layer** | Scaffold hierarchical AGENTS.md context files so AI agents navigate codebases like senior engineers — detects state, measures token counts, and generates nodes for complex subsystems (>20k tokens) |
 | **skill-creator** | Create new skills, run evals, benchmark performance, and optimize skill descriptions |
 | **to-issues** | Break a plan or PRD into independently-grabbable issues using vertical slices |
 | **to-prd** | Turn conversation context into a PRD and publish to the issue tracker |

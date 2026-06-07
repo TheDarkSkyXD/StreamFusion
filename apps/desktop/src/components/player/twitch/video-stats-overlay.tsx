@@ -98,9 +98,9 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
   };
 
   // Immediate update when hls/video/sessionIds change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hls/video/sessionIds are the triggers; updateStats is intentionally excluded so it isn't a reactive dep
   useEffect(() => {
     updateStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hls, video, sessionIds]);
 
   // 1 Hz stats refresh while hls and video are available

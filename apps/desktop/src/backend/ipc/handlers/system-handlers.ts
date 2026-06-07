@@ -1,5 +1,6 @@
 import { app, type BrowserWindow, ipcMain, Notification, nativeTheme, shell } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
 export function registerSystemHandlers(mainWindow: BrowserWindow): void {
@@ -18,7 +19,7 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
         mainWindow.webContents.send(channel, ...args);
       }
     } catch {
-      console.warn(`⚠️ Could not send to ${channel}: Window disposed`);
+      logger.warn("IPC:System", "Could not send to channel: Window disposed", { channel });
     }
   }
 
@@ -121,7 +122,7 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
         await shell.openExternal(url);
       }
     } catch {
-      console.error("Invalid URL:", url);
+      logger.error("IPC:System", "Invalid URL", { url });
     }
   });
 

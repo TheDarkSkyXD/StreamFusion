@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { logger } from "@/renderer/logging/logger";
 import type { UnifiedChannel } from "../backend/api/unified/platform-types";
 import { channelsMatch } from "../lib/id-utils";
 import type { FollowSource } from "../shared/auth-types";
@@ -81,7 +82,12 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
           });
         }
       } catch (err) {
-        console.error("Failed to save follow to backend:", err);
+        logger.error("Store:Follow", "failed to save follow to backend", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         set({ localFollows: currentFollows, sourceByKey: currentSources });
       }
     } finally {
@@ -99,7 +105,11 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
 
       const followToRemove = currentFollows.find((c) => channelsMatch(c, channel));
       if (!followToRemove) {
-        console.warn("[FollowStore] No channel found matching:", channel);
+        logger.warn("Store:Follow", "no channel found matching", {
+          platform: channel.platform,
+          id: channel.id,
+          username: channel.username,
+        });
         return;
       }
 
@@ -125,7 +135,12 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
           await window.electronAPI.follows.remove(m.id);
         }
       } catch (err) {
-        console.error("Failed to remove follow from backend:", err);
+        logger.error("Store:Follow", "failed to remove follow from backend", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         // Partial-failure mid-loop leaves the optimistic snapshot at odds with
         // what actually got deleted. Re-sync from DB truth rather than guessing
         // which rows still exist.
@@ -218,7 +233,12 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
           });
         }
       } catch (err) {
-        console.error("Failed to upgrade follow to canonical id:", err);
+        logger.error("Store:Follow", "failed to upgrade follow to canonical id", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         await get().hydrate();
       }
     } finally {
@@ -252,7 +272,10 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
       }
       set({ localFollows: channels, sourceByKey: sources });
     } catch (e) {
-      console.error("Failed to load local follows:", e);
+      logger.error("Store:Follow", "failed to load local follows", {
+        error:
+          e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+      });
     }
   },
 }));

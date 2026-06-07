@@ -5,6 +5,7 @@
  */
 
 import { type BrowserWindow, ipcMain } from "electron";
+import { logger } from "@/backend/logging/logger";
 import type { CheckFrequency } from "../../../shared/ipc-channels";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import {
@@ -20,6 +21,15 @@ import {
 
 const VALID_FREQUENCIES: readonly CheckFrequency[] = ["hourly", "daily", "weekly"];
 
+function serializeError(error: unknown): Record<string, unknown> {
+  return {
+    error:
+      error instanceof Error
+        ? { name: error.name, message: error.message, stack: error.stack }
+        : String(error),
+  };
+}
+
 export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
   // IMPORTANT: Register IPC handlers FIRST, before initializing the service
   // This ensures handlers are available even if the update service fails to initialize
@@ -30,7 +40,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
     try {
       return await checkForUpdates();
     } catch (error) {
-      console.error("[Update] Check failed:", error);
+      logger.error("IPC:Update", "Check failed", serializeError(error));
       return {
         status: "error",
         updateInfo: null,
@@ -48,7 +58,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
     try {
       return await downloadUpdate();
     } catch (error) {
-      console.error("[Update] Download failed:", error);
+      logger.error("IPC:Update", "Download failed", serializeError(error));
       return {
         status: "error",
         updateInfo: null,
@@ -70,7 +80,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       installUpdate();
       return { success: true };
     } catch (error) {
-      console.error("[Update] Install failed:", error);
+      logger.error("IPC:Update", "Install failed", serializeError(error));
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to install update",
@@ -83,7 +93,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
     try {
       return getUpdateStatus();
     } catch (error) {
-      console.error("[Update] Get status failed:", error);
+      logger.error("IPC:Update", "Get status failed", serializeError(error));
       return {
         status: "error",
         updateInfo: null,
@@ -116,7 +126,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       try {
         return setAllowPrerelease(payload.allow);
       } catch (error) {
-        console.error("[Update] Set prerelease failed:", error);
+        logger.error("IPC:Update", "Set prerelease failed", serializeError(error));
         return {
           status: "error",
           updateInfo: null,
@@ -146,7 +156,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       try {
         return setAutoCheck(settings);
       } catch (error) {
-        console.error("[Update] Set auto-check failed:", error);
+        logger.error("IPC:Update", "Set auto-check failed", serializeError(error));
         return {
           status: "error",
           updateInfo: null,
@@ -165,22 +175,23 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
     try {
       return getUpdateSettings();
     } catch (error) {
-      console.error("[Update] Get settings failed:", error);
+      logger.error("IPC:Update", "Get settings failed", serializeError(error));
       return { allowPrerelease: false, autoCheckEnabled: false, checkFrequency: "daily" };
     }
   });
 
-  console.log("[Update] IPC handlers registered");
+  logger.info("IPC:Update", "IPC handlers registered");
 
   // NOW initialize the update service (after handlers are registered)
   // Wrap in try-catch to prevent initialization errors from breaking the app
   try {
     initUpdateService(mainWindow);
-    console.log("[Update] Update service initialized");
+    logger.info("IPC:Update", "Update service initialized");
   } catch (error) {
-    console.warn(
-      "[Update] Update service initialization failed (this is normal in development):",
-      error
+    logger.warn(
+      "IPC:Update",
+      "Update service initialization failed (this is normal in development)",
+      serializeError(error)
     );
   }
 }

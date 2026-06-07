@@ -28,6 +28,7 @@ import type { ChatSettingsPayload } from "@/backend/api/platforms/twitch/twitch-
 import type { KickChatroomSettings, UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { kickChatService } from "@/backend/services/chat/kick-chat";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
+import { logger } from "@/renderer/logging/logger";
 import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@/shared/chat-types";
 import { type RoomState, roomStateKey, useRoomStateStore } from "@/store/room-state-store";
 
@@ -228,7 +229,12 @@ export function useChatSettingsSync({
         // Failure is non-fatal — the banner stays hidden (R19). Surface via
         // warn so it shows up next to other chat-join failure logs without
         // tripping error boundaries.
-        console.warn("[useChatSettingsSync] initial fetch failed:", err);
+        logger.warn("Hook:ChatSettings", "initial fetch failed", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
       } finally {
         if (fetchController === localController) fetchController = null;
         inFlight.delete(key);

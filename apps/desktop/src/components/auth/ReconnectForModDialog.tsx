@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { logger } from "@/renderer/logging/logger";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
@@ -76,7 +77,9 @@ export function ReconnectForModDialog() {
     } catch (error) {
       // Failure: keep the dialog open so the user can retry. No behavior
       // change vs the pre-U5 path beyond not auto-closing on error.
-      console.error("Reconnect for mod scopes failed:", error);
+      logger.error("UI:Auth:Reconnect", "reconnect for mod scopes failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 

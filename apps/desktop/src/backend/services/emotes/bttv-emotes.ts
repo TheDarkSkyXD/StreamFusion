@@ -5,6 +5,7 @@
  * and channel-specific emotes.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
@@ -48,7 +49,12 @@ class BTTVEmoteProvider implements EmoteProviderService {
         .json<BTTVEmote[]>();
       return data.map((emote) => this.transformEmote(emote, true));
     } catch (error) {
-      console.error("[BTTVEmotes] Failed to fetch global emotes:", error);
+      logger.error("Emote:BTTV", "Failed to fetch global emotes", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -66,13 +72,13 @@ class BTTVEmoteProvider implements EmoteProviderService {
   ): Promise<Emote[]> {
     // BTTV only supports Twitch - skip for other platforms
     if (platform !== "twitch") {
-      console.log(`[BTTVEmotes] Skipping - BTTV only supports Twitch channels`);
+      logger.info("Emote:BTTV", "Skipping - BTTV only supports Twitch channels");
       return [];
     }
 
     // Validate channelId looks like a Twitch ID (numeric)
     if (!/^\d+$/.test(channelId)) {
-      console.log(`[BTTVEmotes] Skipping - Channel ID ${channelId} is not a valid Twitch ID`);
+      logger.info("Emote:BTTV", "Skipping - Channel ID is not a valid Twitch ID", { channelId });
       return [];
     }
 
@@ -88,10 +94,18 @@ class BTTVEmoteProvider implements EmoteProviderService {
     } catch (error: any) {
       if (error.response?.status === 404) {
         // Channel not on BTTV - this is common and expected
-        console.log(`[BTTVEmotes] Channel "${channelName || channelId}" has no BTTV emotes`);
+        logger.info("Emote:BTTV", "Channel has no BTTV emotes", {
+          channel: channelName || channelId,
+        });
         return [];
       }
-      console.warn(`[BTTVEmotes] Failed to fetch channel emotes for ${channelId}:`, error);
+      logger.warn("Emote:BTTV", "Failed to fetch channel emotes", {
+        channelId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return [];
     }
   }

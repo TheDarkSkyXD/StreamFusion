@@ -19,6 +19,7 @@
  */
 
 import { BrowserWindow, session } from "electron";
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import { storageService } from "../../../../services/storage-service";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
@@ -119,7 +120,7 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
   // covers the actual failure cause.
   _warnOnce(
     bearerResult.reason,
-    `[KickFollows] Bearer path failed with reason="${bearerResult.reason}". Trying BrowserWindow cookie-auth fallback...`
+    `Bearer path failed with reason="${bearerResult.reason}". Trying BrowserWindow cookie-auth fallback...`
   );
   return _fetchViaBrowserWindow();
 }
@@ -145,9 +146,14 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
     // transient and re-fire on the next login. AbortError/TimeoutError filtered
     // out explicitly so the warn channel doesn't get noise from rapid retriggers.
     if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
-      console.debug("[KickFollows] Fetch aborted (timeout or re-trigger)");
+      logger.debug("Kick:Endpoints:Follow", "Fetch aborted (timeout or re-trigger)");
     } else {
-      console.debug("[KickFollows] Network error:", err);
+      logger.debug("Kick:Endpoints:Follow", "Network error", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
     }
     return { status: "error", reason: "network-error" };
   }
@@ -162,7 +168,7 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
 
   if (!response.ok) {
     // 5xx or other transient — debug only.
-    console.debug(`[KickFollows] Non-2xx response: ${response.status}`);
+    logger.debug("Kick:Endpoints:Follow", "Non-2xx response", { status: response.status });
     return { status: "error", reason: "network-error" };
   }
 
@@ -170,7 +176,12 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
   try {
     body = await response.text();
   } catch (err) {
-    console.debug("[KickFollows] Response body read failed:", err);
+    logger.debug("Kick:Endpoints:Follow", "Response body read failed", {
+      error:
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : String(err),
+    });
     return { status: "error", reason: "network-error" };
   }
 
@@ -365,9 +376,9 @@ const SCROLL_AND_SCRAPE = `(async () => {
 async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
   // Normal-flow traces go to debug. Only actual failures emit warn so the
   // user's log file stays signal-dense.
-  console.debug("[KickFollows] BrowserWindow fallback: acquiring window slot...");
+  logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: acquiring window slot");
   const releaseSlot = await acquireBrowserWindowSlot();
-  console.debug("[KickFollows] BrowserWindow fallback: slot acquired, creating window");
+  logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: slot acquired, creating window");
   let win: BrowserWindow | null = null;
   try {
     win = new BrowserWindow({
@@ -386,7 +397,9 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // cookie in response to id.kick.com authentication, this navigation
     // deposits it. Failures here aren't fatal — we proceed to the v2 visit
     // and let the response classification decide.
-    console.debug(`[KickFollows] BrowserWindow fallback: warm visit to ${WARM_VISIT_URL}`);
+    logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: warm visit", {
+      url: WARM_VISIT_URL,
+    });
     try {
       const warmLoad = win.loadURL(WARM_VISIT_URL);
       const warmTimeout = new Promise<never>((_, reject) =>
@@ -394,7 +407,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
         setTimeout(() => reject(new Error("warm-timeout")), WARM_VISIT_TIMEOUT_MS)
       );
       await Promise.race([warmLoad, warmTimeout]);
-      console.debug("[KickFollows] BrowserWindow fallback: warm visit completed");
+      logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: warm visit completed");
 
       // Give Kick's SPA a moment to bootstrap and make its auth-bridge API
       // calls (the homepage typically fetches /api/v2/user on load to set the
@@ -405,14 +418,23 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       const defaultSession = session.defaultSession;
       const cookies = await defaultSession.cookies.get({ domain: "kick.com" });
       const cookieSummary = cookies.map((c) => `${c.name}@${c.domain}`).join(", ") || "(none)";
-      console.debug(
-        `[KickFollows] BrowserWindow fallback: kick.com cookies after warm visit: ${cookieSummary}`
+      logger.debug(
+        "Kick:Endpoints:Follow",
+        "BrowserWindow fallback: kick.com cookies after warm visit",
+        { cookieSummary }
       );
     } catch (err) {
       // Warm visit failure is non-fatal — log at debug, the real failure
       // (if any) will surface on the /following navigation below.
-      console.debug(
-        `[KickFollows] BrowserWindow fallback: warm visit failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`
+      logger.debug(
+        "Kick:Endpoints:Follow",
+        "BrowserWindow fallback: warm visit failed (non-fatal)",
+        {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        }
       );
     }
 
@@ -426,8 +448,10 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // mirroring what kick.com's SPA does for its own API calls. Also sends
     // X-Requested-With so Laravel respects Accept: application/json instead
     // of redirecting an unauthed request to /login.
-    console.debug(
-      `[KickFollows] BrowserWindow fallback: fetching ${FOLLOWED_CHANNELS_URL} via page context with XSRF header`
+    logger.debug(
+      "Kick:Endpoints:Follow",
+      "BrowserWindow fallback: fetching followed-channels URL via page context with XSRF header",
+      { url: FOLLOWED_CHANNELS_URL }
     );
 
     // Programmatic API fetches consistently fail against Kick's v2 endpoint
@@ -445,8 +469,10 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // with nav link [Channels → /following/channels]. Scrape the dedicated
     // page so we don't mix recommendations into the follow list.
     const FOLLOWING_PAGE_URL = "https://kick.com/following/channels";
-    console.debug(
-      `[KickFollows] BrowserWindow fallback: navigating to ${FOLLOWING_PAGE_URL} for DOM-scrape extraction`
+    logger.debug(
+      "Kick:Endpoints:Follow",
+      "BrowserWindow fallback: navigating to following page for DOM-scrape extraction",
+      { url: FOLLOWING_PAGE_URL }
     );
 
     try {
@@ -456,13 +482,13 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
         setTimeout(() => reject(new Error("following-page-load-timeout")), PAGE_LOAD_TIMEOUT_MS)
       );
       await Promise.race([navPromise, navTimeout]);
-      console.debug("[KickFollows] BrowserWindow fallback: /following page loaded");
+      logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: /following page loaded");
     } catch (err) {
       // Real failure — keep at warn. Deduped via _warnOnce so reconnect
       // loops don't spam the log.
       _warnOnce(
         "network-error",
-        `[KickFollows] BrowserWindow fallback: /following navigation failed: ${err instanceof Error ? err.message : String(err)}`
+        `BrowserWindow fallback: /following navigation failed: ${err instanceof Error ? err.message : String(err)}`
       );
       return { status: "error", reason: "network-error" };
     }
@@ -473,7 +499,10 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // the grid, so the poll hits the cap and the scrape below returns empty
     // (same outcome as the old flat wait). Return value intentionally ignored —
     // the scrape runs either way.
-    console.debug("[KickFollows] BrowserWindow fallback: waiting for /following grid to render");
+    logger.debug(
+      "Kick:Endpoints:Follow",
+      "BrowserWindow fallback: waiting for /following grid to render"
+    );
     await waitForWebContentsCondition(win.webContents, GRID_READY_PREDICATE, {
       timeoutMs: 8000,
     });
@@ -497,7 +526,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     } catch (err) {
       _warnOnce(
         "parse-error",
-        `[KickFollows] BrowserWindow fallback: DOM scrape threw: ${err instanceof Error ? err.message : String(err)}`
+        `BrowserWindow fallback: DOM scrape threw: ${err instanceof Error ? err.message : String(err)}`
       );
       return { status: "error", reason: "parse-error" };
     }
@@ -521,20 +550,27 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     } catch (err) {
       _warnOnce(
         "parse-error",
-        `[KickFollows] BrowserWindow fallback: DOM scrape result was not JSON: ${scrapeResult.slice(0, 200)}`
+        `BrowserWindow fallback: DOM scrape result was not JSON: ${scrapeResult.slice(0, 200)}`
       );
       return { status: "error", reason: "parse-error" };
     }
 
-    console.debug(
-      `[KickFollows] BrowserWindow fallback: scraped url="${scraped.url}" title="${scraped.title}" cards=${scraped.cardCount} accepted=${scraped.acceptedCardCount} channels=${scraped.channelCount} scrollRounds=${scraped.scrollRounds ?? "?"} scrollSettled=${scraped.scrollSettled ?? "?"} sectionTestids=[${scraped.sectionTestids.join(", ")}]`
-    );
-    console.debug(
-      `[KickFollows] page headings: ${scraped.headings.map((h) => h.tag + ":" + h.text).join(" | ")}`
-    );
-    console.debug(
-      `[KickFollows] follow-related nav links: ${scraped.navLinks.map((l) => l.text + "→" + l.href).join(" | ")}`
-    );
+    logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: scraped result", {
+      url: scraped.url,
+      title: scraped.title,
+      cards: scraped.cardCount,
+      accepted: scraped.acceptedCardCount,
+      channels: scraped.channelCount,
+      scrollRounds: scraped.scrollRounds ?? "?",
+      scrollSettled: scraped.scrollSettled ?? "?",
+      sectionTestids: scraped.sectionTestids,
+    });
+    logger.debug("Kick:Endpoints:Follow", "Page headings", {
+      headings: scraped.headings.map((h) => `${h.tag}:${h.text}`),
+    });
+    logger.debug("Kick:Endpoints:Follow", "Follow-related nav links", {
+      navLinks: scraped.navLinks.map((l) => `${l.text}→${l.href}`),
+    });
 
     if (scraped.channels.length === 0) {
       // Either the user genuinely follows zero channels or the page didn't
@@ -569,14 +605,16 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       isPartner: false,
     }));
 
-    console.debug(
-      `[KickFollows] BrowserWindow fallback SUCCESS: scraped ${channels.length} followed channels from /following DOM`
+    logger.debug(
+      "Kick:Endpoints:Follow",
+      "BrowserWindow fallback SUCCESS: scraped followed channels from /following DOM",
+      { channelCount: channels.length }
     );
     return { status: "ok", channels };
   } catch (err) {
     _warnOnce(
       "network-error",
-      `[KickFollows] BrowserWindow fallback unexpected error: ${err instanceof Error ? err.message : String(err)}`
+      `BrowserWindow fallback unexpected error: ${err instanceof Error ? err.message : String(err)}`
     );
     return { status: "error", reason: "network-error" };
   } finally {
@@ -598,7 +636,7 @@ function _extractItems(parsed: unknown): unknown[] | null {
 function _warnOnce(reason: ErrorReason, message: string): void {
   if (_warned.has(reason)) return;
   _warned.add(reason);
-  console.warn(`[KickFollows] ${message}`);
+  logger.warn("Kick:Endpoints:Follow", message, { reason });
 }
 
 /**

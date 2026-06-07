@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
@@ -47,7 +48,13 @@ export function registerStreamHandlers(): void {
             });
             return { platform: reader.platform, data: result.data, cursor: result.cursor };
           } catch (err) {
-            console.warn(`⚠️ Failed to fetch ${reader.platform} top streams:`, err);
+            logger.warn("IPC:Stream", "Failed to fetch top streams", {
+              platform: reader.platform,
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
             return { platform: reader.platform, data: [] };
           }
         };
@@ -64,7 +71,12 @@ export function registerStreamHandlers(): void {
 
         return { success: true, ...results[0] };
       } catch (error) {
-        console.error("❌ Failed to get top streams:", error);
+        logger.error("IPC:Stream", "Failed to get top streams", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch streams",
@@ -109,7 +121,12 @@ export function registerStreamHandlers(): void {
             });
             results.push({ platform: "twitch", data: result.data, cursor: result.cursor });
           } catch (err) {
-            console.warn("⚠️ Failed to fetch Twitch streams by category:", err);
+            logger.warn("IPC:Stream", "Failed to fetch Twitch streams by category", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
         };
 
@@ -127,7 +144,12 @@ export function registerStreamHandlers(): void {
               cursor: result.cursor ?? result.nextPage?.toString(),
             });
           } catch (err) {
-            console.warn("⚠️ Failed to fetch Kick streams by category:", err);
+            logger.warn("IPC:Stream", "Failed to fetch Kick streams by category", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
         };
 
@@ -156,7 +178,12 @@ export function registerStreamHandlers(): void {
           cursor: first?.cursor,
         };
       } catch (error) {
-        console.error("❌ Failed to get streams by category:", error);
+        logger.error("IPC:Stream", "Failed to get streams by category", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           data: [],
@@ -205,7 +232,12 @@ export function registerStreamHandlers(): void {
               });
               results.push({ platform: "twitch", data: twitchStreams, cursor: result.cursor });
             } catch (err) {
-              console.warn("⚠️ Failed to fetch Twitch remote followed streams:", err);
+              logger.warn("IPC:Stream", "Failed to fetch Twitch remote followed streams", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
             }
           }
 
@@ -225,7 +257,12 @@ export function registerStreamHandlers(): void {
                     }
                   });
                 } catch (e) {
-                  console.warn("Failed to fetch local twitch streams via GQL", e);
+                  logger.warn("IPC:Stream", "Failed to fetch local twitch streams via GQL", {
+                    error:
+                      e instanceof Error
+                        ? { name: e.name, message: e.message, stack: e.stack }
+                        : String(e),
+                  });
                 }
 
                 const existingTwitch = results.find((r) => r.platform === "twitch");
@@ -236,7 +273,12 @@ export function registerStreamHandlers(): void {
                 }
               }
             } catch (err) {
-              console.warn("⚠️ Failed to fetch Twitch local followed streams:", err);
+              logger.warn("IPC:Stream", "Failed to fetch Twitch local followed streams", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
             }
           }
         };
@@ -259,7 +301,12 @@ export function registerStreamHandlers(): void {
                 }
               });
             } catch (err) {
-              console.warn("⚠️ Failed to fetch Kick remote followed streams:", err);
+              logger.warn("IPC:Stream", "Failed to fetch Kick remote followed streams", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
             }
           }
 
@@ -291,7 +338,16 @@ export function registerStreamHandlers(): void {
                   seenIds.add(result.value.id);
                 }
               } else if ((result.reason as Error)?.message !== "AbortError") {
-                console.warn("Failed to fetch Kick stream:", result.reason);
+                logger.warn("IPC:Stream", "Failed to fetch Kick stream", {
+                  error:
+                    result.reason instanceof Error
+                      ? {
+                          name: result.reason.name,
+                          message: result.reason.message,
+                          stack: result.reason.stack,
+                        }
+                      : String(result.reason),
+                });
               }
             }
           }
@@ -315,7 +371,12 @@ export function registerStreamHandlers(): void {
 
         return { success: true, ...(results[0] || { data: [] }) };
       } catch (error) {
-        console.error("❌ Failed to get followed streams:", error);
+        logger.error("IPC:Stream", "Failed to get followed streams", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: true,
           data: [],
@@ -351,7 +412,12 @@ export function registerStreamHandlers(): void {
 
         return { success: true, data: stream };
       } catch (error) {
-        console.error("❌ Failed to get stream by channel:", error);
+        logger.error("IPC:Stream", "Failed to get stream by channel", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch stream",
@@ -394,7 +460,12 @@ export function registerStreamHandlers(): void {
         // "Channel is offline" is expected behavior - don't log as error
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (!errorMessage.toLowerCase().includes("offline")) {
-          console.error("❌ Failed to get stream playback URL:", error);
+          logger.error("IPC:Stream", "Failed to get stream playback URL", {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
         }
         return {
           success: false,

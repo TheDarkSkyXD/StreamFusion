@@ -14,6 +14,10 @@
  */
 
 import { api } from "@/lib/api-client";
+// Cross-logger: this module is reached from renderer components
+// (EngagementPolls, EngagementPredictions, UserPopoutFooter). Importing the
+// backend logger here would drag electron-log into the renderer bundle.
+import { logger } from "@/lib/cross-logger";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
 
@@ -65,7 +69,12 @@ export async function getModeratedChannels(
       // channels" so the rest of the app keeps working. Network failures
       // also fall through — the next hydrate retry will pick up.
       if (process.env.NODE_ENV !== "production") {
-        console.debug("[twitch-helix-moderation] getModeratedChannels failed:", error);
+        logger.debug("Twitch:Helix:Mod", "getModeratedChannels failed", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
       return all;
     }

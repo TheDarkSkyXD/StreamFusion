@@ -79,14 +79,15 @@ export function useHelixPoll<T>(opts: UseHelixPollOptions<T>): UseHelixPollResul
 
   // Immediate fire on mount (when enabled and visible). useInterval won't fire
   // at t=0, so this separate effect preserves that behaviour.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only `enabled` should re-trigger; `isVisible` and `run` are intentionally excluded
   useEffect(() => {
     if (enabled && isVisible) {
       void run();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
   // Track visibility state; fire immediately when returning to foreground.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `docVisible` is a render-stable closure helper; including it would re-attach the listener every render
   useEffect(() => {
     if (typeof document === "undefined") return;
 

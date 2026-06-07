@@ -6,9 +6,9 @@
  */
 
 import { BrowserWindow, session, shell } from "electron";
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "../../lib/sleep";
 import type { Platform } from "../../shared/auth-types";
-
 import { waitForWebContentsCondition } from "../services/web-contents-ready";
 import {
   buildAuthorizationUrl,
@@ -89,8 +89,8 @@ class AuthWindowManager {
       state,
     });
 
-    console.debug(`🔐 Opening auth window for ${platform}`);
-    console.debug(`🔗 Redirect URI: ${redirectUri}`);
+    logger.debug("Auth:Window", "Opening auth window", { platform });
+    logger.debug("Auth:Window", "Redirect URI assigned", { platform, redirectUri });
 
     // Create the auth window.
     //
@@ -137,7 +137,7 @@ class AuthWindowManager {
     // Handle window close
     window.on("closed", () => {
       this.sessions.delete(platform);
-      console.debug(`🔐 Auth window closed for ${platform}`);
+      logger.debug("Auth:Window", "Auth window closed", { platform });
     });
 
     // Handle external links (open in default browser)
@@ -153,7 +153,7 @@ class AuthWindowManager {
     // Don't prevent navigation - let the local server show success/error page
     window.webContents.on("will-navigate", (_event, url) => {
       if (this.isCallbackUrl(url, port, platform)) {
-        console.debug(`📥 Auth callback navigation detected for ${platform}`);
+        logger.debug("Auth:Window", "Auth callback navigation detected", { platform });
         // Let navigation proceed to localhost server
         // The server will respond with a success page that closes the window
       }
@@ -162,7 +162,7 @@ class AuthWindowManager {
     // Also check redirects
     window.webContents.on("will-redirect", (_event, url) => {
       if (this.isCallbackUrl(url, port, platform)) {
-        console.debug(`📥 Auth redirect detected for ${platform}`);
+        logger.debug("Auth:Window", "Auth redirect detected", { platform });
         // Let redirect proceed to localhost server
       }
     });
@@ -170,7 +170,7 @@ class AuthWindowManager {
     // When the localhost callback page loads, close the window after a delay
     window.webContents.on("did-navigate", (_event, url) => {
       if (this.isCallbackUrl(url, port, platform)) {
-        console.debug(`✅ Auth callback page loaded for ${platform}`);
+        logger.debug("Auth:Window", "Auth callback page loaded", { platform });
         // Close window after the success page displays briefly
         // timer-allowlist: 1.5s success-page dwell before closing OAuth window (deliberate UX pause)
         setTimeout(() => {
@@ -194,7 +194,7 @@ class AuthWindowManager {
     //   navigates straight to id.kick.com with no visible difference from
     //   the previous single-redirect flow.
     if (platform === "kick") {
-      console.debug("🌐 Loading kick.com for web sign-in (Kick OAuth flow)");
+      logger.debug("Auth:Window", "Loading kick.com for web sign-in (Kick OAuth flow)");
       window.loadURL("https://kick.com/");
 
       // After kick.com loads, decide whether the user is already authenticated
@@ -215,8 +215,9 @@ class AuthWindowManager {
 
         const alreadyAuthed = await this._isKickWebAuthenticated(window);
         if (alreadyAuthed) {
-          console.debug(
-            "✅ kick.com session already authenticated — proceeding directly to id.kick.com OAuth"
+          logger.debug(
+            "Auth:Window",
+            "kick.com session already authenticated — proceeding directly to id.kick.com OAuth"
           );
           if (!window.isDestroyed()) window.loadURL(authUrl);
           return;
@@ -243,7 +244,7 @@ class AuthWindowManager {
         // Start polling for cookie rotation that signals successful sign-in.
         void this._waitForKickWebAuth(window).then((authenticated) => {
           if (!authenticated || window.isDestroyed()) return;
-          console.debug("🔁 Kick web auth confirmed — proceeding to id.kick.com OAuth");
+          logger.debug("Auth:Window", "Kick web auth confirmed — proceeding to id.kick.com OAuth");
           window.loadURL(authUrl);
         });
       });
@@ -288,7 +289,9 @@ class AuthWindowManager {
 
     while (Date.now() - start < maxMs) {
       if (window.isDestroyed()) {
-        console.debug(`[KickAuth] window destroyed after ${attempts} poll(s) — aborting`);
+        logger.debug("Auth:Window", "window destroyed during Kick web-auth polling — aborting", {
+          attempts,
+        });
         return false;
       }
       attempts++;
@@ -302,39 +305,46 @@ class AuthWindowManager {
           // (the homepage sets anonymous cookies as it loads).
           if (attempts === 1) {
             lastReason = "capturing-baseline";
-            console.debug(`[KickAuth] poll #1: baseline read pending`);
+            logger.debug("Auth:Window", "poll #1: baseline read pending");
           } else {
             baselineSessionToken = sessionToken;
             baselineKickSession = kickSession;
             baselineCaptured = true;
             lastReason = "baseline-captured";
-            console.debug(
-              `[KickAuth] poll #${attempts}: baseline captured — session_token=${this._fp(sessionToken)} kick_session=${this._fp(kickSession)}`
-            );
+            logger.debug("Auth:Window", "baseline captured", {
+              attempts,
+              sessionToken: this._fp(sessionToken),
+              kickSession: this._fp(kickSession),
+            });
           }
         } else {
           const sessionTokenChanged = !!sessionToken && sessionToken !== baselineSessionToken;
           const kickSessionChanged = !!kickSession && kickSession !== baselineKickSession;
 
           if (sessionTokenChanged || kickSessionChanged) {
-            console.debug(
-              `✅ Kick web auth detected via cookie rotation after ${attempts} poll(s) (${Date.now() - start}ms): session_token ${sessionTokenChanged ? "ROTATED" : "unchanged"}, kick_session ${kickSessionChanged ? "ROTATED" : "unchanged"}`
-            );
+            logger.debug("Auth:Window", "Kick web auth detected via cookie rotation", {
+              attempts,
+              elapsedMs: Date.now() - start,
+              sessionToken: sessionTokenChanged ? "ROTATED" : "unchanged",
+              kickSession: kickSessionChanged ? "ROTATED" : "unchanged",
+            });
             return true;
           }
           lastReason = `cookies unchanged from baseline (session_token=${this._fp(sessionToken)})`;
           if (attempts === 3 || attempts % 10 === 0) {
-            console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
+            logger.debug("Auth:Window", "poll status", { attempts, reason: lastReason });
           }
         }
       } catch (err) {
         lastReason = `poll error: ${err instanceof Error ? err.message : String(err)}`;
-        console.debug(`[KickAuth] poll #${attempts}: ${lastReason}`);
+        logger.debug("Auth:Window", "poll error", { attempts, reason: lastReason });
       }
       await sleep(1500);
     }
-    console.warn(
-      `⚠️ Kick web sign-in not detected within ${Math.round(maxMs / 1000)}s — aborting OAuth handoff. Last poll reason: ${lastReason}`
+    logger.warn(
+      "Auth:Window",
+      `Kick web sign-in not detected within ${Math.round(maxMs / 1000)}s — aborting OAuth handoff`,
+      { lastReason }
     );
     return false;
   }
@@ -445,14 +455,14 @@ class AuthWindowManager {
 
     // Check state matches
     if (session.state !== state) {
-      console.warn(`⚠️ State mismatch for ${platform}`);
+      logger.warn("Auth:Window", "State mismatch", { platform });
       return false;
     }
 
     // Check session is not too old (10 minutes max)
     const maxAge = 10 * 60 * 1000;
     if (Date.now() - session.startedAt > maxAge) {
-      console.warn(`⚠️ Auth session expired for ${platform}`);
+      logger.warn("Auth:Window", "Auth session expired", { platform });
       return false;
     }
 

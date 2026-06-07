@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "@/backend/logging/logger";
+
 import {
   gqlSearchCategories,
   gqlSearchChannels,
@@ -108,17 +110,17 @@ function lastFetchBody(fetchMock: FetchMock): string {
 
 describe("gqlSearchChannels — safety properties", () => {
   let fetchMock: FetchMock;
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  const warnSpy = vi.mocked(logger.warn);
 
   beforeEach(() => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    warnSpy.mockClear();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    warnSpy.mockRestore();
+    warnSpy.mockClear();
   });
 
   it("happy path — page 2 hits the raw-GQL LoadMore query (not the persisted op) and returns advanced cursor", async () => {
@@ -179,10 +181,11 @@ describe("gqlSearchChannels — safety properties", () => {
     const result = await gqlSearchChannels("ninja", { after: "MTA=" });
 
     expect(result.cursor).toBeUndefined();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("SearchChannels"),
-      expect.stringContaining("Unexpected server error")
-    );
+    expect(warnSpy).toHaveBeenCalled();
+    const call = warnSpy.mock.calls[0];
+    expect(call?.[0]).toBe("Twitch:GQL");
+    expect(String(call?.[1] ?? "")).toContain("SearchChannels");
+    expect(JSON.stringify(call?.[2] ?? {})).toContain("Unexpected server error");
   });
 
   it("page 1 (no after) hits the persisted query and returns the server cursor for page-2 hand-off", async () => {
@@ -275,13 +278,13 @@ describe("gqlSearchChannels — safety properties", () => {
 
     expect(result.cursor).toBeUndefined();
     expect(result.endReason).toBe("integrity-rejected");
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("SearchChannels"),
-      expect.stringContaining("Unexpected internal server error")
-    );
-    // The integrity error itself should NOT appear in the warn payload.
-    const warnArgs = warnSpy.mock.calls[0]?.[1] as string | undefined;
-    expect(warnArgs).not.toMatch(/integrity/i);
+    expect(warnSpy).toHaveBeenCalled();
+    const call = warnSpy.mock.calls[0];
+    expect(call?.[0]).toBe("Twitch:GQL");
+    expect(String(call?.[1] ?? "")).toContain("SearchChannels");
+    const metaStr = JSON.stringify(call?.[2] ?? {});
+    expect(metaStr).toContain("Unexpected internal server error");
+    expect(metaStr).not.toMatch(/integrity/i);
   });
 
   it("endReason — set to 'cursor-no-advance' when server echoes the input cursor", async () => {
@@ -327,17 +330,17 @@ describe("gqlSearchChannels — safety properties", () => {
 
 describe("gqlSearchCategories — safety properties", () => {
   let fetchMock: FetchMock;
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  const warnSpy = vi.mocked(logger.warn);
 
   beforeEach(() => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    warnSpy.mockClear();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    warnSpy.mockRestore();
+    warnSpy.mockClear();
   });
 
   it("happy path — page 2 hits the raw-GQL LoadMore query (not the persisted op) and returns advanced cursor", async () => {
@@ -394,10 +397,11 @@ describe("gqlSearchCategories — safety properties", () => {
     const result = await gqlSearchCategories("chess", { after: "MjA=" });
 
     expect(result.cursor).toBeUndefined();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("SearchCategories"),
-      expect.stringContaining("Unexpected server error")
-    );
+    expect(warnSpy).toHaveBeenCalled();
+    const call = warnSpy.mock.calls[0];
+    expect(call?.[0]).toBe("Twitch:GQL");
+    expect(String(call?.[1] ?? "")).toContain("SearchCategories");
+    expect(JSON.stringify(call?.[2] ?? {})).toContain("Unexpected server error");
   });
 
   it("page 1 (no after) hits the persisted query and returns the server cursor for page-2 hand-off", async () => {

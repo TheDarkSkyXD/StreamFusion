@@ -9,6 +9,7 @@ import path from "node:path";
 
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import { installContextMenu } from "./context-menu";
 import { markCleanShutdown } from "./shutdown-marker";
 
@@ -26,6 +27,26 @@ interface WindowBounds {
 interface WindowState {
   bounds: WindowBounds;
   isMaximized: boolean;
+}
+
+/**
+ * Snapshot of the window state we log on every coalesced movement and on the
+ * final-save before-quit path. Exported for test access — the live wiring
+ * is exercised through electron and isn't unit-testable in isolation.
+ */
+export interface WindowStateSnapshot {
+  bounds: WindowBounds;
+  maximized: boolean;
+  fullscreen: boolean;
+}
+
+/**
+ * Pure formatter for a window-state snapshot. Kept separate from the live
+ * BrowserWindow wiring so the on-disk shape can be regression-tested without
+ * spinning up Electron.
+ */
+export function formatWindowStateSnapshot(snapshot: WindowStateSnapshot): string {
+  return JSON.stringify(snapshot);
 }
 
 // In-memory only; window bounds do not yet survive across app restarts.
@@ -68,11 +89,48 @@ function ensureWindowIsVisible(bounds: WindowBounds): WindowBounds {
 // shouldn't trip it. Bump if false-positives appear in dev.
 const UNRESPONSIVE_FORCE_QUIT_MS = 8000;
 
+// 500ms is opinionated: long enough that dragging a window across the screen
+// emits ONE log line at the end (not 60+ per second as the user drags), short
+// enough that a normal resize-release feels "saved" in real time.
+const WINDOW_STATE_DEBOUNCE_MS = 500;
+
 class WindowManager {
   private mainWindow: BrowserWindow | null = null;
   private isDev = process.env.NODE_ENV !== "production";
   /** Tracks the auto-quit timer started by the `unresponsive` listener. */
   private unresponsiveTimer: NodeJS.Timeout | null = null;
+  /** Tracks the debounced window-state save timer. */
+  private windowStateTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * Capture the current state of the main window for logging. Pure-ish —
+   * reads BrowserWindow getters, no side effects — so we can route it
+   * through `formatWindowStateSnapshot` for consistent on-disk shape.
+   */
+  private captureWindowSnapshot(): WindowStateSnapshot | null {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return null;
+    return {
+      bounds: this.mainWindow.getBounds(),
+      maximized: this.mainWindow.isMaximized(),
+      fullscreen: this.mainWindow.isFullScreen(),
+    };
+  }
+
+  /**
+   * Schedule a debounced WindowState log line. Coalesces every resize/move/
+   * maximize/fullscreen tick into a single "Saved: <snapshot>" line after
+   * 500ms of quiet — otherwise the log fills with 60-Hz drag noise.
+   */
+  private scheduleWindowStateSave(): void {
+    if (this.windowStateTimer) clearTimeout(this.windowStateTimer);
+    // timer-allowlist: debounced window-state save coalescing high-frequency resize/move
+    this.windowStateTimer = setTimeout(() => {
+      this.windowStateTimer = null;
+      const snapshot = this.captureWindowSnapshot();
+      if (!snapshot) return;
+      logger.info("WindowState", `Saved: ${formatWindowStateSnapshot(snapshot)}`);
+    }, WINDOW_STATE_DEBOUNCE_MS);
+  }
 
   /**
    * Register DevTools keyboard shortcuts (development only)
@@ -94,7 +152,7 @@ class WindowManager {
       }
     });
 
-    console.debug("🔧 DevTools shortcuts registered (F12, Ctrl+Shift+I)");
+    logger.debug("Main:Window", "DevTools shortcuts registered (F12, Ctrl+Shift+I)");
   }
 
   /**
@@ -147,13 +205,38 @@ class WindowManager {
       this.mainWindow?.show();
     });
 
-    // Save window state on close
+    // Coalesce high-frequency state-change events through one 500ms debounce.
+    // The user gets ONE "Saved: …" line per gesture (drag, resize, maximize)
+    // instead of dozens per second — matches Valo's window-state cadence.
+    const onWindowStateChange = (): void => this.scheduleWindowStateSave();
+    this.mainWindow.on("resize", onWindowStateChange);
+    this.mainWindow.on("move", onWindowStateChange);
+    this.mainWindow.on("maximize", onWindowStateChange);
+    this.mainWindow.on("unmaximize", onWindowStateChange);
+    this.mainWindow.on("enter-full-screen", onWindowStateChange);
+    this.mainWindow.on("leave-full-screen", onWindowStateChange);
+
+    // Save window state on close. Two things happen here:
+    //   1. In-memory `savedWindowState` so a subsequent createMainWindow()
+    //      can restore the bounds + maximized flag.
+    //   2. Emit ONE final WindowState log line ("Final save on close: …")
+    //      before the debounce would normally fire — and clear the pending
+    //      debounce timer so we don't double-emit. Tag is `Window` (not
+    //      `WindowState`) to match Valo's wording for the final-save line.
     this.mainWindow.on("close", () => {
       if (this.mainWindow) {
         savedWindowState = {
           bounds: this.mainWindow.getBounds(),
           isMaximized: this.mainWindow.isMaximized(),
         };
+        if (this.windowStateTimer) {
+          clearTimeout(this.windowStateTimer);
+          this.windowStateTimer = null;
+        }
+        const snapshot = this.captureWindowSnapshot();
+        if (snapshot) {
+          logger.info("Window", `Final save on close: ${formatWindowStateSnapshot(snapshot)}`);
+        }
       }
     });
 
@@ -165,15 +248,15 @@ class WindowManager {
     // so we layer a shorter 8s timer on top — if it doesn't recover, mark
     // cleanly (preserves cache on next launch) and destroy.
     this.mainWindow.on("unresponsive", () => {
-      console.warn(
-        `[WindowManager] Renderer unresponsive — starting ${UNRESPONSIVE_FORCE_QUIT_MS}ms force-quit timer`
-      );
+      logger.warn("Main:Window", "Renderer unresponsive — starting force-quit timer", {
+        timeoutMs: UNRESPONSIVE_FORCE_QUIT_MS,
+      });
       if (this.unresponsiveTimer) clearTimeout(this.unresponsiveTimer);
       // timer-allowlist: force-quit grace if renderer unresponsive (shutdown deadline)
       this.unresponsiveTimer = setTimeout(() => {
-        console.warn(
-          `[WindowManager] Renderer still unresponsive after ${UNRESPONSIVE_FORCE_QUIT_MS}ms — force-destroying`
-        );
+        logger.warn("Main:Window", "Renderer still unresponsive — force-destroying", {
+          timeoutMs: UNRESPONSIVE_FORCE_QUIT_MS,
+        });
         markCleanShutdown();
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.destroy();
@@ -186,7 +269,7 @@ class WindowManager {
       if (this.unresponsiveTimer) {
         clearTimeout(this.unresponsiveTimer);
         this.unresponsiveTimer = null;
-        console.debug("[WindowManager] Renderer recovered before force-close timer");
+        logger.debug("Main:Window", "Renderer recovered before force-close timer");
       }
     });
 
@@ -196,6 +279,10 @@ class WindowManager {
       if (this.unresponsiveTimer) {
         clearTimeout(this.unresponsiveTimer);
         this.unresponsiveTimer = null;
+      }
+      if (this.windowStateTimer) {
+        clearTimeout(this.windowStateTimer);
+        this.windowStateTimer = null;
       }
       this.mainWindow = null;
     });

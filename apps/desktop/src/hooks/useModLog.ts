@@ -14,6 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
+import { logger } from "@/renderer/logging/logger";
 import type { ModLogEntry } from "@/shared/mod-log-types";
 
 export type { ModLogEntry };
@@ -49,8 +50,12 @@ export function useModLog(opts: UseModLogOptions): {
         // non-array; render the empty state rather than crashing on `.map`.
         return Array.isArray(rows) ? rows : [];
       } catch (err) {
-        // biome-ignore lint/suspicious/noConsole: surfacing query failure
-        console.warn("[useModLog] queryModLog failed", err);
+        logger.warn("Hook:ModLog", "queryModLog failed", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         return [];
       }
     },

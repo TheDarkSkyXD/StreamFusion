@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRenderCount } from "@/components/dev/use-render-count";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 import { sleep } from "@/lib/sleep";
+import { logger } from "@/renderer/logging/logger";
 
 import { HlsPlayer } from "../hls-player";
 import { useDefaultQuality } from "../hooks/use-default-quality";
@@ -139,7 +140,7 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
       } else if (wasPlaying) {
         video.play().catch((e) => {
           if (e.name !== "AbortError" && e.name !== "NotAllowedError") {
-            console.error("[KickPlayer] Failed to resume after window restore:", e);
+            logger.error("Player:Kick:Live", "failed to resume after window restore", { error: e });
           }
         });
       }
@@ -197,7 +198,7 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
       video.play().catch((e) => {
         // Ignore AbortError (interrupted by load) and NotAllowedError (autoplay policy)
         if (e.name !== "AbortError" && e.name !== "NotAllowedError") {
-          console.error("Play error:", e);
+          logger.error("Player:Kick:Live", "play error", { error: e });
         }
       });
     } else {
@@ -345,9 +346,12 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
               const attemptNum = autoRetryCountRef.current;
               const delay = RETRY_DELAY_BASE_MS * attemptNum; // Exponential backoff: 1.5s, 3s
 
-              console.debug(
-                `[KickPlayer] ${error.code} error detected, auto-retrying (attempt ${attemptNum}/${MAX_AUTO_RETRY_ATTEMPTS}) in ${delay}ms...`
-              );
+              logger.debug("Player:Kick:Live", "error detected, auto-retrying", {
+                code: error.code,
+                attempt: attemptNum,
+                maxAttempts: MAX_AUTO_RETRY_ATTEMPTS,
+                delayMs: delay,
+              });
 
               // Show loading state during retry
               setIsLoading(true);
@@ -364,10 +368,10 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
             }
 
             // Either not a refreshable error, or retries exhausted - show error to user
-            console.error(
-              `[KickPlayer] Player error (retries: ${autoRetryCountRef.current}):`,
-              error
-            );
+            logger.error("Player:Kick:Live", "player error", {
+              retries: autoRetryCountRef.current,
+              error,
+            });
             setHasError(true);
             setIsLoading(false);
             isRetryingRef.current = false;
@@ -423,6 +427,7 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
           progressBarRef={progressBarRef}
           playbackRate={playbackRate}
           onPlaybackRateChange={handlePlaybackRateChange}
+          onRefresh={onRefresh}
         />
       )}
     </div>

@@ -33,6 +33,7 @@ export function useVolume({
   const isEffectiveMuted = forcedMuted || storeMuted;
 
   // Apply stored volume and handle initial muted state
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `watch` is the re-apply trigger (e.g. streamUrl); the body doesn't read it
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;

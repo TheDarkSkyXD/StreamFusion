@@ -5,6 +5,7 @@
  * and lookup of emotes from Twitch, Kick, BTTV, FFZ, and 7TV.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type { Platform } from "@/shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
@@ -83,7 +84,7 @@ class EmoteManager extends EventEmitter {
       this.cleanupExpiredCache();
     }, CACHE_CLEANUP_INTERVAL);
 
-    console.debug("[EmoteManager] Started cleanup timer");
+    logger.debug("Emote:Manager", "Started cleanup timer");
   }
 
   /**
@@ -93,7 +94,7 @@ class EmoteManager extends EventEmitter {
     if (this.cleanupTimer) {
       this.cleanupTimer.stop();
       this.cleanupTimer = null;
-      console.debug("[EmoteManager] Stopped cleanup timer");
+      logger.debug("Emote:Manager", "Stopped cleanup timer");
     }
   }
 
@@ -112,7 +113,7 @@ class EmoteManager extends EventEmitter {
     }
 
     if (cleanedCount > 0) {
-      console.debug(`[EmoteManager] Cleaned ${cleanedCount} expired cache entries`);
+      logger.debug("Emote:Manager", "Cleaned expired cache entries", { count: cleanedCount });
     }
   }
 
@@ -157,14 +158,22 @@ class EmoteManager extends EventEmitter {
     results.forEach((result, index) => {
       const providerName = enabledProviders[index][0];
       if (result.status === "fulfilled") {
-        console.log(
-          `[EmoteManager] Loaded ${result.value.emotes.length} global emotes from ${providerName}`
-        );
+        logger.info("Emote:Manager", "Loaded global emotes", {
+          count: result.value.emotes.length,
+          provider: providerName,
+        });
       } else {
-        console.error(
-          `[EmoteManager] Failed to load global emotes from ${providerName}:`,
-          result.reason
-        );
+        logger.error("Emote:Manager", "Failed to load global emotes", {
+          provider: providerName,
+          error:
+            result.reason instanceof Error
+              ? {
+                  name: result.reason.name,
+                  message: result.reason.message,
+                  stack: result.reason.stack,
+                }
+              : String(result.reason),
+        });
       }
     });
   }
@@ -241,10 +250,14 @@ class EmoteManager extends EventEmitter {
           return { provider: name, emotes, fromCache: false };
         } catch (error) {
           // Channel emotes failing is not critical - just log it
-          console.warn(
-            `[EmoteManager] Failed to load channel emotes from ${name} for ${channelId}:`,
-            error
-          );
+          logger.warn("Emote:Manager", "Failed to load channel emotes", {
+            provider: name,
+            channelId,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
           return { provider: name, emotes: [], fromCache: false };
         }
       })
@@ -254,10 +267,12 @@ class EmoteManager extends EventEmitter {
     results.forEach((result, index) => {
       const providerName = enabledProviders[index][0];
       if (result.status === "fulfilled" && result.value.emotes.length > 0) {
-        const cacheStatus = result.value.fromCache ? "(cached)" : "";
-        console.log(
-          `[EmoteManager] Loaded ${result.value.emotes.length} channel emotes from ${providerName} for ${channelId} ${cacheStatus}`
-        );
+        logger.info("Emote:Manager", "Loaded channel emotes", {
+          count: result.value.emotes.length,
+          provider: providerName,
+          channelId,
+          fromCache: result.value.fromCache,
+        });
       }
     });
   }
@@ -282,9 +297,9 @@ class EmoteManager extends EventEmitter {
     while (this.channelAccessOrder.length > MAX_CACHED_CHANNELS) {
       const oldestChannelId = this.channelAccessOrder.shift();
       if (oldestChannelId) {
-        console.debug(
-          `[EmoteManager] LRU eviction: clearing emotes for channel ${oldestChannelId}`
-        );
+        logger.debug("Emote:Manager", "LRU eviction: clearing emotes for channel", {
+          channelId: oldestChannelId,
+        });
         this.clearChannelEmotes(oldestChannelId);
       }
     }
@@ -527,7 +542,7 @@ class EmoteManager extends EventEmitter {
     this.channelEmotes.clear();
     this.emoteCache.clear();
     this.channelAccessOrder = [];
-    console.debug("[EmoteManager] Cleared all emote data");
+    logger.debug("Emote:Manager", "Cleared all emote data");
   }
 
   // ========== Private Methods ==========

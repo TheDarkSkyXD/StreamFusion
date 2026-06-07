@@ -26,6 +26,8 @@ import type {
 } from "hls.js";
 import Hls from "hls.js";
 
+import { logger } from "@/renderer/logging/logger";
+
 import {
   getBlankVideoDataUrl,
   isAdBlockEnabled,
@@ -155,7 +157,9 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
               originalOnSuccess(response, stats, ctx, networkDetails);
             }
           } catch (error) {
-            console.error("[AdBlockLoader] Error processing playlist:", error);
+            logger.error("Player:Twitch:AdblockLoader", "error processing playlist", {
+              error: error instanceof Error ? error.message : String(error),
+            });
             // On error, pass through original response
             originalOnSuccess(response, stats, ctx, networkDetails);
           }
@@ -188,7 +192,7 @@ export function createAdBlockFragmentLoader(): LoaderConstructor {
 
       // If this is a cached ad segment, replace with blank video
       if (isAdBlockEnabled() && isTwitchSegment(url) && isAdSegment(url)) {
-        console.debug("[AdBlockLoader] Replacing ad segment with blank video");
+        logger.debug("Player:Twitch:AdblockLoader", "replacing ad segment with blank video");
         const blankUrl = getBlankVideoDataUrl();
         const modifiedContext: LoaderContext = { ...context, url: blankUrl };
         super.load(modifiedContext, config, callbacks);

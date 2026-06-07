@@ -60,6 +60,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
   // Instead we pull a stable snapshot inside an effect that subscribes to the
   // store directly.
   const [kickEmotePool, setKickEmotePool] = useState<Emote[]>([]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `channelId` is the re-subscribe trigger; the body reads from the store imperatively, so the value isn't referenced directly
   useEffect(() => {
     if (platform !== "kick") {
       setKickEmotePool([]);

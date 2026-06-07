@@ -15,6 +15,7 @@
 
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import {
   IPC_CHANNELS,
   type ProxyApplyConfig,
@@ -42,7 +43,7 @@ export function registerProxyHandlers(): void {
     IPC_CHANNELS.PROXY_APPLY,
     async (event, { config }: { config: ProxyApplyConfig }): Promise<ProxyApplyResult> => {
       if (!isAllowedSender(event)) {
-        console.warn("[ProxyHandlers] PROXY_APPLY rejected: disallowed sender origin");
+        logger.warn("IPC:Proxy", "PROXY_APPLY rejected: disallowed sender origin");
         return REJECTED_RESULT;
       }
       return applyProxy(config);
@@ -56,7 +57,7 @@ export function registerProxyHandlers(): void {
       { credentials }: { credentials: ProxyCredentialsInput | null }
     ): { hasCredentials: boolean } => {
       if (!isAllowedSender(event)) {
-        console.warn("[ProxyHandlers] PROXY_SET_CREDENTIALS rejected: disallowed sender origin");
+        logger.warn("IPC:Proxy", "PROXY_SET_CREDENTIALS rejected: disallowed sender origin");
         // Do not mutate stored credentials on a rejected call.
         return { hasCredentials: hasStoredCredentials() };
       }
@@ -83,6 +84,6 @@ export function applyPersistedProxyOnStart(): void {
   const proxy = storageService.getPreferences().proxy;
   void applyProxy({ enabled: proxy.enabled, host: proxy.host, port: proxy.port }).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn("[ProxyHandlers] Failed to apply persisted proxy on start:", message);
+    logger.warn("IPC:Proxy", "Failed to apply persisted proxy on start", { message });
   });
 }

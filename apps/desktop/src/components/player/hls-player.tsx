@@ -3,6 +3,7 @@ import type React from "react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
+import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -110,9 +111,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
       // CASE 1: No fragment ever received after manifest parsed
       if (!hasReceivedFirstFragmentRef.current && timeSinceManifest > 30000) {
-        console.debug(
-          `[HLS] No fragments received in ${Math.round(timeSinceManifest / 1000)}s after manifest - stream unavailable`
-        );
+        logger.debug("Player:HLS", "no fragments received after manifest - stream unavailable", {
+          secondsSinceManifest: Math.round(timeSinceManifest / 1000),
+        });
         setHeartbeatDelay(null);
         hls.destroy();
         onErrorRef.current?.({
@@ -127,9 +128,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
       // CASE 2: Was receiving fragments but they stopped
       if (hasReceivedFirstFragmentRef.current && timeSinceLastFrag > 45000) {
-        console.debug(
-          `[HLS] No fragments in ${Math.round(timeSinceLastFrag / 1000)}s - stream appears to have ended`
-        );
+        logger.debug("Player:HLS", "no fragments - stream appears to have ended", {
+          secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
+        });
         setHeartbeatDelay(null);
         hls.destroy();
         onErrorRef.current?.({
@@ -143,9 +144,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
       // CASE 3: Mild delay - try to recover by reloading
       if (timeSinceLastFrag > 15000) {
-        console.debug(
-          `[HLS] Heartbeat: No fragments in ${Math.round(timeSinceLastFrag / 1000)}s, attempting reload...`
-        );
+        logger.debug("Player:HLS", "heartbeat: no fragments, attempting reload", {
+          secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
+        });
         try {
           hls.startLoad(-1);
         } catch (_e) {
@@ -187,9 +188,14 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
       const attempt = ++stallRecoveryCountRef.current;
       const fragLoadedAgo = Math.round((now - lastFragLoadedTimeRef.current) / 1000);
-      console.debug(
-        `[HLS-stall-w7d3] currentTime stuck at ${video.currentTime.toFixed(2)}s for ${Math.round(stuckMs / 1000)}s (readyState=${video.readyState}, buffered=${video.buffered.length}, fragLoadedAgo=${fragLoadedAgo}s), recovery attempt #${attempt}`
-      );
+      logger.debug("Player:HLS", "stall-w7d3: currentTime stuck, attempting recovery", {
+        currentTime: Number(video.currentTime.toFixed(2)),
+        stuckSeconds: Math.round(stuckMs / 1000),
+        readyState: video.readyState,
+        buffered: video.buffered.length,
+        fragLoadedAgoSeconds: fragLoadedAgo,
+        attempt,
+      });
 
       try {
         if (attempt === 1) {
@@ -203,8 +209,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         } else if (attempt === 3 && hls) {
           hls.recoverMediaError();
         } else {
-          console.debug(
-            "[HLS-stall-w7d3] Recovery exhausted, escalating to fatal with shouldRefresh"
+          logger.debug(
+            "Player:HLS",
+            "stall-w7d3: recovery exhausted, escalating to fatal with shouldRefresh"
           );
           setStallWatchdogDelay(null);
           hls?.destroy();
@@ -220,7 +227,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // Give the recovery 4s of grace before the next escalation rung.
         lastTimeAdvancedAtRef.current = now - 8000 + 4000;
       } catch (e) {
-        console.debug("[HLS-stall-w7d3] Recovery threw:", e);
+        logger.debug("Player:HLS", "stall-w7d3: recovery threw", { error: e });
       }
     }, stallWatchdogDelay);
 
@@ -233,7 +240,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       }
 
       try {
-        console.debug("[HLS] Periodic cleanup: resetting to live edge and trimming buffers");
+        logger.debug("Player:HLS", "periodic cleanup: resetting to live edge and trimming buffers");
 
         hls.startLevel = -1;
 
@@ -251,10 +258,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         const globalGc = (globalThis as unknown as { gc?: () => void }).gc;
         if (typeof globalGc === "function") {
           globalGc();
-          console.debug("[HLS] Forced garbage collection");
+          logger.debug("Player:HLS", "forced garbage collection");
         }
       } catch (e) {
-        console.debug("[HLS] Cleanup error (non-fatal):", e);
+        logger.debug("Player:HLS", "cleanup error (non-fatal)", { error: e });
       }
     }, memoryCleanupDelay);
 
@@ -296,7 +303,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // Only switch if URL is different
         // Check formatted URL to avoid infinite loops if browser normalizes it
         if (video.src !== targetUrl && video.currentSrc !== targetUrl) {
-          console.debug(`[Player] Switching source to: ${targetUrl}`);
+          logger.debug("Player:HLS", "switching source", { targetUrl });
           const currentTime = video.currentTime;
           const wasPaused = video.paused;
 
@@ -304,7 +311,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           const onSwitchLoaded = () => {
             video.currentTime = currentTime;
             if (!wasPaused) {
-              video.play().catch((e) => console.warn("Play failed after switch:", e));
+              video
+                .play()
+                .catch((e) => logger.warn("Player:HLS", "play failed after switch", { error: e }));
             }
             video.removeEventListener("loadedmetadata", onSwitchLoaded);
           };
@@ -399,13 +408,17 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               // NotAllowedError: autoplay was prevented by browser policy
               if (e.name === "AbortError") {
                 // Silently ignore - this is expected during rapid source changes
-                console.debug("[HLS] Play request interrupted (expected during source change)");
+                logger.debug(
+                  "Player:HLS",
+                  "play request interrupted (expected during source change)"
+                );
               } else if (e.name === "NotAllowedError") {
-                console.warn(
-                  "[HLS] Autoplay blocked by browser policy - user interaction required"
+                logger.warn(
+                  "Player:HLS",
+                  "autoplay blocked by browser policy - user interaction required"
                 );
               } else {
-                console.error("[HLS] Playback failed with unexpected error:", e);
+                logger.error("Player:HLS", "playback failed with unexpected error", { error: e });
               }
             });
         }, 50); // 50ms delay helps avoid race conditions
@@ -435,9 +448,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         }
         // 4g and faster keep base timeouts (1.0x)
 
-        console.debug(
-          `[HLS] Connection type: ${effectiveType}, timeout multiplier: ${timeoutMultiplier}x`
-        );
+        logger.debug("Player:HLS", "connection type detected", {
+          effectiveType,
+          timeoutMultiplier,
+        });
 
         // User buffer/latency prefs apply only on LIVE streams (these keys are
         // inert on VOD, and VOD buffer controls are out of scope, U10). Read at
@@ -515,12 +529,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         hlsRef.current = hls;
         if (onHlsInstance) onHlsInstance(hls);
 
-        console.debug("Initializing HLS for:", src);
+        logger.debug("Player:HLS", "initializing HLS", { src });
         hls.loadSource(src);
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-          console.debug("[HLS] Manifest parsed, levels:", data.levels.length);
+          logger.debug("Player:HLS", "manifest parsed", { levels: data.levels.length });
 
           if (autoPlay && isMountedRef.current) {
             safePlay();
@@ -591,7 +605,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           // With preflight URL validation in the resolver, 404 means the stream just went offline
           // Refreshing won't help - the resolver will now immediately detect offline state
           if (data.details === "manifestLoadError" && (statusCode === 404 || statusCode === 403)) {
-            console.debug(`[HLS] Stream unavailable (${statusCode}), stopping retries`);
+            logger.debug("Player:HLS", "stream unavailable, stopping retries", { statusCode });
             hls?.destroy();
             onErrorRef.current?.({
               code: "STREAM_OFFLINE",
@@ -605,7 +619,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
           // Handle 500 errors specially - likely proxy server error
           if (data.details === "manifestLoadError" && statusCode === 500) {
-            console.debug(`[HLS] Proxy/server error (${statusCode}), triggering fallback`);
+            logger.debug("Player:HLS", "proxy/server error, triggering fallback", { statusCode });
             hls?.destroy();
             onErrorRef.current?.({
               code: "PROXY_ERROR",
@@ -618,7 +632,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
           // For proxy URLs, treat any fatal manifest error as proxy failure
           if (isProxyUrl && data.details === "manifestLoadError" && data.fatal) {
-            console.debug(`[HLS] Proxy manifest load failed (status: ${statusCode || "unknown"})`);
+            logger.debug("Player:HLS", "proxy manifest load failed", {
+              statusCode: statusCode || "unknown",
+            });
             hls?.destroy();
             onErrorRef.current?.({
               code: "PROXY_ERROR",
@@ -632,10 +648,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           // Only log errors that are fatal or unexpected (not in silent list)
           const shouldLog = data.fatal || !silentErrors.includes(data.details);
           if (shouldLog) {
-            console.debug(
-              `[HLS] Error: ${data.details}, fatal: ${data.fatal}, type: ${data.type}`,
-              statusCode ? `(status: ${statusCode})` : ""
-            );
+            logger.debug("Player:HLS", "error", {
+              details: data.details,
+              fatal: data.fatal,
+              type: data.type,
+              statusCode: statusCode ?? null,
+            });
           }
 
           const isStreamEndingError =
@@ -649,8 +667,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               case Hls.ErrorTypes.NETWORK_ERROR:
                 // Stream likely ended - this is expected behavior, not an error
                 // Log as debug instead of error to reduce console noise
-                console.debug(
-                  "[HLS] Stream ended or became unavailable (network error after retries)"
+                logger.debug(
+                  "Player:HLS",
+                  "stream ended or became unavailable (network error after retries)"
                 );
                 onErrorRef.current?.({
                   code: "STREAM_OFFLINE",
@@ -667,14 +686,14 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                 const lastAttempt = lastRecoveryAttemptRef.current;
 
                 if (!lastAttempt || now - lastAttempt > 5000) {
-                  console.debug("[HLS] Fatal media error encountered, attempting recovery...");
+                  logger.debug("Player:HLS", "fatal media error encountered, attempting recovery");
                   lastRecoveryAttemptRef.current = now;
                   hls?.recoverMediaError();
                 } else {
                   const timeSince = Math.round((now - lastAttempt) / 1000);
-                  console.warn(
-                    `[HLS] Fatal media error - skipping recovery (only ${timeSince}s since last attempt)`
-                  );
+                  logger.warn("Player:HLS", "fatal media error - skipping recovery", {
+                    secondsSinceLastAttempt: timeSince,
+                  });
                   // If we can't recover, report the error
                   onErrorRef.current?.({
                     code: "MEDIA_ERROR",
@@ -687,7 +706,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                 break;
               }
               default:
-                console.error("[HLS] Unrecoverable error", data);
+                logger.error("Player:HLS", "unrecoverable error", { data });
                 onErrorRef.current?.({
                   code: "HLS_FATAL",
                   message: `Fatal HLS Error: ${data.details}`,
@@ -710,9 +729,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                 // If we're at position 0 (or very close) and buffer starts later,
                 // seek to where the buffer actually begins (startup edge case)
                 if (currentTime < 1 && bufferStart > currentTime + 0.5) {
-                  console.debug(
-                    `[HLS] Buffer gap at start. Seeking from ${currentTime.toFixed(2)}s to ${bufferStart.toFixed(2)}s`
-                  );
+                  logger.debug("Player:HLS", "buffer gap at start, seeking forward", {
+                    fromSeconds: Number(currentTime.toFixed(2)),
+                    toSeconds: Number(bufferStart.toFixed(2)),
+                  });
                   video.currentTime = bufferStart + 0.1;
                 }
                 // Otherwise let HLS.js handle it via automatic nudging
@@ -722,7 +742,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               // Don't log - handled automatically
             } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !isStreamEndingError) {
               // Only log network retries for non-stream-ending errors
-              console.debug(`[HLS] Network error (will retry automatically): ${data.details}`);
+              logger.debug("Player:HLS", "network error (will retry automatically)", {
+                details: data.details,
+              });
             }
           }
         });
@@ -749,11 +771,13 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.details === "fragLoadError" && !data.fatal) {
             fragErrorCountRef.current++;
-            console.debug(`[HLS] Fragment load error #${fragErrorCountRef.current}`);
+            logger.debug("Player:HLS", "fragment load error", {
+              errorCount: fragErrorCountRef.current,
+            });
 
             // After multiple fragment errors, likely token expired
             if (fragErrorCountRef.current >= MAX_FRAG_ERRORS_BEFORE_REFRESH) {
-              console.debug("[HLS] Multiple fragment errors - token may have expired");
+              logger.debug("Player:HLS", "multiple fragment errors - token may have expired");
               setHeartbeatDelay(null);
               hls?.destroy();
               onErrorRef.current?.({
@@ -779,7 +803,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         });
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
-        console.debug("Using native HLS");
+        logger.debug("Player:HLS", "using native HLS");
         video.src = src;
         handleLoadedMetadata = () => {
           if (autoPlay && isMountedRef.current) safePlay();

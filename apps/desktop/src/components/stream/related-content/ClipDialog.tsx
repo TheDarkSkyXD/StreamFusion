@@ -10,6 +10,7 @@ import { FollowButton } from "@/components/ui/follow-button";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
+import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 
 import type { VideoOrClip } from "./types";
@@ -86,7 +87,9 @@ export function ClipDialog({
         setVodLookupError(result.error || "VOD not found");
       }
     } catch (error) {
-      console.error("Failed to lookup VOD:", error);
+      logger.error("Stream:ClipDialog", "failed to lookup VOD", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       setVodLookupError("Failed to lookup VOD");
     } finally {
       setVodLookupLoading(false);

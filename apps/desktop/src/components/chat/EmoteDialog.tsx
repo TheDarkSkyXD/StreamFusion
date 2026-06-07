@@ -438,7 +438,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   // `loadedGlobalPlatforms.size` is a stable primitive across renders (Sets
   // get rebuilt on each per-platform completion), so it tracks the actual
   // signal the memo cares about — globals coming online for any platform.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // biome-ignore lint/correctness/useExhaustiveDependencies: getEmotesByProvider is a stable zustand selector; including it would not change behavior but would add noise
   const emotesByProvider = useMemo(
     () => getEmotesByProvider(),
     [activeChannelId, loadedChannels, loadedGlobalPlatforms.size]
@@ -511,8 +511,8 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
     if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (containerRef.current && containerRef.current.contains(target)) return;
-      if (anchorRef.current && anchorRef.current.contains(target)) return;
+      if (containerRef.current?.contains(target)) return;
+      if (anchorRef.current?.contains(target)) return;
       onClose();
     };
     document.addEventListener("mousedown", handleClickOutside);

@@ -7,6 +7,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+
 /**
  * Selectors for Twitch ad elements to hide
  * These are the DOM elements that show "Commercial Break in Progress"
@@ -39,7 +41,9 @@ export function useAdElementObserver(enabled: boolean = true) {
         element.style.opacity = "0";
         element.style.pointerEvents = "none";
         hiddenCount.current++;
-        console.debug("[AdElementObserver] Hidden element:", element.className || element.tagName);
+        logger.debug("Player:Hook:AdElementObserver", "hidden element", {
+          identifier: element.className || element.tagName,
+        });
       }
     };
 
@@ -77,12 +81,14 @@ export function useAdElementObserver(enabled: boolean = true) {
       subtree: true,
     });
 
-    console.debug("[AdElementObserver] Started watching for ad elements");
+    logger.debug("Player:Hook:AdElementObserver", "started watching for ad elements");
 
     return () => {
       observerRef.current?.disconnect();
       // Read hiddenCount.current at cleanup time for accurate count
-      console.debug(`[AdElementObserver] Stopped. Hidden ${hiddenCount.current} elements.`);
+      logger.debug("Player:Hook:AdElementObserver", "stopped", {
+        hiddenCount: hiddenCount.current,
+      });
     };
   }, [enabled]);
 

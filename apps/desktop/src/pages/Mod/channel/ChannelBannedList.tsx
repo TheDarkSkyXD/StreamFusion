@@ -107,6 +107,7 @@ export function ChannelBannedList({
     }
   }, [isTwitch, broadcasterId, twitchUser]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `refreshCounter` is the re-fetch trigger; the body doesn't read it
   useEffect(() => {
     void refetch();
   }, [refetch, refreshCounter]);

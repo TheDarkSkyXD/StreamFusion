@@ -17,6 +17,7 @@
 
 import { BrowserWindow } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { KickPinnedMessage } from "../../../../../shared/chat-types";
 import { isNetworkLikelyDown } from "../kick-network-health";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
@@ -115,10 +116,13 @@ export async function getKickChannelHistory(channelId: string): Promise<KickChan
     const pinnedMessage = parsed?.data?.pinned_message ?? null;
     return { messages, pinnedMessage };
   } catch (error) {
-    console.warn(
-      `[KickChatHistory] Failed to load history for channel ${channelId}:`,
-      error instanceof Error ? error.message : error
-    );
+    logger.warn("Kick:Endpoints:Chat", "Failed to load history for channel", {
+      channelId,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return null;
   } finally {
     if (win && !win.isDestroyed()) {

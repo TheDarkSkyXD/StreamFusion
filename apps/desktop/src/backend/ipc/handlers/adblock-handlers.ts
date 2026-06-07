@@ -7,6 +7,7 @@
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { type BrowserWindow, ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import { cosmeticInjectionService } from "../../services/cosmetic-injection-service";
 import { networkAdBlockService } from "../../services/network-adblock-service";
 import { twitchManifestProxy } from "../../services/twitch-manifest-proxy";
@@ -75,7 +76,7 @@ export function registerAdBlockHandlers(_mainWindow: BrowserWindow): void {
 
   ipcMain.handle(IPC_CHANNELS.ADBLOCK_PROXY_CLEAR_ALL, async () => {
     twitchManifestProxy.clearAllStreamInfos();
-    console.debug("[AdBlock] Cleared all stream infos");
+    logger.debug("IPC:Adblock", "Cleared all stream infos");
     return { success: true };
   });
 
@@ -107,5 +108,5 @@ export function registerAdBlockHandlers(_mainWindow: BrowserWindow): void {
     }
   );
 
-  console.debug("[AdBlock] IPC handlers registered");
+  logger.debug("IPC:Adblock", "IPC handlers registered");
 }

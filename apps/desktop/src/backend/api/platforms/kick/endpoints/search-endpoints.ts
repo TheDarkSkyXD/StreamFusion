@@ -1,3 +1,4 @@
+import { logger } from "@/backend/logging/logger";
 import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-types";
 import type { KickRequestor } from "../kick-requestor";
 import type { PaginatedResult, PaginationOptions } from "../kick-types";
@@ -70,17 +71,24 @@ export async function searchChannels(
 
   // 1. Try exact slug match (Public API - No Auth)
   try {
-    console.debug(`[KickSearch] Step 1: Checking exact slug match for "${normalizedQuery}"`);
+    logger.debug("Kick:Endpoints:Search", "Step 1: Checking exact slug match", {
+      query: normalizedQuery,
+    });
     const channel = await getPublicChannel(normalizedQuery);
     if (channel) {
-      console.debug(`[KickSearch] Step 1: Found channel "${channel.username}"`);
+      logger.debug("Kick:Endpoints:Search", "Step 1: Found channel", {
+        username: channel.username,
+      });
       const key = channel.username.toLowerCase();
       results.set(key, mergeChannel(results.get(key), channel, true)); // Step 1 is authoritative for live status
     } else {
-      console.debug(`[KickSearch] Step 1: No channel found for "${normalizedQuery}"`);
+      logger.debug("Kick:Endpoints:Search", "Step 1: No channel found", { query: normalizedQuery });
     }
   } catch (e) {
-    console.warn(`[KickSearch] Step 1: Error fetching public channel "${normalizedQuery}"`, e);
+    logger.warn("Kick:Endpoints:Search", "Step 1: Error fetching public channel", {
+      query: normalizedQuery,
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
   }
 
   // 2. Try public search endpoint (Unofficial - Works for offline & fuzzy)
@@ -89,7 +97,9 @@ export async function searchChannels(
   // - https://kick.com/api/search?searched_word=query (main, needs 3+ chars)
   // - https://kick.com/api/search/channel?searched_word=query (might work for short)
   try {
-    console.debug(`[KickSearch] Step 2: Querying public search endpoint for "${normalizedQuery}"`);
+    logger.debug("Kick:Endpoints:Search", "Step 2: Querying public search endpoint", {
+      query: normalizedQuery,
+    });
 
     // Try alternative endpoint first for short queries
     const searchEndpoints =
@@ -132,31 +142,39 @@ export async function searchChannels(
           try {
             const parsed = JSON.parse(body);
             if (parsed && (Array.isArray(parsed) || parsed.channels || parsed.data)) {
-              console.debug(`[KickSearch] Step 2: Got results from ${searchUrl}`);
+              logger.debug("Kick:Endpoints:Search", "Step 2: Got results from endpoint", {
+                searchUrl,
+              });
               data = parsed;
             }
           } catch (_e) {
             // Common case: 200 OK but body is cloudflare HTML
             if (body.trim().startsWith("<")) {
-              console.warn(`[KickSearch] Step 2: Endpoint returned HTML (likely bot protection)`);
+              logger.warn(
+                "Kick:Endpoints:Search",
+                "Step 2: Endpoint returned HTML (likely bot protection)"
+              );
             }
           }
         } else {
           // Try next endpoint on 4xx errors
           if (res.status >= 400 && res.status < 500) {
-            console.debug(
-              `[KickSearch] Step 2: ${searchUrl} returned ${res.status}, trying next...`
-            );
+            logger.debug("Kick:Endpoints:Search", "Step 2: Endpoint returned 4xx; trying next", {
+              searchUrl,
+              status: res.status,
+            });
           }
         }
       } catch (_e) {
         // timeout or network error — try next endpoint
-        console.debug(`[KickSearch] Step 2: ${searchUrl} error, trying next...`);
+        logger.debug("Kick:Endpoints:Search", "Step 2: Endpoint error; trying next", {
+          searchUrl,
+        });
       }
     }
 
     if (!data) {
-      console.debug(`[KickSearch] Step 2: No results from any search endpoint`);
+      logger.debug("Kick:Endpoints:Search", "Step 2: No results from any search endpoint");
     }
 
     // Handle different response formats:
@@ -172,12 +190,16 @@ export async function searchChannels(
       } else if (data.data && Array.isArray(data.data)) {
         channelsArray = data.data;
       } else {
-        console.debug(`[KickSearch] Step 2: Unknown response structure, keys:`, Object.keys(data));
+        logger.debug("Kick:Endpoints:Search", "Step 2: Unknown response structure", {
+          keys: Object.keys(data),
+        });
       }
     }
 
     if (channelsArray.length > 0) {
-      console.debug(`[KickSearch] Step 2: Found ${channelsArray.length} results`);
+      logger.debug("Kick:Endpoints:Search", "Step 2: Found results", {
+        count: channelsArray.length,
+      });
 
       for (const item of channelsArray) {
         // Try different possible ID and slug fields
@@ -186,7 +208,7 @@ export async function searchChannels(
 
         // Skip banned accounts - they shouldn't appear in search results
         if (item.is_banned === true) {
-          console.debug(`[KickSearch] Step 2: Skipping banned channel "${channelSlug}"`);
+          logger.debug("Kick:Endpoints:Search", "Step 2: Skipping banned channel", { channelSlug });
           continue;
         }
 
@@ -248,30 +270,42 @@ export async function searchChannels(
       }
     }
   } catch (e) {
-    console.warn(`[KickSearch] Step 2: Error querying public search endpoint`, e);
+    logger.warn("Kick:Endpoints:Search", "Step 2: Error querying public search endpoint", {
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
   }
 
   // 3. Try official exact slug match (Official API - Requires Auth)
   if (client.isAuthenticated()) {
     try {
-      console.debug(`[KickSearch] Step 3: Checking official API for "${normalizedQuery}"`);
+      logger.debug("Kick:Endpoints:Search", "Step 3: Checking official API", {
+        query: normalizedQuery,
+      });
       const channel = await getChannel(client, normalizedQuery);
       if (channel) {
-        console.debug(`[KickSearch] Step 3: Found channel "${channel.username}"`);
+        logger.debug("Kick:Endpoints:Search", "Step 3: Found channel", {
+          username: channel.username,
+        });
         const key = channel.username.toLowerCase();
         results.set(key, mergeChannel(results.get(key), channel, true)); // Step 3 is authoritative for live status
       }
     } catch (e) {
-      console.warn(`[KickSearch] Step 3: Error fetching official channel "${normalizedQuery}"`, e);
+      logger.warn("Kick:Endpoints:Search", "Step 3: Error fetching official channel", {
+        query: normalizedQuery,
+        error:
+          e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+      });
     }
   }
 
   // 4. Try to get fuzzy matches from Top Streams
   // This helps find live channels even if the query is partial or fuzzy.
   try {
-    console.debug(`[KickSearch] Step 4: Checking top streams for fuzzy match`);
+    logger.debug("Kick:Endpoints:Search", "Step 4: Checking top streams for fuzzy match");
     const topStreams = await getTopStreamsCached(client);
-    console.debug(`[KickSearch] Step 4: Found ${topStreams.length} top streams to filter`);
+    logger.debug("Kick:Endpoints:Search", "Step 4: Top streams to filter", {
+      count: topStreams.length,
+    });
 
     for (const stream of topStreams) {
       const chName = stream.channelName.toLowerCase();
@@ -279,9 +313,9 @@ export async function searchChannels(
 
       if (chName.includes(normalizedQuery) || chDisp.includes(normalizedQuery)) {
         const key = stream.channelName.toLowerCase();
-        console.debug(
-          `[KickSearch] Step 4: Found fuzzy match "${stream.channelName}" in top streams`
-        );
+        logger.debug("Kick:Endpoints:Search", "Step 4: Found fuzzy match in top streams", {
+          channelName: stream.channelName,
+        });
         const newChannel: UnifiedChannel = {
           id: stream.channelId,
           platform: "kick",
@@ -298,7 +332,9 @@ export async function searchChannels(
       }
     }
   } catch (e) {
-    console.warn("Failed to fetch top streams for search fallback", e);
+    logger.warn("Kick:Endpoints:Search", "Failed to fetch top streams for search fallback", {
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
   }
 
   // Live status is set authoritatively downstream in
@@ -307,7 +343,10 @@ export async function searchChannels(
   // here would just open more BrowserWindows for data we're about to refetch.
 
   const finalResults = Array.from(results.values());
-  console.debug(`[KickSearch] Final results for "${query}": ${finalResults.length} channels`);
+  logger.debug("Kick:Endpoints:Search", "Final results", {
+    query,
+    channelCount: finalResults.length,
+  });
   return { data: finalResults };
 }
 

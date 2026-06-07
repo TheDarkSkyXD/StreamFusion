@@ -7,6 +7,8 @@
 
 import type { BrowserWindow } from "electron";
 
+import { logger } from "@/backend/logging/logger";
+
 // CSS rules to hide Twitch ad elements (if they ever appear in our context)
 const TWITCH_COSMETIC_CSS = `
 /* Hide any ad-related overlays that might slip through */
@@ -69,7 +71,7 @@ class CosmeticInjectionService {
 
   initialize(): void {
     // IPC handler registered in adblock-handlers.ts to avoid duplicate registration
-    console.debug("[CosmeticInjection] Service initialized");
+    logger.debug("Service:CosmeticInject", "Service initialized");
   }
 
   // Inject into a specific window (called on window creation)
@@ -81,9 +83,12 @@ class CosmeticInjectionService {
       await window.webContents.insertCSS(TWITCH_COSMETIC_CSS, { cssOrigin: "user" });
       await window.webContents.executeJavaScript(TWITCH_SCRIPTLETS, true);
       this.injectedWindows.add(window.webContents);
-      console.debug("[CosmeticInjection] Injected into window");
+      logger.debug("Service:CosmeticInject", "Injected into window");
     } catch (e) {
-      console.error("[CosmeticInjection] Failed to inject into window:", e);
+      logger.error("Service:CosmeticInject", "Failed to inject into window", {
+        error:
+          e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+      });
     }
   }
 
@@ -103,10 +108,13 @@ class CosmeticInjectionService {
       await webContents.insertCSS(TWITCH_COSMETIC_CSS, { cssOrigin: "user" });
       await webContents.executeJavaScript(TWITCH_SCRIPTLETS, true);
       this.injectedWindows.add(webContents);
-      console.debug("[CosmeticInjection] Injected into WebContents");
+      logger.debug("Service:CosmeticInject", "Injected into WebContents");
       return { injected: true };
     } catch (e) {
-      console.error("[CosmeticInjection] Failed to inject into WebContents:", e);
+      logger.error("Service:CosmeticInject", "Failed to inject into WebContents", {
+        error:
+          e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+      });
       return { injected: false, error: String(e) };
     }
   }

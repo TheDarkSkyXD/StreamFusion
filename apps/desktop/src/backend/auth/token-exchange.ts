@@ -5,6 +5,7 @@
  * authorization codes for access tokens and handling token refresh.
  */
 
+import { logger } from "@/lib/cross-logger";
 import type { AuthToken, Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 
@@ -104,8 +105,11 @@ class TokenExchangeService {
   async exchangeCodeForToken(params: TokenExchangeParams): Promise<AuthToken> {
     const config = getOAuthConfig(params.platform);
 
-    console.debug(`🔄 Exchanging code for token (${params.platform})`);
-    console.debug(`📤 Token endpoint: ${config.tokenEndpoint}`);
+    logger.debug("Auth:TokenExchange", "Exchanging code for token", { platform: params.platform });
+    logger.debug("Auth:TokenExchange", "Token endpoint resolved", {
+      platform: params.platform,
+      tokenEndpoint: config.tokenEndpoint,
+    });
 
     // The worker now handles the actual exchange and secrets
     // We just send the code and necessary metadata as JSON
@@ -135,21 +139,27 @@ class TokenExchangeService {
           errorData.message ||
           errorData.error ||
           "Token exchange failed";
-        console.error(
-          `❌ Token exchange failed for ${params.platform}:`,
-          response.status,
-          errorMessage
-        );
+        logger.error("Auth:TokenExchange", "Token exchange failed", {
+          platform: params.platform,
+          status: response.status,
+          errorMessage,
+        });
         throw new Error(errorMessage);
       }
 
       const data = (await response.json()) as TokenResponse;
       const token = this.parseTokenResponse(data);
 
-      console.debug(`✅ Token obtained for ${params.platform}`);
+      logger.debug("Auth:TokenExchange", "Token obtained", { platform: params.platform });
       return token;
     } catch (error) {
-      console.error(`❌ Token exchange error for ${params.platform}:`, error);
+      logger.error("Auth:TokenExchange", "Token exchange error", {
+        platform: params.platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -171,8 +181,10 @@ class TokenExchangeService {
     // Since we moved secrets to the worker, the client can no longer independently generate App Tokens (Client Credentials).
     // If App Tokens are critical, we must add a /auth/twitch/app-token endpoint to the worker.
     // For now, fail gracefully.
-    console.error(
-      `❌ Cannot get App Access Token for ${platform}: Client Secret is not available on client.`
+    logger.error(
+      "Auth:TokenExchange",
+      "Cannot get App Access Token: Client Secret is not available on client",
+      { platform }
     );
     throw new Error(
       "App Access Token flow not supported without Client Secret. Please use User Authentication."
@@ -199,7 +211,9 @@ class TokenExchangeService {
     const config = getOAuthConfig(params.platform);
     const refreshEndpoint = config.tokenEndpoint.replace("/token", "/refresh");
 
-    console.debug(`🔄 Refreshing token for ${params.platform} via Worker`);
+    logger.debug("Auth:TokenExchange", "Refreshing token via Worker", {
+      platform: params.platform,
+    });
 
     const payload = {
       refresh_token: params.refreshToken,
@@ -222,21 +236,27 @@ class TokenExchangeService {
           errorData.message ||
           errorData.error ||
           "Token refresh failed";
-        console.error(
-          `❌ Token refresh failed for ${params.platform}:`,
-          response.status,
-          errorMessage
-        );
+        logger.error("Auth:TokenExchange", "Token refresh failed", {
+          platform: params.platform,
+          status: response.status,
+          errorMessage,
+        });
         throw new TokenRefreshError(errorMessage, response.status, errorData.error ?? null);
       }
 
       const data = (await response.json()) as TokenResponse;
       const token = this.parseTokenResponse(data);
 
-      console.debug(`✅ Token refreshed for ${params.platform}`);
+      logger.debug("Auth:TokenExchange", "Token refreshed", { platform: params.platform });
       return token;
     } catch (error) {
-      console.error(`❌ Token refresh error for ${params.platform}:`, error);
+      logger.error("Auth:TokenExchange", "Token refresh error", {
+        platform: params.platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -248,11 +268,11 @@ class TokenExchangeService {
     const config = getOAuthConfig(params.platform);
 
     if (!config.revokeEndpoint) {
-      console.warn(`⚠️ No revoke endpoint for ${params.platform}`);
+      logger.warn("Auth:TokenExchange", "No revoke endpoint", { platform: params.platform });
       return false;
     }
 
-    console.debug(`🗑️ Revoking token for ${params.platform}`);
+    logger.debug("Auth:TokenExchange", "Revoking token", { platform: params.platform });
 
     const body = new URLSearchParams({
       client_id: config.clientId,
@@ -269,18 +289,24 @@ class TokenExchangeService {
       });
 
       if (!response.ok) {
-        console.warn(
-          `⚠️ Token revocation returned non-OK status for ${params.platform}:`,
-          response.status
-        );
+        logger.warn("Auth:TokenExchange", "Token revocation returned non-OK status", {
+          platform: params.platform,
+          status: response.status,
+        });
         // Revocation often returns 200 OK even if token was already invalid
         // So we don't throw here, just warn
       }
 
-      console.debug(`✅ Token revoked for ${params.platform}`);
+      logger.debug("Auth:TokenExchange", "Token revoked", { platform: params.platform });
       return true;
     } catch (error) {
-      console.error(`❌ Token revocation error for ${params.platform}:`, error);
+      logger.error("Auth:TokenExchange", "Token revocation error", {
+        platform: params.platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return false;
     }
   }

@@ -8,6 +8,7 @@
  * with features like zero-width emotes and high-quality animated emotes.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
@@ -124,7 +125,12 @@ class SevenTVEmoteProvider implements EmoteProviderService {
 
       return data.emotes.map((emote) => this.transformEmote(emote, true));
     } catch (error) {
-      console.error("[7TVEmotes] Failed to fetch global emotes:", error);
+      logger.error("Emote:7TV", "Failed to fetch global emotes", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -154,7 +160,7 @@ class SevenTVEmoteProvider implements EmoteProviderService {
 
     if (platform === "twitch") {
       if (!/^\d+$/.test(channelId)) {
-        console.log(`[7TVEmotes] Skipping - Channel ID ${channelId} is not a valid Twitch ID`);
+        logger.info("Emote:7TV", "Skipping - Channel ID is not a valid Twitch ID", { channelId });
         return [];
       }
       identifier = channelId;
@@ -187,13 +193,20 @@ class SevenTVEmoteProvider implements EmoteProviderService {
     } catch (err: any) {
       // 404 = channel has no linked 7TV account; not an error worth surfacing.
       if (err.response?.status === 404) {
-        console.log(`[7TVEmotes] No 7TV channel emotes for ${platformName}/${identifier}`);
+        logger.info("Emote:7TV", "No 7TV channel emotes", {
+          platform: platformName,
+          identifier,
+        });
         return [];
       }
-      console.warn(
-        `[7TVEmotes] Failed to fetch channel emotes for ${platformName}/${identifier}:`,
-        err
-      );
+      logger.warn("Emote:7TV", "Failed to fetch channel emotes", {
+        platform: platformName,
+        identifier,
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
       return []; // Fail silently for individual channels so we don't crash
     }
   }
@@ -213,7 +226,13 @@ class SevenTVEmoteProvider implements EmoteProviderService {
 
       return data.emotes.map((emote) => this.transformEmote(emote, false));
     } catch (error) {
-      console.error(`[7TVEmotes] Failed to fetch emote set ${setId}:`, error);
+      logger.error("Emote:7TV", "Failed to fetch emote set", {
+        setId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return [];
     }
   }

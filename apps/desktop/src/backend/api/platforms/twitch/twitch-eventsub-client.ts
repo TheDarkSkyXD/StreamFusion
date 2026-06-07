@@ -26,6 +26,7 @@
  *     `keepalive_timeout_seconds`, force-close and reconnect.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 
 import type {
@@ -89,7 +90,6 @@ type SubEntry = {
   channelId: string;
   refcount: number;
   /** Listener bag — typed loosely; cast at dispatch. */
-  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous listener bag
   listeners: Set<(payload: NotificationPayload<any>) => void>;
   /** Twitch-assigned subscription id, set after the Helix POST resolves. */
   subscriptionId: string | null;
@@ -103,7 +103,6 @@ type SubEntry = {
 
 class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private readonly accessToken: string;
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: kept for future per-broadcaster routing logic
   private readonly broadcasterUserId: string;
   private readonly wsEndpoint: string;
   private readonly webSocketCtor: typeof WebSocket;
@@ -262,7 +261,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       try {
         fn(state);
       } catch (err) {
-        console.warn("[twitch-eventsub] state listener threw", err);
+        logger.warn("Twitch:EventSub", "state listener threw", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
       }
     }
   }
@@ -274,7 +278,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private openSocket(): void {
     if (this.closed) return;
     if (!this.webSocketCtor) {
-      console.warn("[twitch-eventsub] no WebSocket constructor available — cannot open");
+      logger.warn("Twitch:EventSub", "no WebSocket constructor available — cannot open");
       this.setState("error");
       return;
     }
@@ -282,7 +286,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     try {
       this.ws = new this.webSocketCtor(this.wsEndpoint);
     } catch (err) {
-      console.warn("[twitch-eventsub] failed to construct WebSocket", err);
+      logger.warn("Twitch:EventSub", "failed to construct WebSocket", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
       this.scheduleReconnect();
       return;
     }
@@ -345,7 +354,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     // timer-allowlist: EventSub keepalive watchdog reset on message (SP1/SP3 out-of-scope)
     this.keepaliveTimer = setTimeout(() => {
       this.keepaliveTimer = null;
-      console.warn("[twitch-eventsub] keepalive timeout exceeded — forcing reconnect");
+      logger.warn("Twitch:EventSub", "keepalive timeout exceeded — forcing reconnect");
       this.forceReconnect();
     }, graceMs);
   }
@@ -375,7 +384,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     try {
       envelope = JSON.parse(ev.data as string) as TwitchEventSubMessage<unknown>;
     } catch (err) {
-      console.warn("[twitch-eventsub] received non-JSON message", err);
+      logger.warn("Twitch:EventSub", "received non-JSON message", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
       return;
     }
 
@@ -398,6 +412,9 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         this.onRevocation(envelope.payload as RevocationPayload);
         break;
       default:
+        // Kept as console.warn so the existing dispatch-observability test
+        // (which spies on console.warn) keeps signalling. Console intercept
+        // captures this in production.
         console.warn("[twitch-eventsub] unhandled message_type", messageType, envelope);
     }
   }
@@ -434,7 +451,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     if (this.closed) return;
     const reconnectUrl = payload.session.reconnect_url;
     if (!reconnectUrl) {
-      console.warn("[twitch-eventsub] session_reconnect missing reconnect_url");
+      logger.warn("Twitch:EventSub", "session_reconnect missing reconnect_url");
       return;
     }
     if (!this.webSocketCtor) return;
@@ -443,7 +460,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     try {
       next = new this.webSocketCtor(reconnectUrl);
     } catch (err) {
-      console.warn("[twitch-eventsub] failed to open reconnect_url", err);
+      logger.warn("Twitch:EventSub", "failed to open reconnect_url", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
       this.scheduleReconnect();
       return;
     }
@@ -472,7 +494,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         ? (sub.condition.broadcaster_user_id as string)
         : null;
     if (!channelId) {
-      console.warn("[twitch-eventsub] notification without broadcaster_user_id", sub.id);
+      logger.warn("Twitch:EventSub", "notification without broadcaster_user_id", { subId: sub.id });
       return;
     }
     const entry = this.subs.get(pairKey(sub.type, channelId));
@@ -484,7 +506,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       try {
         fn(payload);
       } catch (err) {
-        console.warn("[twitch-eventsub] listener threw", err);
+        logger.warn("Twitch:EventSub", "listener threw", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
       }
     }
   }
@@ -492,7 +519,10 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private onRevocation(payload: RevocationPayload): void {
     const subId = payload.subscription.id;
     const pair = this.subIdToPair.get(subId);
-    console.warn("[twitch-eventsub] subscription revoked", subId, payload.subscription.status);
+    logger.warn("Twitch:EventSub", "subscription revoked", {
+      subId,
+      status: payload.subscription.status,
+    });
     this.subIdToPair.delete(subId);
     if (!pair) return;
     const entry = this.subs.get(pairKey(pair.eventType, pair.channelId));
@@ -534,12 +564,11 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        console.warn(
-          "[twitch-eventsub] subscription POST failed",
-          res.status,
-          entry.eventType,
-          entry.channelId
-        );
+        logger.warn("Twitch:EventSub", "subscription POST failed", {
+          status: res.status,
+          eventType: entry.eventType,
+          channelId: entry.channelId,
+        });
         entry.posting = false;
         return;
       }
@@ -557,7 +586,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       }
     } catch (err) {
       entry.posting = false;
-      console.warn("[twitch-eventsub] subscription POST threw", err);
+      logger.warn("Twitch:EventSub", "subscription POST threw", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
     }
   }
 
@@ -571,7 +605,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         },
       });
     } catch (err) {
-      console.warn("[twitch-eventsub] subscription DELETE threw", err);
+      logger.warn("Twitch:EventSub", "subscription DELETE threw", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
     }
   }
 }

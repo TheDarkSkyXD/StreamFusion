@@ -33,6 +33,9 @@
  */
 
 import type Pusher from "pusher-js";
+// Cross-logger: imported by KickChat (renderer) — avoids dragging
+// electron-log into the renderer bundle.
+import { logger } from "@/lib/cross-logger";
 import type { ChatConnectionStatus, UnifiedPrediction } from "../../../shared/chat-types";
 import { getLatestPrediction } from "../../api/platforms/kick/kick-predictions";
 import type { KickPredictionEventPayload } from "../../api/platforms/kick/kick-types";
@@ -154,9 +157,11 @@ class KickPredictionsService {
         // Non-success surfaces only at debug — REST seed is a "nice to have"
         // path; Pusher carries production updates.
         if (process.env.NODE_ENV !== "production") {
-          console.debug(
-            `[kick-predictions] REST seed failed for ${entry.channelSlug}: ${result.kind} ${result.message}`
-          );
+          logger.debug("Chat:Predictions", "REST seed failed", {
+            channelSlug: entry.channelSlug,
+            kind: result.kind,
+            message: result.message,
+          });
         }
         return;
       }
@@ -173,7 +178,13 @@ class KickPredictionsService {
       // Defensive — getLatestPrediction already wraps errors, but nothing in
       // this seed path should ever bubble.
       if (process.env.NODE_ENV !== "production") {
-        console.debug(`[kick-predictions] REST seed threw for ${entry.channelSlug}:`, error);
+        logger.debug("Chat:Predictions", "REST seed threw", {
+          channelSlug: entry.channelSlug,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
     }
   }
@@ -223,9 +234,10 @@ class KickPredictionsService {
 
     channel.bind("pusher:subscription_succeeded", () => {
       if (process.env.NODE_ENV !== "production") {
-        console.debug(
-          `[kick-predictions] subscribed to ${channelName} (anonymous=${!entry.authedRetryAttempted})`
-        );
+        logger.debug("Chat:Predictions", "Subscribed", {
+          channelName,
+          anonymous: !entry.authedRetryAttempted,
+        });
       }
     });
 
@@ -234,10 +246,13 @@ class KickPredictionsService {
         // Already retried authed — log a one-time warning and stop.
         if (!entry.warnedSubscriptionFailed) {
           entry.warnedSubscriptionFailed = true;
-          console.warn(
-            `[kick-predictions] subscription failed for ${channelName} after authed retry`,
-            error
-          );
+          logger.warn("Chat:Predictions", "Subscription failed after authed retry", {
+            channelName,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
         }
         return;
       }
@@ -250,10 +265,13 @@ class KickPredictionsService {
       // acquire(). Until then, just record that anonymous failed.
       entry.authedRetryAttempted = true;
       if (process.env.NODE_ENV !== "production") {
-        console.debug(
-          `[kick-predictions] anonymous subscription failed for ${channelName}, awaiting authed Pusher`,
-          error
-        );
+        logger.debug("Chat:Predictions", "Anonymous subscription failed, awaiting authed Pusher", {
+          channelName,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
       // Tear down the failed subscription so we don't accumulate dead bindings.
       try {

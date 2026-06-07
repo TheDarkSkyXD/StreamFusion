@@ -1,3 +1,4 @@
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import type { StreamPlayback } from "../../../../components/player/types";
 import { KICK_LEGACY_API_V1_BASE } from "./kick-types";
@@ -30,15 +31,21 @@ export class KickStreamResolver {
 
       // 200-299 or 206 (Partial Content) = valid; 404/403 = stream gone
       if (res.status === 404 || res.status === 403) {
-        console.debug(`[KickStreamResolver] Playback URL validation failed: ${res.status}`);
+        logger.debug("Kick:StreamResolver", "Playback URL validation failed", {
+          status: res.status,
+        });
         return false;
       }
       if (res.status >= 200 && res.status < 300) {
         return true;
       }
       // Other status codes (e.g., 503) - assume temporary, let player handle
-      console.debug(
-        `[KickStreamResolver] Playback URL returned status ${res.status}, assuming valid`
+      logger.debug(
+        "Kick:StreamResolver",
+        "Playback URL returned non-success status, assuming valid",
+        {
+          status: res.status,
+        }
       );
       return true;
     } catch {
@@ -127,8 +134,9 @@ export class KickStreamResolver {
         // This preflight check prevents the "404 → refresh → same 404" loop
         const isUrlValid = await this.validatePlaybackUrl(playbackUrl);
         if (!isUrlValid) {
-          console.debug(
-            `[KickStreamResolver] Playback URL returned 404 - stream likely just went offline`
+          logger.debug(
+            "Kick:StreamResolver",
+            "Playback URL returned 404 - stream likely just went offline"
           );
           throw new Error("Channel is offline");
         }
@@ -236,7 +244,13 @@ export class KickStreamResolver {
           `Original error: ${lastError?.message || "Unknown error"}`
       );
     } catch (error) {
-      console.error("Failed to resolve Kick VOD URL for:", videoIdOrUuid, error);
+      logger.error("Kick:StreamResolver", "Failed to resolve Kick VOD URL", {
+        videoIdOrUuid,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -318,10 +332,12 @@ export class KickStreamResolver {
           undefined,
       };
     } catch (_error) {
-      console.warn(
-        "Could not fetch Kick video metadata for:",
-        videoId,
-        "- returning default metadata"
+      logger.warn(
+        "Kick:StreamResolver",
+        "Could not fetch Kick video metadata; returning defaults",
+        {
+          videoId,
+        }
       );
       // Return default metadata instead of throwing
       // The video can still play even without full metadata

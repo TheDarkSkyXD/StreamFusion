@@ -12,6 +12,7 @@ import {
   type UpdateInfo as ElectronUpdateInfo,
   type ProgressInfo,
 } from "electron-updater";
+import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type {
   CheckFrequency,
@@ -159,12 +160,12 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
 
   // Set up event listeners
   autoUpdater.on("checking-for-update", () => {
-    console.log("[Update] Checking for updates...");
+    logger.info("Service:Updater", "Checking for updates");
     updateState({ status: "checking", error: null });
   });
 
   autoUpdater.on("update-available", (info: ElectronUpdateInfo) => {
-    console.log("[Update] Update available:", info.version);
+    logger.info("Service:Updater", "Update available", { version: info.version });
     updateState({
       status: "available",
       updateInfo: transformUpdateInfo(info),
@@ -173,7 +174,9 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
   });
 
   autoUpdater.on("update-not-available", (info: ElectronUpdateInfo) => {
-    console.log("[Update] No update available. Current version is latest:", info.version);
+    logger.info("Service:Updater", "No update available. Current version is latest", {
+      version: info.version,
+    });
     updateState({
       status: "not-available",
       updateInfo: transformUpdateInfo(info),
@@ -182,7 +185,9 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
   });
 
   autoUpdater.on("download-progress", (progress: ProgressInfo) => {
-    console.log(`[Update] Download progress: ${progress.percent.toFixed(1)}%`);
+    logger.info("Service:Updater", "Download progress", {
+      percent: Number(progress.percent.toFixed(1)),
+    });
     updateState({
       status: "downloading",
       progress: transformProgress(progress),
@@ -195,7 +200,7 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
   });
 
   autoUpdater.on("update-downloaded", (info: ElectronUpdateInfo) => {
-    console.log("[Update] Update downloaded:", info.version);
+    logger.info("Service:Updater", "Update downloaded", { version: info.version });
     updateState({
       status: "downloaded",
       updateInfo: transformUpdateInfo(info),
@@ -204,7 +209,9 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
   });
 
   autoUpdater.on("error", (error: Error) => {
-    console.error("[Update] Error:", error.message);
+    logger.error("Service:Updater", "Auto-updater error", {
+      error: { name: error.name, message: error.message, stack: error.stack },
+    });
     updateState({
       status: "error",
       error: error.message,
@@ -212,7 +219,7 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
     });
   });
 
-  console.log("[Update] Update service initialized");
+  logger.info("Service:Updater", "Update service initialized");
   isInitialized = true;
 
   // Start (or skip) the auto-check scheduler based on the persisted setting.
@@ -237,7 +244,12 @@ async function runAutoCheck(): Promise<void> {
     await autoUpdater.checkForUpdates();
   } catch (err) {
     updateStore.set("lastCheckAt", prevCheckAt);
-    console.warn("[Update] Auto-check failed:", err);
+    logger.warn("Service:Updater", "Auto-check failed", {
+      error:
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : String(err),
+    });
   }
 }
 
@@ -268,7 +280,7 @@ function startAutoCheckScheduler(): void {
 
   if (!isInitialized || !currentState.autoCheckEnabled || !app.isPackaged) {
     if (!app.isPackaged) {
-      console.log("[Update] Skipping auto-check scheduler in development mode");
+      logger.info("Service:Updater", "Skipping auto-check scheduler in development mode");
     }
     return;
   }
@@ -279,7 +291,9 @@ function startAutoCheckScheduler(): void {
   // full tick when a check is already due.
   maybeRunScheduledCheck();
   autoCheckTimer = createManagedInterval(maybeRunScheduledCheck, MIN_INTERVAL_MS);
-  console.log(`[Update] Auto-check scheduler started (frequency=${currentState.checkFrequency})`);
+  logger.info("Service:Updater", "Auto-check scheduler started", {
+    frequency: currentState.checkFrequency,
+  });
 }
 
 /**
@@ -288,7 +302,7 @@ function startAutoCheckScheduler(): void {
 export async function checkForUpdates(): Promise<UpdateState> {
   if (!isInitialized) {
     const message = "Update service not initialized (development mode)";
-    console.warn("[Update]", message);
+    logger.warn("Service:Updater", message);
     return { ...currentState, status: "error", error: message };
   }
 
@@ -308,7 +322,7 @@ export async function checkForUpdates(): Promise<UpdateState> {
 export async function downloadUpdate(): Promise<UpdateState> {
   if (!isInitialized) {
     const message = "Update service not initialized (development mode)";
-    console.warn("[Update]", message);
+    logger.warn("Service:Updater", message);
     return { ...currentState, status: "error", error: message };
   }
 

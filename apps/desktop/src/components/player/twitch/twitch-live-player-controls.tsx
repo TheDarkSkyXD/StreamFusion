@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LuMaximize, LuMinimize, LuShieldCheck } from "react-icons/lu";
+import { LuMaximize, LuMinimize, LuRefreshCw, LuShieldCheck } from "react-icons/lu";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
@@ -88,6 +88,9 @@ interface TwitchLivePlayerControlsProps {
 
   // Progress
   onSeek?: (time: number) => void;
+
+  // Refresh — drops the cached playback URL and re-fetches as a fresh viewer
+  onRefresh?: () => void;
 }
 
 export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
@@ -111,6 +114,7 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
     onToggleVideoStats,
     adBlockStatus,
     onSeek,
+    onRefresh,
   } = props;
 
   const controls =
@@ -265,6 +269,24 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            {onRefresh && (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 cursor-pointer"
+                    onClick={onRefresh}
+                  >
+                    <LuRefreshCw className="w-6 h-6" strokeWidth={3} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent container={containerRef.current}>
+                  <p>Refresh stream</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <SettingsMenu
               qualities={qualities}
               currentQualityId={currentQualityId}

@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect } from "react";
+import { logger } from "@/renderer/logging/logger";
 import type {
   CheckFrequency,
   UpdateInfo,
@@ -13,6 +14,12 @@ import type {
   UpdateStatus,
 } from "@/store/update-store";
 import { useUpdateStore } from "@/store/update-store";
+
+function serializeError(error: unknown): Record<string, unknown> | string {
+  return error instanceof Error
+    ? { name: error.name, message: error.message, stack: error.stack }
+    : String(error);
+}
 
 interface UseUpdaterReturn {
   // State
@@ -57,7 +64,9 @@ export function useUpdater(): UseUpdaterReturn {
         store.updateFromBackend(status);
         store.setInitialized(true);
       } catch (error) {
-        console.error("[useUpdater] Failed to get initial status:", error);
+        logger.error("Hook:Updater", "failed to get initial status", {
+          error: serializeError(error),
+        });
       }
     };
 
@@ -90,7 +99,7 @@ export function useUpdater(): UseUpdaterReturn {
         progress: null,
       });
     } catch (error) {
-      console.error("[useUpdater] Check failed:", error);
+      logger.error("Hook:Updater", "check failed", { error: serializeError(error) });
       store.setError(error instanceof Error ? error.message : "Failed to check for updates");
       store.setStatus("error");
     }
@@ -107,7 +116,7 @@ export function useUpdater(): UseUpdaterReturn {
         allowPrerelease: store.allowPrerelease,
       });
     } catch (error) {
-      console.error("[useUpdater] Download failed:", error);
+      logger.error("Hook:Updater", "download failed", { error: serializeError(error) });
       store.setError(error instanceof Error ? error.message : "Failed to download update");
       store.setStatus("error");
     }
@@ -120,7 +129,7 @@ export function useUpdater(): UseUpdaterReturn {
     try {
       await window.electronAPI.updater.install();
     } catch (error) {
-      console.error("[useUpdater] Install failed:", error);
+      logger.error("Hook:Updater", "install failed", { error: serializeError(error) });
       store.setError(error instanceof Error ? error.message : "Failed to install update");
       store.setStatus("error");
     }
@@ -135,7 +144,9 @@ export function useUpdater(): UseUpdaterReturn {
         const result = await window.electronAPI.updater.setAllowPrerelease(allow);
         store.setAllowPrerelease(result.allowPrerelease);
       } catch (error) {
-        console.error("[useUpdater] Failed to set prerelease preference:", error);
+        logger.error("Hook:Updater", "failed to set prerelease preference", {
+          error: serializeError(error),
+        });
       }
     },
     [store]
@@ -151,7 +162,9 @@ export function useUpdater(): UseUpdaterReturn {
         store.setAutoCheckEnabled(result.autoCheckEnabled);
         store.setCheckFrequency(result.checkFrequency);
       } catch (error) {
-        console.error("[useUpdater] Failed to set auto-check preference:", error);
+        logger.error("Hook:Updater", "failed to set auto-check preference", {
+          error: serializeError(error),
+        });
       }
     },
     [store]
@@ -167,7 +180,9 @@ export function useUpdater(): UseUpdaterReturn {
         store.setAutoCheckEnabled(result.autoCheckEnabled);
         store.setCheckFrequency(result.checkFrequency);
       } catch (error) {
-        console.error("[useUpdater] Failed to set check frequency:", error);
+        logger.error("Hook:Updater", "failed to set check frequency", {
+          error: serializeError(error),
+        });
       }
     },
     [store]
@@ -216,7 +231,9 @@ function useUpdateSettings() {
         const result = await window.electronAPI.updater.setAllowPrerelease(allow);
         setAllowPrerelease(result.allowPrerelease);
       } catch (error) {
-        console.error("[useUpdateSettings] Failed to set prerelease preference:", error);
+        logger.error("Hook:Updater", "failed to set prerelease preference (settings hook)", {
+          error: serializeError(error),
+        });
       }
     },
     [setAllowPrerelease]

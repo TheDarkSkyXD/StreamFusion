@@ -6,6 +6,7 @@
  * - Helix API (via Cloudflare Worker) for auth-only: followed streams, followed channels, user info
  */
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform, TwitchUser } from "../../../../shared/auth-types";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import type { IPlatformReader, PageResult, TopStreamsOptions } from "../../unified/platform-reader";
@@ -113,7 +114,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
       const streams = await GqlClient.gqlGetStreamsByLogins(logins);
       return { data: streams };
     } catch (error) {
-      console.warn("GQL getStreamsByLogins failed:", error);
+      logger.warn("Twitch:Client", "GQL getStreamsByLogins failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return { data: [] };
     }
   }
@@ -131,7 +137,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
       try {
         return await StreamEndpoints.getStreamsByUserIds(this, userIds, options);
       } catch (error) {
-        console.warn("Helix getStreamsByUserIds failed, trying GQL:", error);
+        logger.warn("Twitch:Client", "Helix getStreamsByUserIds failed, trying GQL", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
     }
 
@@ -163,7 +174,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlGetTopStreams(normalized);
     } catch (error) {
-      console.warn("GQL getTopStreams failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL getTopStreams failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return StreamEndpoints.getTopStreams(this, normalized);
     }
   }
@@ -176,7 +192,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlGetStreamByLogin(login);
     } catch (error) {
-      console.warn("GQL getStreamByLogin failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL getStreamByLogin failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return StreamEndpoints.getStreamByLogin(this, login);
     }
   }
@@ -214,7 +235,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlSearchChannels(query, options);
     } catch (error) {
-      console.warn("GQL searchChannels failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL searchChannels failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       const SearchEndpoints = await import("./endpoints/search-endpoints");
       return SearchEndpoints.searchChannels(this, query, options);
     }
@@ -232,7 +258,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlGetTopCategories(options);
     } catch (error) {
-      console.warn("GQL getTopCategories failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL getTopCategories failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       const CategoryEndpoints = await import("./endpoints/category-endpoints");
       return CategoryEndpoints.getTopCategories(this, options);
     }
@@ -246,7 +277,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlGetAllTopCategories();
     } catch (error) {
-      console.warn("GQL getAllTopCategories failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL getAllTopCategories failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       const CategoryEndpoints = await import("./endpoints/category-endpoints");
       return CategoryEndpoints.getAllTopCategories(this);
     }
@@ -263,7 +299,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlSearchCategories(query, options);
     } catch (error) {
-      console.warn("GQL searchCategories failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL searchCategories failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       const SearchEndpoints = await import("./endpoints/search-endpoints");
       return SearchEndpoints.searchCategories(this, query, options);
     }
@@ -277,7 +318,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlGetCategoryById(id);
     } catch (error) {
-      console.warn("GQL getCategoryById failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL getCategoryById failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       const CategoryEndpoints = await import("./endpoints/category-endpoints");
       return CategoryEndpoints.getCategoryById(this, id);
     }
@@ -323,7 +369,12 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     try {
       return await GqlClient.gqlGetVideoMetadata(videoId);
     } catch (error) {
-      console.warn("GQL getVideoById failed, falling back to Helix:", error);
+      logger.warn("Twitch:Client", "GQL getVideoById failed, falling back to Helix", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       const VideoEndpoints = await import("./endpoints/video-endpoints");
       return VideoEndpoints.getVideoById(this, videoId) as any;
     }

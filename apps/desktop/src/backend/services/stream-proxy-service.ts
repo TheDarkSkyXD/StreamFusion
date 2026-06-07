@@ -31,6 +31,7 @@
 import { app, session as electronSession, safeStorage } from "electron";
 import Store from "electron-store";
 
+import { logger } from "@/backend/logging/logger";
 import type { ProxyApplyConfig, ProxyApplyResult } from "../../shared/ipc-channels";
 
 // ========== Credential storage (encrypted, dedicated store) ==========
@@ -69,7 +70,10 @@ function persistCredentials(credentials: DecryptedCredentials | null): void {
     encoded = safeStorage.encryptString(json).toString("base64");
   } else {
     // Fallback mirrors storage-service: less secure, but keeps dev working.
-    console.warn("[StreamProxy] safeStorage unavailable, using base64 fallback for credentials");
+    logger.warn(
+      "Service:StreamProxy",
+      "safeStorage unavailable, using base64 fallback for credentials"
+    );
     encoded = Buffer.from(json).toString("base64");
   }
   credentialStore.set("encrypted", encoded);
@@ -91,7 +95,7 @@ function readCredentials(): DecryptedCredentials | null {
     return parsed;
   } catch (error) {
     // Never log the error body — it could echo cipher bytes. Log the failure.
-    console.error("[StreamProxy] Failed to decrypt stored proxy credentials");
+    logger.error("Service:StreamProxy", "Failed to decrypt stored proxy credentials");
     void error;
     return null;
   }
@@ -186,11 +190,11 @@ export async function applyProxy(config: ProxyApplyConfig): Promise<ProxyApplyRe
     await session.closeAllConnections();
     // Never log host/port at info level beyond a generic confirmation; never
     // log credentials.
-    console.debug("[StreamProxy] Proxy applied to window session");
+    logger.debug("Service:StreamProxy", "Proxy applied to window session");
     return { applied: true, cleared: false, hasCredentials };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to apply proxy";
-    console.error("[StreamProxy] Failed to apply proxy:", message);
+    logger.error("Service:StreamProxy", "Failed to apply proxy", { message });
     // Leave the session direct on failure rather than half-applied.
     await clearProxy().catch(() => {
       /* best-effort */
@@ -210,7 +214,7 @@ export async function clearProxy(): Promise<void> {
     await session.closeAllConnections();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[StreamProxy] Failed to clear proxy:", message);
+    logger.error("Service:StreamProxy", "Failed to clear proxy", { message });
   }
 }
 

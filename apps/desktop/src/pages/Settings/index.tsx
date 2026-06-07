@@ -2,6 +2,7 @@ import { useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 import {
+  LuBug,
   LuCircleAlert,
   LuCircleCheck,
   LuCircleHelp,
@@ -9,6 +10,7 @@ import {
   LuDownload,
   LuEye,
   LuEyeOff,
+  LuFileText,
   LuGauge,
   LuKeyRound,
   LuLink,
@@ -28,7 +30,9 @@ import {
   getAdBlockDeviceId,
   randomizeAdBlockDeviceId,
 } from "@/components/player/twitch/twitch-adblock-device-id";
+import { BugReportSection } from "@/components/settings/BugReportSection";
 import { ChatSettingsSection } from "@/components/settings/ChatSettingsSection";
+import { LogsSection } from "@/components/settings/LogsSection";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -73,8 +77,16 @@ const SETTINGS_TABS = [
   "integrations",
   "api-tokens",
   "updates",
+  "logs",
+  "report-bug",
   "about",
 ] as const;
+
+// Tabs only visible when running under electron-vite dev (env.get().isDev).
+// In packaged builds the corresponding sidebar items + content panels are
+// suppressed entirely, and a deep-link `?tab=<dev-only>` is redirected to the
+// default tab.
+const DEV_ONLY_TABS = new Set<(typeof SETTINGS_TABS)[number]>(["logs", "report-bug"]);
 
 // Numeric buffer controls surfaced in Settings → Buffer (U10). Each maps to one
 // BufferPreferences number field; ranges keep values in HLS.js-sane bounds.
@@ -152,12 +164,42 @@ const PLAYBACK_ADVANCED_PLAYER_TYPES: { value: PlaybackAdvancedPlayerType; label
 export function SettingsPage() {
   const appVersion = useAppVersion();
   const versionInfo = useAppVersionInfo();
+  // Dev gate. While the env probe is in flight we conservatively treat the
+  // build as prod so dev-only panels never flash in a packaged install.
+  const [isDev, setIsDev] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI?.env
+      ?.get()
+      .then((env) => {
+        if (!cancelled) setIsDev(env.isDev);
+      })
+      .catch(() => {
+        if (!cancelled) setIsDev(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Deep-link support (e.g. the in-chat gear's "More settings" → /settings?tab=chat, U7).
+  // Dev-only tabs requested in prod fall back to the default ("playback") so a
+  // stale `?tab=logs` from a dev session doesn't land users on a blank panel.
   const search = useSearch({ from: "/_app/settings" });
-  const initialTab = SETTINGS_TABS.includes(search.tab as (typeof SETTINGS_TABS)[number])
-    ? (search.tab as string)
-    : "playback";
+  const requestedTab = search.tab as (typeof SETTINGS_TABS)[number];
+  const isValidTab = SETTINGS_TABS.includes(requestedTab);
+  const requestedIsDevOnly = isValidTab && DEV_ONLY_TABS.has(requestedTab);
+  const initialTab =
+    isValidTab && (!requestedIsDevOnly || isDev) ? (requestedTab as string) : "playback";
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // If the active tab is dev-only and the env probe resolves to prod, snap
+  // back to the default tab so the panel area never renders dev-only content.
+  useEffect(() => {
+    if (!isDev && DEV_ONLY_TABS.has(activeTab as (typeof SETTINGS_TABS)[number])) {
+      setActiveTab("playback");
+    }
+  }, [isDev, activeTab]);
 
   // Get auth state
   const { error, clearError } = useAuthError();
@@ -480,6 +522,24 @@ export function SettingsPage() {
               isActive={activeTab === "updates"}
               onClick={() => setActiveTab("updates")}
             />
+            {isDev && (
+              <SidebarItem
+                icon={LuFileText}
+                label="Logs"
+                description="In-app log viewer & diagnostics"
+                isActive={activeTab === "logs"}
+                onClick={() => setActiveTab("logs")}
+              />
+            )}
+            {isDev && (
+              <SidebarItem
+                icon={LuBug}
+                label="Report Bug"
+                description="Capture a bug report for sharing"
+                isActive={activeTab === "report-bug"}
+                onClick={() => setActiveTab("report-bug")}
+              />
+            )}
             <SidebarItem
               icon={LuCircleHelp}
               label="About"
@@ -548,7 +608,7 @@ export function SettingsPage() {
                   <p className="text-sm leading-relaxed">
                     These affect how the Twitch stream token is requested. Wrong values can break
                     playback. Defaults match the current configuration. They apply through the
-                    ad-block pipeline only — with ad-block off, the standard player is unaffected.
+                    ad-block pipeline only. With ad-block off, the standard player is unaffected.
                   </p>
                 </div>
 
@@ -589,8 +649,8 @@ export function SettingsPage() {
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-zinc-200">Allow HEVC (H.265)</p>
                       <p className="text-sm text-zinc-500 mt-0.5">
-                        Keep HEVC streams instead of swapping to AVC during ads. Off by default —
-                        enabling can break playback if the decoder can't switch cleanly.
+                        Keep HEVC streams instead of swapping to AVC during ads. Off by default.
+                        Enabling can break playback if the decoder can't switch cleanly.
                       </p>
                     </div>
                     <Switch
@@ -1290,6 +1350,37 @@ export function SettingsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Logs Tab — dev-only. The sidebar item is hidden in prod and a
+              deep-link `?tab=logs` is redirected away above, but this guard
+              keeps the panel itself off in case `activeTab` lags behind. */}
+          {isDev && activeTab === "logs" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Logs</h2>
+                <p className="text-zinc-400">
+                  Inspect the in-app log files. Useful for debugging playback, chat, and auth issues
+                  — or for attaching to a bug report.
+                </p>
+              </div>
+
+              <LogsSection />
+            </div>
+          )}
+
+          {/* Report Bug Tab — dev-only (gated by DEV_ONLY_TABS). */}
+          {isDev && activeTab === "report-bug" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Report a Bug</h2>
+                <p className="text-zinc-400">
+                  Generate a bug report file you can share with someone debugging the issue.
+                </p>
+              </div>
+
+              <BugReportSection />
             </div>
           )}
 

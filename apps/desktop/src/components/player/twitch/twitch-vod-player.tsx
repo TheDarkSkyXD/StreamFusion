@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
+import { logger } from "@/renderer/logging/logger";
 
 import { HlsPlayer } from "../hls-player";
 import { useDefaultQuality } from "../hooks/use-default-quality";
@@ -151,7 +152,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch(console.error);
+      video.play().catch((error) => logger.error("Player:Twitch:VOD", "play failed", { error }));
     } else {
       video.pause();
     }

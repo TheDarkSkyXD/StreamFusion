@@ -68,7 +68,6 @@ function fragmentKey(fragment: ContentFragment, index: number): string {
       return `l:${index}:${fragment.url.slice(0, 24)}`;
     case "cheermote":
       return `c:${fragment.id}:${fragment.bits}:${index}`;
-    case "text":
     default:
       return `t:${index}:${(fragment as { content?: string }).content?.slice(0, 12) ?? ""}`;
   }

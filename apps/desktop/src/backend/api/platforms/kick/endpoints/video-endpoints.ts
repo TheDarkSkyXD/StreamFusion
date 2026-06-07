@@ -1,3 +1,4 @@
+import { logger } from "@/backend/logging/logger";
 import { normalizeKickDate } from "../kick-transformers";
 import {
   KICK_LEGACY_API_V2_BASE,
@@ -156,7 +157,13 @@ export async function getVideosByChannelSlug(
       cursor: nextCursor,
     };
   } catch (error) {
-    console.warn(`Failed to fetch videos for ${slug}:`, error);
+    logger.warn("Kick:Endpoints:Video", "Failed to fetch videos", {
+      slug,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return { data: [] };
   }
 }

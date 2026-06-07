@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { UnifiedCategory } from "../../api/unified/platform-types";
@@ -32,7 +33,12 @@ export function registerCategoryHandlers(): void {
             const twitchCategories = await twitchClient.getAllTopCategories();
             return { success: true, platform: "twitch", data: twitchCategories };
           } catch (err) {
-            console.warn("⚠️ Failed to fetch Twitch top categories:", err);
+            logger.warn("IPC:Category", "Failed to fetch Twitch top categories", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
             return { success: false, error: "Failed to fetch Twitch categories" };
           }
         }
@@ -42,7 +48,12 @@ export function registerCategoryHandlers(): void {
             const kickCategories = await kickClient.getAllCategories();
             return { success: true, platform: "kick", data: kickCategories };
           } catch (err) {
-            console.warn("⚠️ Failed to fetch Kick top categories:", err);
+            logger.warn("IPC:Category", "Failed to fetch Kick top categories", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
             return { success: false, error: "Failed to fetch Kick categories" };
           }
         }
@@ -56,21 +67,36 @@ export function registerCategoryHandlers(): void {
           // Fetch ALL Twitch categories
           twitchCategories = await twitchClient.getAllTopCategories();
         } catch (err) {
-          console.warn("⚠️ Failed to fetch Twitch top categories:", err);
+          logger.warn("IPC:Category", "Failed to fetch Twitch top categories", {
+            error:
+              err instanceof Error
+                ? { name: err.name, message: err.message, stack: err.stack }
+                : String(err),
+          });
         }
 
         try {
           // Fetch Kick categories (rate-limited sequential fetch)
           kickCategories = await kickClient.getAllCategories();
         } catch (err) {
-          console.warn("⚠️ Failed to fetch Kick top categories:", err);
+          logger.warn("IPC:Category", "Failed to fetch Kick top categories", {
+            error:
+              err instanceof Error
+                ? { name: err.name, message: err.message, stack: err.stack }
+                : String(err),
+          });
         }
 
         // Return combined - frontend handles de-dup and Slots image swap
         const allCategories = [...twitchCategories, ...kickCategories];
         return { success: true, data: allCategories };
       } catch (error) {
-        console.error("❌ Failed to get top categories:", error);
+        logger.error("IPC:Category", "Failed to get top categories", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch categories",
@@ -105,7 +131,12 @@ export function registerCategoryHandlers(): void {
 
         return { success: true, data: category };
       } catch (error) {
-        console.error("❌ Failed to get category by ID:", error);
+        logger.error("IPC:Category", "Failed to get category by ID", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch category",
@@ -146,7 +177,12 @@ export function registerCategoryHandlers(): void {
         // platform === "twitch", so this branch is just a safety net.
         return { success: true, data: { tags: undefined } };
       } catch (error) {
-        console.error("❌ Failed to get category metadata:", error);
+        logger.error("IPC:Category", "Failed to get category metadata", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch metadata",
@@ -183,7 +219,12 @@ export function registerCategoryHandlers(): void {
             });
             results.push({ platform: "twitch", data: result.data, cursor: result.cursor });
           } catch (err) {
-            console.warn("⚠️ Failed to search Twitch categories:", err);
+            logger.warn("IPC:Category", "Failed to search Twitch categories", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
         }
 
@@ -193,7 +234,12 @@ export function registerCategoryHandlers(): void {
             const result = await kickClient.searchCategories(params.query);
             results.push({ platform: "kick", data: result.data });
           } catch (err) {
-            console.warn("⚠️ Failed to search Kick categories:", err);
+            logger.warn("IPC:Category", "Failed to search Kick categories", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
         }
 
@@ -206,7 +252,12 @@ export function registerCategoryHandlers(): void {
         const { platform: _p, ...rest } = results[0] ?? { data: [] };
         return { success: true, ...rest };
       } catch (error) {
-        console.error("❌ Failed to search categories:", error);
+        logger.error("IPC:Category", "Failed to search categories", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return { success: false, error: error instanceof Error ? error.message : "Search failed" };
       }
     }

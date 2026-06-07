@@ -12,6 +12,7 @@ import {
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatDuration } from "@/lib/utils";
+import { logger } from "@/renderer/logging/logger";
 import { useVolumeStore } from "@/store/volume-store";
 
 import type { ClipPlayerProps } from "./types";
@@ -52,7 +53,7 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
     let hls: Hls | null = null;
     const isHls = src.includes(".m3u8");
 
-    console.debug("[ClipPlayer] Loading source:", src, "isHLS:", isHls);
+    logger.debug("Stream:ClipPlayer", "loading source", { src, isHls });
 
     if (isHls && Hls.isSupported()) {
       // Use HLS.js for HLS streams
@@ -77,28 +78,36 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.debug("[ClipPlayer] HLS manifest parsed, ready to play");
+        logger.debug("Stream:ClipPlayer", "HLS manifest parsed, ready to play");
         setIsReady(true);
         if (autoPlay) {
-          video.play().catch((e) => console.warn("[ClipPlayer] Autoplay failed:", e));
+          video.play().catch((e) =>
+            logger.warn("Stream:ClipPlayer", "autoplay failed", {
+              error: e instanceof Error ? e.message : String(e),
+            })
+          );
         }
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        console.error("[ClipPlayer] HLS error:", data.type, data.details, data.fatal);
+        logger.error("Stream:ClipPlayer", "HLS error", {
+          type: data.type,
+          details: data.details,
+          fatal: data.fatal,
+        });
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error("[ClipPlayer] Fatal network error");
+              logger.error("Stream:ClipPlayer", "fatal network error");
               onError?.();
               hls?.destroy();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.debug("[ClipPlayer] Trying to recover from media error");
+              logger.debug("Stream:ClipPlayer", "trying to recover from media error");
               hls?.recoverMediaError();
               break;
             default:
-              console.error("[ClipPlayer] Unrecoverable error");
+              logger.error("Stream:ClipPlayer", "unrecoverable error");
               onError?.();
               hls?.destroy();
               break;
@@ -107,27 +116,37 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
       });
     } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
       // Native HLS support (Safari)
-      console.debug("[ClipPlayer] Using native HLS");
+      logger.debug("Stream:ClipPlayer", "using native HLS");
       video.src = src;
       video.addEventListener("loadedmetadata", () => {
         setIsReady(true);
-        if (autoPlay) video.play().catch(console.error);
+        if (autoPlay)
+          video.play().catch((e) =>
+            logger.error("Stream:ClipPlayer", "native HLS play failed", {
+              error: e instanceof Error ? e.message : String(e),
+            })
+          );
       });
       video.addEventListener("error", () => onError?.());
     } else {
       // MP4 or other native formats
-      console.debug("[ClipPlayer] Using native video playback");
+      logger.debug("Stream:ClipPlayer", "using native video playback");
       video.src = src;
       video.addEventListener("loadedmetadata", () => {
         setIsReady(true);
-        if (autoPlay) video.play().catch(console.error);
+        if (autoPlay)
+          video.play().catch((e) =>
+            logger.error("Stream:ClipPlayer", "native video play failed", {
+              error: e instanceof Error ? e.message : String(e),
+            })
+          );
       });
       video.addEventListener("error", () => onError?.());
     }
 
     return () => {
       if (hls) {
-        console.debug("[ClipPlayer] Destroying HLS instance");
+        logger.debug("Stream:ClipPlayer", "destroying HLS instance");
         hls.destroy();
       }
       hlsRef.current = null;
@@ -148,7 +167,11 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch(console.error);
+      video.play().catch((e) =>
+        logger.error("Stream:ClipPlayer", "togglePlay play failed", {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      );
     } else {
       video.pause();
     }

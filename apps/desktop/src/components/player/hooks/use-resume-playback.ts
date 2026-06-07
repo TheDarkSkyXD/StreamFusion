@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useInterval } from "@/hooks/useInterval";
+import { logger } from "@/renderer/logging/logger";
 import { usePlaybackPositionStore } from "@/store/playback-position-store";
 
 interface UseResumePlaybackOptions {
@@ -43,7 +44,12 @@ export function useResumePlayback({
             video.currentTime = savedPosition.position;
             hasRestoredRef.current = true;
           } catch (error) {
-            console.error("Failed to restore playback position:", error);
+            logger.error("Player:Hook:ResumePlayback", "failed to restore playback position", {
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            });
           }
         }
       }

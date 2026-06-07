@@ -21,6 +21,8 @@ import {
   useState,
 } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+
 import { UserPopout } from "./UserPopout";
 
 export interface OpenUserPopoutPayload {
@@ -93,9 +95,9 @@ export function useOpenUserPopout(): (payload: OpenUserPopoutPayload) => void {
   const warnedRef = useRef(false);
   const noop = useCallback((_payload: OpenUserPopoutPayload) => {
     if (!warnedRef.current) {
-      // biome-ignore lint/suspicious/noConsole: one-shot diagnostic for surfaces missing the provider.
-      console.debug(
-        "[UserPopout] openUserPopout called without a UserPopoutProvider mounted — ignoring."
+      logger.debug(
+        "UI:Chat:Mod:UserPopout",
+        "openUserPopout called without a UserPopoutProvider mounted — ignoring"
       );
       warnedRef.current = true;
     }

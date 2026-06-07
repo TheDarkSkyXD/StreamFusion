@@ -44,6 +44,7 @@ import {
   type VideoAccessTokenClipData,
   type VideoMetadataData,
 } from "twitch-gql-queries";
+import { logger } from "@/backend/logging/logger";
 
 import type {
   UnifiedCategory,
@@ -226,7 +227,13 @@ export async function gqlGetGameMetadata(gameId: string): Promise<{ tags: string
       .filter((s) => s.length > 0);
     return { tags };
   } catch (err) {
-    console.warn(`[Twitch] gqlGetGameMetadata failed for ${gameId}:`, err);
+    logger.warn("Twitch:GQL", "gqlGetGameMetadata failed", {
+      gameId,
+      error:
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : String(err),
+    });
     return null;
   }
 }
@@ -300,7 +307,12 @@ async function gqlGetStreamsByGameId(
     try {
       return await gqlGetGameStreamsBySlug(slug, options);
     } catch (err) {
-      console.warn("⚠️ DirectoryPage_Game persisted query failed, falling back to raw:", err);
+      logger.warn("Twitch:GQL", "DirectoryPage_Game persisted query failed, falling back to raw", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
     }
   }
   return gqlGetStreamsByGameIdRaw(gameId, options);
@@ -396,7 +408,7 @@ async function gqlGetStreamsByGameIdRaw(
     // instead of logging noise.
     const messages = response.errors.map((e: any) => e.message).join(", ");
     if (!messages.includes("failed integrity check")) {
-      console.warn("⚠️ [GQL] GetStreamsByGameId query errors:", messages);
+      logger.warn("Twitch:GQL", "GetStreamsByGameId query errors", { messages });
     }
   }
 
@@ -493,10 +505,9 @@ export async function gqlGetTopStreams(
   ])) as [{ data: TopStreamsData; errors?: any[] }];
 
   if (response.errors) {
-    console.warn(
-      "⚠️ [GQL] TopStreams query errors:",
-      response.errors.map((e: any) => e.message).join(", ")
-    );
+    logger.warn("Twitch:GQL", "TopStreams query errors", {
+      messages: response.errors.map((e: any) => e.message).join(", "),
+    });
   }
 
   const data = response.data;
@@ -564,7 +575,12 @@ async function getTagsAndLanguageByLogins(
   } catch (err) {
     // Best-effort enrichment: if the side query fails the caller still gets
     // streams (with empty tags/language), matching pre-fix behavior.
-    console.warn("[Twitch] getTagsAndLanguageByLogins failed:", err);
+    logger.warn("Twitch:GQL", "getTagsAndLanguageByLogins failed", {
+      error:
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : String(err),
+    });
   }
   return result;
 }
@@ -759,7 +775,7 @@ export async function gqlGetAllTopCategories(): Promise<UnifiedCategory[]> {
     // after the first short page and miss the long tail of categories.
     if (!cursor || result.data.length === 0) break;
     if (allCategories.length >= 5000) {
-      console.warn("⚠️ Twitch GQL category fetch hit safety limit (5000)");
+      logger.warn("Twitch:GQL", "Twitch GQL category fetch hit safety limit (5000)");
       break;
     }
   }
@@ -802,10 +818,9 @@ export async function gqlGetCategoryById(id: string): Promise<UnifiedCategory | 
   ])) as [{ data: GameByIdData; errors?: any[] }];
 
   if (response.errors) {
-    console.warn(
-      "⚠️ [GQL] GetGameById query errors:",
-      response.errors.map((e: any) => e.message).join(", ")
-    );
+    logger.warn("Twitch:GQL", "GetGameById query errors", {
+      messages: response.errors.map((e: any) => e.message).join(", "),
+    });
   }
 
   const game = response.data?.game;
@@ -869,7 +884,9 @@ function processGqlSearchErrors(
   const otherErrors = errors.filter((e) => !isIntegrityRejectionError(e));
 
   if (otherErrors.length > 0) {
-    console.warn(`⚠️ [GQL] ${context} query errors:`, otherErrors.map((e) => e.message).join(", "));
+    logger.warn("Twitch:GQL", `${context} query errors`, {
+      messages: otherErrors.map((e) => e.message).join(", "),
+    });
   }
 
   return { isIntegrityRejected: integrityErrors.length > 0 };
@@ -1079,21 +1096,21 @@ function buildPaginatedResult<T>(
   isIntegrityRejected: boolean
 ): PaginatedResult<T> {
   if (isIntegrityRejected) {
-    console.debug(`[GQL] ${context} end-of-list: integrity-rejected`);
+    logger.debug("Twitch:GQL", `${context} end-of-list: integrity-rejected`);
     return { data, cursor: undefined, endReason: "integrity-rejected" };
   }
   if (data.length === 0) {
-    console.debug(`[GQL] ${context} end-of-list: empty-page`);
+    logger.debug("Twitch:GQL", `${context} end-of-list: empty-page`);
     return { data, cursor: undefined, endReason: "empty-page" };
   }
   if (!returnedCursor) {
-    console.debug(`[GQL] ${context} end-of-list: exhausted (server returned no cursor)`);
+    logger.debug("Twitch:GQL", `${context} end-of-list: exhausted (server returned no cursor)`);
     return { data, cursor: undefined, endReason: "exhausted" };
   }
   if (returnedCursor === inputCursor) {
-    console.debug(
-      `[GQL] ${context} end-of-list: cursor-no-advance (server echoed input cursor ${returnedCursor})`
-    );
+    logger.debug("Twitch:GQL", `${context} end-of-list: cursor-no-advance`, {
+      returnedCursor,
+    });
     return { data, cursor: undefined, endReason: "cursor-no-advance" };
   }
   return { data, cursor: returnedCursor };

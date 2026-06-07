@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
+import { logger } from "@/renderer/logging/logger";
 
 import { HlsPlayer } from "../hls-player";
 import { useDefaultQuality } from "../hooks/use-default-quality";
@@ -150,7 +151,7 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch(console.error);
+      video.play().catch((error) => logger.error("Player:Kick:VOD", "play failed", { error }));
     } else {
       video.pause();
     }

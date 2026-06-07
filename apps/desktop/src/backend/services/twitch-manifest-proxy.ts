@@ -11,6 +11,7 @@
 import { DEFAULT_DATERANGE_PATTERNS } from "@shared/adblock-types";
 import { session } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import { httpClient } from "./http-client";
 import { vaftPatternService } from "./vaft-pattern-service";
@@ -120,9 +121,11 @@ class TwitchManifestProxyService {
         }
 
         const delay = baseDelay * 2 ** attempt;
-        console.debug(
-          `[ManifestProxy] Fetch failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`
-        );
+        logger.debug("Service:TwitchManifest", "Fetch failed, retrying", {
+          attempt: attempt + 1,
+          maxAttempts: maxRetries + 1,
+          delayMs: delay,
+        });
         await sleep(delay);
       }
     }
@@ -197,7 +200,7 @@ class TwitchManifestProxyService {
    */
   registerInterceptor(): void {
     if (this.isRegistered) {
-      console.debug("[ManifestProxy] Already registered");
+      logger.debug("Service:TwitchManifest", "Already registered");
       return;
     }
 
@@ -252,14 +255,19 @@ class TwitchManifestProxyService {
             });
           })
           .catch((error) => {
-            console.error("[ManifestProxy] Error:", error);
+            logger.error("Service:TwitchManifest", "Manifest fetch error", {
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            });
             callback({});
           });
       }
     );
 
     this.isRegistered = true;
-    console.debug("[ManifestProxy] Registered manifest interceptor");
+    logger.debug("Service:TwitchManifest", "Registered manifest interceptor");
   }
 
   /**
@@ -325,9 +333,10 @@ class TwitchManifestProxyService {
     }
 
     this.streamInfos.set(channelName, streamInfo);
-    console.debug(
-      `[ManifestProxy] Registered stream: ${channelName} (${streamInfo.resolutions.size} qualities)`
-    );
+    logger.debug("Service:TwitchManifest", "Registered stream", {
+      channelName,
+      qualities: streamInfo.resolutions.size,
+    });
 
     return text;
   }
@@ -350,7 +359,9 @@ class TwitchManifestProxyService {
 
       if (!streamInfo.isInAdBreak) {
         streamInfo.isInAdBreak = true;
-        console.debug(`[ManifestProxy] Ad detected on ${streamInfo.channelName}`);
+        logger.debug("Service:TwitchManifest", "Ad detected", {
+          channelName: streamInfo.channelName,
+        });
       }
 
       // Try backup stream first
@@ -364,7 +375,9 @@ class TwitchManifestProxyService {
       return this.replaceAdSegments(text, streamInfo);
     } else if (streamInfo.isInAdBreak) {
       streamInfo.isInAdBreak = false;
-      console.debug(`[ManifestProxy] Ad ended on ${streamInfo.channelName}`);
+      logger.debug("Service:TwitchManifest", "Ad ended", {
+        channelName: streamInfo.channelName,
+      });
     }
 
     // Store last valid 160p segment for replacement
@@ -586,7 +599,7 @@ class TwitchManifestProxyService {
         firstAvailable = result;
       }
       if (!this.detectAds(result.m3u8)) {
-        console.debug(`[ManifestProxy] Using backup (${result.playerType})`);
+        logger.debug("Service:TwitchManifest", "Using backup", { playerType: result.playerType });
         return result.m3u8;
       }
     }
@@ -672,9 +685,10 @@ class TwitchManifestProxyService {
       );
 
       if (!response.ok) {
-        console.debug(
-          `[ManifestProxy] GQL request failed with status ${response.status} for ${playerType}`
-        );
+        logger.debug("Service:TwitchManifest", "GQL request failed", {
+          status: response.status,
+          playerType,
+        });
         return null;
       }
 
@@ -696,7 +710,13 @@ class TwitchManifestProxyService {
         return token;
       }
     } catch (error) {
-      console.debug(`[ManifestProxy] GQL request exception for ${playerType}:`, error);
+      logger.debug("Service:TwitchManifest", "GQL request exception", {
+        playerType,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return null;
     }
   }
@@ -804,12 +824,12 @@ class TwitchManifestProxyService {
 
   enable(): void {
     this.isEnabled = true;
-    console.debug("[ManifestProxy] Enabled");
+    logger.debug("Service:TwitchManifest", "Enabled");
   }
 
   disable(): void {
     this.isEnabled = false;
-    console.debug("[ManifestProxy] Disabled");
+    logger.debug("Service:TwitchManifest", "Disabled");
   }
 
   isActive(): boolean {

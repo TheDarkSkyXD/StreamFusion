@@ -31,6 +31,11 @@ import type {
   ChannelModerateEvent,
   NotificationPayload,
 } from "@/backend/api/platforms/twitch/twitch-eventsub-types";
+// Use the cross-process logger because this module is imported by renderer
+// components (EngagementPolls, EngagementPredictions, ModLogTab). Importing
+// `@/backend/logging/logger` here would drag `electron-log/main` into the
+// renderer bundle and crash boot with `__dirname is not defined`.
+import { logger } from "@/lib/cross-logger";
 import type { ModLogEntry } from "@/shared/mod-log-types";
 
 // ---------------------------------------------------------------------------
@@ -125,8 +130,12 @@ class ModLogWriter {
     try {
       await window.electronAPI.modLog.sweepRetention();
     } catch (err) {
-      // biome-ignore lint/suspicious/noConsole: surfacing init failure
-      console.warn("[mod-log-writer] retention sweep failed during initialize()", err);
+      logger.warn("Service:ModLog", "retention sweep failed during initialize()", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
     }
   }
 
@@ -179,7 +188,7 @@ class ModLogWriter {
   /**
    * Translate a Twitch EventSub `channel.moderate` notification into one or
    * more `record(...)` calls. Defensive against unknown sub-action keys —
-   * `console.warn`s once per unknown action type and skips.
+   * `logger.warn`s once per unknown action type and skips.
    *
    * Field-shape assumptions (see twitch-eventsub-types.ts):
    *   - event.action discriminates the sub-action ("ban" | "timeout" | "unban" | "delete" | ...)
@@ -300,8 +309,7 @@ class ModLogWriter {
   }): Promise<number> {
     const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
     if (!fetchImpl) {
-      // biome-ignore lint/suspicious/noConsole: surfacing missing fetch
-      console.warn("[mod-log-writer] bootstrapFromHelix: no fetch implementation available");
+      logger.warn("Service:ModLog", "bootstrapFromHelix: no fetch implementation available");
       return 0;
     }
 
@@ -323,13 +331,19 @@ class ModLogWriter {
       try {
         res = await fetchImpl(url.toString(), { headers });
       } catch (err) {
-        // biome-ignore lint/suspicious/noConsole: surfacing network failure
-        console.warn("[mod-log-writer] bootstrapFromHelix fetch failed", err);
+        logger.warn("Service:ModLog", "bootstrapFromHelix fetch failed", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         return inserted;
       }
 
       if (!res.ok) {
-        // biome-ignore lint/suspicious/noConsole: surfacing API failure
+        // Kept as console.warn so the existing bootstrapFromHelix test
+        // (which spies on console.warn) keeps signalling. Console intercept
+        // captures this in production.
         console.warn(`[mod-log-writer] bootstrapFromHelix HTTP ${res.status} on page ${pages + 1}`);
         return inserted;
       }
@@ -338,8 +352,12 @@ class ModLogWriter {
       try {
         body = (await res.json()) as HelixBannedResponse;
       } catch (err) {
-        // biome-ignore lint/suspicious/noConsole: surfacing JSON parse error
-        console.warn("[mod-log-writer] bootstrapFromHelix JSON parse failed", err);
+        logger.warn("Service:ModLog", "bootstrapFromHelix JSON parse failed", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         return inserted;
       }
 
@@ -396,7 +414,9 @@ class ModLogWriter {
   private warnUnknown(key: string): void {
     if (this.warnedUnknownActions.has(key)) return;
     this.warnedUnknownActions.add(key);
-    // biome-ignore lint/suspicious/noConsole: defensive warning per plan
+    // Kept as console.warn so the existing dispatch-observability test
+    // (which spies on console.warn) keeps signalling. Console intercept
+    // captures this in production.
     console.warn(`[mod-log-writer] ignoring unknown channel.moderate sub-action: ${key}`);
   }
 }
@@ -415,7 +435,6 @@ export const modLogWriter = new ModLogWriter();
 export function __resetModLogWriterForTesting(): void {
   // Reach into the singleton and clear private state without re-creating it,
   // so import-time references continue to work.
-  // biome-ignore lint/suspicious/noExplicitAny: test-only escape hatch
   const w = modLogWriter as any;
   w.initialized = false;
   w.recent = [];

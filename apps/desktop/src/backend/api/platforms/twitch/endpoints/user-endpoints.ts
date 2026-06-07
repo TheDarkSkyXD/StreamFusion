@@ -1,3 +1,4 @@
+import { logger } from "@/backend/logging/logger";
 import type { TwitchUser } from "../../../../../shared/auth-types";
 import type { UnifiedChannel } from "../../../unified/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
@@ -31,7 +32,12 @@ export async function getUser(client: TwitchRequestor): Promise<TwitchUser | nul
     }
     return null;
   } catch (error) {
-    console.error("❌ Failed to get Twitch user:", error);
+    logger.error("Twitch:Endpoints:User", "Failed to get Twitch user", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return null;
   }
 }
@@ -162,10 +168,18 @@ async function getFollowerCount(
       err.response?.status === 401 ||
       err.response?.status === 403
     ) {
-      console.debug(`[getFollowerCount] Auth failure for ${broadcasterId} - returning null`);
+      logger.debug("Twitch:Endpoints:User", "getFollowerCount auth failure", {
+        broadcasterId,
+      });
       return null;
     }
-    console.warn(`Failed to get follower count for ${broadcasterId}:`, error);
+    logger.warn("Twitch:Endpoints:User", "Failed to get follower count", {
+      broadcasterId,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return null;
   }
 }

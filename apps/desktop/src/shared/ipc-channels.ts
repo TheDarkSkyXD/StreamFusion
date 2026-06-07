@@ -20,6 +20,7 @@ export const IPC_CHANNELS = {
   APP_GET_VERSION: "app:get-version",
   APP_GET_VERSION_INFO: "app:get-version-info",
   APP_GET_NAME: "app:get-name",
+  APP_GET_ENVIRONMENT: "app:get-environment",
   APP_QUIT: "app:quit",
   APP_RELAUNCH: "app:relaunch",
   /**
@@ -217,6 +218,40 @@ export const IPC_CHANNELS = {
   UPDATE_GET_SETTINGS: "update:get-settings",
   UPDATE_ON_STATUS_CHANGE: "update:on-status-change",
   UPDATE_ON_PROGRESS: "update:on-progress",
+
+  // ========== Platform Health ==========
+  // Pull for hydration on mount; push on every transition with
+  // `{ platform, status, startedAt }`. See ADR-0002.
+  PLATFORM_HEALTH_GET: "platform-health:get",
+  PLATFORM_HEALTH_CHANGED: "platform-health-changed",
+
+  // ========== Logging ==========
+  // Renderer → main fire-and-forget: forward a renderer log line to the
+  // main-process logger singleton. Sender-origin-checked so a tampered
+  // renderer (the main window runs with webSecurity:false) can't spam the
+  // session log with garbage.
+  LOG_WRITE: "log:write",
+  // Open the logs directory in the OS file explorer (Settings → Logs panel).
+  LOGS_OPEN_FOLDER: "logs:open-folder",
+  // Read the current main session-log path (typically used by Settings UI).
+  LOGS_GET_CURRENT_PATH: "logs:get-current-path",
+  // Read the noise side-channel log path; returns null if the noise logger
+  // is not initialized (it's optional / app-controlled at boot).
+  LOGS_GET_NOISE_PATH: "logs:get-noise-path",
+  // Tail the last N lines of either log file for the LogsSection preview.
+  LOGS_TAIL: "logs:tail",
+
+  // ========== Bug Reports ==========
+  // Renderer-driven bug-report capture. The handler stitches the description,
+  // tail of the main log, and tail of the noise log into a markdown file in
+  // the bug-reports directory (sibling of logs — see log-paths.ts).
+  BUG_REPORT_WRITE: "bug-report:write",
+  // Reveal the bug-reports directory in the OS file explorer.
+  BUG_REPORT_OPEN_FOLDER: "bug-report:open-folder",
+  // Read the absolute path of the bug-reports directory (UI hint).
+  BUG_REPORT_GET_DIR: "bug-report:get-dir",
+  // List recent bug-report file paths, newest first, capped at 50.
+  BUG_REPORT_LIST: "bug-report:list",
 } as const;
 
 // Type for channel names
@@ -275,6 +310,28 @@ export interface IpcPayloads {
   // Kick chat send — chatroomId addresses the v2 broadcast endpoint; content
   // is the raw message text. ensure-ready and dispose take no payload.
   [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: { chatroomId: number; content: string };
+
+  // Renderer → main log bridge. `level` is restricted to the four supported
+  // severities; the handler drops anything else. `tag` is prefixed with
+  // `Renderer:` before reaching the logger so the file format stays unambiguous.
+  [IPC_CHANNELS.LOG_WRITE]: {
+    level: "debug" | "info" | "warn" | "error";
+    tag: string;
+    message: string;
+    meta?: Record<string, unknown>;
+  };
+  // Tail a log file. `file` selects the main session log or the optional
+  // noise log; `lines` is clamped to [1, 5000] by the handler.
+  [IPC_CHANNELS.LOGS_TAIL]: { lines: number; file: "main" | "noise" };
+
+  // Bug-report capture. `description` is the user's free-form text; the two
+  // include flags pick whether the handler tails the main and noise logs into
+  // the saved markdown file.
+  [IPC_CHANNELS.BUG_REPORT_WRITE]: {
+    description: string;
+    includeMainLog: boolean;
+    includeNoiseLog: boolean;
+  };
 }
 
 // ========== Stream Proxy Types (Xtra port U11) ==========
@@ -348,6 +405,35 @@ export interface TokenStatusResult {
 }
 
 // ========== Response Types for IPC Calls ==========
+
+/**
+ * Snapshot of the runtime environment exposed via `APP_GET_ENVIRONMENT`. The
+ * renderer Settings UI uses `isDev` to dev-gate the LogsSection, and the
+ * bug-report feature embeds the version triple in every report so issue
+ * threads stay cross-referenceable to a specific build.
+ */
+export interface AppEnvironment {
+  /** True when `app.isPackaged` is false — i.e. running under electron-vite dev. */
+  isDev: boolean;
+  /** Node platform identifier ("win32" / "darwin" / "linux" / ...). */
+  platform: NodeJS.Platform;
+  /** `app.getVersion()` — the productName-anchored SemVer string. */
+  appVersion: string;
+  /** Electron runtime version (process.versions.electron). */
+  electronVersion: string;
+  /** Node runtime version bundled into Electron (process.versions.node). */
+  nodeVersion: string;
+}
+
+/**
+ * Result of a `BUG_REPORT_WRITE` call. `filePath` is set on success; `error`
+ * is set on failure. Both should never be populated simultaneously.
+ */
+export interface BugReportResult {
+  ok: boolean;
+  filePath?: string;
+  error?: string;
+}
 
 export interface AuthStatus {
   twitch: {

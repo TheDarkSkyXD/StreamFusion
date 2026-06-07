@@ -9,6 +9,7 @@ import { VideoCard } from "@/components/stream/related-content/VideoCard";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
+import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 import { useFollowStore } from "@/store/follow-store";
 import { useHistoryStore } from "@/store/history-store";
@@ -161,7 +162,7 @@ export function VideoPage() {
               setVideoMetadata(metadataResult.data);
             }
           } catch (_metaErr) {
-            console.warn("Could not fetch metadata, continuing with video playback");
+            logger.warn("Page:Video", "could not fetch metadata, continuing with video playback");
           }
 
           setIsLoading(false);
@@ -183,17 +184,22 @@ export function VideoPage() {
         if (playbackResult.success && playbackResult.data) {
           setStreamUrl(playbackResult.data.url);
         } else {
-          console.error("VOD Fetch Error:", playbackResult.error);
+          logger.error("Page:Video", "vod fetch error", { error: playbackResult.error });
           setError(playbackResult.error || "Failed to resolve VOD URL");
         }
 
         if (metadataResult.success && metadataResult.data) {
           setVideoMetadata(metadataResult.data);
         } else {
-          console.warn("Metadata Fetch Warning:", metadataResult.error);
+          logger.warn("Page:Video", "metadata fetch warning", { error: metadataResult.error });
         }
       } catch (err) {
-        console.error(err);
+        logger.error("Page:Video", "failed to load video", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
         setError("Failed to load video");
       } finally {
         setIsLoading(false);
@@ -307,7 +313,12 @@ export function VideoPage() {
           setRelatedVideos(result.data);
         }
       } catch (err) {
-        console.error("Failed to fetch related", err);
+        logger.error("Page:Video", "failed to fetch related", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
       } finally {
         setIsRelatedLoading(false);
       }

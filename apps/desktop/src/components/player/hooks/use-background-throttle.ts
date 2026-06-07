@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
+import { logger } from "@/renderer/logging/logger";
 
 export type ThrottleAction = "pause" | "reduceQuality" | "mute" | "none";
 
@@ -98,7 +99,7 @@ export function useBackgroundThrottle({
         wasPlayingRef.current = !video.paused;
         if (!video.paused) {
           video.pause();
-          console.debug("[BackgroundThrottle] Paused video");
+          logger.debug("Player:Hook:BackgroundThrottle", "paused video");
         }
         break;
 
@@ -107,7 +108,7 @@ export function useBackgroundThrottle({
         wasMutedRef.current = video.muted;
         if (!video.muted) {
           video.muted = true;
-          console.debug("[BackgroundThrottle] Muted video");
+          logger.debug("Player:Hook:BackgroundThrottle", "muted video");
         }
         break;
 
@@ -126,7 +127,9 @@ export function useBackgroundThrottle({
             const lowestQuality = sortedQualities[0];
             if (lowestQuality.id !== currentQualityId) {
               onQualityChange(lowestQuality.id);
-              console.debug("[BackgroundThrottle] Reduced quality to:", lowestQuality.id);
+              logger.debug("Player:Hook:BackgroundThrottle", "reduced quality", {
+                qualityId: lowestQuality.id,
+              });
             }
           }
         }
@@ -163,25 +166,32 @@ export function useBackgroundThrottle({
           video.play().catch((e) => {
             // Ignore autoplay policy errors
             if (e.name !== "NotAllowedError") {
-              console.error("[BackgroundThrottle] Failed to resume:", e);
+              logger.error("Player:Hook:BackgroundThrottle", "failed to resume", {
+                error:
+                  e instanceof Error
+                    ? { name: e.name, message: e.message, stack: e.stack }
+                    : String(e),
+              });
             }
           });
           wasPlayingRef.current = false;
-          console.debug("[BackgroundThrottle] Resumed video");
+          logger.debug("Player:Hook:BackgroundThrottle", "resumed video");
         }
         break;
 
       case "mute":
         if (!wasMutedRef.current) {
           video.muted = false;
-          console.debug("[BackgroundThrottle] Unmuted video");
+          logger.debug("Player:Hook:BackgroundThrottle", "unmuted video");
         }
         break;
 
       case "reduceQuality":
         if (onQualityChange && previousQualityRef.current) {
           onQualityChange(previousQualityRef.current);
-          console.debug("[BackgroundThrottle] Restored quality to:", previousQualityRef.current);
+          logger.debug("Player:Hook:BackgroundThrottle", "restored quality", {
+            qualityId: previousQualityRef.current,
+          });
           previousQualityRef.current = null;
         }
         break;

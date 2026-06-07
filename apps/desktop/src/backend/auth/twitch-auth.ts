@@ -10,6 +10,7 @@
  * using the localhost callback server.
  */
 
+import { logger } from "@/backend/logging/logger";
 import type { AuthToken, Platform, TwitchUser } from "../../shared/auth-types";
 import {
   TWITCH_API_BASE,
@@ -98,7 +99,7 @@ class TwitchAuthService {
     const currentToken = storageService.getToken(this.platform);
 
     if (!currentToken?.refreshToken) {
-      console.warn("⚠️ No refresh token available for Twitch");
+      logger.warn("Auth:Twitch", "No refresh token available for Twitch");
       this.invalidateAuth();
       return null;
     }
@@ -112,7 +113,7 @@ class TwitchAuthService {
       // Save the new token
       storageService.saveToken(this.platform, newToken);
 
-      console.debug("✅ Twitch token refreshed successfully");
+      logger.debug("Auth:Twitch", "Twitch token refreshed successfully");
 
       // Successful refresh — reset the transient-failure counter and chain
       // the next proactive refresh against the freshly-rotated expiry.
@@ -125,9 +126,15 @@ class TwitchAuthService {
       const permanent = isTokenRefreshError && error.isPermanent();
 
       if (permanent) {
-        console.error(
-          "❌ Twitch refresh token rejected by Twitch (permanent failure) — clearing stored credentials and prompting re-login.",
-          error
+        logger.error(
+          "Auth:Twitch",
+          "Twitch refresh token rejected by Twitch (permanent failure) — clearing stored credentials and prompting re-login",
+          {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          }
         );
         this.invalidateAuth();
         return null;
@@ -141,9 +148,17 @@ class TwitchAuthService {
       // network problems alone.
       const slot = Math.min(this.consecutiveRefreshFailures - 1, TRANSIENT_BACKOFF_MS.length - 1);
       const backoffMs = TRANSIENT_BACKOFF_MS[slot];
-      console.warn(
-        `⚠️ Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
-        error
+      logger.warn(
+        "Auth:Twitch",
+        `Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
+        {
+          attempt: this.consecutiveRefreshFailures,
+          backoffMs,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        }
       );
       this.scheduleRefreshIn(backoffMs);
       return null;
@@ -169,7 +184,12 @@ class TwitchAuthService {
       try {
         handler();
       } catch (err) {
-        console.warn("Auth-lost handler threw:", err);
+        logger.warn("Auth:Twitch", "Auth-lost handler threw", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
       }
     }
   }
@@ -187,7 +207,12 @@ class TwitchAuthService {
     this.refreshTimeoutId = setTimeout(() => {
       this.refreshTimeoutId = null;
       this.refreshToken().catch((err) => {
-        console.warn("Proactive Twitch refresh failed:", err);
+        logger.warn("Auth:Twitch", "Proactive Twitch refresh failed", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
       });
     }, delayMs);
   }
@@ -216,9 +241,10 @@ class TwitchAuthService {
     this.scheduleRefreshIn(delay);
 
     const minutes = Math.round(delay / 60_000);
-    console.debug(
-      `⏰ Twitch proactive refresh scheduled in ${minutes}m (token expires at ${new Date(token.expiresAt).toISOString()})`
-    );
+    logger.debug("Auth:Twitch", "Twitch proactive refresh scheduled", {
+      minutes,
+      tokenExpiresAt: new Date(token.expiresAt).toISOString(),
+    });
   }
 
   /**
@@ -246,7 +272,7 @@ class TwitchAuthService {
   onSystemResume(): void {
     const token = storageService.getToken(this.platform);
     if (!token) return;
-    console.debug("💤→☀️ System resumed — re-evaluating Twitch refresh schedule.");
+    logger.debug("Auth:Twitch", "System resumed — re-evaluating Twitch refresh schedule");
     this.scheduleProactiveRefresh();
   }
 
@@ -266,7 +292,7 @@ class TwitchAuthService {
     const expirationBuffer = 5 * 60 * 1000; // 5 minutes
 
     if (Date.now() >= expiresAt - expirationBuffer) {
-      console.debug("🔄 Twitch token expired or expiring soon, refreshing...");
+      logger.debug("Auth:Twitch", "Twitch token expired or expiring soon, refreshing");
       const refreshed = await this.refreshToken();
       return refreshed !== null;
     }
@@ -275,7 +301,7 @@ class TwitchAuthService {
     const isValid = await tokenExchangeService.validateToken(this.platform, token.accessToken);
 
     if (!isValid) {
-      console.debug("🔄 Twitch token invalid, attempting refresh...");
+      logger.debug("Auth:Twitch", "Twitch token invalid, attempting refresh");
       const refreshed = await this.refreshToken();
       return refreshed !== null;
     }
@@ -305,14 +331,19 @@ class TwitchAuthService {
       return true;
     }
 
-    console.debug("🔄 Twitch app token missing or expired, fetching new one...");
+    logger.debug("Auth:Twitch", "Twitch app token missing or expired, fetching new one");
 
     try {
       const token = await tokenExchangeService.getAppAccessToken(this.platform);
       storageService.saveAppToken(this.platform, token);
       return true;
     } catch (error) {
-      console.error("❌ Failed to get Twitch app token:", error);
+      logger.error("Auth:Twitch", "Failed to get Twitch app token", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return false;
     }
   }
@@ -349,7 +380,7 @@ class TwitchAuthService {
     const token = accessToken ?? storageService.getToken(this.platform)?.accessToken;
 
     if (!token) {
-      console.warn("⚠️ No access token available for fetching user");
+      logger.warn("Auth:Twitch", "No access token available for fetching user");
       return null;
     }
 
@@ -364,7 +395,7 @@ class TwitchAuthService {
 
       if (!response.ok) {
         if (response.status === 401) {
-          console.debug("🔄 Token expired, attempting refresh...");
+          logger.debug("Auth:Twitch", "Token expired, attempting refresh");
           const refreshed = await this.refreshToken();
           if (refreshed) {
             return this.fetchCurrentUser(refreshed.accessToken);
@@ -387,7 +418,12 @@ class TwitchAuthService {
 
       return user;
     } catch (error) {
-      console.error("❌ Failed to fetch Twitch user:", error);
+      logger.error("Auth:Twitch", "Failed to fetch Twitch user", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return null;
     }
   }

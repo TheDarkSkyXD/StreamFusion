@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "@/backend/logging/logger";
+
 // Guards: must classify failure causes distinctly (auth vs cloudflare vs parse vs network)
 // so syncFollowsOnLogin can choose whether to mutate the local DB. A blanket
 // "return []" would mask the difference between "user follows zero channels"
@@ -57,20 +59,20 @@ function textResponse(body: string, init: ResponseInit = { status: 200 }): Respo
 
 describe("_tryBearerFetch and getAllFollowedChannels", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  const warnSpy = vi.mocked(logger.warn);
 
   beforeEach(() => {
     _resetWarnedForTests();
     fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
-    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.spyOn(console, "debug").mockImplementation(() => {});
+    warnSpy.mockClear();
+    vi.mocked(logger.debug).mockClear();
     vi.mocked(storageService.getToken).mockReturnValue(mockToken as any);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    warnSpy.mockRestore();
+    warnSpy.mockClear();
     vi.restoreAllMocks();
   });
 
@@ -141,7 +143,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
 
     expect(result).toEqual({ status: "error", reason: "auth-failed" });
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0]?.[0]).toMatch(/auth/i);
+    expect(String(warnSpy.mock.calls[0]?.[1] ?? "")).toMatch(/auth/i);
   });
 
   it("classifies 403 as auth-failed", async () => {
@@ -166,7 +168,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
 
     expect(result).toEqual({ status: "error", reason: "cloudflare-challenge" });
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0]?.[0]).toMatch(/cloudflare/i);
+    expect(String(warnSpy.mock.calls[0]?.[1] ?? "")).toMatch(/cloudflare/i);
   });
 
   it("classifies non-JSON text as parse-error", async () => {

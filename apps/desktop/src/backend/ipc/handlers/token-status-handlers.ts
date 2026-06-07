@@ -19,6 +19,7 @@
 
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS, type TokenStatusResult } from "../../../shared/ipc-channels";
 import { tokenExchangeService } from "../../auth";
@@ -30,7 +31,7 @@ export function registerTokenStatusHandlers(): void {
     IPC_CHANNELS.AUTH_TOKEN_STATUS,
     async (event, { platform }: { platform: Platform }): Promise<TokenStatusResult> => {
       if (!isAllowedSender(event)) {
-        console.warn("[TokenStatusHandlers] AUTH_TOKEN_STATUS rejected: disallowed sender origin");
+        logger.warn("IPC:TokenStatus", "AUTH_TOKEN_STATUS rejected: disallowed sender origin");
         // Benign no-op: report not-connected without touching tokens.
         return { platform, connected: false, valid: false };
       }

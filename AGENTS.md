@@ -1,72 +1,3 @@
-# StreamFusion
-
-Electron desktop app for watching Kick and Twitch streams. Monorepo with a single app at `apps/desktop/`.
-
-## Intent Layer
-
-**Before modifying code in a subdirectory, read its AGENTS.md first.**
-
-```
-apps/desktop/src/
-├── main.ts              # Electron main process entry
-├── App.tsx              # React renderer entry
-├── backend/             # Main process: IPC, auth, API clients, services
-├── components/          # React UI (chat, player, stream, mod, etc.)
-├── pages/               # Page-level route components
-├── hooks/               # Shared React hooks
-├── store/               # Zustand global state
-├── shared/              # Types/contracts shared between main & renderer
-├── preload/             # Electron context bridge (window.electronAPI)
-└── lib/                 # Utilities
-```
-
-### Child Nodes
-
-| Area | Path | Scope |
-|------|------|-------|
-| **Source root index** | `apps/desktop/src/AGENTS.md` | Master index — architecture, all subsystems, global invariants |
-| Backend (main process) | `apps/desktop/src/backend/AGENTS.md` | IPC handlers, auth, services, window manager |
-| IPC handlers | `apps/desktop/src/backend/ipc/AGENTS.md` | Handler registration, channel routing, error format |
-| Auth / OAuth | `apps/desktop/src/backend/auth/AGENTS.md` | Kick + Twitch OAuth flows, token refresh, PKCE |
-| Platform API clients | `apps/desktop/src/backend/api/platforms/AGENTS.md` | Twitch Helix/GQL + Kick REST clients |
-| Chat services | `apps/desktop/src/backend/services/chat/AGENTS.md` | WebSocket/IRC connections, parsing, badges, predictions |
-| Emote services | `apps/desktop/src/backend/services/emotes/AGENTS.md` | 7TV/BTTV/FFZ/native emote fetch, cache, provider system |
-| Shared contracts | `apps/desktop/src/shared/AGENTS.md` | IPC channel constants, types shared across process boundary |
-| Preload bridge | `apps/desktop/src/preload/AGENTS.md` | contextBridge security boundary, electronAPI surface |
-| UI components index | `apps/desktop/src/components/AGENTS.md` | All React UI component areas |
-| Chat UI | `apps/desktop/src/components/chat/AGENTS.md` | Message rendering, emotes, input, mod panels |
-| Video player | `apps/desktop/src/components/player/AGENTS.md` | HLS.js player stack, controls, platform adapters |
-| Stream browsing UI | `apps/desktop/src/components/stream/AGENTS.md` | Stream cards, grids, featured, related content |
-| React hooks | `apps/desktop/src/hooks/AGENTS.md` | Auth, chat, queries, ad-blocking, mod, utilities |
-| Pages index | `apps/desktop/src/pages/AGENTS.md` | Route-level page components |
-| Mod dashboard | `apps/desktop/src/pages/Mod/AGENTS.md` | Standalone mod admin: bans, VIPs, mod log, engagement |
-| Zustand stores | `apps/desktop/src/store/AGENTS.md` | Global state, selectors, IPC sync |
-| Test suite | `apps/desktop/tests/AGENTS.md` | Quality bar, Guards convention, audit process |
-| Documentation | `apps/desktop/documentation/AGENTS.md` | Feature doc lifecycle, naming, roadmap |
-
-### Global Invariants
-
-- Renderer ↔ main communication ONLY through `window.electronAPI` (context bridge). Never access `ipcRenderer` directly.
-- All IPC channel strings live in `shared/ipc-channels.ts` — never hardcode.
-- `better-sqlite3` is a native addon — any code importing it (directly or transitively via `database-service`, `storage-service`, `kick-send-window`) MUST stay in the main process. Importing in renderer crashes the bundle.
-- Client secrets never ship in the binary — token exchange goes through the Cloudflare Worker at `streamfusion.leveluptogetherbiz.workers.dev`.
-- Tokens never reach the renderer — `TokenStatusResult` deliberately has no token value fields.
-- `webSecurity: false` is intentional (cross-origin video playback). Security-sensitive IPC handlers MUST validate sender origin via `isAllowedSender(event)`.
-- Zustand stores are the UI state source of truth; they talk to backend exclusively through IPC.
-- React Query handles all platform data (streams, channels, categories). Auth state uses Zustand only.
-- Shutdown: main broadcasts `APP_BEFORE_QUIT`, hard-kills after 3s. Renderer must tear down WebSockets and stop timers on this signal.
-- V8 heap capped at 350MB on both main and renderer processes.
-
-### Build & Dev
-
-- **Build tool**: `electron-vite` — 3 targets: main (Node/CJS), preload, renderer (ESNext)
-- **Dev**: `npm run dev` (hot reload)
-- **Quality**: `npm run check` (typecheck + Biome lint)
-- **Test**: `npm run test` (Vitest)
-- **Package**: `npm run dist:win/mac/linux`
-
----
-
 # CRITICAL RULES - MUST FOLLOW
 
 ## RESPONSES
@@ -108,12 +39,13 @@ Before implementing:
 - Never assume your changes simply work, always test!
 - If the project does not have any testing tools, scripts, MCP tools, skills, etc. available for testing, ask the user whether testing should be skipped.
 
-## ISSUE COMPLETION
+## ISSUE WORKFLOW
 
-- After finishing work on any issue, ALWAYS run the `/tdd` skill to verify your changes with tests.
+- BEFORE writing any tests or implementation code, invoke the `/tdd` skill to drive the work test-first (red → green → refactor, one vertical slice at a time). Do not write tests in bulk up front or after the code is done.
+- Tests are written first, drive the implementation, and are green by construction by the time the issue is finished — `/tdd` is a start-of-work skill, not a post-hoc verification step.
 - All tests MUST pass with zero errors before you mark an issue as completed.
 - Do NOT move to the next issue until the current issue's tests are green.
-- If tests fail, fix the failures before marking the issue done.
+- If tests fail mid-cycle, get back to GREEN before refactoring or moving on.
 
 ## UI DESIGN
 

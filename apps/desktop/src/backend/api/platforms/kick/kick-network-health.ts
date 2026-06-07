@@ -20,6 +20,8 @@
  * UNHEALTHY_WINDOW_MS of quiet (no new errors).
  */
 
+import { logger } from "@/lib/cross-logger";
+
 const UNHEALTHY_WINDOW_MS = 3000;
 const ERROR_BURST_WINDOW_MS = 2000;
 const ERROR_BURST_THRESHOLD = 3;
@@ -42,9 +44,10 @@ const waiters: Array<() => void> = [];
 
 export function recordServiceCrash(reason: string): void {
   unhealthyUntil = Date.now() + UNHEALTHY_WINDOW_MS;
-  console.warn(
-    `[KickNetworkHealth] Network unhealthy due to ${reason}; pausing Kick retries for ${UNHEALTHY_WINDOW_MS}ms`
-  );
+  logger.warn("Kick:Health", "Network unhealthy; pausing Kick retries", {
+    reason,
+    pauseDurationMs: UNHEALTHY_WINDOW_MS,
+  });
 }
 
 export function recordTransientNetworkError(errorMessage: string): void {

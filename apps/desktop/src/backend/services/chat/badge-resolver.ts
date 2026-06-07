@@ -5,6 +5,10 @@
  * Fetches and caches global and channel badges from Twitch API.
  */
 
+// Cross-logger: badge-resolver is reached from the renderer via twitch-chat
+// → TwitchChat.tsx. Importing the backend logger here would drag electron-log
+// into the renderer bundle.
+import { logger } from "@/lib/cross-logger";
 import type { BadgeSet, BadgeVersion, ChatBadge } from "../../../shared/chat-types";
 
 // ========== Types ==========
@@ -81,9 +85,16 @@ export class BadgeResolver {
       this.globalBadgesLoadedAt = Date.now();
       // New badge data invalidates any previously-cached resolutions.
       this.resolveCache.clear();
-      console.debug(`✅ Loaded ${this.globalBadges.size} global badge sets`);
+      logger.debug("Chat:Badges", "Loaded global badge sets", {
+        count: this.globalBadges.size,
+      });
     } catch (error) {
-      console.error("❌ Failed to load global badges:", error);
+      logger.error("Chat:Badges", "Failed to load global badges", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   }
 
@@ -117,11 +128,18 @@ export class BadgeResolver {
       }
       // New badge data invalidates any previously-cached resolutions.
       this.resolveCache.clear();
-      console.debug(
-        `✅ Loaded ${this.channelBadges.get(broadcasterId)?.size ?? 0} badge sets for channel ${broadcasterId}`
-      );
+      logger.debug("Chat:Badges", "Loaded channel badge sets", {
+        broadcasterId,
+        count: this.channelBadges.get(broadcasterId)?.size ?? 0,
+      });
     } catch (error) {
-      console.error(`❌ Failed to load badges for channel ${broadcasterId}:`, error);
+      logger.error("Chat:Badges", "Failed to load channel badges", {
+        broadcasterId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   }
 

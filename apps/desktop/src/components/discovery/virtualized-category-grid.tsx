@@ -157,6 +157,7 @@ export function VirtualizedCategoryGrid({
 
   // Re-run handleScroll once when categories.length grows so visibleRange
   // expands without waiting for the next scroll event.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `categories.length` and `itemsPerRow` are the re-run triggers; the body only invokes the stable handler
   useEffect(() => {
     handleScroll();
   }, [categories.length, itemsPerRow, handleScroll]);

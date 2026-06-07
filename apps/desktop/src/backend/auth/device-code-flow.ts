@@ -14,6 +14,7 @@
  * @see https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#device-code-grant-flow
  */
 
+import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type { AuthToken } from "../../shared/auth-types";
 import { getOAuthConfig } from "./oauth-config";
@@ -78,7 +79,7 @@ class DeviceCodeFlowService {
       scopes: scopes.join(" "),
     });
 
-    console.debug("🔐 Requesting device code from Twitch...");
+    logger.debug("Auth:DeviceCode", "Requesting device code from Twitch");
 
     const response = await fetch(DEVICE_AUTH_ENDPOINT, {
       method: "POST",
@@ -95,8 +96,10 @@ class DeviceCodeFlowService {
 
     const data = (await response.json()) as DeviceCodeResponse;
 
-    console.debug(`✅ Device code received. User code: ${data.user_code}`);
-    console.debug(`🔗 Verification URL: ${data.verification_uri}`);
+    logger.debug("Auth:DeviceCode", "Device code received", { userCode: data.user_code });
+    logger.debug("Auth:DeviceCode", "Verification URL ready", {
+      verificationUri: data.verification_uri,
+    });
 
     return {
       deviceCode: data.device_code,
@@ -165,7 +168,7 @@ class DeviceCodeFlowService {
               scope: Array.isArray(tokenData.scope) ? tokenData.scope : tokenData.scope?.split(" "),
             };
 
-            console.debug("✅ User authorized! Token obtained.");
+            logger.debug("Auth:DeviceCode", "User authorized! Token obtained");
             onStatusChange?.("authorized", "Authorization successful!");
             resolve(token);
             return;
@@ -181,7 +184,7 @@ class DeviceCodeFlowService {
               break;
             case "slow_down":
               // We're polling too fast - increase interval
-              console.debug("⚠️ Polling too fast, slowing down...");
+              logger.debug("Auth:DeviceCode", "Polling too fast, slowing down");
               interval += 5;
               break;
             case "access_denied":
@@ -204,7 +207,12 @@ class DeviceCodeFlowService {
               return;
           }
         } catch (error) {
-          console.error("Polling error:", error);
+          logger.error("Auth:DeviceCode", "Polling error", {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
           // Network error - continue polling
         }
       };

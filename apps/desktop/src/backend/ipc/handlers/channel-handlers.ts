@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
@@ -32,7 +33,12 @@ export function registerChannelHandlers(): void {
 
         return { success: true, data: channel };
       } catch (error) {
-        console.error("❌ Failed to get channel by ID:", error);
+        logger.error("IPC:Channel", "Failed to get channel by ID", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch channel",
@@ -68,7 +74,12 @@ export function registerChannelHandlers(): void {
 
         return { success: true, data: channel };
       } catch (error) {
-        console.error("❌ Failed to get channel by username:", error);
+        logger.error("IPC:Channel", "Failed to get channel by username", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch channel",
@@ -106,7 +117,12 @@ export function registerChannelHandlers(): void {
 
         return { success: true, data: channels };
       } catch (error) {
-        console.error("❌ Failed to get followed channels:", error);
+        logger.error("IPC:Channel", "Failed to get followed channels", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch followed channels",

@@ -15,6 +15,7 @@
  *   the Kick history seed.
  */
 
+import { logger } from "@/renderer/logging/logger";
 import { parseRawTwitchIrcLine } from "../../../backend/services/chat/twitch-irc-parser";
 import { parseTwitchMessage } from "../../../backend/services/chat/twitch-parser";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
@@ -107,6 +108,8 @@ export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams)
     const capped = parsed.length > limit ? parsed.slice(-limit) : parsed;
     if (capped.length > 0) prependMessages(capped);
   } catch (error) {
-    console.debug("[seedTwitchChatHistory] failed:", error);
+    logger.debug("UI:Chat:TwitchHistory", "seed failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

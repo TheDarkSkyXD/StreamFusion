@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { logger } from "@/renderer/logging/logger";
 
 import { ClipCard } from "./ClipCard";
 import { ClipDialog } from "./ClipDialog";
@@ -44,7 +45,9 @@ export function RelatedContent({
     try {
       localStorage.setItem("stream-tab-preference", urlTab);
     } catch (error) {
-      console.warn("Failed to save stream tab preference:", error);
+      logger.warn("Stream:Related", "failed to save stream tab preference", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [urlTab]);
 
@@ -62,7 +65,9 @@ export function RelatedContent({
       const saved = localStorage.getItem("content-sort-preference");
       return saved === "recent" || saved === "views" ? saved : "views";
     } catch (error) {
-      console.warn("Failed to load sort preference:", error);
+      logger.warn("Stream:Related", "failed to load sort preference", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return "views";
     }
   });
@@ -73,7 +78,9 @@ export function RelatedContent({
     try {
       localStorage.setItem("content-sort-preference", sortBy);
     } catch (error) {
-      console.error("Failed to save sort preference:", error);
+      logger.error("Stream:Related", "failed to save sort preference", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [sortBy]);
 
@@ -85,7 +92,9 @@ export function RelatedContent({
         ? saved
         : "all";
     } catch (error) {
-      console.warn("Failed to load time range preference:", error);
+      logger.warn("Stream:Related", "failed to load time range preference", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return "all";
     }
   });
@@ -96,7 +105,9 @@ export function RelatedContent({
     try {
       localStorage.setItem("clips-filter-preference", timeRange);
     } catch (error) {
-      console.error("Failed to save time range preference:", error);
+      logger.error("Stream:Related", "failed to save time range preference", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [timeRange]);
 
@@ -150,6 +161,7 @@ export function RelatedContent({
   }, [selectedClip, onClipSelectionChange]);
 
   // Initial Fetch (Resets list)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `reloadKey` is the user-triggered re-fetch counter; the body doesn't read it
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoading(true);
@@ -231,7 +243,9 @@ export function RelatedContent({
           }
         }
       } catch (error) {
-        console.error("Failed to fetch content:", error);
+        logger.error("Stream:Related", "failed to fetch content", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         setError("Failed to load content");
       } finally {
         setIsLoading(false);
@@ -257,7 +271,7 @@ export function RelatedContent({
     try {
       const api = (window as any).electronAPI;
       if (!api) {
-        console.error("API not available for loading more items");
+        logger.error("Stream:Related", "API not available for loading more items");
         return;
       }
 
@@ -275,7 +289,7 @@ export function RelatedContent({
 
           // Stop if no videos returned
           if (newVideos.length === 0) {
-            console.debug("[RelatedContent] No more videos to fetch");
+            logger.debug("Stream:Related", "no more videos to fetch");
             setHasMoreVideos(false);
             return;
           }
@@ -286,14 +300,14 @@ export function RelatedContent({
 
           // Stop if all returned videos are duplicates (we've looped back)
           if (uniqueNewVideos.length === 0) {
-            console.debug("[RelatedContent] All videos are duplicates, stopping");
+            logger.debug("Stream:Related", "all videos are duplicates, stopping");
             setHasMoreVideos(false);
             return;
           }
 
           // Stop if cursor hasn't changed (stuck in a loop)
           if (result.cursor && result.cursor === videoCursor) {
-            console.debug("[RelatedContent] Cursor unchanged, stopping");
+            logger.debug("Stream:Related", "video cursor unchanged, stopping");
             setHasMoreVideos(false);
             return;
           }
@@ -304,7 +318,7 @@ export function RelatedContent({
           // Trust the cursor: if upstream said "more", believe it. A partial
           // page with a cursor is a legitimate intermediate state.
           if (!result.cursor) {
-            console.debug("[RelatedContent] No cursor, stopping videos");
+            logger.debug("Stream:Related", "no cursor, stopping videos");
             setHasMoreVideos(false);
           }
         } else {
@@ -326,7 +340,7 @@ export function RelatedContent({
 
           // Stop if no clips returned
           if (newClips.length === 0) {
-            console.debug("[RelatedContent] No more clips to fetch");
+            logger.debug("Stream:Related", "no more clips to fetch");
             setHasMoreClips(false);
             return;
           }
@@ -337,14 +351,14 @@ export function RelatedContent({
 
           // Stop if all returned clips are duplicates
           if (uniqueNewClips.length === 0) {
-            console.debug("[RelatedContent] All clips are duplicates, stopping");
+            logger.debug("Stream:Related", "all clips are duplicates, stopping");
             setHasMoreClips(false);
             return;
           }
 
           // Stop if cursor hasn't changed
           if (result.cursor && result.cursor === clipCursor) {
-            console.debug("[RelatedContent] Clip cursor unchanged, stopping");
+            logger.debug("Stream:Related", "clip cursor unchanged, stopping");
             setHasMoreClips(false);
             return;
           }
@@ -355,7 +369,7 @@ export function RelatedContent({
           // Trust the cursor: if upstream said "more", believe it. A partial
           // page with a cursor is a legitimate intermediate state.
           if (!result.cursor) {
-            console.debug("[RelatedContent] No cursor, stopping clips");
+            logger.debug("Stream:Related", "no cursor, stopping clips");
             setHasMoreClips(false);
           }
         } else {
@@ -364,7 +378,9 @@ export function RelatedContent({
         }
       }
     } catch (err) {
-      console.error("Error loading more items:", err);
+      logger.error("Stream:Related", "error loading more items", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError("Failed to load more items. Please try again.");
       errorDismissTimer.start(3000);
     } finally {
@@ -437,7 +453,7 @@ export function RelatedContent({
           setClipPlaybackUrl(result.data.url);
           setClipQualities(result.data.qualities);
         } else {
-          console.error("[RelatedContent] Failed to get clip URL:", result.error);
+          logger.error("Stream:Related", "failed to get clip URL", { error: result.error });
           // For Twitch, we'll fall back to iframe embed
           if (platform === "twitch") {
             setClipPlaybackUrl(null); // Signal to use iframe
@@ -446,7 +462,9 @@ export function RelatedContent({
           }
         }
       } catch (err) {
-        console.error("[RelatedContent] Error fetching clip URL:", err);
+        logger.error("Stream:Related", "error fetching clip URL", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         // For Twitch, we'll fall back to iframe embed
         if (platform === "twitch") {
           setClipPlaybackUrl(null);

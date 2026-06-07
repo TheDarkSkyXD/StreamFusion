@@ -5,6 +5,7 @@
  * subscriber emotes.
  */
 
+import { logger } from "@/backend/logging/logger";
 import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
@@ -90,7 +91,7 @@ class KickEmoteProvider implements EmoteProviderService {
         .json<KickEmoteSetResponse[]>();
 
       if (Array.isArray(emoteSets)) {
-        console.log(`[KickEmotes] Found ${emoteSets.length} emote sets for ${slug}`);
+        logger.info("Emote:Kick", "Found emote sets", { count: emoteSets.length, slug });
 
         emoteSets.forEach((set) => {
           if (set.emotes && Array.isArray(set.emotes)) {
@@ -105,7 +106,13 @@ class KickEmoteProvider implements EmoteProviderService {
         }
       }
     } catch (error) {
-      console.warn(`[KickEmotes] Failed to fetch from emotes endpoint for ${slug}:`, error);
+      logger.warn("Emote:Kick", "Failed to fetch from emotes endpoint", {
+        slug,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
 
     // Method 2: Fallback to v1 channels API
@@ -134,7 +141,13 @@ class KickEmoteProvider implements EmoteProviderService {
       return emotes;
     } catch (error: any) {
       if (error.response?.status !== 404) {
-        console.warn(`[KickEmotes] API returned error for ${slug}:`, error);
+        logger.warn("Emote:Kick", "API returned error", {
+          slug,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
       return emotes; // Return whatever we found (empty array if Method 1 failed too)
     }

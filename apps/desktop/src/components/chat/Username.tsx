@@ -1,4 +1,5 @@
 import type React from "react";
+import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
 import type { ChatPlatform } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
@@ -120,8 +121,7 @@ export const Username: React.FC<UsernameProps> = ({
     }
     // Defensive: no channel context and no override — surfaces like search
     // can still log without crashing.
-    // biome-ignore lint/suspicious/noConsole: defensive fallback when chat surface lacks context.
-    console.debug(`User clicked: ${username} (${userId})`);
+    logger.debug("UI:Chat:Username", "user clicked", { username, userId });
   };
 
   return (

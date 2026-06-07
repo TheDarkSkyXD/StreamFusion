@@ -80,10 +80,10 @@ export function UptimeReadout({
   };
 
   // Immediate update when playback state or startedAt changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `startedAt` is the trigger; `tick` is intentionally excluded so we don't re-run on every render
   useEffect(() => {
     if (!isPlaying) return;
     tick();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startedAt, isPlaying]);
 
   // 1 Hz tick while playing

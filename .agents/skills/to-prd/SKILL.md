@@ -74,3 +74,5 @@ A description of the things that are out of scope for this PRD.
 Any further notes about the feature.
 
 </prd-template>
+
+4. After publishing, share the issue URL with the user and recommend running `/to-issues` to break the PRD into independently-grabbable implementation tickets.

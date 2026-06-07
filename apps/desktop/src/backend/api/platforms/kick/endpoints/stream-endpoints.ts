@@ -1,6 +1,8 @@
 import { net } from "electron";
+import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import { sleep } from "@/lib/sleep";
+import { recordPlatformFailure, recordPlatformSuccess } from "../../../unified/platform-health";
 import type { UnifiedStream } from "../../../unified/platform-types";
 import {
   acquireKickRequestSlot,
@@ -366,7 +368,7 @@ async function _doFetchPublicStreamBySlug(
         try {
           data = await res.json();
         } catch (_e) {
-          console.warn(`[KickStream] Failed to parse JSON for ${slug}`);
+          logger.warn("Kick:Endpoints:Stream", "Failed to parse JSON", { slug });
           throw new Error("Failed to parse JSON");
         }
       }
@@ -374,6 +376,9 @@ async function _doFetchPublicStreamBySlug(
       // API responded successfully — clear any prior warn flag for this slug
       // so a future failure will warn again instead of being silently debug-ed.
       _publicStreamWarnedSlugs.delete(key);
+      // 200 and 404 both count as a healthy round-trip to platform-health;
+      // 404 means the channel doesn't exist, not that Kick is down.
+      recordPlatformSuccess("kick");
 
       if (!data) return null;
 
@@ -439,6 +444,17 @@ async function _doFetchPublicStreamBySlug(
         // concurrent slugs flips the global flag and the remaining retries
         // (here and at other Kick call sites) bail out fast.
         recordTransientNetworkError(normalizedError.message);
+        // Map TRANSIENT shapes onto PlatformFailureClass. Excluded shapes
+        // (Status N / parse) take the non-transient break above and never
+        // reach this branch.
+        if (normalizedError.message === "TRANSIENT:timeout") {
+          recordPlatformFailure("kick", "timeout");
+        } else if (/^TRANSIENT:net::ERR_/.test(normalizedError.message)) {
+          recordPlatformFailure("kick", "net-error");
+        } else {
+          // TRANSIENT:502 | 503 | 504.
+          recordPlatformFailure("kick", "server-5xx");
+        }
         if (isNetworkLikelyDown()) break;
         // Don't delay after the final attempt
         if (attempt < maxRetries - 1) {
@@ -448,9 +464,13 @@ async function _doFetchPublicStreamBySlug(
           const base = 1000 * 2 ** attempt; // 1s, 2s, 4s
           const jitter = base * (0.75 + Math.random() * 0.5);
           const backoffMs = Math.round(jitter);
-          console.debug(
-            `[KickStream] ${reason} for ${slug}, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${maxRetries})`
-          );
+          logger.debug("Kick:Endpoints:Stream", "Transient error; retrying", {
+            reason,
+            slug,
+            backoffMs,
+            attempt: attempt + 1,
+            maxRetries,
+          });
           await sleep(backoffMs);
         }
         continue;
@@ -467,10 +487,14 @@ async function _doFetchPublicStreamBySlug(
   // poll cycle doesn't keep slamming a channel we just spent ~18s failing to
   // reach, and warn-once so repeat failures don't spam the log.
   if (lastError) {
+    const errorMeta = {
+      slug,
+      error: { name: lastError.name, message: lastError.message, stack: lastError.stack },
+    };
     if (_publicStreamWarnedSlugs.has(key)) {
-      console.debug(`Failed to fetch public Kick stream ${slug}:`, lastError);
+      logger.debug("Kick:Endpoints:Stream", "Failed to fetch public Kick stream", errorMeta);
     } else {
-      console.warn(`Failed to fetch public Kick stream ${slug}:`, lastError);
+      logger.warn("Kick:Endpoints:Stream", "Failed to fetch public Kick stream", errorMeta);
       _publicStreamWarnedSlugs.add(key);
     }
     // Short TTL for timeouts and known network-service outages (transient,
@@ -516,14 +540,21 @@ export async function getStreamBySlug(
       if (publicStream.channelName.toLowerCase() === normalizedSlug) {
         return publicStream;
       } else {
-        console.warn(
-          `[Kick] Public stream API mismatch: requested "${slug}", got "${publicStream.channelName}". ` +
-            `Trying authenticated API.`
+        logger.warn(
+          "Kick:Endpoints:Stream",
+          "Public stream API mismatch; trying authenticated API",
+          {
+            requestedSlug: slug,
+            returnedChannelName: publicStream.channelName,
+          }
         );
       }
     }
   } catch (e) {
-    console.debug(`Public stream API failed for ${slug}, trying authenticated API:`, e);
+    logger.debug("Kick:Endpoints:Stream", "Public stream API failed; trying authenticated API", {
+      slug,
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
   }
 
   // Fallback to official API if public API fails or returns mismatched data
@@ -532,9 +563,13 @@ export async function getStreamBySlug(
 
     // Validate channel matches requested slug
     if (channel && channel.username.toLowerCase() !== normalizedSlug) {
-      console.warn(
-        `[Kick] Channel lookup mismatch: requested "${slug}", got "${channel.username}". ` +
-          `Rejecting to prevent identity confusion.`
+      logger.warn(
+        "Kick:Endpoints:Stream",
+        "Channel lookup mismatch; rejecting to prevent identity confusion",
+        {
+          requestedSlug: slug,
+          returnedUsername: channel.username,
+        }
       );
       return null;
     }
@@ -548,7 +583,10 @@ export async function getStreamBySlug(
       try {
         const channelIdNum = parseInt(channel.id, 10);
         if (Number.isNaN(channelIdNum)) {
-          console.warn(`[Kick] Invalid channel ID "${channel.id}" for stream ${slug}`);
+          logger.warn("Kick:Endpoints:Stream", "Invalid channel ID for stream", {
+            channelId: channel.id,
+            slug,
+          });
           return null;
         }
 
@@ -561,9 +599,13 @@ export async function getStreamBySlug(
 
           // CRITICAL: Validate the stream's broadcaster ID matches the channel ID we queried
           if (apiStream.broadcaster_user_id !== channelIdNum) {
-            console.warn(
-              `[Kick] Stream broadcaster ID mismatch: queried for ${channelIdNum}, ` +
-                `got ${apiStream.broadcaster_user_id}. Rejecting to prevent identity confusion.`
+            logger.warn(
+              "Kick:Endpoints:Stream",
+              "Stream broadcaster ID mismatch; rejecting to prevent identity confusion",
+              {
+                queriedChannelId: channelIdNum,
+                returnedBroadcasterId: apiStream.broadcaster_user_id,
+              }
             );
             return null;
           }
@@ -572,10 +614,10 @@ export async function getStreamBySlug(
 
           // Final validation: ensure stream channel matches requested slug
           if (stream.channelName.toLowerCase() !== normalizedSlug) {
-            console.warn(
-              `[Kick] Stream channel name mismatch: requested "${slug}", ` +
-                `got "${stream.channelName}". Rejecting.`
-            );
+            logger.warn("Kick:Endpoints:Stream", "Stream channel name mismatch; rejecting", {
+              requestedSlug: slug,
+              returnedChannelName: stream.channelName,
+            });
             return null;
           }
 
@@ -604,27 +646,46 @@ export async function getStreamBySlug(
                     stream.channelDisplayName = user.name;
                   }
                 } else {
-                  console.warn(
-                    `[Kick] User ID mismatch for stream ${slug}: ` +
-                      `fetched user ID ${user.user_id}, expected ${stream.channelId}. ` +
-                      `Skipping user data enrichment.`
+                  logger.warn(
+                    "Kick:Endpoints:Stream",
+                    "User ID mismatch for stream; skipping user data enrichment",
+                    {
+                      slug,
+                      fetchedUserId: user.user_id,
+                      expectedChannelId: stream.channelId,
+                    }
                   );
                 }
               }
             }
           } catch (e) {
-            console.debug(`Failed to enrich user info for stream ${slug}:`, e);
+            logger.debug("Kick:Endpoints:Stream", "Failed to enrich user info for stream", {
+              slug,
+              error:
+                e instanceof Error
+                  ? { name: e.name, message: e.message, stack: e.stack }
+                  : String(e),
+            });
             // Not critical - stream data is still valid without user enrichment
           }
 
           return stream;
         }
       } catch (error) {
-        console.warn(`Failed to fetch Kick stream details for ${slug}:`, error);
+        logger.warn("Kick:Endpoints:Stream", "Failed to fetch Kick stream details", {
+          slug,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
     }
   } catch (e) {
-    console.warn(`Authenticated stream API failed for ${slug}:`, e);
+    logger.warn("Kick:Endpoints:Stream", "Authenticated stream API failed", {
+      slug,
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
   }
 
   // All methods failed
@@ -981,7 +1042,10 @@ export async function getTopStreams(
         userMap = new Map(users.map((u) => [u.user_id, u]));
       }
     } catch (e) {
-      console.warn("Failed to fetch user avatars for streams:", e);
+      logger.warn("Kick:Endpoints:Stream", "Failed to fetch user avatars for streams", {
+        error:
+          e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+      });
     }
 
     const streams = rawStreams.map((s) => {
@@ -1075,7 +1139,9 @@ export async function getTopStreams(
     }
     const message = error instanceof Error ? error.message : String(error);
     if (!message.includes("Not authenticated")) {
-      console.debug("[Kick] Falling back to public API for top streams:", message);
+      logger.debug("Kick:Endpoints:Stream", "Falling back to public API for top streams", {
+        message,
+      });
     }
     return getPublicTopStreams(options);
   }
@@ -1107,7 +1173,7 @@ export async function getTopStreamsCached(client: KickRequestor): Promise<Unifie
           return result.data;
         }
       } catch (_e) {
-        console.warn("Official API top streams failed, trying fallback");
+        logger.warn("Kick:Endpoints:Stream", "Official API top streams failed, trying fallback");
       }
     }
 
@@ -1121,7 +1187,9 @@ export async function getTopStreamsCached(client: KickRequestor): Promise<Unifie
     }
     return publicResult.data;
   } catch (e) {
-    console.warn("Failed to refresh top streams cache", e);
+    logger.warn("Kick:Endpoints:Stream", "Failed to refresh top streams cache", {
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
     // Return stale cache if available, otherwise empty
     return _topStreamsCache?.data || [];
   }

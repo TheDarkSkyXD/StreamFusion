@@ -17,6 +17,7 @@ import { useAppStore } from "@/store/app-store";
 
 import { TopNavBar } from "../TopNavBar";
 
+import { PlatformHealthBanner } from "./PlatformHealthBanner";
 import { SidebarFollows } from "./SidebarFollows";
 import { TitleBar } from "./TitleBar";
 
@@ -51,6 +52,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Top Navigation Bar (search, user info) */}
       {!isTheaterModeActive && <TopNavBar />}
+
+      {/* Visible only while a Platform is degraded. */}
+      {!isTheaterModeActive && <PlatformHealthBanner />}
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">

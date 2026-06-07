@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LuMaximize, LuMinimize, LuRadio } from "react-icons/lu";
+import { LuMaximize, LuMinimize, LuRadio, LuRefreshCw } from "react-icons/lu";
 
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 
@@ -86,6 +86,9 @@ interface KickLivePlayerControlsProps {
   // Playback Speed
   playbackRate?: number;
   onPlaybackRateChange?: (rate: number) => void;
+
+  // Refresh — drops the cached playback URL and re-fetches as a fresh viewer
+  onRefresh?: () => void;
 }
 
 export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
@@ -109,6 +112,7 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
     onSeek,
     onGoLive,
     progressBarRef,
+    onRefresh,
   } = props;
 
   const controls =
@@ -279,6 +283,24 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            {onRefresh && (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 cursor-pointer"
+                    onClick={onRefresh}
+                  >
+                    <LuRefreshCw className="w-6 h-6" strokeWidth={3} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent container={containerRef.current}>
+                  <p>Refresh stream</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <SettingsMenu
               qualities={qualities}
               currentQualityId={currentQualityId}

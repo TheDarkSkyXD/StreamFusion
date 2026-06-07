@@ -39,9 +39,9 @@ export function TimeoutDurationPicker({ disabled, onChange }: TimeoutDurationPic
 
   // Push the default up to the parent on first render so a confirm without
   // any click still produces `{ durationSeconds: 600 }`.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: first-render-only push; re-firing when `onChange` identity shifts would clobber any user selection
   useEffect(() => {
     onChange(DEFAULT_SECONDS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePick = (seconds: number) => {

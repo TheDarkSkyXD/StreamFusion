@@ -42,7 +42,6 @@ export function UserProfileHeader({ profile, platform }: UserProfileHeaderProps)
         aria-hidden
       >
         {profile.avatarUrl ? (
-          // biome-ignore lint/performance/noImgElement: small avatar; Next/Image unavailable in Electron renderer.
           <img
             src={profile.avatarUrl}
             alt=""

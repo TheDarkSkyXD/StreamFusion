@@ -10,6 +10,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import type { KickSendResult } from "../backend/api/platforms/kick/kick-send-window";
+import type { PlatformHealth, PlatformHealthEvent } from "../backend/api/unified/platform-health";
 import type {
   AuthToken,
   KickUser,
@@ -19,7 +20,9 @@ import type {
   UserPreferences,
 } from "../shared/auth-types";
 import {
+  type AppEnvironment,
   type AuthStatus,
+  type BugReportResult,
   type CheckFrequency,
   IPC_CHANNELS,
   type ProxyApplyConfig,
@@ -756,6 +759,70 @@ const electronAPI = {
         callback(progress as Parameters<typeof callback>[0]);
       ipcRenderer.on(IPC_CHANNELS.UPDATE_ON_PROGRESS, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_ON_PROGRESS, handler);
+    },
+  },
+
+  // ========== App Environment ==========
+  // Snapshot of the runtime environment (isDev, platform, app/electron/node
+  // versions). Used by the Settings UI to dev-gate the LogsSection and by the
+  // bug-report flow to stamp every report with the build triple.
+  env: {
+    get: (): Promise<AppEnvironment> => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_ENVIRONMENT),
+  },
+
+  // ========== Bug Reports ==========
+  // Renderer-driven bug-report capture. `write` stitches the description,
+  // tailed main log, and tailed noise log into a markdown file in the
+  // bug-reports directory and returns the saved path (or an error). The
+  // open-folder / list / get-dir helpers drive the recent-reports UI.
+  bugReports: {
+    write: (payload: {
+      description: string;
+      includeMainLog: boolean;
+      includeNoiseLog: boolean;
+    }): Promise<BugReportResult> => ipcRenderer.invoke(IPC_CHANNELS.BUG_REPORT_WRITE, payload),
+
+    openFolder: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.BUG_REPORT_OPEN_FOLDER),
+
+    getDir: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.BUG_REPORT_GET_DIR),
+
+    list: (): Promise<string[]> => ipcRenderer.invoke(IPC_CHANNELS.BUG_REPORT_LIST),
+  },
+
+  // ========== Logging ==========
+  // Renderer → main logging bridge: fire-and-forget log forwarding plus the
+  // read-only helpers the Settings → Logs panel uses to open / inspect the
+  // session log files. The main-process LOG_WRITE handler validates `level`
+  // and prefixes the tag with `Renderer:` before formatting, so a tampered
+  // payload from the webContents can't masquerade as a main-process line.
+  logs: {
+    write: (payload: {
+      level: "debug" | "info" | "warn" | "error";
+      tag: string;
+      message: string;
+      meta?: Record<string, unknown>;
+    }): void => ipcRenderer.send(IPC_CHANNELS.LOG_WRITE, payload),
+    openFolder: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOGS_OPEN_FOLDER),
+    getCurrentPath: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.LOGS_GET_CURRENT_PATH),
+    getNoisePath: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOGS_GET_NOISE_PATH),
+    tail: (payload: { lines: number; file: "main" | "noise" }): Promise<string[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOGS_TAIL, payload),
+  },
+
+  // ========== Platform Health ==========
+  // `get()` hydrates; `onChange` subscribes to transition pushes and returns
+  // an unsubscribe for useEffect cleanup. See ADR-0002.
+  platformHealth: {
+    get: (): Promise<{ kick: PlatformHealth; twitch: PlatformHealth }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PLATFORM_HEALTH_GET),
+    onChange: (callback: (event: PlatformHealthEvent) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: PlatformHealthEvent) =>
+        callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED, handler);
     },
   },
 

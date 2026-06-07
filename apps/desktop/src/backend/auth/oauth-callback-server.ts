@@ -9,6 +9,7 @@
 import http from "node:http";
 import { URL } from "node:url";
 
+import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../shared/auth-types";
 
 // ========== Types ==========
@@ -206,7 +207,12 @@ class OAuthCallbackServer {
             res.end("Not found");
           }
         } catch (error) {
-          console.error("Error handling callback:", error);
+          logger.error("Auth:OAuthCallback", "Error handling callback", {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
           res.writeHead(500, { "Content-Type": "text/plain" });
           res.end("Internal server error");
         }
@@ -218,7 +224,10 @@ class OAuthCallbackServer {
           // Port in use, try next port
           this.currentPort++;
           if (this.currentPort < DEFAULT_PORT + PORT_RANGE_SIZE) {
-            console.debug(`⚠️ Port ${port} in use, trying ${this.currentPort}...`);
+            logger.debug("Auth:OAuthCallback", "Port in use, trying next", {
+              port,
+              nextPort: this.currentPort,
+            });
             this.server?.close();
             this.server?.listen(this.currentPort);
           } else {
@@ -232,7 +241,9 @@ class OAuthCallbackServer {
       // Start listening
       this.currentPort = port;
       this.server.listen(port, () => {
-        console.debug(`🔐 OAuth callback server listening on http://localhost:${this.currentPort}`);
+        logger.debug("Auth:OAuthCallback", "OAuth callback server listening", {
+          url: `http://localhost:${this.currentPort}`,
+        });
       });
 
       // Set timeout
@@ -254,7 +265,7 @@ class OAuthCallbackServer {
     if (this.server) {
       this.server.close();
       this.server = null;
-      console.debug("🔐 OAuth callback server stopped");
+      logger.debug("Auth:OAuthCallback", "OAuth callback server stopped");
     }
   }
 

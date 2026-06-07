@@ -6,6 +6,9 @@
  */
 
 import tmi from "tmi.js";
+// Cross-logger: imported by renderer chat components — avoids dragging
+// electron-log into the renderer bundle.
+import { logger } from "@/lib/cross-logger";
 import { sleep } from "@/lib/sleep";
 import type { TwitchUser } from "../../../shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
@@ -428,7 +431,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.emitConnectionStatus();
       this.log(`Joined channel: ${normalizedChannel}`);
     } catch (error) {
-      console.error(`Failed to join channel ${normalizedChannel}:`, error);
+      logger.error("Chat:Twitch", "Failed to join channel", {
+        channel: normalizedChannel,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -456,7 +465,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.emitConnectionStatus();
       this.log(`Left channel: ${normalizedChannel}`);
     } catch (error) {
-      console.error(`Failed to leave channel ${normalizedChannel}:`, error);
+      logger.error("Chat:Twitch", "Failed to leave channel", {
+        channel: normalizedChannel,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     }
   }
 
@@ -503,7 +518,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.recordMessageSent();
       this.emitSelfEcho(normalizedChannel, message, localFragments, false);
     } catch (error) {
-      console.error(`Failed to send message to ${normalizedChannel}:`, error);
+      logger.error("Chat:Twitch", "Failed to send message", {
+        channel: normalizedChannel,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -600,7 +621,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.recordMessageSent();
       this.emitSelfEcho(normalizedChannel, message, localFragments, true);
     } catch (error) {
-      console.error(`Failed to send action to ${normalizedChannel}:`, error);
+      logger.error("Chat:Twitch", "Failed to send action", {
+        channel: normalizedChannel,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -632,7 +659,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.recordMessageSent();
       this.emitSelfEcho(normalizedChannel, message, localFragments, false);
     } catch (error) {
-      console.error(`Failed to send reply in ${normalizedChannel}:`, error);
+      logger.error("Chat:Twitch", "Failed to send reply", {
+        channel: normalizedChannel,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -685,7 +718,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
           // if (this.debugMode) console.warn(`[TMI] ${msg}`);
         },
         error: (msg: string) => {
-          console.error(`[TMI] ${msg}`);
+          logger.error("Chat:Twitch", msg);
         },
       },
       connection: {
@@ -943,7 +976,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
               this.accessToken = fresh;
             }
           } catch (err) {
-            console.warn("Twitch chat token refresh before reconnect failed:", err);
+            logger.warn("Chat:Twitch", "Token refresh before reconnect failed", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
         }
 
@@ -957,7 +995,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
             }
           }
         } catch (error) {
-          console.error("Reconnection failed:", error);
+          logger.error("Chat:Twitch", "Reconnection failed", {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
         }
       });
     } else {
@@ -970,7 +1013,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    * Handle connection error
    */
   private handleConnectionError(error: unknown): void {
-    console.error("Twitch chat connection error:", error);
+    logger.error("Chat:Twitch", "Connection error", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     this.setConnectionState("disconnected");
     this.emit("error", error instanceof Error ? error : new Error(String(error)));
   }
@@ -1024,7 +1072,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    */
   private log(message: string): void {
     if (this.debugMode) {
-      console.debug(`[TwitchChat] ${message}`);
+      logger.debug("Chat:Twitch", message);
     }
   }
 }

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/cross-logger";
 import type { KickUser } from "../../../../../shared/auth-types";
 import { kickAuthService } from "../../../../auth/kick-auth";
 import type { KickRequestor } from "../kick-requestor";
@@ -30,7 +31,12 @@ export async function getUsersById(client: KickRequestor, ids: number[]): Promis
 
     return response.data || [];
   } catch (error) {
-    console.error("Failed to fetch Kick users:", error);
+    logger.error("Kick:Endpoints:User", "Failed to fetch Kick users", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return [];
   }
 }

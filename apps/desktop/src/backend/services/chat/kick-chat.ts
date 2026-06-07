@@ -6,6 +6,9 @@
  */
 
 import Pusher from "pusher-js";
+// Cross-logger: imported by renderer chat components — avoids dragging
+// electron-log into the renderer bundle.
+import { logger } from "@/lib/cross-logger";
 import { sleep } from "@/lib/sleep";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 // ... imports
@@ -13,7 +16,6 @@ import type {
   ChatBadge,
   ChatConnectionState,
   ChatConnectionStatus,
-  ChatMessage,
   ChatServiceEvents,
   ContentFragment,
   KickPinnedMessage,
@@ -557,7 +559,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       this.emitConnectionStatus();
       this.log(`Joined channel: ${normalizedChannel} (chatroom: ${chatroomId})`);
     } catch (error) {
-      console.error(`Failed to join channel ${normalizedChannel}:`, error);
+      logger.error("Chat:Kick", "Failed to join channel", {
+        channel: normalizedChannel,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -802,7 +810,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         }
 
         // Log non-transient Pusher errors
-        console.warn("Pusher error:", {
+        logger.warn("Chat:Kick", "Pusher error", {
           type: errorObj.type,
           code,
           message: errorObj.data?.message,
@@ -818,7 +826,12 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         // Otherwise, let Pusher handle reconnection
       } else {
         // Unknown error format - log but don't emit unless it looks fatal
-        console.warn("Pusher connection issue:", error);
+        logger.warn("Chat:Kick", "Pusher connection issue", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         // Don't emit transient errors to avoid alarming the UI
       }
     });
@@ -934,7 +947,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     });
 
     pusherChannel.bind("pusher:subscription_error", (error: unknown) => {
-      console.error(`Subscription error for ${channelSlug}:`, error);
+      logger.error("Chat:Kick", "Subscription error", {
+        channel: channelSlug,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
     });
   }
 
@@ -1011,7 +1030,12 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
             }
           }
         } catch (error) {
-          console.error("Reconnection failed:", error);
+          logger.error("Chat:Kick", "Reconnection failed", {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
         }
       });
     } else {
@@ -1024,7 +1048,12 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * Handle connection error
    */
   private handleConnectionError(error: unknown): void {
-    console.error("Kick chat connection error:", error);
+    logger.error("Chat:Kick", "Connection error", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     this.setConnectionState("disconnected");
     this.emit("error", error instanceof Error ? error : new Error(String(error)));
   }
@@ -1078,7 +1107,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    */
   private log(message: string): void {
     if (this.debugMode) {
-      console.debug(`[KickChat] ${message}`);
+      logger.debug("Chat:Kick", message);
     }
   }
 }

@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { logger } from "@/renderer/logging/logger";
+
 import type { UnifiedChannel } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
@@ -17,7 +19,10 @@ export function useFollowedChannels(platform: Platform, options: { enabled?: boo
     queryFn: async () => {
       const response = await window.electronAPI.channels.getFollowed({ platform });
       if (response.error) {
-        console.warn(`Failed to fetch followed channels for ${platform}:`, response.error);
+        logger.warn("Hook:Queries:Channels", "failed to fetch followed channels", {
+          platform,
+          error: response.error,
+        });
         return [];
       }
       return response.data as UnifiedChannel[];

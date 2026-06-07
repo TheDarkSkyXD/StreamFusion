@@ -5,6 +5,8 @@
  * Inspired by Ghostery's onBeforeRequest pattern.
  */
 
+import { logger } from "@/backend/logging/logger";
+
 interface BlockStats {
   totalBlocked: number;
   byCategory: Record<string, number>;
@@ -99,7 +101,10 @@ class NetworkAdBlockService {
     if (this.stats.recentBlocked.length > 50) {
       this.stats.recentBlocked.pop();
     }
-    console.debug(`[NetworkAdBlock] Blocked: ${rule.description}`);
+    logger.debug("Service:NetworkAdblock", "Blocked request", {
+      description: rule.description,
+      category: rule.category,
+    });
   }
 
   enable(): void {

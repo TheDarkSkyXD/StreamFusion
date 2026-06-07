@@ -3,6 +3,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { app } from "electron";
 
+import { logger } from "@/lib/cross-logger";
 import type { Platform } from "../../shared/auth-types";
 import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../../shared/mod-log-types";
 
@@ -66,7 +67,7 @@ export class DatabaseService {
       fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    console.debug(`📂 Initializing SQLite database at: ${dbPath}`);
+    logger.debug("Service:DB", "Initializing SQLite database", { dbPath });
 
     this.db = new Database(dbPath);
     this.errCheck();
@@ -103,7 +104,7 @@ export class DatabaseService {
 
     if (!hasSourceColumn && tableInfo.length > 0) {
       // Table exists but without source column — migrate
-      console.debug("🔄 Migrating local_follows: adding source column...");
+      logger.debug("Service:DB", "Migrating local_follows: adding source column");
       this.database.exec(
         `ALTER TABLE local_follows ADD COLUMN source TEXT NOT NULL DEFAULT 'guest'`
       );
@@ -125,7 +126,7 @@ export class DatabaseService {
         DROP TABLE local_follows;
         ALTER TABLE local_follows_new RENAME TO local_follows;
       `);
-      console.debug("✅ Migration complete: source column added");
+      logger.debug("Service:DB", "Migration complete: source column added");
     } else if (tableInfo.length === 0) {
       // Fresh install — create with source column
       this.database.exec(`
@@ -158,8 +159,9 @@ export class DatabaseService {
       .prepare("SELECT 1 FROM local_follows WHERE source IN ('account', 'local') LIMIT 1")
       .get();
     if (legacyRow) {
-      console.debug(
-        "🔄 Migrating local_follows source values: 'account'/'local' → platform name..."
+      logger.debug(
+        "Service:DB",
+        "Migrating local_follows source values: 'account'/'local' → platform name"
       );
       this.database.exec(`
         -- Step 1: drop the redundant 'local' row when a same-channel 'account' row exists.
@@ -177,7 +179,7 @@ export class DatabaseService {
         -- Step 2: rename source to platform value.
         UPDATE local_follows SET source = platform WHERE source IN ('account', 'local');
       `);
-      console.debug("✅ Migration complete: source values are now {guest, kick, twitch}");
+      logger.debug("Service:DB", "Migration complete: source values are now {guest, kick, twitch}");
     }
 
     // 3. Mod Log
@@ -225,7 +227,7 @@ export class DatabaseService {
         ON pending_follow_writes(platform);
     `);
 
-    console.debug("✅ SQLite Schema initialized");
+    logger.debug("Service:DB", "SQLite Schema initialized");
   }
 
   // ========== Key-Value Operations ==========

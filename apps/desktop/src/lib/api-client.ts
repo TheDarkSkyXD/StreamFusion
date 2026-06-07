@@ -1,5 +1,7 @@
 import ky from "ky";
 
+import { logger } from "@/renderer/logging/logger";
+
 /**
  * Generic API client based on Ky.
  *
@@ -26,7 +28,11 @@ const apiClient = ky.create({
       (request, _options, response) => {
         if (!response.ok) {
           // Centralized error logging can go here
-          console.warn(`[API Error] ${request.method} ${request.url} - ${response.status}`);
+          logger.warn("Lib:ApiClient", "request failed", {
+            method: request.method,
+            url: request.url,
+            status: response.status,
+          });
         }
       },
     ],

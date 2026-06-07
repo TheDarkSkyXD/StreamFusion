@@ -10,6 +10,7 @@
 import { safeStorage } from "electron";
 import Store from "electron-store";
 
+import { logger } from "@/lib/cross-logger";
 import {
   type AuthToken,
   DEFAULT_USER_PREFERENCES,
@@ -67,9 +68,9 @@ class StorageService {
 
     // Check if safeStorage encryption is available
     this.isEncryptionAvailable = safeStorage.isEncryptionAvailable();
-    console.debug(
-      `🔐 Storage service initialized. Encryption available: ${this.isEncryptionAvailable}`
-    );
+    logger.debug("Service:Storage", "Storage service initialized", {
+      encryptionAvailable: this.isEncryptionAvailable,
+    });
   }
 
   private get storeInstance(): Store<StorageSchema> {
@@ -87,7 +88,7 @@ class StorageService {
   private encryptToken(token: string): EncryptedToken {
     if (!this.isEncryptionAvailable) {
       // Fallback: Store as base64 (less secure, but works in dev)
-      console.warn("⚠️ safeStorage not available, using base64 fallback");
+      logger.warn("Service:Storage", "safeStorage not available, using base64 fallback");
       return { encrypted: Buffer.from(token).toString("base64") };
     }
 
@@ -121,7 +122,7 @@ class StorageService {
     this.storeInstance.set("authTokens", tokens);
     this.tokenCache.set(platform, token);
 
-    console.debug(`✅ Token saved for ${platform}`);
+    logger.debug("Service:Storage", "Token saved", { platform });
   }
 
   /**
@@ -144,7 +145,13 @@ class StorageService {
       this.tokenCache.set(platform, token);
       return token;
     } catch (error) {
-      console.error(`Failed to decrypt token for ${platform}:`, error);
+      logger.error("Service:Storage", "Failed to decrypt token", {
+        platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return null;
     }
   }
@@ -182,7 +189,7 @@ class StorageService {
     delete tokens[platform];
     this.storeInstance.set("authTokens", tokens);
     this.tokenCache.delete(platform);
-    console.debug(`🗑️ Token cleared for ${platform}`);
+    logger.debug("Service:Storage", "Token cleared", { platform });
   }
 
   /**
@@ -192,7 +199,7 @@ class StorageService {
     this.storeInstance.set("authTokens", {});
     this.storeInstance.set("appTokens", {});
     this.tokenCache.clear();
-    console.debug("🗑️ All tokens cleared");
+    logger.debug("Service:Storage", "All tokens cleared");
   }
 
   // ========== App Token Management (Electron Store) ==========
@@ -208,7 +215,7 @@ class StorageService {
     tokens[platform] = encrypted;
     this.storeInstance.set("appTokens", tokens);
 
-    console.debug(`✅ App Token saved for ${platform}`);
+    logger.debug("Service:Storage", "App token saved", { platform });
   }
 
   /**
@@ -226,7 +233,13 @@ class StorageService {
       const tokenString = this.decryptToken(encrypted);
       return JSON.parse(tokenString) as AuthToken;
     } catch (error) {
-      console.error(`Failed to decrypt app token for ${platform}:`, error);
+      logger.error("Service:Storage", "Failed to decrypt app token", {
+        platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       return null;
     }
   }
@@ -356,7 +369,10 @@ class StorageService {
     source: FollowSource = "guest"
   ): LocalFollow {
     const newFollow = dbService.addFollow(follow, source);
-    console.debug(`➕ Added ${source} follow: ${follow.displayName}`);
+    logger.debug("Service:Storage", "Added follow", {
+      source,
+      displayName: follow.displayName,
+    });
     return newFollow;
   }
 
@@ -366,7 +382,7 @@ class StorageService {
   removeLocalFollow(id: string): boolean {
     const success = dbService.removeFollow(id);
     if (success) {
-      console.debug(`➖ Removed local follow: ${id}`);
+      logger.debug("Service:Storage", "Removed local follow", { id });
     }
     return success;
   }
@@ -400,7 +416,7 @@ class StorageService {
         count++;
       }
     }
-    console.debug(`📥 Imported ${count} new follows`);
+    logger.debug("Service:Storage", "Imported new follows", { count });
     return count;
   }
 
@@ -413,7 +429,7 @@ class StorageService {
    */
   clearAccountFollows(platform: Platform): void {
     dbService.clearFollowsByPlatformAndSource(platform, platform);
-    console.debug(`🗑️ ${platform} follows cleared`);
+    logger.debug("Service:Storage", "Platform follows cleared", { platform });
   }
 
   /**
@@ -435,9 +451,12 @@ class StorageService {
     follows: Array<Omit<LocalFollow, "id" | "followedAt">>
   ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number } {
     const result = dbService.upsertSyncedFollows(platform, follows);
-    console.debug(
-      `🔄 Synced ${platform} follows (account=${result.accountCount}, added=${result.addedCount}, pending=${result.pendingCount})`
-    );
+    logger.debug("Service:Storage", "Synced follows", {
+      platform,
+      accountCount: result.accountCount,
+      addedCount: result.addedCount,
+      pendingCount: result.pendingCount,
+    });
     return result;
   }
 
@@ -446,7 +465,7 @@ class StorageService {
    */
   clearLocalFollowsByPlatform(platform: Platform): void {
     dbService.clearFollowsByPlatform(platform);
-    console.debug(`🗑️ Local follows cleared for ${platform}`);
+    logger.debug("Service:Storage", "Local follows cleared for platform", { platform });
   }
 
   /**
@@ -454,7 +473,7 @@ class StorageService {
    */
   clearLocalFollows(): void {
     dbService.clearFollows();
-    console.debug("🗑️ All local follows cleared");
+    logger.debug("Service:Storage", "All local follows cleared");
   }
 
   // ========== Pending Follow Writes (Push-Sync Reconciliation) ==========
@@ -576,7 +595,7 @@ class StorageService {
     // Also clear DB
     dbService.clearKeyValue(); // Though we aren't using this part anymore, good to be safe
     dbService.clearFollows();
-    console.debug("🗑️ All storage cleared");
+    logger.debug("Service:Storage", "All storage cleared");
   }
 
   /**

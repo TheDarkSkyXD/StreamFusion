@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import type { StreamPlayback } from "@/components/player/types";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 
 // Maximum reload attempts before giving up (prevents infinite loops)
@@ -196,6 +197,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     }, [])
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `reloadKey` is the manual re-fetch trigger; the body doesn't read it
   useEffect(() => {
     if (!identifier) return;
 
@@ -219,7 +221,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
           const usingProxy =
             (playbackUrl.includes("cdn-perfprod.com") || playbackUrl.includes("luminous.dev")) &&
             !forceNoProxy;
-          console.debug(`[useStreamPlayback] Loaded URL:`, {
+          logger.debug("Hook:StreamPlayback", "loaded URL", {
             url:
               typeof playbackUrl === "string"
                 ? `${playbackUrl.substring(0, 80)}...`
@@ -240,7 +242,14 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
           const isExpectedError =
             errorMessageLower.includes("offline") || errorMessageLower.includes("not found");
           if (!isExpectedError) {
-            console.error(`Failed to load stream playback for ${platform}/${identifier}`, err);
+            logger.error("Hook:StreamPlayback", "failed to load stream playback", {
+              platform,
+              identifier,
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
           }
           setError(error);
           setIsLoading(false);
@@ -254,9 +263,12 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     const staggerDelay = instanceOrder * STAGGER_DELAY_MS;
 
     if (staggerDelay > 0) {
-      console.debug(
-        `[useStreamPlayback] Staggering ${platform}/${identifier} by ${staggerDelay}ms (instance ${instanceOrder})`
-      );
+      logger.debug("Hook:StreamPlayback", "staggering fetch", {
+        platform,
+        identifier,
+        staggerDelayMs: staggerDelay,
+        instanceOrder,
+      });
       pendingFetchRef.current = fetchUrl;
       staggerTimer.start(staggerDelay);
     } else {
@@ -274,7 +286,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   }, [platform, identifier, forceNoProxy, instanceId, staggerTimer, reloadKey]);
 
   const retryWithoutProxy = useCallback(() => {
-    console.debug("[useStreamPlayback] Retrying without proxy (fallback to direct)");
+    logger.debug("Hook:StreamPlayback", "retrying without proxy (fallback to direct)");
     setForceNoProxy(true);
     setPlayback(null);
     setError(null);
@@ -285,9 +297,9 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   // Uses a ref for synchronous tracking since React state updates are async/batched
   const reload = useCallback(() => {
     if (reloadAttemptsRef.current >= MAX_RELOAD_ATTEMPTS) {
-      console.debug(
-        `[useStreamPlayback] Max reload attempts (${MAX_RELOAD_ATTEMPTS}) reached, stopping`
-      );
+      logger.debug("Hook:StreamPlayback", "max reload attempts reached, stopping", {
+        maxReloadAttempts: MAX_RELOAD_ATTEMPTS,
+      });
       setError(new Error("Max reload attempts reached - stream may be offline"));
       return;
     }

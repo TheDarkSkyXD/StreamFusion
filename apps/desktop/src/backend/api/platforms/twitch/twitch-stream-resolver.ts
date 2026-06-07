@@ -5,6 +5,7 @@
  * No API key required — uses the public GQL client.
  */
 
+import { logger } from "@/backend/logging/logger";
 import * as GqlClient from "./twitch-gql-client";
 
 export class TwitchStreamResolver {
@@ -31,7 +32,13 @@ export class TwitchStreamResolver {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (!errorMessage.toLowerCase().includes("offline")) {
-        console.error("Failed to resolve Twitch stream URL for:", channelLogin, error);
+        logger.error("Twitch:StreamResolver", "Failed to resolve Twitch stream URL", {
+          channelLogin,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
       }
       throw error;
     }
@@ -49,7 +56,13 @@ export class TwitchStreamResolver {
         format: "hls",
       };
     } catch (error) {
-      console.error("Failed to resolve Twitch VOD URL for:", vodId, error);
+      logger.error("Twitch:StreamResolver", "Failed to resolve Twitch VOD URL", {
+        vodId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }
@@ -95,7 +108,13 @@ export class TwitchStreamResolver {
         qualities: mappedQualities,
       };
     } catch (error) {
-      console.error("Failed to get clip playback URL:", clipSlug, error);
+      logger.error("Twitch:StreamResolver", "Failed to get clip playback URL", {
+        clipSlug,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
       throw error;
     }
   }

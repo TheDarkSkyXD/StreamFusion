@@ -18,6 +18,7 @@ import type Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
+import { logger } from "@/renderer/logging/logger";
 
 import type { QualityLevel } from "../types";
 
@@ -276,9 +277,12 @@ export function useAdaptiveQuality({
     const targetQualityId = findQualityForTier(effectiveTier, qualities);
 
     if (targetQualityId && targetQualityId !== currentQualityId && targetQualityId !== "auto") {
-      console.debug(
-        `[AdaptiveQuality] Adjusting quality: ${currentQualityId} -> ${targetQualityId} (tier: ${effectiveTier}, buffer: ${bufferHealth})`
-      );
+      logger.debug("Player:Hook:AdaptiveQuality", "adjusting quality", {
+        from: currentQualityId,
+        to: targetQualityId,
+        tier: effectiveTier,
+        bufferHealth,
+      });
 
       onQualityChange(targetQualityId);
       lastChangeTimeRef.current = now;
@@ -312,7 +316,9 @@ export function useAdaptiveQuality({
 
     const handleStall = () => {
       stallCountRef.current++;
-      console.debug("[AdaptiveQuality] Buffer stall detected, count:", stallCountRef.current);
+      logger.debug("Player:Hook:AdaptiveQuality", "buffer stall detected", {
+        count: stallCountRef.current,
+      });
 
       // After 2 stalls, consider quality adjustment
       if (stallCountRef.current >= 2) {
@@ -347,7 +353,7 @@ export function useAdaptiveQuality({
     }
 
     const handleConnectionChange = () => {
-      console.debug("[AdaptiveQuality] Network change detected");
+      logger.debug("Player:Hook:AdaptiveQuality", "network change detected");
       maybeAdjustQuality();
     };
 
@@ -369,7 +375,10 @@ export function useAdaptiveQuality({
         if (prev.bufferHealth !== health) {
           // Log significant changes
           if (health === "critical" || prev.bufferHealth === "critical") {
-            console.debug(`[AdaptiveQuality] Buffer health: ${prev.bufferHealth} -> ${health}`);
+            logger.debug("Player:Hook:AdaptiveQuality", "buffer health changed", {
+              from: prev.bufferHealth,
+              to: health,
+            });
           }
           return { ...prev, bufferHealth: health };
         }

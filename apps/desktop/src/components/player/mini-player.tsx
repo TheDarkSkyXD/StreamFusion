@@ -13,6 +13,7 @@ import type { PlayerError } from "@/components/player/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { cn } from "@/lib/utils";
+import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { usePipStore } from "@/store/pip-store";
@@ -169,7 +170,7 @@ export function MiniPlayer() {
     if (!video) return;
 
     if (video.paused) {
-      video.play().catch(console.error);
+      video.play().catch((error) => logger.error("Player:Mini", "play failed", { error }));
     } else {
       video.pause();
     }
@@ -201,14 +202,16 @@ export function MiniPlayer() {
         error.shouldRefresh === true;
 
       if (isRefreshable && reloadAttempts < MAX_REFRESH_ATTEMPTS) {
-        console.debug(
-          `[MiniPlayer] ${error.code} - refreshing URL (attempt ${reloadAttempts + 1}/${MAX_REFRESH_ATTEMPTS})`
-        );
+        logger.debug("Player:Mini", "refreshing URL after refreshable error", {
+          code: error.code,
+          attempt: reloadAttempts + 1,
+          maxAttempts: MAX_REFRESH_ATTEMPTS,
+        });
         reload();
         return;
       }
 
-      console.error("[MiniPlayer] Error (refresh exhausted):", error);
+      logger.error("Player:Mini", "error (refresh exhausted)", { error });
       setHasError(true);
       if (error.code === "STREAM_OFFLINE") {
         closePip();

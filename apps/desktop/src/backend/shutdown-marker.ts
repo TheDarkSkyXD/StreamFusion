@@ -12,6 +12,8 @@ import * as path from "node:path";
 
 import { app } from "electron";
 
+import { logger } from "@/backend/logging/logger";
+
 let cachedPath: string | null = null;
 
 function getMarkerPath(): string {
@@ -26,7 +28,9 @@ export function markCleanShutdown(): void {
   try {
     fs.writeFileSync(getMarkerPath(), new Date().toISOString());
   } catch (e) {
-    console.warn("⚠️ Failed to write clean shutdown marker:", e);
+    logger.warn("Main:Shutdown", "Failed to write clean shutdown marker", {
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
   }
 }
 
@@ -45,6 +49,8 @@ export function markSessionStarted(): void {
       fs.unlinkSync(marker);
     }
   } catch (e) {
-    console.warn("⚠️ Failed to remove clean shutdown marker:", e);
+    logger.warn("Main:Shutdown", "Failed to remove clean shutdown marker", {
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
   }
 }
