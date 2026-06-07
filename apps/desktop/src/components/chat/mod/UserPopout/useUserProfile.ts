@@ -8,16 +8,11 @@
  * graceful fallback. Auxiliary fetches that 401 are treated as
  * "not following / not subscribed" so the popout always opens.
  *
- * Results are session-cached at 5-minute TTL via
- * `useUserProfileCacheStore`. Cache hits skip the network entirely.
+ * Results are session-cached at 5-minute TTL via React Query's queryCache.
+ * Cache hits skip the network entirely.
  */
 
-import { useEffect, useRef, useState } from "react";
-
-import {
-  userProfileCacheKey,
-  useUserProfileCacheStore,
-} from "@/store/user-profile-cache-store";
+import { useQuery } from "@tanstack/react-query";
 
 export interface UserProfile {
   userId: string;
@@ -43,6 +38,7 @@ export interface UserProfile {
 
 const HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const HELIX_BASE = "https://api.twitch.tv/helix";
+const PROFILE_TTL_MS = 5 * 60 * 1000;
 
 interface HelixUser {
   id: string;
@@ -65,7 +61,7 @@ interface HelixSubscription {
 async function fetchTwitchProfile(
   userId: string,
   channelId: string,
-  accessToken: string | null,
+  accessToken: string | null
 ): Promise<UserProfile | null> {
   const headers: Record<string, string> = {
     "Client-Id": HELIX_CLIENT_ID,
@@ -85,7 +81,7 @@ async function fetchTwitchProfile(
     try {
       const followRes = await fetch(
         `${HELIX_BASE}/channels/followed?user_id=${userId}&broadcaster_id=${channelId}`,
-        { headers },
+        { headers }
       );
       if (followRes.ok) {
         const body = (await followRes.json()) as { data: HelixFollow[] };
@@ -97,7 +93,7 @@ async function fetchTwitchProfile(
     try {
       const subRes = await fetch(
         `${HELIX_BASE}/subscriptions/user?broadcaster_id=${channelId}&user_id=${userId}`,
-        { headers },
+        { headers }
       );
       if (subRes.ok) {
         const body = (await subRes.json()) as { data: HelixSubscription[] };
@@ -142,14 +138,14 @@ interface KickUserApi {
 async function fetchKickProfile(
   userId: string,
   username: string,
-  channelSlug: string,
+  channelSlug: string
 ): Promise<UserProfile | null> {
   // Try the public channel-user endpoint first.
   try {
     const res = await fetch(
       `https://kick.com/api/v2/channels/${encodeURIComponent(
-        channelSlug,
-      )}/users/${encodeURIComponent(username)}`,
+        channelSlug
+      )}/users/${encodeURIComponent(username)}`
     );
     if (res.ok) {
       const body = (await res.json()) as KickUserApi;
@@ -197,71 +193,39 @@ export function useUserProfile(
   platform: "twitch" | "kick",
   channelId: string | null,
   username?: string,
-  channelSlug?: string,
+  channelSlug?: string
 ): UseUserProfileResult {
-  const cacheGet = useUserProfileCacheStore((s) => s.get);
-  const cacheSet = useUserProfileCacheStore((s) => s.set);
-
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestIdRef = useRef(0);
-
-  useEffect(() => {
-    if (!userId || !channelId) {
-      setProfile(null);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    const key = userProfileCacheKey(platform, userId, channelId);
-    const cached = cacheGet(key);
-    if (cached) {
-      setProfile(cached);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setProfile(null);
-
-    const requestId = ++requestIdRef.current;
-    (async () => {
-      try {
-        let next: UserProfile | null = null;
-        if (platform === "twitch") {
-          let accessToken: string | null = null;
-          try {
-            const token = await window.electronAPI.auth.getToken("twitch");
-            accessToken = token?.accessToken ?? null;
-          } catch {
-            accessToken = null;
-          }
-          next = await fetchTwitchProfile(userId, channelId, accessToken);
-        } else {
-          next = await fetchKickProfile(userId, username ?? userId, channelSlug ?? "");
+  const query = useQuery<UserProfile, Error>({
+    queryKey: ["userProfile", platform, userId, channelId, username, channelSlug],
+    queryFn: async () => {
+      let next: UserProfile | null;
+      if (platform === "twitch") {
+        let accessToken: string | null = null;
+        try {
+          const token = await window.electronAPI.auth.getToken("twitch");
+          accessToken = token?.accessToken ?? null;
+        } catch {
+          accessToken = null;
         }
-        if (requestId !== requestIdRef.current) return;
-        if (!next) {
-          setProfile(null);
-          setError("not-found");
-          setLoading(false);
-          return;
-        }
-        cacheSet(key, next);
-        setProfile(next);
-        setLoading(false);
-      } catch (err) {
-        if (requestId !== requestIdRef.current) return;
-        setProfile(null);
-        setError(err instanceof Error ? err.message : "fetch-failed");
-        setLoading(false);
+        // userId / channelId are guaranteed non-null here — `enabled` gates on them.
+        next = await fetchTwitchProfile(userId!, channelId!, accessToken);
+      } else {
+        next = await fetchKickProfile(userId!, username ?? userId!, channelSlug ?? "");
       }
-    })();
-  }, [userId, platform, channelId, username, channelSlug, cacheGet, cacheSet]);
+      if (!next) throw new Error("not-found");
+      return next;
+    },
+    enabled: !!userId && !!channelId,
+    staleTime: PROFILE_TTL_MS,
+    retry: false,
+  });
 
-  return { profile, loading, error };
+  if (!userId || !channelId) {
+    return { profile: null, loading: false, error: null };
+  }
+  return {
+    profile: query.data ?? null,
+    loading: query.isPending,
+    error: query.error?.message ?? null,
+  };
 }
