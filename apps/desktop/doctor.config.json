@@ -1,0 +1,18 @@
+{
+  "ignore": {
+    "overrides": [
+      {
+        "files": [
+          "src/components/player/player-controls.tsx",
+          "src/components/player/twitch/twitch-player-controls.tsx",
+          "src/components/player/twitch/twitch-live-player-controls.tsx",
+          "src/components/player/twitch/twitch-vod-player-controls.tsx",
+          "src/components/player/kick/kick-player-controls.tsx",
+          "src/components/player/kick/kick-live-player-controls.tsx",
+          "src/components/player/kick/kick-vod-player-controls.tsx"
+        ],
+        "rules": ["react-doctor/no-adjust-state-on-prop-change"]
+      }
+    ]
+  }
+}
