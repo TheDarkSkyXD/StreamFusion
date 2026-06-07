@@ -1,0 +1,5 @@
+# Do not split twitch-adblock-service.ts
+
+`components/player/twitch/twitch-adblock-service.ts` is 1,074 lines and looks like a textbook god-object candidate, but it mirrors the external [VAFT / TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions) project and its shape tracks upstream churn. Test coverage already exists across five files in `tests/adblock/`, the module is partly split (`twitch-adblock-loader.ts`, `network-adblock-service.ts`), and module-level state is the natural shape for a script-like ad-detection layer that runs once per playlist fetch. Splitting it into M3U8Parser / AdSegmentFilter / Coordinator was considered and rejected during a 2026-06-06 architecture review: the line count is a misleading signal, and the cost of diverging from VAFT (which we periodically port fixes from) outweighs the locality gain.
+
+Revisit only if (a) a future ad-detection failure becomes hard to reproduce in tests, (b) module-level state actually causes a parallel-test race, or (c) we stop tracking VAFT upstream and own the implementation outright.

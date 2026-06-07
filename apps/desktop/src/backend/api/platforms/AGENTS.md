@@ -1,5 +1,10 @@
 # PLATFORM API CLIENTS
 
+**Read this file before modifying code in this directory.**
+
+## Purpose
+Owns all HTTP/GQL communication with Twitch and Kick. Platform-specific clients, requestors, endpoint definitions, and response transformers. Does NOT own: chat WebSocket connections (see `../../services/chat/AGENTS.md`), UI components, or state management.
+
 ## OVERVIEW
 Twitch and Kick API implementations with unified type transformers.
 
