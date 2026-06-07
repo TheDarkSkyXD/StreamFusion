@@ -28,6 +28,7 @@ import { installConsoleIntercept } from "./backend/logging/console-intercept";
 import { installCrashHooks } from "./backend/logging/crash-hooks";
 import { computeLogPaths, setBugReportsDir } from "./backend/logging/log-paths";
 import { getCurrentLogPath, initLogger, logger, shutdownLogger } from "./backend/logging/logger";
+import { installNativeStderrIntercept } from "./backend/logging/native-stderr-intercept";
 import {
   getCurrentNoisePath,
   initNoiseLogger,
@@ -146,6 +147,13 @@ installConsoleIntercept();
 setMainLogSink((level, tag, message, meta) => {
   logger[level](tag, message, meta);
 });
+
+// Capture lines written directly to process.stderr / process.stdout by
+// native Chromium / Electron internals. Must come AFTER initLogger /
+// installConsoleIntercept / setMainLogSink so all logging routes are live
+// before native intercept goes hot — and once installed, lives for the
+// process lifetime (no uninstall on quit).
+installNativeStderrIntercept();
 
 logger.info("Main", "Logging initialized", {
   logFile: getCurrentLogPath(),

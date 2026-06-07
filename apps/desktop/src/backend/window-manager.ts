@@ -195,6 +195,20 @@ class WindowManager {
 
     installContextMenu(this.mainWindow.webContents);
 
+    // Renderer-side console messages from webContents. We only forward
+    // errors here — info/warn/debug already round-trip through the renderer's
+    // console-intercept + IPC bridge, so mirroring them would duplicate every
+    // line. Errors are what the user complained about being missed in the
+    // terminal (Chromium emits some of them straight to stderr from native
+    // code), so capturing them here closes that gap with zero duplicates.
+    this.mainWindow.webContents.on("console-message", (details) => {
+      if (details.level !== "error") return;
+      logger.error("WebContents", details.message, {
+        source: details.sourceId,
+        line: details.lineNumber,
+      });
+    });
+
     // Restore maximized state
     if (savedWindowState?.isMaximized) {
       this.mainWindow.maximize();

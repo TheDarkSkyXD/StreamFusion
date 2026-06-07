@@ -11,10 +11,10 @@
   "main": "./out/main/index.js",
   "scripts": {
     "rebuild-deps": "electron-builder install-app-deps",
-    "dev": "electron-vite dev",
-    "dev:mcp": "electron-vite dev -- --remote-debugging-port=9222",
+    "dev": "node scripts/start-dev.js",
+    "dev:mcp": "node scripts/start-dev.js -- --remote-debugging-port=9222",
     "build": "electron-vite build",
-    "start": "electron-vite dev",
+    "start": "node scripts/start-dev.js",
     "preview": "electron-vite preview",
     "dist": "npm run build && electron-builder --publish never",
     "dist:win": "npm run build && electron-builder --win --publish never",

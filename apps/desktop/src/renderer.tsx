@@ -6,8 +6,10 @@
 
 import { installConsoleIntercept } from "@/renderer/logging/console-intercept";
 import { installNetworkMonitor } from "@/renderer/logging/network-monitor";
+import { installRendererErrorHooks } from "@/renderer/logging/renderer-error-hooks";
 
 installConsoleIntercept();
+installRendererErrorHooks();
 installNetworkMonitor();
 
 import React from "react";
