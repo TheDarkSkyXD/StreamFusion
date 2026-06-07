@@ -12,6 +12,19 @@
           "src/components/player/kick/kick-vod-player-controls.tsx"
         ],
         "rules": ["react-doctor/no-adjust-state-on-prop-change"]
+      },
+      {
+        "files": [
+          "src/components/chat/kick/KickChat.tsx",
+          "src/components/chat/twitch/TwitchChat.tsx"
+        ],
+        "rules": ["react-doctor/no-adjust-state-on-prop-change"]
+      },
+      {
+        "files": [
+          "src/components/ui/proxied-image.tsx"
+        ],
+        "rules": ["react-doctor/no-adjust-state-on-prop-change"]
       }
     ]
   }
