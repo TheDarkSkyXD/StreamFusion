@@ -4,6 +4,8 @@
  * Exports all unified types and interfaces for platform-agnostic API access.
  */
 
+export type { ChannelRef } from "./channel-ref";
+export { idRef, slugRef } from "./channel-ref";
 // Platform client interface
 export type {
   IPlatformClient,
@@ -11,6 +13,12 @@ export type {
   StreamPlaybackInfo,
   StreamQuality,
 } from "./platform-client";
+export type {
+  IPlatformReader,
+  PageOptions,
+  PageResult,
+  TopStreamsOptions,
+} from "./platform-reader";
 // Platform types
 export type {
   ApiError,
@@ -29,3 +37,4 @@ export type {
   UnifiedUser,
   UnifiedVideo,
 } from "./platform-types";
+export { clients } from "./registry";

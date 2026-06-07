@@ -7,14 +7,20 @@
  * Handles authentication and data fetching for stream discovery.
  */
 
-import type { KickUser } from "../../../../shared/auth-types";
+import type { KickUser, Platform } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
 import { sleep } from "@/lib/sleep";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
 } from "../../../services/third-party-cookie-stripper";
+import type {
+  IPlatformReader,
+  PageResult,
+  TopStreamsOptions,
+} from "../../unified/platform-reader";
 import type { UnifiedCategory, UnifiedChannel, UnifiedStream } from "../../unified/platform-types";
+import { clients } from "../../unified/registry";
 
 // Re-export common types for compatibility
 export type { PaginatedResult, PaginationOptions } from "./kick-types";
@@ -117,7 +123,8 @@ const _IMAGE_NEG_CACHE_TTL_MS = 10 * 60 * 1000;
 
 // ========== Kick API Client Class ==========
 
-class KickClient implements KickRequestor {
+class KickClient implements KickRequestor, IPlatformReader {
+  readonly platform: Platform = "kick";
   readonly baseUrl = "https://streamfusion.leveluptogetherbiz.workers.dev/kick";
 
   /**
@@ -560,10 +567,9 @@ class KickClient implements KickRequestor {
    * Get top/featured live streams
    * https://docs.kick.com/apis/livestreams - GET /public/v1/livestreams
    */
-  async getTopStreams(
-    options: PaginationOptions & { categoryId?: string; language?: string } = {}
-  ): Promise<PaginatedResult<UnifiedStream>> {
-    return StreamEndpoints.getTopStreams(this, options);
+  async getTopStreams(options: TopStreamsOptions = {}): Promise<PageResult<UnifiedStream>> {
+    const result = await StreamEndpoints.getTopStreams(this, options);
+    return { data: result.data, cursor: result.cursor };
   }
 
   /**
@@ -705,3 +711,5 @@ class KickClient implements KickRequestor {
 }
 
 export const kickClient = new KickClient();
+
+clients.register(kickClient);

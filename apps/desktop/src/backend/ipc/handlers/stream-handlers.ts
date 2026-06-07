@@ -2,6 +2,8 @@ import { ipcMain } from "electron";
 
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import type { IPlatformReader } from "../../api/unified/platform-reader";
+import { clients } from "../../api/unified/registry";
 import { storageService } from "../../services/storage-service";
 
 export function registerStreamHandlers(): void {
@@ -12,7 +14,9 @@ export function registerStreamHandlers(): void {
   let _kickFollowsAbort: AbortController | null = null;
 
   /**
-   * Get top streams from one or both platforms
+   * Get top streams from one or both platforms.
+   *
+   * Per-platform try/catch is load-bearing — wrapHandler would lose partial results.
    */
   ipcMain.handle(
     IPC_CHANNELS.STREAMS_GET_TOP,
@@ -26,56 +30,30 @@ export function registerStreamHandlers(): void {
         cursor?: string;
       } = {}
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
+      // Touch the adapter modules so their `clients.register(...)` side effect runs.
+      await import("../../api/platforms/twitch/twitch-client");
+      await import("../../api/platforms/kick/kick-client");
 
       try {
-        const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
-
-        const fetchTwitch = async () => {
+        const fetchOne = async (
+          reader: IPlatformReader
+        ): Promise<{ platform: Platform; data: any[]; cursor?: string }> => {
           try {
-            const twitchResult = await twitchClient.getTopStreams({
-              first: params.limit || 20,
-              after: params.cursor,
-              gameId: params.categoryId,
-              language: params.language,
-            });
-            results.push({
-              platform: "twitch",
-              data: twitchResult.data,
-              cursor: twitchResult.cursor,
-            });
-          } catch (err) {
-            console.warn("⚠️ Failed to fetch Twitch top streams:", err);
-          }
-        };
-
-        const fetchKick = async () => {
-          try {
-            const kickResult = await kickClient.getTopStreams({
+            const result = await reader.getTopStreams({
               limit: params.limit || 20,
+              cursor: params.cursor,
               categoryId: params.categoryId,
               language: params.language,
             });
-            results.push({
-              platform: "kick",
-              data: kickResult.data,
-              cursor: kickResult.nextPage?.toString(),
-            });
+            return { platform: reader.platform, data: result.data, cursor: result.cursor };
           } catch (err) {
-            console.warn("⚠️ Failed to fetch Kick top streams:", err);
+            console.warn(`⚠️ Failed to fetch ${reader.platform} top streams:`, err);
+            return { platform: reader.platform, data: [] };
           }
         };
 
-        // Run both platform fetches in parallel when no filter is given.
-        // Per-platform try/catch above means allSettled is never needed for error containment.
-        if (!params.platform) {
-          await Promise.all([fetchTwitch(), fetchKick()]);
-        } else if (params.platform === "twitch") {
-          await fetchTwitch();
-        } else if (params.platform === "kick") {
-          await fetchKick();
-        }
+        const targets = params.platform ? [clients.for(params.platform)] : clients.all();
+        const results = await Promise.all(targets.map((reader) => fetchOne(reader)));
 
         // Merge and sort by viewer count if fetching from both platforms
         if (!params.platform) {

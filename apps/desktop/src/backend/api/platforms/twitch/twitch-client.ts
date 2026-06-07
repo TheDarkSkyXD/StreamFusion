@@ -6,7 +6,13 @@
  * - Helix API (via Cloudflare Worker) for auth-only: followed streams, followed channels, user info
  */
 
-import type { TwitchUser } from "../../../../shared/auth-types";
+import type { Platform, TwitchUser } from "../../../../shared/auth-types";
+import { twitchAuthService } from "../../../auth/twitch-auth";
+import type {
+  IPlatformReader,
+  PageResult,
+  TopStreamsOptions,
+} from "../../unified/platform-reader";
 import type {
   UnifiedCategory,
   UnifiedChannel,
@@ -14,6 +20,7 @@ import type {
   UnifiedStream,
   UnifiedVideo,
 } from "../../unified/platform-types";
+import { clients } from "../../unified/registry";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as GqlClient from "./twitch-gql-client";
@@ -30,7 +37,13 @@ export type { PaginationOptions, PaginatedResult, PaginationEndReason, TwitchCli
 
 // ========== Twitch API Client Class ==========
 
-class TwitchClient extends TwitchRequestor {
+class TwitchClient extends TwitchRequestor implements IPlatformReader {
+  readonly platform: Platform = "twitch";
+
+  isAuthenticated(): boolean {
+    return twitchAuthService.isAuthenticated();
+  }
+
   // ==========================================
   // AUTH-ONLY ENDPOINTS (Helix API via Worker)
   // These require user authentication
@@ -138,15 +151,24 @@ class TwitchClient extends TwitchRequestor {
   /**
    * Get top live streams
    * Uses GQL - no API key needed
+   *
+   * Accepts either the legacy `{first, after, gameId, language}` shape or the
+   * seam-standard `TopStreamsOptions` (`{limit, cursor, categoryId, language}`).
    */
   async getTopStreams(
-    options: PaginationOptions & { gameId?: string; language?: string } = {}
-  ): Promise<PaginatedResult<UnifiedStream>> {
+    options: (PaginationOptions & { gameId?: string; language?: string }) | TopStreamsOptions = {}
+  ): Promise<PageResult<UnifiedStream>> {
+    const normalized: PaginationOptions & { gameId?: string; language?: string } = {
+      first: "first" in options ? options.first : (options as TopStreamsOptions).limit,
+      after: "after" in options ? options.after : (options as TopStreamsOptions).cursor,
+      gameId: "gameId" in options ? options.gameId : (options as TopStreamsOptions).categoryId,
+      language: options.language,
+    };
     try {
-      return await GqlClient.gqlGetTopStreams(options);
+      return await GqlClient.gqlGetTopStreams(normalized);
     } catch (error) {
       console.warn("GQL getTopStreams failed, falling back to Helix:", error);
-      return StreamEndpoints.getTopStreams(this, options);
+      return StreamEndpoints.getTopStreams(this, normalized);
     }
   }
 
@@ -364,3 +386,5 @@ class TwitchClient extends TwitchRequestor {
 // ========== Export Singleton ==========
 
 export const twitchClient = new TwitchClient();
+
+clients.register(twitchClient);
