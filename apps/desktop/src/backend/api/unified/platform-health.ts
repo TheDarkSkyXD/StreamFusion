@@ -7,6 +7,7 @@
  * arrives in a later slice. In-memory only.
  */
 
+import { logger } from "../../logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 
 export type PlatformHealth = "healthy" | "degraded" | "down";
@@ -64,6 +65,7 @@ function evaluate(platform: Platform, now: number): void {
 
   state.status = "degraded";
   state.startedAt = now;
+  logger.warn("PlatformHealth", `${platform} degraded: ${failures}/${state.outcomes.length} requests failed in last 60s. Backing off.`);
   emit({ platform, status: "degraded", startedAt: now });
 }
 
@@ -77,8 +79,10 @@ function evaluateRecovery(platform: Platform, now: number): void {
   const rate = failures / state.outcomes.length;
   if (rate >= RECOVERY_FAILURE_RATE) return;
 
+  const degradedDurationSec = Math.round((now - state.startedAt) / 1000);
   state.status = "healthy";
   state.startedAt = now;
+  logger.warn("PlatformHealth", `${platform} recovered after ${degradedDurationSec}s`);
   emit({ platform, status: "healthy", startedAt: now });
 }
 

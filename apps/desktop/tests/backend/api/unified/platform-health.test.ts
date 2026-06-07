@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "@/backend/logging/logger";
 
 // State-machine tests for the per-Platform health tracker (slice 01 of the
 // platform-outage handling feature). Covers trip-to-degraded, the failure
@@ -354,5 +355,90 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
     // Re-trip with a fresh failure burst.
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     expect(getPlatformHealth("kick")).toBe("degraded");
+  });
+});
+
+describe("platform-health (slice 04: transition logging)", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
+    vi.mocked(logger.warn).mockClear();
+    vi.mocked(logger.debug).mockClear();
+    vi.mocked(logger.info).mockClear();
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    __resetPlatformHealthForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("logs one warn on healthy→degraded with failure counts", async () => {
+    const { recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 6; i++) recordPlatformFailure("kick", "timeout");
+    for (let i = 0; i < 4; i++) recordPlatformSuccess("kick");
+
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "PlatformHealth"
+    );
+    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls[0][1]).toMatch(/kick degraded: \d+\/\d+ requests failed/);
+  });
+
+  it("logs one warn on degraded→healthy with duration", async () => {
+    const { recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    vi.mocked(logger.warn).mockClear();
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "PlatformHealth"
+    );
+    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls[0][1]).toMatch(/kick recovered after 30s/);
+  });
+
+  it("does NOT log while staying healthy", async () => {
+    const { recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 20; i++) recordPlatformSuccess("kick");
+
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "PlatformHealth"
+    );
+    expect(warnCalls).toHaveLength(0);
+  });
+
+  it("does NOT log while staying degraded (only the transition warn)", async () => {
+    const { recordPlatformFailure } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+
+    const warnCalls1 = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "PlatformHealth"
+    );
+    expect(warnCalls1).toHaveLength(1);
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+
+    const warnCalls2 = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "PlatformHealth"
+    );
+    expect(warnCalls2).toHaveLength(1);
   });
 });

@@ -2,7 +2,11 @@ import { net } from "electron";
 import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import { sleep } from "@/lib/sleep";
-import { recordPlatformFailure, recordPlatformSuccess } from "../../../unified/platform-health";
+import {
+  isPlatformHealthy,
+  recordPlatformFailure,
+  recordPlatformSuccess,
+} from "../../../unified/platform-health";
 import type { UnifiedStream } from "../../../unified/platform-types";
 import {
   acquireKickRequestSlot,
@@ -217,6 +221,13 @@ const PUBLIC_STREAM_REQUEST_TIMEOUT_MS = 5000;
 // cycle at worst.
 const PUBLIC_STREAM_POLL_HIT_TTL_MS = 90 * 1000;
 
+const CIRCUIT_PROBE_INTERVAL_MS = 5_000;
+let _lastProbeTimestamp = 0;
+
+export function __resetCircuitProbeForTests(): void {
+  _lastProbeTimestamp = 0;
+}
+
 /**
  * Cancellable sleep used to stagger parallel network dispatches without
  * orphaning timers. Callers pass an AbortSignal from a per-invocation
@@ -269,6 +280,19 @@ export async function getPublicStreamBySlug(
     const cached = _publicStreamSuccessCache.get(key);
     if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
       return cached.data;
+    }
+  }
+
+  if (!isPlatformHealthy("kick")) {
+    const now = Date.now();
+    const isProbe = now - _lastProbeTimestamp >= CIRCUIT_PROBE_INTERVAL_MS;
+    if (isProbe) {
+      _lastProbeTimestamp = now;
+    } else {
+      const cached = _publicStreamSuccessCache.get(key);
+      if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
+        return cached.data;
+      }
     }
   }
 
@@ -491,7 +515,8 @@ async function _doFetchPublicStreamBySlug(
       slug,
       error: { name: lastError.name, message: lastError.message, stack: lastError.stack },
     };
-    if (_publicStreamWarnedSlugs.has(key)) {
+    const isDegraded = !isPlatformHealthy("kick");
+    if (isDegraded || _publicStreamWarnedSlugs.has(key)) {
       logger.debug("Kick:Endpoints:Stream", "Failed to fetch public Kick stream", errorMeta);
     } else {
       logger.warn("Kick:Endpoints:Stream", "Failed to fetch public Kick stream", errorMeta);

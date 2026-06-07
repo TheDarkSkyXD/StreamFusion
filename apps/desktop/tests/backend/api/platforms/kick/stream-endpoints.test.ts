@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "@/backend/logging/logger";
 
 // Guards: Kick public-stream-cache + fan-out 4-part contract (regressions cb0b7b6 + 6d3606d, refactored in 640870a).
 // Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
@@ -56,11 +57,13 @@ vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
 const platformHealthSpies = vi.hoisted(() => ({
   recordPlatformFailure: vi.fn(),
   recordPlatformSuccess: vi.fn(),
+  isPlatformHealthy: vi.fn(() => true),
 }));
 
 vi.mock("@/backend/api/unified/platform-health", () => ({
   recordPlatformFailure: platformHealthSpies.recordPlatformFailure,
   recordPlatformSuccess: platformHealthSpies.recordPlatformSuccess,
+  isPlatformHealthy: platformHealthSpies.isPlatformHealthy,
 }));
 
 const LIVE_BODY = JSON.stringify({
@@ -345,5 +348,108 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
       "server-5xx",
     );
     expect(platformHealthSpies.recordPlatformSuccess).toHaveBeenCalledWith("kick");
+  });
+});
+
+describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => {
+  let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    platformHealthSpies.recordPlatformFailure.mockReset();
+    platformHealthSpies.recordPlatformSuccess.mockReset();
+    platformHealthSpies.isPlatformHealthy.mockReset();
+    platformHealthSpies.isPlatformHealthy.mockReturnValue(true);
+    vi.mocked(logger.warn).mockClear();
+    vi.mocked(logger.debug).mockClear();
+    ({ getPublicStreamBySlug } = await import(
+      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
+    ));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("while healthy, first failure for a slug logs at warn", async () => {
+    platformHealthSpies.isPlatformHealthy.mockReturnValue(true);
+
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+
+    const promise = getPublicStreamBySlug("some-slug");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await promise;
+
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "Kick:Endpoints:Stream"
+    );
+    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls[0][1]).toMatch(/Failed to fetch public Kick stream/);
+  });
+
+  it("while degraded, first failure for a slug logs at debug instead of warn", async () => {
+    platformHealthSpies.isPlatformHealthy.mockReturnValue(false);
+
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+
+    const promise = getPublicStreamBySlug("some-slug");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await promise;
+
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "Kick:Endpoints:Stream"
+    );
+    const debugCalls = vi.mocked(logger.debug).mock.calls.filter(
+      ([tag]) => tag === "Kick:Endpoints:Stream"
+    );
+    expect(warnCalls).toHaveLength(0);
+    expect(debugCalls.length).toBeGreaterThanOrEqual(1);
+    expect(debugCalls.some(([, msg]) => /Failed to fetch public Kick stream/.test(msg))).toBe(true);
+  });
+
+  it("after recovery, a subsequent failure logs at warn again", async () => {
+    platformHealthSpies.isPlatformHealthy.mockReturnValue(true);
+
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+
+    let promise = getPublicStreamBySlug("recover-slug");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await promise;
+
+    const warnCalls1 = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "Kick:Endpoints:Stream"
+    );
+    expect(warnCalls1).toHaveLength(1);
+
+    const { clearKickStreamFailureCache } = await import(
+      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
+    );
+    clearKickStreamFailureCache();
+
+    await vi.advanceTimersByTimeAsync(310_000);
+
+    vi.mocked(logger.warn).mockClear();
+
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
+
+    promise = getPublicStreamBySlug("recover-slug");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await promise;
+
+    const warnCalls2 = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "Kick:Endpoints:Stream"
+    );
+    expect(warnCalls2).toHaveLength(1);
   });
 });
