@@ -254,6 +254,21 @@ app.on("ready", async () => {
   // Mark session as started (remove sentinel until clean shutdown)
   markSessionStarted();
 
+  // Cert-error diagnostic logger. The C++ ssl_client_socket layer logs net errors
+  // without the URL — this hook captures the hostname on failures. callback(-3)
+  // uses the platform default; we never override trust. Tag [cert-debug-r8a2]
+  // makes the block grep-removable once we identify the offending host.
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    if (request.errorCode !== 0 || request.verificationResult !== "net::OK") {
+      console.warn(
+        `[cert-debug-r8a2] Cert validation issue for ${request.hostname}: ` +
+          `errorCode=${request.errorCode}, verificationResult=${request.verificationResult}, ` +
+          `isIssuedByKnownRoot=${request.isIssuedByKnownRoot}`
+      );
+    }
+    callback(-3);
+  });
+
   // Wake-aware Twitch refresh. A laptop that slept across the token's
   // expiry can leave the proactive setTimeout running stale and IRC torn
   // down by Twitch before the renderer notices. On every system resume,
