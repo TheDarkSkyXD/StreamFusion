@@ -51,7 +51,7 @@ interface RoomStateStore {
   updateRoomState: (
     platform: "twitch" | "kick",
     channelId: string,
-    patch: Partial<RoomState>,
+    patch: Partial<RoomState>
   ) => void;
   resetRoomState: (platform: "twitch" | "kick", channelId: string) => void;
 }

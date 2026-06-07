@@ -211,7 +211,10 @@ export interface SubscriberBadge {
  * Map Kick badges to our unified ChatBadge format
  * Uses bundled local badge assets - no external CDN required
  */
-export function parseKickBadges(badges: KickBadge[], subscriberBadges?: SubscriberBadge[]): ChatBadge[] {
+export function parseKickBadges(
+  badges: KickBadge[],
+  subscriberBadges?: SubscriberBadge[]
+): ChatBadge[] {
   return badges.map((badge) => {
     // Use bundled badge assets (embedded as data URIs)
     let imageUrl = getBundledBadgeUrl(badge.type) || "";
@@ -579,27 +582,27 @@ export function parseKickHostRaid(event: KickHostRaidEvent, channel: string): Us
 /**
  * Check if user has broadcaster badge
  */
-export function isBroadcaster(badges: ChatBadge[]): boolean {
+function isBroadcaster(badges: ChatBadge[]): boolean {
   return badges.some((b) => b.setId === "broadcaster");
 }
 
 /**
  * Check if user has moderator badge
  */
-export function isModerator(badges: ChatBadge[]): boolean {
+function isModerator(badges: ChatBadge[]): boolean {
   return badges.some((b) => b.setId === "moderator" || b.setId === "broadcaster");
 }
 
 /**
  * Check if user has VIP badge
  */
-export function isVIP(badges: ChatBadge[]): boolean {
+function isVIP(badges: ChatBadge[]): boolean {
   return badges.some((b) => b.setId === "vip");
 }
 
 /**
  * Check if user has subscriber badge
  */
-export function isSubscriber(badges: ChatBadge[]): boolean {
+function isSubscriber(badges: ChatBadge[]): boolean {
   return badges.some((b) => b.setId === "subscriber" || b.setId === "founder");
 }

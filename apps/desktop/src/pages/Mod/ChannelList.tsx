@@ -53,11 +53,7 @@ export function ChannelList() {
         const token = await window.electronAPI.auth.getToken("twitch");
         const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
         if (!token?.accessToken || !clientId) return;
-        const channels = await getModeratedChannels(
-          twitchUser.id,
-          token.accessToken,
-          clientId,
-        );
+        const channels = await getModeratedChannels(twitchUser.id, token.accessToken, clientId);
         if (!cancelled) setTwitchChannels(channels);
       } finally {
         if (!cancelled) setLoading(false);
@@ -106,11 +102,7 @@ export function ChannelList() {
           {entries.map((e) => (
             <li key={`${e.platform}:${e.channelParam}`}>
               <Link
-                to={
-                  e.platform === "twitch"
-                    ? "/mod/twitch/$channel"
-                    : "/mod/kick/$channel"
-                }
+                to={e.platform === "twitch" ? "/mod/twitch/$channel" : "/mod/kick/$channel"}
                 params={{ channel: e.channelParam }}
                 data-testid={`mod-channel-card-${e.platform}-${e.channelParam}`}
                 className="flex items-center gap-3 rounded border border-[var(--color-border)] bg-white/5 p-3 hover:bg-white/10"
@@ -120,9 +112,7 @@ export function ChannelList() {
                     e.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]"
                   }`}
                 />
-                <span className="flex-1 text-sm font-medium text-white">
-                  {e.displayName}
-                </span>
+                <span className="flex-1 text-sm font-medium text-white">{e.displayName}</span>
                 <span
                   className={`rounded px-2 py-0.5 text-xs font-bold ${
                     e.platform === "twitch"

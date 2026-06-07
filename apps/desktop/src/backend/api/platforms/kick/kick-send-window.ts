@@ -8,8 +8,9 @@
  *
  * Spec: docs/brainstorms/2026-05-29-kick-chat-send-via-v2-broadcast-requirements.md
  */
-import { BrowserWindow, session } from "electron";
+
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
+import { BrowserWindow, session } from "electron";
 
 import { sleep } from "@/lib/sleep";
 
@@ -68,11 +69,7 @@ export function clearBearerForTest(): void {
  *
  * Per spec R20-R21.
  */
-export function buildSendIIFE(
-  chatroomId: number,
-  content: string,
-  bearer: string,
-): string {
+export function buildSendIIFE(chatroomId: number, content: string, bearer: string): string {
   const url = JSON.stringify(`/api/v2/messages/send/${chatroomId}`);
   const c = JSON.stringify(content);
   const b = JSON.stringify(bearer);
@@ -207,7 +204,7 @@ export function installBearerInterceptor(targetSession: Session): void {
         latestKickWebBearer = auth;
       }
       callback({ requestHeaders: details.requestHeaders });
-    },
+    }
   );
 }
 
@@ -305,7 +302,7 @@ async function _reloadAndRecapture(win: BrowserWindow): Promise<void> {
 
 export async function sendKickChatMessage(
   chatroomId: number,
-  content: string,
+  content: string
 ): Promise<KickSendResult> {
   await ensureSendWindowReady();
   if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {

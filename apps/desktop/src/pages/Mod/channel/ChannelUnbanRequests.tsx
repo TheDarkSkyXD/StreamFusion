@@ -34,10 +34,7 @@ const STATUS_OPTIONS: UnbanRequestStatus[] = [
 
 type Pending = { requestId: string; status: "approved" | "denied" };
 
-export function ChannelUnbanRequests({
-  broadcasterId,
-  refreshCounter,
-}: ChannelUnbanRequestsProps) {
+export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelUnbanRequestsProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const [statusFilter, setStatusFilter] = useState<UnbanRequestStatus>("pending");
   const [entries, setEntries] = useState<UnbanRequest[]>([]);
@@ -66,7 +63,7 @@ export function ChannelUnbanRequests({
           moderatorId: twitchUser.id,
           status: statusFilter,
         },
-        getUnbanRequests,
+        getUnbanRequests
       );
       if (!result.ok) {
         setError(`Couldn't load unban requests — ${result.kind}`);
@@ -113,7 +110,9 @@ export function ChannelUnbanRequests({
         resolutionText: resolutionText.trim().length > 0 ? resolutionText.trim() : undefined,
       });
       if (!result.ok) {
-        toast.error(`Couldn't ${pending.status === "approved" ? "approve" : "deny"} — ${result.kind}`);
+        toast.error(
+          `Couldn't ${pending.status === "approved" ? "approve" : "deny"} — ${result.kind}`
+        );
         return;
       }
       setEntries((prev) => prev.filter((e) => e.id !== pending.requestId));

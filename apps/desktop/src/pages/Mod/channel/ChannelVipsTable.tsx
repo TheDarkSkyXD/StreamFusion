@@ -8,16 +8,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import {
   addVip,
   removeVip,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import {
-  getVips,
   type ChannelMember,
+  getVips,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderators-vips";
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import { useAuthStore } from "@/store/auth-store";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
@@ -36,7 +35,7 @@ interface ResolvedUser {
 async function resolveLogin(
   login: string,
   accessToken: string,
-  clientId: string,
+  clientId: string
 ): Promise<ResolvedUser | null> {
   const url = `${HELIX_BASE}/users?login=${encodeURIComponent(login.trim().toLowerCase())}`;
   const res = await fetch(url, {
@@ -49,10 +48,7 @@ async function resolveLogin(
   return body.data?.[0] ?? null;
 }
 
-export function ChannelVipsTable({
-  broadcasterId,
-  refreshCounter,
-}: ChannelVipsTableProps) {
+export function ChannelVipsTable({ broadcasterId, refreshCounter }: ChannelVipsTableProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const [entries, setEntries] = useState<ChannelMember[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -73,10 +69,7 @@ export function ChannelVipsTable({
         setError("Missing Twitch credentials.");
         return;
       }
-      const result = await withTwitchHelixRetry(
-        { accessToken, clientId, broadcasterId },
-        getVips,
-      );
+      const result = await withTwitchHelixRetry({ accessToken, clientId, broadcasterId }, getVips);
       if (!result.ok) {
         setError(`Couldn't load VIPs — ${result.kind}`);
         setEntries([]);
@@ -223,9 +216,7 @@ export function ChannelVipsTable({
         </ul>
       )}
       {hasMore ? (
-        <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">
-          Showing first 100 VIPs.
-        </p>
+        <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">Showing first 100 VIPs.</p>
       ) : null}
     </section>
   );

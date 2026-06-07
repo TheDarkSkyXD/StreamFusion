@@ -64,8 +64,7 @@ export const useDevModOverrideStore = create<DevModOverrideState>()((set) => ({
   setForceModRole: (v) => set({ forceModRole: v }),
   setForceModScopes: (v) => set({ forceModScopes: v }),
   setShowWhisper: (v) => set({ showWhisper: v }),
-  setForceResolvedTwitchBroadcasterId: (id) =>
-    set({ forceResolvedTwitchBroadcasterId: id }),
+  setForceResolvedTwitchBroadcasterId: (id) => set({ forceResolvedTwitchBroadcasterId: id }),
   setForceBroadcasterIdentity: (v) => set({ forceBroadcasterIdentity: v }),
   reset: () =>
     set({

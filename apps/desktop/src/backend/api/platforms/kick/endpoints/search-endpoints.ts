@@ -138,9 +138,7 @@ export async function searchChannels(
           } catch (_e) {
             // Common case: 200 OK but body is cloudflare HTML
             if (body.trim().startsWith("<")) {
-              console.warn(
-                `[KickSearch] Step 2: Endpoint returned HTML (likely bot protection)`
-              );
+              console.warn(`[KickSearch] Step 2: Endpoint returned HTML (likely bot protection)`);
             }
           }
         } else {

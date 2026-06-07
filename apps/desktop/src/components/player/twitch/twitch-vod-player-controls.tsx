@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { LuMaximize, LuMinimize, LuMonitor } from "react-icons/lu";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 
 import { formatDuration } from "@/lib/utils";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";

@@ -33,14 +33,11 @@
  */
 
 import type Pusher from "pusher-js";
+import type { ChatConnectionStatus, UnifiedPrediction } from "../../../shared/chat-types";
 import { getLatestPrediction } from "../../api/platforms/kick/kick-predictions";
-import type {
-  ChatConnectionStatus,
-  UnifiedPrediction,
-} from "../../../shared/chat-types";
+import type { KickPredictionEventPayload } from "../../api/platforms/kick/kick-types";
 import { getKickPusher, kickChatService } from "./kick-chat";
 import { normalizeKickPrediction } from "./kick-prediction-normalizer";
-import type { KickPredictionEventPayload } from "../../api/platforms/kick/kick-types";
 
 export interface KickPredictionsChannelInfo {
   /** Numeric channel id used in the Pusher channel name. Match the value the
@@ -158,7 +155,7 @@ class KickPredictionsService {
         // path; Pusher carries production updates.
         if (process.env.NODE_ENV !== "production") {
           console.debug(
-            `[kick-predictions] REST seed failed for ${entry.channelSlug}: ${result.kind} ${result.message}`,
+            `[kick-predictions] REST seed failed for ${entry.channelSlug}: ${result.kind} ${result.message}`
           );
         }
         return;
@@ -227,7 +224,7 @@ class KickPredictionsService {
     channel.bind("pusher:subscription_succeeded", () => {
       if (process.env.NODE_ENV !== "production") {
         console.debug(
-          `[kick-predictions] subscribed to ${channelName} (anonymous=${!entry.authedRetryAttempted})`,
+          `[kick-predictions] subscribed to ${channelName} (anonymous=${!entry.authedRetryAttempted})`
         );
       }
     });
@@ -239,7 +236,7 @@ class KickPredictionsService {
           entry.warnedSubscriptionFailed = true;
           console.warn(
             `[kick-predictions] subscription failed for ${channelName} after authed retry`,
-            error,
+            error
           );
         }
         return;
@@ -255,7 +252,7 @@ class KickPredictionsService {
       if (process.env.NODE_ENV !== "production") {
         console.debug(
           `[kick-predictions] anonymous subscription failed for ${channelName}, awaiting authed Pusher`,
-          error,
+          error
         );
       }
       // Tear down the failed subscription so we don't accumulate dead bindings.

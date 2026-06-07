@@ -191,7 +191,7 @@ export interface KickApiPublicKey {
 // ========== Official API Scopes ==========
 // Reference: https://docs.kick.com/getting-started/scopes
 
-export const KICK_API_SCOPES = {
+const KICK_API_SCOPES = {
   CHANNEL_READ: "channel:read",
   CHANNEL_WRITE: "channel:write",
   CHANNEL_REWARDS_READ: "channel:rewards:read",

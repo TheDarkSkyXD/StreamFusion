@@ -8,11 +8,7 @@
 
 import type { Platform, TwitchUser } from "../../../../shared/auth-types";
 import { twitchAuthService } from "../../../auth/twitch-auth";
-import type {
-  IPlatformReader,
-  PageResult,
-  TopStreamsOptions,
-} from "../../unified/platform-reader";
+import type { IPlatformReader, PageResult, TopStreamsOptions } from "../../unified/platform-reader";
 import type {
   UnifiedCategory,
   UnifiedChannel,

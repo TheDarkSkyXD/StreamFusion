@@ -27,7 +27,7 @@ import type {
  * Transform official Kick API user to unified user
  * Endpoint: GET /public/v1/users
  */
-export function transformKickUser(user: KickApiUser): UnifiedUser {
+function transformKickUser(user: KickApiUser): UnifiedUser {
   return {
     id: user.user_id.toString(),
     platform: "kick",
@@ -136,7 +136,7 @@ export function transformKickCategory(category: KickApiCategory): UnifiedCategor
 /**
  * Transform Kick channel to unified follow
  */
-export function transformKickFollow(channel: KickApiChannel, followedAt?: string): UnifiedFollow {
+function transformKickFollow(channel: KickApiChannel, followedAt?: string): UnifiedFollow {
   return {
     id: `kick-${channel.broadcaster_user_id}`,
     platform: "kick",
@@ -187,7 +187,7 @@ export function transformKickFollowedChannelLegacy(
  * Transform legacy Kick clip to unified clip
  * Note: Clips are NOT in the official API, this uses legacy undocumented API format
  */
-export function transformKickClip(clip: KickLegacyApiClip): UnifiedClip {
+function transformKickClip(clip: KickLegacyApiClip): UnifiedClip {
   return {
     id: clip.id,
     platform: "kick",

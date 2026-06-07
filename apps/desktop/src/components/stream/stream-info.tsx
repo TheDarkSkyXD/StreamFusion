@@ -8,9 +8,9 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
+import { useInterval } from "@/hooks/useInterval";
 import { useIsKickMod } from "@/hooks/useIsKickMod";
 import { useIsTwitchMod } from "@/hooks/useIsTwitchMod";
-import { useInterval } from "@/hooks/useInterval";
 import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
 
 /**
@@ -63,12 +63,8 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
   // the per-channel retention iterates twitchModeratedChannelIds). Kick
   // mods still get the Global retention card, which controls how long
   // mod_log entries are kept for ALL platforms — that's the main value.
-  const canModerateTwitch = useIsTwitchMod(
-    channel?.platform === "twitch" ? channel.id : null
-  );
-  const canModerateKick = useIsKickMod(
-    channel?.platform === "kick" ? channel.username : null
-  );
+  const canModerateTwitch = useIsTwitchMod(channel?.platform === "twitch" ? channel.id : null);
+  const canModerateKick = useIsKickMod(channel?.platform === "kick" ? channel.username : null);
   const showModButton =
     (channel?.platform === "twitch" && canModerateTwitch) ||
     (channel?.platform === "kick" && canModerateKick);
@@ -210,9 +206,7 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
                   </Link>
                 )}
               </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Open this channel's moderation page
-              </TooltipContent>
+              <TooltipContent side="bottom">Open this channel's moderation page</TooltipContent>
             </Tooltip>
           )}
           <FollowButton channel={channel} size="default" />

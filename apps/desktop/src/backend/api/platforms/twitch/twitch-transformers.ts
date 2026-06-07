@@ -28,7 +28,7 @@ import type {
 /**
  * Transform Twitch user to unified user
  */
-export function transformTwitchUser(user: TwitchApiUser): UnifiedUser {
+function transformTwitchUser(user: TwitchApiUser): UnifiedUser {
   return {
     id: user.id,
     platform: "twitch",
@@ -122,7 +122,7 @@ export function transformTwitchChannel(
 /**
  * Transform Twitch user to unified channel
  */
-export function transformTwitchUserToChannel(
+function transformTwitchUserToChannel(
   user: TwitchApiUser,
   isLive: boolean = false
 ): UnifiedChannel {
@@ -160,7 +160,7 @@ export function transformTwitchSearchChannel(channel: TwitchApiSearchChannel): U
 /**
  * Transform Twitch followed channel to unified follow
  */
-export function transformTwitchFollow(
+function transformTwitchFollow(
   follow: TwitchApiFollowedChannel,
   channelData?: TwitchApiUser
 ): UnifiedFollow {
@@ -189,7 +189,7 @@ export function transformTwitchFollow(
 /**
  * Transform Twitch video to unified video
  */
-export function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
+function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
   // Parse duration string (e.g., "3h8m32s") to seconds
   const durationSeconds = parseTwitchDuration(video.duration);
 
@@ -221,7 +221,7 @@ export function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
 /**
  * Transform Twitch clip to unified clip
  */
-export function transformTwitchClip(clip: TwitchApiClip): UnifiedClip {
+function transformTwitchClip(clip: TwitchApiClip): UnifiedClip {
   return {
     id: clip.id,
     platform: "twitch",

@@ -151,4 +151,3 @@ class BTTVEmoteProvider implements EmoteProviderService {
 export const bttvEmoteProvider = new BTTVEmoteProvider();
 
 // Also export class for testing
-export { BTTVEmoteProvider };

@@ -1,5 +1,6 @@
 import { net } from "electron";
-
+import { createManagedInterval } from "@/lib/managed-interval";
+import { sleep } from "@/lib/sleep";
 import type { UnifiedStream } from "../../../unified/platform-types";
 import {
   acquireKickRequestSlot,
@@ -8,8 +9,6 @@ import {
 } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { normalizeKickDate, transformKickLivestream } from "../kick-transformers";
-import { createManagedInterval } from "@/lib/managed-interval";
-import { sleep } from "@/lib/sleep";
 import {
   KICK_LEGACY_API_V1_BASE,
   type KickApiLivestream,
@@ -51,7 +50,7 @@ export function rememberCategorySlug(
  * Used as a fallback when we know a category name from the other platform but
  * haven't been able to map it to a Kick numeric id.
  */
-export function toKickCategorySlug(name: string): string {
+function toKickCategorySlug(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, " ")
@@ -235,7 +234,7 @@ function staggerDelay(ms: number, signal?: AbortSignal): Promise<void> {
         clearTimeout(timeoutId);
         reject(new Error("AbortError"));
       },
-      { once: true },
+      { once: true }
     );
   });
 }
@@ -256,7 +255,7 @@ function staggerDelay(ms: number, signal?: AbortSignal): Promise<void> {
 export async function getPublicStreamBySlug(
   slug: string,
   staggerOffsetMs: number = 0,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<UnifiedStream | null> {
   const key = slug.toLowerCase().trim();
 
@@ -283,10 +282,7 @@ export async function getPublicStreamBySlug(
   // streams and known-offline (`data: null`) channels, so this also avoids
   // re-bursting for offline follows.
   const cachedSuccess = _publicStreamSuccessCache.get(key);
-  if (
-    cachedSuccess &&
-    Date.now() - cachedSuccess.timestamp < PUBLIC_STREAM_POLL_HIT_TTL_MS
-  ) {
+  if (cachedSuccess && Date.now() - cachedSuccess.timestamp < PUBLIC_STREAM_POLL_HIT_TTL_MS) {
     return cachedSuccess.data;
   }
 
@@ -653,7 +649,7 @@ export async function getStreamBySlug(
  * and stamp `categoryId` with the caller's numeric id so downstream identity
  * checks line up with whatever produced that id.
  */
-export async function getPublicStreamsByCategorySlug(
+async function getPublicStreamsByCategorySlug(
   slug: string,
   options: { cursor?: string; numericCategoryId?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {

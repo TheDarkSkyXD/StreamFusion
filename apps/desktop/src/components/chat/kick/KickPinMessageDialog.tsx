@@ -67,8 +67,8 @@ export function KickPinMessageDialog({
             Pin message
           </DialogTitle>
           <DialogDescription className="text-[var(--color-foreground-muted)] pt-2">
-            Choose how long this message should stay pinned. Anyone in chat
-            will see it until you unpin it or it expires.
+            Choose how long this message should stay pinned. Anyone in chat will see it until you
+            unpin it or it expires.
           </DialogDescription>
         </DialogHeader>
 

@@ -120,9 +120,7 @@ function parseRetryAfter(header: string | null): number | null {
   return n;
 }
 
-async function helixPollsRequest<T>(
-  args: HelixRequestArgs,
-): Promise<HelixModResult<T>> {
+async function helixPollsRequest<T>(args: HelixRequestArgs): Promise<HelixModResult<T>> {
   const { accessToken, clientId, method, path, query, body } = args;
   const url = buildUrl(path, query);
 
@@ -203,9 +201,7 @@ export interface GetPollsArgs {
   broadcasterId: string;
 }
 
-export function getPolls(
-  args: GetPollsArgs,
-): Promise<HelixModResult<PollsListPayload>> {
+export function getPolls(args: GetPollsArgs): Promise<HelixModResult<PollsListPayload>> {
   return helixPollsRequest<PollsListPayload>({
     accessToken: args.accessToken,
     clientId: args.clientId,
@@ -234,16 +230,12 @@ export interface CreatePollArgs {
   bitsPerVote?: number;
 }
 
-export function createPoll(
-  args: CreatePollArgs,
-): Promise<HelixModResult<PollPayload>> {
+export function createPoll(args: CreatePollArgs): Promise<HelixModResult<PollPayload>> {
   if (typeof args.title !== "string" || args.title.trim().length === 0) {
     throw new Error("createPoll: title must be a non-empty string");
   }
   if (args.title.length > MAX_TITLE) {
-    throw new Error(
-      `createPoll: title length must be <= ${MAX_TITLE}, got ${args.title.length}`,
-    );
+    throw new Error(`createPoll: title length must be <= ${MAX_TITLE}, got ${args.title.length}`);
   }
   if (
     !Array.isArray(args.choices) ||
@@ -251,19 +243,14 @@ export function createPoll(
     args.choices.length > MAX_CHOICES
   ) {
     throw new Error(
-      `createPoll: choices must have ${MIN_CHOICES}..${MAX_CHOICES} entries, got ${args.choices?.length ?? 0}`,
+      `createPoll: choices must have ${MIN_CHOICES}..${MAX_CHOICES} entries, got ${args.choices?.length ?? 0}`
     );
   }
   for (const c of args.choices) {
     const len = c?.title?.length ?? 0;
-    if (
-      !c ||
-      typeof c.title !== "string" ||
-      len < MIN_CHOICE_LEN ||
-      len > MAX_CHOICE_LEN
-    ) {
+    if (!c || typeof c.title !== "string" || len < MIN_CHOICE_LEN || len > MAX_CHOICE_LEN) {
       throw new Error(
-        `createPoll: every choice title must be ${MIN_CHOICE_LEN}..${MAX_CHOICE_LEN} chars`,
+        `createPoll: every choice title must be ${MIN_CHOICE_LEN}..${MAX_CHOICE_LEN} chars`
       );
     }
   }
@@ -273,7 +260,7 @@ export function createPoll(
     args.duration > MAX_DURATION_S
   ) {
     throw new Error(
-      `createPoll: duration must be an integer in [${MIN_DURATION_S}, ${MAX_DURATION_S}], got ${args.duration}`,
+      `createPoll: duration must be an integer in [${MIN_DURATION_S}, ${MAX_DURATION_S}], got ${args.duration}`
     );
   }
   if (args.channelPointsPerVote !== undefined) {
@@ -283,7 +270,7 @@ export function createPoll(
       args.channelPointsPerVote > MAX_POINTS_PER_VOTE
     ) {
       throw new Error(
-        `createPoll: channelPointsPerVote must be an integer in [${MIN_POINTS_PER_VOTE}, ${MAX_POINTS_PER_VOTE}]`,
+        `createPoll: channelPointsPerVote must be an integer in [${MIN_POINTS_PER_VOTE}, ${MAX_POINTS_PER_VOTE}]`
       );
     }
   }
@@ -294,7 +281,7 @@ export function createPoll(
       args.bitsPerVote > MAX_BITS_PER_VOTE
     ) {
       throw new Error(
-        `createPoll: bitsPerVote must be an integer in [${MIN_BITS_PER_VOTE}, ${MAX_BITS_PER_VOTE}]`,
+        `createPoll: bitsPerVote must be an integer in [${MIN_BITS_PER_VOTE}, ${MAX_BITS_PER_VOTE}]`
       );
     }
   }
@@ -343,9 +330,7 @@ export interface TerminatePollArgs {
   pollId: string;
 }
 
-export async function terminatePoll(
-  args: TerminatePollArgs,
-): Promise<HelixModResult<PollPayload>> {
+export async function terminatePoll(args: TerminatePollArgs): Promise<HelixModResult<PollPayload>> {
   const result = await helixPollsRequest<PollEnvelope>({
     accessToken: args.accessToken,
     clientId: args.clientId,
@@ -374,9 +359,7 @@ export interface ArchivePollArgs {
   pollId: string;
 }
 
-export async function archivePoll(
-  args: ArchivePollArgs,
-): Promise<HelixModResult<PollPayload>> {
+export async function archivePoll(args: ArchivePollArgs): Promise<HelixModResult<PollPayload>> {
   const result = await helixPollsRequest<PollEnvelope>({
     accessToken: args.accessToken,
     clientId: args.clientId,

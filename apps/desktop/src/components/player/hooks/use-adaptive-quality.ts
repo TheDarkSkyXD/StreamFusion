@@ -362,24 +362,27 @@ export function useAdaptiveQuality({
   }, [enabled, getConnection, updateNetworkState, maybeAdjustQuality]);
 
   // Periodic buffer health check every 2 seconds
-  useInterval(() => {
-    const health = checkBufferHealth();
-    setState((prev) => {
-      if (prev.bufferHealth !== health) {
-        // Log significant changes
-        if (health === "critical" || prev.bufferHealth === "critical") {
-          console.debug(`[AdaptiveQuality] Buffer health: ${prev.bufferHealth} -> ${health}`);
+  useInterval(
+    () => {
+      const health = checkBufferHealth();
+      setState((prev) => {
+        if (prev.bufferHealth !== health) {
+          // Log significant changes
+          if (health === "critical" || prev.bufferHealth === "critical") {
+            console.debug(`[AdaptiveQuality] Buffer health: ${prev.bufferHealth} -> ${health}`);
+          }
+          return { ...prev, bufferHealth: health };
         }
-        return { ...prev, bufferHealth: health };
-      }
-      return prev;
-    });
+        return prev;
+      });
 
-    // Check if we need to adjust quality
-    if (health === "critical" || health === "low") {
-      maybeAdjustQuality();
-    }
-  }, enabled ? 2000 : null);
+      // Check if we need to adjust quality
+      if (health === "critical" || health === "low") {
+        maybeAdjustQuality();
+      }
+    },
+    enabled ? 2000 : null
+  );
 
   return state;
 }

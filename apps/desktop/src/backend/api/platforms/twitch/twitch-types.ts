@@ -166,7 +166,7 @@ export interface TwitchTokenValidation {
 // ========== API Endpoints ==========
 
 export const TWITCH_API_BASE = "https://api.twitch.tv/helix";
-export const TWITCH_AUTH_BASE = "https://id.twitch.tv/oauth2";
+const TWITCH_AUTH_BASE = "https://id.twitch.tv/oauth2";
 
 // ========== Client Types ==========
 

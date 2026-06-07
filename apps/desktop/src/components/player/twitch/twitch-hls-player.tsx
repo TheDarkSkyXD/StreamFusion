@@ -11,9 +11,8 @@ import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
-
-import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import type { AdBlockStatus } from "@/shared/adblock-types";
+import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { resolveHlsBufferConfig } from "../hls-buffer-config";
@@ -119,9 +118,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       }
 
       try {
-        console.debug(
-          "[TwitchHLS] Periodic cleanup: resetting to live edge and trimming buffers"
-        );
+        console.debug("[TwitchHLS] Periodic cleanup: resetting to live edge and trimming buffers");
 
         hls.startLevel = -1;
 

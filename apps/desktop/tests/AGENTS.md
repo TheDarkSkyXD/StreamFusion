@@ -45,6 +45,8 @@ E2E is **not** part of `npm test`. It's interactive — see `tests/e2e/README.md
 
 Every test exists to catch a regression class. If you can't name the regression a test would catch, the test isn't pulling its weight.
 
+**Failure paths count as regression classes.** A component or page that observably renders distinct UI for any of {loading, error, empty} has three regression classes worth guarding: silent-blank-on-error, missing-skeleton-on-loading, indistinguishable-empty-vs-error. The bar matches at every layer — if the source has the state, the test asserts it. A pure `<Button>` with no async branch is exempt; a leaf card that receives `isLoading` via prop and renders a skeleton is in scope. Hooks that wrap async work assert the **consumer-visible side effect** of failure (toast queued, retry scheduled, state flipped) — not just "hook returned error". Backend services keep their existing strong bar (HTTP error / timeout / abort coverage already in place). Forward-enforce on every new PR; critical-path backfill lives in U18 — see the failure-coverage punch list in [`docs/test-audit/2026-05-19-audit-log.md`](../../../docs/test-audit/2026-05-19-audit-log.md).
+
 ### Verdicts: Keep / Rewrite / Delete
 
 When auditing a test (or reviewing one in a PR), pick exactly one verdict per file:
@@ -67,6 +69,15 @@ Place a `// Guards:` comment at the top of the outermost `describe` (or top of f
 describe('emote-manager', () => { ... });
 ```
 
+For components or pages observing async state, write one Guards line per state:
+
+```ts
+// Guards: loading state renders skeletons (not blank) while useFollowedStreams resolves
+// Guards: error state surfaces a toast and a retry button when the followed-streams Helix call returns 5xx
+// Guards: empty state renders the "follow some channels" empty card, distinct from the error card
+describe('Following page', () => { ... });
+```
+
 **Conventions:**
 - One regression per line — easier to grep and easier to update when one guard goes away but the others stay.
 - Cite the **fix commit SHA** when guarding a specific past regression (e.g., `(regression cfb0033)`). For *class*-level guards (no single SHA — e.g., "any new Twitch GQL persisted-op must keep its hash stable"), drop the SHA and write the contract instead.
@@ -81,6 +92,8 @@ Any PR that touches a test file with a `// Guards:` comment must do one of:
 2. **Add a one-line note in the PR description** confirming the existing guard still holds. (The test changed but the behavior class is the same — refactor, rename, etc.)
 
 There is no mechanical lint rule for this. Reviewer attention is the mitigation. The cost of letting a `// Guards:` comment rot is high — it stops being trustworthy as documentation. The cost of the rule is one extra sentence in a PR description.
+
+The same rule covers failure-path `// Guards:` lines (loading / error / empty / HTTP-error injection): touch the test → update the failure-state guard lines or note their continued correctness in the PR description.
 
 ---
 
@@ -174,6 +187,7 @@ For tests that guard a non-obvious behavior class — especially regressions or 
 - Don't assert library defaults. (Don't test that `<button onClick={fn}/>` calls `fn` on click — React tests that.)
 - Don't mock the thing under test, then assert against the mock. (See `platform-avatar.test.tsx` shallow archetype.)
 - Don't write tests that pass on every implementation that compiles. (e.g., asserting that `someFn` "is called" without asserting what it was called with.)
+- Don't ship a Keep test for a component that observably renders loading/error/empty UI without asserting each branch. The "silently blank on Helix 5xx" class is exactly the gap the failure-coverage bar exists to close. If the component is exempt (no async branch in source), don't add an empty test — call out the exemption in the PR description so the reviewer can confirm.
 
 ---
 

@@ -22,7 +22,10 @@
  */
 
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "../../../shared/chat-types";
-import type { KickPredictionPayload, KickPredictionOutcomePayload } from "../../api/platforms/kick/kick-types";
+import type {
+  KickPredictionOutcomePayload,
+  KickPredictionPayload,
+} from "../../api/platforms/kick/kick-types";
 
 const VALID_STATUSES: ReadonlySet<UnifiedPrediction["status"]> = new Set([
   "ACTIVE",
@@ -69,7 +72,7 @@ function normalizeOutcome(raw: KickPredictionOutcomePayload): UnifiedPredictionO
  */
 function computeEndedAt(
   raw: KickPredictionPayload,
-  status: UnifiedPrediction["status"],
+  status: UnifiedPrediction["status"]
 ): string | null {
   if (status === "ACTIVE") return null;
   const startMs = Date.parse(raw.created_at);
@@ -91,7 +94,7 @@ export interface NormalizeKickPredictionOptions {
 
 export function normalizeKickPrediction(
   raw: KickPredictionPayload,
-  opts: NormalizeKickPredictionOptions,
+  opts: NormalizeKickPredictionOptions
 ): UnifiedPrediction {
   const status = clampStatus(raw.state);
   const outcomes = (raw.outcomes ?? []).map(normalizeOutcome);
@@ -101,17 +104,12 @@ export function normalizeKickPrediction(
       : null;
   const viewerOutcomeId = raw.user_vote?.outcome_id ?? null;
   const viewerStake =
-    typeof raw.user_vote?.total_vote_amount === "number"
-      ? raw.user_vote.total_vote_amount
-      : null;
-  const predictionWindowSeconds =
-    typeof raw.duration === "number" ? raw.duration : null;
+    typeof raw.user_vote?.total_vote_amount === "number" ? raw.user_vote.total_vote_amount : null;
+  const predictionWindowSeconds = typeof raw.duration === "number" ? raw.duration : null;
   // `created_at` anchors the time-remaining countdown (lock = created_at +
   // duration). Already parsed for `computeEndedAt`; surface it for the widget.
   const createdAt =
-    typeof raw.created_at === "string" && raw.created_at.length > 0
-      ? raw.created_at
-      : null;
+    typeof raw.created_at === "string" && raw.created_at.length > 0 ? raw.created_at : null;
   const endedAt = computeEndedAt(raw, status);
 
   return {

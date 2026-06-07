@@ -25,7 +25,7 @@ interface PollableWebContents {
 export async function waitForWebContentsCondition(
   webContents: PollableWebContents,
   predicateExpression: string,
-  options: { timeoutMs: number; intervalMs?: number },
+  options: { timeoutMs: number; intervalMs?: number }
 ): Promise<boolean> {
   const intervalMs = options.intervalMs ?? 150;
   const deadline = Date.now() + options.timeoutMs;

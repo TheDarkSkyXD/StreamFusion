@@ -5,9 +5,8 @@
  */
 
 import { type BrowserWindow, ipcMain } from "electron";
-
-import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { CheckFrequency } from "../../../shared/ipc-channels";
+import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import {
   checkForUpdates,
   downloadUpdate,
@@ -141,10 +140,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       if (typeof payload.enabled === "boolean") {
         settings.enabled = payload.enabled;
       }
-      if (
-        typeof payload.frequency === "string" &&
-        VALID_FREQUENCIES.includes(payload.frequency)
-      ) {
+      if (typeof payload.frequency === "string" && VALID_FREQUENCIES.includes(payload.frequency)) {
         settings.frequency = payload.frequency;
       }
       try {

@@ -14,10 +14,10 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  BannedUsersFetchError,
-  getBannedUsers,
   type BannedUserEntry,
+  BannedUsersFetchError,
   type GetBannedUsersError,
+  getBannedUsers,
 } from "@/backend/api/platforms/twitch/twitch-helix-banned-list";
 import { unbanUser } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { useAuthStore } from "@/store/auth-store";

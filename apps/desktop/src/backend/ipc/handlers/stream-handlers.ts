@@ -280,8 +280,8 @@ export function registerStreamHandlers(): void {
             const fanOutStaggerMs = 60;
             const settled = await Promise.allSettled(
               uniqueSlugs.map((slug, i) =>
-                kickClient.getPublicStreamBySlug(slug, i * fanOutStaggerMs, abort.signal),
-              ),
+                kickClient.getPublicStreamBySlug(slug, i * fanOutStaggerMs, abort.signal)
+              )
             );
 
             for (const result of settled) {

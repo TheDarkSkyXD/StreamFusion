@@ -21,7 +21,7 @@ const KICK_CLIENT_SECRET = "";
 
 // ========== Worker Configuration ==========
 
-export const WORKER_BASE_URL = "https://streamfusion.leveluptogetherbiz.workers.dev";
+const WORKER_BASE_URL = "https://streamfusion.leveluptogetherbiz.workers.dev";
 
 // ========== Localhost Callback Configuration ==========
 // Twitch requires HTTPS for custom protocols but allows http://localhost
@@ -153,7 +153,7 @@ export function getOAuthConfig(platform: Platform): OAuthConfig {
  * Generate a cryptographically random code verifier
  * Must be 43-128 characters, using unreserved characters per RFC 7636
  */
-export function generateCodeVerifier(): string {
+function generateCodeVerifier(): string {
   // Generate 32 random bytes (256 bits) and encode as base64url
   const buffer = crypto.randomBytes(32);
   return base64UrlEncode(buffer);
@@ -162,7 +162,7 @@ export function generateCodeVerifier(): string {
 /**
  * Generate a code challenge from a code verifier using SHA-256
  */
-export function generateCodeChallenge(codeVerifier: string): string {
+function generateCodeChallenge(codeVerifier: string): string {
   const hash = crypto.createHash("sha256").update(codeVerifier).digest();
   return base64UrlEncode(hash);
 }
@@ -266,6 +266,6 @@ export function validateOAuthConfig(platform: Platform): string[] {
 /**
  * Check if OAuth is configured for a platform
  */
-export function isOAuthConfigured(platform: Platform): boolean {
+function isOAuthConfigured(platform: Platform): boolean {
   return validateOAuthConfig(platform).length === 0;
 }

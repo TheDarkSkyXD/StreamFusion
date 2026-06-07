@@ -11,7 +11,15 @@
  * surfaces that haven't been wrapped (tests, dev harness) don't crash.
  */
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { UserPopout } from "./UserPopout";
 
@@ -48,7 +56,7 @@ export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
 
   const value = useMemo<UserPopoutContextValue>(
     () => ({ openUserPopout, current, close }),
-    [openUserPopout, current, close],
+    [openUserPopout, current, close]
   );
 
   return (
@@ -83,17 +91,14 @@ export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
 export function useOpenUserPopout(): (payload: OpenUserPopoutPayload) => void {
   const ctx = useContext(UserPopoutContext);
   const warnedRef = useRef(false);
-  const noop = useCallback(
-    (_payload: OpenUserPopoutPayload) => {
-      if (!warnedRef.current) {
-        // biome-ignore lint/suspicious/noConsole: one-shot diagnostic for surfaces missing the provider.
-        console.debug(
-          "[UserPopout] openUserPopout called without a UserPopoutProvider mounted — ignoring.",
-        );
-        warnedRef.current = true;
-      }
-    },
-    [],
-  );
+  const noop = useCallback((_payload: OpenUserPopoutPayload) => {
+    if (!warnedRef.current) {
+      // biome-ignore lint/suspicious/noConsole: one-shot diagnostic for surfaces missing the provider.
+      console.debug(
+        "[UserPopout] openUserPopout called without a UserPopoutProvider mounted — ignoring."
+      );
+      warnedRef.current = true;
+    }
+  }, []);
   return ctx ? ctx.openUserPopout : noop;
 }

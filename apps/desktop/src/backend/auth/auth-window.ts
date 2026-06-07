@@ -6,9 +6,10 @@
  */
 
 import { BrowserWindow, session, shell } from "electron";
-
+import { sleep } from "../../lib/sleep";
 import type { Platform } from "../../shared/auth-types";
 
+import { waitForWebContentsCondition } from "../services/web-contents-ready";
 import {
   buildAuthorizationUrl,
   DEFAULT_CALLBACK_PORT,
@@ -17,9 +18,6 @@ import {
   getRedirectUri,
   type PkceChallenge,
 } from "./oauth-config";
-
-import { waitForWebContentsCondition } from "../services/web-contents-ready";
-import { sleep } from "../../lib/sleep";
 
 /**
  * Readiness predicate (page-context JS) for kick.com's header: true once EITHER
@@ -245,9 +243,7 @@ class AuthWindowManager {
         // Start polling for cookie rotation that signals successful sign-in.
         void this._waitForKickWebAuth(window).then((authenticated) => {
           if (!authenticated || window.isDestroyed()) return;
-          console.debug(
-            "🔁 Kick web auth confirmed — proceeding to id.kick.com OAuth"
-          );
+          console.debug("🔁 Kick web auth confirmed — proceeding to id.kick.com OAuth");
           window.loadURL(authUrl);
         });
       });
@@ -317,10 +313,8 @@ class AuthWindowManager {
             );
           }
         } else {
-          const sessionTokenChanged =
-            !!sessionToken && sessionToken !== baselineSessionToken;
-          const kickSessionChanged =
-            !!kickSession && kickSession !== baselineKickSession;
+          const sessionTokenChanged = !!sessionToken && sessionToken !== baselineSessionToken;
+          const kickSessionChanged = !!kickSession && kickSession !== baselineKickSession;
 
           if (sessionTokenChanged || kickSessionChanged) {
             console.debug(

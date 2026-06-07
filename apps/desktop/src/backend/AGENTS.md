@@ -1,5 +1,10 @@
 # BACKEND (Main Process)
 
+**Read this file before modifying code in this directory.**
+
+## Purpose
+Owns the Electron main process: IPC handler registration, OAuth flows, token management, window lifecycle, and service orchestration. Does NOT own: renderer components, React hooks, Zustand stores, or page routing.
+
 ## OVERVIEW
 Electron main process: IPC handlers, platform APIs, auth, persistence.
 

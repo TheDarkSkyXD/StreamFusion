@@ -15,7 +15,7 @@
 export function createManagedInterval(
   callback: () => void,
   ms: number,
-  options?: { unref?: boolean },
+  options?: { unref?: boolean }
 ): { stop: () => void } {
   const id = setInterval(callback, ms);
   if (options?.unref) {

@@ -69,7 +69,7 @@ export function StreamSlot({
   // that gates the delay.
   useTimeout(
     () => setIsStaggerReady(true),
-    isStaggerReady ? null : initialSlotIndexRef.current * STAGGER_DELAY_MS,
+    isStaggerReady ? null : initialSlotIndexRef.current * STAGGER_DELAY_MS
   );
 
   useEffect(() => {

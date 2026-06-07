@@ -26,16 +26,13 @@ export function useManagedTimeout(callback: () => void): {
     }
   }, []);
 
-  const start = useCallback(
-    (ms: number) => {
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        timeoutRef.current = null;
-        savedCallback.current();
-      }, ms);
-    },
-    [],
-  );
+  const start = useCallback((ms: number) => {
+    if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
+      savedCallback.current();
+    }, ms);
+  }, []);
 
   // Clear any pending timer when the consuming component unmounts.
   useEffect(() => clear, [clear]);

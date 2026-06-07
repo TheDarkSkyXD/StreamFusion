@@ -57,7 +57,7 @@ function classify(status: number): KickPredictionsErrorKind {
  */
 async function fetchOnce(
   channelSlug: string,
-  bearer: string | null,
+  bearer: string | null
 ): Promise<KickPredictionsResult> {
   const url = `${KICK_API_BASE}/channels/${encodeURIComponent(channelSlug)}/predictions/latest`;
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -124,7 +124,7 @@ function extractPrediction(body: unknown): KickPredictionPayload | null {
  */
 export async function getLatestPrediction(
   channelSlug: string,
-  opts: GetLatestOptions = {},
+  opts: GetLatestOptions = {}
 ): Promise<KickPredictionsResult> {
   const anonResult = await fetchOnce(channelSlug, null);
   if (anonResult.ok) return anonResult;

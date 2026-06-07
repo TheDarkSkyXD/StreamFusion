@@ -41,13 +41,12 @@
  * the user actually pinned.
  */
 
+import { createManagedInterval } from "@/lib/managed-interval";
 import type {
   ChatBadge,
   ContentFragment,
   NormalizedPinnedMessage,
 } from "../../../shared/chat-types";
-
-import { createManagedInterval } from "@/lib/managed-interval";
 import { twitchChatService } from "./twitch-chat";
 
 // Twitch's chat-message fragments come back as plain text — twitch.tv parses
@@ -282,7 +281,7 @@ function gqlBadgesToChatBadges(gqlBadges: GqlBadge[] | null | undefined): ChatBa
 export function toNormalized(
   pin: PinnedChatMessageNode,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  channelLogin?: string,
+  channelLogin?: string
 ): NormalizedPinnedMessage {
   const inner = pin.pinnedMessage;
   const fragmentText = inner?.content?.fragments?.map((f) => f.text).join("") ?? "";

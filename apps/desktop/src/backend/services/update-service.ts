@@ -12,7 +12,7 @@ import {
   type UpdateInfo as ElectronUpdateInfo,
   type ProgressInfo,
 } from "electron-updater";
-
+import { createManagedInterval } from "@/lib/managed-interval";
 import type {
   CheckFrequency,
   UpdateInfo,
@@ -20,8 +20,6 @@ import type {
   UpdateSettings,
   UpdateState,
 } from "../../shared/ipc-channels";
-
-import { createManagedInterval } from "@/lib/managed-interval";
 
 /**
  * Persisted shape of the existing `update-settings` store. `allowPrerelease`
@@ -281,9 +279,7 @@ function startAutoCheckScheduler(): void {
   // full tick when a check is already due.
   maybeRunScheduledCheck();
   autoCheckTimer = createManagedInterval(maybeRunScheduledCheck, MIN_INTERVAL_MS);
-  console.log(
-    `[Update] Auto-check scheduler started (frequency=${currentState.checkFrequency})`
-  );
+  console.log(`[Update] Auto-check scheduler started (frequency=${currentState.checkFrequency})`);
 }
 
 /**

@@ -41,8 +41,7 @@ export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams)
   // U5 — viewer can disable history-on-join entirely, or cap how many recent
   // messages seed. Read prefs imperatively (this is a module function, not a
   // component) and bail before the network fetch when seeding is off.
-  const cd =
-    useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  const cd = useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   if (!cd.recentMessagesOnJoin) return;
   const limit =
     Number.isFinite(cd.recentMessagesLimit) && cd.recentMessagesLimit > 0

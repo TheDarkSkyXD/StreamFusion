@@ -364,7 +364,7 @@ export function parseTwitchMessage(
 /**
  * Parse a /me action message with the action indicator
  */
-export function formatActionMessage(message: ChatMessage): string {
+function formatActionMessage(message: ChatMessage): string {
   if (message.isAction) {
     return `${message.displayName} ${message.rawContent}`;
   }

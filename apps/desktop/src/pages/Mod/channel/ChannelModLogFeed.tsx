@@ -58,16 +58,12 @@ export function ChannelModLogFeed({ channelId, refreshCounter }: ChannelModLogFe
   const { entries, loading } = useModLog({
     channelId,
     action: actionFilter === "" ? undefined : actionFilter,
-    moderatorUsername:
-      trimmedModerator.length > 0 ? trimmedModerator : undefined,
+    moderatorUsername: trimmedModerator.length > 0 ? trimmedModerator : undefined,
     limit,
     refreshCounter,
   });
 
-  const canLoadMore = useMemo(
-    () => entries.length === limit,
-    [entries.length, limit],
-  );
+  const canLoadMore = useMemo(() => entries.length === limit, [entries.length, limit]);
 
   return (
     <section data-testid="channel-mod-log-feed">
@@ -117,28 +113,17 @@ export function ChannelModLogFeed({ channelId, refreshCounter }: ChannelModLogFe
                   data-action={entry.action}
                   className="text-xs text-gray-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
                 >
-                  <span className="text-gray-500">
-                    {formatTimestamp(entry.createdAt)}
-                  </span>
-                  <span className="text-purple-300 font-medium">
-                    {entry.moderatorUsername}
-                  </span>
+                  <span className="text-gray-500">{formatTimestamp(entry.createdAt)}</span>
+                  <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
                   <span className="text-yellow-200">{entry.action}</span>
-                  <span
-                    className="text-white"
-                    data-testid="modlog-target-username"
-                  >
+                  <span className="text-white" data-testid="modlog-target-username">
                     {entry.targetUsername}
                   </span>
                   {entry.durationSeconds ? (
-                    <span className="text-gray-400">
-                      ({formatDuration(entry.durationSeconds)})
-                    </span>
+                    <span className="text-gray-400">({formatDuration(entry.durationSeconds)})</span>
                   ) : null}
                   {entry.reason ? (
-                    <span className="text-gray-400 italic">
-                      — {entry.reason}
-                    </span>
+                    <span className="text-gray-400 italic">— {entry.reason}</span>
                   ) : null}
                 </li>
               ))}

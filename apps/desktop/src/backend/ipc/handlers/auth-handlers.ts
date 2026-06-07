@@ -1,4 +1,5 @@
 import { type BrowserWindow, ipcMain } from "electron";
+import { createManagedInterval } from "../../../lib/managed-interval";
 import type {
   AuthToken,
   KickUser,
@@ -19,7 +20,6 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
-import { createManagedInterval } from "../../../lib/managed-interval";
 import { storageService } from "../../services/storage-service";
 
 /**
@@ -65,8 +65,10 @@ export async function syncKickFollowsAfterLogin(
         profileImage: channel.avatarUrl,
       }) as Omit<LocalFollow, "id" | "followedAt">
   );
-  const { accountCount, pendingCount, addedCount, removedCount } =
-    storage.upsertSyncedFollows("kick", kickFollows);
+  const { accountCount, pendingCount, addedCount, removedCount } = storage.upsertSyncedFollows(
+    "kick",
+    kickFollows
+  );
   return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
 
@@ -208,7 +210,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   }
 
   createManagedInterval(() => maybeRefreshFollows("kick", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
-  createManagedInterval(() => maybeRefreshFollows("twitch", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
+  createManagedInterval(
+    () => maybeRefreshFollows("twitch", "interval"),
+    FOLLOWS_REFRESH_INTERVAL_MS
+  );
   mainWindow.on("focus", () => {
     maybeRefreshFollows("kick", "focus");
     maybeRefreshFollows("twitch", "focus");

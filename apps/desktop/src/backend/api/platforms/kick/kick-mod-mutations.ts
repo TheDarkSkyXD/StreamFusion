@@ -54,7 +54,7 @@ export type KickModResult =
 
 function classify(
   status: number,
-  body: unknown,
+  body: unknown
 ): "unauthenticated" | "forbidden" | "not-found" | "network" | "unknown" {
   if (status === 401) return "unauthenticated";
   if (status === 403) return "forbidden";

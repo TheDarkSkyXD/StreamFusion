@@ -57,7 +57,7 @@ export const useModeratedChannelsStore = create<ModeratedChannelsState>()((set, 
       const channels: ModeratedChannel[] = await getModeratedChannels(
         selfUserId,
         accessToken,
-        clientId,
+        clientId
       );
       // The broadcaster's OWN channel is mod-equivalent for our purposes but
       // not included by Helix. {@link useIsTwitchMod} handles the self check

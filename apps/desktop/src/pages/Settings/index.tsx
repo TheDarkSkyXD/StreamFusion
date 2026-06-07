@@ -24,6 +24,10 @@ import {
 } from "react-icons/lu";
 
 import { AccountConnect } from "@/components/auth";
+import {
+  getAdBlockDeviceId,
+  randomizeAdBlockDeviceId,
+} from "@/components/player/twitch/twitch-adblock-device-id";
 import { ChatSettingsSection } from "@/components/settings/ChatSettingsSection";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -37,10 +41,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAuthError } from "@/hooks/useAuth";
-import { cn } from "@/lib/utils";
 import { notifySettingsSaved } from "@/lib/settings-toast";
+import { cn } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
-import type { CheckFrequency, TokenStatusResult } from "@/shared/ipc-channels";
 import {
   type BufferPreferences,
   DEFAULT_BUFFER_PREFERENCES,
@@ -55,10 +58,7 @@ import {
   type PredictionPreferences,
   type VideoQuality,
 } from "@/shared/auth-types";
-import {
-  getAdBlockDeviceId,
-  randomizeAdBlockDeviceId,
-} from "@/components/player/twitch/twitch-adblock-device-id";
+import type { CheckFrequency, TokenStatusResult } from "@/shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -286,7 +286,9 @@ export function SettingsPage() {
   const [proxyEnabled, setProxyEnabled] = useState(proxyPrefs.enabled);
   const [proxyHost, setProxyHost] = useState(proxyPrefs.host);
   // Port is kept as a string for the controlled input; parsed/validated on use.
-  const [proxyPort, setProxyPort] = useState(proxyPrefs.port == null ? "" : String(proxyPrefs.port));
+  const [proxyPort, setProxyPort] = useState(
+    proxyPrefs.port == null ? "" : String(proxyPrefs.port)
+  );
   const [proxyUsername, setProxyUsername] = useState("");
   // Write-only: empty means "leave the stored password unchanged".
   const [proxyPassword, setProxyPassword] = useState("");
@@ -997,8 +999,8 @@ export function SettingsPage() {
 
                 <div className="px-6 py-4 border-t border-[#27272a] text-xs text-zinc-500 leading-relaxed">
                   When enabled, the app's Twitch traffic — video, chat, API calls, and sign-in —
-                  routes through this proxy, applied on the next requests. This is a single
-                  app-wide proxy, not per-feature. It's off by default.
+                  routes through this proxy, applied on the next requests. This is a single app-wide
+                  proxy, not per-feature. It's off by default.
                 </div>
               </div>
             </div>
@@ -1020,9 +1022,9 @@ export function SettingsPage() {
                     <div className="max-w-md">
                       <p className="font-medium text-zinc-200">Style</p>
                       <p className="text-sm text-zinc-500 mt-1">
-                        Native matches each platform's own UI (Twitch purple with bubble chart;
-                        Kick green/pink dot pairs). Unified uses StreamFusion's storm accent on
-                        both platforms.
+                        Native matches each platform's own UI (Twitch purple with bubble chart; Kick
+                        green/pink dot pairs). Unified uses StreamFusion's storm accent on both
+                        platforms.
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1158,9 +1160,7 @@ export function SettingsPage() {
                   {/* Automatic Check Toggle */}
                   <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
                     <div>
-                      <p className="font-medium text-zinc-200">
-                        Automatically check for updates
-                      </p>
+                      <p className="font-medium text-zinc-200">Automatically check for updates</p>
                       <p className="text-sm text-zinc-500 mt-1">
                         Check for new versions in the background on a schedule
                       </p>

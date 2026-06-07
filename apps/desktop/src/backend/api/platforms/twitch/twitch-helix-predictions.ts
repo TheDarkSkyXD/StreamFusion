@@ -125,9 +125,7 @@ function parseRetryAfter(header: string | null): number | null {
   return n;
 }
 
-async function helixPredictionsRequest<T>(
-  args: HelixRequestArgs,
-): Promise<HelixModResult<T>> {
+async function helixPredictionsRequest<T>(args: HelixRequestArgs): Promise<HelixModResult<T>> {
   const { accessToken, clientId, method, path, query, body } = args;
   const url = buildUrl(path, query);
 
@@ -218,7 +216,7 @@ export interface GetPredictionsArgs {
 }
 
 export function getPredictions(
-  args: GetPredictionsArgs,
+  args: GetPredictionsArgs
 ): Promise<HelixModResult<PredictionsListPayload>> {
   return helixPredictionsRequest<PredictionsListPayload>({
     accessToken: args.accessToken,
@@ -245,7 +243,7 @@ export interface CreatePredictionArgs {
 }
 
 export function createPrediction(
-  args: CreatePredictionArgs,
+  args: CreatePredictionArgs
 ): Promise<HelixModResult<PredictionPayload>> {
   if (
     !Number.isInteger(args.predictionWindow) ||
@@ -253,7 +251,7 @@ export function createPrediction(
     args.predictionWindow > MAX_PREDICTION_WINDOW_S
   ) {
     throw new Error(
-      `createPrediction: predictionWindow must be an integer in [${MIN_PREDICTION_WINDOW_S}, ${MAX_PREDICTION_WINDOW_S}], got ${args.predictionWindow}`,
+      `createPrediction: predictionWindow must be an integer in [${MIN_PREDICTION_WINDOW_S}, ${MAX_PREDICTION_WINDOW_S}], got ${args.predictionWindow}`
     );
   }
   if (
@@ -262,7 +260,7 @@ export function createPrediction(
     args.outcomes.length > MAX_OUTCOMES
   ) {
     throw new Error(
-      `createPrediction: outcomes must have ${MIN_OUTCOMES}..${MAX_OUTCOMES} entries, got ${args.outcomes?.length ?? 0}`,
+      `createPrediction: outcomes must have ${MIN_OUTCOMES}..${MAX_OUTCOMES} entries, got ${args.outcomes?.length ?? 0}`
     );
   }
   for (const o of args.outcomes) {
@@ -301,7 +299,7 @@ export interface LockPredictionArgs {
 }
 
 export async function lockPrediction(
-  args: LockPredictionArgs,
+  args: LockPredictionArgs
 ): Promise<HelixModResult<PredictionPayload>> {
   const result = await helixPredictionsRequest<PredictionEnvelope>({
     accessToken: args.accessToken,
@@ -333,7 +331,7 @@ export interface ResolvePredictionArgs {
 }
 
 export async function resolvePrediction(
-  args: ResolvePredictionArgs,
+  args: ResolvePredictionArgs
 ): Promise<HelixModResult<PredictionPayload>> {
   const result = await helixPredictionsRequest<PredictionEnvelope>({
     accessToken: args.accessToken,
@@ -365,7 +363,7 @@ export interface CancelPredictionArgs {
 }
 
 export async function cancelPrediction(
-  args: CancelPredictionArgs,
+  args: CancelPredictionArgs
 ): Promise<HelixModResult<PredictionPayload>> {
   const result = await helixPredictionsRequest<PredictionEnvelope>({
     accessToken: args.accessToken,

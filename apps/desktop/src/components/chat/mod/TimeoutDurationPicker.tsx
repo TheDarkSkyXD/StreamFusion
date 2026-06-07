@@ -34,10 +34,7 @@ export interface TimeoutDurationPickerProps {
   onChange: (durationSeconds: number) => void;
 }
 
-export function TimeoutDurationPicker({
-  disabled,
-  onChange,
-}: TimeoutDurationPickerProps) {
+export function TimeoutDurationPicker({ disabled, onChange }: TimeoutDurationPickerProps) {
   const [selected, setSelected] = useState<number>(DEFAULT_SECONDS);
 
   // Push the default up to the parent on first render so a confirm without
@@ -54,9 +51,7 @@ export function TimeoutDurationPicker({
 
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium text-[#EFEFF1] mb-2">
-        Duration
-      </legend>
+      <legend className="text-sm font-medium text-[#EFEFF1] mb-2">Duration</legend>
       <div className="flex flex-wrap gap-2" data-testid="timeout-duration-chips">
         {DURATION_PRESETS.map((preset) => {
           const isSelected = preset.seconds === selected;

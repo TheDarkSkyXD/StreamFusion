@@ -32,22 +32,22 @@ export interface KickChatroomUpdatedEventPayload {
  * Returns an object with only the keys for fields the payload sets.
  */
 export function chatroomUpdatedEventToPatch(
-  payload: KickChatroomUpdatedEventPayload,
+  payload: KickChatroomUpdatedEventPayload
 ): RoomStatePatchEvent["patch"] {
   const patch: RoomStatePatchEvent["patch"] = {};
 
   if (payload.slow_mode) {
     patch.slowMode = payload.slow_mode.enabled
-      ? (typeof payload.slow_mode.message_interval === "number"
-          ? payload.slow_mode.message_interval
-          : null)
+      ? typeof payload.slow_mode.message_interval === "number"
+        ? payload.slow_mode.message_interval
+        : null
       : null;
   }
   if (payload.followers_mode) {
     patch.followersOnly = payload.followers_mode.enabled
-      ? (typeof payload.followers_mode.min_duration === "number"
-          ? payload.followers_mode.min_duration
-          : null)
+      ? typeof payload.followers_mode.min_duration === "number"
+        ? payload.followers_mode.min_duration
+        : null
       : null;
   }
   if (payload.subscribers_mode) {
@@ -58,9 +58,9 @@ export function chatroomUpdatedEventToPatch(
   }
   if (payload.account_age) {
     patch.accountAge = payload.account_age.enabled
-      ? (typeof payload.account_age.min_duration === "number"
-          ? payload.account_age.min_duration
-          : null)
+      ? typeof payload.account_age.min_duration === "number"
+        ? payload.account_age.min_duration
+        : null
       : null;
   }
 

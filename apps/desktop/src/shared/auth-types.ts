@@ -469,7 +469,7 @@ export interface AuthError {
 
 // ========== Default Values ==========
 
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled: true,
   liveAlerts: true,
   sound: true,
@@ -494,7 +494,7 @@ export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
   muted: false,
 };
 
-export const DEFAULT_ADVANCED_PREFERENCES: AdvancedPreferences = {
+const DEFAULT_ADVANCED_PREFERENCES: AdvancedPreferences = {
   enableImageProxy: true, // Enabled by default for better UX
 };
 

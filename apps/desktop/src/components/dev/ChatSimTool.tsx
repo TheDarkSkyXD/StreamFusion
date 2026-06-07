@@ -408,7 +408,7 @@ export function ChatSimTool() {
   // fire. Production rendering pending U6 (viewer prediction widget).
   const buildSyntheticPrediction = (
     p: "twitch" | "kick",
-    status: "ACTIVE" | "RESOLVED",
+    status: "ACTIVE" | "RESOLVED"
   ): UnifiedPrediction => {
     const id = uid("pred");
     const outcomeA = uid("outcome-a");
@@ -458,18 +458,12 @@ export function ChatSimTool() {
 
   const injectPredictionTwitch = () => {
     if (platform !== "twitch") return;
-    twitchChatService.emit(
-      "predictionUpdate",
-      buildSyntheticPrediction("twitch", "ACTIVE"),
-    );
+    twitchChatService.emit("predictionUpdate", buildSyntheticPrediction("twitch", "ACTIVE"));
   };
 
   const injectPredictionEndedTwitch = () => {
     if (platform !== "twitch") return;
-    twitchChatService.emit(
-      "predictionUpdate",
-      buildSyntheticPrediction("twitch", "RESOLVED"),
-    );
+    twitchChatService.emit("predictionUpdate", buildSyntheticPrediction("twitch", "RESOLVED"));
   };
 
   const injectPredictionKick = () => {
@@ -491,20 +485,12 @@ export function ChatSimTool() {
   // without touching real OAuth.
   const forceModRole = useDevModOverrideStore((s) => s.forceModRole);
   const forceModScopes = useDevModOverrideStore((s) => s.forceModScopes);
-  const forceResolvedId = useDevModOverrideStore(
-    (s) => s.forceResolvedTwitchBroadcasterId,
-  );
-  const forceBroadcasterIdentity = useDevModOverrideStore(
-    (s) => s.forceBroadcasterIdentity,
-  );
+  const forceResolvedId = useDevModOverrideStore((s) => s.forceResolvedTwitchBroadcasterId);
+  const forceBroadcasterIdentity = useDevModOverrideStore((s) => s.forceBroadcasterIdentity);
   const setForceModRole = useDevModOverrideStore((s) => s.setForceModRole);
   const setForceModScopes = useDevModOverrideStore((s) => s.setForceModScopes);
-  const setForceResolvedId = useDevModOverrideStore(
-    (s) => s.setForceResolvedTwitchBroadcasterId,
-  );
-  const setForceBroadcasterIdentity = useDevModOverrideStore(
-    (s) => s.setForceBroadcasterIdentity,
-  );
+  const setForceResolvedId = useDevModOverrideStore((s) => s.setForceResolvedTwitchBroadcasterId);
+  const setForceBroadcasterIdentity = useDevModOverrideStore((s) => s.setForceBroadcasterIdentity);
   const openReconnectDialog = useReconnectDialogStore((s) => s.open);
   const twitchDisabledTitle = isTwitch ? "" : "Switch platform to Twitch";
 
@@ -732,10 +718,7 @@ export function ChatSimTool() {
           <PillButton
             onClick={() =>
               openReconnectDialog({
-                missingScopes: [
-                  "user:read:moderated_channels",
-                  "moderator:manage:chat_messages",
-                ],
+                missingScopes: ["user:read:moderated_channels", "moderator:manage:chat_messages"],
               })
             }
           >
@@ -759,11 +742,7 @@ export function ChatSimTool() {
           <PillButton onClick={injectPollEndedKick} disabled={!isKick} title={kickDisabledTitle}>
             poll (ended)
           </PillButton>
-          <PillButton
-            onClick={injectPredictionKick}
-            disabled={!isKick}
-            title={kickDisabledTitle}
-          >
+          <PillButton onClick={injectPredictionKick} disabled={!isKick} title={kickDisabledTitle}>
             prediction (live)
           </PillButton>
           <PillButton

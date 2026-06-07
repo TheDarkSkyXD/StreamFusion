@@ -9,13 +9,5 @@
 import { Toaster } from "sonner";
 
 export function ToastRoot() {
-  return (
-    <Toaster
-      position="bottom-right"
-      richColors
-      closeButton
-      duration={5000}
-      theme="dark"
-    />
-  );
+  return <Toaster position="bottom-right" richColors closeButton duration={5000} theme="dark" />;
 }

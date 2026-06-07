@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "fallow": {
+      "source": "fallow-rs/fallow-skills",
+      "sourceType": "github",
+      "skillPath": "fallow/skills/fallow/SKILL.md",
+      "computedHash": "28623dbb5fb793d35e34b3b1ae84f4e8892864df43ddf75ea1e5c1883d0d3331"
+    },
+    "react-doctor": {
+      "source": "millionco/react-doctor",
+      "sourceType": "github",
+      "skillPath": "skills/react-doctor/SKILL.md",
+      "computedHash": "508b1041bb9267cd69f80445813a9ac6f3b0d297c1b67e68bfdcab5572bf68f5"
+    },
+    "shadcn": {
+      "source": "shadcn-ui/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "eee4f8123d0ce59aa1b2dbf7ea302e6ae1177ff9eb9ec7cb846ccac087e0025e"
+    },
+    "skill-creator": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/skill-creator/SKILL.md",
+      "computedHash": "7e3c9cd74e9e2b4828527a857170e86310f2dab5ea8030a9043df2c7e6c88857"
+    }
+  }
+}

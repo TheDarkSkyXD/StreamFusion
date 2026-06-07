@@ -9,7 +9,7 @@ import type {
 } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
-export const SEARCH_KEYS = {
+const SEARCH_KEYS = {
   all: ["search"] as const,
   channels: (query: string, platform?: Platform) =>
     [...SEARCH_KEYS.all, "channels", query, platform] as const,

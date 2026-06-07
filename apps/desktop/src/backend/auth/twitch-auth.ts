@@ -19,7 +19,7 @@ import {
 import { storageService } from "../services/storage-service";
 
 import { getOAuthConfig } from "./oauth-config";
-import { tokenExchangeService, TokenRefreshError } from "./token-exchange";
+import { TokenRefreshError, tokenExchangeService } from "./token-exchange";
 
 // ========== Types ==========
 
@@ -53,11 +53,11 @@ const MIN_REFRESH_DELAY_MS = 1000;
 // invalidates the session; network problems by themselves can never log
 // the user out.
 const TRANSIENT_BACKOFF_MS = [
-  30 * 1000,        // 30s
-  2 * 60 * 1000,    // 2m
-  10 * 60 * 1000,   // 10m
-  45 * 60 * 1000,   // 45m
-  60 * 60 * 1000,   // 1h — and every subsequent attempt
+  30 * 1000, // 30s
+  2 * 60 * 1000, // 2m
+  10 * 60 * 1000, // 10m
+  45 * 60 * 1000, // 45m
+  60 * 60 * 1000, // 1h — and every subsequent attempt
 ];
 
 // ========== Twitch Auth Service Class ==========
@@ -127,7 +127,7 @@ class TwitchAuthService {
       if (permanent) {
         console.error(
           "❌ Twitch refresh token rejected by Twitch (permanent failure) — clearing stored credentials and prompting re-login.",
-          error,
+          error
         );
         this.invalidateAuth();
         return null;
@@ -143,7 +143,7 @@ class TwitchAuthService {
       const backoffMs = TRANSIENT_BACKOFF_MS[slot];
       console.warn(
         `⚠️ Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
-        error,
+        error
       );
       this.scheduleRefreshIn(backoffMs);
       return null;

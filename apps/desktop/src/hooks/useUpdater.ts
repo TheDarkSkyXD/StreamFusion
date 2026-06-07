@@ -6,7 +6,12 @@
  */
 
 import { useCallback, useEffect } from "react";
-import type { CheckFrequency, UpdateInfo, UpdateProgress, UpdateStatus } from "@/store/update-store";
+import type {
+  CheckFrequency,
+  UpdateInfo,
+  UpdateProgress,
+  UpdateStatus,
+} from "@/store/update-store";
 import { useUpdateStore } from "@/store/update-store";
 
 interface UseUpdaterReturn {
@@ -199,7 +204,7 @@ export function useUpdater(): UseUpdaterReturn {
 /**
  * Hook for just the update settings (pre-release toggle)
  */
-export function useUpdateSettings() {
+function useUpdateSettings() {
   const allowPrerelease = useUpdateStore((s) => s.allowPrerelease);
   const setAllowPrerelease = useUpdateStore((s) => s.setAllowPrerelease);
 

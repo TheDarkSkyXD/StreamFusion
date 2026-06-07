@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize, LuShieldCheck } from "react-icons/lu";
-
-import type { AdBlockStatus } from "@/shared/adblock-types";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import type { AdBlockStatus } from "@/shared/adblock-types";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 

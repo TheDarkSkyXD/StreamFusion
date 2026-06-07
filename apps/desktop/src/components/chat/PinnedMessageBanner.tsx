@@ -105,7 +105,7 @@ const PRIMARY_BADGE_PRIORITY = [
 ] as const;
 
 function pickPrimaryBadge(
-  badges: ReadonlyArray<{ setId: string }> | undefined,
+  badges: ReadonlyArray<{ setId: string }> | undefined
 ): { setId: string } | null {
   if (!badges || badges.length === 0) return null;
   for (const set of PRIMARY_BADGE_PRIORITY) {
@@ -191,7 +191,7 @@ const PinnedFragment: React.FC<{ fragment: ContentFragment; platform: "twitch" |
       default:
         return null;
     }
-  },
+  }
 );
 PinnedFragment.displayName = "PinnedFragment";
 
@@ -268,22 +268,14 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                   // in the header — the user's highest-priority role badge.
                   const primary = pickPrimaryBadge(pin.pinnedBy.badges);
                   if (!primary) return null;
-                  const fullBadge = pin.pinnedBy.badges.find(
-                    (b) => b.setId === primary.setId,
-                  );
+                  const fullBadge = pin.pinnedBy.badges.find((b) => b.setId === primary.setId);
                   return fullBadge ? (
-                    <span
-                      className="inline-flex flex-shrink-0"
-                      style={{ marginBottom: "1.5px" }}
-                    >
+                    <span className="inline-flex flex-shrink-0" style={{ marginBottom: "1.5px" }}>
                       <ChatBadge badge={fullBadge} platform={pin.platform} />
                     </span>
                   ) : null;
                 })()}
-                <span
-                  className="font-semibold truncate min-w-0"
-                  style={{ color: pinnedByColor }}
-                >
+                <span className="font-semibold truncate min-w-0" style={{ color: pinnedByColor }}>
                   {pin.pinnedBy.username}
                 </span>
               </div>

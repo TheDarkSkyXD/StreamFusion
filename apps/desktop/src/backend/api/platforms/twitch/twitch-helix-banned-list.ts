@@ -63,9 +63,7 @@ export class BannedUsersFetchError extends Error {
   }
 }
 
-export async function getBannedUsers(
-  args: GetBannedUsersArgs,
-): Promise<GetBannedUsersResult> {
+export async function getBannedUsers(args: GetBannedUsersArgs): Promise<GetBannedUsersResult> {
   const fetchImpl = args.fetchImpl ?? fetch;
   const first = Math.max(1, Math.min(100, args.first ?? 100));
 

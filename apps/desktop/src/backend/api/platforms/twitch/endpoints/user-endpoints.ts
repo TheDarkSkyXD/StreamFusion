@@ -144,7 +144,7 @@ export async function getAllFollowedChannels(client: TwitchRequestor): Promise<U
  * Note: This endpoint requires a user access token with moderator:read:followers scope.
  * Returns null on auth failures (401/403) to distinguish from legitimate 0 followers.
  */
-export async function getFollowerCount(
+async function getFollowerCount(
   client: TwitchRequestor,
   broadcasterId: string
 ): Promise<number | null> {

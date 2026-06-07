@@ -130,7 +130,7 @@ export function setAuthHeaders(
  * Set client version and session headers for GQL requests
  * These are optional but improve Twitch API compatibility
  */
-export function setClientHeaders(version?: string, session?: string): void {
+function setClientHeaders(version?: string, session?: string): void {
   clientVersion = version || null;
   clientSession = session || null;
 }
@@ -153,7 +153,7 @@ export function getAdBlockConfig(): AdBlockConfig {
  * Set whether the main process manifest proxy is active
  * When active, renderer-side processing is reduced to just tracking ad state
  */
-export function setMainProcessProxyActive(active: boolean): void {
+function setMainProcessProxyActive(active: boolean): void {
   isMainProcessProxyActive = active;
   console.debug(`[AdBlock] Main process proxy: ${active ? "active" : "inactive"}`);
 }
@@ -161,7 +161,7 @@ export function setMainProcessProxyActive(active: boolean): void {
 /**
  * Check if main process proxy is handling ad blocking
  */
-export function isMainProcessProxyEnabled(): boolean {
+function isMainProcessProxyEnabled(): boolean {
   return isMainProcessProxyActive;
 }
 

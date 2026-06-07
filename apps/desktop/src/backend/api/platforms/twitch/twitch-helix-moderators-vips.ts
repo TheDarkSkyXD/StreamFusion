@@ -181,7 +181,7 @@ interface HelixMembersEnvelope {
 }
 
 export async function getModerators(
-  args: GetMembersArgs,
+  args: GetMembersArgs
 ): Promise<HelixModResult<ChannelMembersPage>> {
   const result = await helixRequest<HelixMembersEnvelope>({
     accessToken: args.accessToken,
@@ -201,9 +201,7 @@ export async function getModerators(
   };
 }
 
-export async function getVips(
-  args: GetMembersArgs,
-): Promise<HelixModResult<ChannelMembersPage>> {
+export async function getVips(args: GetMembersArgs): Promise<HelixModResult<ChannelMembersPage>> {
   const result = await helixRequest<HelixMembersEnvelope>({
     accessToken: args.accessToken,
     method: "GET",

@@ -81,10 +81,8 @@ export function registerProxyHandlers(): void {
  */
 export function applyPersistedProxyOnStart(): void {
   const proxy = storageService.getPreferences().proxy;
-  void applyProxy({ enabled: proxy.enabled, host: proxy.host, port: proxy.port }).catch(
-    (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn("[ProxyHandlers] Failed to apply persisted proxy on start:", message);
-    }
-  );
+  void applyProxy({ enabled: proxy.enabled, host: proxy.host, port: proxy.port }).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[ProxyHandlers] Failed to apply persisted proxy on start:", message);
+  });
 }

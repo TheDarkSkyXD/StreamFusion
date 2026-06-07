@@ -1,5 +1,10 @@
 # ZUSTAND STORES
 
+**Read this file before modifying code in this directory.**
+
+## Purpose
+Owns all Zustand global state stores: auth, chat, emotes, follows, volume, multistream, history, room state, etc. Does NOT own: React Query caches, IPC handler logic, or backend services.
+
 ## OVERVIEW
 Client state management with IPC backend sync and localStorage persistence.
 

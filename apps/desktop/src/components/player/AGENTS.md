@@ -1,5 +1,10 @@
 # PLAYER COMPONENTS
 
+**Read this file before modifying code in this directory.**
+
+## Purpose
+Owns the HLS.js video player stack: platform-specific player wrappers (Kick/Twitch), playback controls, quality selection, PiP, and theater mode. Does NOT own: chat UI, stream metadata, or backend video URL resolution.
+
 ## OVERVIEW
 Video playback system: HLS.js core, platform wrappers, performance optimizations.
 

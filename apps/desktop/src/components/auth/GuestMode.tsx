@@ -116,7 +116,7 @@ const featureDescriptions: Record<GatedFeature, { title: string; description: st
 /**
  * Check if a feature requires authentication
  */
-export function requiresAuth(_feature: GatedFeature): boolean {
+function requiresAuth(_feature: GatedFeature): boolean {
   // All gated features require auth
   return true;
 }
@@ -124,7 +124,7 @@ export function requiresAuth(_feature: GatedFeature): boolean {
 /**
  * Get the description for a gated feature
  */
-export function getFeatureDescription(feature: GatedFeature) {
+function getFeatureDescription(feature: GatedFeature) {
   return featureDescriptions[feature];
 }
 
@@ -142,7 +142,7 @@ interface LoginPromptProps {
 /**
  * Prompt to encourage guests to log in
  */
-export function LoginPrompt({
+function LoginPrompt({
   feature,
   title,
   description,
@@ -231,7 +231,7 @@ interface FeatureGateProps {
 /**
  * Wrapper component that gates content behind authentication
  */
-export function FeatureGate({ feature, children, fallback, showPrompt = true }: FeatureGateProps) {
+function FeatureGate({ feature, children, fallback, showPrompt = true }: FeatureGateProps) {
   const isGuest = useAuthStore((state) => state.isGuest);
 
   if (!isGuest) {
@@ -259,7 +259,7 @@ interface GuestWelcomeBannerProps {
 /**
  * Welcome banner for guests with login CTA
  */
-export function GuestWelcomeBanner({ onDismiss, className = "" }: GuestWelcomeBannerProps) {
+function GuestWelcomeBanner({ onDismiss, className = "" }: GuestWelcomeBannerProps) {
   const isGuest = useAuthStore((state) => state.isGuest);
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);

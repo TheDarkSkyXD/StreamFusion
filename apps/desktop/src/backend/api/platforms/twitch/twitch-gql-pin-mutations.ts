@@ -63,7 +63,7 @@ async function gqlMutation(
   operationName: string,
   query: string,
   variables: Record<string, unknown>,
-  accessToken: string,
+  accessToken: string
 ): Promise<PinMutationResult> {
   try {
     const res = await fetch(GQL_ENDPOINT, {
@@ -103,7 +103,7 @@ export function pinChatMessage(
   channelId: string,
   messageId: string,
   durationSeconds: number | null,
-  accessToken: string,
+  accessToken: string
 ): Promise<PinMutationResult> {
   return gqlMutation(
     "PinChatMessage",
@@ -118,7 +118,7 @@ export function pinChatMessage(
         type: "MOD",
       },
     },
-    accessToken,
+    accessToken
   );
 }
 
@@ -131,7 +131,7 @@ export function pinChatMessage(
  */
 export function unpinChatMessage(
   pinRecordId: string,
-  accessToken: string,
+  accessToken: string
 ): Promise<PinMutationResult> {
   return gqlMutation(
     "UnpinChatMessage",
@@ -141,6 +141,6 @@ export function unpinChatMessage(
     {
       input: { id: pinRecordId, reason: "UNPIN" },
     },
-    accessToken,
+    accessToken
   );
 }

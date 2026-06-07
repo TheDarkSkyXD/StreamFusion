@@ -16,12 +16,6 @@
  *   KickTalk uses with its `is_old` flag.
  */
 
-import type {
-  ChatMessage,
-  KickPinnedMessage,
-  NormalizedPinnedMessage,
-} from "../../../shared/chat-types";
-
 import { kickPinToNormalized } from "../../../backend/services/chat/kick-chat";
 import {
   type KickChatMessageEvent,
@@ -29,6 +23,11 @@ import {
   type SubscriberBadge,
 } from "../../../backend/services/chat/kick-parser";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
+import type {
+  ChatMessage,
+  KickPinnedMessage,
+  NormalizedPinnedMessage,
+} from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
 
 export interface SeedKickChatHistoryParams {
@@ -58,8 +57,7 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
   // U5 — `recentMessagesOnJoin` gates the recent-message seed; `recentMessagesLimit`
   // caps how many seed. The pinned-message restore below is a distinct feature
   // (its own banner) and is not gated by this toggle.
-  const cd =
-    useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  const cd = useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const seedRecent = cd.recentMessagesOnJoin;
   const limit =
     Number.isFinite(cd.recentMessagesLimit) && cd.recentMessagesLimit > 0

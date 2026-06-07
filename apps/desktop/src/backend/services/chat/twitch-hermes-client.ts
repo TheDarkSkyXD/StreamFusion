@@ -28,25 +28,16 @@
 import { sleep } from "@/lib/sleep";
 
 import { EventEmitter } from "../../../shared/browser-event-emitter";
-import type {
-  UnifiedPrediction,
-  UnifiedPredictionOutcome,
-} from "../../../shared/chat-types";
+import type { UnifiedPrediction, UnifiedPredictionOutcome } from "../../../shared/chat-types";
 
-const HERMES_URL =
-  "wss://hermes.twitch.tv/v1?clientId=kimne78kx3ncx6brgo4mv6wki5h1ko";
+const HERMES_URL = "wss://hermes.twitch.tv/v1?clientId=kimne78kx3ncx6brgo4mv6wki5h1ko";
 const DEFAULT_KEEPALIVE_MS = 15_000;
 const RECONNECT_BASE_DELAY_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
 
 type Status = "ACTIVE" | "LOCKED" | "RESOLVED" | "CANCELED";
 
-const VALID_STATUSES: ReadonlySet<string> = new Set([
-  "ACTIVE",
-  "LOCKED",
-  "RESOLVED",
-  "CANCELED",
-]);
+const VALID_STATUSES: ReadonlySet<string> = new Set(["ACTIVE", "LOCKED", "RESOLVED", "CANCELED"]);
 
 interface HermesClientEvents {
   prediction: (prediction: UnifiedPrediction) => void;
@@ -132,8 +123,8 @@ export class TwitchHermesClient {
   private scheduleReconnect(): void {
     if (!this.active) return;
     const delay = Math.min(
-      RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts),
-      RECONNECT_MAX_DELAY_MS,
+      RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts,
+      RECONNECT_MAX_DELAY_MS
     );
     this.reconnectAttempts += 1;
     void sleep(delay).then(() => {
@@ -270,10 +261,7 @@ export class TwitchHermesClient {
  *
  * Exported for unit testing.
  */
-export function parsePredictionEvent(
-  inner: unknown,
-  channelId: string,
-): UnifiedPrediction | null {
+export function parsePredictionEvent(inner: unknown, channelId: string): UnifiedPrediction | null {
   if (!isObject(inner)) return null;
   const data = isObject(inner.data) ? inner.data : null;
   const event = data && isObject(data.event) ? data.event : null;
@@ -293,19 +281,15 @@ export function parsePredictionEvent(
   if (outcomes.length === 0) return null;
 
   const windowSeconds =
-    typeof event.prediction_window_seconds === "number"
-      ? event.prediction_window_seconds
-      : null;
+    typeof event.prediction_window_seconds === "number" ? event.prediction_window_seconds : null;
   const winningOutcomeId =
     typeof event.winning_outcome_id === "string" && event.winning_outcome_id.length > 0
       ? event.winning_outcome_id
       : null;
-  const createdAt = typeof event.created_at === "string" && event.created_at.length > 0
-    ? event.created_at
-    : null;
-  const endedAt = typeof event.ended_at === "string" && event.ended_at.length > 0
-    ? event.ended_at
-    : null;
+  const createdAt =
+    typeof event.created_at === "string" && event.created_at.length > 0 ? event.created_at : null;
+  const endedAt =
+    typeof event.ended_at === "string" && event.ended_at.length > 0 ? event.ended_at : null;
 
   return {
     id,
@@ -352,14 +336,11 @@ function parseOutcome(raw: unknown): UnifiedPredictionOutcome | null {
   const totalAmount = typeof raw.total_points === "number" ? raw.total_points : 0;
   const userCount = typeof raw.total_users === "number" ? raw.total_users : 0;
   const colorRaw = typeof raw.color === "string" ? raw.color.toLowerCase() : null;
-  const color = colorRaw && VALID_COLORS.has(colorRaw)
-    ? (colorRaw as UnifiedPredictionOutcome["color"])
-    : null;
+  const color =
+    colorRaw && VALID_COLORS.has(colorRaw) ? (colorRaw as UnifiedPredictionOutcome["color"]) : null;
   const topPredictorsRaw = Array.isArray(raw.top_predictors) ? raw.top_predictors : null;
   const topPredictors = topPredictorsRaw
-    ? topPredictorsRaw
-        .map(parseTopPredictor)
-        .filter((tp): tp is TopPredictor => tp !== null)
+    ? topPredictorsRaw.map(parseTopPredictor).filter((tp): tp is TopPredictor => tp !== null)
     : undefined;
   return {
     id,

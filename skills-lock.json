@@ -13,6 +13,12 @@
       "skillPath": ".claude/skills/auditing-skills/SKILL.md",
       "computedHash": "819eeb510c7c3ac937ee152ede21dc77553520870d4defddc05e6e8ff2c3d661"
     },
+    "deslop": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "skillPath": "cursor-team-kit/skills/deslop/SKILL.md",
+      "computedHash": "d8f29591af9caafaf82b99eb654e0383059c221c6e3c58f24aaab5a93bd6194e"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",

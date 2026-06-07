@@ -100,7 +100,7 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
   // Immediate update when hls/video/sessionIds change
   useEffect(() => {
     updateStats();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hls, video, sessionIds]);
 
   // 1 Hz stats refresh while hls and video are available

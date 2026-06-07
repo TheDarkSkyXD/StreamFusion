@@ -6,14 +6,8 @@
  */
 
 import Pusher from "pusher-js";
-import { EventEmitter } from "../../../shared/browser-event-emitter";
 import { sleep } from "@/lib/sleep";
-// Type-only import: lets us reference the KickSendResult shape without pulling
-// kick-send-window's main-only deps (electron / better-sqlite3 via the
-// storage-service chain) into the renderer bundle. The runtime calls go
-// through window.electronAPI.kickChat below.
-import type { KickSendResult } from "../../api/platforms/kick/kick-send-window";
-
+import { EventEmitter } from "../../../shared/browser-event-emitter";
 // ... imports
 import type {
   ChatBadge,
@@ -26,6 +20,11 @@ import type {
   KickPoll,
   NormalizedPinnedMessage,
 } from "../../../shared/chat-types";
+// Type-only import: lets us reference the KickSendResult shape without pulling
+// kick-send-window's main-only deps (electron / better-sqlite3 via the
+// storage-service chain) into the renderer bundle. The runtime calls go
+// through window.electronAPI.kickChat below.
+import type { KickSendResult } from "../../api/platforms/kick/kick-send-window";
 
 // ... imports
 import {
@@ -67,8 +66,7 @@ const sendKickChatMessage = (chatroomId: number, content: string): Promise<KickS
 const ensureSendWindowReady = (): Promise<void> =>
   window.electronAPI.kickChat.ensureSendWindowReady();
 
-const disposeSendWindow = (): Promise<void> =>
-  window.electronAPI.kickChat.disposeSendWindow();
+const disposeSendWindow = (): Promise<void> => window.electronAPI.kickChat.disposeSendWindow();
 
 /**
  * Convert a raw Kick pinned-message Pusher payload into the platform-agnostic
@@ -501,7 +499,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   async joinChannel(
     channel: string,
     chatroomId: number,
-    broadcasterUserId?: number,
+    broadcasterUserId?: number
   ): Promise<void> {
     const normalizedChannel = this.normalizeChannel(channel);
 
@@ -626,7 +624,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
      * delivery arrives. Falls back to a single text fragment when omitted,
      * preserving the historical echo shape for non-input callers.
      */
-    localFragments?: ContentFragment[],
+    localFragments?: ContentFragment[]
   ): Promise<void> {
     const normalizedChannel = this.normalizeChannel(channel);
     const channelInfo = this.channels.get(normalizedChannel);

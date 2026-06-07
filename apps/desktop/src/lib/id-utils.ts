@@ -66,7 +66,7 @@ export function getChannelNameKey(platform: Platform, username: string): string 
  * @example
  * parseKey('twitch-12345') // => { platform: 'twitch', id: '12345' }
  */
-export function parseKey(key: string): { platform: Platform; id: string } | null {
+function parseKey(key: string): { platform: Platform; id: string } | null {
   const dashIndex = key.indexOf("-");
   if (dashIndex === -1) return null;
 
@@ -87,7 +87,7 @@ export function parseKey(key: string): { platform: Platform; id: string } | null
  * isSameChannel(twitchXqc, kickXqc)   // => false (different platforms)
  * isSameChannel(twitchXqc, twitchXqc) // => true
  */
-export function isSameChannel(
+function isSameChannel(
   a: Pick<UnifiedChannel, "platform" | "id">,
   b: Pick<UnifiedChannel, "platform" | "id">
 ): boolean {
@@ -113,4 +113,3 @@ export function channelsMatch(
   }
   return false;
 }
-

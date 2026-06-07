@@ -89,9 +89,9 @@ export function ReconnectForModDialog() {
             Reconnect for mod features
           </DialogTitle>
           <DialogDescription className="text-[var(--color-foreground-muted)] pt-2">
-            This action needs additional permissions on your Twitch account.
-            Click <strong>Reconnect</strong> to grant them — you'll be
-            redirected through Twitch's login briefly.
+            This action needs additional permissions on your Twitch account. Click{" "}
+            <strong>Reconnect</strong> to grant them — you'll be redirected through Twitch's login
+            briefly.
           </DialogDescription>
         </DialogHeader>
 

@@ -27,7 +27,7 @@ export function useTopStreams(platform?: Platform, limit: number = 20) {
   });
 }
 
-export function useStreamsByCategory(categoryId: string, platform?: Platform, limit: number = 20) {
+function useStreamsByCategory(categoryId: string, platform?: Platform, limit: number = 20) {
   return useQuery({
     queryKey: STREAM_KEYS.byCategory(categoryId, platform),
     queryFn: async () => {

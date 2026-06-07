@@ -12,16 +12,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-
+import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import {
   addModerator,
   removeModerator,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import {
-  getModerators,
   type ChannelMember,
+  getModerators,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderators-vips";
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
 import { useAuthStore } from "@/store/auth-store";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
@@ -41,7 +40,7 @@ interface ResolvedUser {
 async function resolveLogin(
   login: string,
   accessToken: string,
-  clientId: string,
+  clientId: string
 ): Promise<ResolvedUser | null> {
   const url = `${HELIX_BASE}/users?login=${encodeURIComponent(login.trim().toLowerCase())}`;
   const res = await fetch(url, {
@@ -80,7 +79,7 @@ export function ChannelModeratorsTable({
       }
       const result = await withTwitchHelixRetry(
         { accessToken, clientId, broadcasterId },
-        getModerators,
+        getModerators
       );
       if (!result.ok) {
         setError(`Couldn't load moderators — ${result.kind}`);

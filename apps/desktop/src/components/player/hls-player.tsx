@@ -7,10 +7,7 @@ import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { resolveHlsBufferConfig } from "./hls-buffer-config";
-import {
-  createKickClipPlaylistLoader,
-  isKickClipPlaylistUrl,
-} from "./kick/kick-clip-loader";
+import { createKickClipPlaylistLoader, isKickClipPlaylistUrl } from "./kick/kick-clip-loader";
 import type { PlayerError, QualityLevel } from "./types";
 
 export interface HlsPlayerProps
@@ -431,9 +428,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           // Kick clips are cut mid-GOP, so seg 0 has no keyframe and hls.js
           // opens an audio-only MediaSource that can't accept the video that
           // shows up in seg 1. See kick-clip-loader.ts.
-          ...(isKickClipPlaylistUrl(src)
-            ? { pLoader: createKickClipPlaylistLoader() }
-            : {}),
+          ...(isKickClipPlaylistUrl(src) ? { pLoader: createKickClipPlaylistLoader() } : {}),
         });
         hlsRef.current = hls;
         if (onHlsInstance) onHlsInstance(hls);

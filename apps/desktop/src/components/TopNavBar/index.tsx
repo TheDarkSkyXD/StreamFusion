@@ -25,9 +25,7 @@ export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) 
   // U29 — /mod nav-link gating. Visible only when the signed-in Twitch user
   // moderates ≥1 channel. We subscribe to the Set's size so this re-renders
   // when hydrate populates the store.
-  const moderatedCount = useModeratedChannelsStore(
-    (s) => s.twitchModeratedChannelIds.size,
-  );
+  const moderatedCount = useModeratedChannelsStore((s) => s.twitchModeratedChannelIds.size);
   const showModLink = moderatedCount > 0;
 
   return (

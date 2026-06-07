@@ -60,7 +60,7 @@ export function UserPopout({
     platform,
     channelId,
     username,
-    channelSlug,
+    channelSlug
   );
 
   const messages = useChatStore((s) => s.messages);
@@ -70,7 +70,7 @@ export function UserPopout({
         (m) =>
           m.type === "message" &&
           (m.userId === userId ||
-            (!m.userId && m.username.toLowerCase() === username.toLowerCase())),
+            (!m.userId && m.username.toLowerCase() === username.toLowerCase()))
       )
       .slice(-RECENT_MESSAGE_LIMIT)
       .reverse();
@@ -79,13 +79,10 @@ export function UserPopout({
   const latestMessageId = recentMessages[0]?.id ?? null;
 
   const twitchUser = useAuthStore((s) => s.twitchUser);
-  const forceBroadcasterIdentity = useDevModOverrideStore(
-    (s) => s.forceBroadcasterIdentity,
-  );
+  const forceBroadcasterIdentity = useDevModOverrideStore((s) => s.forceBroadcasterIdentity);
   const isBroadcaster =
     platform === "twitch" &&
-    (forceBroadcasterIdentity ||
-      Boolean(twitchUser && twitchUser.id === channelId));
+    (forceBroadcasterIdentity || Boolean(twitchUser && twitchUser.id === channelId));
 
   // U17 — bump to force the mod-history list to re-query after an action.
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -99,8 +96,7 @@ export function UserPopout({
         <DialogHeader className="pb-2">
           <DialogTitle className="sr-only">User profile: {username}</DialogTitle>
           <DialogDescription className="sr-only">
-            Profile, recent messages, mod history, and moderation actions for @
-            {username}.
+            Profile, recent messages, mod history, and moderation actions for @{username}.
           </DialogDescription>
         </DialogHeader>
 

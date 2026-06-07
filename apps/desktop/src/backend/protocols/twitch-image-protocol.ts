@@ -34,7 +34,7 @@ const PLACEHOLDER_PNG = Buffer.from(
  * Build a twitch-image:// URL from a Twitch CDN URL. Run this in the renderer
  * when setting <img src> for Twitch profile images.
  */
-export function buildTwitchImageUrl(originalUrl: string): string {
+function buildTwitchImageUrl(originalUrl: string): string {
   const b64url = Buffer.from(originalUrl, "utf-8")
     .toString("base64")
     .replace(/\+/g, "-")

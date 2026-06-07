@@ -98,7 +98,7 @@ export async function pinKickMessage(payload: KickPinPayload): Promise<KickPinMu
 
 export async function unpinKickMessage(
   channelSlug: string,
-  accessToken: string,
+  accessToken: string
 ): Promise<KickPinMutationResult> {
   const url = `${KICK_API_BASE}/channels/${encodeURIComponent(channelSlug)}/pinned-message`;
   try {

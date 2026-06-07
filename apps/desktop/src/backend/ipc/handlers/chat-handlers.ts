@@ -24,7 +24,7 @@ export function registerChatHandlers(): void {
           error: error instanceof Error ? error.message : "Failed to fetch Kick chat history",
         };
       }
-    },
+    }
   );
 
   /**
@@ -48,6 +48,6 @@ export function registerChatHandlers(): void {
           error: error instanceof Error ? error.message : "Failed to fetch Twitch chat history",
         };
       }
-    },
+    }
   );
 }

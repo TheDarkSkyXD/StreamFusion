@@ -23,8 +23,8 @@
  */
 
 import type React from "react";
-import type { ChatPlatform } from "../../shared/chat-types";
 import { useChatRoomState } from "../../hooks/useChatRoomState";
+import type { ChatPlatform } from "../../shared/chat-types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 /**
@@ -81,10 +81,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
     active.push({
       key: "followers",
       label: n > 0 ? `Followers Only Mode [${n}m]` : "Followers Only Mode",
-      tooltipLabel:
-        n > 0
-          ? `Followers Only Mode Enabled [${n}m]`
-          : "Followers Only Mode Enabled",
+      tooltipLabel: n > 0 ? `Followers Only Mode Enabled [${n}m]` : "Followers Only Mode Enabled",
     });
   }
 
@@ -165,10 +162,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          <div
-            data-testid="info-banner-tooltip"
-            className="flex flex-col gap-1 text-xs"
-          >
+          <div data-testid="info-banner-tooltip" className="flex flex-col gap-1 text-xs">
             {active.map((mode) => (
               <span
                 key={mode.key}
@@ -204,7 +198,11 @@ const InfoIcon: React.FC = () => (
     focusable="false"
     fill="currentColor"
   >
-    <path fillRule="evenodd" clipRule="evenodd" d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1Zm1 5v2h-2V6h2Zm0 4v8h-2v-8h2Z" />
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1Zm1 5v2h-2V6h2Zm0 4v8h-2v-8h2Z"
+    />
   </svg>
 );
 

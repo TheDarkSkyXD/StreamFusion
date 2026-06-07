@@ -14,8 +14,6 @@ export * from "./twitch";
 import * as KickAssets from "./kick";
 import * as TwitchAssets from "./twitch";
 
-export { TwitchAssets, KickAssets };
-
 // ========== Platform Color Helper ==========
 
 /**
@@ -35,7 +33,7 @@ export function getPlatformColor(platform: Platform): string {
 /**
  * Get platform display name
  */
-export function getPlatformName(platform: Platform): string {
+function getPlatformName(platform: Platform): string {
   switch (platform) {
     case "twitch":
       return "Twitch";
@@ -49,7 +47,7 @@ export function getPlatformName(platform: Platform): string {
 /**
  * Get platform logo URL
  */
-export function getPlatformLogo(platform: Platform): string {
+function getPlatformLogo(platform: Platform): string {
   switch (platform) {
     case "twitch":
       return TwitchAssets.TWITCH_PLATFORM.logoUrl;
@@ -63,7 +61,7 @@ export function getPlatformLogo(platform: Platform): string {
 /**
  * Get all CSS variables for a platform
  */
-export function getPlatformCssVariables(platform: Platform): Record<string, string> {
+function getPlatformCssVariables(platform: Platform): Record<string, string> {
   switch (platform) {
     case "twitch":
       return TwitchAssets.getTwitchCssVariables();

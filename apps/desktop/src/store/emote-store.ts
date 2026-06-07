@@ -52,7 +52,9 @@ interface EmoteState {
    * the new provider set (next-load semantics, R10) — already-buffered messages
    * are intentionally left untouched.
    */
-  applyProviderPrefs: (prefs: Pick<ChatDisplayPreferences, "enable7tv" | "enableBttv" | "enableFfz">) => void;
+  applyProviderPrefs: (
+    prefs: Pick<ChatDisplayPreferences, "enable7tv" | "enableBttv" | "enableFfz">
+  ) => void;
   loadGlobalEmotes: (platform?: Platform) => Promise<void>;
   loadChannelEmotes: (
     channelId: string,
@@ -248,7 +250,6 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
  * need the legacy boolean shape can subscribe to this without re-rendering
  * when unrelated emote-store slices change.
  */
-export const useGlobalEmotesLoaded = (): boolean =>
-  useEmoteStore((s) => s.loadedGlobalPlatforms.size > 0);
+const useGlobalEmotesLoaded = (): boolean => useEmoteStore((s) => s.loadedGlobalPlatforms.size > 0);
 
 export default useEmoteStore;

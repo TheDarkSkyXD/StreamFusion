@@ -1,7 +1,6 @@
 import { BrowserWindow } from "electron";
-
-import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
 import { createManagedInterval } from "@/lib/managed-interval";
+import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
 import { isNetworkLikelyDown } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
@@ -36,8 +35,7 @@ export function mapKickChatroomToSettings(raw: unknown): KickChatroomSettings | 
   const followingMinDuration =
     typeof r.following_min_duration === "number" ? r.following_min_duration : null;
   const slowEnabled = r.slow_mode === true;
-  const messageInterval =
-    typeof r.message_interval === "number" ? r.message_interval : null;
+  const messageInterval = typeof r.message_interval === "number" ? r.message_interval : null;
 
   return {
     slowMode: {
@@ -288,10 +286,7 @@ export async function getPublicChannel(slug: string): Promise<UnifiedChannel | n
   }
 }
 
-async function _doFetchPublicChannel(
-  slug: string,
-  key: string
-): Promise<UnifiedChannel | null> {
+async function _doFetchPublicChannel(slug: string, key: string): Promise<UnifiedChannel | null> {
   // Skip the BrowserWindow round-trip if the network service is currently
   // crashed/restarting. loadURL would just time out, and a hidden window is
   // an expensive resource (renderer + GPU + network partition) — exactly the

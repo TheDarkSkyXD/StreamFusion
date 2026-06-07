@@ -9,18 +9,13 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-
-import { useInterval } from "@/hooks/useInterval";
-
 import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
-import {
-  getPolls,
-  type PollPayload,
-} from "@/backend/api/platforms/twitch/twitch-helix-polls";
+import { getPolls, type PollPayload } from "@/backend/api/platforms/twitch/twitch-helix-polls";
 import {
   getPredictions,
   type PredictionPayload,
 } from "@/backend/api/platforms/twitch/twitch-helix-predictions";
+import { useInterval } from "@/hooks/useInterval";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -30,10 +25,7 @@ interface ChannelEngagementProps {
   refreshCounter?: number;
 }
 
-export function ChannelEngagement({
-  broadcasterId,
-  refreshCounter,
-}: ChannelEngagementProps) {
+export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEngagementProps) {
   const [prediction, setPrediction] = useState<PredictionPayload | null>(null);
   const [poll, setPoll] = useState<PollPayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,15 +43,12 @@ export function ChannelEngagement({
       ]);
       setPrediction(
         predResult.ok
-          ? predResult.payload.data.find(
-              (p) => p.status === "ACTIVE" || p.status === "LOCKED",
-            ) ?? null
-          : null,
+          ? (predResult.payload.data.find((p) => p.status === "ACTIVE" || p.status === "LOCKED") ??
+              null)
+          : null
       );
       setPoll(
-        pollResult.ok
-          ? pollResult.payload.data.find((p) => p.status === "ACTIVE") ?? null
-          : null,
+        pollResult.ok ? (pollResult.payload.data.find((p) => p.status === "ACTIVE") ?? null) : null
       );
     } finally {
       setLoading(false);
@@ -78,9 +67,7 @@ export function ChannelEngagement({
     <section data-testid="channel-engagement">
       <h2 className="text-xl font-semibold mb-3 text-white">Active engagement</h2>
       <div className="rounded border border-[var(--color-border)] bg-white/5 p-3">
-        {loading && !hasActivity ? (
-          <p className="text-sm text-gray-400">Loading…</p>
-        ) : null}
+        {loading && !hasActivity ? <p className="text-sm text-gray-400">Loading…</p> : null}
         {prediction ? (
           <div className="mb-2" data-testid="channel-engagement-prediction">
             <div className="text-xs uppercase tracking-wide text-[var(--color-foreground-muted)]">

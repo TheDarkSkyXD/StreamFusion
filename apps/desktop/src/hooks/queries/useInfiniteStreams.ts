@@ -5,7 +5,7 @@ import type { Platform } from "../../shared/auth-types";
 
 import { STREAM_KEYS } from "./useStreams";
 
-export function useInfiniteTopStreams(platform?: Platform, limit: number = 20) {
+function useInfiniteTopStreams(platform?: Platform, limit: number = 20) {
   return useInfiniteQuery({
     queryKey: [...STREAM_KEYS.top(platform, limit), "infinite"],
     initialPageParam: undefined as string | undefined,
@@ -37,12 +37,7 @@ export function useInfiniteStreamsByCategory(
   language?: string
 ) {
   return useInfiniteQuery({
-    queryKey: [
-      ...STREAM_KEYS.byCategory(categoryId, platform),
-      "infinite",
-      categoryName,
-      language,
-    ],
+    queryKey: [...STREAM_KEYS.byCategory(categoryId, platform), "infinite", categoryName, language],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await window.electronAPI.streams.getByCategory({
@@ -70,7 +65,7 @@ export function useInfiniteStreamsByCategory(
   });
 }
 
-export function useInfiniteFollowedStreams(platform?: Platform, limit: number = 20) {
+function useInfiniteFollowedStreams(platform?: Platform, limit: number = 20) {
   return useInfiniteQuery({
     queryKey: [...STREAM_KEYS.followed(platform), "infinite"],
     initialPageParam: undefined as string | undefined,

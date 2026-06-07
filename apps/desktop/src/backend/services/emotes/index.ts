@@ -4,16 +4,12 @@
  * Central export point for all emote-related services and types.
  */
 
-export { SevenTVEmoteProvider, sevenTVEmoteProvider } from "./7tv-emotes";
-export { BTTVEmoteProvider, bttvEmoteProvider } from "./bttv-emotes";
 // Manager
-export { EmoteManager, emoteManager } from "./emote-manager";
+export { emoteManager } from "./emote-manager";
 // Types
 export * from "./emote-types";
-export { FFZEmoteProvider, ffzEmoteProvider } from "./ffz-emotes";
-export { KickEmoteProvider, kickEmoteProvider } from "./kick-emotes";
+
 // Providers
-export { TwitchEmoteProvider, twitchEmoteProvider } from "./twitch-emotes";
 
 import { sevenTVEmoteProvider } from "./7tv-emotes";
 import { bttvEmoteProvider } from "./bttv-emotes";
@@ -27,7 +23,7 @@ import { twitchEmoteProvider } from "./twitch-emotes";
  * Register all emote providers with the manager
  * Call this during app initialization
  */
-export function initializeEmoteProviders(): void {
+function initializeEmoteProviders(): void {
   emoteManager.registerProvider(twitchEmoteProvider);
   emoteManager.registerProvider(kickEmoteProvider);
   emoteManager.registerProvider(bttvEmoteProvider);

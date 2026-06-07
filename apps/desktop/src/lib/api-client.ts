@@ -8,7 +8,7 @@ import ky from "ky";
  * - 30s timeout
  * - Hooks for logging or auth injection
  */
-export const apiClient = ky.create({
+const apiClient = ky.create({
   timeout: 30000, // 30 seconds
   retry: {
     limit: 2,

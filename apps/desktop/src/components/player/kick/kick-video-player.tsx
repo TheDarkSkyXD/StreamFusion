@@ -30,7 +30,7 @@ export interface KickVideoPlayerProps {
   thumbnail?: string;
 }
 
-export function KickVideoPlayer(props: KickVideoPlayerProps) {
+function KickVideoPlayer(props: KickVideoPlayerProps) {
   const {
     streamUrl,
     poster,

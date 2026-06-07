@@ -325,7 +325,18 @@ export interface UnifiedPredictionOutcome {
    * predictions and sequential palette values (`yellow`, `green`, `orange`,
    * `purple`, `red`, `cyan`, `brown`, `gray`) for 3+. Kick has no color field.
    */
-  color: "blue" | "pink" | "yellow" | "green" | "orange" | "purple" | "red" | "cyan" | "brown" | "gray" | null;
+  color:
+    | "blue"
+    | "pink"
+    | "yellow"
+    | "green"
+    | "orange"
+    | "purple"
+    | "red"
+    | "cyan"
+    | "brown"
+    | "gray"
+    | null;
   /** Total points (Twitch channel points) or KCP (Kick) staked on this outcome. */
   totalAmount: number;
   /** Unique users who voted on this outcome. */

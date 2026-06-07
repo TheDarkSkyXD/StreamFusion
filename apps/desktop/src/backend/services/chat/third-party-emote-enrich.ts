@@ -24,8 +24,8 @@
  * the emote text isn't present in any text fragment for the helper to find.
  */
 
-import type { Emote } from "../emotes/emote-types";
 import type { ContentFragment } from "../../../shared/chat-types";
+import type { Emote } from "../emotes/emote-types";
 
 const THIRD_PARTY_PROVIDERS = new Set<Emote["provider"]>(["7tv", "bttv", "ffz"]);
 const ALL_PROVIDERS = new Set<Emote["provider"]>(["7tv", "bttv", "ffz", "twitch", "kick"]);
@@ -51,7 +51,7 @@ const ALL_PROVIDERS = new Set<Emote["provider"]>(["7tv", "bttv", "ffz", "twitch"
 export function substituteThirdPartyEmotes(
   fragments: ContentFragment[],
   emoteByName: Map<string, Emote>,
-  opts: { includeNative?: boolean } = {},
+  opts: { includeNative?: boolean } = {}
 ): ContentFragment[] {
   if (emoteByName.size === 0 || fragments.length === 0) return fragments;
 
@@ -105,7 +105,11 @@ export function substituteThirdPartyEmotes(
       // Defensive: shouldn't happen (text always flushes something), but keeps
       // the empty-text edge from collapsing the fragment list.
       out.push(fragment);
-    } else if (fragOut.length === 1 && fragOut[0].type === "text" && fragOut[0].content === fragment.content) {
+    } else if (
+      fragOut.length === 1 &&
+      fragOut[0].type === "text" &&
+      fragOut[0].content === fragment.content
+    ) {
       out.push(fragment);
     } else {
       out.push(...fragOut);

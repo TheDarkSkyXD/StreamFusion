@@ -84,9 +84,7 @@ export const ChatPanelTabs: React.FC<ChatPanelTabsProps> = ({
             >
               <span>{TAB_LABELS[tab]}</span>
               {typeof badge === "number" && badge > 0 ? (
-                <span className="bg-red-500 text-white rounded-full px-1.5 text-xs">
-                  {badge}
-                </span>
+                <span className="bg-red-500 text-white rounded-full px-1.5 text-xs">{badge}</span>
               ) : null}
             </button>
           );

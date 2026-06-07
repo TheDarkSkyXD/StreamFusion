@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 // Quiet QueryClient: no retries, no refetches — keeps tests deterministic and fast.
-export function makeQueryClient() {
+function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: { retry: false, refetchOnWindowFocus: false, gcTime: 0, staleTime: 0 },
@@ -20,7 +20,7 @@ interface ProvidersProps {
   queryClient?: QueryClient;
 }
 
-export function TestProviders({ children, queryClient }: ProvidersProps) {
+function TestProviders({ children, queryClient }: ProvidersProps) {
   const client = queryClient ?? makeQueryClient();
   return (
     <QueryClientProvider client={client}>
@@ -179,5 +179,5 @@ export const fixtures = {
   },
 };
 
-export { screen, fireEvent, waitFor, act } from '@testing-library/react';
+export { screen, fireEvent, waitFor } from '@testing-library/react';
 export { default as userEvent } from '@testing-library/user-event';

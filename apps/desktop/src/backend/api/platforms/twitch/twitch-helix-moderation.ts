@@ -41,7 +41,7 @@ interface HelixModeratedChannelsResponse {
 export async function getModeratedChannels(
   selfUserId: string,
   accessToken: string,
-  clientId: string,
+  clientId: string
 ): Promise<ModeratedChannel[]> {
   const all: ModeratedChannel[] = [];
   let cursor: string | undefined;
@@ -54,7 +54,7 @@ export async function getModeratedChannels(
   // x 100/page is 5000 moderated channels — far past any realistic streamer.
   for (let page = 0; page < 50; page++) {
     const url = `${HELIX_BASE}/moderation/channels?user_id=${encodeURIComponent(
-      selfUserId,
+      selfUserId
     )}&first=100${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`;
 
     let body: HelixModeratedChannelsResponse | null;

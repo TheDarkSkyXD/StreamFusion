@@ -202,7 +202,7 @@ export function PerformanceEnhancedPlayer({
  * Performance status indicator component
  * Shows current performance optimization state
  */
-export function PerformanceIndicator({
+function PerformanceIndicator({
   bufferHealth,
   isThrottled,
   wasAutoAdjusted,

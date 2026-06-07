@@ -47,9 +47,7 @@ const KICK_PROXY_PATTERNS: RegExp[] = [
 // Twitch's CDN). Kept narrow to profile_image objects only — emotes and live
 // thumbnails don't have the same breakage and routing them through the main
 // process would add latency to chat rendering.
-const TWITCH_PROXY_PATTERNS: RegExp[] = [
-  /^https:\/\/static-cdn\.jtvnw\.net\/jtv_user_pictures\//i,
-];
+const TWITCH_PROXY_PATTERNS: RegExp[] = [/^https:\/\/static-cdn\.jtvnw\.net\/jtv_user_pictures\//i];
 
 type ProxyScheme = typeof KICK_IMAGE_SCHEME | typeof TWITCH_IMAGE_SCHEME;
 
@@ -140,8 +138,8 @@ export function ProxiedImage({
   // Seed hasError from the session-level skip-list so a URL that 403'd earlier
   // in this session goes straight to the fallback path without re-issuing a
   // request the browser would log to the console.
-  const [hasError, setHasError] = useState(() =>
-    resolvedSrc !== null && brokenUrls.has(resolvedSrc)
+  const [hasError, setHasError] = useState(
+    () => resolvedSrc !== null && brokenUrls.has(resolvedSrc)
   );
 
   // Reset load state when the underlying src actually changes. A bare
@@ -206,10 +204,7 @@ export function ProxiedImage({
       ref={setImgRef}
       src={resolvedSrc}
       alt={alt}
-      className={cn(
-        !isLoaded && "animate-pulse bg-[var(--color-background-elevated)]",
-        className
-      )}
+      className={cn(!isLoaded && "animate-pulse bg-[var(--color-background-elevated)]", className)}
       loading={loading}
       decoding="async"
       {...(width !== undefined ? { width } : {})}

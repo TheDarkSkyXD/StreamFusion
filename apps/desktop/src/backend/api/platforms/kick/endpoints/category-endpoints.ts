@@ -1,3 +1,4 @@
+import { sleep } from "@/lib/sleep";
 import type { UnifiedCategory } from "../../../unified/platform-types";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickCategory } from "../kick-transformers";
@@ -8,9 +9,7 @@ import type {
   PaginatedResult,
   PaginationOptions,
 } from "../kick-types";
-
 import { rememberCategorySlug } from "./stream-endpoints";
-import { sleep } from "@/lib/sleep";
 
 const _publicCategoryListCache: {
   data: UnifiedCategory[];
@@ -138,7 +137,7 @@ async function getPublicCategoryList(): Promise<UnifiedCategory[]> {
  * by viewer count descending. See `getPublicCategoryList` for the pagination /
  * caching details.
  */
-export async function getPublicTopCategories(): Promise<PaginatedResult<UnifiedCategory>> {
+async function getPublicTopCategories(): Promise<PaginatedResult<UnifiedCategory>> {
   try {
     const categories = await getPublicCategoryList();
     return { data: categories };
@@ -274,10 +273,7 @@ export async function getCategoryById(
     }
     return null;
   } catch (error) {
-    console.warn(
-      "Failed to fetch Kick category via official API, falling back to public:",
-      error
-    );
+    console.warn("Failed to fetch Kick category via official API, falling back to public:", error);
     const publicResult = await getPublicTopCategories();
     return publicResult.data.find((c) => c.id === id) || null;
   }

@@ -33,11 +33,7 @@ export function recentRaidsKey(selfBroadcasterId: string): string {
 
 const RECENT_LIMIT = 10;
 
-export function RaidTargetPicker({
-  selfBroadcasterId,
-  disabled,
-  onChange,
-}: RaidTargetPickerProps) {
+export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: RaidTargetPickerProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<RaidTarget | null>(null);
   const [recent, setRecent] = useState<RaidTarget[]>([]);
@@ -49,7 +45,7 @@ export function RaidTargetPicker({
     (async () => {
       try {
         const stored = await window.electronAPI.store.get<RaidTarget[]>(
-          recentRaidsKey(selfBroadcasterId),
+          recentRaidsKey(selfBroadcasterId)
         );
         if (!cancelled && Array.isArray(stored)) {
           setRecent(stored.slice(0, RECENT_LIMIT));
@@ -129,9 +125,7 @@ export function RaidTargetPicker({
                   className="w-full text-left px-2 py-1 text-sm text-[#EFEFF1] hover:bg-white/10 disabled:opacity-50"
                 >
                   {target.broadcasterName}
-                  <span className="text-xs text-gray-400 ml-2">
-                    @{target.broadcasterLogin}
-                  </span>
+                  <span className="text-xs text-gray-400 ml-2">@{target.broadcasterLogin}</span>
                 </button>
               </li>
             );
@@ -156,9 +150,7 @@ export function RaidTargetPicker({
                   className="w-full text-left px-2 py-1 text-xs text-[#EFEFF1] hover:bg-white/10 rounded disabled:opacity-50"
                 >
                   {target.broadcasterName}
-                  <span className="text-gray-500 ml-2">
-                    @{target.broadcasterLogin}
-                  </span>
+                  <span className="text-gray-500 ml-2">@{target.broadcasterLogin}</span>
                 </button>
               </li>
             ))}
@@ -176,12 +168,11 @@ export function RaidTargetPicker({
  */
 export async function appendRecentRaid(
   selfBroadcasterId: string,
-  target: RaidTarget,
+  target: RaidTarget
 ): Promise<void> {
   try {
     const key = recentRaidsKey(selfBroadcasterId);
-    const existing =
-      (await window.electronAPI.store.get<RaidTarget[]>(key)) ?? [];
+    const existing = (await window.electronAPI.store.get<RaidTarget[]>(key)) ?? [];
     const deduped = [target, ...existing.filter((t) => t.broadcasterId !== target.broadcasterId)];
     await window.electronAPI.store.set(key, deduped.slice(0, RECENT_LIMIT));
   } catch {

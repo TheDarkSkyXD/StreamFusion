@@ -17,10 +17,7 @@ import {
   useRoomStateStore,
 } from "@/store/room-state-store";
 
-export function useChatRoomState(
-  platform: "twitch" | "kick",
-  channelId: string | null,
-): RoomState {
+export function useChatRoomState(platform: "twitch" | "kick", channelId: string | null): RoomState {
   return useRoomStateStore((state) => {
     if (!channelId) return DEFAULT_ROOM_STATE;
     return state.entries[roomStateKey(platform, channelId)] ?? DEFAULT_ROOM_STATE;

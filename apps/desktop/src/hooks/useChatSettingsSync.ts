@@ -22,19 +22,14 @@
  */
 
 import { useEffect } from "react";
-
-import { getChatSettings } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
 import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
+import { getChatSettings } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
 import type { ChatSettingsPayload } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
+import type { KickChatroomSettings, UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { kickChatService } from "@/backend/services/chat/kick-chat";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
-import type { KickChatroomSettings, UnifiedChannel } from "@/backend/api/unified/platform-types";
-import type {
-  ChatConnectionStatus,
-  ChatPlatform,
-  RoomStatePatchEvent,
-} from "@/shared/chat-types";
-import { roomStateKey, type RoomState, useRoomStateStore } from "@/store/room-state-store";
+import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@/shared/chat-types";
+import { type RoomState, roomStateKey, useRoomStateStore } from "@/store/room-state-store";
 
 // ---------------------------------------------------------------------------
 // Module-scoped state
@@ -88,15 +83,15 @@ export const __debugProvenance = new Map<string, Provenance>();
  */
 export function chatSettingsToPatch(
   platform: "twitch",
-  payload: ChatSettingsPayload,
+  payload: ChatSettingsPayload
 ): Partial<RoomState>;
 export function chatSettingsToPatch(
   platform: "kick",
-  payload: KickChatroomSettings,
+  payload: KickChatroomSettings
 ): Partial<RoomState>;
 export function chatSettingsToPatch(
   platform: ChatPlatform,
-  payload: ChatSettingsPayload | KickChatroomSettings,
+  payload: ChatSettingsPayload | KickChatroomSettings
 ): Partial<RoomState> {
   if (platform === "twitch") {
     return twitchChatSettingsToPatch(payload as ChatSettingsPayload);
@@ -123,9 +118,7 @@ function twitchChatSettingsToPatch(payload: ChatSettingsPayload): Partial<RoomSt
   if (payload.follower_mode !== undefined) {
     if (payload.follower_mode === true) {
       patch.followersOnly =
-        typeof payload.follower_mode_duration === "number"
-          ? payload.follower_mode_duration
-          : 0;
+        typeof payload.follower_mode_duration === "number" ? payload.follower_mode_duration : 0;
     } else {
       patch.followersOnly = null;
     }
@@ -148,11 +141,11 @@ function kickChatroomSettingsToPatch(settings: KickChatroomSettings): Partial<Ro
   const patch: Partial<RoomState> = {};
 
   if (settings.slowMode) {
-    patch.slowMode = settings.slowMode.enabled ? settings.slowMode.interval ?? 0 : null;
+    patch.slowMode = settings.slowMode.enabled ? (settings.slowMode.interval ?? 0) : null;
   }
   if (settings.followersMode) {
     patch.followersOnly = settings.followersMode.enabled
-      ? settings.followersMode.minDuration ?? 0
+      ? (settings.followersMode.minDuration ?? 0)
       : null;
   }
   if (settings.subscribersMode) {
@@ -162,9 +155,7 @@ function kickChatroomSettingsToPatch(settings: KickChatroomSettings): Partial<Ro
     patch.emoteOnly = settings.emoteOnlyMode.enabled;
   }
   if (settings.accountAge) {
-    patch.accountAge = settings.accountAge.enabled
-      ? settings.accountAge.minDuration ?? 0
-      : null;
+    patch.accountAge = settings.accountAge.enabled ? (settings.accountAge.minDuration ?? 0) : null;
   }
 
   return patch;
@@ -306,7 +297,7 @@ async function fetchPatchFor(
   platform: ChatPlatform,
   channel: string,
   channelId: string,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<Partial<RoomState> | null> {
   if (platform === "twitch") {
     // Helix /chat/settings requires a Bearer token AND the Client-Id of the
@@ -320,7 +311,7 @@ async function fetchPatchFor(
     }
     const result = await withTwitchHelixRetry(
       { accessToken, clientId, broadcasterId: channelId, signal },
-      getChatSettings,
+      getChatSettings
     );
     if (!result.ok) {
       // Non-2xx is a soft-failure for the banner. Treat exactly the same as

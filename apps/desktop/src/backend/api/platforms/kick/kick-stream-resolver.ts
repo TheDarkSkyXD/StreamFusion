@@ -1,6 +1,5 @@
-import type { StreamPlayback } from "../../../../components/player/types";
-
 import { sleep } from "@/lib/sleep";
+import type { StreamPlayback } from "../../../../components/player/types";
 import { KICK_LEGACY_API_V1_BASE } from "./kick-types";
 
 export class KickStreamResolver {

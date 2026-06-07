@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
-
-import { formatDuration } from "@/lib/utils";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { formatDuration } from "@/lib/utils";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 

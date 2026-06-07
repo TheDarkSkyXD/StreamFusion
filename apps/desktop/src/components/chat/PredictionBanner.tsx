@@ -20,12 +20,12 @@
  * prediction.platform: twitch-native | kick-native | unified.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-
+import type React from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useInterval } from "@/hooks/useInterval";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
-import { useManagedTimeout } from "@/hooks/useManagedTimeout";
-import { useInterval } from "@/hooks/useInterval";
 
 const ENDED_AUTO_DISMISS_MS = 60_000;
 
@@ -135,7 +135,11 @@ const CollapsedView: React.FC<CollapsedProps> = ({
   const totalAmount = sumAmount(prediction);
   const leader = topOutcome(prediction);
   const { locksAtMs, windowMs } = predictionCountdown(prediction);
-  const ctaLabel = isEnded ? "View Result" : prediction.platform === "twitch" ? "See Details" : "Predict";
+  const ctaLabel = isEnded
+    ? "View Result"
+    : prediction.platform === "twitch"
+      ? "See Details"
+      : "Predict";
 
   // Twitch shows two header layouts:
   //   1. Fresh / no top predictors → "Predict with Channel Points" / bold title
@@ -204,9 +208,7 @@ const CollapsedHeaderText: React.FC<{
 
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
-      <p className="truncate text-[12px] leading-[1.4] text-[#efeff1]">
-        {subtitle}
-      </p>
+      <p className="truncate text-[12px] leading-[1.4] text-[#efeff1]">{subtitle}</p>
       <div
         className="mt-0.5 truncate text-[18px] font-medium leading-[1.1] tracking-[-0.18px] text-[#efeff1]"
         title={prediction.title}
@@ -214,9 +216,7 @@ const CollapsedHeaderText: React.FC<{
         {prediction.title}
       </div>
       {detail && (
-        <div className="mt-1 truncate text-[12px] leading-tight text-[#adadb8]">
-          {detail}
-        </div>
+        <div className="mt-1 truncate text-[12px] leading-tight text-[#adadb8]">{detail}</div>
       )}
     </div>
   );
@@ -237,7 +237,7 @@ function detailTeaser(
   prediction: UnifiedPrediction,
   total: number,
   leader: UnifiedPredictionOutcome | null,
-  style: Style,
+  style: Style
 ): React.ReactNode {
   if (!leader || total <= 0) return null;
   if (style === "kick-native") {
@@ -319,10 +319,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
         onDismiss={onDismiss}
       />
 
-      <ul
-        className="mt-3 mb-2 flex flex-col"
-        data-testid="prediction-outcomes"
-      >
+      <ul className="mt-3 mb-2 flex flex-col" data-testid="prediction-outcomes">
         {prediction.outcomes.map((o, i) => (
           <ActiveOutcomeRow
             key={o.id}
@@ -378,14 +375,13 @@ const ActiveOutcomeRow: React.FC<{
       }
     >
       <span className="flex min-w-0 items-center gap-2">
-        <span className="flex-shrink-0 text-[14px] text-[#efeff1]">
-          {index + 1}.
-        </span>
-        <span className="truncate text-[#efeff1]">
-          {outcome.title}
-        </span>
+        <span className="flex-shrink-0 text-[14px] text-[#efeff1]">{index + 1}.</span>
+        <span className="truncate text-[#efeff1]">{outcome.title}</span>
         {isWinner && (
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white" aria-label="Winner">
+          <span
+            className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
+            aria-label="Winner"
+          >
             <CheckIcon size={10} />
           </span>
         )}
@@ -512,7 +508,10 @@ const EndedOutcomeRow: React.FC<{
           {ChevronRightIcon}
         </span>
       </div>
-      <div className="h-1 w-full overflow-hidden rounded-full" style={{ backgroundColor: TW_TRACK }}>
+      <div
+        className="h-1 w-full overflow-hidden rounded-full"
+        style={{ backgroundColor: TW_TRACK }}
+      >
         <div
           className="h-full rounded-full"
           style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: accent }}
@@ -556,9 +555,7 @@ const ExpandedHeader: React.FC<{
         </svg>
       </button>
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <p className="truncate text-[12px] leading-[1.4] text-[#efeff1]">
-          {subtitle}
-        </p>
+        <p className="truncate text-[12px] leading-[1.4] text-[#efeff1]">{subtitle}</p>
         <div
           className="mt-0.5 text-[18px] font-medium leading-[1.1] tracking-[-0.18px] text-[#efeff1]"
           title={prediction.title}
@@ -623,8 +620,7 @@ const TimeRemainingBar: React.FC<{
 
   // Live countdown only when we have a real start anchor + window and voting is
   // still open. Otherwise the bar is static (full active / empty locked).
-  const canCountdown =
-    !isLocked && locksAtMs !== null && windowMs !== null && windowMs > 0;
+  const canCountdown = !isLocked && locksAtMs !== null && windowMs !== null && windowMs > 0;
 
   const [now, setNow] = useState(() => Date.now());
   useInterval(() => setNow(Date.now()), canCountdown ? 500 : null);
@@ -649,9 +645,7 @@ const TimeRemainingBar: React.FC<{
       style={{ backgroundColor: TW_TRACK }}
     >
       <div
-        className={
-          "h-full transition-[width] duration-500 " + (canCountdown ? "ease-linear" : "")
-        }
+        className={"h-full transition-[width] duration-500 " + (canCountdown ? "ease-linear" : "")}
         style={{ width: `${widthPct}%`, backgroundColor: fillColor }}
       />
     </div>
@@ -755,7 +749,7 @@ function topOutcome(prediction: UnifiedPrediction): UnifiedPredictionOutcome | n
   if (prediction.outcomes.length === 0) return null;
   return prediction.outcomes.reduce(
     (a, b) => (b.totalAmount > a.totalAmount ? b : a),
-    prediction.outcomes[0],
+    prediction.outcomes[0]
   );
 }
 

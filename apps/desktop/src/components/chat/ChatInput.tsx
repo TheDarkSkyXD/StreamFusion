@@ -13,7 +13,16 @@
  * - Platform-aware sending; **no send button** — Enter sends.
  */
 
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import type React from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import { BsReplyFill, BsXLg } from "react-icons/bs";
 import { kickChatService } from "../../backend/services/chat/kick-chat";
@@ -237,573 +246,577 @@ function serializeMessage(message: string, slots: Emote[], platform: ChatPlatfor
   return result;
 }
 
-export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({
-  channel,
-  platform,
-  chatroomId: _chatroomId,
-  channelId,
-  maxLength = 500,
-  placeholder = "Send a message...",
-  canSend = true,
-  disabled = false,
-  className = "",
-}, ref) => {
-  // State
-  const [message, setMessage] = useState("");
-  /** One entry per EMOTE_CHAR in `message`, in left-to-right order. The
-   *  textarea sees each inserted emote as a single character; this list
-   *  carries the matching Emote so the overlay can render the actual image
-   *  and `serializeMessage` can reconstruct the IRC payload on send. */
-  const [emoteSlots, setEmoteSlots] = useState<Emote[]>([]);
-  const [cursorPosition, setCursorPosition] = useState(0);
-  const [reply, setReply] = useState<ReplyState | null>(null);
-  // Single dialog-tracking state; opening one closes the other. Parent-local
-  // concern, so no event bus or shared store.
-  const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
+  (
+    {
+      channel,
+      platform,
+      chatroomId: _chatroomId,
+      channelId,
+      maxLength = 500,
+      placeholder = "Send a message...",
+      canSend = true,
+      disabled = false,
+      className = "",
+    },
+    ref
+  ) => {
+    // State
+    const [message, setMessage] = useState("");
+    /** One entry per EMOTE_CHAR in `message`, in left-to-right order. The
+     *  textarea sees each inserted emote as a single character; this list
+     *  carries the matching Emote so the overlay can render the actual image
+     *  and `serializeMessage` can reconstruct the IRC payload on send. */
+    const [emoteSlots, setEmoteSlots] = useState<Emote[]>([]);
+    const [cursorPosition, setCursorPosition] = useState(0);
+    const [reply, setReply] = useState<ReplyState | null>(null);
+    // Single dialog-tracking state; opening one closes the other. Parent-local
+    // concern, so no event bus or shared store.
+    const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+    const [isSending, setIsSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-  // Refs
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+    // Refs
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-  // Signed-in Kick user — needed to attach a sender identity to the optimistic
-  // local echo of outbound messages. Kick's web v2 send path delivers the
-  // sender's own message via Pusher ~150-400ms later with full identity; the
-  // local optimistic echo bridges that latency and dedup-by-message-id
-  // collapses the duplicate. Subscribed reactively so a mid-session
-  // sign-in/out updates the value without remounting this component.
-  const kickUser = useAuthStore((state) => state.kickUser);
+    // Signed-in Kick user — needed to attach a sender identity to the optimistic
+    // local echo of outbound messages. Kick's web v2 send path delivers the
+    // sender's own message via Pusher ~150-400ms later with full identity; the
+    // local optimistic echo bridges that latency and dedup-by-message-id
+    // collapses the duplicate. Subscribed reactively so a mid-session
+    // sign-in/out updates the value without remounting this component.
+    const kickUser = useAuthStore((state) => state.kickUser);
 
-  // Autocomplete hooks
-  const emoteAutocomplete = useEmoteAutocomplete();
-  const mentionAutocomplete = useMentionAutocomplete();
+    // Autocomplete hooks
+    const emoteAutocomplete = useEmoteAutocomplete();
+    const mentionAutocomplete = useMentionAutocomplete();
 
-  // Emote-name → Emote lookup for the inline preview overlay. Subscribed once
-  // and rebuilt on store mutations because the zustand selector for
-  // getAllEmotes() returns a new array every call (would loop forever as a
-  // direct selector — see NativeEmoteButton for the same pattern).
-  const [emoteByName, setEmoteByName] = useState<Map<string, Emote>>(new Map());
-  useEffect(() => {
-    const refresh = () => {
-      const all = useEmoteStore.getState().getAllEmotes();
-      setEmoteByName(new Map(all.map((e) => [e.name, e])));
-    };
-    refresh();
-    return useEmoteStore.subscribe(refresh);
-  }, []);
+    // Emote-name → Emote lookup for the inline preview overlay. Subscribed once
+    // and rebuilt on store mutations because the zustand selector for
+    // getAllEmotes() returns a new array every call (would loop forever as a
+    // direct selector — see NativeEmoteButton for the same pattern).
+    const [emoteByName, setEmoteByName] = useState<Map<string, Emote>>(new Map());
+    useEffect(() => {
+      const refresh = () => {
+        const all = useEmoteStore.getState().getAllEmotes();
+        setEmoteByName(new Map(all.map((e) => [e.name, e])));
+      };
+      refresh();
+      return useEmoteStore.subscribe(refresh);
+    }, []);
 
-  // Split the typed message into runs of (text | emote img) so the overlay
-  // can render emote codes as actual images while the underlying textarea
-  // still holds plain text. Uses a single regex that matches a whitespace
-  // run or a non-whitespace run, so the original spacing/newlines are
-  // preserved exactly — critical for keeping the overlay's wrap geometry
-  // aligned with the textarea's.
-  //
-  // KickTalk's `EmoteNode` is a Lexical *decorator* node — the Lexical state
-  // contains spaces around the emote (so the IRC text sent to chat is well
-  // separated), but the rendered DOM is a tight `<img>` with `margin: 0 1px`.
-  // We mimic that here in two ways: (1) the trailing whitespace token is
-  // dropped from the overlay because it would otherwise render as a visible
-  // gap between the last emote and the input's right edge — the textarea
-  // still holds the space for caret position + send. (2) Emote images get a
-  // `margin: 0 1px` matching KickTalk's `.emoteContainer > img` rule so
-  // adjacent emotes pack tightly instead of being separated by a full
-  // text-space's worth of whitespace.
-  const overlayContent = useMemo(() => {
-    if (!message) return null;
-    // Walk the textarea value character by character. EMOTE_CHARs render
-    // as the corresponding slot's `<img>`; everything else accumulates
-    // into text runs. This keeps the overlay's visual width close to one
-    // image-width per emote (instead of expanding to the full emote-name
-    // width as before), which makes the trailing caret sit right after
-    // the emote — the "extra characters" problem the user reported.
-    const out: React.ReactNode[] = [];
-    let buffer = "";
-    let slotIdx = 0;
-    const flushBuffer = (key: string) => {
-      if (!buffer) return;
-      // Also auto-detect typed emote names inside the buffer (e.g. user
-      // typed "KEKW" by hand). Same token regex as before so wrapping
-      // matches the textarea.
-      const tokens = buffer.match(/\s+|\S+/g) ?? [];
-      tokens.forEach((tok, ti) => {
-        const named = !/^\s+$/.test(tok) ? emoteByName.get(tok) : undefined;
-        if (named) {
-          out.push(
-            <img
-              key={`${key}-${ti}-named`}
-              src={named.urls.url1x}
-              alt={named.name}
-              data-emote-name={named.name}
-              className="inline-block align-middle"
-              style={{ height: "20px", width: "auto", margin: "0 1px" }}
-              draggable={false}
-            />,
-          );
+    // Split the typed message into runs of (text | emote img) so the overlay
+    // can render emote codes as actual images while the underlying textarea
+    // still holds plain text. Uses a single regex that matches a whitespace
+    // run or a non-whitespace run, so the original spacing/newlines are
+    // preserved exactly — critical for keeping the overlay's wrap geometry
+    // aligned with the textarea's.
+    //
+    // KickTalk's `EmoteNode` is a Lexical *decorator* node — the Lexical state
+    // contains spaces around the emote (so the IRC text sent to chat is well
+    // separated), but the rendered DOM is a tight `<img>` with `margin: 0 1px`.
+    // We mimic that here in two ways: (1) the trailing whitespace token is
+    // dropped from the overlay because it would otherwise render as a visible
+    // gap between the last emote and the input's right edge — the textarea
+    // still holds the space for caret position + send. (2) Emote images get a
+    // `margin: 0 1px` matching KickTalk's `.emoteContainer > img` rule so
+    // adjacent emotes pack tightly instead of being separated by a full
+    // text-space's worth of whitespace.
+    const overlayContent = useMemo(() => {
+      if (!message) return null;
+      // Walk the textarea value character by character. EMOTE_CHARs render
+      // as the corresponding slot's `<img>`; everything else accumulates
+      // into text runs. This keeps the overlay's visual width close to one
+      // image-width per emote (instead of expanding to the full emote-name
+      // width as before), which makes the trailing caret sit right after
+      // the emote — the "extra characters" problem the user reported.
+      const out: React.ReactNode[] = [];
+      let buffer = "";
+      let slotIdx = 0;
+      const flushBuffer = (key: string) => {
+        if (!buffer) return;
+        // Also auto-detect typed emote names inside the buffer (e.g. user
+        // typed "KEKW" by hand). Same token regex as before so wrapping
+        // matches the textarea.
+        const tokens = buffer.match(/\s+|\S+/g) ?? [];
+        tokens.forEach((tok, ti) => {
+          const named = !/^\s+$/.test(tok) ? emoteByName.get(tok) : undefined;
+          if (named) {
+            out.push(
+              <img
+                key={`${key}-${ti}-named`}
+                src={named.urls.url1x}
+                alt={named.name}
+                data-emote-name={named.name}
+                className="inline-block align-middle"
+                style={{ height: "20px", width: "auto", margin: "0 1px" }}
+                draggable={false}
+              />
+            );
+          } else {
+            out.push(
+              <span key={`${key}-${ti}`} className="align-middle">
+                {tok}
+              </span>
+            );
+          }
+        });
+        buffer = "";
+      };
+      for (let i = 0; i < message.length; i++) {
+        const ch = message[i];
+        if (ch === EMOTE_CHAR) {
+          flushBuffer(`pre-${i}`);
+          const slot = emoteSlots[slotIdx++];
+          if (slot) {
+            out.push(
+              <img
+                key={`slot-${i}`}
+                src={slot.urls.url1x}
+                alt={slot.name}
+                data-emote-name={slot.name}
+                className="inline-block align-middle"
+                style={{ height: "20px", width: "auto", margin: "0 1px" }}
+                draggable={false}
+              />
+            );
+          }
         } else {
-          out.push(
-            <span key={`${key}-${ti}`} className="align-middle">
-              {tok}
-            </span>,
-          );
+          buffer += ch;
         }
-      });
-      buffer = "";
-    };
-    for (let i = 0; i < message.length; i++) {
-      const ch = message[i];
-      if (ch === EMOTE_CHAR) {
-        flushBuffer(`pre-${i}`);
-        const slot = emoteSlots[slotIdx++];
-        if (slot) {
-          out.push(
-            <img
-              key={`slot-${i}`}
-              src={slot.urls.url1x}
-              alt={slot.name}
-              data-emote-name={slot.name}
-              className="inline-block align-middle"
-              style={{ height: "20px", width: "auto", margin: "0 1px" }}
-              draggable={false}
-            />,
-          );
-        }
-      } else {
-        buffer += ch;
       }
-    }
-    flushBuffer("tail");
-    return out;
-  }, [message, emoteSlots, emoteByName]);
+      flushBuffer("tail");
+      return out;
+    }, [message, emoteSlots, emoteByName]);
 
-  // Handle input change
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const value = e.target.value;
-      const cursorPos = e.target.selectionStart;
+    // Handle input change
+    const handleInputChange = useCallback(
+      (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        const cursorPos = e.target.selectionStart;
 
-      // Reconcile emote slots whenever an EMOTE_CHAR was deleted (or one
-      // appeared without a matching slot — rare edge case from paste).
-      setEmoteSlots((prev) => reconcileEmoteSlots(message, prev, value));
-      setMessage(value);
-      setCursorPosition(cursorPos);
+        // Reconcile emote slots whenever an EMOTE_CHAR was deleted (or one
+        // appeared without a matching slot — rare edge case from paste).
+        setEmoteSlots((prev) => reconcileEmoteSlots(message, prev, value));
+        setMessage(value);
+        setCursorPosition(cursorPos);
+        setError(null);
+
+        // Autocomplete checks see the placeholder-bearing string. EMOTE_CHAR
+        // is non-word, so `:`-trigger and `@`-trigger logic still find the
+        // most recent literal `:` or `@` correctly.
+        emoteAutocomplete.checkTrigger(value, cursorPos, ":");
+        mentionAutocomplete.checkTrigger(value, cursorPos);
+      },
+      [message, emoteAutocomplete, mentionAutocomplete]
+    );
+
+    // Handle cursor position changes
+    const handleSelect = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+      const target = e.target as HTMLTextAreaElement;
+      setCursorPosition(target.selectionStart);
+    }, []);
+
+    // Handle emote selection from autocomplete or dialog. The autocomplete
+    // path passes (startPos, endPos) so we replace the trigger + query span;
+    // the dialog path omits them and we insert at the current cursor.
+    //
+    // Each inserted emote becomes a SINGLE EMOTE_CHAR in the textarea, with
+    // the matching `Emote` pushed into `emoteSlots` at the equivalent index.
+    // This makes the emote count as one character — matching KickTalk's
+    // `EmoteNode` (a single node in the Lexical tree, not its full name).
+    const handleEmoteSelect = useCallback(
+      (emote: Emote, startPos?: number, endPos?: number) => {
+        const insertAt = startPos !== undefined ? startPos : cursorPosition;
+        const replaceUpTo = endPos !== undefined ? endPos : cursorPosition;
+        const before = message.slice(0, insertAt);
+        const after = message.slice(replaceUpTo);
+        // Append a trailing space after the emote unless the next char is
+        // already whitespace — gives the user a clean spot to keep typing
+        // without producing a double-space when an emote is appended at end.
+        const trailing = after.startsWith(" ") || after.length === 0 ? "" : " ";
+        const newMessage = `${before}${EMOTE_CHAR}${trailing}${after}`;
+        const slotIndex = (before.match(new RegExp(EMOTE_CHAR, "g")) ?? []).length;
+        const newCursorPos = insertAt + 1 + trailing.length;
+        flushSync(() => {
+          setEmoteSlots((prev) => [...prev.slice(0, slotIndex), emote, ...prev.slice(slotIndex)]);
+          setMessage(newMessage);
+          setCursorPosition(newCursorPos);
+        });
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+
+        emoteAutocomplete.deactivate();
+        setActiveDialog(null);
+      },
+      [message, cursorPosition, emoteAutocomplete]
+    );
+
+    // Handle mention selection
+    const handleMentionSelect = useCallback(
+      (username: string, startPos: number, endPos: number) => {
+        const before = message.slice(0, startPos);
+        const after = message.slice(endPos);
+        const newMessage = `${before}@${username} ${after}`;
+        const newCursorPos = startPos + username.length + 2;
+        flushSync(() => {
+          setMessage(newMessage);
+          setCursorPosition(newCursorPos);
+        });
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+
+        mentionAutocomplete.deactivate();
+      },
+      [message, mentionAutocomplete]
+    );
+
+    // Handle reply
+    const handleReply = useCallback((msg: ChatMessage) => {
+      setReply({
+        messageId: msg.id,
+        username: msg.username,
+        displayName: msg.displayName,
+        content: msg.rawContent.length > 50 ? `${msg.rawContent.slice(0, 50)}...` : msg.rawContent,
+      });
+
+      inputRef.current?.focus();
+    }, []);
+
+    const mentionUser = useCallback((username: string) => {
+      flushSync(() => {
+        setMessage((prev) => {
+          const mention = `@${username} `;
+          return prev.startsWith(mention) ? prev : `${mention}${prev}`;
+        });
+      });
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const pos = el.value.length;
+        el.setSelectionRange(pos, pos);
+      }
+    }, []);
+
+    useImperativeHandle(ref, () => ({ replyTo: handleReply, mentionUser }), [
+      handleReply,
+      mentionUser,
+    ]);
+
+    const clearReply = useCallback(() => {
+      setReply(null);
+    }, []);
+
+    // Handle send
+    const handleSend = useCallback(async () => {
+      // Convert placeholder-bearing textarea value into the real chat-server
+      // string. For Kick, native emote slots become `[emote:id:name]` markup so
+      // kick.com renders them as images for everyone (otherwise they ship as
+      // plain text). The chat server has no awareness of our textarea placeholder.
+      const serialized = serializeMessage(message, emoteSlots, platform);
+      const trimmedMessage = serialized.trim();
+      if (!trimmedMessage || !canSend || isSending) return;
+
+      // Pre-rendered fragments for the Kick optimistic local echo so the
+      // user's own message shows emote IMAGES (not raw text) until the Pusher
+      // delivery replaces the echo. Twitch's IRC echo carries the parsed
+      // emote tags from tmi.js, so it doesn't need this.
+      const localFragments = serializeFragments(message, emoteSlots);
+
+      setIsSending(true);
       setError(null);
 
-      // Autocomplete checks see the placeholder-bearing string. EMOTE_CHAR
-      // is non-word, so `:`-trigger and `@`-trigger logic still find the
-      // most recent literal `:` or `@` correctly.
-      emoteAutocomplete.checkTrigger(value, cursorPos, ":");
-      mentionAutocomplete.checkTrigger(value, cursorPos);
-    },
-    [message, emoteAutocomplete, mentionAutocomplete]
-  );
+      try {
+        const parsedCommand = parseCommand(trimmedMessage);
 
-  // Handle cursor position changes
-  const handleSelect = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-    const target = e.target as HTMLTextAreaElement;
-    setCursorPosition(target.selectionStart);
-  }, []);
+        if (parsedCommand) {
+          const { command, args } = parsedCommand;
+          const cmdConfig = CHAT_COMMANDS[command as keyof typeof CHAT_COMMANDS];
 
-  // Handle emote selection from autocomplete or dialog. The autocomplete
-  // path passes (startPos, endPos) so we replace the trigger + query span;
-  // the dialog path omits them and we insert at the current cursor.
-  //
-  // Each inserted emote becomes a SINGLE EMOTE_CHAR in the textarea, with
-  // the matching `Emote` pushed into `emoteSlots` at the equivalent index.
-  // This makes the emote count as one character — matching KickTalk's
-  // `EmoteNode` (a single node in the Lexical tree, not its full name).
-  const handleEmoteSelect = useCallback(
-    (emote: Emote, startPos?: number, endPos?: number) => {
-      const insertAt = startPos !== undefined ? startPos : cursorPosition;
-      const replaceUpTo = endPos !== undefined ? endPos : cursorPosition;
-      const before = message.slice(0, insertAt);
-      const after = message.slice(replaceUpTo);
-      // Append a trailing space after the emote unless the next char is
-      // already whitespace — gives the user a clean spot to keep typing
-      // without producing a double-space when an emote is appended at end.
-      const trailing = after.startsWith(" ") || after.length === 0 ? "" : " ";
-      const newMessage = `${before}${EMOTE_CHAR}${trailing}${after}`;
-      const slotIndex = (before.match(new RegExp(EMOTE_CHAR, "g")) ?? []).length;
-      const newCursorPos = insertAt + 1 + trailing.length;
-      flushSync(() => {
-        setEmoteSlots((prev) => [
-          ...prev.slice(0, slotIndex),
-          emote,
-          ...prev.slice(slotIndex),
-        ]);
-        setMessage(newMessage);
-        setCursorPosition(newCursorPos);
-      });
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          if (!cmdConfig || !(cmdConfig.platforms as readonly string[]).includes(platform)) {
+            setError(`Unknown command: /${command}`);
+            setIsSending(false);
+            return;
+          }
+
+          if (command === "me") {
+            const actionMessage = args.join(" ");
+            if (platform === "twitch") {
+              // /me strips emote-slot context: actionMessage is rebuilt from the
+              // serialized wire string's args, so no fragments to pass.
+              await twitchChatService.sendAction(channel, actionMessage);
+            } else {
+              // /me strips emote slot context (actionMessage rebuilt from args
+              // of the serialized wire string), so no fragments to pass — the
+              // echo falls back to single text, matching prior behavior.
+              await kickChatService.sendMessage(
+                channel,
+                `*${actionMessage}*`,
+                kickUser ?? undefined
+              );
+            }
+          } else {
+            if (platform === "twitch") {
+              await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
+            } else {
+              await kickChatService.sendMessage(
+                channel,
+                trimmedMessage,
+                kickUser ?? undefined,
+                localFragments
+              );
+            }
+          }
+        } else {
+          if (reply) {
+            if (platform === "twitch") {
+              await twitchChatService.sendReply(
+                channel,
+                reply.messageId,
+                trimmedMessage,
+                localFragments
+              );
+            } else {
+              // Prepend the @mention so the local echo shows the same
+              // `@user message` shape Kick will broadcast back.
+              const replyFragments: ContentFragment[] = [
+                { type: "mention", username: reply.username },
+                { type: "text", content: " " },
+                ...localFragments,
+              ];
+              await kickChatService.sendMessage(
+                channel,
+                `@${reply.username} ${trimmedMessage}`,
+                kickUser ?? undefined,
+                replyFragments
+              );
+            }
+          } else {
+            if (platform === "twitch") {
+              await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
+            } else {
+              await kickChatService.sendMessage(
+                channel,
+                trimmedMessage,
+                kickUser ?? undefined,
+                localFragments
+              );
+            }
+          }
+        }
+
+        setMessage("");
+        setEmoteSlots([]);
+        setReply(null);
+        inputRef.current?.focus();
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to send message";
+        setError(errorMessage);
+        console.error("Failed to send message:", err);
+      } finally {
+        setIsSending(false);
       }
+    }, [message, emoteSlots, canSend, isSending, platform, channel, reply, kickUser]);
 
-      emoteAutocomplete.deactivate();
-      setActiveDialog(null);
-    },
-    [message, cursorPosition, emoteAutocomplete]
-  );
-
-  // Handle mention selection
-  const handleMentionSelect = useCallback(
-    (username: string, startPos: number, endPos: number) => {
-      const before = message.slice(0, startPos);
-      const after = message.slice(endPos);
-      const newMessage = `${before}@${username} ${after}`;
-      const newCursorPos = startPos + username.length + 2;
-      flushSync(() => {
-        setMessage(newMessage);
-        setCursorPosition(newCursorPos);
-      });
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-      }
-
-      mentionAutocomplete.deactivate();
-    },
-    [message, mentionAutocomplete]
-  );
-
-  // Handle reply
-  const handleReply = useCallback((msg: ChatMessage) => {
-    setReply({
-      messageId: msg.id,
-      username: msg.username,
-      displayName: msg.displayName,
-      content: msg.rawContent.length > 50 ? `${msg.rawContent.slice(0, 50)}...` : msg.rawContent,
-    });
-
-    inputRef.current?.focus();
-  }, []);
-
-  const mentionUser = useCallback((username: string) => {
-    flushSync(() => {
-      setMessage((prev) => {
-        const mention = `@${username} `;
-        return prev.startsWith(mention) ? prev : `${mention}${prev}`;
-      });
-    });
-    const el = inputRef.current;
-    if (el) {
-      el.focus();
-      const pos = el.value.length;
-      el.setSelectionRange(pos, pos);
-    }
-  }, []);
-
-  useImperativeHandle(
-    ref,
-    () => ({ replyTo: handleReply, mentionUser }),
-    [handleReply, mentionUser],
-  );
-
-  const clearReply = useCallback(() => {
-    setReply(null);
-  }, []);
-
-  // Handle send
-  const handleSend = useCallback(async () => {
-    // Convert placeholder-bearing textarea value into the real chat-server
-    // string. For Kick, native emote slots become `[emote:id:name]` markup so
-    // kick.com renders them as images for everyone (otherwise they ship as
-    // plain text). The chat server has no awareness of our textarea placeholder.
-    const serialized = serializeMessage(message, emoteSlots, platform);
-    const trimmedMessage = serialized.trim();
-    if (!trimmedMessage || !canSend || isSending) return;
-
-    // Pre-rendered fragments for the Kick optimistic local echo so the
-    // user's own message shows emote IMAGES (not raw text) until the Pusher
-    // delivery replaces the echo. Twitch's IRC echo carries the parsed
-    // emote tags from tmi.js, so it doesn't need this.
-    const localFragments = serializeFragments(message, emoteSlots);
-
-    setIsSending(true);
-    setError(null);
-
-    try {
-      const parsedCommand = parseCommand(trimmedMessage);
-
-      if (parsedCommand) {
-        const { command, args } = parsedCommand;
-        const cmdConfig = CHAT_COMMANDS[command as keyof typeof CHAT_COMMANDS];
-
-        if (!cmdConfig || !(cmdConfig.platforms as readonly string[]).includes(platform)) {
-          setError(`Unknown command: /${command}`);
-          setIsSending(false);
+    // Handle key press — Enter sends; Shift+Enter inserts newline (default
+    // textarea behavior, just don't preventDefault).
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (emoteAutocomplete.isActive || mentionAutocomplete.isActive) {
           return;
         }
 
-        if (command === "me") {
-          const actionMessage = args.join(" ");
-          if (platform === "twitch") {
-            // /me strips emote-slot context: actionMessage is rebuilt from the
-            // serialized wire string's args, so no fragments to pass.
-            await twitchChatService.sendAction(channel, actionMessage);
-          } else {
-            // /me strips emote slot context (actionMessage rebuilt from args
-            // of the serialized wire string), so no fragments to pass — the
-            // echo falls back to single text, matching prior behavior.
-            await kickChatService.sendMessage(channel, `*${actionMessage}*`, kickUser ?? undefined);
-          }
-        } else {
-          if (platform === "twitch") {
-            await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
-          } else {
-            await kickChatService.sendMessage(
-              channel,
-              trimmedMessage,
-              kickUser ?? undefined,
-              localFragments,
-            );
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSend();
+        }
+
+        if (e.key === "Escape") {
+          if (reply) {
+            clearReply();
           }
         }
-      } else {
-        if (reply) {
-          if (platform === "twitch") {
-            await twitchChatService.sendReply(
-              channel,
-              reply.messageId,
-              trimmedMessage,
-              localFragments,
-            );
-          } else {
-            // Prepend the @mention so the local echo shows the same
-            // `@user message` shape Kick will broadcast back.
-            const replyFragments: ContentFragment[] = [
-              { type: "mention", username: reply.username },
-              { type: "text", content: " " },
-              ...localFragments,
-            ];
-            await kickChatService.sendMessage(
-              channel,
-              `@${reply.username} ${trimmedMessage}`,
-              kickUser ?? undefined,
-              replyFragments,
-            );
-          }
-        } else {
-          if (platform === "twitch") {
-            await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
-          } else {
-            await kickChatService.sendMessage(
-              channel,
-              trimmedMessage,
-              kickUser ?? undefined,
-              localFragments,
-            );
-          }
+      },
+      [emoteAutocomplete.isActive, mentionAutocomplete.isActive, handleSend, reply, clearReply]
+    );
+
+    // Outside-click only closes autocompletes here. EmoteDialog owns its own
+    // outside-click (it portals out of `containerRef`, so this handler would
+    // close it on every dialog interaction otherwise).
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+          emoteAutocomplete.deactivate();
+          mentionAutocomplete.deactivate();
         }
-      }
+      };
 
-      setMessage("");
-      setEmoteSlots([]);
-      setReply(null);
-      inputRef.current?.focus();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to send message";
-      setError(errorMessage);
-      console.error("Failed to send message:", err);
-    } finally {
-      setIsSending(false);
-    }
-  }, [message, emoteSlots, canSend, isSending, platform, channel, reply, kickUser]);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [emoteAutocomplete, mentionAutocomplete]);
 
-  // Handle key press — Enter sends; Shift+Enter inserts newline (default
-  // textarea behavior, just don't preventDefault).
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (emoteAutocomplete.isActive || mentionAutocomplete.isActive) {
-        return;
-      }
+    const handleNativeOpenRequest = useCallback(() => {
+      setActiveDialog((cur) => (cur === "native" ? null : "native"));
+    }, []);
 
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
+    const handleThirdPartyOpenRequest = useCallback(() => {
+      setActiveDialog((cur) => (cur === "thirdParty" ? null : "thirdParty"));
+    }, []);
 
-      if (e.key === "Escape") {
-        if (reply) {
-          clearReply();
-        }
-      }
-    },
-    [emoteAutocomplete.isActive, mentionAutocomplete.isActive, handleSend, reply, clearReply]
-  );
+    // viewerIsSubscribed for the Kick-native dialog: the viewer's own
+    // subscriber badge isn't surfaced through any chat-state path reachable
+    // from here today (KickChat threads `subscriberBadges` for *rendering*
+    // other users' badges, not the viewer's own status). Per U8/U9 design,
+    // `undefined` means "unknown" and disables the lock overlay — Kick will
+    // server-side reject any subscriber-only emote the viewer can't use, so
+    // there's no regression relative to today. Plumbing a viewer-subscription
+    // signal is deferred as a follow-up.
+    const viewerIsSubscribed: boolean | undefined = undefined;
 
-  // Outside-click only closes autocompletes here. EmoteDialog owns its own
-  // outside-click (it portals out of `containerRef`, so this handler would
-  // close it on every dialog interaction otherwise).
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        emoteAutocomplete.deactivate();
-        mentionAutocomplete.deactivate();
-      }
-    };
+    // Character count tracks the SERIALIZED message (emote names + delimiters)
+    // rather than the placeholder-bearing textarea value — that's what actually
+    // gets transmitted and what the platform enforces a length limit on.
+    const serializedLength = useMemo(
+      () => serializeMessage(message, emoteSlots, platform).length,
+      [message, emoteSlots, platform]
+    );
+    const isOverLimit = serializedLength > maxLength;
+    const charactersRemaining = maxLength - serializedLength;
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [emoteAutocomplete, mentionAutocomplete]);
+    const buttonsDisabled = disabled || !canSend;
 
-  const handleNativeOpenRequest = useCallback(() => {
-    setActiveDialog((cur) => (cur === "native" ? null : "native"));
-  }, []);
-
-  const handleThirdPartyOpenRequest = useCallback(() => {
-    setActiveDialog((cur) => (cur === "thirdParty" ? null : "thirdParty"));
-  }, []);
-
-  // viewerIsSubscribed for the Kick-native dialog: the viewer's own
-  // subscriber badge isn't surfaced through any chat-state path reachable
-  // from here today (KickChat threads `subscriberBadges` for *rendering*
-  // other users' badges, not the viewer's own status). Per U8/U9 design,
-  // `undefined` means "unknown" and disables the lock overlay — Kick will
-  // server-side reject any subscriber-only emote the viewer can't use, so
-  // there's no regression relative to today. Plumbing a viewer-subscription
-  // signal is deferred as a follow-up.
-  const viewerIsSubscribed: boolean | undefined = undefined;
-
-  // Character count tracks the SERIALIZED message (emote names + delimiters)
-  // rather than the placeholder-bearing textarea value — that's what actually
-  // gets transmitted and what the platform enforces a length limit on.
-  const serializedLength = useMemo(
-    () => serializeMessage(message, emoteSlots, platform).length,
-    [message, emoteSlots, platform],
-  );
-  const isOverLimit = serializedLength > maxLength;
-  const charactersRemaining = maxLength - serializedLength;
-
-  const buttonsDisabled = disabled || !canSend;
-
-  return (
-    <div ref={containerRef} className={`relative flex flex-col ${className}`}>
-      {/* Reply Preview — stays at the top, above InfoBanner */}
-      {reply && (
-        <div
-          data-testid="reply-preview"
-          className="flex items-center gap-2 px-3 py-2 bg-white/5 border-b border-[var(--color-border)] rounded-t-md"
-        >
-          <BsReplyFill className="text-gray-400 flex-shrink-0" size={14} />
-          <div className="flex-1 min-w-0">
-            <span className="text-xs text-gray-400">Replying to </span>
-            <span className="text-xs font-medium text-white">{reply.displayName}</span>
-            <p className="text-xs text-gray-500 truncate">{reply.content}</p>
-          </div>
-          <button
-            onClick={clearReply}
-            className="flex-shrink-0 p-1 hover:bg-white/10 rounded transition-colors"
-            aria-label="Cancel reply"
+    return (
+      <div ref={containerRef} className={`relative flex flex-col ${className}`}>
+        {/* Reply Preview — stays at the top, above InfoBanner */}
+        {reply && (
+          <div
+            data-testid="reply-preview"
+            className="flex items-center gap-2 px-3 py-2 bg-white/5 border-b border-[var(--color-border)] rounded-t-md"
           >
-            <BsXLg className="text-gray-400" size={12} />
-          </button>
-        </div>
-      )}
+            <BsReplyFill className="text-gray-400 flex-shrink-0" size={14} />
+            <div className="flex-1 min-w-0">
+              <span className="text-xs text-gray-400">Replying to </span>
+              <span className="text-xs font-medium text-white">{reply.displayName}</span>
+              <p className="text-xs text-gray-500 truncate">{reply.content}</p>
+            </div>
+            <button
+              onClick={clearReply}
+              className="flex-shrink-0 p-1 hover:bg-white/10 rounded transition-colors"
+              aria-label="Cancel reply"
+            >
+              <BsXLg className="text-gray-400" size={12} />
+            </button>
+          </div>
+        )}
 
-      {/* InfoBanner — renders null when no chat-room modes are active. */}
-      <InfoBanner platform={platform} channelId={channelId} />
+        {/* InfoBanner — renders null when no chat-room modes are active. */}
+        <InfoBanner platform={platform} channelId={channelId} />
 
-      {/* Main Input Area */}
-      <div
-        className={`relative flex items-end gap-2 ${reply ? "rounded-b-md" : "rounded-md"} border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 py-2`}
-      >
-        {/* Text Input — the overlay above the textarea renders emote tokens
+        {/* Main Input Area */}
+        <div
+          className={`relative flex items-end gap-2 ${reply ? "rounded-b-md" : "rounded-md"} border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 py-2`}
+        >
+          {/* Text Input — the overlay above the textarea renders emote tokens
             (e.g. `KEKW`) as images so the user can see live previews inline.
             The textarea itself is made transparent (`text-transparent`) but
             keeps `caret-white` so the cursor stays visible. The overlay is
             absolutely positioned, `pointer-events-none`, and uses the SAME
             font metrics + width as the textarea so its line wrapping matches
             character-for-character. */}
-        <div className="flex-1 relative">
-          {overlayContent && (
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-sm text-white leading-[1.5]"
-              style={{ minHeight: "24px", maxHeight: "120px", overflow: "hidden" }}
+          <div className="flex-1 relative">
+            {overlayContent && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-sm text-white leading-[1.5]"
+                style={{ minHeight: "24px", maxHeight: "120px", overflow: "hidden" }}
+              >
+                {overlayContent}
+              </div>
+            )}
+            <textarea
+              ref={inputRef}
+              value={message}
+              onChange={handleInputChange}
+              onSelect={handleSelect}
+              onKeyDown={handleKeyDown}
+              placeholder={canSend ? placeholder : "Log in to chat"}
+              disabled={disabled || !canSend}
+              rows={1}
+              className="relative w-full resize-none bg-transparent text-sm text-transparent caret-white placeholder:text-gray-300 placeholder:font-bold focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed leading-[1.5]"
+              style={{
+                minHeight: "24px",
+                maxHeight: "120px",
+              }}
+            />
+
+            <EmoteAutocomplete
+              inputValue={message}
+              cursorPosition={cursorPosition}
+              onSelect={(emote, start, end) => handleEmoteSelect(emote, start, end)}
+              onClose={emoteAutocomplete.deactivate}
+              isActive={emoteAutocomplete.isActive}
+            />
+
+            <MentionAutocomplete
+              inputValue={message}
+              cursorPosition={cursorPosition}
+              onSelect={handleMentionSelect}
+              onClose={mentionAutocomplete.deactivate}
+              isActive={mentionAutocomplete.isActive}
+              platform={platform}
+            />
+          </div>
+
+          {/* Character Counter */}
+          {message.length > 0 && (
+            <span
+              className={`flex-shrink-0 text-xs ${
+                isOverLimit
+                  ? "text-red-500"
+                  : charactersRemaining <= 50
+                    ? "text-yellow-500"
+                    : "text-gray-500"
+              }`}
             >
-              {overlayContent}
-            </div>
+              {charactersRemaining}
+            </span>
           )}
-          <textarea
-            ref={inputRef}
-            value={message}
-            onChange={handleInputChange}
-            onSelect={handleSelect}
-            onKeyDown={handleKeyDown}
-            placeholder={canSend ? placeholder : "Log in to chat"}
-            disabled={disabled || !canSend}
-            rows={1}
-            className="relative w-full resize-none bg-transparent text-sm text-transparent caret-white placeholder:text-gray-300 placeholder:font-bold focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed leading-[1.5]"
-            style={{
-              minHeight: "24px",
-              maxHeight: "120px",
-            }}
-          />
 
-          <EmoteAutocomplete
-            inputValue={message}
-            cursorPosition={cursorPosition}
-            onSelect={(emote, start, end) => handleEmoteSelect(emote, start, end)}
-            onClose={emoteAutocomplete.deactivate}
-            isActive={emoteAutocomplete.isActive}
-          />
-
-          <MentionAutocomplete
-            inputValue={message}
-            cursorPosition={cursorPosition}
-            onSelect={handleMentionSelect}
-            onClose={mentionAutocomplete.deactivate}
-            isActive={mentionAutocomplete.isActive}
-            platform={platform}
-          />
-        </div>
-
-        {/* Character Counter */}
-        {message.length > 0 && (
-          <span
-            className={`flex-shrink-0 text-xs ${
-              isOverLimit
-                ? "text-red-500"
-                : charactersRemaining <= 50
-                  ? "text-yellow-500"
-                  : "text-gray-500"
-            }`}
-          >
-            {charactersRemaining}
-          </span>
-        )}
-
-        {/* Emote buttons (native + third-party). Send button is intentionally
+          {/* Emote buttons (native + third-party). Send button is intentionally
             gone — Enter sends. Divider + slide-and-fade-in mirrors KickTalk's
             `.chatInputActions` (border-left + slideAndFadeIn keyframe). */}
-        <div className="flex items-center gap-1 pl-3 ml-1 border-l border-[var(--color-border)] animate-slide-and-fade-in">
-        <NativeEmoteButton
-          platform={platform}
-          channelId={channelId}
-          isOpen={activeDialog === "native"}
-          onOpenRequest={handleNativeOpenRequest}
-          onEmoteSelect={handleEmoteSelect}
-          disabled={buttonsDisabled}
-          viewerIsSubscribed={viewerIsSubscribed}
-        />
-        <ThirdPartyEmoteButton
-          platform={platform}
-          channelId={channelId}
-          isOpen={activeDialog === "thirdParty"}
-          onOpenRequest={handleThirdPartyOpenRequest}
-          onEmoteSelect={handleEmoteSelect}
-          disabled={buttonsDisabled}
-        />
+          <div className="flex items-center gap-1 pl-3 ml-1 border-l border-[var(--color-border)] animate-slide-and-fade-in">
+            <NativeEmoteButton
+              platform={platform}
+              channelId={channelId}
+              isOpen={activeDialog === "native"}
+              onOpenRequest={handleNativeOpenRequest}
+              onEmoteSelect={handleEmoteSelect}
+              disabled={buttonsDisabled}
+              viewerIsSubscribed={viewerIsSubscribed}
+            />
+            <ThirdPartyEmoteButton
+              platform={platform}
+              channelId={channelId}
+              isOpen={activeDialog === "thirdParty"}
+              onOpenRequest={handleThirdPartyOpenRequest}
+              onEmoteSelect={handleEmoteSelect}
+              disabled={buttonsDisabled}
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Error Message */}
-      {error && <div className="absolute -bottom-6 left-0 text-xs text-red-500">{error}</div>}
-    </div>
-  );
-});
+        {/* Error Message */}
+        {error && <div className="absolute -bottom-6 left-0 text-xs text-red-500">{error}</div>}
+      </div>
+    );
+  }
+);
 
 ChatInput.displayName = "ChatInput";
 

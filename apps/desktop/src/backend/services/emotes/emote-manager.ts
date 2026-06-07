@@ -5,9 +5,9 @@
  * and lookup of emotes from Twitch, Kick, BTTV, FFZ, and 7TV.
  */
 
+import { createManagedInterval } from "@/lib/managed-interval";
 import type { Platform } from "@/shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
-import { createManagedInterval } from "@/lib/managed-interval";
 import type { Emote, EmoteManagerConfig, EmoteProvider, EmoteProviderService } from "./emote-types";
 import { DEFAULT_EMOTE_CONFIG } from "./emote-types";
 

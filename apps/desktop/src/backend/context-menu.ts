@@ -11,14 +11,14 @@
 
 import {
   BrowserWindow,
-  Menu,
   type ContextMenuParams,
+  Menu,
   type MenuItemConstructorOptions,
   type WebContents,
 } from "electron";
 
 export function buildContextMenuTemplate(
-  params: Pick<ContextMenuParams, "selectionText" | "isEditable">,
+  params: Pick<ContextMenuParams, "selectionText" | "isEditable">
 ): MenuItemConstructorOptions[] {
   const template: MenuItemConstructorOptions[] = [];
   if (params.selectionText.trim().length > 0) {

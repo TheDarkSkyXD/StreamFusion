@@ -2,6 +2,10 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
 import { toast } from "sonner";
+import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
+import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import type { UnifiedPrediction } from "@/shared/chat-types";
 import {
   pinChatMessage,
   unpinChatMessage,
@@ -18,30 +22,19 @@ import {
   unbanUser,
   updateChatSettings,
 } from "../../../backend/api/platforms/twitch/twitch-helix-moderation-mutations";
-import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
 import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
+import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
 import {
   startTwitchPinPolling,
   stopTwitchPinPolling,
 } from "../../../backend/services/chat/twitch-pin-poller";
 import { initializeTwitchEmotes } from "../../../backend/services/emotes";
+import { useChatRoomState } from "../../../hooks/useChatRoomState";
+import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
 import { useInterval } from "../../../hooks/useInterval";
 import { useIsTwitchMod } from "../../../hooks/useIsTwitchMod";
 import { useManagedTimeout } from "../../../hooks/useManagedTimeout";
 import { useRequireModScopes } from "../../../hooks/useRequireModScopes";
-import { InlineModStrip, type InlineModAction } from "../mod/InlineModStrip";
-import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
-import {
-  appendRecentRaid,
-  RaidTargetPicker,
-  type RaidTarget,
-} from "../mod/RaidTargetPicker";
-import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
-import { useChatRoomState } from "../../../hooks/useChatRoomState";
-import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
-import { useRoomStateStore } from "../../../store/room-state-store";
-import { useAuthStore } from "../../../store/auth-store";
-import { useDevModOverrideStore } from "../../../store/dev-mod-override-store";
 import type {
   ChatConnectionStatus,
   ChatMessage,
@@ -51,24 +44,27 @@ import type {
   NormalizedPinnedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
+import { useAuthStore } from "../../../store/auth-store";
 import { useChatStore } from "../../../store/chat-store";
+import { useDevModOverrideStore } from "../../../store/dev-mod-override-store";
 import { useEmoteStore } from "../../../store/emote-store";
+import { useRoomStateStore } from "../../../store/room-state-store";
 import { useRenderCount } from "../../dev/use-render-count";
-import { type ChatInputHandle, ChatInput } from "../ChatInput";
+import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
 import { ChatQuickSettingsPopover } from "../ChatQuickSettingsPopover";
-import { PinnedMessageBanner } from "../PinnedMessageBanner";
-import { PredictionBanner } from "../PredictionBanner";
-import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
-import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
-import type { UnifiedPrediction } from "@/shared/chat-types";
-import { seedTwitchChatHistory } from "./twitch-chat-history";
-import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
-import { ChatPanelTabs, type ChatPanelTabId } from "../mod/ChatPanelTabs";
+import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
+import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
+import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
+import { appendRecentRaid, type RaidTarget, RaidTargetPicker } from "../mod/RaidTargetPicker";
+import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { EngagementTab } from "../mod/tabs/EngagementTab";
 import { ModLogTab } from "../mod/tabs/ModLogTab";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
+import { PinnedMessageBanner } from "../PinnedMessageBanner";
+import { PredictionBanner } from "../PredictionBanner";
+import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
+import { seedTwitchChatHistory } from "./twitch-chat-history";
 
 export interface TwitchChatProps {
   /** Channel name to join */
@@ -145,19 +141,18 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // the degraded post-revocation mode so the input doesn't pretend the
   // user can chat when their refresh token is dead.
   const isAuthenticated = useAuthStore(
-    (state) => state.twitchConnected && !state.twitchReconnectRequired,
+    (state) => state.twitchConnected && !state.twitchReconnectRequired
   );
   // U5 — gate the in-chat prediction widget on the viewer pref. Reactive
   // selector so toggling it live shows/hides the banner without remounting.
   const showPredictions = useAuthStore(
     (state) =>
       state.preferences?.chatDisplay?.showPredictions ??
-      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPredictions,
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPredictions
   );
   const showPolls = useAuthStore(
     (state) =>
-      state.preferences?.chatDisplay?.showPolls ??
-      DEFAULT_CHAT_DISPLAY_PREFERENCES.showPolls,
+      state.preferences?.chatDisplay?.showPolls ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.showPolls
   );
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
@@ -181,9 +176,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // U13/U15 widened the union to include strip-driven actions which carry no
   // chat message. The dialog branches on `kind` to render the correct preview
   // and slot.
-  const [pendingModAction, setPendingModAction] = useState<PendingTwitchModAction | null>(
-    null,
-  );
+  const [pendingModAction, setPendingModAction] = useState<PendingTwitchModAction | null>(null);
   const [modActionBusy, setModActionBusy] = useState(false);
   // Optimistic local copy of the channel's chat-room state (U14). Reads + writes
   // flow through useRoomStateStore; the hook auto-fills DEFAULT_ROOM_STATE.
@@ -322,8 +315,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             // (next-load semantics, R10). Read prefs imperatively to avoid
             // adding a reactive dep that would re-trigger the connect effect.
             applyProviderPrefs(
-              useAuthStore.getState().preferences?.chatDisplay ??
-                DEFAULT_CHAT_DISPLAY_PREFERENCES,
+              useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
             );
             // Reload global emotes now that we have credentials
             if (isMounted) await loadGlobalEmotes("twitch");
@@ -406,8 +398,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       // toggle flipped on the Settings/gear surface takes effect on this load
       // (R10). applyProviderPrefs is a no-op when the set already matches.
       applyProviderPrefs(
-        useAuthStore.getState().preferences?.chatDisplay ??
-          DEFAULT_CHAT_DISPLAY_PREFERENCES,
+        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
       );
       setActiveChannel(channelId);
       loadChannelEmotes(channelId, channel, "twitch");
@@ -505,7 +496,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         // emote text isn't present in any text fragment for the helper to
         // double-render. Third-party 7TV / BTTV / FFZ always ride along as
         // plain text either way and are resolved here too.
-        const map = new Map(useEmoteStore.getState().getAllEmotes().map((e) => [e.name, e]));
+        const map = new Map(
+          useEmoteStore
+            .getState()
+            .getAllEmotes()
+            .map((e) => [e.name, e])
+        );
         const enrichedContent = substituteThirdPartyEmotes(message.content, map, {
           includeNative: true,
         });
@@ -521,8 +517,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       // prefs imperatively so this handler isn't re-registered (and the IRC
       // socket isn't reconnected) on every preference change.
       const cd =
-        useAuthStore.getState().preferences?.chatDisplay ??
-        DEFAULT_CHAT_DISPLAY_PREFERENCES;
+        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
       if (!cd.showUserNotices) return;
       const systemMessage: ChatMessage = {
         id: notice.id,
@@ -556,8 +551,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       // moderation effect itself: the messages are still removed (a mod
       // cleared chat), only the "Chat was cleared" / ban marker is hidden.
       const cd =
-        useAuthStore.getState().preferences?.chatDisplay ??
-        DEFAULT_CHAT_DISPLAY_PREFERENCES;
+        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
 
       if (clear.isClearAll) {
         clearMessages(clear.platform);
@@ -644,11 +638,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       // here. An empty `prediction.channelId` ("") is the dev-injection
       // path (ChatSimTool has no current-channel context) — accept those
       // so the dev tool stays useful. (Code review P0-1.)
-      if (
-        channelId &&
-        prediction.channelId &&
-        prediction.channelId !== channelId
-      ) {
+      if (channelId && prediction.channelId && prediction.channelId !== channelId) {
         return;
       }
       if (predictionDismissGate.shouldSuppress(prediction.id)) return;
@@ -713,12 +703,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // The broadcaster check is approximate per the plan: Twitch's broadcaster
   // id IS the user id, so user.id === channelId is sufficient. The dev
   // override (forceBroadcasterIdentity) flips the gate on for visual testing.
-  const forceBroadcasterIdentity = useDevModOverrideStore(
-    (s) => s.forceBroadcasterIdentity,
-  );
+  const forceBroadcasterIdentity = useDevModOverrideStore((s) => s.forceBroadcasterIdentity);
   const isCurrentUserBroadcaster =
-    forceBroadcasterIdentity ||
-    (!!twitchUser && twitchUser.id === channelId);
+    forceBroadcasterIdentity || (!!twitchUser && twitchUser.id === channelId);
   const visibleTabs: ChatPanelTabId[] = ["chat"];
   if (isMod) {
     visibleTabs.push("modlog");
@@ -782,7 +769,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                     if (!token?.accessToken) return;
                     const result = await unpinChatMessage(
                       pinnedMessage.pinRecordId as string,
-                      token.accessToken,
+                      token.accessToken
                     );
                     if (result.ok) {
                       // Optimistic local clear — poller will reconcile on
@@ -878,14 +865,32 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           // dialog. The scope-gate fires inside onConfirm (not at click-time)
           // so the dialog opens immediately for the moderator regardless of
           // whether a token refresh is pending.
-          onTimeout={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "timeout" }) : undefined}
-          onBan={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "ban" }) : undefined}
-          onUnban={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "unban" }) : undefined}
-          onDelete={isMod ? (message) => setPendingModAction({ kind: "messageScoped", message, actionType: "delete" }) : undefined}
-          selfUserId={twitchUser?.id}
-          currentChannelContext={
-            channelId ? { channelId, channelSlug: channel } : undefined
+          onTimeout={
+            isMod
+              ? (message) =>
+                  setPendingModAction({ kind: "messageScoped", message, actionType: "timeout" })
+              : undefined
           }
+          onBan={
+            isMod
+              ? (message) =>
+                  setPendingModAction({ kind: "messageScoped", message, actionType: "ban" })
+              : undefined
+          }
+          onUnban={
+            isMod
+              ? (message) =>
+                  setPendingModAction({ kind: "messageScoped", message, actionType: "unban" })
+              : undefined
+          }
+          onDelete={
+            isMod
+              ? (message) =>
+                  setPendingModAction({ kind: "messageScoped", message, actionType: "delete" })
+              : undefined
+          }
+          selfUserId={twitchUser?.id}
+          currentChannelContext={channelId ? { channelId, channelSlug: channel } : undefined}
         />
       </div>
 
@@ -908,498 +913,498 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
   return (
     <UserPopoutProvider>
-    <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
-      <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
-        <h2 className="font-semibold flex items-center gap-2">
-          <span className="text-white">Chat</span>
-        </h2>
-        {/* U7 — gear lives in the header chrome OUTSIDE ChatPanelTabs so the
-         *  single-tab viewer path doesn't strip it (chat-header-banner learning).
-         *  `relative` anchors the popover; the gear gets an accent state while open. */}
-        <div className="relative flex space-x-2">
-          <button
-            type="button"
-            onClick={() => setShowChatSettings((v) => !v)}
-            aria-label="Chat settings"
-            aria-expanded={showChatSettings}
-            title="Chat settings"
-            className={
-              showChatSettings
-                ? "text-[#dc143c] flex-shrink-0"
-                : "text-gray-400 hover:text-white flex-shrink-0"
-            }
-          >
-            <BsGear size={16} />
-          </button>
-          {showChatSettings && (
-            <ChatQuickSettingsPopover
-              onClose={() => setShowChatSettings(false)}
-              onClearChat={() => clearMessages()}
-            />
-          )}
-        </div>
-      </div>
-      <ChatPanelTabs visibleTabs={visibleTabs}>
-        {{
-          chat: chatBody,
-          modlog: channelId ? (
-            <ModLogTab channelId={channelId} />
-          ) : (
-            <div className="p-4 text-gray-400">No channel selected.</div>
-          ),
-          engagement: channelId ? (
-            <EngagementTab channelId={channelId} />
-          ) : (
-            <div className="p-4 text-gray-400">No channel selected.</div>
-          ),
-        }}
-      </ChatPanelTabs>
-
-      {/* U11/U13/U15 — Generic mod-action confirm dialog. Branches on the
-       *  pendingModAction `kind` so message-scoped actions (Timeout/Ban/...) and
-       *  strip-scoped actions (clear/raid/shield/chat-modes) all flow through
-       *  the same surface. The pin dialog stays separate (plan decision #12). */}
-      {pendingModAction && channelId && twitchUser ? (
-        (() => {
-          const action = pendingModAction;
-          // Choose actionType for the dialog copy lookup. Chat-mode toggles
-          // reuse a single actionType per kind regardless of on/off — only
-          // shield has an explicit shieldOff variant for CTA clarity.
-          let actionType: ModActionType;
-          let targetPreview: React.ReactNode;
-          if (action.kind === "messageScoped") {
-            actionType = action.actionType;
-            targetPreview = (
-              <div>
-                <div className="line-clamp-2">{action.message.rawContent || ""}</div>
-                <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
-                  from @{action.message.username}
-                </div>
-              </div>
-            );
-          } else if (action.kind === "stripChatMode") {
-            // The four chat-mode toggles reuse the dialog with a clarifying
-            // preview rather than separate `*Off` action types. Per-mode copy
-            // routes through a small lookup table.
-            const COPY: Record<
-              typeof action.modeKind,
-              { type: ModActionType; on: string; off: string }
-            > = {
-              "slow-mode": {
-                type: "timeout",
-                on: "Turn ON slow mode",
-                off: "Turn OFF slow mode",
-              },
-              "followers-only": {
-                type: "uniqueChat", // reuse a Twitch-purple variant for the lookup; preview text carries the real wording
-                on: "Turn ON followers-only mode",
-                off: "Turn OFF followers-only mode",
-              },
-              "subscribers-only": {
-                type: "uniqueChat",
-                on: "Turn ON subscribers-only mode",
-                off: "Turn OFF subscribers-only mode",
-              },
-              "emote-only": {
-                type: "uniqueChat",
-                on: "Turn ON emote-only mode",
-                off: "Turn OFF emote-only mode",
-              },
-            };
-            const entry = COPY[action.modeKind];
-            actionType = entry.type;
-            targetPreview = (
-              <div className="text-sm font-medium">
-                {action.currentlyActive ? entry.off : entry.on}
-              </div>
-            );
-          } else if (action.actionType === "raid") {
-            actionType = "raid";
-            targetPreview = (
-              <div className="text-sm text-[var(--color-foreground-muted)]">
-                Pick a channel to send your viewers to.
-              </div>
-            );
-          } else {
-            actionType = action.actionType;
-            targetPreview = (
-              <div className="text-sm">
-                {action.actionType === "clear"
-                  ? "Clear chat for everyone in this channel"
-                  : action.actionType === "commercial"
-                  ? "Run a commercial on this channel"
-                  : action.actionType === "shield"
-                  ? "Enable Shield Mode on this channel"
-                  : action.actionType === "shieldOff"
-                  ? "Disable Shield Mode on this channel"
-                  : action.actionType === "uniqueChat"
-                  ? action.currentlyActive
-                    ? "Turn OFF unique-chat mode"
-                    : "Turn ON unique-chat mode"
-                  : ""}
-              </div>
-            );
-          }
-
-          const needsTimeoutSlot =
-            action.kind === "messageScoped" && action.actionType === "timeout";
-          const needsSlowModeSlot =
-            action.kind === "stripChatMode" &&
-            action.modeKind === "slow-mode" &&
-            !action.currentlyActive;
-          const needsFollowersSlot =
-            action.kind === "stripChatMode" &&
-            action.modeKind === "followers-only" &&
-            !action.currentlyActive;
-          const needsRaidSlot =
-            action.kind === "strip" && action.actionType === "raid";
-
-          return (
-            <ModActionConfirmDialog
-              open={!!pendingModAction}
-              onOpenChange={(open) => {
-                if (!open) setPendingModAction(null);
-              }}
-              actionType={actionType}
-              targetPreview={targetPreview}
-              busy={modActionBusy}
-              extraSlot={
-                needsTimeoutSlot
-                  ? ({ onDataChange, disabled }) => (
-                      <TimeoutDurationPicker
-                        disabled={disabled}
-                        onChange={(s) => onDataChange({ durationSeconds: s })}
-                      />
-                    )
-                  : needsSlowModeSlot
-                  ? ({ onDataChange, disabled }) => (
-                      <TimeoutDurationPicker
-                        disabled={disabled}
-                        onChange={(s) => onDataChange({ durationSeconds: s })}
-                      />
-                    )
-                  : needsFollowersSlot
-                  ? ({ onDataChange, disabled }) => (
-                      <TimeoutDurationPicker
-                        disabled={disabled}
-                        onChange={(s) => onDataChange({ durationSeconds: s })}
-                      />
-                    )
-                  : needsRaidSlot
-                  ? ({ onDataChange, disabled }) => (
-                      <RaidTargetPicker
-                        selfBroadcasterId={twitchUser.id}
-                        disabled={disabled}
-                        onChange={(target) => onDataChange(target)}
-                      />
-                    )
-                  : undefined
+      <div className="flex flex-col h-full w-full bg-[var(--color-background-secondary)]">
+        <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
+          <h2 className="font-semibold flex items-center gap-2">
+            <span className="text-white">Chat</span>
+          </h2>
+          {/* U7 — gear lives in the header chrome OUTSIDE ChatPanelTabs so the
+           *  single-tab viewer path doesn't strip it (chat-header-banner learning).
+           *  `relative` anchors the popover; the gear gets an accent state while open. */}
+          <div className="relative flex space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowChatSettings((v) => !v)}
+              aria-label="Chat settings"
+              aria-expanded={showChatSettings}
+              title="Chat settings"
+              className={
+                showChatSettings
+                  ? "text-[#dc143c] flex-shrink-0"
+                  : "text-gray-400 hover:text-white flex-shrink-0"
               }
-              onConfirm={async (extraData) => {
-                if (!pendingModAction) return;
-                const runMessageAction = async (
-                  accessToken: string,
-                  clientId: string,
-                ): Promise<HelixModResult<unknown>> => {
-                  if (action.kind !== "messageScoped") {
-                    throw new Error("unreachable");
-                  }
-                  const ctx = {
-                    accessToken,
-                    clientId,
-                    broadcasterId: channelId,
-                    moderatorId: twitchUser.id,
-                  };
-                  switch (action.actionType) {
-                    case "ban":
-                      return banUser({ ...ctx, userId: action.message.userId });
-                    case "timeout": {
-                      const seconds =
-                        (extraData as { durationSeconds?: number } | undefined)
-                          ?.durationSeconds ?? 600;
-                      return timeoutUser({
-                        ...ctx,
-                        userId: action.message.userId,
-                        durationSeconds: seconds,
-                      });
-                    }
-                    case "unban":
-                      return unbanUser({ ...ctx, userId: action.message.userId });
-                    case "delete":
-                      return deleteChatMessage({
-                        ...ctx,
-                        messageId: action.message.id,
-                      });
-                  }
+            >
+              <BsGear size={16} />
+            </button>
+            {showChatSettings && (
+              <ChatQuickSettingsPopover
+                onClose={() => setShowChatSettings(false)}
+                onClearChat={() => clearMessages()}
+              />
+            )}
+          </div>
+        </div>
+        <ChatPanelTabs visibleTabs={visibleTabs}>
+          {{
+            chat: chatBody,
+            modlog: channelId ? (
+              <ModLogTab channelId={channelId} />
+            ) : (
+              <div className="p-4 text-gray-400">No channel selected.</div>
+            ),
+            engagement: channelId ? (
+              <EngagementTab channelId={channelId} />
+            ) : (
+              <div className="p-4 text-gray-400">No channel selected.</div>
+            ),
+          }}
+        </ChatPanelTabs>
+
+        {/* U11/U13/U15 — Generic mod-action confirm dialog. Branches on the
+         *  pendingModAction `kind` so message-scoped actions (Timeout/Ban/...) and
+         *  strip-scoped actions (clear/raid/shield/chat-modes) all flow through
+         *  the same surface. The pin dialog stays separate (plan decision #12). */}
+        {pendingModAction && channelId && twitchUser
+          ? (() => {
+              const action = pendingModAction;
+              // Choose actionType for the dialog copy lookup. Chat-mode toggles
+              // reuse a single actionType per kind regardless of on/off — only
+              // shield has an explicit shieldOff variant for CTA clarity.
+              let actionType: ModActionType;
+              let targetPreview: React.ReactNode;
+              if (action.kind === "messageScoped") {
+                actionType = action.actionType;
+                targetPreview = (
+                  <div>
+                    <div className="line-clamp-2">{action.message.rawContent || ""}</div>
+                    <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
+                      from @{action.message.username}
+                    </div>
+                  </div>
+                );
+              } else if (action.kind === "stripChatMode") {
+                // The four chat-mode toggles reuse the dialog with a clarifying
+                // preview rather than separate `*Off` action types. Per-mode copy
+                // routes through a small lookup table.
+                const COPY: Record<
+                  typeof action.modeKind,
+                  { type: ModActionType; on: string; off: string }
+                > = {
+                  "slow-mode": {
+                    type: "timeout",
+                    on: "Turn ON slow mode",
+                    off: "Turn OFF slow mode",
+                  },
+                  "followers-only": {
+                    type: "uniqueChat", // reuse a Twitch-purple variant for the lookup; preview text carries the real wording
+                    on: "Turn ON followers-only mode",
+                    off: "Turn OFF followers-only mode",
+                  },
+                  "subscribers-only": {
+                    type: "uniqueChat",
+                    on: "Turn ON subscribers-only mode",
+                    off: "Turn OFF subscribers-only mode",
+                  },
+                  "emote-only": {
+                    type: "uniqueChat",
+                    on: "Turn ON emote-only mode",
+                    off: "Turn OFF emote-only mode",
+                  },
                 };
+                const entry = COPY[action.modeKind];
+                actionType = entry.type;
+                targetPreview = (
+                  <div className="text-sm font-medium">
+                    {action.currentlyActive ? entry.off : entry.on}
+                  </div>
+                );
+              } else if (action.actionType === "raid") {
+                actionType = "raid";
+                targetPreview = (
+                  <div className="text-sm text-[var(--color-foreground-muted)]">
+                    Pick a channel to send your viewers to.
+                  </div>
+                );
+              } else {
+                actionType = action.actionType;
+                targetPreview = (
+                  <div className="text-sm">
+                    {action.actionType === "clear"
+                      ? "Clear chat for everyone in this channel"
+                      : action.actionType === "commercial"
+                        ? "Run a commercial on this channel"
+                        : action.actionType === "shield"
+                          ? "Enable Shield Mode on this channel"
+                          : action.actionType === "shieldOff"
+                            ? "Disable Shield Mode on this channel"
+                            : action.actionType === "uniqueChat"
+                              ? action.currentlyActive
+                                ? "Turn OFF unique-chat mode"
+                                : "Turn ON unique-chat mode"
+                              : ""}
+                  </div>
+                );
+              }
 
-                const runStripAction = async (
-                  accessToken: string,
-                  clientId: string,
-                ): Promise<HelixModResult<unknown>> => {
-                  const ctx = {
-                    accessToken,
-                    clientId,
-                    broadcasterId: channelId,
-                    moderatorId: twitchUser.id,
-                  };
-                  if (action.kind === "strip") {
-                    switch (action.actionType) {
-                      case "clear":
-                        return clearChatHelix(ctx);
-                      case "raid": {
-                        const target = extraData as RaidTarget | null | undefined;
-                        if (!target) {
-                          return {
-                            ok: false,
-                            kind: "network",
-                            message: "Pick a target channel first",
-                          };
-                        }
-                        return startRaid({
-                          accessToken,
-                          clientId,
-                          fromBroadcasterId: channelId,
-                          toBroadcasterId: target.broadcasterId,
-                        });
-                      }
-                      case "commercial":
-                        return runCommercial({
-                          accessToken,
-                          clientId,
-                          broadcasterId: channelId,
-                          length: 60,
-                        });
-                      case "shield":
-                        return setShieldMode({ ...ctx, active: true });
-                      case "shieldOff":
-                        return setShieldMode({ ...ctx, active: false });
-                      case "uniqueChat":
-                        return updateChatSettings({
-                          ...ctx,
-                          settings: {
-                            unique_chat_mode: !action.currentlyActive,
-                          },
-                        });
-                    }
+              const needsTimeoutSlot =
+                action.kind === "messageScoped" && action.actionType === "timeout";
+              const needsSlowModeSlot =
+                action.kind === "stripChatMode" &&
+                action.modeKind === "slow-mode" &&
+                !action.currentlyActive;
+              const needsFollowersSlot =
+                action.kind === "stripChatMode" &&
+                action.modeKind === "followers-only" &&
+                !action.currentlyActive;
+              const needsRaidSlot = action.kind === "strip" && action.actionType === "raid";
+
+              return (
+                <ModActionConfirmDialog
+                  open={!!pendingModAction}
+                  onOpenChange={(open) => {
+                    if (!open) setPendingModAction(null);
+                  }}
+                  actionType={actionType}
+                  targetPreview={targetPreview}
+                  busy={modActionBusy}
+                  extraSlot={
+                    needsTimeoutSlot
+                      ? ({ onDataChange, disabled }) => (
+                          <TimeoutDurationPicker
+                            disabled={disabled}
+                            onChange={(s) => onDataChange({ durationSeconds: s })}
+                          />
+                        )
+                      : needsSlowModeSlot
+                        ? ({ onDataChange, disabled }) => (
+                            <TimeoutDurationPicker
+                              disabled={disabled}
+                              onChange={(s) => onDataChange({ durationSeconds: s })}
+                            />
+                          )
+                        : needsFollowersSlot
+                          ? ({ onDataChange, disabled }) => (
+                              <TimeoutDurationPicker
+                                disabled={disabled}
+                                onChange={(s) => onDataChange({ durationSeconds: s })}
+                              />
+                            )
+                          : needsRaidSlot
+                            ? ({ onDataChange, disabled }) => (
+                                <RaidTargetPicker
+                                  selfBroadcasterId={twitchUser.id}
+                                  disabled={disabled}
+                                  onChange={(target) => onDataChange(target)}
+                                />
+                              )
+                            : undefined
                   }
-                  if (action.kind === "stripChatMode") {
-                    const turnOn = !action.currentlyActive;
-                    switch (action.modeKind) {
-                      case "slow-mode": {
-                        const seconds = turnOn
-                          ? (extraData as { durationSeconds?: number } | undefined)
-                              ?.durationSeconds ?? 30
-                          : undefined;
-                        return updateChatSettings({
-                          ...ctx,
-                          settings: {
-                            slow_mode: turnOn,
-                            slow_mode_wait_time: turnOn ? seconds ?? 30 : null,
-                          },
-                        });
+                  onConfirm={async (extraData) => {
+                    if (!pendingModAction) return;
+                    const runMessageAction = async (
+                      accessToken: string,
+                      clientId: string
+                    ): Promise<HelixModResult<unknown>> => {
+                      if (action.kind !== "messageScoped") {
+                        throw new Error("unreachable");
                       }
-                      case "followers-only": {
-                        const seconds = turnOn
-                          ? (extraData as { durationSeconds?: number } | undefined)
-                              ?.durationSeconds ?? 600
-                          : undefined;
-                        // Twitch wants follower_mode_duration in MINUTES.
-                        const minutes = turnOn
-                          ? Math.max(0, Math.floor((seconds ?? 600) / 60))
-                          : undefined;
-                        return updateChatSettings({
-                          ...ctx,
-                          settings: {
-                            follower_mode: turnOn,
-                            follower_mode_duration: turnOn ? minutes ?? 10 : null,
-                          },
-                        });
-                      }
-                      case "subscribers-only":
-                        return updateChatSettings({
-                          ...ctx,
-                          settings: { subscriber_mode: turnOn },
-                        });
-                      case "emote-only":
-                        return updateChatSettings({
-                          ...ctx,
-                          settings: { emote_mode: turnOn },
-                        });
-                    }
-                  }
-                  throw new Error("unreachable");
-                };
-
-                const runAction =
-                  action.kind === "messageScoped" ? runMessageAction : runStripAction;
-
-                setModActionBusy(true);
-                try {
-                  const token = await window.electronAPI.auth.getToken("twitch");
-                  const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                  if (!token?.accessToken || !clientId) {
-                    setPendingModAction(null);
-                    toast.error("Sign in to Twitch to take this action");
-                    return;
-                  }
-                  const result = await runAction(token.accessToken, clientId);
-                  if (result.ok) {
-                    // Optimistic room-state writeback so the strip flips its
-                    // toggles immediately. The Helix call has already
-                    // succeeded — TODO(U14.1) will replace this with the
-                    // ROOMSTATE event from twitch-chat.
-                    if (action.kind === "stripChatMode") {
-                      const turnOn = !action.currentlyActive;
-                      const seconds = turnOn
-                        ? (extraData as { durationSeconds?: number } | undefined)
-                            ?.durationSeconds ?? 30
-                        : null;
-                      if (action.modeKind === "slow-mode") {
-                        updateRoomState("twitch", channelId, {
-                          slowMode: turnOn ? seconds ?? 30 : null,
-                        });
-                      } else if (action.modeKind === "followers-only") {
-                        const minutes = turnOn
-                          ? Math.max(0, Math.floor((seconds ?? 600) / 60))
-                          : null;
-                        updateRoomState("twitch", channelId, {
-                          followersOnly: turnOn ? minutes ?? 10 : null,
-                        });
-                      } else if (action.modeKind === "subscribers-only") {
-                        updateRoomState("twitch", channelId, {
-                          subscribersOnly: turnOn,
-                        });
-                      } else if (action.modeKind === "emote-only") {
-                        updateRoomState("twitch", channelId, { emoteOnly: turnOn });
-                      }
-                    } else if (action.kind === "strip") {
-                      if (action.actionType === "shield") {
-                        updateRoomState("twitch", channelId, { shieldMode: true });
-                      } else if (action.actionType === "shieldOff") {
-                        updateRoomState("twitch", channelId, { shieldMode: false });
-                      } else if (action.actionType === "uniqueChat") {
-                        updateRoomState("twitch", channelId, {
-                          uniqueChat: !action.currentlyActive,
-                        });
-                      } else if (action.actionType === "raid") {
-                        const target = extraData as RaidTarget | null | undefined;
-                        if (target) {
-                          void appendRecentRaid(twitchUser.id, target);
-                        }
-                      }
-                    }
-
-                    setPendingModAction(null);
-                    if (action.kind === "messageScoped") {
-                      const username = action.message.username;
-                      if (action.actionType === "ban") toast.success(`Banned ${username}`);
-                      else if (action.actionType === "unban") toast.success(`Unbanned ${username}`);
-                      else if (action.actionType === "delete") toast.success("Deleted message");
-                      else {
-                        const seconds =
-                          (extraData as { durationSeconds?: number } | undefined)
-                            ?.durationSeconds ?? 600;
-                        toast.success(
-                          `Timed out ${username} for ${formatTimeoutLabel(seconds)}`,
-                        );
-                      }
-                    } else if (action.kind === "strip") {
-                      toast.success("Done");
-                    } else {
-                      toast.success("Chat mode updated");
-                    }
-                    return;
-                  }
-
-                  if (result.kind === "missing-scopes") {
-                    setPendingModAction(null);
-                    promptReconnect({
-                      missingScopes: result.missingScopes,
-                      onReconnected: async () => {
-                        const fresh = await window.electronAPI.auth.getToken("twitch");
-                        const freshClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                        if (!fresh?.accessToken || !freshClientId) return;
-                        const retry = await runAction(fresh.accessToken, freshClientId);
-                        if (retry.ok) toast.success("Action completed");
-                        else
-                          toast.error("Action still failed after reconnect", {
-                            description: retry.message,
+                      const ctx = {
+                        accessToken,
+                        clientId,
+                        broadcasterId: channelId,
+                        moderatorId: twitchUser.id,
+                      };
+                      switch (action.actionType) {
+                        case "ban":
+                          return banUser({ ...ctx, userId: action.message.userId });
+                        case "timeout": {
+                          const seconds =
+                            (extraData as { durationSeconds?: number } | undefined)
+                              ?.durationSeconds ?? 600;
+                          return timeoutUser({
+                            ...ctx,
+                            userId: action.message.userId,
+                            durationSeconds: seconds,
                           });
-                      },
-                    });
-                    return;
-                  }
-                  if (result.kind === "forbidden") {
-                    toast.error("Action forbidden", { description: result.message });
-                    return;
-                  }
-                  if (result.kind === "rate-limited") {
-                    const retry = result.retryAfterSeconds;
-                    toast.error(
-                      retry !== null
-                        ? `Rate-limited, retry in ${retry}s`
-                        : "Rate-limited, retry shortly",
-                    );
-                    return;
-                  }
-                  setPendingModAction(null);
-                  toast.error("Couldn't complete action", {
+                        }
+                        case "unban":
+                          return unbanUser({ ...ctx, userId: action.message.userId });
+                        case "delete":
+                          return deleteChatMessage({
+                            ...ctx,
+                            messageId: action.message.id,
+                          });
+                      }
+                    };
+
+                    const runStripAction = async (
+                      accessToken: string,
+                      clientId: string
+                    ): Promise<HelixModResult<unknown>> => {
+                      const ctx = {
+                        accessToken,
+                        clientId,
+                        broadcasterId: channelId,
+                        moderatorId: twitchUser.id,
+                      };
+                      if (action.kind === "strip") {
+                        switch (action.actionType) {
+                          case "clear":
+                            return clearChatHelix(ctx);
+                          case "raid": {
+                            const target = extraData as RaidTarget | null | undefined;
+                            if (!target) {
+                              return {
+                                ok: false,
+                                kind: "network",
+                                message: "Pick a target channel first",
+                              };
+                            }
+                            return startRaid({
+                              accessToken,
+                              clientId,
+                              fromBroadcasterId: channelId,
+                              toBroadcasterId: target.broadcasterId,
+                            });
+                          }
+                          case "commercial":
+                            return runCommercial({
+                              accessToken,
+                              clientId,
+                              broadcasterId: channelId,
+                              length: 60,
+                            });
+                          case "shield":
+                            return setShieldMode({ ...ctx, active: true });
+                          case "shieldOff":
+                            return setShieldMode({ ...ctx, active: false });
+                          case "uniqueChat":
+                            return updateChatSettings({
+                              ...ctx,
+                              settings: {
+                                unique_chat_mode: !action.currentlyActive,
+                              },
+                            });
+                        }
+                      }
+                      if (action.kind === "stripChatMode") {
+                        const turnOn = !action.currentlyActive;
+                        switch (action.modeKind) {
+                          case "slow-mode": {
+                            const seconds = turnOn
+                              ? ((extraData as { durationSeconds?: number } | undefined)
+                                  ?.durationSeconds ?? 30)
+                              : undefined;
+                            return updateChatSettings({
+                              ...ctx,
+                              settings: {
+                                slow_mode: turnOn,
+                                slow_mode_wait_time: turnOn ? (seconds ?? 30) : null,
+                              },
+                            });
+                          }
+                          case "followers-only": {
+                            const seconds = turnOn
+                              ? ((extraData as { durationSeconds?: number } | undefined)
+                                  ?.durationSeconds ?? 600)
+                              : undefined;
+                            // Twitch wants follower_mode_duration in MINUTES.
+                            const minutes = turnOn
+                              ? Math.max(0, Math.floor((seconds ?? 600) / 60))
+                              : undefined;
+                            return updateChatSettings({
+                              ...ctx,
+                              settings: {
+                                follower_mode: turnOn,
+                                follower_mode_duration: turnOn ? (minutes ?? 10) : null,
+                              },
+                            });
+                          }
+                          case "subscribers-only":
+                            return updateChatSettings({
+                              ...ctx,
+                              settings: { subscriber_mode: turnOn },
+                            });
+                          case "emote-only":
+                            return updateChatSettings({
+                              ...ctx,
+                              settings: { emote_mode: turnOn },
+                            });
+                        }
+                      }
+                      throw new Error("unreachable");
+                    };
+
+                    const runAction =
+                      action.kind === "messageScoped" ? runMessageAction : runStripAction;
+
+                    setModActionBusy(true);
+                    try {
+                      const token = await window.electronAPI.auth.getToken("twitch");
+                      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                      if (!token?.accessToken || !clientId) {
+                        setPendingModAction(null);
+                        toast.error("Sign in to Twitch to take this action");
+                        return;
+                      }
+                      const result = await runAction(token.accessToken, clientId);
+                      if (result.ok) {
+                        // Optimistic room-state writeback so the strip flips its
+                        // toggles immediately. The Helix call has already
+                        // succeeded — TODO(U14.1) will replace this with the
+                        // ROOMSTATE event from twitch-chat.
+                        if (action.kind === "stripChatMode") {
+                          const turnOn = !action.currentlyActive;
+                          const seconds = turnOn
+                            ? ((extraData as { durationSeconds?: number } | undefined)
+                                ?.durationSeconds ?? 30)
+                            : null;
+                          if (action.modeKind === "slow-mode") {
+                            updateRoomState("twitch", channelId, {
+                              slowMode: turnOn ? (seconds ?? 30) : null,
+                            });
+                          } else if (action.modeKind === "followers-only") {
+                            const minutes = turnOn
+                              ? Math.max(0, Math.floor((seconds ?? 600) / 60))
+                              : null;
+                            updateRoomState("twitch", channelId, {
+                              followersOnly: turnOn ? (minutes ?? 10) : null,
+                            });
+                          } else if (action.modeKind === "subscribers-only") {
+                            updateRoomState("twitch", channelId, {
+                              subscribersOnly: turnOn,
+                            });
+                          } else if (action.modeKind === "emote-only") {
+                            updateRoomState("twitch", channelId, { emoteOnly: turnOn });
+                          }
+                        } else if (action.kind === "strip") {
+                          if (action.actionType === "shield") {
+                            updateRoomState("twitch", channelId, { shieldMode: true });
+                          } else if (action.actionType === "shieldOff") {
+                            updateRoomState("twitch", channelId, { shieldMode: false });
+                          } else if (action.actionType === "uniqueChat") {
+                            updateRoomState("twitch", channelId, {
+                              uniqueChat: !action.currentlyActive,
+                            });
+                          } else if (action.actionType === "raid") {
+                            const target = extraData as RaidTarget | null | undefined;
+                            if (target) {
+                              void appendRecentRaid(twitchUser.id, target);
+                            }
+                          }
+                        }
+
+                        setPendingModAction(null);
+                        if (action.kind === "messageScoped") {
+                          const username = action.message.username;
+                          if (action.actionType === "ban") toast.success(`Banned ${username}`);
+                          else if (action.actionType === "unban")
+                            toast.success(`Unbanned ${username}`);
+                          else if (action.actionType === "delete") toast.success("Deleted message");
+                          else {
+                            const seconds =
+                              (extraData as { durationSeconds?: number } | undefined)
+                                ?.durationSeconds ?? 600;
+                            toast.success(
+                              `Timed out ${username} for ${formatTimeoutLabel(seconds)}`
+                            );
+                          }
+                        } else if (action.kind === "strip") {
+                          toast.success("Done");
+                        } else {
+                          toast.success("Chat mode updated");
+                        }
+                        return;
+                      }
+
+                      if (result.kind === "missing-scopes") {
+                        setPendingModAction(null);
+                        promptReconnect({
+                          missingScopes: result.missingScopes,
+                          onReconnected: async () => {
+                            const fresh = await window.electronAPI.auth.getToken("twitch");
+                            const freshClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                            if (!fresh?.accessToken || !freshClientId) return;
+                            const retry = await runAction(fresh.accessToken, freshClientId);
+                            if (retry.ok) toast.success("Action completed");
+                            else
+                              toast.error("Action still failed after reconnect", {
+                                description: retry.message,
+                              });
+                          },
+                        });
+                        return;
+                      }
+                      if (result.kind === "forbidden") {
+                        toast.error("Action forbidden", { description: result.message });
+                        return;
+                      }
+                      if (result.kind === "rate-limited") {
+                        const retry = result.retryAfterSeconds;
+                        toast.error(
+                          retry !== null
+                            ? `Rate-limited, retry in ${retry}s`
+                            : "Rate-limited, retry shortly"
+                        );
+                        return;
+                      }
+                      setPendingModAction(null);
+                      toast.error("Couldn't complete action", {
+                        description: result.message ?? result.kind,
+                      });
+                    } finally {
+                      setModActionBusy(false);
+                    }
+                  }}
+                />
+              );
+            })()
+          : null}
+
+        {/* Pin duration picker — opens when a mod clicks the hover Pin button
+         *  on a chat message. On confirm, fires the GQL pinChatMessage mutation
+         *  and lets the poller reconcile the banner on its next tick. */}
+        {pinDialogMessage && channelId ? (
+          <TwitchPinMessageDialog
+            open={!!pinDialogMessage}
+            onOpenChange={(open) => {
+              if (!open) setPinDialogMessage(null);
+            }}
+            messagePreview={pinDialogMessage.rawContent || ""}
+            busy={pinDialogBusy}
+            onConfirm={async (durationSeconds) => {
+              setPinDialogBusy(true);
+              try {
+                const token = await window.electronAPI.auth.getToken("twitch");
+                if (!token?.accessToken) return;
+                const result = await pinChatMessage(
+                  channelId,
+                  pinDialogMessage.id,
+                  durationSeconds,
+                  token.accessToken
+                );
+                if (result.ok) {
+                  setPinDialogMessage(null);
+                  toast.success("Pinned message");
+                } else if (result.kind === "unauthenticated") {
+                  setPinDialogMessage(null);
+                  promptReconnect();
+                } else {
+                  // Forbidden / network / other failures: surface a toast and
+                  // close the dialog. The toast carries the action name + the
+                  // server's reason; the user can retry by re-opening the menu.
+                  setPinDialogMessage(null);
+                  toast.error("Couldn't pin message", {
                     description: result.message ?? result.kind,
                   });
-                } finally {
-                  setModActionBusy(false);
                 }
-              }}
-            />
-          );
-        })()
-      ) : null}
-
-      {/* Pin duration picker — opens when a mod clicks the hover Pin button
-       *  on a chat message. On confirm, fires the GQL pinChatMessage mutation
-       *  and lets the poller reconcile the banner on its next tick. */}
-      {pinDialogMessage && channelId ? (
-        <TwitchPinMessageDialog
-          open={!!pinDialogMessage}
-          onOpenChange={(open) => {
-            if (!open) setPinDialogMessage(null);
-          }}
-          messagePreview={pinDialogMessage.rawContent || ""}
-          busy={pinDialogBusy}
-          onConfirm={async (durationSeconds) => {
-            setPinDialogBusy(true);
-            try {
-              const token = await window.electronAPI.auth.getToken("twitch");
-              if (!token?.accessToken) return;
-              const result = await pinChatMessage(
-                channelId,
-                pinDialogMessage.id,
-                durationSeconds,
-                token.accessToken,
-              );
-              if (result.ok) {
-                setPinDialogMessage(null);
-                toast.success("Pinned message");
-              } else if (result.kind === "unauthenticated") {
-                setPinDialogMessage(null);
-                promptReconnect();
-              } else {
-                // Forbidden / network / other failures: surface a toast and
-                // close the dialog. The toast carries the action name + the
-                // server's reason; the user can retry by re-opening the menu.
-                setPinDialogMessage(null);
-                toast.error("Couldn't pin message", {
-                  description: result.message ?? result.kind,
-                });
+              } finally {
+                setPinDialogBusy(false);
               }
-            } finally {
-              setPinDialogBusy(false);
-            }
-          }}
-        />
-      ) : null}
-    </div>
+            }}
+          />
+        ) : null}
+      </div>
     </UserPopoutProvider>
   );
 };
@@ -1431,16 +1436,12 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
       locksAtMs: Date.now() + poll.remaining * 1000,
       windowMs: poll.duration * 1000,
     }),
-    [poll],
+    [poll]
   );
   const [now, setNow] = useState(() => Date.now());
-  useInterval(
-    () => setNow(Date.now()),
-    !isPollEnded && anchor.windowMs > 0 ? 500 : null,
-  );
+  useInterval(() => setNow(Date.now()), !isPollEnded && anchor.windowMs > 0 ? 500 : null);
   const remainingMs = Math.max(0, anchor.locksAtMs - now);
-  const barPct =
-    anchor.windowMs > 0 ? Math.min(100, (remainingMs / anchor.windowMs) * 100) : 0;
+  const barPct = anchor.windowMs > 0 ? Math.min(100, (remainingMs / anchor.windowMs) * 100) : 0;
 
   return (
     <div className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] text-sm">
@@ -1448,9 +1449,7 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-gray-400 text-xs font-medium">Poll:</span>
           <span className="text-white text-xs font-semibold truncate">{poll.title}</span>
-          {isPollEnded && (
-            <span className="text-xs text-gray-500 flex-shrink-0">Ended</span>
-          )}
+          {isPollEnded && <span className="text-xs text-gray-500 flex-shrink-0">Ended</span>}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
@@ -1461,7 +1460,10 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
           >
             <BsChevronDown
               size={12}
-              style={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+              style={{
+                transform: isExpanded ? "rotate(180deg)" : "none",
+                transition: "transform 0.2s",
+              }}
             />
           </button>
           <button

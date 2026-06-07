@@ -56,10 +56,8 @@ export interface InlineModStripProps {
   roomState: InlineModStripRoomState;
 }
 
-const ACTIVE_CLASS =
-  "bg-[#9146FF]/20 text-purple-300 border border-purple-400/60";
-const INACTIVE_CLASS =
-  "text-gray-400 hover:text-white hover:bg-white/10 border border-transparent";
+const ACTIVE_CLASS = "bg-[#9146FF]/20 text-purple-300 border border-purple-400/60";
+const INACTIVE_CLASS = "text-gray-400 hover:text-white hover:bg-white/10 border border-transparent";
 
 interface StripButtonProps {
   label: string;
@@ -113,17 +111,13 @@ export function InlineModStrip({
       <StripButton
         label={slowActive ? "Turn off slow mode" : "Turn on slow mode"}
         active={slowActive}
-        onClick={() =>
-          onActionClick({ kind: "slow-mode", currentlyActive: slowActive })
-        }
+        onClick={() => onActionClick({ kind: "slow-mode", currentlyActive: slowActive })}
         testId="inline-mod-strip-slow"
       >
         <LuClock className="w-4 h-4" />
       </StripButton>
       <StripButton
-        label={
-          followersActive ? "Turn off followers-only mode" : "Turn on followers-only mode"
-        }
+        label={followersActive ? "Turn off followers-only mode" : "Turn on followers-only mode"}
         active={followersActive}
         onClick={() =>
           onActionClick({
@@ -136,9 +130,7 @@ export function InlineModStrip({
         <LuUserCheck className="w-4 h-4" />
       </StripButton>
       <StripButton
-        label={
-          subsActive ? "Turn off subscribers-only mode" : "Turn on subscribers-only mode"
-        }
+        label={subsActive ? "Turn off subscribers-only mode" : "Turn on subscribers-only mode"}
         active={subsActive}
         onClick={() =>
           onActionClick({
@@ -153,9 +145,7 @@ export function InlineModStrip({
       <StripButton
         label={emoteActive ? "Turn off emote-only mode" : "Turn on emote-only mode"}
         active={emoteActive}
-        onClick={() =>
-          onActionClick({ kind: "emote-only", currentlyActive: emoteActive })
-        }
+        onClick={() => onActionClick({ kind: "emote-only", currentlyActive: emoteActive })}
         testId="inline-mod-strip-emote"
       >
         <LuSmile className="w-4 h-4" />
@@ -186,9 +176,7 @@ export function InlineModStrip({
         <StripButton
           label={uniqueActive ? "Turn off unique-chat mode" : "Turn on unique-chat mode"}
           active={uniqueActive}
-          onClick={() =>
-            onActionClick({ kind: "unique-chat", currentlyActive: uniqueActive })
-          }
+          onClick={() => onActionClick({ kind: "unique-chat", currentlyActive: uniqueActive })}
           testId="inline-mod-strip-unique"
         >
           <LuFingerprint className="w-4 h-4" />
@@ -209,9 +197,7 @@ export function InlineModStrip({
         <StripButton
           label={shieldActive ? "Disable Shield Mode" : "Enable Shield Mode"}
           active={shieldActive}
-          onClick={() =>
-            onActionClick({ kind: "shield", currentlyActive: shieldActive })
-          }
+          onClick={() => onActionClick({ kind: "shield", currentlyActive: shieldActive })}
           testId="inline-mod-strip-shield"
         >
           <LuShield className="w-4 h-4" />

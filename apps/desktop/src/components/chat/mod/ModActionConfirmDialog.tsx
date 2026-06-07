@@ -15,24 +15,24 @@
  * dialogs feels cohesive without sharing implementation.
  */
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import {
-  LuBan,
-  LuClock,
-  LuRotateCcw,
-  LuTrash2,
-  LuRadio,
-  LuEraser,
-  LuShield,
-  LuMegaphone,
-  LuFingerprint,
-  LuShieldCheck,
-  LuStar,
-  LuLock,
-  LuTrophy,
-  LuCircleX,
-  LuSquare,
   LuArchive,
+  LuBan,
+  LuCircleX,
+  LuClock,
+  LuEraser,
+  LuFingerprint,
+  LuLock,
+  LuMegaphone,
+  LuRadio,
+  LuRotateCcw,
+  LuShield,
+  LuShieldCheck,
+  LuSquare,
+  LuStar,
+  LuTrash2,
+  LuTrophy,
 } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
@@ -114,8 +114,7 @@ const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
   delete: {
     icon: <LuTrash2 className="w-5 h-5 text-red-500" />,
     title: "Delete message",
-    description:
-      "Remove this message from chat for everyone. The user is not warned or timed out.",
+    description: "Remove this message from chat for everyone. The user is not warned or timed out.",
     confirmLabel: "Delete message",
     busyLabel: "Deleting…",
     confirmClass: DESTRUCTIVE_RED,
@@ -150,8 +149,7 @@ const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
   shieldOff: {
     icon: <LuShield className="w-5 h-5 text-amber-500" />,
     title: "Disable Shield Mode",
-    description:
-      "Lift Shield Mode and return chat to its normal moderation settings.",
+    description: "Lift Shield Mode and return chat to its normal moderation settings.",
     confirmLabel: "Disable Shield Mode",
     busyLabel: "Disabling…",
     confirmClass: WARNING_AMBER,
@@ -204,8 +202,7 @@ const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
   removeVip: {
     icon: <LuStar className="w-5 h-5 text-amber-500" />,
     title: "Remove VIP",
-    description:
-      "Revoke this user's VIP status. They'll lose the VIP badge and chat-mode bypass.",
+    description: "Revoke this user's VIP status. They'll lose the VIP badge and chat-mode bypass.",
     confirmLabel: "Remove VIP",
     busyLabel: "Removing…",
     confirmClass: WARNING_AMBER,
@@ -276,10 +273,7 @@ export interface ModActionConfirmDialogProps {
    * `(data) => void` callback the slot uses to lift collected data, plus the
    * current `disabled` (true when busy).
    */
-  extraSlot?: (props: {
-    onDataChange: (data: unknown) => void;
-    disabled: boolean;
-  }) => ReactNode;
+  extraSlot?: (props: { onDataChange: (data: unknown) => void; disabled: boolean }) => ReactNode;
 }
 
 export function ModActionConfirmDialog({
@@ -328,18 +322,10 @@ export function ModActionConfirmDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={busy}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={busy}
-            className={copy.confirmClass}
-          >
+          <Button onClick={handleConfirm} disabled={busy} className={copy.confirmClass}>
             {busy ? copy.busyLabel : copy.confirmLabel}
           </Button>
         </DialogFooter>

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { memo, useState, type MouseEvent } from "react";
+import { type MouseEvent, memo, useState } from "react";
 import { LuLock, LuPlay, LuSparkles } from "react-icons/lu";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";

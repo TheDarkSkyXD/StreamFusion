@@ -7,18 +7,14 @@
  * Handles authentication and data fetching for stream discovery.
  */
 
+import { sleep } from "@/lib/sleep";
 import type { KickUser, Platform } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
-import { sleep } from "@/lib/sleep";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
 } from "../../../services/third-party-cookie-stripper";
-import type {
-  IPlatformReader,
-  PageResult,
-  TopStreamsOptions,
-} from "../../unified/platform-reader";
+import type { IPlatformReader, PageResult, TopStreamsOptions } from "../../unified/platform-reader";
 import type { UnifiedCategory, UnifiedChannel, UnifiedStream } from "../../unified/platform-types";
 import { clients } from "../../unified/registry";
 
@@ -558,7 +554,7 @@ class KickClient implements KickRequestor, IPlatformReader {
   async getPublicStreamBySlug(
     slug: string,
     staggerOffsetMs?: number,
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): Promise<UnifiedStream | null> {
     return StreamEndpoints.getPublicStreamBySlug(slug, staggerOffsetMs, signal);
   }

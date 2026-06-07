@@ -33,8 +33,8 @@ import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
 import { ChannelBannedList } from "./ChannelBannedList";
 import { ChannelEngagement } from "./ChannelEngagement";
-import { ChannelModLogFeed } from "./ChannelModLogFeed";
 import { ChannelModeratorsTable } from "./ChannelModeratorsTable";
+import { ChannelModLogFeed } from "./ChannelModLogFeed";
 import { ChannelUnbanRequests } from "./ChannelUnbanRequests";
 import { ChannelVipsTable } from "./ChannelVipsTable";
 import { RetentionCard } from "./RetentionCard";
@@ -48,9 +48,7 @@ export interface ModChannelPageProps {
 export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
   const [refreshCounter, setRefreshCounter] = useState(0);
   const twitchUser = useAuthStore((s) => s.twitchUser);
-  const resolvedTwitch = useResolveTwitchChannel(
-    platform === "twitch" ? channel : null,
-  );
+  const resolvedTwitch = useResolveTwitchChannel(platform === "twitch" ? channel : null);
 
   const isTwitchResolving = platform === "twitch" && resolvedTwitch === undefined;
   const twitchResolveFailed = platform === "twitch" && resolvedTwitch === null;
@@ -59,10 +57,7 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
   // Twitch: numeric broadcaster_id (waits for resolution).
   // Kick: slug — no Kick mod_log writer wires a numeric id today, so slug
   // is what the read side will line up against.
-  const channelId =
-    platform === "twitch"
-      ? resolvedTwitch?.id
-      : channel.toLowerCase();
+  const channelId = platform === "twitch" ? resolvedTwitch?.id : channel.toLowerCase();
 
   const retentionScope: RetentionScope | null =
     platform === "twitch"
@@ -71,14 +66,9 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         : null
       : (`channel:kick:${channel.toLowerCase()}` as RetentionScope);
 
-  const displayName =
-    platform === "twitch"
-      ? resolvedTwitch?.displayName ?? channel
-      : channel;
+  const displayName = platform === "twitch" ? (resolvedTwitch?.displayName ?? channel) : channel;
 
-  const forceBroadcasterIdentity = useDevModOverrideStore(
-    (s) => s.forceBroadcasterIdentity,
-  );
+  const forceBroadcasterIdentity = useDevModOverrideStore((s) => s.forceBroadcasterIdentity);
   const isOwnBroadcaster =
     platform === "twitch" &&
     Boolean(resolvedTwitch?.id) &&
@@ -135,27 +125,18 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
             <h2 className="text-xl font-semibold mb-3 text-white">Retention</h2>
             <div className="space-y-3">
               {retentionScope ? (
-                <RetentionCard
-                  scope={retentionScope}
-                  title={`This channel (${displayName})`}
-                />
+                <RetentionCard scope={retentionScope} title={`This channel (${displayName})`} />
               ) : null}
               <RetentionCard scope="global" title="Global (default)" />
             </div>
           </section>
 
           {channelId ? (
-            <ChannelModLogFeed
-              channelId={channelId}
-              refreshCounter={refreshCounter}
-            />
+            <ChannelModLogFeed channelId={channelId} refreshCounter={refreshCounter} />
           ) : null}
 
           {isOwnBroadcaster && resolvedTwitch ? (
-            <ChannelEngagement
-              broadcasterId={resolvedTwitch.id}
-              refreshCounter={refreshCounter}
-            />
+            <ChannelEngagement broadcasterId={resolvedTwitch.id} refreshCounter={refreshCounter} />
           ) : null}
 
           {platform === "twitch" && resolvedTwitch ? (
@@ -171,18 +152,13 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
                 broadcasterId={resolvedTwitch.id}
                 refreshCounter={refreshCounter}
               />
-              <ChannelVipsTable
-                broadcasterId={resolvedTwitch.id}
-                refreshCounter={refreshCounter}
-              />
+              <ChannelVipsTable broadcasterId={resolvedTwitch.id} refreshCounter={refreshCounter} />
             </>
           ) : null}
 
           <ChannelBannedList
             platform={platform}
-            broadcasterId={
-              platform === "twitch" ? resolvedTwitch?.id : undefined
-            }
+            broadcasterId={platform === "twitch" ? resolvedTwitch?.id : undefined}
             refreshCounter={refreshCounter}
           />
         </>

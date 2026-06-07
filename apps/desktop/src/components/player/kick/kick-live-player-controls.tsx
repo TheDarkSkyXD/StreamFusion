@@ -233,11 +233,7 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
             onMouseEnter={handleControlsEnter}
             onMouseLeave={handleControlsLeave}
           >
-            <KickProgressBar
-              ref={progressBarRef}
-              onSeek={onSeek}
-              isLive={isAtLiveEdge}
-            />
+            <KickProgressBar ref={progressBarRef} onSeek={onSeek} isLive={isAtLiveEdge} />
           </div>
         )}
 

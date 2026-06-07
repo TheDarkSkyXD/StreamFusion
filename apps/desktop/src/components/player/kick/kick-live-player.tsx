@@ -1,11 +1,9 @@
 import type Hls from "hls.js";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import { sleep } from "@/lib/sleep";
-
 import { useRenderCount } from "@/components/dev/use-render-count";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
+import { sleep } from "@/lib/sleep";
 
 import { HlsPlayer } from "../hls-player";
 import { useDefaultQuality } from "../hooks/use-default-quality";

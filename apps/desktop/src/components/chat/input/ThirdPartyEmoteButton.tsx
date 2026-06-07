@@ -15,8 +15,8 @@ import type React from "react";
 import { useRef } from "react";
 import type { Emote } from "../../../backend/services/emotes/emote-types";
 import type { ChatPlatform } from "../../../shared/chat-types";
-import { EmoteDialog } from "../EmoteDialog";
 import { SevenTVIcon } from "../../icons/PlatformIcons";
+import { EmoteDialog } from "../EmoteDialog";
 
 interface ThirdPartyEmoteButtonProps {
   platform: ChatPlatform;

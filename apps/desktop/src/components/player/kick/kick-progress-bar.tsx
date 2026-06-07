@@ -70,11 +70,7 @@ export const KickProgressBar = forwardRef<KickProgressBarHandle, KickProgressBar
     }, []);
 
     const applyToDom = useCallback(
-      (
-        ct: number,
-        dur: number,
-        sr: { start: number; end: number } | null
-      ) => {
+      (ct: number, dur: number, sr: { start: number; end: number } | null) => {
         const fill = progressFillRef.current;
         if (fill) {
           const pct = computeProgressPct(ct, dur, isLive);

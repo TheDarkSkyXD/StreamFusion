@@ -19,16 +19,16 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
+import type { HelixModResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import {
   cancelPrediction,
   createPrediction,
   getPredictions,
   lockPrediction,
-  resolvePrediction,
   type PredictionPayload,
   type PredictionsListPayload,
+  resolvePrediction,
 } from "@/backend/api/platforms/twitch/twitch-helix-predictions";
-import type { HelixModResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { modLogWriter } from "@/backend/services/mod-log-writer";
 import { useHelixPoll } from "@/hooks/useHelixPoll";
 import { useAuthStore } from "@/store/auth-store";
@@ -77,7 +77,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
     if (!accessToken || !clientId) return null;
     const result = await withTwitchHelixRetry(
       { accessToken, clientId, broadcasterId: channelId },
-      getPredictions,
+      getPredictions
     );
     if (!result.ok) {
       // Surface as fetch error so the hook shows it.
@@ -111,7 +111,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
   const moderatorUsername = twitchUser?.login ?? "";
 
   async function withMissingScopeHandling<T>(
-    run: (token: string, clientId: string) => Promise<HelixModResult<T>>,
+    run: (token: string, clientId: string) => Promise<HelixModResult<T>>
   ): Promise<HelixModResult<T> | null> {
     const accessToken = await getToken();
     const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
@@ -128,9 +128,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
       toast.error("Title is required");
       return;
     }
-    const cleanedOutcomes = formOutcomes
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
+    const cleanedOutcomes = formOutcomes.map((t) => t.trim()).filter((t) => t.length > 0);
     if (cleanedOutcomes.length < MIN_OUTCOMES) {
       toast.error("At least 2 outcomes are required");
       return;
@@ -145,7 +143,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
           title,
           outcomes: cleanedOutcomes.map((o) => ({ title: o })),
           predictionWindow: formDuration,
-        }),
+        })
       );
       if (!result) return;
       if (!result.ok) {
@@ -188,7 +186,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
             clientId: cid,
             broadcasterId: channelId,
             predictionId: current.id,
-          }),
+          })
         );
       } else if (pending.kind === "cancel") {
         logAction = "prediction-cancel";
@@ -198,7 +196,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
             clientId: cid,
             broadcasterId: channelId,
             predictionId: current.id,
-          }),
+          })
         );
       } else {
         logAction = "prediction-resolve";
@@ -209,7 +207,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
             broadcasterId: channelId,
             predictionId: current.id,
             winningOutcomeId: pending.outcomeId,
-          }),
+          })
         );
       }
       if (!result) return;
@@ -233,7 +231,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
           ? "Prediction locked"
           : pending.kind === "cancel"
             ? "Prediction canceled"
-            : `Resolved — ${pending.outcomeTitle} won`,
+            : `Resolved — ${pending.outcomeTitle} won`
       );
       setPending(null);
       refresh();
@@ -247,8 +245,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
     return current.outcomes.reduce((sum, o) => sum + o.channel_points, 0);
   }, [current]);
 
-  const showCreateForm =
-    !current || current.status === "RESOLVED" || current.status === "CANCELED";
+  const showCreateForm = !current || current.status === "RESOLVED" || current.status === "CANCELED";
 
   return (
     <section
@@ -296,9 +293,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
                 {formOutcomes.length > MIN_OUTCOMES ? (
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormOutcomes(formOutcomes.filter((_, i) => i !== idx))
-                    }
+                    onClick={() => setFormOutcomes(formOutcomes.filter((_, i) => i !== idx))}
                     className="text-xs text-[var(--color-foreground-muted)] hover:text-white"
                   >
                     Remove
@@ -319,9 +314,8 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-[var(--color-foreground-muted)]">
-              Duration: {formDuration < 60
-                ? `${formDuration}s`
-                : `${Math.floor(formDuration / 60)}m`}
+              Duration:{" "}
+              {formDuration < 60 ? `${formDuration}s` : `${Math.floor(formDuration / 60)}m`}
             </label>
             <input
               type="range"
@@ -360,9 +354,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
           <div className="text-sm font-medium text-white">{current?.title}</div>
           <ul className="flex flex-col gap-1" data-testid="prediction-outcomes">
             {current?.outcomes.map((o) => {
-              const pct = totalPoints > 0
-                ? Math.round((o.channel_points / totalPoints) * 100)
-                : 0;
+              const pct = totalPoints > 0 ? Math.round((o.channel_points / totalPoints) * 100) : 0;
               return (
                 <li
                   key={o.id}

@@ -8,15 +8,7 @@
  */
 
 import type React from "react";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useShallow } from "zustand/react/shallow";
 import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-types";
@@ -124,21 +116,12 @@ const EmojiIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const LockIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    fill="currentColor"
-    viewBox="0 0 24 24"
-    width={14}
-    height={14}
-  >
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24" width={14} height={14}>
     <path d="M12 2a5 5 0 00-5 5v3H6a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2v-8a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm-3 8V7a3 3 0 016 0v3H9z" />
   </svg>
 );
 
-const CaretIcon: React.FC<{ className?: string; open: boolean }> = ({
-  className,
-  open,
-}) => (
+const CaretIcon: React.FC<{ className?: string; open: boolean }> = ({ className, open }) => (
   <svg
     className={`${className ?? ""} transition-transform ${open ? "rotate-0" : "-rotate-90"}`}
     fill="currentColor"
@@ -358,9 +341,7 @@ const EmoteDialogItem = memo(function EmoteDialogItem({
     [onFavoriteClick, emote]
   );
 
-  const ariaLabel = locked
-    ? `${emote.name} — subscriber-only emote`
-    : emote.name;
+  const ariaLabel = locked ? `${emote.name} — subscriber-only emote` : emote.name;
 
   return (
     <div
@@ -401,9 +382,7 @@ const EmoteDialogItem = memo(function EmoteDialogItem({
           onClick={handleFavorite}
           aria-label={favorited ? `Unfavorite ${emote.name}` : `Favorite ${emote.name}`}
           className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ${
-            favorited
-              ? "bg-yellow-500 text-black"
-              : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+            favorited ? "bg-yellow-500 text-black" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
           }`}
         >
           <StarIcon filled={favorited} />
@@ -429,42 +408,27 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   channelId: _channelId,
   viewerIsSubscribed,
 }) => {
-  const providers = useMemo(
-    () => getProvidersForScope(scope, platform),
-    [scope, platform]
-  );
-  const subSections = useMemo(
-    () => getSubSectionsForScope(scope, platform),
-    [scope, platform]
-  );
+  const providers = useMemo(() => getProvidersForScope(scope, platform), [scope, platform]);
+  const subSections = useMemo(() => getSubSectionsForScope(scope, platform), [scope, platform]);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeSubSection, setActiveSubSection] = useState<SubSection | null>(
-    null
-  );
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(
-    null
-  );
+  const [activeSubSection, setActiveSubSection] = useState<SubSection | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  const {
-    recentEmotes,
-    favoriteEmotes,
-    activeChannelId,
-    loadedChannels,
-    loadedGlobalPlatforms,
-  } = useEmoteStore(
-    useShallow((state) => ({
-      recentEmotes: state.recentEmotes,
-      favoriteEmotes: state.favoriteEmotes,
-      activeChannelId: state.activeChannelId,
-      loadedChannels: state.loadedChannels,
-      loadedGlobalPlatforms: state.loadedGlobalPlatforms,
-    }))
-  );
+  const { recentEmotes, favoriteEmotes, activeChannelId, loadedChannels, loadedGlobalPlatforms } =
+    useEmoteStore(
+      useShallow((state) => ({
+        recentEmotes: state.recentEmotes,
+        favoriteEmotes: state.favoriteEmotes,
+        activeChannelId: state.activeChannelId,
+        loadedChannels: state.loadedChannels,
+        loadedGlobalPlatforms: state.loadedGlobalPlatforms,
+      }))
+    );
   const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
   const toggleFavorite = useEmoteStore((state) => state.toggleFavorite);
   const isFavorite = useEmoteStore((state) => state.isFavorite);
@@ -475,11 +439,10 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   // get rebuilt on each per-platform completion), so it tracks the actual
   // signal the memo cares about — globals coming online for any platform.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const emotesByProvider = useMemo(() => getEmotesByProvider(), [
-    activeChannelId,
-    loadedChannels,
-    loadedGlobalPlatforms.size,
-  ]);
+  const emotesByProvider = useMemo(
+    () => getEmotesByProvider(),
+    [activeChannelId, loadedChannels, loadedGlobalPlatforms.size]
+  );
 
   /* --------------------------- focus on open --------------------------- */
   // The dialog paints at top/left:-9999 until the positioning layout effect
@@ -566,10 +529,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   }, [isOpen, onClose]);
 
   /* ------------------------- helpers / filters ------------------------- */
-  const inScope = useCallback(
-    (emote: Emote) => providers.includes(emote.provider),
-    [providers]
-  );
+  const inScope = useCallback((emote: Emote) => providers.includes(emote.provider), [providers]);
 
   const matchesSearch = useCallback(
     (emote: Emote) => {
@@ -593,11 +553,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   const applySubSectionFilter = useCallback(
     (emote: Emote): boolean => {
       if (!activeSubSection) return true;
-      if (
-        activeSubSection === "7tv" ||
-        activeSubSection === "bttv" ||
-        activeSubSection === "ffz"
-      ) {
+      if (activeSubSection === "7tv" || activeSubSection === "bttv" || activeSubSection === "ffz") {
         return emote.provider === activeSubSection;
       }
       if (activeSubSection === "channel") return emote.isGlobal === false;
@@ -660,7 +616,8 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
     }
     if (urls.length === 0) return;
 
-    const ric = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : null;
+    const ric =
+      typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : null;
     let idx = 0;
     let handle: number | null = null;
 
@@ -804,7 +761,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
         ))}
       </div>
     </div>,
-    document.body,
+    document.body
   );
 };
 

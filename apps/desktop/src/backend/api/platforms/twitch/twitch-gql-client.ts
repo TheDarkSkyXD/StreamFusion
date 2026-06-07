@@ -237,7 +237,7 @@ export async function gqlGetGameMetadata(gameId: string): Promise<{ tags: string
  * integrity check that blocks paginated anonymous raw queries — which is why
  * this path scales past the ~100-stream wall the raw-query path hits.
  */
-export async function gqlGetGameStreamsBySlug(
+async function gqlGetGameStreamsBySlug(
   slug: string,
   options: { first?: number; after?: string; language?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
@@ -249,26 +249,22 @@ export async function gqlGetGameStreamsBySlug(
         pageInfo: { hasNextPage: boolean };
       };
     };
-  }>(
-    "DirectoryPage_Game",
-    "76cb069d835b8a02914c08dc42c421d0dafda8af5b113a3f19141824b901402f",
-    {
-      cursor: options.after ?? null,
-      imageWidth: 50,
-      includeCostreaming: true,
-      limit,
-      options: {
-        // Twitch's `Language` GraphQL enum uses uppercase 2-letter codes
-        // (EN, ES, FR, …); sending lowercase ISO codes fails enum validation
-        // and the server returns zero streams.
-        broadcasterLanguages: options.language ? [options.language.toUpperCase()] : [],
-        freeformTags: [],
-        sort: "VIEWER_COUNT",
-      },
-      slug,
-      sortTypeIsRecency: false,
-    }
-  );
+  }>("DirectoryPage_Game", "76cb069d835b8a02914c08dc42c421d0dafda8af5b113a3f19141824b901402f", {
+    cursor: options.after ?? null,
+    imageWidth: 50,
+    includeCostreaming: true,
+    limit,
+    options: {
+      // Twitch's `Language` GraphQL enum uses uppercase 2-letter codes
+      // (EN, ES, FR, …); sending lowercase ISO codes fails enum validation
+      // and the server returns zero streams.
+      broadcasterLanguages: options.language ? [options.language.toUpperCase()] : [],
+      freeformTags: [],
+      sort: "VIEWER_COUNT",
+    },
+    slug,
+    sortTypeIsRecency: false,
+  });
 
   if (res.errors?.length) {
     // PersistedQueryNotFound = Twitch retired the hash. Surface loud so we notice.
@@ -295,7 +291,7 @@ export async function gqlGetGameStreamsBySlug(
  * Fallback: the raw `game(id:).streams` query (hits the ~100-stream wall but
  * works as a last resort if the persisted hash gets retired).
  */
-export async function gqlGetStreamsByGameId(
+async function gqlGetStreamsByGameId(
   gameId: string,
   options: { first?: number; after?: string; language?: string; slug?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
@@ -388,9 +384,7 @@ async function gqlGetStreamsByGameIdRaw(
         options: {
           sort: "VIEWER_COUNT",
           // See gqlGetGameStreamsBySlug — Twitch's Language enum is uppercase.
-          ...(options.language
-            ? { broadcasterLanguages: [options.language.toUpperCase()] }
-            : {}),
+          ...(options.language ? { broadcasterLanguages: [options.language.toUpperCase()] } : {}),
         },
       },
     }),
@@ -875,10 +869,7 @@ function processGqlSearchErrors(
   const otherErrors = errors.filter((e) => !isIntegrityRejectionError(e));
 
   if (otherErrors.length > 0) {
-    console.warn(
-      `⚠️ [GQL] ${context} query errors:`,
-      otherErrors.map((e) => e.message).join(", ")
-    );
+    console.warn(`⚠️ [GQL] ${context} query errors:`, otherErrors.map((e) => e.message).join(", "));
   }
 
   return { isIntegrityRejected: integrityErrors.length > 0 };
@@ -1047,9 +1038,7 @@ export async function gqlSearchChannels(
     ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: GqlError[] }];
 
     const searchData = response.data?.searchFor;
-    channels = (searchData?.channels?.edges ?? []).map((edge) =>
-      transformSearchChannel(edge.item)
-    );
+    channels = (searchData?.channels?.edges ?? []).map((edge) => transformSearchChannel(edge.item));
     returnedCursor = searchData?.channels?.cursor || undefined;
     errors = response.errors;
   }
@@ -1278,7 +1267,7 @@ export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChanne
 /**
  * Get channels by multiple logins
  */
-export async function gqlGetChannelsByLogins(logins: string[]): Promise<UnifiedChannel[]> {
+async function gqlGetChannelsByLogins(logins: string[]): Promise<UnifiedChannel[]> {
   if (logins.length === 0) return [];
 
   const queries = logins.map((login) => getQueryChannelShell({ login }));
@@ -1313,7 +1302,7 @@ export async function gqlGetChannelsByLogins(logins: string[]): Promise<UnifiedC
 /**
  * Get user ID by login (simple lookup)
  */
-export async function gqlGetUserIdByLogin(login: string): Promise<string | null> {
+async function gqlGetUserIdByLogin(login: string): Promise<string | null> {
   const [response] = (await gqlRequest([getQueryGetUserId({ login, lookupType: "ACTIVE" })])) as [
     { data: { user: { id: string } | null } },
   ];

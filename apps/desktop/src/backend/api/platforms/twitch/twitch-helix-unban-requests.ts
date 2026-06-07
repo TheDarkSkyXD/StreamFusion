@@ -22,12 +22,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // Public types
 // ---------------------------------------------------------------------------
 
-export type UnbanRequestStatus =
-  | "pending"
-  | "approved"
-  | "denied"
-  | "acknowledged"
-  | "canceled";
+export type UnbanRequestStatus = "pending" | "approved" | "denied" | "acknowledged" | "canceled";
 
 export interface UnbanRequest {
   id: string;
@@ -200,7 +195,7 @@ interface UnbanRequestsEnvelope {
 }
 
 export async function getUnbanRequests(
-  args: GetUnbanRequestsArgs,
+  args: GetUnbanRequestsArgs
 ): Promise<HelixModResult<UnbanRequestsPage>> {
   const result = await helixRequest<UnbanRequestsEnvelope>({
     accessToken: args.accessToken,
@@ -244,7 +239,7 @@ interface ResolveEnvelope {
 }
 
 export async function resolveUnbanRequest(
-  args: ResolveUnbanRequestArgs,
+  args: ResolveUnbanRequestArgs
 ): Promise<HelixModResult<UnbanRequest>> {
   const query: QueryDict = {
     broadcaster_id: args.broadcasterId,

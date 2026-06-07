@@ -414,11 +414,7 @@ export class DatabaseService {
       existing: { channelId: string; channelName: string },
       fetched: { channelId: string; channelName: string }
     ): boolean => {
-      if (
-        existing.channelId &&
-        fetched.channelId &&
-        existing.channelId === fetched.channelId
-      ) {
+      if (existing.channelId && fetched.channelId && existing.channelId === fetched.channelId) {
         return true;
       }
       if (

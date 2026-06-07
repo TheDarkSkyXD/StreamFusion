@@ -146,4 +146,3 @@ export interface ChannelModerateEvent {
   /** Catch-all for action-specific sub-objects we don't model yet. */
   [extra: string]: unknown;
 }
-

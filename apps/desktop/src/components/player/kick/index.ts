@@ -8,12 +8,7 @@
 
 // Live Stream Player (no progress bar)
 export { KickLivePlayer } from "./kick-live-player";
-export { KickLivePlayerControls } from "./kick-live-player-controls";
-export { KickPlayerControls } from "./kick-player-controls";
 // Progress Bar (for VODs)
-export { KickProgressBar } from "./kick-progress-bar";
 // Legacy exports (for backward compatibility)
-export { KickVideoPlayer } from "./kick-video-player";
 // VOD Player (with green progress bar)
 export { KickVodPlayer } from "./kick-vod-player";
-export { KickVodPlayerControls } from "./kick-vod-player-controls";

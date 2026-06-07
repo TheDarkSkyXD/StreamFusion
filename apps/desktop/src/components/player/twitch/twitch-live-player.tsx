@@ -1,10 +1,8 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import { sleep } from "@/lib/sleep";
-
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAdElementObserver } from "@/hooks/use-ad-element-observer";
+import { sleep } from "@/lib/sleep";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 import { useAdBlockStore } from "@/store/adblock-store";
 

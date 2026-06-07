@@ -55,8 +55,7 @@ function freezeEmoteUrl(url: string): string | null {
  */
 export const ChatEmote: React.FC<ChatEmoteProps> = memo(
   ({ id, name, url, platform, isAnimated, isZeroWidth }) => {
-    const cd =
-      useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
     const emoteSizePx = cd.emoteSizePx;
     const [showTooltip, setShowTooltip] = useState(false);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);

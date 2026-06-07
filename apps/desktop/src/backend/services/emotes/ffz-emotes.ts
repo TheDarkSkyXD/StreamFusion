@@ -206,4 +206,3 @@ class FFZEmoteProvider implements EmoteProviderService {
 export const ffzEmoteProvider = new FFZEmoteProvider();
 
 // Also export class for testing
-export { FFZEmoteProvider };

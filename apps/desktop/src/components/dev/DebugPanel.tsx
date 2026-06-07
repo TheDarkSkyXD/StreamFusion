@@ -363,7 +363,9 @@ function DebugPanelImpl() {
           <span style={{ display: "inline-flex", color: DEBUG_TOKENS.textSecondary }}>
             <BugIcon size={15} />
           </span>
-          <strong style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.3 }}>Debug Console</strong>
+          <strong style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.3 }}>
+            Debug Console
+          </strong>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
           <button

@@ -10,14 +10,13 @@
  * See `mod-log-types.ts` for the same pattern.
  */
 import { ipcMain } from "electron";
-
+import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import {
   disposeSendWindow,
   ensureSendWindowReady,
   type KickSendResult,
   sendKickChatMessage,
 } from "../../api/platforms/kick/kick-send-window";
-import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
 export function registerKickChatHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY, async (): Promise<void> => {
@@ -26,12 +25,9 @@ export function registerKickChatHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE,
-    async (
-      _event,
-      payload: { chatroomId: number; content: string },
-    ): Promise<KickSendResult> => {
+    async (_event, payload: { chatroomId: number; content: string }): Promise<KickSendResult> => {
       return sendKickChatMessage(payload.chatroomId, payload.content);
-    },
+    }
   );
 
   ipcMain.handle(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW, async (): Promise<void> => {

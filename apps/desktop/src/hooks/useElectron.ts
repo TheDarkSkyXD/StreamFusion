@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 /**
  * Check if running in Electron environment
  */
-export function useIsElectron(): boolean {
+function useIsElectron(): boolean {
   return typeof window !== "undefined" && !!window.electronAPI;
 }
 
@@ -57,7 +57,7 @@ export function useAppVersionInfo(): VersionInfo | null {
 /**
  * Get the system theme preference
  */
-export function useSystemTheme(): "light" | "dark" | null {
+function useSystemTheme(): "light" | "dark" | null {
   const [theme, setTheme] = useState<"light" | "dark" | null>(null);
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export function useOpenExternal() {
 /**
  * Show desktop notification
  */
-export function useNotification() {
+function useNotification() {
   return useCallback((title: string, body: string) => {
     window.electronAPI?.showNotification(title, body);
   }, []);
@@ -127,7 +127,7 @@ export function useNotification() {
 /**
  * Storage hook for persisting data via main process
  */
-export function useElectronStore<T>(key: string, defaultValue: T) {
+function useElectronStore<T>(key: string, defaultValue: T) {
   const [value, setValue] = useState<T>(defaultValue);
   // Initialize isLoading based on electronAPI availability to avoid sync setState in effect
   const [isLoading, setIsLoading] = useState(() => !!window.electronAPI);

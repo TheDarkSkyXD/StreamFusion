@@ -19,16 +19,14 @@
  */
 
 import { BrowserWindow, session } from "electron";
-
+import { sleep } from "@/lib/sleep";
+import { storageService } from "../../../../services/storage-service";
+import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
 import type { UnifiedChannel } from "../../../unified/platform-types";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";
 import type { KickLegacyApiFollowedChannel } from "../kick-types";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
-
-import { storageService } from "../../../../services/storage-service";
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
-import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
-import { sleep } from "@/lib/sleep";
 
 const FOLLOWED_CHANNELS_URL = `${KICK_LEGACY_API_V2_BASE}/channels/followed`;
 const FETCH_TIMEOUT_MS = 10000;
@@ -155,7 +153,10 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
   }
 
   if (response.status === 401 || response.status === 403) {
-    _warnOnce("auth-failed", `Kick v2 followed-channels rejected Bearer auth (status ${response.status}). If this persists, the endpoint may require session-cookie auth via BrowserWindow.`);
+    _warnOnce(
+      "auth-failed",
+      `Kick v2 followed-channels rejected Bearer auth (status ${response.status}). If this persists, the endpoint may require session-cookie auth via BrowserWindow.`
+    );
     return { status: "error", reason: "auth-failed" };
   }
 
@@ -472,9 +473,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // the grid, so the poll hits the cap and the scrape below returns empty
     // (same outcome as the old flat wait). Return value intentionally ignored —
     // the scrape runs either way.
-    console.debug(
-      "[KickFollows] BrowserWindow fallback: waiting for /following grid to render"
-    );
+    console.debug("[KickFollows] BrowserWindow fallback: waiting for /following grid to render");
     await waitForWebContentsCondition(win.webContents, GRID_READY_PREDICATE, {
       timeoutMs: 8000,
     });

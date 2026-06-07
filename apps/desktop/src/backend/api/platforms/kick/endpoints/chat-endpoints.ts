@@ -59,9 +59,7 @@ export interface KickChannelHistory {
  * Returns null on network failure / Cloudflare challenge / parse error.
  * Callers should treat null as "no history available" and continue.
  */
-export async function getKickChannelHistory(
-  channelId: string,
-): Promise<KickChannelHistory | null> {
+export async function getKickChannelHistory(channelId: string): Promise<KickChannelHistory | null> {
   if (!channelId || isNetworkLikelyDown()) return null;
 
   const releaseSlot = await acquireBrowserWindowSlot();
@@ -89,13 +87,11 @@ export async function getKickChannelHistory(
     const loadPromise = win.loadURL(url);
     const timeoutPromise = new Promise<never>((_, reject) =>
       // timer-allowlist: Promise.race nav-timeout on win.loadURL (SP3 out-of-scope)
-      setTimeout(() => reject(new Error("Page load timeout")), LOAD_TIMEOUT_MS),
+      setTimeout(() => reject(new Error("Page load timeout")), LOAD_TIMEOUT_MS)
     );
     await Promise.race([loadPromise, timeoutPromise]);
 
-    const pageContent: string = await win.webContents.executeJavaScript(
-      "document.body.innerText;",
-    );
+    const pageContent: string = await win.webContents.executeJavaScript("document.body.innerText;");
     if (!pageContent) return null;
 
     const lower = pageContent.toLowerCase();
@@ -121,7 +117,7 @@ export async function getKickChannelHistory(
   } catch (error) {
     console.warn(
       `[KickChatHistory] Failed to load history for channel ${channelId}:`,
-      error instanceof Error ? error.message : error,
+      error instanceof Error ? error.message : error
     );
     return null;
   } finally {

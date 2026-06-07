@@ -112,7 +112,7 @@ const HELIX_BOOTSTRAP_PAGE_CAP = 20;
 // Service
 // ---------------------------------------------------------------------------
 
-export class ModLogWriter {
+class ModLogWriter {
   private initialized = false;
   private recent: DedupEntry[] = [];
   /** Latched once per process so we only warn once for unknown sub-actions. */
@@ -188,9 +188,7 @@ export class ModLogWriter {
    *   - event.delete: { user_id, user_login, user_name, message_id, message_body }
    *   - event.unban: { user_id, user_login, user_name } (assumed — confirmed at U20)
    */
-  async ingestEventSubModerate(
-    payload: NotificationPayload<ChannelModerateEvent>,
-  ): Promise<void> {
+  async ingestEventSubModerate(payload: NotificationPayload<ChannelModerateEvent>): Promise<void> {
     const event = payload.event;
     const channelId = event.broadcaster_user_id;
     const channelSlug = event.broadcaster_user_login;
@@ -332,9 +330,7 @@ export class ModLogWriter {
 
       if (!res.ok) {
         // biome-ignore lint/suspicious/noConsole: surfacing API failure
-        console.warn(
-          `[mod-log-writer] bootstrapFromHelix HTTP ${res.status} on page ${pages + 1}`
-        );
+        console.warn(`[mod-log-writer] bootstrapFromHelix HTTP ${res.status} on page ${pages + 1}`);
         return inserted;
       }
 

@@ -28,7 +28,7 @@
  *   - Credentials are never returned to the renderer and never logged.
  */
 
-import { app, safeStorage, session as electronSession } from "electron";
+import { app, session as electronSession, safeStorage } from "electron";
 import Store from "electron-store";
 
 import type { ProxyApplyConfig, ProxyApplyResult } from "../../shared/ipc-channels";

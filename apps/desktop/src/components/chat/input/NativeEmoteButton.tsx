@@ -18,8 +18,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Emote } from "../../../backend/services/emotes/emote-types";
 import type { ChatPlatform } from "../../../shared/chat-types";
 import { useEmoteStore } from "../../../store/emote-store";
-import { EmoteDialog } from "../EmoteDialog";
 import { TwitchIcon } from "../../icons/PlatformIcons";
+import { EmoteDialog } from "../EmoteDialog";
 
 /** KickTalk's hardcoded fallback Kick emote ID (used when no provider emotes
  *  are loaded yet). Surfaces a recognizable green-blob KEKW on first paint. */
@@ -66,10 +66,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
       return;
     }
     const refresh = () => {
-      const pool = useEmoteStore
-        .getState()
-        .getEmotesByProvider()
-        .get("kick");
+      const pool = useEmoteStore.getState().getEmotesByProvider().get("kick");
       setKickEmotePool((pool ?? []).filter((e) => !e.subscribersOnly));
     };
     refresh();

@@ -55,7 +55,7 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
           return response.data;
         },
       });
-    }, [queryClient, stream.channelName, stream.platform]),
+    }, [queryClient, stream.channelName, stream.platform])
   );
 
   const handleMouseEnter = useCallback(() => {

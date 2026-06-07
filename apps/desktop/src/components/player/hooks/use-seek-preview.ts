@@ -2,10 +2,7 @@ import Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 
-import {
-  createKickClipPlaylistLoader,
-  isKickClipPlaylistUrl,
-} from "../kick/kick-clip-loader";
+import { createKickClipPlaylistLoader, isKickClipPlaylistUrl } from "../kick/kick-clip-loader";
 
 export interface UseSeekPreviewProps {
   streamUrl: string | null;
@@ -99,9 +96,7 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
         maxMaxBufferLength: 10,
         maxBufferHole: 0.5,
         // See kick-clip-loader.ts for why Kick clips need playlist rewriting.
-        ...(isKickClipPlaylistUrl(streamUrl)
-          ? { pLoader: createKickClipPlaylistLoader() }
-          : {}),
+        ...(isKickClipPlaylistUrl(streamUrl) ? { pLoader: createKickClipPlaylistLoader() } : {}),
       });
 
       hls.loadSource(streamUrl);
@@ -162,7 +157,7 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
       if (time !== null && Number.isFinite(time)) {
         video.currentTime = time;
       }
-    }, [streamUrl, thumbnail]),
+    }, [streamUrl, thumbnail])
   );
 
   const handleSeekHover = useCallback(
@@ -174,7 +169,7 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
       pendingSeekTimeRef.current = time;
       seekTimer.start(150); // 150ms debounce
     },
-    [seekTimer],
+    [seekTimer]
   );
 
   return { previewImage, handleSeekHover };

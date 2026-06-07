@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
-
-import { usePlaybackPositionStore } from "@/store/playback-position-store";
 import { useInterval } from "@/hooks/useInterval";
+import { usePlaybackPositionStore } from "@/store/playback-position-store";
 
 interface UseResumePlaybackOptions {
   platform: "twitch" | "kick";

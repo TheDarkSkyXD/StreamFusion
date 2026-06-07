@@ -58,7 +58,7 @@ interface InternalLifecycleState {
 /**
  * Properly clean up a video element to release resources
  */
-export function cleanupVideoElement(video: HTMLVideoElement | null, hls: Hls | null): void {
+function cleanupVideoElement(video: HTMLVideoElement | null, hls: Hls | null): void {
   if (!video) return;
 
   console.debug("[VideoLifecycle] Cleaning up video element");
@@ -285,7 +285,7 @@ export function useVideoLifecycle({
 /**
  * Hook to manage multiple video elements (for multistream scenarios)
  */
-export function useMultiVideoLifecycle({
+function useMultiVideoLifecycle({
   maxConcurrentVideos = 6,
   onVideoLimitReached,
 }: {
@@ -339,7 +339,7 @@ export function useMultiVideoLifecycle({
  * Utility hook to detect when component is being rapidly created/destroyed
  * (useful for detecting navigation-related video churn)
  */
-export function useVideoChurnDetection(): {
+function useVideoChurnDetection(): {
   isChurning: boolean;
   mountCount: number;
 } {

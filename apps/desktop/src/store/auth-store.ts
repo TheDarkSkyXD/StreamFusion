@@ -314,10 +314,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           queryFn: async () => {
             const response = await window.electronAPI.streams.getFollowed({});
             if (response.error) {
-              console.warn(
-                "Prefetch of followed streams failed (non-fatal):",
-                response.error
-              );
+              console.warn("Prefetch of followed streams failed (non-fatal):", response.error);
               return [];
             }
             return response.data ?? [];
@@ -509,9 +506,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         // A fresh successful connection clears the degraded reconnect flag.
         // Without this, the UI would still show "Reconnect required" right
         // after the user just successfully re-authenticated.
-        twitchReconnectRequired: status.twitch.connected
-          ? false
-          : get().twitchReconnectRequired,
+        twitchReconnectRequired: status.twitch.connected ? false : get().twitchReconnectRequired,
         kickUser: status.kick.user,
         kickConnected: status.kick.connected,
         isGuest: status.isGuest,
@@ -619,5 +614,4 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 // which properly memoize the results.
 
 // Simple primitive selectors are fine:
-export const selectIsAuthenticated = (state: AuthState) =>
-  state.twitchConnected || state.kickConnected;
+const selectIsAuthenticated = (state: AuthState) => state.twitchConnected || state.kickConnected;

@@ -61,12 +61,10 @@ export interface TwitchEventSubClient {
   subscribe<E>(
     eventType: TwitchEventSubEventType,
     channelId: string,
-    listener: (event: NotificationPayload<E>) => void,
+    listener: (event: NotificationPayload<E>) => void
   ): () => void;
   /** Observable: subscribe to connection-state changes. */
-  onConnectionStateChange(
-    listener: (state: TwitchEventSubConnectionState) => void,
-  ): () => void;
+  onConnectionStateChange(listener: (state: TwitchEventSubConnectionState) => void): () => void;
   /** Force close + cleanup. Idempotent. */
   close(): void;
 }
@@ -122,9 +120,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
   private _state: TwitchEventSubConnectionState = "idle";
-  private readonly stateListeners = new Set<
-    (state: TwitchEventSubConnectionState) => void
-  >();
+  private readonly stateListeners = new Set<(state: TwitchEventSubConnectionState) => void>();
 
   private keepaliveSeconds = 10;
   private keepaliveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -135,7 +131,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   constructor(
     accessToken: string,
     broadcasterUserId: string,
-    options: TwitchEventSubClientOptions | undefined,
+    options: TwitchEventSubClientOptions | undefined
   ) {
     this.accessToken = accessToken;
     this.broadcasterUserId = broadcasterUserId;
@@ -158,7 +154,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   subscribe<E>(
     eventType: TwitchEventSubEventType,
     channelId: string,
-    listener: (event: NotificationPayload<E>) => void,
+    listener: (event: NotificationPayload<E>) => void
   ): () => void {
     const key = pairKey(eventType, channelId);
     let entry = this.subs.get(key);
@@ -191,9 +187,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     return () => this.removeListener(eventType, channelId, listener);
   }
 
-  onConnectionStateChange(
-    listener: (state: TwitchEventSubConnectionState) => void,
-  ): () => void {
+  onConnectionStateChange(listener: (state: TwitchEventSubConnectionState) => void): () => void {
     this.stateListeners.add(listener);
     return () => {
       this.stateListeners.delete(listener);
@@ -234,14 +228,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private removeListener(
     eventType: TwitchEventSubEventType,
     channelId: string,
-    listener: (event: NotificationPayload<never>) => void,
+    listener: (event: NotificationPayload<never>) => void
   ): void {
     const key = pairKey(eventType, channelId);
     const entry = this.subs.get(key);
     if (!entry) return;
-    entry.listeners.delete(
-      listener as unknown as (payload: NotificationPayload<unknown>) => void,
-    );
+    entry.listeners.delete(listener as unknown as (payload: NotificationPayload<unknown>) => void);
     entry.refcount = Math.max(0, entry.refcount - 1);
     if (entry.refcount > 0) return;
 
@@ -282,9 +274,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private openSocket(): void {
     if (this.closed) return;
     if (!this.webSocketCtor) {
-      console.warn(
-        "[twitch-eventsub] no WebSocket constructor available — cannot open",
-      );
+      console.warn("[twitch-eventsub] no WebSocket constructor available — cannot open");
       this.setState("error");
       return;
     }
@@ -351,15 +341,11 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
   private armKeepaliveTimer(): void {
     this.clearKeepaliveTimer();
-    const graceMs = Math.ceil(
-      this.keepaliveSeconds * KEEPALIVE_GRACE_MULTIPLIER * 1000,
-    );
+    const graceMs = Math.ceil(this.keepaliveSeconds * KEEPALIVE_GRACE_MULTIPLIER * 1000);
     // timer-allowlist: EventSub keepalive watchdog reset on message (SP1/SP3 out-of-scope)
     this.keepaliveTimer = setTimeout(() => {
       this.keepaliveTimer = null;
-      console.warn(
-        "[twitch-eventsub] keepalive timeout exceeded — forcing reconnect",
-      );
+      console.warn("[twitch-eventsub] keepalive timeout exceeded — forcing reconnect");
       this.forceReconnect();
     }, graceMs);
   }
@@ -383,11 +369,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   // Message dispatch
   // -------------------------------------------------------------------------
 
-  private handleEnvelope(
-    ev: MessageEvent,
-    ws: WebSocket,
-    isReplacement: boolean,
-  ): void {
+  private handleEnvelope(ev: MessageEvent, ws: WebSocket, isReplacement: boolean): void {
     // Any inbound message resets the keepalive guard.
     let envelope: TwitchEventSubMessage<unknown>;
     try {
@@ -416,18 +398,14 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         this.onRevocation(envelope.payload as RevocationPayload);
         break;
       default:
-        console.warn(
-          "[twitch-eventsub] unhandled message_type",
-          messageType,
-          envelope,
-        );
+        console.warn("[twitch-eventsub] unhandled message_type", messageType, envelope);
     }
   }
 
   private onSessionWelcome(
     payload: SessionWelcomePayload,
     ws: WebSocket,
-    isReplacement: boolean,
+    isReplacement: boolean
   ): void {
     this.sessionId = payload.session.id;
     this.keepaliveSeconds = payload.session.keepalive_timeout_seconds || 10;
@@ -494,10 +472,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         ? (sub.condition.broadcaster_user_id as string)
         : null;
     if (!channelId) {
-      console.warn(
-        "[twitch-eventsub] notification without broadcaster_user_id",
-        sub.id,
-      );
+      console.warn("[twitch-eventsub] notification without broadcaster_user_id", sub.id);
       return;
     }
     const entry = this.subs.get(pairKey(sub.type, channelId));
@@ -517,11 +492,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private onRevocation(payload: RevocationPayload): void {
     const subId = payload.subscription.id;
     const pair = this.subIdToPair.get(subId);
-    console.warn(
-      "[twitch-eventsub] subscription revoked",
-      subId,
-      payload.subscription.status,
-    );
+    console.warn("[twitch-eventsub] subscription revoked", subId, payload.subscription.status);
     this.subIdToPair.delete(subId);
     if (!pair) return;
     const entry = this.subs.get(pairKey(pair.eventType, pair.channelId));
@@ -567,7 +538,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
           "[twitch-eventsub] subscription POST failed",
           res.status,
           entry.eventType,
-          entry.channelId,
+          entry.channelId
         );
         entry.posting = false;
         return;
@@ -592,16 +563,13 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
   private async deleteSubscription(subscriptionId: string): Promise<void> {
     try {
-      await fetch(
-        `${HELIX_SUBSCRIPTIONS_URL}?id=${encodeURIComponent(subscriptionId)}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Client-Id": this.clientId,
-            Authorization: `Bearer ${this.accessToken}`,
-          },
+      await fetch(`${HELIX_SUBSCRIPTIONS_URL}?id=${encodeURIComponent(subscriptionId)}`, {
+        method: "DELETE",
+        headers: {
+          "Client-Id": this.clientId,
+          Authorization: `Bearer ${this.accessToken}`,
         },
-      );
+      });
     } catch (err) {
       console.warn("[twitch-eventsub] subscription DELETE threw", err);
     }
@@ -621,16 +589,12 @@ function cacheKey(accessToken: string, broadcasterUserId: string): string {
 export function getTwitchEventSubClient(
   accessToken: string,
   broadcasterUserId: string,
-  options?: TwitchEventSubClientOptions,
+  options?: TwitchEventSubClientOptions
 ): TwitchEventSubClient {
   const key = cacheKey(accessToken, broadcasterUserId);
   const existing = clientCache.get(key);
   if (existing) return existing;
-  const client = new TwitchEventSubClientImpl(
-    accessToken,
-    broadcasterUserId,
-    options,
-  );
+  const client = new TwitchEventSubClientImpl(accessToken, broadcasterUserId, options);
   clientCache.set(key, client);
   return client;
 }

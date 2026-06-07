@@ -1,9 +1,8 @@
 import type Hls from "hls.js";
 import type React from "react";
 import { useEffect } from "react";
-
-import type { KickProgressBarHandle } from "./kick-progress-bar";
 import { useInterval } from "@/hooks/useInterval";
+import type { KickProgressBarHandle } from "./kick-progress-bar";
 
 export interface UptimeReadoutProps {
   startedAt?: string | null;
@@ -84,7 +83,7 @@ export function UptimeReadout({
   useEffect(() => {
     if (!isPlaying) return;
     tick();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startedAt, isPlaying]);
 
   // 1 Hz tick while playing

@@ -32,9 +32,7 @@ export interface UseHelixPollResult<T> {
   refresh: () => void;
 }
 
-export function useHelixPoll<T>(
-  opts: UseHelixPollOptions<T>,
-): UseHelixPollResult<T> {
+export function useHelixPoll<T>(opts: UseHelixPollOptions<T>): UseHelixPollResult<T> {
   const { fetcher, intervalMs, enabled } = opts;
 
   const [data, setData] = useState<T | null>(null);

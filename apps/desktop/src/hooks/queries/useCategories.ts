@@ -144,9 +144,7 @@ export function useTopCategories(platform?: Platform) {
         if (key !== slotsKey && categoryMap.has(key)) continue;
         const twitchMatch = twitchByKey.get(key);
         const tags =
-          kickCategory.tags && kickCategory.tags.length > 0
-            ? kickCategory.tags
-            : twitchMatch?.tags;
+          kickCategory.tags && kickCategory.tags.length > 0 ? kickCategory.tags : twitchMatch?.tags;
         categoryMap.set(key, {
           ...kickCategory,
           viewerCount: (kickCategory.viewerCount ?? 0) + (twitchMatch?.viewerCount ?? 0),
@@ -215,8 +213,7 @@ export function useUnifiedCategoryLink(
   const { data: searched } = useQuery({
     queryKey: ["category-match", key, otherPlatform],
     queryFn: async () => {
-      const searchQuery =
-        (key && getEquivalentCategoryName(key, otherPlatform)) ?? categoryName;
+      const searchQuery = (key && getEquivalentCategoryName(key, otherPlatform)) ?? categoryName;
       const response = await window.electronAPI.categories.search({
         query: searchQuery,
         platform: otherPlatform,

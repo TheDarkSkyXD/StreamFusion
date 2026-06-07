@@ -7,7 +7,7 @@
  * suppressing the row entirely so the layout stays stable.
  */
 
-import { LuShieldCheck, LuStar, LuBadgeCheck, LuCrown } from "react-icons/lu";
+import { LuBadgeCheck, LuCrown, LuShieldCheck, LuStar } from "react-icons/lu";
 
 import type { UserProfile } from "./useUserProfile";
 
@@ -50,18 +50,12 @@ export function UserProfileHeader({ profile, platform }: UserProfileHeaderProps)
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div
-            className="w-full h-full"
-            style={{ backgroundColor: fallbackColor }}
-          />
+          <div className="w-full h-full" style={{ backgroundColor: fallbackColor }} />
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <div
-            className="text-lg font-semibold truncate"
-            style={{ color: fallbackColor }}
-          >
+          <div className="text-lg font-semibold truncate" style={{ color: fallbackColor }}>
             {profile.displayName}
           </div>
           {profile.verified ? (
@@ -77,10 +71,7 @@ export function UserProfileHeader({ profile, platform }: UserProfileHeaderProps)
           <dt className="text-[var(--color-foreground-muted)]">Following since</dt>
           <dd className="text-white">{formatDate(profile.followSince ?? "")}</dd>
         </dl>
-        <div
-          className="mt-3 flex flex-wrap gap-1.5"
-          data-testid="user-profile-badges"
-        >
+        <div className="mt-3 flex flex-wrap gap-1.5" data-testid="user-profile-badges">
           {profile.subscription ? (
             <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
               <LuStar className="w-3 h-3" />

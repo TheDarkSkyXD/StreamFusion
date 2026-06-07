@@ -7,7 +7,7 @@
 
 type Listener = (...args: any[]) => void;
 
-export class BrowserEventEmitter {
+class BrowserEventEmitter {
   private listeners: Map<string, Set<Listener>> = new Map();
 
   on(event: string, listener: Listener): this {

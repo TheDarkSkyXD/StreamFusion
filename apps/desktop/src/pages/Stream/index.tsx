@@ -283,7 +283,8 @@ export function StreamPage() {
     document.body.style.userSelect = "";
     // Persist the final width as a % of the window. Read the freshest prefs from
     // the store so this callback needs no `cd` dependency (stays stable).
-    const current = useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const current =
+      useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
     const chatWidthPct = Math.round((chatWidthRef.current / window.innerWidth) * 100);
     if (chatWidthPct !== current.chatWidthPct) {
       void updatePreferences({ chatDisplay: { ...current, chatWidthPct } });

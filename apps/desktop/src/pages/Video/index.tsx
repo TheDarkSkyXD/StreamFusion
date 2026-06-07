@@ -1,12 +1,11 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LuCircleAlert, LuLock } from "react-icons/lu";
-
+import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickVodPlayer } from "@/components/player/kick";
 import { TwitchVodPlayer } from "@/components/player/twitch";
 import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { VideoCard } from "@/components/stream/related-content/VideoCard";
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";

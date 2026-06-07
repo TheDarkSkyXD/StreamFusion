@@ -94,7 +94,15 @@ export function VirtualizedCategoryGrid({
       isFetchingNextPage,
       onLoadMore,
     };
-  }, [rowHeight, overscan, itemsPerRow, categories.length, hasNextPage, isFetchingNextPage, onLoadMore]);
+  }, [
+    rowHeight,
+    overscan,
+    itemsPerRow,
+    categories.length,
+    hasNextPage,
+    isFetchingNextPage,
+    onLoadMore,
+  ]);
 
   // Update visible range on scroll and trigger load more when near bottom.
   // Empty dep array — reads volatile values from scrollStateRef.current.
@@ -123,10 +131,7 @@ export function VirtualizedCategoryGrid({
 
     setVisibleRange((prev) => {
       // Only update if changed significantly to avoid excessive rerenders
-      if (
-        Math.abs(prev.start - startIndex) > ipr ||
-        Math.abs(prev.end - endIndex) > ipr
-      ) {
+      if (Math.abs(prev.start - startIndex) > ipr || Math.abs(prev.end - endIndex) > ipr) {
         return { start: startIndex, end: endIndex };
       }
       return prev;

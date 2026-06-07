@@ -38,7 +38,7 @@ type HasAccessToken = { accessToken: string };
  */
 export async function withTwitchHelixRetry<A extends HasAccessToken, R extends HelixCallResult>(
   args: A,
-  fn: (a: A) => Promise<R>,
+  fn: (a: A) => Promise<R>
 ): Promise<R> {
   const first = await fn(args);
   if (first.ok) return first;

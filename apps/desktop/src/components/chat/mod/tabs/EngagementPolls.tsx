@@ -16,15 +16,15 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
+import type { HelixModResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import {
   archivePoll,
   createPoll,
   getPolls,
-  terminatePoll,
   type PollPayload,
   type PollsListPayload,
+  terminatePoll,
 } from "@/backend/api/platforms/twitch/twitch-helix-polls";
-import type { HelixModResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { modLogWriter } from "@/backend/services/mod-log-writer";
 import { useHelixPoll } from "@/hooks/useHelixPoll";
 import { useAuthStore } from "@/store/auth-store";
@@ -69,7 +69,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
     if (!accessToken || !clientId) return null;
     const result = await withTwitchHelixRetry(
       { accessToken, clientId, broadcasterId: channelId },
-      getPolls,
+      getPolls
     );
     if (!result.ok) {
       throw new Error(result.message);
@@ -99,7 +99,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
   const moderatorUsername = twitchUser?.login ?? "";
 
   async function withMissingScopeHandling<T>(
-    run: (token: string, clientId: string) => Promise<HelixModResult<T>>,
+    run: (token: string, clientId: string) => Promise<HelixModResult<T>>
   ): Promise<HelixModResult<T> | null> {
     const accessToken = await getToken();
     const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
@@ -116,9 +116,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
       toast.error("Title is required");
       return;
     }
-    const cleaned = formChoices
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
+    const cleaned = formChoices.map((t) => t.trim()).filter((t) => t.length > 0);
     if (cleaned.length < MIN_CHOICES) {
       toast.error("At least 2 choices are required");
       return;
@@ -133,7 +131,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
           title,
           choices: cleaned.map((c) => ({ title: c })),
           duration: formDuration,
-        }),
+        })
       );
       if (!result) return;
       if (!result.ok) {
@@ -173,7 +171,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
             clientId: cid,
             broadcasterId: channelId,
             pollId: current.id,
-          }),
+          })
         );
       } else {
         result = await withMissingScopeHandling((t, cid) =>
@@ -182,7 +180,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
             clientId: cid,
             broadcasterId: channelId,
             pollId: current.id,
-          }),
+          })
         );
       }
       if (!result) return;
@@ -205,9 +203,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
           reason: current.title,
         });
       }
-      toast.success(
-        pending.kind === "terminate" ? "Poll terminated" : "Poll archived",
-      );
+      toast.success(pending.kind === "terminate" ? "Poll terminated" : "Poll archived");
       setPending(null);
       refresh();
     } finally {
@@ -273,9 +269,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
                 {formChoices.length > MIN_CHOICES ? (
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormChoices(formChoices.filter((_, i) => i !== idx))
-                    }
+                    onClick={() => setFormChoices(formChoices.filter((_, i) => i !== idx))}
                     className="text-xs text-[var(--color-foreground-muted)] hover:text-white"
                   >
                     Remove
@@ -296,9 +290,8 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-[var(--color-foreground-muted)]">
-              Duration: {formDuration < 60
-                ? `${formDuration}s`
-                : `${Math.floor(formDuration / 60)}m`}
+              Duration:{" "}
+              {formDuration < 60 ? `${formDuration}s` : `${Math.floor(formDuration / 60)}m`}
             </label>
             <input
               type="range"
@@ -325,8 +318,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
           <div className="text-sm font-medium text-white">{current?.title}</div>
           <ul className="flex flex-col gap-1" data-testid="poll-choices">
             {current?.choices.map((c) => {
-              const pct =
-                totalVotes > 0 ? Math.round((c.votes / totalVotes) * 100) : 0;
+              const pct = totalVotes > 0 ? Math.round((c.votes / totalVotes) * 100) : 0;
               return (
                 <li
                   key={c.id}
@@ -375,9 +367,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
             if (!o) setPending(null);
           }}
           actionType={pending.kind === "terminate" ? "pollTerminate" : "pollArchive"}
-          targetPreview={
-            <div className="font-medium">{current?.title ?? "(no poll)"}</div>
-          }
+          targetPreview={<div className="font-medium">{current?.title ?? "(no poll)"}</div>}
           onConfirm={() => void runPending()}
           busy={busy}
         />

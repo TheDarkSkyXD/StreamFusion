@@ -285,16 +285,14 @@ export interface TimeoutUserArgs extends RequestContext {
 
 const MAX_TIMEOUT_SECONDS = 1_209_600; // 14 days per Twitch docs; plan caps at 7d but Helix allows 14d. Plan says 1..1_209_600 — follow the plan.
 
-export function timeoutUser(
-  args: TimeoutUserArgs,
-): Promise<HelixModResult<BanPayload>> {
+export function timeoutUser(args: TimeoutUserArgs): Promise<HelixModResult<BanPayload>> {
   if (
     !Number.isInteger(args.durationSeconds) ||
     args.durationSeconds < 1 ||
     args.durationSeconds > MAX_TIMEOUT_SECONDS
   ) {
     throw new Error(
-      `timeoutUser: durationSeconds must be an integer in [1, ${MAX_TIMEOUT_SECONDS}], got ${args.durationSeconds}`,
+      `timeoutUser: durationSeconds must be an integer in [1, ${MAX_TIMEOUT_SECONDS}], got ${args.durationSeconds}`
     );
   }
   return helixRequest<BanResponseEnvelope>({
@@ -347,9 +345,7 @@ export interface DeleteChatMessageArgs extends RequestContext {
   messageId: string;
 }
 
-export function deleteChatMessage(
-  args: DeleteChatMessageArgs,
-): Promise<HelixModResult<void>> {
+export function deleteChatMessage(args: DeleteChatMessageArgs): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
     clientId: args.clientId,
@@ -393,7 +389,7 @@ interface ShieldEnvelope {
 }
 
 export async function setShieldMode(
-  args: SetShieldModeArgs,
+  args: SetShieldModeArgs
 ): Promise<HelixModResult<ShieldPayload>> {
   const result = await helixRequest<ShieldEnvelope>({
     accessToken: args.accessToken,
@@ -458,12 +454,10 @@ interface CommercialEnvelope {
   data: CommercialPayload[];
 }
 
-export function runCommercial(
-  args: RunCommercialArgs,
-): Promise<HelixModResult<CommercialPayload>> {
+export function runCommercial(args: RunCommercialArgs): Promise<HelixModResult<CommercialPayload>> {
   if (!VALID_COMMERCIAL_LENGTHS.has(args.length)) {
     throw new Error(
-      `runCommercial: length must be one of 30/60/90/120/150/180, got ${args.length}`,
+      `runCommercial: length must be one of 30/60/90/120/150/180, got ${args.length}`
     );
   }
   return helixRequest<CommercialEnvelope>({
@@ -504,7 +498,7 @@ interface ChatSettingsEnvelope {
 }
 
 export async function updateChatSettings(
-  args: UpdateChatSettingsArgs,
+  args: UpdateChatSettingsArgs
 ): Promise<HelixModResult<ChatSettingsPayload>> {
   // Send only the keys the caller actually provided — drop `undefined` so we
   // don't accidentally clobber server-side defaults.
@@ -537,9 +531,7 @@ export interface ModeratorMembershipArgs {
   userId: string;
 }
 
-export function addModerator(
-  args: ModeratorMembershipArgs,
-): Promise<HelixModResult<void>> {
+export function addModerator(args: ModeratorMembershipArgs): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
     clientId: args.clientId,
@@ -549,9 +541,7 @@ export function addModerator(
   });
 }
 
-export function removeModerator(
-  args: ModeratorMembershipArgs,
-): Promise<HelixModResult<void>> {
+export function removeModerator(args: ModeratorMembershipArgs): Promise<HelixModResult<void>> {
   return helixRequest<void>({
     accessToken: args.accessToken,
     clientId: args.clientId,

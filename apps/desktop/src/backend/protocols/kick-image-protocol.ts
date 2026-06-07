@@ -23,7 +23,7 @@ export const KICK_IMAGE_SCHEME = "kick-image";
  * Build a kick-image:// URL from a Kick CDN URL. Run this in the renderer when
  * setting <img src> for Kick-hosted images.
  */
-export function buildKickImageUrl(originalUrl: string): string {
+function buildKickImageUrl(originalUrl: string): string {
   const b64url = Buffer.from(originalUrl, "utf-8")
     .toString("base64")
     .replace(/\+/g, "-")

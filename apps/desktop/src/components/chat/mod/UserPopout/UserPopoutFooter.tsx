@@ -21,7 +21,12 @@ import {
   LuTrash2,
 } from "react-icons/lu";
 import { toast } from "sonner";
-
+import {
+  banKickUser,
+  deleteKickMessage,
+  timeoutKickUser,
+  unbanKickUser,
+} from "@/backend/api/platforms/kick/kick-mod-mutations";
 import {
   addModerator,
   addVip,
@@ -32,12 +37,6 @@ import {
   timeoutUser,
   unbanUser,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
-import {
-  banKickUser,
-  deleteKickMessage,
-  timeoutKickUser,
-  unbanKickUser,
-} from "@/backend/api/platforms/kick/kick-mod-mutations";
 import {
   ModActionConfirmDialog,
   type ModActionType,
@@ -92,9 +91,7 @@ export function UserPopoutFooter({
   const [busy, setBusy] = useState(false);
 
   const externalUrl =
-    platform === "twitch"
-      ? `https://twitch.tv/${username}`
-      : `https://kick.com/${username}`;
+    platform === "twitch" ? `https://twitch.tv/${username}` : `https://kick.com/${username}`;
 
   const handleConfirm = async (extraData?: unknown) => {
     if (!pending) return;
@@ -131,8 +128,7 @@ export function UserPopoutFooter({
           }
           case "timeout": {
             const seconds =
-              (extraData as { durationSeconds?: number } | undefined)
-                ?.durationSeconds ?? 600;
+              (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
             const r = await timeoutUser({ ...ctx, userId, durationSeconds: seconds });
             if (r.ok) {
               toast.success(`Timed out ${username}`);
@@ -263,8 +259,7 @@ export function UserPopoutFooter({
           }
           case "timeout": {
             const seconds =
-              (extraData as { durationSeconds?: number } | undefined)
-                ?.durationSeconds ?? 600;
+              (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
             const r = await timeoutKickUser({
               accessToken: token.accessToken,
               channelSlug: slug,

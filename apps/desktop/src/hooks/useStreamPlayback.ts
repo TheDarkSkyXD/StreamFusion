@@ -193,7 +193,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   const staggerTimer = useManagedTimeout(
     useCallback(() => {
       pendingFetchRef.current?.();
-    }, []),
+    }, [])
   );
 
   useEffect(() => {

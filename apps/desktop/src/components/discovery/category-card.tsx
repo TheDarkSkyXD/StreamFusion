@@ -41,7 +41,7 @@ export const CategoryCard = React.memo(({ category }: CategoryCardProps) => {
           return response.data;
         },
       });
-    }, [category.id, category.platform, queryClient]),
+    }, [category.id, category.platform, queryClient])
   );
 
   const handleMouseEnter = useCallback(() => {

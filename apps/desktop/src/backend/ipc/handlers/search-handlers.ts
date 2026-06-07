@@ -208,9 +208,7 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
     const fetched = await getChannelsBySlugs(kickClient, slugs);
     const fetchedBySlug = new Map(fetched.map((c) => [c.username.toLowerCase(), c]));
 
-    const userIds = fetched
-      .map((c) => parseInt(c.id, 10))
-      .filter((id) => !Number.isNaN(id));
+    const userIds = fetched.map((c) => parseInt(c.id, 10)).filter((id) => !Number.isNaN(id));
     const users = userIds.length > 0 ? await getUsersById(kickClient, userIds) : [];
     const userById = new Map(users.map((u) => [u.user_id.toString(), u]));
 
@@ -220,9 +218,7 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
 
       if (!fetchedChannel) {
         kickChannelDataCache.set(slugLower, { data: null, timestamp: now });
-        console.debug(
-          `[ChannelVerify] Kick channel "${slug}" does not exist (deleted account)`
-        );
+        console.debug(`[ChannelVerify] Kick channel "${slug}" does not exist (deleted account)`);
         continue;
       }
 

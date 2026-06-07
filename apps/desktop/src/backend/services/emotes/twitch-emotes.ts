@@ -202,4 +202,3 @@ class TwitchEmoteProvider implements EmoteProviderService {
 export const twitchEmoteProvider = new TwitchEmoteProvider();
 
 // Also export class for testing
-export { TwitchEmoteProvider };

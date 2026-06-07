@@ -1,7 +1,5 @@
 import Hls from "hls.js";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import {
   LuMaximize,
   LuMinimize,
@@ -11,8 +9,8 @@ import {
   LuVolume2,
   LuVolumeX,
 } from "react-icons/lu";
-
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatDuration } from "@/lib/utils";
 import { useVolumeStore } from "@/store/volume-store";
 

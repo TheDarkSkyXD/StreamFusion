@@ -2,7 +2,6 @@ import { Link, useSearch } from "@tanstack/react-router";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import {
   Select,
   SelectContent,
@@ -11,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 
 import { ClipCard } from "./ClipCard";
 import { ClipDialog } from "./ClipDialog";
@@ -112,7 +112,7 @@ export function RelatedContent({
   const offlineRefetchTimer = useManagedTimeout(
     useCallback(() => {
       setReloadKey((k) => k + 1);
-    }, []),
+    }, [])
   );
   useEffect(() => {
     const wasLive = Boolean(prevStartedAtRef.current);
@@ -136,7 +136,7 @@ export function RelatedContent({
   const errorDismissTimer = useManagedTimeout(
     useCallback(() => {
       setError(null);
-    }, []),
+    }, [])
   );
 
   const [clipLoading, setClipLoading] = useState(false);

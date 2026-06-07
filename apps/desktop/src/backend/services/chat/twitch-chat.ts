@@ -6,9 +6,9 @@
  */
 
 import tmi from "tmi.js";
+import { sleep } from "@/lib/sleep";
 import type { TwitchUser } from "../../../shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
-import { sleep } from "@/lib/sleep";
 import type {
   ChatConnectionState,
   ChatConnectionStatus,
@@ -477,7 +477,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   async sendMessage(
     channel: string,
     message: string,
-    localFragments?: ContentFragment[],
+    localFragments?: ContentFragment[]
   ): Promise<void> {
     if (this.isAnonymous) {
       throw new Error("Cannot send messages in anonymous mode");
@@ -521,7 +521,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     channel: string,
     message: string,
     localFragments: ContentFragment[] | undefined,
-    isAction: boolean,
+    isAction: boolean
   ): void {
     if (!this.user) return;
     const fragments: ContentFragment[] =
@@ -537,12 +537,10 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     // populated yet, then to a sensible default per the parser convention.
     // tmi.js uses `#channel` keys internally.
     const tmiChannelKey = channel.startsWith("#") ? channel : `#${channel}`;
-    const tmiClient = this.client as unknown as
-      | {
-          userstate?: Record<string, Record<string, unknown> | undefined>;
-          globaluserstate?: Record<string, unknown>;
-        }
-      | null;
+    const tmiClient = this.client as unknown as {
+      userstate?: Record<string, Record<string, unknown> | undefined>;
+      globaluserstate?: Record<string, unknown>;
+    } | null;
     const channelState = tmiClient?.userstate?.[tmiChannelKey];
     const globalState = tmiClient?.globaluserstate;
     const color =
@@ -581,7 +579,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   async sendAction(
     channel: string,
     message: string,
-    localFragments?: ContentFragment[],
+    localFragments?: ContentFragment[]
   ): Promise<void> {
     if (this.isAnonymous) {
       throw new Error("Cannot send messages in anonymous mode");
@@ -614,7 +612,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     channel: string,
     parentMessageId: string,
     message: string,
-    localFragments?: ContentFragment[],
+    localFragments?: ContentFragment[]
   ): Promise<void> {
     if (!this.client || this.connectionState !== "connected") {
       throw new Error("Not connected to Twitch IRC");

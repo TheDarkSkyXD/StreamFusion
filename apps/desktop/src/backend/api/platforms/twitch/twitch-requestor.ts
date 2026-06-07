@@ -1,6 +1,6 @@
+import { sleep } from "@/lib/sleep";
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
-import { sleep } from "@/lib/sleep";
 
 import type { TwitchClientError } from "./twitch-types";
 

@@ -8,8 +8,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import { notifySettingsSaved } from "@/lib/settings-toast";
+import { cn } from "@/lib/utils";
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
@@ -195,13 +195,7 @@ function SelectRow<T extends string>({
 
 // ───────────────────────────── group card ─────────────────────────────
 
-function GroupCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+function GroupCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">

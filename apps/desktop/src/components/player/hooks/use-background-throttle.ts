@@ -293,12 +293,15 @@ export function useBackgroundThrottle({
   }, [enabled, trackWindowFocus, handleVisibilityChange]);
 
   // Track time since hidden (for UI display) — only run the interval while hidden
-  useInterval(() => {
-    if (hiddenTimestampRef.current) {
-      const elapsed = Date.now() - hiddenTimestampRef.current;
-      setState((prev) => ({ ...prev, timeSinceHidden: elapsed }));
-    }
-  }, !state.isVisible ? 1000 : null);
+  useInterval(
+    () => {
+      if (hiddenTimestampRef.current) {
+        const elapsed = Date.now() - hiddenTimestampRef.current;
+        setState((prev) => ({ ...prev, timeSinceHidden: elapsed }));
+      }
+    },
+    !state.isVisible ? 1000 : null
+  );
 
   // Cleanup on unmount
   useEffect(() => {
@@ -320,7 +323,7 @@ export function useBackgroundThrottle({
  * Hook specifically for multistream scenarios where we want to throttle
  * streams that are not the currently focused one.
  */
-export function useMultistreamThrottle({
+function useMultistreamThrottle({
   videoRef,
   isFocused,
   enabled = true,
