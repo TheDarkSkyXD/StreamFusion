@@ -29,6 +29,7 @@
 import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 
+import { attachEventSubHealthBridge } from "./eventsub-health-bridge";
 import type {
   NotificationPayload,
   RevocationPayload,
@@ -126,6 +127,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private reconnectAttempts = 0;
   /** Set true after `close()` so we don't auto-reconnect. */
   private closed = false;
+  private healthBridgeCleanup: (() => void) | null = null;
 
   constructor(
     accessToken: string,
@@ -140,6 +142,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       (globalThis.WebSocket as typeof WebSocket | undefined) ??
       (undefined as unknown as typeof WebSocket);
     this.clientId = options?.clientId ?? DEFAULT_HELIX_CLIENT_ID;
+    this.healthBridgeCleanup = attachEventSubHealthBridge(this);
   }
 
   get connectionState(): TwitchEventSubConnectionState {
@@ -196,6 +199,11 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+
+    if (this.healthBridgeCleanup) {
+      this.healthBridgeCleanup();
+      this.healthBridgeCleanup = null;
+    }
 
     // Best-effort DELETE for every active Helix subscription. Fire-and-forget.
     for (const entry of this.subs.values()) {

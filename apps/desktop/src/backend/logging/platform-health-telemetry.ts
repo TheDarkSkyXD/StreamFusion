@@ -25,7 +25,7 @@ onPlatformHealthChanged((event) => {
     toState: event.status,
     sampleSize: event.sampleSize,
     failureRate: event.failureRate,
-    source: "internal",
+    source: event.source ?? "internal",
   });
 
   try {

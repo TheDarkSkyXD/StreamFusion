@@ -795,3 +795,202 @@ describe("platform-health (slice 06: Twitch instrumentation isolation)", () => {
     expect(getPlatformHealth("kick")).toBe("degraded");
   });
 });
+
+describe("platform-health (slice 08: status-page signal nudges recovery cooldown)", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    __resetPlatformHealthForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("all-clear shortens recovery cooldown to 15s", async () => {
+    const {
+      getPlatformHealth,
+      recordPlatformFailure,
+      recordPlatformSuccess,
+      recordStatusPageSignal,
+    } = await import("@/backend/api/unified/platform-health");
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    recordStatusPageSignal("kick", "all-clear");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 15_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("confirmed-outage extends recovery cooldown to 60s", async () => {
+    const {
+      getPlatformHealth,
+      recordPlatformFailure,
+      recordPlatformSuccess,
+      recordStatusPageSignal,
+    } = await import("@/backend/api/unified/platform-health");
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    recordStatusPageSignal("kick", "confirmed-outage");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(getPlatformHealth("kick")).toBe("degraded");
+  });
+
+  it("confirmed-outage allows recovery after 60s", async () => {
+    const {
+      getPlatformHealth,
+      recordPlatformFailure,
+      recordPlatformSuccess,
+      recordStatusPageSignal,
+    } = await import("@/backend/api/unified/platform-health");
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    recordStatusPageSignal("kick", "confirmed-outage");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 60_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("no-signal uses the default 30s cooldown", async () => {
+    const {
+      getPlatformHealth,
+      recordPlatformFailure,
+      recordPlatformSuccess,
+      recordStatusPageSignal,
+    } = await import("@/backend/api/unified/platform-health");
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    recordStatusPageSignal("kick", "no-signal");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("status-page signal is cleared on recovery", async () => {
+    const {
+      getPlatformHealth,
+      recordPlatformFailure,
+      recordPlatformSuccess,
+      recordStatusPageSignal,
+      ROLLING_WINDOW_MS,
+    } = await import("@/backend/api/unified/platform-health");
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    recordStatusPageSignal("kick", "all-clear");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 15_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+    expect(getPlatformHealth("kick")).toBe("healthy");
+
+    vi.setSystemTime(new Date(startedAt + 15_000 + ROLLING_WINDOW_MS + 1000));
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    const retrippedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 15_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(retrippedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    for (let elapsed = 16_000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(retrippedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("status-page signal NEVER causes healthy-to-degraded transition", async () => {
+    const { getPlatformHealth, recordStatusPageSignal } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordStatusPageSignal("kick", "confirmed-outage");
+    expect(getPlatformHealth("kick")).toBe("healthy");
+
+    recordStatusPageSignal("twitch", "confirmed-outage");
+    expect(getPlatformHealth("twitch")).toBe("healthy");
+  });
+
+  it("recovery event includes source: 'status-page' when signal was active", async () => {
+    const {
+      onPlatformHealthChanged,
+      recordPlatformFailure,
+      recordPlatformSuccess,
+      recordStatusPageSignal,
+    } = await import("@/backend/api/unified/platform-health");
+
+    const events: Array<{ platform: string; status: string; source?: string }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    recordStatusPageSignal("kick", "all-clear");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 15_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    const recoveryEvent = events.find((e) => e.status === "healthy");
+    expect(recoveryEvent).toBeDefined();
+    expect(recoveryEvent!.source).toBe("status-page");
+  });
+
+  it("recovery event includes source: 'internal' when no signal was active", async () => {
+    const {
+      onPlatformHealthChanged,
+      recordPlatformFailure,
+      recordPlatformSuccess,
+    } = await import("@/backend/api/unified/platform-health");
+
+    const events: Array<{ platform: string; status: string; source?: string }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    const recoveryEvent = events.find((e) => e.status === "healthy");
+    expect(recoveryEvent).toBeDefined();
+    expect(recoveryEvent!.source).toBe("internal");
+  });
+});

@@ -25,6 +25,11 @@ export const ROLLING_WINDOW_MS = 60_000;
 export const RECOVERY_FAILURE_RATE = 0.4;
 /** Minimum time in `degraded` before the recovery evaluator can fire. */
 export const RECOVERY_WINDOW_MS = 30_000;
+export const RECOVERY_WINDOW_SHORT_MS = 15_000;
+export const RECOVERY_WINDOW_LONG_MS = 60_000;
+export const STATUS_PAGE_POLL_INTERVAL_MS = 60_000;
+
+export type StatusPageSignal = "confirmed-outage" | "all-clear" | "no-signal";
 
 /** Rolling window for net::ERR_* burst detection. */
 export const ERROR_BURST_WINDOW_MS = 2_000;
@@ -39,6 +44,7 @@ export interface PlatformHealthEvent {
   startedAt: number;
   sampleSize: number;
   failureRate: number;
+  source: "internal" | "status-page";
 }
 
 type Outcome = { ts: number; failed: boolean };
@@ -51,11 +57,12 @@ interface PlatformState {
   downUntil: number;
   /** Rolling timestamps of recent net::ERR_* errors for burst detection. */
   netErrorTimestamps: number[];
+  statusPageSignal: StatusPageSignal;
 }
 
 const states: Record<Platform, PlatformState> = {
-  kick: { outcomes: [], status: "healthy", startedAt: 0, downUntil: 0, netErrorTimestamps: [] },
-  twitch: { outcomes: [], status: "healthy", startedAt: 0, downUntil: 0, netErrorTimestamps: [] },
+  kick: { outcomes: [], status: "healthy", startedAt: 0, downUntil: 0, netErrorTimestamps: [], statusPageSignal: "no-signal" },
+  twitch: { outcomes: [], status: "healthy", startedAt: 0, downUntil: 0, netErrorTimestamps: [], statusPageSignal: "no-signal" },
 };
 
 const listeners = new Set<(event: PlatformHealthEvent) => void>();
@@ -80,13 +87,21 @@ function evaluate(platform: Platform, now: number): void {
   state.status = "degraded";
   state.startedAt = now;
   logger.warn("PlatformHealth", `${platform} degraded: ${failures}/${state.outcomes.length} requests failed in last 60s. Backing off.`);
-  emit({ platform, status: "degraded", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
+  emit({ platform, status: "degraded", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source: "internal" });
+}
+
+function getEffectiveCooldown(state: PlatformState): number {
+  if (state.statusPageSignal === "all-clear") return RECOVERY_WINDOW_SHORT_MS;
+  if (state.statusPageSignal === "confirmed-outage") return RECOVERY_WINDOW_LONG_MS;
+  return RECOVERY_WINDOW_MS;
 }
 
 function evaluateRecovery(platform: Platform, now: number): void {
   const state = states[platform];
   if (state.status !== "degraded") return;
-  if (now - state.startedAt < RECOVERY_WINDOW_MS) return;
+
+  const effectiveCooldown = getEffectiveCooldown(state);
+  if (now - state.startedAt < effectiveCooldown) return;
   if (state.outcomes.length === 0) return;
 
   const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
@@ -94,10 +109,13 @@ function evaluateRecovery(platform: Platform, now: number): void {
   if (rate >= RECOVERY_FAILURE_RATE) return;
 
   const degradedDurationSec = Math.round((now - state.startedAt) / 1000);
+  const source: "internal" | "status-page" =
+    state.statusPageSignal !== "no-signal" ? "status-page" : "internal";
   state.status = "healthy";
   state.startedAt = now;
+  state.statusPageSignal = "no-signal";
   logger.warn("PlatformHealth", `${platform} recovered after ${degradedDurationSec}s`);
-  emit({ platform, status: "healthy", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
+  emit({ platform, status: "healthy", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source });
 }
 
 function emit(event: PlatformHealthEvent): void {
@@ -149,7 +167,7 @@ export function recordPlatformLocalNetError(platform: Platform): void {
       const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
       const rate = state.outcomes.length > 0 ? failures / state.outcomes.length : 1;
       logger.warn("PlatformHealth", `${platform} down: local network crash detected`);
-      emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
+      emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source: "internal" });
     }
   }
 }
@@ -167,7 +185,7 @@ export function recordPlatformCrash(platform: Platform): void {
     const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
     const rate = state.outcomes.length > 0 ? failures / state.outcomes.length : 1;
     logger.warn("PlatformHealth", `${platform} down: local network crash detected`);
-    emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
+    emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source: "internal" });
   }
 }
 
@@ -198,7 +216,10 @@ export function onPlatformHealthChanged(
   };
 }
 
-/** Test-only reset; `vi.resetModules` doesn't re-evaluate ESM under vite-node reliably. */
+export function recordStatusPageSignal(platform: Platform, signal: StatusPageSignal): void {
+  states[platform].statusPageSignal = signal;
+}
+
 export function __resetPlatformHealthForTests(): void {
   for (const key of Object.keys(states) as Platform[]) {
     states[key].outcomes.length = 0;
@@ -206,6 +227,7 @@ export function __resetPlatformHealthForTests(): void {
     states[key].startedAt = 0;
     states[key].downUntil = 0;
     states[key].netErrorTimestamps.length = 0;
+    states[key].statusPageSignal = "no-signal";
   }
   listeners.clear();
 }

@@ -157,6 +157,7 @@ setMainLogSink((level, tag, message, meta) => {
 installNativeStderrIntercept();
 
 import("./backend/logging/platform-health-telemetry");
+void import("./backend/api/unified/status-page-poller").then(m => m.initStatusPagePoller());
 
 logger.info("Main", "Logging initialized", {
   logFile: getCurrentLogPath(),
