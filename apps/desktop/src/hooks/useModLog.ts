@@ -11,7 +11,7 @@
  * to force a read-after-write.
  */
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
 import type { ModLogEntry } from "@/shared/mod-log-types";
@@ -32,23 +32,19 @@ export function useModLog(opts: UseModLogOptions): {
   entries: ModLogEntry[];
   loading: boolean;
 } {
-  const {
-    channelId,
-    targetUserId,
-    action,
-    moderatorUsername,
-    limit,
-    refreshCounter = 0,
-  } = opts;
+  const { channelId, targetUserId, action, moderatorUsername, limit, refreshCounter = 0 } = opts;
 
-  const [entries, setEntries] = useState<ModLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-
-    (async () => {
+  const query = useQuery({
+    queryKey: [
+      "modLog",
+      channelId,
+      targetUserId,
+      action,
+      moderatorUsername,
+      limit,
+      refreshCounter,
+    ],
+    queryFn: async () => {
       try {
         const rows = await window.electronAPI.modLog.query({
           channelId,
@@ -57,26 +53,19 @@ export function useModLog(opts: UseModLogOptions): {
           moderatorUsername,
           limit,
         });
-        if (!cancelled) {
-          // Defensive: an unmocked or misconfigured bridge can return a
-          // non-array; render the empty state rather than crashing on `.map`.
-          setEntries(Array.isArray(rows) ? rows : []);
-          setLoading(false);
-        }
+        // Defensive: an unmocked or misconfigured bridge can return a
+        // non-array; render the empty state rather than crashing on `.map`.
+        return Array.isArray(rows) ? rows : [];
       } catch (err) {
         // biome-ignore lint/suspicious/noConsole: surfacing query failure
         console.warn("[useModLog] queryModLog failed", err);
-        if (!cancelled) {
-          setEntries([]);
-          setLoading(false);
-        }
+        return [];
       }
-    })();
+    },
+  });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [channelId, targetUserId, action, moderatorUsername, limit, refreshCounter]);
-
-  return { entries, loading };
+  return {
+    entries: query.data ?? [],
+    loading: query.isPending,
+  };
 }
