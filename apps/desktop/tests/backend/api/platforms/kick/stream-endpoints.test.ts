@@ -50,20 +50,22 @@ vi.mock("electron", () => ({
 
 vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
-  isNetworkLikelyDown: vi.fn(() => false),
-  recordTransientNetworkError: vi.fn(),
 }));
 
 const platformHealthSpies = vi.hoisted(() => ({
   recordPlatformFailure: vi.fn(),
   recordPlatformSuccess: vi.fn(),
+  recordPlatformLocalNetError: vi.fn(),
   isPlatformHealthy: vi.fn(() => true),
+  getPlatformHealth: vi.fn((): string => "healthy"),
 }));
 
 vi.mock("@/backend/api/unified/platform-health", () => ({
   recordPlatformFailure: platformHealthSpies.recordPlatformFailure,
   recordPlatformSuccess: platformHealthSpies.recordPlatformSuccess,
+  recordPlatformLocalNetError: platformHealthSpies.recordPlatformLocalNetError,
   isPlatformHealthy: platformHealthSpies.isPlatformHealthy,
+  getPlatformHealth: platformHealthSpies.getPlatformHealth,
 }));
 
 const LIVE_BODY = JSON.stringify({

@@ -38,26 +38,26 @@ vi.mock("electron", () => ({
 
 const networkHealthSpies = vi.hoisted(() => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
-  isNetworkLikelyDown: vi.fn(() => false),
-  recordTransientNetworkError: vi.fn(),
 }));
 
 vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: networkHealthSpies.acquireKickRequestSlot,
-  isNetworkLikelyDown: networkHealthSpies.isNetworkLikelyDown,
-  recordTransientNetworkError: networkHealthSpies.recordTransientNetworkError,
 }));
 
 const platformHealthSpies = vi.hoisted(() => ({
   recordPlatformFailure: vi.fn(),
   recordPlatformSuccess: vi.fn(),
+  recordPlatformLocalNetError: vi.fn(),
   isPlatformHealthy: vi.fn(() => true),
+  getPlatformHealth: vi.fn((): string => "healthy"),
 }));
 
 vi.mock("@/backend/api/unified/platform-health", () => ({
   recordPlatformFailure: platformHealthSpies.recordPlatformFailure,
   recordPlatformSuccess: platformHealthSpies.recordPlatformSuccess,
+  recordPlatformLocalNetError: platformHealthSpies.recordPlatformLocalNetError,
   isPlatformHealthy: platformHealthSpies.isPlatformHealthy,
+  getPlatformHealth: platformHealthSpies.getPlatformHealth,
 }));
 
 const LIVE_BODY = JSON.stringify({
@@ -112,11 +112,11 @@ describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
     networkHealthSpies.acquireKickRequestSlot.mockImplementation(async () => () => {});
-    networkHealthSpies.isNetworkLikelyDown.mockReturnValue(false);
-    networkHealthSpies.recordTransientNetworkError.mockReset();
     platformHealthSpies.recordPlatformFailure.mockReset();
     platformHealthSpies.recordPlatformSuccess.mockReset();
+    platformHealthSpies.recordPlatformLocalNetError.mockReset();
     platformHealthSpies.isPlatformHealthy.mockReturnValue(true);
+    platformHealthSpies.getPlatformHealth.mockReturnValue("healthy");
     ({ getPublicStreamBySlug, __resetCircuitProbeForTests } = await import(
       "@/backend/api/platforms/kick/endpoints/stream-endpoints"
     ));
@@ -151,6 +151,7 @@ describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
 
     // Switch to degraded.
     platformHealthSpies.isPlatformHealthy.mockReturnValue(false);
+    platformHealthSpies.getPlatformHealth.mockReturnValue("degraded");
 
     // First call after degrading is a probe (fires through).
     // Advance 5s so the NEXT call is also eligible as a probe, then
@@ -175,6 +176,7 @@ describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
     await vi.advanceTimersByTimeAsync(100_000);
 
     platformHealthSpies.isPlatformHealthy.mockReturnValue(false);
+    platformHealthSpies.getPlatformHealth.mockReturnValue("degraded");
 
     // First request after degrade = probe.
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
@@ -196,6 +198,7 @@ describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
     await vi.advanceTimersByTimeAsync(100_000);
 
     platformHealthSpies.isPlatformHealthy.mockReturnValue(false);
+    platformHealthSpies.getPlatformHealth.mockReturnValue("degraded");
     mockState.state.netRequestCalls.length = 0;
 
     // First call = probe (fires through).
@@ -219,6 +222,7 @@ describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
 
   it("cold slug (no cache) falls through even when degraded", async () => {
     platformHealthSpies.isPlatformHealthy.mockReturnValue(false);
+    platformHealthSpies.getPlatformHealth.mockReturnValue("degraded");
 
     // No prior cache for this slug. Even though degraded, we must still
     // attempt the network because we have nothing to serve.
@@ -245,6 +249,7 @@ describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
     await vi.advanceTimersByTimeAsync(100_000);
 
     platformHealthSpies.isPlatformHealthy.mockReturnValue(false);
+    platformHealthSpies.getPlatformHealth.mockReturnValue("degraded");
 
     // First call = probe (does hit network and acquires slot).
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });

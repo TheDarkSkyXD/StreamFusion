@@ -1,14 +1,14 @@
 // Regression test for the kick-image:// 404 latch fix.
 //
-// Pre-fix, `fetchImageBytes` short-circuited to null whenever
-// `isNetworkLikelyDown()` returned true. The kick-image:// protocol handler
-// translated null into HTTP 404, which fired <img>.onerror in the renderer,
-// which latched the broken state in the caller's hasError flag. A single
-// 3-second unhealthy window therefore left avatars/thumbnails stuck on the
-// fallback initial until the host component remounted. The fix removes the
-// gate from image fetches only (other Kick callers — API, stream polls —
-// still gate on isNetworkLikelyDown because they have their own retry budgets
-// and benefit from the brief back-off).
+// Pre-fix, `fetchImageBytes` short-circuited to null whenever the platform
+// health gate was active. The kick-image:// protocol handler translated null
+// into HTTP 404, which fired <img>.onerror in the renderer, which latched
+// the broken state in the caller's hasError flag. A single unhealthy window
+// therefore left avatars/thumbnails stuck on the fallback initial until the
+// host component remounted. The fix removes the gate from image fetches only
+// (other Kick callers, API/stream polls, still gate on platform health
+// because they have their own retry budgets and benefit from the brief
+// back-off).
 //
 // Strategy: stub `electronRequestBinary` on the kickClient singleton via
 // vi.spyOn so the assertion measures the actual contract — "fetchImageBytes
@@ -21,9 +21,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
-  // Simulate the bug condition: network is marked unhealthy.
-  isNetworkLikelyDown: vi.fn(() => true),
-  recordTransientNetworkError: vi.fn(),
+}));
+
+// Simulate the bug condition: platform is marked unhealthy.
+vi.mock("@/backend/api/unified/platform-health", () => ({
+  isPlatformHealthy: vi.fn(() => false),
+  recordPlatformLocalNetError: vi.fn(),
 }));
 
 vi.mock("@/backend/auth/kick-auth", () => ({
@@ -31,7 +34,7 @@ vi.mock("@/backend/auth/kick-auth", () => ({
 }));
 
 describe("kickClient.fetchImageBytes — network-down gate", () => {
-  // Guards: fetchImageBytes must reach its network boundary even when isNetworkLikelyDown() is true — one-shot image fetches that short-circuit leave the caller latched on the error fallback until remount (regression: this PR).
+  // Guards: fetchImageBytes must reach its network boundary even when isPlatformHealthy() is false; one-shot image fetches that short-circuit leave the caller latched on the error fallback until remount (regression: this PR).
 
   let kickClient: typeof import("@/backend/api/platforms/kick/kick-client").kickClient;
 
@@ -45,12 +48,12 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
     vi.restoreAllMocks();
   });
 
-  it("attempts the binary fetch even when isNetworkLikelyDown() is true", async () => {
-    // Pre-condition: the mocked health module reports network as down. If the
-    // pre-fetch gate were still in place, fetchImageBytes would return null
-    // here without invoking the binary-fetch boundary.
-    const health = await import("@/backend/api/platforms/kick/kick-network-health");
-    expect(health.isNetworkLikelyDown()).toBe(true);
+  it("attempts the binary fetch even when isPlatformHealthy() is false", async () => {
+    // Pre-condition: the mocked health module reports platform as unhealthy.
+    // If the pre-fetch gate were still in place, fetchImageBytes would return
+    // null here without invoking the binary-fetch boundary.
+    const health = await import("@/backend/api/unified/platform-health");
+    expect(health.isPlatformHealthy("kick")).toBe(false);
 
     // Spy on the private network boundary. The cast to `any` is the test
     // seam; production callers never reach this method directly.

@@ -442,3 +442,222 @@ describe("platform-health (slice 04: transition logging)", () => {
     expect(warnCalls2).toHaveLength(1);
   });
 });
+
+describe("platform-health (slice 05: down state)", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
+    vi.mocked(logger.warn).mockClear();
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    __resetPlatformHealthForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("recordPlatformLocalNetError called 3+ times in 2s transitions to down", async () => {
+    const { getPlatformHealth, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+
+    expect(getPlatformHealth("kick")).toBe("down");
+  });
+
+  it("state stays down for at least 3s after the last burst error", async () => {
+    const { getPlatformHealth, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    expect(getPlatformHealth("kick")).toBe("down");
+
+    // Still down at 2999ms
+    vi.advanceTimersByTime(2999);
+    expect(getPlatformHealth("kick")).toBe("down");
+  });
+
+  it("down self-clears after 3s when failure rate is low (to healthy)", async () => {
+    const { getPlatformHealth, recordPlatformLocalNetError, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    expect(getPlatformHealth("kick")).toBe("down");
+
+    // After 3001ms, down expires. No high failure-rate signal, so -> healthy.
+    vi.advanceTimersByTime(3001);
+    // Need to trigger an evaluation by recording something or calling get.
+    // getPlatformHealth should check expiry.
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("down self-clears to degraded when failure rate is still high", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    // Build up failure-rate signal first (8 failures at 100% = degraded-worthy).
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    // That tripped to degraded. Now pile on a net-error burst to go down.
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    expect(getPlatformHealth("kick")).toBe("down");
+
+    // After 3s, down expires. But failure rate is still high => degraded.
+    vi.advanceTimersByTime(3001);
+    expect(getPlatformHealth("kick")).toBe("degraded");
+  });
+
+  it("down takes precedence over degraded", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    // Trip to degraded first.
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    // Now trigger down.
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    expect(getPlatformHealth("kick")).toBe("down");
+  });
+
+  it("isPlatformHealthy returns false for down", async () => {
+    const { isPlatformHealthy, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+
+    expect(isPlatformHealthy("kick")).toBe(false);
+  });
+
+  it("recordPlatformCrash immediately transitions to down", async () => {
+    const { getPlatformHealth, recordPlatformCrash } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformCrash("kick");
+    expect(getPlatformHealth("kick")).toBe("down");
+  });
+
+  it("does not re-fire event if already down", async () => {
+    const { onPlatformHealthChanged, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: Array<{ platform: string; status: string }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    expect(events).toHaveLength(1);
+    expect(events[0].status).toBe("down");
+
+    // More errors while already down should not fire again.
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    expect(events).toHaveLength(1);
+  });
+
+  it("fires onPlatformHealthChanged with status: 'down' on transition", async () => {
+    const { onPlatformHealthChanged, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: Array<{ platform: string; status: string; startedAt: number }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      platform: "kick",
+      status: "down",
+      startedAt: Date.now(),
+    });
+  });
+
+  it("ignores non-burst errors (fewer than 3)", async () => {
+    const { getPlatformHealth, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("ignores errors spread beyond 2s window", async () => {
+    const { getPlatformHealth, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    vi.advanceTimersByTime(1500);
+    recordPlatformLocalNetError("kick");
+    vi.advanceTimersByTime(1500);
+    recordPlatformLocalNetError("kick");
+
+    // The first error aged out of the 2s window, so only 2 in window.
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("logs one warn per down transition", async () => {
+    const { recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
+      ([tag]) => tag === "PlatformHealth"
+    );
+    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls[0][1]).toMatch(/kick down.*local network crash/i);
+  });
+
+  it("down extends downUntil on each new error (rolling 3s)", async () => {
+    const { getPlatformHealth, recordPlatformLocalNetError } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    recordPlatformLocalNetError("kick");
+    expect(getPlatformHealth("kick")).toBe("down");
+
+    // Advance 2s, fire another error, extending downUntil by 3s from now.
+    vi.advanceTimersByTime(2000);
+    recordPlatformLocalNetError("kick");
+
+    // At t=2s+2999ms = t=4999ms, still down (downUntil was refreshed at t=2000).
+    vi.advanceTimersByTime(2999);
+    expect(getPlatformHealth("kick")).toBe("down");
+
+    // At t=5001ms, 3001ms after last error at t=2000, should clear.
+    vi.advanceTimersByTime(2);
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+});

@@ -1,0 +1,262 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/backend/logging/logger", () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/sleep", () => ({
+  sleep: vi.fn(() => Promise.resolve()),
+}));
+
+const mockGetValidAccessToken = vi.fn();
+const mockIsAuthenticated = vi.fn();
+const mockRefreshToken = vi.fn();
+const mockGetAccessToken = vi.fn();
+
+vi.mock("@/backend/auth/twitch-auth", () => ({
+  twitchAuthService: {
+    getValidAccessToken: (...args: unknown[]) => mockGetValidAccessToken(...args),
+    isAuthenticated: (...args: unknown[]) => mockIsAuthenticated(...args),
+    refreshToken: (...args: unknown[]) => mockRefreshToken(...args),
+    getAccessToken: (...args: unknown[]) => mockGetAccessToken(...args),
+  },
+}));
+
+vi.mock("@/backend/auth/oauth-config", () => ({
+  getOAuthConfig: () => ({ clientId: "test-client-id" }),
+}));
+
+vi.mock("electron", () => ({
+  net: { fetch: vi.fn() },
+}));
+
+import { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
+
+function spyNetRequest(
+  requestor: TwitchRequestor,
+  impl: (...args: unknown[]) => Promise<unknown>
+) {
+  return vi.spyOn(requestor as any, "netRequest").mockImplementation(impl);
+}
+
+describe("TwitchRequestor", () => {
+  let requestor: TwitchRequestor;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetValidAccessToken.mockResolvedValue("test-token");
+    mockIsAuthenticated.mockReturnValue(true);
+    requestor = new TwitchRequestor();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe("request", () => {
+    it("makes authenticated request with correct URL prefix", async () => {
+      const spy = spyNetRequest(requestor, async (url: unknown) => ({
+        data: { ok: true },
+        status: 200,
+        headers: {},
+      }));
+
+      const result = await requestor.request("/streams");
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      const [url, opts] = spy.mock.calls[0] as [string, { headers: Record<string, string> }];
+      expect(url).toContain("/twitch/streams");
+      expect(opts.headers.Authorization).toBe("Bearer test-token");
+      expect(opts.headers["Content-Type"]).toBe("application/json");
+      expect(result).toEqual({ ok: true });
+    });
+
+    it("throws when not authenticated", async () => {
+      mockGetValidAccessToken.mockResolvedValueOnce(null);
+
+      await expect(requestor.request("/streams")).rejects.toThrow("Not authenticated");
+    });
+
+    it("throws TwitchClientError on 429 rate limit", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: { message: "Rate limited" },
+        status: 429,
+        headers: { "retry-after": "30" },
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toMatchObject({
+        status: 429,
+        retryAfter: 30,
+      });
+    });
+
+    it("uses default retry-after of 60 when header is missing", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 429,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toMatchObject({
+        status: 429,
+        retryAfter: 60,
+      });
+    });
+
+    it("attempts token refresh on 401 and retries", async () => {
+      mockRefreshToken.mockResolvedValueOnce(true);
+      let callCount = 0;
+      spyNetRequest(requestor, async () => {
+        callCount++;
+        if (callCount === 1) return { data: {}, status: 401, headers: {} };
+        return { data: { ok: true }, status: 200, headers: {} };
+      });
+
+      const result = await requestor.request("/streams");
+
+      expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ ok: true });
+    });
+
+    it("throws when 401 and refresh fails", async () => {
+      mockRefreshToken.mockResolvedValueOnce(false);
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 401,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow("Authentication failed");
+    });
+
+    it("retries on 502/503/504 with exponential backoff", async () => {
+      const { sleep } = await import("@/lib/sleep");
+
+      let callCount = 0;
+      spyNetRequest(requestor, async () => {
+        callCount++;
+        if (callCount <= 2) return { data: {}, status: 503, headers: {} };
+        return { data: { ok: true }, status: 200, headers: {} };
+      });
+
+      const result = await requestor.request("/streams");
+
+      expect(result).toEqual({ ok: true });
+      expect(sleep).toHaveBeenCalledTimes(2);
+      expect(sleep).toHaveBeenNthCalledWith(1, 1000);
+      expect(sleep).toHaveBeenNthCalledWith(2, 2000);
+    });
+
+    it("throws after exhausting retries on server errors", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 503,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+    });
+
+    it("throws non-retryable errors immediately without retry", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: { message: "Bad Request" },
+        status: 400,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow("Bad Request");
+    });
+
+    it("retries on transient network errors (fetch failed)", async () => {
+      const { sleep } = await import("@/lib/sleep");
+      let callCount = 0;
+      spyNetRequest(requestor, async () => {
+        callCount++;
+        if (callCount === 1) throw new Error("fetch failed");
+        return { data: { ok: true }, status: 200, headers: {} };
+      });
+
+      const result = await requestor.request("/streams");
+
+      expect(result).toEqual({ ok: true });
+      expect(sleep).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries on ECONNRESET error code", async () => {
+      let callCount = 0;
+      spyNetRequest(requestor, async () => {
+        callCount++;
+        if (callCount === 1) {
+          const err = new Error("connection reset");
+          (err as any).cause = { code: "ECONNRESET" };
+          throw err;
+        }
+        return { data: { data: [] }, status: 200, headers: {} };
+      });
+
+      const result = await requestor.request("/streams");
+      expect(result).toEqual({ data: [] });
+    });
+
+    it("does not retry non-retryable errors like JSON parse failures", async () => {
+      const spy = spyNetRequest(requestor, async () => {
+        throw new Error("Failed to parse JSON response");
+      });
+
+      await expect(requestor.request("/streams")).rejects.toThrow("Failed to parse JSON response");
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes custom method and body through", async () => {
+      const spy = spyNetRequest(requestor, async () => ({
+        data: { created: true },
+        status: 200,
+        headers: {},
+      }));
+
+      await requestor.request("/channels", {
+        method: "POST",
+        body: JSON.stringify({ title: "New Title" }),
+      });
+
+      const [, opts] = spy.mock.calls[0] as [string, { method: string; body: string }];
+      expect(opts.method).toBe("POST");
+      expect(opts.body).toBe(JSON.stringify({ title: "New Title" }));
+    });
+
+    it("falls through to generic error when status 4xx has no message", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 418,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow("Twitch API error: 418");
+    });
+  });
+
+  describe("isAuthenticated", () => {
+    it("delegates to twitchAuthService.isAuthenticated", () => {
+      mockIsAuthenticated.mockReturnValueOnce(true);
+      expect(requestor.isAuthenticated()).toBe(true);
+
+      mockIsAuthenticated.mockReturnValueOnce(false);
+      expect(requestor.isAuthenticated()).toBe(false);
+    });
+  });
+
+  describe("getAccessToken", () => {
+    it("delegates to twitchAuthService.getAccessToken", () => {
+      mockGetAccessToken.mockReturnValueOnce("abc-token");
+      expect(requestor.getAccessToken()).toBe("abc-token");
+
+      mockGetAccessToken.mockReturnValueOnce(null);
+      expect(requestor.getAccessToken()).toBeNull();
+    });
+  });
+});

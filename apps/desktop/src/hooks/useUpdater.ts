@@ -1,10 +1,3 @@
-/**
- * useUpdater Hook
- *
- * React hook for interacting with the app auto-update system.
- * Provides check, download, install operations and subscribes to status changes.
- */
-
 import { useCallback, useEffect } from "react";
 import { logger } from "@/renderer/logging/logger";
 import type {
@@ -49,164 +42,167 @@ interface UseUpdaterReturn {
 }
 
 export function useUpdater(): UseUpdaterReturn {
-  const store = useUpdateStore();
+  const status = useUpdateStore((s) => s.status);
+  const updateInfo = useUpdateStore((s) => s.updateInfo);
+  const progress = useUpdateStore((s) => s.progress);
+  const error = useUpdateStore((s) => s.error);
+  const allowPrerelease = useUpdateStore((s) => s.allowPrerelease);
+  const autoCheckEnabled = useUpdateStore((s) => s.autoCheckEnabled);
+  const checkFrequency = useUpdateStore((s) => s.checkFrequency);
+  const isInitialized = useUpdateStore((s) => s.isInitialized);
 
-  // Initialize on mount - get current status and subscribe to changes
+  const updateFromBackend = useUpdateStore((s) => s.updateFromBackend);
+  const setInitialized = useUpdateStore((s) => s.setInitialized);
+  const setProgress = useUpdateStore((s) => s.setProgress);
+  const setError = useUpdateStore((s) => s.setError);
+  const setStatus = useUpdateStore((s) => s.setStatus);
+  const storeSetAllowPrerelease = useUpdateStore((s) => s.setAllowPrerelease);
+  const storeSetAutoCheckEnabled = useUpdateStore((s) => s.setAutoCheckEnabled);
+  const storeSetCheckFrequency = useUpdateStore((s) => s.setCheckFrequency);
+
   useEffect(() => {
     if (typeof window === "undefined" || !window.electronAPI?.updater) {
       return;
     }
 
-    // Get initial status
     const initializeStatus = async () => {
       try {
-        const status = await window.electronAPI.updater.getStatus();
-        store.updateFromBackend(status);
-        store.setInitialized(true);
-      } catch (error) {
+        const backendStatus = await window.electronAPI.updater.getStatus();
+        updateFromBackend(backendStatus);
+        setInitialized(true);
+      } catch (err) {
         logger.error("Hook:Updater", "failed to get initial status", {
-          error: serializeError(error),
+          error: serializeError(err),
         });
       }
     };
 
     initializeStatus();
 
-    // Subscribe to status changes
     const unsubscribeStatus = window.electronAPI.updater.onStatusChange((state) => {
-      store.updateFromBackend(state);
+      updateFromBackend(state);
     });
 
-    // Subscribe to progress updates
-    const unsubscribeProgress = window.electronAPI.updater.onProgress((progress) => {
-      store.setProgress(progress);
+    const unsubscribeProgress = window.electronAPI.updater.onProgress((p) => {
+      setProgress(p);
     });
 
     return () => {
       unsubscribeStatus();
       unsubscribeProgress();
     };
-  }, [store]);
+  }, [updateFromBackend, setInitialized, setProgress]);
 
-  // Check for updates
   const checkForUpdates = useCallback(async () => {
     if (!window.electronAPI?.updater) return;
 
     try {
       const result = await window.electronAPI.updater.check();
-      store.updateFromBackend({
+      updateFromBackend({
         ...result,
         progress: null,
       });
-    } catch (error) {
-      logger.error("Hook:Updater", "check failed", { error: serializeError(error) });
-      store.setError(error instanceof Error ? error.message : "Failed to check for updates");
-      store.setStatus("error");
+    } catch (err) {
+      logger.error("Hook:Updater", "check failed", { error: serializeError(err) });
+      setError(err instanceof Error ? err.message : "Failed to check for updates");
+      setStatus("error");
     }
-  }, [store]);
+  }, [updateFromBackend, setError, setStatus]);
 
-  // Download update
   const downloadUpdate = useCallback(async () => {
     if (!window.electronAPI?.updater) return;
 
     try {
       const result = await window.electronAPI.updater.download();
-      store.updateFromBackend({
+      updateFromBackend({
         ...result,
-        allowPrerelease: store.allowPrerelease,
+        allowPrerelease,
       });
-    } catch (error) {
-      logger.error("Hook:Updater", "download failed", { error: serializeError(error) });
-      store.setError(error instanceof Error ? error.message : "Failed to download update");
-      store.setStatus("error");
+    } catch (err) {
+      logger.error("Hook:Updater", "download failed", { error: serializeError(err) });
+      setError(err instanceof Error ? err.message : "Failed to download update");
+      setStatus("error");
     }
-  }, [store.allowPrerelease, store]);
+  }, [allowPrerelease, updateFromBackend, setError, setStatus]);
 
-  // Install update (quits and restarts app)
   const installUpdate = useCallback(async () => {
     if (!window.electronAPI?.updater) return;
 
     try {
       await window.electronAPI.updater.install();
-    } catch (error) {
-      logger.error("Hook:Updater", "install failed", { error: serializeError(error) });
-      store.setError(error instanceof Error ? error.message : "Failed to install update");
-      store.setStatus("error");
+    } catch (err) {
+      logger.error("Hook:Updater", "install failed", { error: serializeError(err) });
+      setError(err instanceof Error ? err.message : "Failed to install update");
+      setStatus("error");
     }
-  }, [store]);
+  }, [setError, setStatus]);
 
-  // Set allow pre-release preference
   const setAllowPrerelease = useCallback(
     async (allow: boolean) => {
       if (!window.electronAPI?.updater) return;
 
       try {
         const result = await window.electronAPI.updater.setAllowPrerelease(allow);
-        store.setAllowPrerelease(result.allowPrerelease);
-      } catch (error) {
+        storeSetAllowPrerelease(result.allowPrerelease);
+      } catch (err) {
         logger.error("Hook:Updater", "failed to set prerelease preference", {
-          error: serializeError(error),
+          error: serializeError(err),
         });
       }
     },
-    [store]
+    [storeSetAllowPrerelease]
   );
 
-  // Toggle automatic interval checking (U15)
   const setAutoCheckEnabled = useCallback(
     async (enabled: boolean) => {
       if (!window.electronAPI?.updater) return;
 
       try {
         const result = await window.electronAPI.updater.setAutoCheck({ enabled });
-        store.setAutoCheckEnabled(result.autoCheckEnabled);
-        store.setCheckFrequency(result.checkFrequency);
-      } catch (error) {
+        storeSetAutoCheckEnabled(result.autoCheckEnabled);
+        storeSetCheckFrequency(result.checkFrequency);
+      } catch (err) {
         logger.error("Hook:Updater", "failed to set auto-check preference", {
-          error: serializeError(error),
+          error: serializeError(err),
         });
       }
     },
-    [store]
+    [storeSetAutoCheckEnabled, storeSetCheckFrequency]
   );
 
-  // Set the auto-check frequency preset (U15)
   const setCheckFrequency = useCallback(
     async (frequency: CheckFrequency) => {
       if (!window.electronAPI?.updater) return;
 
       try {
         const result = await window.electronAPI.updater.setAutoCheck({ frequency });
-        store.setAutoCheckEnabled(result.autoCheckEnabled);
-        store.setCheckFrequency(result.checkFrequency);
-      } catch (error) {
+        storeSetAutoCheckEnabled(result.autoCheckEnabled);
+        storeSetCheckFrequency(result.checkFrequency);
+      } catch (err) {
         logger.error("Hook:Updater", "failed to set check frequency", {
-          error: serializeError(error),
+          error: serializeError(err),
         });
       }
     },
-    [store]
+    [storeSetAutoCheckEnabled, storeSetCheckFrequency]
   );
 
   return {
-    // State
-    status: store.status,
-    updateInfo: store.updateInfo,
-    progress: store.progress,
-    error: store.error,
-    allowPrerelease: store.allowPrerelease,
-    autoCheckEnabled: store.autoCheckEnabled,
-    checkFrequency: store.checkFrequency,
-    isInitialized: store.isInitialized,
+    status,
+    updateInfo,
+    progress,
+    error,
+    allowPrerelease,
+    autoCheckEnabled,
+    checkFrequency,
+    isInitialized,
 
-    // Computed
-    isChecking: store.status === "checking",
-    isDownloading: store.status === "downloading",
-    isUpdateAvailable: store.status === "available",
-    isUpdateDownloaded: store.status === "downloaded",
-    hasError: store.status === "error",
+    isChecking: status === "checking",
+    isDownloading: status === "downloading",
+    isUpdateAvailable: status === "available",
+    isUpdateDownloaded: status === "downloaded",
+    hasError: status === "error",
 
-    // Actions
     checkForUpdates,
     downloadUpdate,
     installUpdate,
@@ -216,9 +212,6 @@ export function useUpdater(): UseUpdaterReturn {
   };
 }
 
-/**
- * Hook for just the update settings (pre-release toggle)
- */
 function useUpdateSettings() {
   const allowPrerelease = useUpdateStore((s) => s.allowPrerelease);
   const setAllowPrerelease = useUpdateStore((s) => s.setAllowPrerelease);
