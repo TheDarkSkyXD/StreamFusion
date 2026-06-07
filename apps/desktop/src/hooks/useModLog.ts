@@ -35,15 +35,7 @@ export function useModLog(opts: UseModLogOptions): {
   const { channelId, targetUserId, action, moderatorUsername, limit, refreshCounter = 0 } = opts;
 
   const query = useQuery({
-    queryKey: [
-      "modLog",
-      channelId,
-      targetUserId,
-      action,
-      moderatorUsername,
-      limit,
-      refreshCounter,
-    ],
+    queryKey: ["modLog", channelId, targetUserId, action, moderatorUsername, limit, refreshCounter],
     queryFn: async () => {
       try {
         const rows = await window.electronAPI.modLog.query({

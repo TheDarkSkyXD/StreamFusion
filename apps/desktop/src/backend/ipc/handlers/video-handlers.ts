@@ -57,6 +57,362 @@ function getKickVideoLivestreamId(video: any): string | undefined {
   return id ? id.toString() : undefined;
 }
 
+export type TimeRangeFilter = "day" | "week" | "month" | "all";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const STRICT_CUTOFF_INTERNAL_PAGE_SIZE = 100;
+const STRICT_CUTOFF_MAX_INTERNAL_PAGES = 5;
+
+/** Inclusive on the older edge: a clip with createdAt === cutoff is in range. Null for "all". */
+export function getCutoffMs(timeRange: TimeRangeFilter | undefined, nowMs: number): number | null {
+  if (!timeRange || timeRange === "all") return null;
+  switch (timeRange) {
+    case "day":
+      return nowMs - DAY_MS;
+    case "week":
+      return nowMs - 7 * DAY_MS;
+    case "month":
+      return nowMs - 30 * DAY_MS;
+  }
+}
+
+export interface UpstreamPage<T> {
+  items: T[];
+  cursor: string | undefined;
+}
+
+export type FillPageStopReason = "filled" | "out-of-range" | "exhausted" | "max-pages";
+
+export interface FillPageOptions<T> {
+  cutoffMs: number;
+  limit: number;
+  initialCursor: string | undefined;
+  maxInternalPages: number;
+  fetchPage: (cursor: string | undefined) => Promise<UpstreamPage<T>>;
+  getCreatedAtMs: (item: T) => number;
+}
+
+export interface FillPageResult<T> {
+  inRange: T[];
+  /** `undefined` signals upstream has nothing more in range — UI should stop loading more. */
+  nextCursor: string | undefined;
+  pagesFetched: number;
+  candidatesSeen: number;
+  reason: FillPageStopReason;
+}
+
+/** Assumes upstream returns items newest-first; the loop stops on the first out-of-range item. */
+export async function fillPageWithCutoff<T>(opts: FillPageOptions<T>): Promise<FillPageResult<T>> {
+  const inRange: T[] = [];
+  let cursor = opts.initialCursor;
+  let nextCursor = cursor;
+  let pagesFetched = 0;
+  let candidatesSeen = 0;
+  let reason: FillPageStopReason | null = null;
+
+  while (pagesFetched < opts.maxInternalPages) {
+    const page = await opts.fetchPage(cursor);
+    pagesFetched++;
+    nextCursor = page.cursor;
+
+    if (page.items.length === 0) {
+      reason = "exhausted";
+      break;
+    }
+
+    let pageSawOutOfRange = false;
+    for (const item of page.items) {
+      candidatesSeen++;
+      if (opts.getCreatedAtMs(item) < opts.cutoffMs) {
+        pageSawOutOfRange = true;
+        break;
+      }
+      inRange.push(item);
+      if (inRange.length >= opts.limit) break;
+    }
+
+    if (pageSawOutOfRange) {
+      reason = "out-of-range";
+      break;
+    }
+    if (inRange.length >= opts.limit) {
+      reason = "filled";
+      break;
+    }
+    if (!page.cursor) {
+      reason = "exhausted";
+      break;
+    }
+    cursor = page.cursor;
+  }
+
+  if (reason === null) reason = "max-pages";
+
+  const stopMeansNoMore = reason === "out-of-range" || reason === "exhausted";
+
+  return {
+    inRange,
+    nextCursor: stopMeansNoMore ? undefined : nextCursor,
+    pagesFetched,
+    candidatesSeen,
+    reason,
+  };
+}
+
+export interface ClipsGetByChannelParams {
+  platform: Platform;
+  channelName: string;
+  channelId?: string;
+  limit?: number;
+  cursor?: string;
+  sort?: "date" | "views";
+  timeRange?: TimeRangeFilter;
+}
+
+export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
+  const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
+  const { kickClient } = await import("../../api/platforms/kick/kick-client");
+
+  try {
+    if (params.platform === "twitch") {
+      const channelLogin = params.channelName.toLowerCase();
+
+      let gqlFilter: string = "LAST_WEEK";
+      if (params.timeRange) {
+        switch (params.timeRange) {
+          case "day":
+            gqlFilter = "LAST_DAY";
+            break;
+          case "week":
+            gqlFilter = "LAST_WEEK";
+            break;
+          case "month":
+            gqlFilter = "LAST_MONTH";
+            break;
+          case "all":
+            gqlFilter = "ALL_TIME";
+            break;
+        }
+      }
+
+      console.debug(
+        `[TwitchClip] Fetching clips via GQL for channel: ${channelLogin} with filter: ${gqlFilter}`
+      );
+      const clips = await twitchClient.getClipsByChannel(channelLogin, {
+        first: params.limit,
+        after: params.cursor,
+        filter: gqlFilter,
+      });
+      console.debug(`[TwitchClip] Fetched ${clips.data.length} clips for ${channelLogin} (GQL)`);
+
+      let sortedClips = clips.data;
+      if (params.sort === "views") {
+        sortedClips = [...clips.data].sort((a, b) => b.viewCount - a.viewCount);
+      }
+
+      return {
+        success: true,
+        data: sortedClips.map((c) => ({
+          id: c.id,
+          title: c.title,
+          duration: formatSeconds(c.duration),
+          views: c.viewCount.toString(),
+          date: new Date(c.createdAt).toISOString(),
+          created_at: c.createdAt,
+          thumbnailUrl: c.thumbnailUrl,
+          embedUrl: c.embedUrl,
+          url: c.clipUrl,
+          platform: "twitch",
+          gameName: c.gameName || "",
+          language: "",
+          vodId: "",
+        })),
+        cursor: clips.cursor,
+      };
+    } else if (params.platform === "kick") {
+      const isViewSortWithTimeParams =
+        params.sort === "views" && params.timeRange && params.timeRange !== "all";
+      let clipsData: any[] = [];
+      let outputCursor: string | undefined;
+
+      if (isViewSortWithTimeParams) {
+        console.debug(
+          `[KickClip] executing "Deep Fetch" strategy for ${params.timeRange} view sort`
+        );
+
+        const now = new Date();
+        let cutoffDate = new Date(0);
+        switch (params.timeRange) {
+          case "day":
+            cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            break;
+          case "week":
+            cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+          case "month":
+            cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            break;
+        }
+
+        let currentCursor = params.cursor;
+        let keepFetching = true;
+        let pagesFetched = 0;
+        const MAX_PAGES = 30;
+
+        while (keepFetching && pagesFetched < MAX_PAGES) {
+          console.debug(
+            `[KickClip] Deep Fetch Page ${pagesFetched + 1} (cursor: ${currentCursor})`
+          );
+          const response = await kickClient.getClips(params.channelName, {
+            limit: 100,
+            cursor: currentCursor,
+            sort: "date",
+            timeRange: params.timeRange,
+          });
+
+          const pageClips = response.data || [];
+          const count = pageClips.length;
+
+          if (count === 0) {
+            console.debug("[KickClip] Page empty, stopping fetch");
+            keepFetching = false;
+          } else {
+            clipsData.push(...pageClips);
+            currentCursor = response.cursor;
+            pagesFetched++;
+
+            const firstDate = pageClips[0].created_at || pageClips[0].date;
+            const lastDate = pageClips[count - 1].created_at || pageClips[count - 1].date;
+            console.debug(`[KickClip] Page ${pagesFetched} range: ${firstDate} -> ${lastDate}`);
+
+            const lastClipDate = new Date(lastDate);
+            if (lastClipDate < cutoffDate) {
+              console.debug(
+                `[KickClip] Reached cutoff date (${cutoffDate.toISOString()}), stopping.`
+              );
+              keepFetching = false;
+            }
+
+            if (!currentCursor) {
+              console.debug("[KickClip] No next cursor, stopping.");
+              keepFetching = false;
+            }
+          }
+        }
+
+        const beforeFilter = clipsData.length;
+        clipsData = clipsData.filter((c) => {
+          const d = new Date(c.created_at || c.date);
+          return d >= cutoffDate;
+        });
+        console.debug(
+          `[KickClip] Deep Fetch Result: ${beforeFilter} -> ${clipsData.length} clips within ${params.timeRange}`
+        );
+
+        console.debug(`[KickClip] Sorting ${clipsData.length} clips by views...`);
+        clipsData.sort((a, b) => {
+          const vA = parseInt(String(a.views).replace(/,/g, ""), 10) || 0;
+          const vB = parseInt(String(b.views).replace(/,/g, ""), 10) || 0;
+          return vB - vA;
+        });
+
+        clipsData.slice(0, 5).forEach((c, i) => {
+          console.debug(`[KickClip] #${i + 1}: ${c.views} views - ${c.title}`);
+        });
+
+        outputCursor = undefined;
+      } else {
+        const cutoffMs = getCutoffMs(params.timeRange, Date.now());
+
+        if (cutoffMs === null) {
+          const response = await kickClient.getClips(params.channelName, {
+            limit: params.limit,
+            cursor: params.cursor,
+            sort: params.sort,
+            timeRange: params.timeRange,
+          });
+          clipsData = response.data || [];
+          outputCursor = response.cursor;
+
+          if (params.sort === "views" && clipsData.length > 0) {
+            clipsData.sort((a, b) => {
+              const viewsA = parseInt(String(a.views).replace(/,/g, ""), 10) || 0;
+              const viewsB = parseInt(String(b.views).replace(/,/g, ""), 10) || 0;
+              return viewsB - viewsA;
+            });
+          }
+        } else {
+          const uiLimit = params.limit ?? 20;
+          console.debug(
+            `[KickClip] strict cutoff ${params.timeRange} cutoff=${new Date(cutoffMs).toISOString()} uiLimit=${uiLimit} initialCursor=${params.cursor ?? "(none)"}`
+          );
+
+          const result = await fillPageWithCutoff<any>({
+            cutoffMs,
+            limit: uiLimit,
+            initialCursor: params.cursor,
+            maxInternalPages: STRICT_CUTOFF_MAX_INTERNAL_PAGES,
+            fetchPage: async (cursor) => {
+              const response = await kickClient.getClips(params.channelName, {
+                limit: STRICT_CUTOFF_INTERNAL_PAGE_SIZE,
+                cursor,
+                sort: params.sort,
+                timeRange: params.timeRange,
+              });
+              return { items: response.data || [], cursor: response.cursor };
+            },
+            getCreatedAtMs: (clip: any) => new Date(clip.created_at || clip.date).getTime(),
+          });
+
+          console.debug(
+            `[KickClip] strict cutoff result pages=${result.pagesFetched} candidates=${result.candidatesSeen} inRange=${result.inRange.length} reason=${result.reason} nextCursor=${result.nextCursor ?? "(none)"}`
+          );
+
+          clipsData = result.inRange;
+          outputCursor = result.nextCursor;
+        }
+      }
+
+      const clipsToCheck = clipsData.slice(0, 50);
+
+      if (clipsToCheck.length > 0) {
+        try {
+          const videos = await kickClient.getVideos(params.channelName, { limit: 50 });
+          const availableVodIds = new Set<string>();
+          if (videos.data) {
+            for (const video of videos.data) {
+              const vodId = getKickVideoLivestreamId(video);
+              if (vodId) availableVodIds.add(vodId);
+            }
+          }
+
+          clipsData = clipsData.map((clip, index) => {
+            if (index >= 50) {
+              return clip;
+            }
+            const hasVod = clip.vodId && availableVodIds.has(clip.vodId.toString());
+            return { ...clip, vodId: hasVod ? clip.vodId : "" };
+          });
+        } catch (e) {
+          console.warn("[KickClip] VOD check failed", e);
+        }
+      }
+
+      return {
+        success: true,
+        data: clipsData,
+        cursor: outputCursor,
+      };
+    }
+    throw new Error(`Unsupported platform: ${params.platform} `);
+  } catch (error) {
+    console.error("❌ Failed to get clips:", error);
+    return {
+      error: error instanceof Error ? error.message : "Failed to fetch clips",
+    };
+  }
+}
+
 export function registerVideoHandlers(): void {
   /**
    * Get playback URL for a VOD
@@ -264,263 +620,8 @@ export function registerVideoHandlers(): void {
   /**
    * Get clips by channel
    */
-  ipcMain.handle(
-    IPC_CHANNELS.CLIPS_GET_BY_CHANNEL,
-    async (
-      _event,
-      params: {
-        platform: Platform;
-        channelName: string;
-        channelId?: string;
-        limit?: number;
-        cursor?: string;
-        sort?: "date" | "views"; // Sort option: 'date' (most recent) or 'views'
-        timeRange?: "day" | "week" | "month" | "all";
-      }
-    ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
-      try {
-        if (params.platform === "twitch") {
-          // Use GQL API (no auth required) — fetches clips by channel login
-          const channelLogin = params.channelName.toLowerCase();
-
-          // Map timeRange to GQL filter format
-          let gqlFilter: string = "LAST_WEEK";
-          if (params.timeRange) {
-            switch (params.timeRange) {
-              case "day":
-                gqlFilter = "LAST_DAY";
-                break;
-              case "week":
-                gqlFilter = "LAST_WEEK";
-                break;
-              case "month":
-                gqlFilter = "LAST_MONTH";
-                break;
-              case "all":
-                gqlFilter = "ALL_TIME";
-                break;
-            }
-          }
-
-          console.debug(
-            `[TwitchClip] Fetching clips via GQL for channel: ${channelLogin} with filter: ${gqlFilter}`
-          );
-          const clips = await twitchClient.getClipsByChannel(channelLogin, {
-            first: params.limit,
-            after: params.cursor,
-            filter: gqlFilter,
-          });
-          console.debug(
-            `[TwitchClip] Fetched ${clips.data.length} clips for ${channelLogin} (GQL)`
-          );
-
-          // Sort by views if requested
-          let sortedClips = clips.data;
-          if (params.sort === "views") {
-            sortedClips = [...clips.data].sort((a, b) => b.viewCount - a.viewCount);
-          }
-
-          return {
-            success: true,
-            data: sortedClips.map((c) => ({
-              id: c.id,
-              title: c.title,
-              duration: formatSeconds(c.duration),
-              views: c.viewCount.toString(),
-              date: new Date(c.createdAt).toISOString(),
-              created_at: c.createdAt,
-              thumbnailUrl: c.thumbnailUrl,
-              embedUrl: c.embedUrl,
-              url: c.clipUrl,
-              platform: "twitch",
-              gameName: c.gameName || "",
-              language: "",
-              vodId: "",
-            })),
-            cursor: clips.cursor,
-          };
-        } else if (params.platform === "kick") {
-          // Strategy: Multi-page fetch to cover the time range
-          const isViewSortWithTimeParams =
-            params.sort === "views" && params.timeRange && params.timeRange !== "all";
-          let clipsData: any[] = [];
-          let outputCursor: string | undefined;
-
-          if (isViewSortWithTimeParams) {
-            console.debug(
-              `[KickClip] executing "Deep Fetch" strategy for ${params.timeRange} view sort`
-            );
-
-            // Determine cutoff date
-            const now = new Date();
-            let cutoffDate = new Date(0);
-            switch (params.timeRange) {
-              case "day":
-                cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                break;
-              case "week":
-                cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                break;
-              case "month":
-                cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                break;
-            }
-
-            // Loop fetch
-            let currentCursor = params.cursor;
-            let keepFetching = true;
-            let pagesFetched = 0;
-            const MAX_PAGES = 30; // Increased to 30 pages to cover more history (potential 3000 clips)
-
-            while (keepFetching && pagesFetched < MAX_PAGES) {
-              console.debug(
-                `[KickClip] Deep Fetch Page ${pagesFetched + 1} (cursor: ${currentCursor})`
-              );
-              const response = await kickClient.getClips(params.channelName, {
-                limit: 100,
-                cursor: currentCursor,
-                sort: "date",
-                timeRange: params.timeRange,
-              });
-
-              const pageClips = response.data || [];
-              const count = pageClips.length;
-
-              if (count === 0) {
-                console.debug("[KickClip] Page empty, stopping fetch");
-                keepFetching = false;
-              } else {
-                clipsData.push(...pageClips);
-                currentCursor = response.cursor;
-                pagesFetched++;
-
-                // Log date range of this page
-                const firstDate = pageClips[0].created_at || pageClips[0].date;
-                const lastDate = pageClips[count - 1].created_at || pageClips[count - 1].date;
-                console.debug(`[KickClip] Page ${pagesFetched} range: ${firstDate} -> ${lastDate}`);
-
-                // Check if current page has clips older than cutoff
-                const lastClipDate = new Date(lastDate);
-                if (lastClipDate < cutoffDate) {
-                  console.debug(
-                    `[KickClip] Reached cutoff date (${cutoffDate.toISOString()}), stopping.`
-                  );
-                  keepFetching = false;
-                }
-
-                if (!currentCursor) {
-                  console.debug("[KickClip] No next cursor, stopping.");
-                  keepFetching = false;
-                }
-              }
-            }
-
-            // Filter by Date
-            const beforeFilter = clipsData.length;
-            clipsData = clipsData.filter((c) => {
-              const d = new Date(c.created_at || c.date);
-              return d >= cutoffDate;
-            });
-            console.debug(
-              `[KickClip] Deep Fetch Result: ${beforeFilter} -> ${clipsData.length} clips within ${params.timeRange}`
-            );
-
-            // Sort by Views
-            console.debug(`[KickClip] Sorting ${clipsData.length} clips by views...`);
-            clipsData.sort((a, b) => {
-              const vA = parseInt(String(a.views).replace(/,/g, ""), 10) || 0;
-              const vB = parseInt(String(b.views).replace(/,/g, ""), 10) || 0;
-              return vB - vA;
-            });
-
-            // Log top 5 for verification
-            clipsData.slice(0, 5).forEach((c, i) => {
-              console.debug(`[KickClip] #${i + 1}: ${c.views} views - ${c.title}`);
-            });
-
-            // Optimization: For "Last Day" or any filtered view sort, if we found huge number of clips,
-            // satisfy the request by returning the top viewed ones.
-            // We only check VODs for the top 50 to save API calls.
-            // Since pagination is disabled in this mode (outputCursor = undefined), returning top 50 is reasonable
-            // or we return all but only VOD-check the top 50.
-            // Let's return all but prioritize top 50 for checking.
-
-            // For this mode, we effectively clear pagination since we fetched "everything relevant"
-            outputCursor = undefined;
-          } else {
-            // Standard single page fetch
-            const response = await kickClient.getClips(params.channelName, {
-              limit: params.limit,
-              cursor: params.cursor,
-              sort: params.sort,
-              timeRange: params.timeRange,
-            });
-            clipsData = response.data || [];
-            outputCursor = response.cursor;
-
-            // Client-side sort fallback if needed (e.g. All Time views sort)
-            if (params.sort === "views" && clipsData.length > 0) {
-              clipsData.sort((a, b) => {
-                const viewsA = parseInt(String(a.views).replace(/,/g, ""), 10) || 0;
-                const viewsB = parseInt(String(b.views).replace(/,/g, ""), 10) || 0;
-                return viewsB - viewsA;
-              });
-            }
-          }
-
-          // VOD Availability Check (only for the clips we are returning)
-          // Limit checking to top 50 to avoid massive API spam if list is huge
-          const clipsToCheck = clipsData.slice(0, 50);
-
-          if (clipsToCheck.length > 0) {
-            try {
-              const videos = await kickClient.getVideos(params.channelName, { limit: 50 });
-              const availableVodIds = new Set<string>();
-              if (videos.data) {
-                for (const video of videos.data) {
-                  const vodId = getKickVideoLivestreamId(video);
-                  if (vodId) availableVodIds.add(vodId);
-                }
-              }
-
-              // Update ALL clipsData (though only checked subset)
-              // If a clip wasn't in "clipsToCheck", we assume VOD might be there or just leave it?
-              // Actually, safely we map what we checked.
-              // Optimization: Just check set for all, assuming the 50 videos cover recent history.
-              // If we fetched deep history (1 month), the recent 50 videos might NOT cover it.
-              // But verifying 1-month old VODs requires fetching ALL videos... too expensive.
-              // We will just check against recent videos.
-
-              clipsData = clipsData.map((clip, index) => {
-                // Only verify clips we actually checked (top 50)
-                if (index >= 50) {
-                  return clip; // Leave vodId as-is for unchecked clips
-                }
-                const hasVod = clip.vodId && availableVodIds.has(clip.vodId.toString());
-                return { ...clip, vodId: hasVod ? clip.vodId : "" };
-              });
-            } catch (e) {
-              console.warn("[KickClip] VOD check failed", e);
-            }
-          }
-
-          return {
-            success: true,
-            data: clipsData,
-            cursor: outputCursor,
-          };
-        }
-        throw new Error(`Unsupported platform: ${params.platform} `);
-      } catch (error) {
-        console.error("❌ Failed to get clips:", error);
-        return {
-          error: error instanceof Error ? error.message : "Failed to fetch clips",
-        };
-      }
-    }
+  ipcMain.handle(IPC_CHANNELS.CLIPS_GET_BY_CHANNEL, (_event, params: ClipsGetByChannelParams) =>
+    handleGetClipsByChannel(params)
   );
 
   /**
