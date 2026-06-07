@@ -9,9 +9,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import(
-      "@/backend/api/unified/platform-health"
-    );
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -132,9 +130,7 @@ describe("platform-health (slice 01: transition listener)", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import(
-      "@/backend/api/unified/platform-health"
-    );
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -203,5 +199,160 @@ describe("platform-health (slice 01: transition listener)", () => {
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     expect(events).toHaveLength(0);
+  });
+});
+
+describe("platform-health (slice 02: degraded → healthy recovery)", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    __resetPlatformHealthForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("recovers to healthy after 30s of <40% failure rate within the rolling window", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    // Trip to degraded: 8 timeouts at 100% rate.
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    // Drive 30s of healthy traffic at well under 40% (one failure mixed in
+    // with many successes), with the final sample at t=30s.
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+
+  it("does NOT recover when sustained failure rate stays at or above 40% (hysteresis)", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    // Trip to degraded.
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    // 30s of 50% failure rate — above the 40% recovery threshold, so the
+    // state must stay degraded. One failure + one success per second.
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      if (elapsed % 2000 === 0) {
+        recordPlatformFailure("kick", "timeout");
+      } else {
+        recordPlatformSuccess("kick");
+      }
+    }
+
+    expect(getPlatformHealth("kick")).toBe("degraded");
+  });
+
+  it("requires a CONTINUOUS 30s recovery window — 15s good + 15s bad does not recover", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    const startedAt = Date.now();
+
+    // 15s of 0% failure (all successes).
+    for (let elapsed = 1000; elapsed <= 15_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    // 15s of 100% failure — pushes failure rate back over the threshold
+    // before any 30s-continuous window has elapsed.
+    for (let elapsed = 16_000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformFailure("kick", "timeout");
+    }
+
+    expect(getPlatformHealth("kick")).toBe("degraded");
+  });
+
+  it("fires onPlatformHealthChanged with { platform, status: 'healthy', startedAt } on recovery", async () => {
+    const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: Array<{ platform: string; status: string; startedAt: number }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(events).toHaveLength(1);
+    expect(events[0].status).toBe("degraded");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(events).toHaveLength(2);
+    expect(events[1]).toEqual({
+      platform: "kick",
+      status: "healthy",
+      startedAt: Date.now(),
+    });
+  });
+
+  it("does not re-emit recovery events while already healthy", async () => {
+    const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: unknown[] = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+    expect(events).toHaveLength(2);
+
+    // More successes after recovery — no additional events.
+    for (let i = 0; i < 20; i++) recordPlatformSuccess("kick");
+    expect(events).toHaveLength(2);
+  });
+
+  it("can re-trip from healthy → degraded after a recovery cycle", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess, ROLLING_WINDOW_MS } =
+      await import("@/backend/api/unified/platform-health");
+
+    // Trip.
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    // Recover.
+    const recoveryStart = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(recoveryStart + elapsed));
+      recordPlatformSuccess("kick");
+    }
+    expect(getPlatformHealth("kick")).toBe("healthy");
+
+    // Jump past the rolling window so the old recovery successes age out.
+    vi.setSystemTime(new Date(recoveryStart + 30_000 + ROLLING_WINDOW_MS + 1000));
+
+    // Re-trip with a fresh failure burst.
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
   });
 });

@@ -6,6 +6,7 @@
 
 import { type BrowserWindow, ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import { clearKickStreamFailureCache } from "../../api/platforms/kick/endpoints/stream-endpoints";
 import {
   getPlatformHealth,
   onPlatformHealthChanged,
@@ -40,6 +41,11 @@ export function registerPlatformHealthHandlers(mainWindow: BrowserWindow): void 
       logger.warn("IPC:PlatformHealth", "Could not push transition", {
         error: error instanceof Error ? error.message : String(error),
       });
+    }
+
+    if (event.status === "healthy" && event.platform === "kick") {
+      clearKickStreamFailureCache();
+      logger.info("IPC:PlatformHealth", "Kick recovery: flushed negative stream caches");
     }
   });
 

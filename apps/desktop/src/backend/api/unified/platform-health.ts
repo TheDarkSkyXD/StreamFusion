@@ -1,10 +1,10 @@
 /**
  * Per-Platform health tracker. See ADR-0002 + PRD #50.
  *
- * `healthy → degraded` flips when the rolling failure-rate threshold is met.
- * Recovery and the local-burst `down` state arrive in later slices and are
- * absent here. Failure classification + excluded shapes (401/403/404/429/parse)
- * are enforced at the call site, not in this module. In-memory only.
+ * `healthy → degraded` trips on rolling failure-rate exceeding 60% over ≥8
+ * samples. `degraded → healthy` recovers after a 30s cooldown when the rate
+ * drops below 40% (asymmetric hysteresis). The local-burst `down` state
+ * arrives in a later slice. In-memory only.
  */
 
 import type { Platform } from "../../../shared/auth-types";
@@ -13,12 +13,16 @@ export type PlatformHealth = "healthy" | "degraded" | "down";
 
 export type PlatformFailureClass = "timeout" | "server-5xx" | "net-error";
 
-/** Failure-rate threshold to trip `healthy → degraded`. Hysteresis target for slice 02 recovery is the asymmetric 40%. */
+/** Failure-rate threshold to trip `healthy → degraded`. */
 export const DEGRADED_FAILURE_RATE = 0.6;
 /** Minimum number of attempts in the rolling window before the trip evaluator can fire. */
 export const DEGRADED_MIN_SAMPLE = 8;
 /** Rolling-window length the failure-rate evaluator looks back over. */
 export const ROLLING_WINDOW_MS = 60_000;
+/** Failure-rate threshold below which `degraded → healthy` recovery can fire (asymmetric hysteresis). */
+export const RECOVERY_FAILURE_RATE = 0.4;
+/** Minimum time in `degraded` before the recovery evaluator can fire. */
+export const RECOVERY_WINDOW_MS = 30_000;
 
 export interface PlatformHealthEvent {
   platform: Platform;
@@ -63,6 +67,21 @@ function evaluate(platform: Platform, now: number): void {
   emit({ platform, status: "degraded", startedAt: now });
 }
 
+function evaluateRecovery(platform: Platform, now: number): void {
+  const state = states[platform];
+  if (state.status !== "degraded") return;
+  if (now - state.startedAt < RECOVERY_WINDOW_MS) return;
+  if (state.outcomes.length === 0) return;
+
+  const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
+  const rate = failures / state.outcomes.length;
+  if (rate >= RECOVERY_FAILURE_RATE) return;
+
+  state.status = "healthy";
+  state.startedAt = now;
+  emit({ platform, status: "healthy", startedAt: now });
+}
+
 function emit(event: PlatformHealthEvent): void {
   for (const listener of listeners) {
     listener(event);
@@ -75,6 +94,7 @@ export function recordPlatformFailure(platform: Platform, _errorClass: PlatformF
   pruneWindow(state, now);
   state.outcomes.push({ ts: now, failed: true });
   evaluate(platform, now);
+  evaluateRecovery(platform, now);
 }
 
 export function recordPlatformSuccess(platform: Platform): void {
@@ -83,6 +103,7 @@ export function recordPlatformSuccess(platform: Platform): void {
   pruneWindow(state, now);
   state.outcomes.push({ ts: now, failed: false });
   evaluate(platform, now);
+  evaluateRecovery(platform, now);
 }
 
 export function getPlatformHealth(platform: Platform): PlatformHealth {

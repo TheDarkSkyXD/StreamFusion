@@ -1272,3 +1272,8 @@ export async function getFollowedStreams(
   // return is the intended contract, not a failure.
   return { data: [] };
 }
+
+export function clearKickStreamFailureCache(): void {
+  _publicStreamFailureCache.clear();
+  _publicStreamWarnedSlugs.clear();
+}
