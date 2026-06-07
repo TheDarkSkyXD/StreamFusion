@@ -2,7 +2,12 @@ import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
+import {
+  recordPlatformFailure,
+  recordPlatformSuccess,
+} from "../../unified/platform-health";
 
+import type { PlatformFailureClass } from "../../unified/platform-health";
 import type { TwitchClientError } from "./twitch-types";
 
 export class TwitchRequestor {
@@ -191,6 +196,7 @@ export class TwitchRequestor {
           throw new Error(errorData?.message || `Twitch API error: ${response.status}`);
         }
 
+        recordPlatformSuccess("twitch");
         return response.data;
       } catch (error) {
         lastError = error as Error;
@@ -198,6 +204,9 @@ export class TwitchRequestor {
 
         // Don't retry non-retryable errors or if we've exhausted retries
         if (!isRetryable || attempt === this.MAX_RETRIES) {
+          const failureClass = this.classifyErrorForHealth(error);
+          if (failureClass) recordPlatformFailure("twitch", failureClass);
+
           logger.error("Twitch:Requestor", "Twitch API request failed", {
             endpoint,
             error:
@@ -222,6 +231,44 @@ export class TwitchRequestor {
 
     // Should never reach here, but just in case
     throw lastError || new Error("Request failed after retries");
+  }
+
+  private classifyErrorForHealth(error: unknown): PlatformFailureClass | null {
+    // 429 (rate limit) and 401 (auth) are not platform failures
+    if (typeof error === "object" && error !== null && "status" in error) {
+      const status = (error as { status: number }).status;
+      if (status === 429 || status === 401) return null;
+    }
+    if (error instanceof Error && error.message === "Authentication failed") return null;
+
+    if (error instanceof Error) {
+      const msg = error.message.toLowerCase();
+
+      if (msg.includes("timeout")) return "timeout";
+
+      // 502/503/504 thrown as "Twitch API error: 5xx"
+      if (/twitch api error: 50[234]/.test(msg)) return "server-5xx";
+
+      const errorWithCause = error as Error & { cause?: { code?: string }; code?: string };
+      const code = errorWithCause.cause?.code || errorWithCause.code;
+      if (code && ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED", "ENETUNREACH", "EHOSTUNREACH", "EPIPE", "EAI_AGAIN"].includes(code)) {
+        return code === "ETIMEDOUT" ? "timeout" : "net-error";
+      }
+
+      if (
+        msg.includes("fetch failed") ||
+        msg.includes("network") ||
+        msg.includes("socket") ||
+        msg.includes("econnreset") ||
+        msg.includes("ssl") ||
+        msg.includes("tls") ||
+        msg.includes("handshake")
+      ) {
+        return "net-error";
+      }
+    }
+
+    return null;
   }
 
   /**

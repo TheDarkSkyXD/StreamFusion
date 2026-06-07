@@ -35,6 +35,14 @@ vi.mock("electron", () => ({
   net: { fetch: vi.fn() },
 }));
 
+const mockRecordPlatformSuccess = vi.fn();
+const mockRecordPlatformFailure = vi.fn();
+
+vi.mock("@/backend/api/unified/platform-health", () => ({
+  recordPlatformSuccess: (...args: unknown[]) => mockRecordPlatformSuccess(...args),
+  recordPlatformFailure: (...args: unknown[]) => mockRecordPlatformFailure(...args),
+}));
+
 import { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
 
 function spyNetRequest(
@@ -237,6 +245,151 @@ describe("TwitchRequestor", () => {
       }));
 
       await expect(requestor.request("/streams")).rejects.toThrow("Twitch API error: 418");
+    });
+  });
+
+  describe("platform-health instrumentation", () => {
+    it("calls recordPlatformSuccess('twitch') on a successful request", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: { ok: true },
+        status: 200,
+        headers: {},
+      }));
+
+      await requestor.request("/streams");
+
+      expect(mockRecordPlatformSuccess).toHaveBeenCalledWith("twitch");
+    });
+
+    it("calls recordPlatformFailure('twitch', 'server-5xx') after retries exhausted on 502", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 502,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "server-5xx");
+    });
+
+    it("calls recordPlatformFailure('twitch', 'server-5xx') after retries exhausted on 503", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 503,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "server-5xx");
+    });
+
+    it("calls recordPlatformFailure('twitch', 'server-5xx') after retries exhausted on 504", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 504,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "server-5xx");
+    });
+
+    it("does NOT call recordPlatformFailure on 429 (rate limit)", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 429,
+        headers: { "retry-after": "30" },
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).not.toHaveBeenCalled();
+    });
+
+    it("does NOT call recordPlatformFailure on 401 (auth)", async () => {
+      mockRefreshToken.mockResolvedValueOnce(false);
+      spyNetRequest(requestor, async () => ({
+        data: {},
+        status: 401,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).not.toHaveBeenCalled();
+    });
+
+    it("calls recordPlatformFailure('twitch', 'net-error') on network error after retries exhausted", async () => {
+      spyNetRequest(requestor, async () => {
+        const err = new Error("fetch failed");
+        throw err;
+      });
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "net-error");
+    });
+
+    it("calls recordPlatformFailure('twitch', 'timeout') on timeout error after retries exhausted", async () => {
+      spyNetRequest(requestor, async () => {
+        const err = new Error("timeout");
+        throw err;
+      });
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "timeout");
+    });
+
+    it("calls recordPlatformFailure('twitch', 'net-error') on ECONNRESET after retries exhausted", async () => {
+      spyNetRequest(requestor, async () => {
+        const err = new Error("connection reset");
+        (err as any).cause = { code: "ECONNRESET" };
+        throw err;
+      });
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "net-error");
+    });
+
+    it("calls recordPlatformFailure('twitch', 'net-error') on ssl error after retries exhausted", async () => {
+      spyNetRequest(requestor, async () => {
+        throw new Error("ssl handshake failed");
+      });
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "net-error");
+    });
+
+    it("does NOT call recordPlatformFailure on non-retryable 4xx errors (e.g. 400)", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: { message: "Bad Request" },
+        status: 400,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow();
+
+      expect(mockRecordPlatformFailure).not.toHaveBeenCalled();
+    });
+
+    it("records success, not failure, when retries eventually succeed", async () => {
+      let callCount = 0;
+      spyNetRequest(requestor, async () => {
+        callCount++;
+        if (callCount <= 2) return { data: {}, status: 503, headers: {} };
+        return { data: { ok: true }, status: 200, headers: {} };
+      });
+
+      await requestor.request("/streams");
+
+      expect(mockRecordPlatformSuccess).toHaveBeenCalledWith("twitch");
+      expect(mockRecordPlatformFailure).not.toHaveBeenCalled();
     });
   });
 

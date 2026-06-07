@@ -1,4 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockRecordPlatformSuccess = vi.fn();
+const mockRecordPlatformFailure = vi.fn();
+
+vi.mock("@/backend/api/unified/platform-health", () => ({
+  recordPlatformSuccess: (...args: unknown[]) => mockRecordPlatformSuccess(...args),
+  recordPlatformFailure: (...args: unknown[]) => mockRecordPlatformFailure(...args),
+}));
+
 import {
   gqlGetGameMetadata,
   gqlGetTopStreams,
@@ -2552,5 +2561,130 @@ describe("gqlRequest — batching limit", () => {
     expect(body1).toHaveLength(35);
     const body2 = JSON.parse(nthFetchBody(fetchMock, 1));
     expect(body2).toHaveLength(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Platform-health instrumentation (slice 06)
+// ---------------------------------------------------------------------------
+
+describe("gqlRequest — platform-health instrumentation", () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockRecordPlatformSuccess.mockClear();
+    mockRecordPlatformFailure.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("calls recordPlatformSuccess('twitch') on a successful gqlRequest", async () => {
+    stubFetch(fetchMock, makeUseLiveResponse(true));
+
+    await gqlIsChannelLive("ninja");
+
+    expect(mockRecordPlatformSuccess).toHaveBeenCalledWith("twitch");
+  });
+
+  it("calls recordPlatformFailure('twitch', 'server-5xx') on HTTP 500", async () => {
+    stubFetchError(fetchMock, 500, "Internal Server Error");
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow();
+
+    expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "server-5xx");
+  });
+
+  it("calls recordPlatformFailure('twitch', 'timeout') on AbortSignal timeout", async () => {
+    const err = new DOMException("The operation was aborted.", "TimeoutError");
+    stubFetchReject(fetchMock, err);
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow();
+
+    expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "timeout");
+  });
+
+  it("calls recordPlatformFailure('twitch', 'net-error') on network error", async () => {
+    stubFetchReject(fetchMock, new TypeError("Failed to fetch"));
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow();
+
+    expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "net-error");
+  });
+
+  it("does NOT call recordPlatformFailure on HTTP 403 (not a platform outage)", async () => {
+    stubFetchError(fetchMock, 403, "Forbidden");
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow();
+
+    expect(mockRecordPlatformFailure).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call recordPlatformFailure on HTTP 404 (not a platform outage)", async () => {
+    stubFetchError(fetchMock, 404, "Not Found");
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow();
+
+    expect(mockRecordPlatformFailure).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendPersistedQuery — platform-health instrumentation", () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockRecordPlatformSuccess.mockClear();
+    mockRecordPlatformFailure.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("calls recordPlatformSuccess('twitch') on a successful persisted query", async () => {
+    // gqlGetPlaybackAccessToken uses sendPersistedQuery indirectly via gqlRequest
+    // Actually, gqlGetPlaybackAccessToken uses gqlRequest, not sendPersistedQuery.
+    // Use the DirectoryPage_Game persisted query path via gqlGetTopStreams with gameId.
+    // First call: resolveGameSlugById
+    stubFetch(fetchMock, { data: { game: { slug: "test-slug" } } });
+    // Second call: sendPersistedQuery
+    stubFetchRaw(fetchMock, {
+      data: {
+        game: {
+          streams: {
+            edges: [],
+            pageInfo: { hasNextPage: false },
+          },
+        },
+      },
+    });
+
+    await gqlGetTopStreams({ gameId: "persisted-health-test" });
+
+    expect(mockRecordPlatformSuccess).toHaveBeenCalledWith("twitch");
+  });
+
+  it("calls recordPlatformFailure('twitch', 'server-5xx') on HTTP 502 from persisted query", async () => {
+    // gqlGetPlaybackAccessToken goes through gqlRequest, not sendPersistedQuery
+    // Use it directly since it calls gqlRequest → fetch fails with 502
+    stubFetchError(fetchMock, 502, "Bad Gateway");
+
+    await expect(gqlGetPlaybackAccessToken("ch")).rejects.toThrow();
+
+    expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "server-5xx");
+  });
+
+  it("calls recordPlatformFailure('twitch', 'timeout') on timeout from persisted query", async () => {
+    const err = new DOMException("The operation was aborted.", "TimeoutError");
+    stubFetchReject(fetchMock, err);
+
+    await expect(gqlGetPlaybackAccessToken("ch")).rejects.toThrow();
+
+    expect(mockRecordPlatformFailure).toHaveBeenCalledWith("twitch", "timeout");
   });
 });

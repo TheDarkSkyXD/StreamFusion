@@ -155,6 +155,8 @@ setMainLogSink((level, tag, message, meta) => {
 // process lifetime (no uninstall on quit).
 installNativeStderrIntercept();
 
+import("./backend/logging/platform-health-telemetry");
+
 logger.info("Main", "Logging initialized", {
   logFile: getCurrentLogPath(),
   bugReportsDir,

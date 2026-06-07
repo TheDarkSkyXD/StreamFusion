@@ -45,6 +45,12 @@ import {
   type VideoMetadataData,
 } from "twitch-gql-queries";
 import { logger } from "@/backend/logging/logger";
+import {
+  recordPlatformFailure,
+  recordPlatformSuccess,
+} from "../../unified/platform-health";
+
+import type { PlatformFailureClass } from "../../unified/platform-health";
 
 import type {
   UnifiedCategory,
@@ -54,6 +60,28 @@ import type {
   UnifiedVideo,
 } from "../../unified/platform-types";
 import type { GqlError, PaginatedResult, PaginationOptions } from "./twitch-types";
+
+function classifyGqlErrorForHealth(error: unknown, httpStatus?: number): PlatformFailureClass | null {
+  if (httpStatus !== undefined) {
+    if (httpStatus === 401 || httpStatus === 403 || httpStatus === 404 || httpStatus === 429) return null;
+    if (httpStatus >= 500) return "server-5xx";
+  }
+
+  if (error instanceof DOMException && error.name === "TimeoutError") return "timeout";
+
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("timeout")) return "timeout";
+    if (/gql request failed: 5\d{2}/.test(msg)) return "server-5xx";
+    if (/gql request failed: (401|403|404|429)/.test(msg)) return null;
+  }
+
+  if (error instanceof TypeError || (error instanceof Error && error.message.toLowerCase().includes("fetch"))) {
+    return "net-error";
+  }
+
+  return null;
+}
 
 const GQL_ENDPOINT = "https://gql.twitch.tv/gql";
 // Anonymous public-data Client-Id. Twitch's web Client-Id (kimne78…) pairs
@@ -84,21 +112,32 @@ async function gqlRequest<T extends readonly any[]>(queries: [...T]): Promise<an
     throw new Error(`Too many queries. Max: ${MAX_QUERIES_PER_REQUEST}`);
   }
 
-  const res = await fetch(GQL_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Client-Id": GQL_CLIENT_ID,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(queries),
-    signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(GQL_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Client-Id": GQL_CLIENT_ID,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(queries),
+      signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const failureClass = classifyGqlErrorForHealth(error);
+    if (failureClass) recordPlatformFailure("twitch", failureClass);
+    throw error;
+  }
 
   if (!res.ok) {
+    const failureClass = classifyGqlErrorForHealth(null, res.status);
+    if (failureClass) recordPlatformFailure("twitch", failureClass);
     throw new Error(`GQL request failed: ${res.status} ${res.statusText}`);
   }
 
-  return res.json();
+  const result = await res.json();
+  recordPlatformSuccess("twitch");
+  return result;
 }
 
 /**
@@ -116,16 +155,30 @@ async function sendPersistedQuery<T>(
     variables,
     extensions: { persistedQuery: { version: 1, sha256Hash } },
   };
-  const res = await fetch(GQL_ENDPOINT, {
-    method: "POST",
-    headers: { "Client-Id": GQL_CLIENT_ID, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT_MS),
-  });
+
+  let res: Response;
+  try {
+    res = await fetch(GQL_ENDPOINT, {
+      method: "POST",
+      headers: { "Client-Id": GQL_CLIENT_ID, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const failureClass = classifyGqlErrorForHealth(error);
+    if (failureClass) recordPlatformFailure("twitch", failureClass);
+    throw error;
+  }
+
   if (!res.ok) {
+    const failureClass = classifyGqlErrorForHealth(null, res.status);
+    if (failureClass) recordPlatformFailure("twitch", failureClass);
     throw new Error(`GQL request failed: ${res.status} ${res.statusText}`);
   }
-  return res.json();
+
+  const result = await res.json();
+  recordPlatformSuccess("twitch");
+  return result;
 }
 
 /**

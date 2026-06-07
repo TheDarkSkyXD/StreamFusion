@@ -37,6 +37,8 @@ export interface PlatformHealthEvent {
   platform: Platform;
   status: PlatformHealth;
   startedAt: number;
+  sampleSize: number;
+  failureRate: number;
 }
 
 type Outcome = { ts: number; failed: boolean };
@@ -78,7 +80,7 @@ function evaluate(platform: Platform, now: number): void {
   state.status = "degraded";
   state.startedAt = now;
   logger.warn("PlatformHealth", `${platform} degraded: ${failures}/${state.outcomes.length} requests failed in last 60s. Backing off.`);
-  emit({ platform, status: "degraded", startedAt: now });
+  emit({ platform, status: "degraded", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
 }
 
 function evaluateRecovery(platform: Platform, now: number): void {
@@ -95,7 +97,7 @@ function evaluateRecovery(platform: Platform, now: number): void {
   state.status = "healthy";
   state.startedAt = now;
   logger.warn("PlatformHealth", `${platform} recovered after ${degradedDurationSec}s`);
-  emit({ platform, status: "healthy", startedAt: now });
+  emit({ platform, status: "healthy", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
 }
 
 function emit(event: PlatformHealthEvent): void {
@@ -144,8 +146,10 @@ export function recordPlatformLocalNetError(platform: Platform): void {
     const wasDown = state.downUntil > 0 && now < state.downUntil;
     state.downUntil = now + DOWN_DURATION_MS;
     if (!wasDown) {
+      const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
+      const rate = state.outcomes.length > 0 ? failures / state.outcomes.length : 1;
       logger.warn("PlatformHealth", `${platform} down: local network crash detected`);
-      emit({ platform, status: "down", startedAt: now });
+      emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
     }
   }
 }
@@ -160,8 +164,10 @@ export function recordPlatformCrash(platform: Platform): void {
   const wasDown = state.downUntil > 0 && now < state.downUntil;
   state.downUntil = now + DOWN_DURATION_MS;
   if (!wasDown) {
+    const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
+    const rate = state.outcomes.length > 0 ? failures / state.outcomes.length : 1;
     logger.warn("PlatformHealth", `${platform} down: local network crash detected`);
-    emit({ platform, status: "down", startedAt: now });
+    emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate });
   }
 }
 

@@ -150,7 +150,7 @@ describe("platform-health (slice 01: transition listener)", () => {
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
 
     expect(events).toHaveLength(1);
-    expect(events[0]).toEqual({
+    expect(events[0]).toMatchObject({
       platform: "kick",
       status: "degraded",
       startedAt: Date.now(),
@@ -305,7 +305,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
     }
 
     expect(events).toHaveLength(2);
-    expect(events[1]).toEqual({
+    expect(events[1]).toMatchObject({
       platform: "kick",
       status: "healthy",
       startedAt: Date.now(),
@@ -589,7 +589,7 @@ describe("platform-health (slice 05: down state)", () => {
     recordPlatformLocalNetError("kick");
 
     expect(events).toHaveLength(1);
-    expect(events[0]).toEqual({
+    expect(events[0]).toMatchObject({
       platform: "kick",
       status: "down",
       startedAt: Date.now(),
@@ -659,5 +659,139 @@ describe("platform-health (slice 05: down state)", () => {
     // At t=5001ms, 3001ms after last error at t=2000, should clear.
     vi.advanceTimersByTime(2);
     expect(getPlatformHealth("kick")).toBe("healthy");
+  });
+});
+
+describe("platform-health (slice 10: emitted events include sampleSize and failureRate)", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    __resetPlatformHealthForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("includes sampleSize and failureRate on healthy->degraded event", async () => {
+    const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: Array<{
+      platform: string;
+      status: string;
+      startedAt: number;
+      sampleSize: number;
+      failureRate: number;
+    }> = [];
+    onPlatformHealthChanged((e) => events.push(e as any));
+
+    for (let i = 0; i < 6; i++) recordPlatformFailure("kick", "timeout");
+    for (let i = 0; i < 4; i++) recordPlatformSuccess("kick");
+
+    expect(events).toHaveLength(1);
+    expect(events[0].sampleSize).toBe(8);
+    expect(events[0].failureRate).toBe(0.75);
+  });
+
+  it("includes sampleSize and failureRate on degraded->healthy recovery event", async () => {
+    const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: Array<{
+      platform: string;
+      status: string;
+      sampleSize: number;
+      failureRate: number;
+    }> = [];
+    onPlatformHealthChanged((e) => events.push(e as any));
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(events).toHaveLength(1);
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(events).toHaveLength(2);
+    expect(events[1].sampleSize).toBeGreaterThan(0);
+    expect(events[1].failureRate).toBeLessThan(0.4);
+  });
+});
+
+describe("platform-health (slice 06: Twitch instrumentation isolation)", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
+    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    __resetPlatformHealthForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("Twitch degraded state does not affect Kick state", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("twitch", "server-5xx");
+    expect(getPlatformHealth("twitch")).toBe("degraded");
+
+    for (let i = 0; i < 10; i++) recordPlatformSuccess("kick");
+    expect(getPlatformHealth("kick")).toBe("healthy");
+
+    expect(getPlatformHealth("twitch")).toBe("degraded");
+  });
+
+  it("Kick degraded state does not affect Twitch state", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    for (let i = 0; i < 10; i++) recordPlatformSuccess("twitch");
+    expect(getPlatformHealth("twitch")).toBe("healthy");
+
+    expect(getPlatformHealth("kick")).toBe("degraded");
+  });
+
+  it("both platforms can be degraded independently", async () => {
+    const { getPlatformHealth, recordPlatformFailure } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("twitch", "server-5xx");
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "net-error");
+
+    expect(getPlatformHealth("twitch")).toBe("degraded");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+  });
+
+  it("one platform can recover while the other stays degraded", async () => {
+    const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("twitch", "server-5xx");
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    expect(getPlatformHealth("twitch")).toBe("degraded");
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("twitch");
+    }
+    expect(getPlatformHealth("twitch")).toBe("healthy");
+    expect(getPlatformHealth("kick")).toBe("degraded");
   });
 });
