@@ -84,17 +84,19 @@ export async function getVideosByChannelSlug(
 
     if (Array.isArray(data)) {
       videos = data;
-      // For V2 endpoint returning standard array, use offset-based pagination
-      // Only return cursor if we got a full page (might be more data)
-      // If we got fewer than requested, we've reached the end
+      // V2 endpoint returns a raw array — advance offset whenever we got any
+      // videos. Kick caps responses below the requested `limit` (cf. clip
+      // endpoint), so a "full page" check would prematurely end pagination.
+      // The next call returning an empty array is our real end-of-stream
+      // signal; the UI de-dupes and detects stuck cursors.
       nextCursor =
-        videos.length >= limit
+        videos.length > 0
           ? (parseInt(cursor.toString(), 10) + videos.length).toString()
           : undefined;
     } else {
       videos = data.videos || [];
-      // For wrapped response, only use nextCursor if we got a full page
-      nextCursor = videos.length >= limit && data.nextCursor ? data.nextCursor : undefined;
+      // Wrapped response — trust Kick's own nextCursor as the source of truth.
+      nextCursor = data.nextCursor ?? undefined;
     }
 
     return {

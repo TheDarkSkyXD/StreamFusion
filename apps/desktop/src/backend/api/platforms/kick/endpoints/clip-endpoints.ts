@@ -42,11 +42,13 @@ export async function getClipsByChannelSlug(
     }
     const data = await response.json();
 
-    // Response usually: { clips: [...], nextCursor: ... }
+    // Response shape: { clips: [...], nextCursor: ... }.
+    // Trust Kick's nextCursor as the source of truth: Kick caps responses at
+    // ~20 clips regardless of the requested `limit`, so `clips.length >= limit`
+    // is an unreliable "end of stream" signal. If Kick returned a cursor,
+    // there's more upstream.
     const clips = data.clips || [];
-    // Only return cursor if we got a full page (might be more data)
-    // If we got fewer than requested, we've reached the end
-    const nextCursor = clips.length >= limit && data.nextCursor ? data.nextCursor : undefined;
+    const nextCursor = data.nextCursor ?? undefined;
 
     return {
       data: clips.map((c: KickLegacyApiClip) => ({
