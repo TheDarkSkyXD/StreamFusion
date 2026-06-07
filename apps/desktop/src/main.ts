@@ -26,7 +26,7 @@ import { authWindowManager, protocolHandler, twitchAuthService } from "./backend
 import { registerIpcHandlers } from "./backend/ipc-handlers";
 import { installConsoleIntercept } from "./backend/logging/console-intercept";
 import { installCrashHooks } from "./backend/logging/crash-hooks";
-import { computeLogPaths, setBugReportsDir } from "./backend/logging/log-paths";
+import { computeLogPaths, setBugReportsDir, setTelemetryDir } from "./backend/logging/log-paths";
 import { getCurrentLogPath, initLogger, logger, shutdownLogger } from "./backend/logging/logger";
 import { installNativeStderrIntercept } from "./backend/logging/native-stderr-intercept";
 import {
@@ -126,7 +126,7 @@ if (!isProduction) {
 // is apps/desktop/, and the repo root is two levels up. We pass it
 // unconditionally; computeLogPaths only consumes it in dev.
 const sessionStamp = new Date().toISOString();
-const { logsDir, bugReportsDir } = computeLogPaths({
+const { logsDir, bugReportsDir, telemetryDir } = computeLogPaths({
   isPackaged: app.isPackaged,
   platform: process.platform,
   exePath: app.getPath("exe"),
@@ -134,6 +134,7 @@ const { logsDir, bugReportsDir } = computeLogPaths({
   projectRoot: path.resolve(process.cwd(), "..", ".."),
 });
 setBugReportsDir(bugReportsDir);
+setTelemetryDir(telemetryDir);
 
 initLogger({ logsDir, sessionStamp });
 initNoiseLogger({ logsDir, sessionStamp });

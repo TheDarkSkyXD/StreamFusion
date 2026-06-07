@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app } from "electron";
 import { onPlatformHealthChanged } from "../api/unified/platform-health";
 import type { PlatformHealth } from "../api/unified/platform-health";
 import type { Platform } from "../../shared/auth-types";
+import { getTelemetryDir } from "./log-paths";
 import { logger } from "./logger";
 
 const previousStates = new Map<Platform, PlatformHealth>([
@@ -11,7 +11,8 @@ const previousStates = new Map<Platform, PlatformHealth>([
   ["twitch", "healthy"],
 ]);
 
-const logPath = path.join(app.getPath("logs"), "platform-health.jsonl");
+const telemetryDir = getTelemetryDir();
+const logPath = path.join(telemetryDir, "platform-health.jsonl");
 
 onPlatformHealthChanged((event) => {
   const fromState = previousStates.get(event.platform) ?? "healthy";
@@ -28,6 +29,7 @@ onPlatformHealthChanged((event) => {
   });
 
   try {
+    fs.mkdirSync(telemetryDir, { recursive: true });
     fs.appendFileSync(logPath, line + "\n", "utf8");
   } catch (err) {
     logger.warn("PlatformHealthTelemetry", "Failed to write telemetry line", {

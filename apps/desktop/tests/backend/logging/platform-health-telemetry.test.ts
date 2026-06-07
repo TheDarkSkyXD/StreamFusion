@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/backend/logging/logger";
 import type { PlatformHealthEvent } from "@/backend/api/unified/platform-health";
 
-vi.mock("electron", () => ({
-  app: { getPath: vi.fn(() => "/tmp/test-logs") },
+const TEST_TELEMETRY_DIR = "/tmp/test-telemetry";
+
+vi.mock("@/backend/logging/log-paths", () => ({
+  getTelemetryDir: vi.fn(() => TEST_TELEMETRY_DIR),
 }));
 
 describe("platform-health-telemetry", () => {
   let appendFileSyncSpy: ReturnType<typeof vi.spyOn>;
-  let existsSyncSpy: ReturnType<typeof vi.spyOn>;
   let mkdirSyncSpy: ReturnType<typeof vi.spyOn>;
   let subscribedListener: ((event: PlatformHealthEvent) => void) | null = null;
 
@@ -19,7 +20,6 @@ describe("platform-health-telemetry", () => {
     vi.setSystemTime(new Date("2026-06-07T12:34:56.789Z"));
 
     appendFileSyncSpy = vi.spyOn(fs, "appendFileSync").mockImplementation(() => {});
-    existsSyncSpy = vi.spyOn(fs, "existsSync").mockReturnValue(true);
     mkdirSyncSpy = vi.spyOn(fs, "mkdirSync").mockImplementation(() => "" as any);
 
     subscribedListener = null;
@@ -119,6 +119,7 @@ describe("platform-health-telemetry", () => {
     await loadModule();
 
     expect(appendFileSyncSpy).not.toHaveBeenCalled();
+    expect(mkdirSyncSpy).not.toHaveBeenCalled();
   });
 
   it("writes valid JSON with all documented fields on each line", async () => {
@@ -145,7 +146,7 @@ describe("platform-health-telemetry", () => {
     expect(parsed).toHaveProperty("source");
   });
 
-  it("writes to the correct log file path", async () => {
+  it("writes to the telemetry directory from log-paths", async () => {
     await loadModule();
 
     subscribedListener!({
@@ -157,7 +158,21 @@ describe("platform-health-telemetry", () => {
     });
 
     const filePath = appendFileSyncSpy.mock.calls[0][0] as string;
-    expect(filePath).toBe(path.join("/tmp/test-logs", "platform-health.jsonl"));
+    expect(filePath).toBe(path.join(TEST_TELEMETRY_DIR, "platform-health.jsonl"));
+  });
+
+  it("creates the telemetry directory on first write", async () => {
+    await loadModule();
+
+    subscribedListener!({
+      platform: "kick",
+      status: "degraded",
+      startedAt: Date.now(),
+      sampleSize: 10,
+      failureRate: 0.65,
+    });
+
+    expect(mkdirSyncSpy).toHaveBeenCalledWith(TEST_TELEMETRY_DIR, { recursive: true });
   });
 
   it("tracks platforms independently", async () => {

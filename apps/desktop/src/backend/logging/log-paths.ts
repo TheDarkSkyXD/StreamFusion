@@ -23,6 +23,8 @@ export interface LogPaths {
   logsDir: string;
   /** Sibling of logsDir — bug-report markdown files are written here. */
   bugReportsDir: string;
+  /** Platform-health telemetry JSONL files. */
+  telemetryDir: string;
 }
 
 export interface ComputeLogPathsOpts {
@@ -47,6 +49,7 @@ export function computeLogPaths(opts: ComputeLogPathsOpts): LogPaths {
     return {
       logsDir: path.join(opts.projectRoot, "logs"),
       bugReportsDir: path.join(opts.projectRoot, "bug-reports"),
+      telemetryDir: path.join(opts.projectRoot, "telemetry"),
     };
   }
 
@@ -55,15 +58,18 @@ export function computeLogPaths(opts: ComputeLogPathsOpts): LogPaths {
     return {
       logsDir: path.join(installDir, "logs"),
       bugReportsDir: path.join(installDir, "bug-reports"),
+      telemetryDir: path.join(installDir, "stream health telemetry"),
     };
   }
 
   // mac / linux prod: install location is read-only — sibling under the
   // fallback path keeps the dev/win invariant that bug-reports is a sibling
   // of logs.
+  const fallbackParent = path.dirname(opts.fallbackLogsPath);
   return {
     logsDir: opts.fallbackLogsPath,
-    bugReportsDir: path.join(path.dirname(opts.fallbackLogsPath), "bug-reports"),
+    bugReportsDir: path.join(fallbackParent, "bug-reports"),
+    telemetryDir: path.join(fallbackParent, "stream health telemetry"),
   };
 }
 
@@ -83,4 +89,17 @@ export function getBugReportsDir(): string {
     throw new Error("bugReportsDir is not initialized — call setBugReportsDir() first.");
   }
   return bugReportsDirState;
+}
+
+let telemetryDirState: string | null = null;
+
+export function setTelemetryDir(dir: string): void {
+  telemetryDirState = dir;
+}
+
+export function getTelemetryDir(): string {
+  if (telemetryDirState === null) {
+    throw new Error("telemetryDir is not initialized — call setTelemetryDir() first.");
+  }
+  return telemetryDirState;
 }
