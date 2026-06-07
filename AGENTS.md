@@ -1,285 +1,123 @@
-# PROJECT KNOWLEDGE BASE
+# StreamFusion
 
-**Generated:** 2026-01-10
-**Commit:** ef88e2a
-**Branch:** test
+Electron desktop app for watching Kick and Twitch streams. Monorepo with a single app at `apps/desktop/`.
 
-## OVERVIEW
+## Intent Layer
 
-StreamFusion is an Electron desktop app for viewing Twitch and Kick streams. Built with React 19, Vite 7, TypeScript 5.6, Zustand 5, TanStack Query/Router, Tailwind 4, and HLS.js.
-
-## STRUCTURE
+**Before modifying code in a subdirectory, read its AGENTS.md first.**
 
 ```
-StreamFusion/
-├── src/
-│   ├── main.ts              # Electron main process entry
-│   ├── preload/             # IPC bridge (contextBridge)
-│   ├── renderer.tsx         # React bootstrap
-│   ├── App.tsx              # Provider stack
-│   ├── routes/              # TanStack Router config
-│   ├── backend/             # Main process logic (see backend/AGENTS.md)
-│   │   ├── api/             # Platform clients (see api/platforms/AGENTS.md)
-│   │   ├── ipc/handlers/    # Modular IPC handlers
-│   │   ├── auth/            # OAuth flows, token management
-│   │   └── services/        # Database, storage
-│   ├── components/
-│   │   ├── player/          # Video playback (see player/AGENTS.md)
-│   │   ├── ui/              # Radix-based primitives
-│   │   ├── stream/          # Stream cards, grids
-│   │   ├── auth/            # Login, profile
-│   │   └── layout/          # Sidebar, TitleBar
-│   ├── store/               # Zustand stores (see store/AGENTS.md)
-│   ├── hooks/               # React hooks, TanStack Query
-│   ├── pages/               # Route components
-│   └── shared/              # Cross-process types, IPC channels
-├── documentation/           # Feature specs, roadmap (has own AGENTS.md)
-├── docs/solutions/          # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
-├── forge.config.ts          # Electron Forge packaging
-├── vite.*.config.ts         # Vite configs (main/preload/renderer)
-└── tailwind.config.js       # Brand colors, theme tokens
+apps/desktop/src/
+├── main.ts              # Electron main process entry
+├── App.tsx              # React renderer entry
+├── backend/             # Main process: IPC, auth, API clients, services
+├── components/          # React UI (chat, player, stream, mod, etc.)
+├── pages/               # Page-level route components
+├── hooks/               # Shared React hooks
+├── store/               # Zustand global state
+├── shared/              # Types/contracts shared between main & renderer
+├── preload/             # Electron context bridge (window.electronAPI)
+└── lib/                 # Utilities
 ```
 
-## WHERE TO LOOK
+### Child Nodes
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Add IPC channel | `src/shared/ipc-channels.ts` | Define channel, add handler in `backend/ipc/handlers/` |
-| Add new page | `src/pages/` + `src/routes/router.tsx` | PascalCase dir, register route |
-| Platform API | `src/backend/api/platforms/{kick,twitch}/` | Mirror structure between platforms |
-| UI component | `src/components/ui/` | Radix + CVA pattern |
-| State management | `src/store/` | Zustand with persist middleware |
-| Video playback | `src/components/player/` | See player/AGENTS.md |
-| Auth flow | `src/backend/auth/` | OAuth, device code, tokens |
-| Database | `src/backend/services/database-service.ts` | SQLite via better-sqlite3 |
+| Area | Path | Scope |
+|------|------|-------|
+| **Source root index** | `apps/desktop/src/AGENTS.md` | Master index — architecture, all subsystems, global invariants |
+| Backend (main process) | `apps/desktop/src/backend/AGENTS.md` | IPC handlers, auth, services, window manager |
+| IPC handlers | `apps/desktop/src/backend/ipc/AGENTS.md` | Handler registration, channel routing, error format |
+| Auth / OAuth | `apps/desktop/src/backend/auth/AGENTS.md` | Kick + Twitch OAuth flows, token refresh, PKCE |
+| Platform API clients | `apps/desktop/src/backend/api/platforms/AGENTS.md` | Twitch Helix/GQL + Kick REST clients |
+| Chat services | `apps/desktop/src/backend/services/chat/AGENTS.md` | WebSocket/IRC connections, parsing, badges, predictions |
+| Emote services | `apps/desktop/src/backend/services/emotes/AGENTS.md` | 7TV/BTTV/FFZ/native emote fetch, cache, provider system |
+| Shared contracts | `apps/desktop/src/shared/AGENTS.md` | IPC channel constants, types shared across process boundary |
+| Preload bridge | `apps/desktop/src/preload/AGENTS.md` | contextBridge security boundary, electronAPI surface |
+| UI components index | `apps/desktop/src/components/AGENTS.md` | All React UI component areas |
+| Chat UI | `apps/desktop/src/components/chat/AGENTS.md` | Message rendering, emotes, input, mod panels |
+| Video player | `apps/desktop/src/components/player/AGENTS.md` | HLS.js player stack, controls, platform adapters |
+| Stream browsing UI | `apps/desktop/src/components/stream/AGENTS.md` | Stream cards, grids, featured, related content |
+| React hooks | `apps/desktop/src/hooks/AGENTS.md` | Auth, chat, queries, ad-blocking, mod, utilities |
+| Pages index | `apps/desktop/src/pages/AGENTS.md` | Route-level page components |
+| Mod dashboard | `apps/desktop/src/pages/Mod/AGENTS.md` | Standalone mod admin: bans, VIPs, mod log, engagement |
+| Zustand stores | `apps/desktop/src/store/AGENTS.md` | Global state, selectors, IPC sync |
+| Test suite | `apps/desktop/tests/AGENTS.md` | Quality bar, Guards convention, audit process |
+| Documentation | `apps/desktop/documentation/AGENTS.md` | Feature doc lifecycle, naming, roadmap |
 
-## CONVENTIONS
+### Global Invariants
 
-### Path Aliases (tsconfig)
-- `@/*` → `src/*`
-- `@backend/*` → `src/backend/*`
-- `@shared/*` → `src/shared/*`
+- Renderer ↔ main communication ONLY through `window.electronAPI` (context bridge). Never access `ipcRenderer` directly.
+- All IPC channel strings live in `shared/ipc-channels.ts` — never hardcode.
+- `better-sqlite3` is a native addon — any code importing it (directly or transitively via `database-service`, `storage-service`, `kick-send-window`) MUST stay in the main process. Importing in renderer crashes the bundle.
+- Client secrets never ship in the binary — token exchange goes through the Cloudflare Worker at `streamfusion.leveluptogetherbiz.workers.dev`.
+- Tokens never reach the renderer — `TokenStatusResult` deliberately has no token value fields.
+- `webSecurity: false` is intentional (cross-origin video playback). Security-sensitive IPC handlers MUST validate sender origin via `isAllowedSender(event)`.
+- Zustand stores are the UI state source of truth; they talk to backend exclusively through IPC.
+- React Query handles all platform data (streams, channels, categories). Auth state uses Zustand only.
+- Shutdown: main broadcasts `APP_BEFORE_QUIT`, hard-kills after 3s. Renderer must tear down WebSockets and stop timers on this signal.
+- V8 heap capped at 350MB on both main and renderer processes.
 
-### File Naming
-- Components: PascalCase (`StreamCard.tsx`)
-- Hooks: camelCase with `use` prefix (`useAuth.ts`)
-- Stores: kebab-case with `-store` suffix (`auth-store.ts`)
-- Handlers: kebab-case with `-handlers` suffix
+### Build & Dev
 
-### Import Order (ESLint enforced)
-1. Builtin (node:)
-2. External (react, electron)
-3. Internal (@/)
-4. Relative (./)
+- **Build tool**: `electron-vite` — 3 targets: main (Node/CJS), preload, renderer (ESNext)
+- **Dev**: `npm run dev` (hot reload)
+- **Quality**: `npm run check` (typecheck + Biome lint)
+- **Test**: `npm run test` (Vitest)
+- **Package**: `npm run dist:win/mac/linux`
 
-### Platform Colors (Tailwind)
-- `storm-accent`: `#dc143c` (brand red)
-- `twitch`: `#9146ff`
-- `kick`: `#53fc18`
-- `background`: `#0f0f0f` (dark theme)
+---
 
-## ANTI-PATTERNS (THIS PROJECT)
+# CRITICAL RULES - MUST FOLLOW
 
-- **NEVER** expose `ipcRenderer` directly - use preload bridge
-- **NEVER** log tokens or credentials
-- **NEVER** use `as any` or `@ts-ignore`
-- **DEPRECATED**: Generic storage channels (`store:get/set`) - use specific handlers
-- **DO NOT** call `recoverMediaError()` for non-media errors in HLS player
+## RESPONSES
 
-## UNIQUE STYLES
+- Keep responses concise and to the point - unless the user asks otherwise
 
-### IPC Pattern
-1. Define channel in `src/shared/ipc-channels.ts`
-2. Add typed payload in `IpcPayloads` interface
-3. Expose in `src/preload/index.ts`
-4. Register handler in `src/backend/ipc/handlers/*.ts`
+## PLANNING MODE
 
-### Clean Shutdown Sentinel
-App writes `.clean-shutdown` file on exit. On startup, if missing, clears cache to prevent corruption.
+- Always ask clarifying questions
+- Never assume design, tech stack or features
+- Use deep-dive sub-agents to assist with research
+- Use deep-dive sub-agents to review the different aspects of your plan before presenting to the user
+- Grill the user on design and requirements, do not make any assumptions.
 
-### Custom Protocol
-`streamfusion://` registered for OAuth callbacks.
+## CHANGE / EDIT MODE
 
-### Kick CDN Headers
-Request interceptor adds `Referer: https://kick.com/` for Kick image domains.
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-## COMMANDS
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-```bash
-# Development
-npm start              # electron-forge start (Vite HMR)
+- Never implement features yourself when possible - use sub-agents!
+- Identify changes from the plan that can be implemented in parallel, and use sub-agents to implement the features efficiently
+- When using sub-agents to implement features, act as a coordinator only
+- Use the best model for the task - premium models for complex tasks (like coding) and mid-tier models for simpler tasks, like documentation
+- After completing features (large or small), always run commands like lint, type check and next build to check code quality
+- ALWAYS Use the deslop skill before committing any code to github.
 
-# Quality
-npm run typecheck      # tsc --noEmit
-npm run lint           # eslint src/
-npm run lint:fix       # eslint --fix
-npm run format         # prettier
 
-# Build
-npm run package        # electron-forge package
-npm run make           # Create installers (Squirrel/DMG/DEB/RPM)
-```
+## DATABASE SCHEMA CHANGES
 
-## DEPENDENCY VULNERABILITY CHECKING (MANDATORY)
 
-**CRITICAL**: Before adding, updating, or recommending ANY dependency, you MUST check it against the OSV.dev vulnerability database.
+## TESTING
 
-### When to Check
+- Use any testing tools, libraries available to the project for testing your changes
+- Never assume your changes simply work, always test!
+- If the project does not have any testing tools, scripts, MCP tools, skills, etc. available for testing, ask the user whether testing should be skipped.
 
-| Trigger | Action |
-|---------|--------|
-| Adding new dependency | Check BEFORE adding to package.json |
-| Updating dependency version | Check target version for vulnerabilities |
-| Reviewing existing dependencies | Audit current versions periodically |
-| User asks to install/update package | Check and warn if vulnerable |
+## ISSUE COMPLETION
 
-### OSV.dev API Usage
+- After finishing work on any issue, ALWAYS run the `/tdd` skill to verify your changes with tests.
+- All tests MUST pass with zero errors before you mark an issue as completed.
+- Do NOT move to the next issue until the current issue's tests are green.
+- If tests fail, fix the failures before marking the issue done.
 
-**Endpoint**: `POST https://api.osv.dev/v1/query`
+## UI DESIGN
 
-**Check single package version:**
-```bash
-curl -X POST https://api.osv.dev/v1/query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "package": {
-      "name": "package-name",
-      "ecosystem": "npm"
-    },
-    "version": "1.2.3"
-  }'
-```
-
-**Check multiple packages (batch):**
-```bash
-curl -X POST https://api.osv.dev/v1/querybatch \
-  -H "Content-Type: application/json" \
-  -d '{
-    "queries": [
-      {"package": {"name": "lodash", "ecosystem": "npm"}, "version": "4.17.20"},
-      {"package": {"name": "axios", "ecosystem": "npm"}, "version": "0.21.0"}
-    ]
-  }'
-```
-
-**Response Interpretation:**
-- Empty `vulns` array = ✅ No known vulnerabilities
-- Non-empty `vulns` array = ⚠️ Vulnerabilities exist - find safe version
-
-### Finding Safe Versions
-
-When a vulnerability is found:
-
-1. **Query without version** to get ALL vulnerabilities for the package:
-```bash
-curl -X POST https://api.osv.dev/v1/query \
-  -d '{"package": {"name": "vulnerable-pkg", "ecosystem": "npm"}}'
-```
-
-2. **Check the `affected` ranges** in the response to find:
-   - `introduced`: Version where vulnerability was introduced
-   - `fixed`: Version where vulnerability was patched
-
-3. **Select the LATEST version that is NOT in any vulnerable range**
-
-4. **Verify the selected version** by querying it specifically
-
-### Version Selection Priority
-
-**ALWAYS prefer**: Latest stable version that has NO vulnerabilities
-
-```
-Priority Order:
-1. Latest version (check if vulnerable)
-2. If vulnerable → Find latest PATCHED version
-3. If no patch exists → Find latest version BEFORE vulnerability was introduced
-4. If all versions vulnerable → WARN user, suggest alternatives
-```
-
-### Example Workflow
-
-```markdown
-## User Request: "Add axios to the project"
-
-### Step 1: Check latest version
-npm view axios version  # e.g., 1.7.2
-
-### Step 2: Query OSV.dev
-curl -X POST https://api.osv.dev/v1/query \
-  -d '{"package": {"name": "axios", "ecosystem": "npm"}, "version": "1.7.2"}'
-
-### Step 3: Interpret result
-- If vulns: [] → Safe to install: npm install axios@1.7.2
-- If vulns: [...] → Find fixed version from affected.ranges[].events
-
-### Step 4: Report to user
-"axios@1.7.2 has no known vulnerabilities. Installing..."
-OR
-"axios@1.7.2 has CVE-XXXX-YYYY. Safe version: 1.7.3. Installing 1.7.3 instead."
-```
-
-### OSV-Scanner CLI (Alternative)
-
-For bulk scanning of existing dependencies:
-
-```bash
-# Install OSV-Scanner
-go install github.com/google/osv-scanner/cmd/osv-scanner@latest
-
-# Scan package.json / package-lock.json
-osv-scanner --lockfile=package-lock.json
-
-# Scan entire project
-osv-scanner -r .
-```
-
-### Integration with This Project
-
-**For StreamFusion dependencies**, always:
-1. Check the package on https://osv.dev/list?ecosystem=npm&q=PACKAGE_NAME
-2. Query the API for the specific version
-3. If vulnerable, find and use the latest safe version
-4. Document any security considerations in commit messages
-
-### Response Format Reference
-
-```json
-{
-  "vulns": [
-    {
-      "id": "GHSA-xxxx-yyyy-zzzz",
-      "summary": "Description of vulnerability",
-      "affected": [
-        {
-          "package": {"name": "pkg", "ecosystem": "npm"},
-          "ranges": [
-            {
-              "type": "ECOSYSTEM",
-              "events": [
-                {"introduced": "0"},
-                {"fixed": "1.2.4"}
-              ]
-            }
-          ]
-        }
-      ],
-      "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/..."}]
-    }
-  ]
-}
-```
-
-### Anti-Patterns (BLOCKING)
-
-- **NEVER** add a dependency without checking OSV.dev first
-- **NEVER** recommend an old version just because it's "stable" - check for vulns
-- **NEVER** ignore vulnerabilities - always find a safe version or warn user
-- **NEVER** use versions with CRITICAL/HIGH severity vulnerabilities without explicit user approval
-
-## NOTES
-
-- **No tests yet** - Testing infrastructure planned but not implemented
-- **Kick API limitations** - Uses legacy/public APIs as fallback; may break
-- **webSecurity disabled** - Required for cross-origin video playback
-- **Frame: false** - Custom titlebar, no native frame
-- LSP not available in this environment - rely on grep/ast-grep
+- Always follow the UI design system when creating or reviewing components or pages.
+- Design System: @DESIGN.md
+- If the project does NOT have a frontend ignore this.
+- if the project has a frontend then make a DESIGN.md file if there is no DESIGN.md file.
