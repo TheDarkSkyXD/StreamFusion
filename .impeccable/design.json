@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-07T16:25:00Z",
+  "title": "Design System: StreamFusion",
+  "extensions": {
+    "colorMeta": {
+      "storm-crimson": {
+        "role": "primary",
+        "displayName": "Storm Crimson",
+        "canonical": "oklch(53% 0.22 25)",
+        "tonalRamp": ["#2a0509", "#4d0b11", "#7a111b", "#a81825", "#dc143c", "#e84860", "#f17d88", "#f9b3b9"]
+      },
+      "twitch-purple": {
+        "role": "secondary",
+        "displayName": "Twitch Purple",
+        "canonical": "oklch(52% 0.27 295)",
+        "tonalRamp": ["#1a0e33", "#2d1a5e", "#472a8f", "#6138c2", "#9146ff", "#a76bff", "#bd90ff", "#d3b5ff"]
+      },
+      "kick-green": {
+        "role": "secondary",
+        "displayName": "Kick Green",
+        "canonical": "oklch(88% 0.30 140)",
+        "tonalRamp": ["#0a2e03", "#155a07", "#20860a", "#2cb20e", "#53fc18", "#72fd40", "#91fd68", "#b0fe90"]
+      },
+      "void-black": {
+        "role": "neutral",
+        "displayName": "Void Black",
+        "canonical": "oklch(12% 0 0)",
+        "tonalRamp": ["#050505", "#0a0a0a", "#0f0f0f", "#1a1a1a", "#252525", "#2d2d2d", "#3f3f46", "#52525b"]
+      },
+      "storm-white": {
+        "role": "neutral",
+        "displayName": "Storm White",
+        "canonical": "oklch(100% 0 0)",
+        "tonalRamp": ["#666666", "#808080", "#999999", "#a0a0a0", "#b2b2b2", "#cccccc", "#e5e5e5", "#ffffff"]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Danger Red",
+        "canonical": "oklch(59% 0.22 27)",
+        "tonalRamp": ["#2a0808", "#4d1010", "#7a1a1a", "#a82222", "#ef4444", "#f26b6b", "#f59292", "#f8b9b9"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page headings and section titles. Used sparingly." },
+      "title": { "displayName": "Title", "purpose": "Stream titles, card headings. The primary reading size." },
+      "body": { "displayName": "Body", "purpose": "Chat messages, descriptions, general content." },
+      "label": { "displayName": "Label", "purpose": "Badges, viewer counts, tags, metadata. Smallest readable size." }
+    },
+    "shadows": [
+      { "name": "popover", "value": "0 4px 16px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3)", "purpose": "Dropdowns, context menus, autocomplete panels." },
+      { "name": "dialog", "value": "0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)", "purpose": "Modal dialogs, confirmation panels." },
+      { "name": "toast", "value": "0 2px 8px rgba(0,0,0,0.3)", "purpose": "Lightweight notification float." }
+    ],
+    "motion": [
+      { "name": "fast-color", "value": "200ms ease-out", "purpose": "Color and opacity transitions on buttons, links, hover states." },
+      { "name": "medium-transform", "value": "300ms ease-out", "purpose": "Thumbnail scale, card transforms." },
+      { "name": "entrance-fade", "value": "400ms ease-out", "purpose": "Grid stagger, fade-in-up, fade-in-scale animations." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "High-contrast white button for primary actions. The brightest interactive element on screen.",
+      "html": "<button class=\"ds-btn-primary\">Primary Action</button>",
+      "css": ".ds-btn-primary { background: #ffffff; color: #0f0f0f; padding: 8px 16px; font-size: 0.875rem; font-weight: 500; font-family: Inter, system-ui, sans-serif; border: none; border-radius: 8px; height: 40px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 200ms ease-out; } .ds-btn-primary:hover { background: rgba(255,255,255,0.9); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #0f0f0f, 0 0 0 4px #ffffff; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Mid-surface button for secondary actions. Blends into the UI at rest.",
+      "html": "<button class=\"ds-btn-secondary\">Secondary</button>",
+      "css": ".ds-btn-secondary { background: #252525; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 500; font-family: Inter, system-ui, sans-serif; border: none; border-radius: 8px; height: 40px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 200ms ease-out; } .ds-btn-secondary:hover { background: #2d2d2d; } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px #0f0f0f, 0 0 0 4px #ffffff; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Transparent button that reveals itself on hover. For toolbar actions and inline controls.",
+      "html": "<button class=\"ds-btn-ghost\">Ghost</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 500; font-family: Inter, system-ui, sans-serif; border: none; border-radius: 8px; height: 40px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 200ms ease-out; } .ds-btn-ghost:hover { background: #1a1a1a; } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px #0f0f0f, 0 0 0 4px #ffffff; }"
+    },
+    {
+      "name": "Twitch Button",
+      "kind": "button",
+      "refersTo": "button-twitch",
+      "description": "Platform-specific button for Twitch actions only. Never as a general accent.",
+      "html": "<button class=\"ds-btn-twitch\">Connect Twitch</button>",
+      "css": ".ds-btn-twitch { background: #9146ff; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 500; font-family: Inter, system-ui, sans-serif; border: none; border-radius: 8px; height: 40px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 200ms ease-out; } .ds-btn-twitch:hover { background: #772ce8; } .ds-btn-twitch:focus-visible { outline: none; box-shadow: 0 0 0 2px #0f0f0f, 0 0 0 4px #9146ff; }"
+    },
+    {
+      "name": "Kick Button",
+      "kind": "button",
+      "refersTo": "button-kick",
+      "description": "Platform-specific button for Kick actions only. Never as a general accent.",
+      "html": "<button class=\"ds-btn-kick\">Connect Kick</button>",
+      "css": ".ds-btn-kick { background: #53fc18; color: #0f0f0f; padding: 8px 16px; font-size: 0.875rem; font-weight: 500; font-family: Inter, system-ui, sans-serif; border: none; border-radius: 8px; height: 40px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 200ms ease-out; } .ds-btn-kick:hover { background: #3dd912; } .ds-btn-kick:focus-visible { outline: none; box-shadow: 0 0 0 2px #0f0f0f, 0 0 0 4px #53fc18; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card-default",
+      "description": "Standard container. Dark Surface background, subtle border, no shadow at rest.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Card Title</div><div class=\"ds-card-body\">Card content goes here.</div></div>",
+      "css": ".ds-card { background: #1a1a1a; border: 1px solid #333333; border-radius: 12px; padding: 24px; color: #ffffff; font-family: Inter, system-ui, sans-serif; } .ds-card-title { font-size: 1.5rem; font-weight: 700; line-height: 1.2; margin-bottom: 8px; } .ds-card-body { font-size: 0.875rem; font-weight: 500; line-height: 1.5; color: #a0a0a0; }"
+    },
+    {
+      "name": "Tag Chip",
+      "kind": "chip",
+      "refersTo": "chip-tag",
+      "description": "Compact pill for stream tags, language labels, and category filters.",
+      "html": "<span class=\"ds-chip\">English</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; background: #4a4d55; color: #efeff1; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; font-family: Inter, system-ui, sans-serif; white-space: nowrap; cursor: default; transition: background 200ms ease-out; } .ds-chip:hover { background: #5a5d66; }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Sidebar navigation link. Icon + label, fills on hover, solid on active.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/></svg><span>Home</span></a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; color: #ffffff; font-size: 0.875rem; font-weight: 500; font-family: Inter, system-ui, sans-serif; text-decoration: none; transition: background 200ms ease-out; } .ds-nav-item:hover { background: #252525; } .ds-nav-item--active { background: #3f3f46; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px #ffffff; }"
+    },
+    {
+      "name": "Live Badge",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Compact red pill overlaid on stream thumbnails. Pulses softly to signal live state.",
+      "html": "<span class=\"ds-live-badge\">LIVE</span>",
+      "css": ".ds-live-badge { display: inline-flex; align-items: center; background: #dc2626; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: Inter, system-ui, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; animation: ds-pulse-soft 2s ease-in-out infinite; } @keyframes ds-pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Dark Theater",
+    "overview": "The stream is the show. StreamFusion is the dark room around the screen: invisible when the content plays, ambient when you glance away, instantly responsive when you reach for a control. Every element exists to frame the content, not to compete with it.\n\nThe system is dark by conviction, not by trend. Streamers broadcast against black; the UI honors that by refusing to introduce competing light sources. Surfaces step through four tonal layers (#0f0f0f to #2d2d2d) to create spatial hierarchy without a single shadow at rest. When interaction demands attention (popovers, dialogs, dropdowns), subtle shadows lift elements off the stage, then vanish.",
+    "keyCharacteristics": [
+      "Dark tonal layering with four deliberate surface steps",
+      "Crimson accent used sparingly for live states and critical actions",
+      "Platform colors (Twitch purple, Kick green) as contextual accents, never the identity",
+      "Inter as the sole typeface: clean, dense, optimized for small sizes",
+      "Tactile interactions: elements respond immediately to input with color shifts and subtle transforms"
+    ],
+    "rules": [
+      { "name": "The Stage Light Rule", "body": "Storm Crimson appears on no more than 5% of any given screen. Its scarcity is what makes the live badge pulse with urgency. If crimson is everywhere, nothing is live.", "section": "colors" },
+      { "name": "The Platform Guest Rule", "body": "Twitch Purple and Kick Green are guests in StreamFusion's house. They identify their platform, then step back. Never use them as general UI accents, hover states, or decorative elements.", "section": "colors" },
+      { "name": "The Single Voice Rule", "body": "Inter is the only typeface. No display fonts, no monospace for style, no serif accents. One voice, many weights.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "No surface has a shadow at rest. If you're writing box-shadow on a card, container, or section, stop. Use a tonal background step instead. Shadows are reserved for elements that appear, then vanish.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use the four tonal surface steps (#0f0f0f, #1a1a1a, #252525, #2d2d2d) as the primary depth language. Every new container should be exactly one step lighter than its parent.",
+      "Do keep Storm Crimson (#dc143c) below 5% of any screen's surface area. If it's on more than the live badge and one CTA, it's overused.",
+      "Do use platform colors (Twitch Purple, Kick Green) exclusively for platform identification: badges, connect buttons, platform indicators. Nowhere else.",
+      "Do respect prefers-reduced-motion. All animations must degrade to instant state changes.",
+      "Do maintain WCAG AA contrast: 4.5:1 for body text, 3:1 for large text and interactive elements.",
+      "Do keep transitions fast: 200ms for color/opacity, 300ms for transforms."
+    ],
+    "donts": [
+      "Don't use neon gradients, RGB glow effects, or angular esports-style shapes.",
+      "Don't replicate Twitch or Kick's visual language. No purple-dominant or green-dominant themes.",
+      "Don't add shadows to resting surfaces. Cards, sections, containers: flat.",
+      "Don't use border-left or border-right greater than 1px as colored accent stripes.",
+      "Don't use gradient text (background-clip: text).",
+      "Don't use glassmorphism decoratively. backdrop-blur is functional, not aesthetic.",
+      "Don't build the hero-metric template (big number, small label, gradient accent).",
+      "Don't let the UI feel like a web page in a window.",
+      "Don't use em dashes."
+    ]
+  }
+}
