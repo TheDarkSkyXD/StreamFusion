@@ -202,13 +202,13 @@ export function RelatedContent({
             platform,
             channelName,
             channelId: channelData?.id,
-            limit: 5, // Initial load limit
+            limit: 20,
             sort: sortBy === "views" ? "views" : "date",
           });
           if (result.success) {
             setVideos(result.data || []);
             setVideoCursor(result.cursor);
-            setHasMoreVideos(!!result.cursor && (result.data?.length || 0) >= 5);
+            setHasMoreVideos(!!result.cursor && (result.data?.length || 0) >= 20);
             setDebugInfo(result.debug || null);
           } else {
             setError(result.error || "Failed to fetch videos");
@@ -218,14 +218,14 @@ export function RelatedContent({
             platform,
             channelName,
             channelId: channelData?.id,
-            limit: 5, // Initial load limit
+            limit: 20,
             sort: sortBy === "views" ? "views" : "date",
             timeRange: timeRange,
           });
           if (result.success) {
             setClips(result.data || []);
             setClipCursor(result.cursor);
-            setHasMoreClips(!!result.cursor && (result.data?.length || 0) >= 5);
+            setHasMoreClips(!!result.cursor && (result.data?.length || 0) >= 20);
           } else {
             setError(result.error || "Failed to fetch clips");
           }
@@ -266,7 +266,7 @@ export function RelatedContent({
           platform,
           channelName,
           channelId: channelData?.id,
-          limit: 5,
+          limit: 20,
           cursor: videoCursor,
           sort: sortBy === "views" ? "views" : "date",
         });
@@ -302,7 +302,7 @@ export function RelatedContent({
           setVideoCursor(result.cursor);
 
           // Stop if no cursor returned or got fewer than requested
-          if (!result.cursor || newVideos.length < 5) {
+          if (!result.cursor || newVideos.length < 20) {
             console.debug("[RelatedContent] No cursor or partial page, stopping");
             setHasMoreVideos(false);
           }
@@ -315,7 +315,7 @@ export function RelatedContent({
           platform,
           channelName,
           channelId: channelData?.id,
-          limit: 5,
+          limit: 20,
           cursor: clipCursor,
           sort: sortBy === "views" ? "views" : "date",
           timeRange: timeRange,
@@ -352,7 +352,7 @@ export function RelatedContent({
           setClipCursor(result.cursor);
 
           // Stop if no cursor returned or got fewer than requested
-          if (!result.cursor || newClips.length < 5) {
+          if (!result.cursor || newClips.length < 20) {
             console.debug("[RelatedContent] No cursor or partial page, stopping clips");
             setHasMoreClips(false);
           }

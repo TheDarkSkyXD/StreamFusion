@@ -151,4 +151,68 @@ describe('RelatedContent', () => {
             expect(screen.getByTestId('clip-dialog')).toBeInTheDocument();
         });
     });
+
+    it('should request limit=20 on the Videos tab initial fetch', async () => {
+        mockUseSearch.mockReturnValue({ tab: 'videos' });
+        mockGetByChannelVideos.mockResolvedValue({ success: true, data: [] });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="testUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        await waitFor(() => {
+            expect(mockGetByChannelVideos).toHaveBeenCalledWith(
+                expect.objectContaining({ limit: 20 })
+            );
+        });
+        expect(mockGetByChannelClips).not.toHaveBeenCalled();
+    });
+
+    it('should request limit=20 on the Clips tab initial fetch', async () => {
+        mockUseSearch.mockReturnValue({ tab: 'clips' });
+        mockGetByChannelClips.mockResolvedValue({ success: true, data: [] });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="testUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        await waitFor(() => {
+            expect(mockGetByChannelClips).toHaveBeenCalledWith(
+                expect.objectContaining({ limit: 20 })
+            );
+        });
+        expect(mockGetByChannelVideos).not.toHaveBeenCalled();
+    });
+
+    it('should request limit=5 for both videos and clips on the home view', async () => {
+        mockUseSearch.mockReturnValue({ tab: undefined });
+        localStorage.removeItem('stream-tab-preference');
+        mockGetByChannelVideos.mockResolvedValue({ success: true, data: [] });
+        mockGetByChannelClips.mockResolvedValue({ success: true, data: [] });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="testUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        await waitFor(() => {
+            expect(mockGetByChannelVideos).toHaveBeenCalledWith(
+                expect.objectContaining({ limit: 5 })
+            );
+            expect(mockGetByChannelClips).toHaveBeenCalledWith(
+                expect.objectContaining({ limit: 5 })
+            );
+        });
+    });
 });
