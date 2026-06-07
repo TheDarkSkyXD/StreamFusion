@@ -142,6 +142,13 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
       // Standard playback
       video.src = streamUrl;
     }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
   }, [streamUrl, thumbnail]);
 
   const seekTimer = useManagedTimeout(

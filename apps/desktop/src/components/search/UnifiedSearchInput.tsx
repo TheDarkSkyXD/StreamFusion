@@ -71,6 +71,136 @@ type SearchFilter = "all" | "channels" | "streams" | "categories";
 // full Search Results page so the dropdown stays a quick-glance affordance.
 const DROPDOWN_RESULT_CAP = 100;
 
+function formatFollowerCount(count: number | undefined): string | null {
+  if (count === undefined || count === null) return null;
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1).replace(/\.0$/, "")}M followers`;
+  }
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K followers`;
+  }
+  return `${count} followers`;
+}
+
+// Helper to render category items. Extracted so each call can invoke
+// useUnifiedCategoryLink — that resolves the canonical cross-platform target
+// so a click here lands on the same merged Categories page as the grid does.
+function CategoryItem({
+  category,
+  onClick,
+  onSelectCategory,
+}: {
+  category: UnifiedCategory;
+  onClick: (c: UnifiedCategory, e: React.MouseEvent) => void;
+  onSelectCategory?: (category: UnifiedCategory) => void;
+}) {
+  const { linkPlatform, linkCategoryId, otherId } = useUnifiedCategoryLink(
+    category.platform,
+    category.id,
+    category.name
+  );
+  const Wrapper = onSelectCategory ? "div" : Link;
+  const linkProps = onSelectCategory
+    ? {}
+    : {
+        to: "/categories/$platform/$categoryId",
+        params: { platform: linkPlatform, categoryId: linkCategoryId },
+        search: otherId ? { otherId } : {},
+      };
+
+  return (
+    // @ts-expect-error - Link props vs div props complexity
+    <Wrapper
+      {...linkProps}
+      onClick={(e: React.MouseEvent) => onClick(category, e)}
+      className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
+    >
+      {category.boxArtUrl ? (
+        <img
+          src={category.boxArtUrl}
+          alt={category.name}
+          className="w-6 h-8 rounded object-cover"
+        />
+      ) : (
+        <div className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center">
+          <LuLayoutGrid size={14} className="text-white/50" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
+          {category.name}
+        </p>
+      </div>
+    </Wrapper>
+  );
+}
+
+function ChannelItem({
+  channel,
+  onClick,
+  onSelectChannel,
+  platform,
+}: {
+  channel: UnifiedChannel;
+  onClick: (c: UnifiedChannel, e: React.MouseEvent) => void;
+  onSelectChannel?: (channel: UnifiedChannel) => void;
+  platform?: Platform;
+}) {
+  const Wrapper = onSelectChannel ? "div" : Link;
+  const linkProps = onSelectChannel
+    ? {}
+    : {
+        to: "/stream/$platform/$channel",
+        params: { platform: channel.platform, channel: channel.username },
+        search: { tab: "videos" },
+      };
+
+  const avatarFallback = (
+    <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center">
+      <span className="text-xs font-bold text-white uppercase">
+        {channel.displayName.slice(0, 1)}
+      </span>
+    </div>
+  );
+
+  const followerText = formatFollowerCount(channel.followerCount);
+
+  return (
+    // @ts-expect-error - Link props vs div props complexity
+    <Wrapper
+      {...linkProps}
+      onClick={(e: React.MouseEvent) => onClick(channel, e)}
+      className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
+    >
+      <div className="relative">
+        {channel.avatarUrl ? (
+          <ProxiedImage
+            src={channel.avatarUrl}
+            alt={channel.displayName}
+            className="w-8 h-8 rounded-full object-cover"
+            fallback={avatarFallback}
+          />
+        ) : (
+          avatarFallback
+        )}
+        {channel.isLive && (
+          <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0F0F12]" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
+          {channel.displayName}
+        </p>
+        <div className="flex items-center gap-2 text-xs text-zinc-400">
+          {!platform && <span className="capitalize">{channel.platform}</span>}
+          {followerText && <span>{followerText}</span>}
+          {channel.isLive && <span className="text-red-500 font-bold">• LIVE</span>}
+        </div>
+      </div>
+    </Wrapper>
+  );
+}
+
 export function UnifiedSearchInput({
   platform,
   onSelectChannel,
@@ -406,134 +536,6 @@ export function UnifiedSearchInput({
     (showChannelResults && channelsHasNextPage) || (showCategoryResults && categoriesHasNextPage);
   const capReachedWithMore = capReached && hasMoreResults;
 
-  // Helper to format follower count
-  const formatFollowerCount = (count: number | undefined): string | null => {
-    if (count === undefined || count === null) return null;
-    if (count >= 1000000) {
-      return `${(count / 1000000).toFixed(1).replace(/\.0$/, "")}M followers`;
-    }
-    if (count >= 1000) {
-      return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K followers`;
-    }
-    return `${count} followers`;
-  };
-
-  // Helper to render category items. Extracted so each call can invoke
-  // useUnifiedCategoryLink — that resolves the canonical cross-platform target
-  // so a click here lands on the same merged Categories page as the grid does.
-  const CategoryItem = ({
-    category,
-    onClick,
-  }: {
-    category: UnifiedCategory;
-    onClick: (c: UnifiedCategory, e: React.MouseEvent) => void;
-  }) => {
-    const { linkPlatform, linkCategoryId, otherId } = useUnifiedCategoryLink(
-      category.platform,
-      category.id,
-      category.name
-    );
-    const Wrapper = onSelectCategory ? "div" : Link;
-    const linkProps = onSelectCategory
-      ? {}
-      : {
-          to: "/categories/$platform/$categoryId",
-          params: { platform: linkPlatform, categoryId: linkCategoryId },
-          search: otherId ? { otherId } : {},
-        };
-
-    return (
-      // @ts-expect-error - Link props vs div props complexity
-      <Wrapper
-        {...linkProps}
-        onClick={(e: React.MouseEvent) => onClick(category, e)}
-        className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
-      >
-        {category.boxArtUrl ? (
-          <img
-            src={category.boxArtUrl}
-            alt={category.name}
-            className="w-6 h-8 rounded object-cover"
-          />
-        ) : (
-          <div className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center">
-            <LuLayoutGrid size={14} className="text-white/50" />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
-            {category.name}
-          </p>
-        </div>
-      </Wrapper>
-    );
-  };
-
-  // Helper to render channel items
-  const ChannelItem = ({
-    channel,
-    onClick,
-  }: {
-    channel: UnifiedChannel;
-    onClick: (c: UnifiedChannel, e: React.MouseEvent) => void;
-  }) => {
-    // If onSelectChannel is provided, we use a div, otherwise a Link
-    const Wrapper = onSelectChannel ? "div" : Link;
-    const linkProps = onSelectChannel
-      ? {}
-      : {
-          to: "/stream/$platform/$channel",
-          params: { platform: channel.platform, channel: channel.username },
-          search: { tab: "videos" },
-        };
-
-    // Fallback for when avatar fails to load
-    const avatarFallback = (
-      <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center">
-        <span className="text-xs font-bold text-white uppercase">
-          {channel.displayName.slice(0, 1)}
-        </span>
-      </div>
-    );
-
-    const followerText = formatFollowerCount(channel.followerCount);
-
-    return (
-      // @ts-expect-error - Link props vs div props complexity
-      <Wrapper
-        {...linkProps}
-        onClick={(e: React.MouseEvent) => onClick(channel, e)}
-        className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
-      >
-        <div className="relative">
-          {channel.avatarUrl ? (
-            <ProxiedImage
-              src={channel.avatarUrl}
-              alt={channel.displayName}
-              className="w-8 h-8 rounded-full object-cover"
-              fallback={avatarFallback}
-            />
-          ) : (
-            avatarFallback
-          )}
-          {channel.isLive && (
-            <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0F0F12]" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
-            {channel.displayName}
-          </p>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            {!platform && <span className="capitalize">{channel.platform}</span>}
-            {followerText && <span>{followerText}</span>}
-            {channel.isLive && <span className="text-red-500 font-bold">• LIVE</span>}
-          </div>
-        </div>
-      </Wrapper>
-    );
-  };
-
   return (
     <div ref={containerRef} className={cn("relative w-full z-50", className)}>
       <div className="relative">
@@ -720,6 +722,8 @@ export function UnifiedSearchInput({
                   key={`${channel.platform}-${channel.id}`}
                   channel={channel}
                   onClick={handleChannelClick}
+                  onSelectChannel={onSelectChannel}
+                  platform={platform}
                 />
               ))}
             </div>
@@ -742,6 +746,8 @@ export function UnifiedSearchInput({
                   key={`${channel.platform}-${channel.id}`}
                   channel={channel}
                   onClick={handleChannelClick}
+                  onSelectChannel={onSelectChannel}
+                  platform={platform}
                 />
               ))}
               {/* Initial loading skeletons */}
@@ -783,6 +789,7 @@ export function UnifiedSearchInput({
                   key={`${category.platform}-${category.id}`}
                   category={category}
                   onClick={handleCategoryClick}
+                  onSelectCategory={onSelectCategory}
                 />
               ))}
               {/* Initial loading skeletons */}

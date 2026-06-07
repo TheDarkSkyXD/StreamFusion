@@ -186,6 +186,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
     // Handle quality change
     useEffect(() => {
+      let listenerVideo: HTMLVideoElement | null = null;
+      let registeredListener: (() => void) | null = null;
+
       if (hlsRef.current && currentLevel !== undefined) {
         const hls = hlsRef.current;
         if (currentLevel === "auto") {
@@ -232,11 +235,19 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             video.removeEventListener("loadedmetadata", onSwitchLoaded);
           };
 
+          listenerVideo = video;
+          registeredListener = onSwitchLoaded;
           video.addEventListener("loadedmetadata", onSwitchLoaded);
           video.src = targetUrl;
           video.load();
         }
       }
+
+      return () => {
+        if (listenerVideo && registeredListener) {
+          listenerVideo.removeEventListener("loadedmetadata", registeredListener);
+        }
+      };
     }, [currentLevel, src]);
 
     // Store callbacks in refs to prevent re-initialization loop

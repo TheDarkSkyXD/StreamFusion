@@ -497,7 +497,7 @@ export function SearchPage() {
                   {selectedClip.title}
                 </h2>
                 <div className="flex items-center gap-2 mt-2">
-                  <img src={selectedClip.channelAvatar} className="w-6 h-6 rounded-full" />
+                  <img src={selectedClip.channelAvatar} alt="" className="w-6 h-6 rounded-full" />
                   <span className="text-sm text-[var(--color-foreground-secondary)]">
                     Clipped by {selectedClip.channelDisplayName}
                   </span>
