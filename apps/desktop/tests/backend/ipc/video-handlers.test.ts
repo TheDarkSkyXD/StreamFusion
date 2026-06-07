@@ -95,7 +95,7 @@ describe("getCutoffMs", () => {
 describe("fillPageWithCutoff", () => {
   const baseCutoff = FROZEN_NOW - DAY_MS;
 
-  it("returns 'filled' and forwards the upstream cursor when limit is reached", async () => {
+  it("returns 'filled' with ALL in-range items from the page (no mid-page trim) and forwards the cursor", async () => {
     const result = await fillPageWithCutoff<any>({
       cutoffMs: baseCutoff,
       limit: 2,
@@ -109,7 +109,9 @@ describe("fillPageWithCutoff", () => {
     });
 
     expect(result.reason).toBe("filled");
-    expect(result.inRange.map((c) => c.id)).toEqual(["a", "b"]);
+    // All three items are in-range — return all three even though limit is 2.
+    // Trimming mid-page would lose item "c" (upstream cursor advances past it).
+    expect(result.inRange.map((c) => c.id)).toEqual(["a", "b", "c"]);
     expect(result.nextCursor).toBe("next-100");
     expect(result.pagesFetched).toBe(1);
   });
@@ -205,7 +207,7 @@ describe("fillPageWithCutoff", () => {
     expect(result.nextCursor).toBe("after-page-3");
   });
 
-  it("walks multiple upstream pages to fill the limit", async () => {
+  it("walks multiple upstream pages until limit is reached, returning all items from drained pages", async () => {
     let page = 0;
     const result = await fillPageWithCutoff<any>({
       cutoffMs: baseCutoff,
@@ -223,7 +225,8 @@ describe("fillPageWithCutoff", () => {
     });
 
     expect(result.pagesFetched).toBe(2);
-    expect(result.inRange).toHaveLength(15);
+    // Two 10-item pages = 20 items, all in-range. We don't trim past `limit`.
+    expect(result.inRange).toHaveLength(20);
     expect(result.reason).toBe("filled");
     expect(result.nextCursor).toBe("cursor-2");
   });
@@ -410,7 +413,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
     expect(res.cursor).toBeUndefined();
   });
 
-  it("forwards the upstream cursor when the page fills the UI limit", async () => {
+  it("forwards the upstream cursor when the page fills the UI limit (returns all drained in-range items)", async () => {
     const items = Array.from({ length: 25 }, (_, i) => clip(`c${i}`, 1000 * i));
     getClipsMock.mockResolvedValueOnce({ data: items, cursor: "next-100" });
 
@@ -422,7 +425,8 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
       timeRange: "day",
     });
 
-    expect(res.data).toHaveLength(20);
+    // All 25 in-range clips from the page are returned (no mid-page trim).
+    expect(res.data).toHaveLength(25);
     expect(res.cursor).toBe("next-100");
   });
 
@@ -694,7 +698,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
     expect(res.cursor).toBeUndefined();
   });
 
-  it("forwards the GQL cursor when the page fills the UI limit", async () => {
+  it("forwards the GQL cursor when the page fills the UI limit (returns all drained in-range items)", async () => {
     const items = Array.from({ length: 25 }, (_, i) => twitchClip(`c${i}`, 1000 * i));
     twitchGetClipsByChannelMock.mockResolvedValueOnce({ data: items, cursor: "gql-next" });
 
@@ -706,7 +710,8 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       timeRange: "day",
     });
 
-    expect(res.data).toHaveLength(20);
+    // All 25 in-range clips from the page are returned (no mid-page trim).
+    expect(res.data).toHaveLength(25);
     expect(res.cursor).toBe("gql-next");
   });
 

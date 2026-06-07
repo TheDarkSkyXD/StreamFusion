@@ -208,7 +208,7 @@ export function RelatedContent({
           if (result.success) {
             setVideos(result.data || []);
             setVideoCursor(result.cursor);
-            setHasMoreVideos(!!result.cursor && (result.data?.length || 0) >= 20);
+            setHasMoreVideos(!!result.cursor);
             setDebugInfo(result.debug || null);
           } else {
             setError(result.error || "Failed to fetch videos");
@@ -225,7 +225,7 @@ export function RelatedContent({
           if (result.success) {
             setClips(result.data || []);
             setClipCursor(result.cursor);
-            setHasMoreClips(!!result.cursor && (result.data?.length || 0) >= 20);
+            setHasMoreClips(!!result.cursor);
           } else {
             setError(result.error || "Failed to fetch clips");
           }
@@ -301,9 +301,10 @@ export function RelatedContent({
           setVideos((prev) => [...prev, ...uniqueNewVideos]);
           setVideoCursor(result.cursor);
 
-          // Stop if no cursor returned or got fewer than requested
-          if (!result.cursor || newVideos.length < 20) {
-            console.debug("[RelatedContent] No cursor or partial page, stopping");
+          // Trust the cursor: if upstream said "more", believe it. A partial
+          // page with a cursor is a legitimate intermediate state.
+          if (!result.cursor) {
+            console.debug("[RelatedContent] No cursor, stopping videos");
             setHasMoreVideos(false);
           }
         } else {
@@ -351,9 +352,10 @@ export function RelatedContent({
           setClips((prev) => [...prev, ...uniqueNewClips]);
           setClipCursor(result.cursor);
 
-          // Stop if no cursor returned or got fewer than requested
-          if (!result.cursor || newClips.length < 20) {
-            console.debug("[RelatedContent] No cursor or partial page, stopping clips");
+          // Trust the cursor: if upstream said "more", believe it. A partial
+          // page with a cursor is a legitimate intermediate state.
+          if (!result.cursor) {
+            console.debug("[RelatedContent] No cursor, stopping clips");
             setHasMoreClips(false);
           }
         } else {
@@ -666,11 +668,16 @@ export function RelatedContent({
               <div ref={loadMoreRef} className="col-span-full h-4 w-full" />
             )}
 
-            {isFetchingMore && (
-              <div className="col-span-full py-4 flex justify-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-              </div>
-            )}
+            {isFetchingMore &&
+              [...Array(3)].map((_, i) => (
+                <div key={`load-more-skeleton-${i}`} className="space-y-3">
+                  <Skeleton className="aspect-video rounded-xl" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+              ))}
           </div>
         )}
       </div>

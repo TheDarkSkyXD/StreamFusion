@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RelatedContent } from '@/components/stream/related-content/index';
-import { VideoOrClip } from '@/components/stream/related-content/types';
+import type { VideoOrClip } from '@/components/stream/related-content/types';
 
 // Mock dependencies
 const mockUseSearch = vi.fn();

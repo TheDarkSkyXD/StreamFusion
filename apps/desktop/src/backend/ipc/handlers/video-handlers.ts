@@ -128,8 +128,10 @@ export async function fillPageWithCutoff<T>(opts: FillPageOptions<T>): Promise<F
         pageSawOutOfRange = true;
         break;
       }
+      // Drain the whole page even past `limit`. Truncating mid-page would
+      // discard in-range items: the upstream cursor advances to the NEXT page,
+      // so anything we skipped on the current page is lost forever.
       inRange.push(item);
-      if (inRange.length >= opts.limit) break;
     }
 
     if (pageSawOutOfRange) {
