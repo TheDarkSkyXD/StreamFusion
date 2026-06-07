@@ -1,9 +1,10 @@
+import vm from "node:vm";
 import { afterEach, describe, it, expect } from "vitest";
 
 import { HEADER_RENDERED_PREDICATE } from "@/backend/auth/auth-window";
 
 function evaluate(predicate: string): boolean {
-  return new Function(`return ${predicate}`)() as boolean;
+  return vm.runInThisContext(predicate) as boolean;
 }
 
 describe("HEADER_RENDERED_PREDICATE", () => {

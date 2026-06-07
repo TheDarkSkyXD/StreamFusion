@@ -7,9 +7,9 @@
  * floor); long content truncates to one line in collapsed state and wraps
  * in expanded state.
  *
- * The close control is role-aware:
- *   - role="viewer" -> Dismiss (X icon), local-only via `onDismiss`
- *   - role="mod"    -> Unpin (text button), two-step confirm via `onUnpin`
+ * The close control is viewer-role-aware:
+ *   - viewerRole="viewer" -> Dismiss (X icon), local-only via `onDismiss`
+ *   - viewerRole="mod"    -> Unpin (text button), two-step confirm via `onUnpin`
  *
  * The confirm step swaps the button label to "Confirm unpin" for 5 seconds
  * after the first click; a second click within the window fires `onUnpin`,
@@ -17,7 +17,7 @@
  */
 
 import type React from "react";
-import { memo, useEffect, useState } from "react";
+import { memo, useState } from "react";
 import { BsChevronDown, BsReplyFill } from "react-icons/bs";
 import { useTimeout } from "@/hooks/useTimeout";
 import type { ContentFragment, NormalizedPinnedMessage } from "../../shared/chat-types";
@@ -135,7 +135,7 @@ const UNPIN_CONFIRM_WINDOW_MS = 5000;
 export interface PinnedMessageBannerProps {
   pin: NormalizedPinnedMessage;
   /** Determines which close control is rendered. */
-  role: "mod" | "viewer";
+  viewerRole: "mod" | "viewer";
   isExpanded: boolean;
   onExpandToggle: () => void;
   /** Viewer-only local dismiss. */
@@ -197,30 +197,27 @@ PinnedFragment.displayName = "PinnedFragment";
 
 export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   pin,
-  role,
+  viewerRole,
   isExpanded,
   onExpandToggle,
   onDismiss,
   onUnpin,
   onReply,
 }) => {
-  const [unpinArmed, setUnpinArmed] = useState(false);
-  useTimeout(() => setUnpinArmed(false), unpinArmed ? UNPIN_CONFIRM_WINDOW_MS : null);
-
-  // Reset confirm-armed state whenever the pin itself changes (new pin
-  // arriving in place of the old one should never inherit a half-confirmed
-  // unpin state).
-  useEffect(() => {
-    setUnpinArmed(false);
-  }, [pin.messageId]);
+  // Store the messageId the confirm step was armed for instead of a boolean.
+  // A new pin (different messageId) automatically reads as not-armed, so no
+  // reset effect is needed when the pin changes out from under us.
+  const [armedForMessageId, setArmedForMessageId] = useState<string | null>(null);
+  const unpinArmed = armedForMessageId === pin.messageId;
+  useTimeout(() => setArmedForMessageId(null), unpinArmed ? UNPIN_CONFIRM_WINDOW_MS : null);
 
   const handleUnpinClick = () => {
     if (!onUnpin) return;
     if (unpinArmed) {
-      setUnpinArmed(false);
+      setArmedForMessageId(null);
       onUnpin();
     } else {
-      setUnpinArmed(true);
+      setArmedForMessageId(pin.messageId);
     }
   };
 
@@ -230,7 +227,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   return (
     <div
       data-testid="pinned-message-banner"
-      data-role={role}
+      data-role={viewerRole}
       data-platform={pin.platform}
       className="px-2 pt-2 pb-1"
     >
@@ -299,7 +296,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
            * Hide is only rendered when expanded; Twitch's collapsed state has
            * only the Expand chevron. Mod role replaces Hide with Unpin. */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            {role === "viewer" && isExpanded && onDismiss ? (
+            {viewerRole === "viewer" && isExpanded && onDismiss ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -314,7 +311,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                 <TooltipContent>Hide for yourself</TooltipContent>
               </Tooltip>
             ) : null}
-            {role === "mod" && onUnpin ? (
+            {viewerRole === "mod" && onUnpin ? (
               <button
                 type="button"
                 onClick={handleUnpinClick}

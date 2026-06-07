@@ -745,7 +745,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       {pinnedMessage && showPinned && (
         <PinnedMessageBanner
           pin={pinnedMessage}
-          role={isMod ? "mod" : "viewer"}
+          viewerRole={isMod ? "mod" : "viewer"}
           isExpanded={isPinExpanded}
           onExpandToggle={() => setIsPinExpanded((v) => !v)}
           onDismiss={() => setShowPinned(false)}

@@ -48,7 +48,10 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
   onDismiss,
 }) => {
   const styleSetting = useAuthStore((s) => s.preferences?.predictions.style ?? "native");
-  const [expanded, setExpanded] = useState(false);
+  // Store the prediction.id the user expanded for. A new prediction reads as
+  // collapsed automatically, eliminating the need for a reset effect.
+  const [expandedForId, setExpandedForId] = useState<string | null>(null);
+  const expanded = expandedForId === prediction.id;
 
   const style: Style = useMemo(() => {
     if (styleSetting === "unified") return "unified";
@@ -71,10 +74,6 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
     else autoDismiss.clear();
   }, [isEnded, prediction.id, autoDismiss]);
 
-  useEffect(() => {
-    setExpanded(false);
-  }, [prediction.id]);
-
   return (
     <section
       data-testid="prediction-banner"
@@ -89,14 +88,14 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
           style={style}
           isEnded={isEnded}
           isLocked={isLocked}
-          onExpand={() => setExpanded(true)}
+          onExpand={() => setExpandedForId(prediction.id)}
           onDismiss={onDismiss}
         />
       ) : isEnded ? (
         <EndedPanel
           prediction={prediction}
           style={style}
-          onCollapse={() => setExpanded(false)}
+          onCollapse={() => setExpandedForId(null)}
           onDismiss={onDismiss}
         />
       ) : (
@@ -104,7 +103,7 @@ export const PredictionBanner: React.FC<PredictionBannerProps> = ({
           prediction={prediction}
           style={style}
           isLocked={isLocked}
-          onCollapse={() => setExpanded(false)}
+          onCollapse={() => setExpandedForId(null)}
           onDismiss={onDismiss}
         />
       )}

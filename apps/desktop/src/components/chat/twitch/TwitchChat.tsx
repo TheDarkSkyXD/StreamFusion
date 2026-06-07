@@ -764,7 +764,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         <PinnedMessageBanner
           pin={pinnedMessage}
           // Mods see the Unpin button in place of the viewer's hide-eye.
-          role={isMod ? "mod" : "viewer"}
+          viewerRole={isMod ? "mod" : "viewer"}
           isExpanded={isPinExpanded}
           onExpandToggle={() => setIsPinExpanded((v) => !v)}
           // Viewer-only local hide (only rendered when role === "viewer").

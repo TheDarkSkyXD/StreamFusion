@@ -36,7 +36,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -66,7 +66,7 @@ describe("PinnedMessageBanner", () => {
             ],
           },
         })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
       />,
@@ -91,7 +91,7 @@ describe("PinnedMessageBanner", () => {
             ],
           },
         })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
       />,
@@ -117,7 +117,7 @@ describe("PinnedMessageBanner", () => {
           },
           sentAt: "2026-05-18T01:54:00.000Z",
         })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
       />,
@@ -138,7 +138,7 @@ describe("PinnedMessageBanner", () => {
           },
           sentAt: "2026-05-18T01:54:00.000Z",
         })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
       />,
@@ -161,7 +161,7 @@ describe("PinnedMessageBanner", () => {
           content: [{ type: "text", content: "test message" }],
           sentAt: "2026-05-18T01:54:00.000Z",
         })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
       />,
@@ -178,7 +178,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({ sentAt: null })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
       />,
@@ -206,7 +206,7 @@ describe("PinnedMessageBanner", () => {
             ],
           },
         })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
       />,
@@ -223,7 +223,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({ pinnedBy: null })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -237,7 +237,7 @@ describe("PinnedMessageBanner", () => {
     const { rerender } = render(
       <PinnedMessageBanner
         pin={makePin({ platform: "kick" })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -250,7 +250,7 @@ describe("PinnedMessageBanner", () => {
     rerender(
       <PinnedMessageBanner
         pin={makePin({ platform: "twitch" })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -266,7 +266,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -284,7 +284,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -297,7 +297,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="mod"
+        viewerRole="mod"
         isExpanded={true}
         onExpandToggle={() => {}}
         onUnpin={() => {}}
@@ -313,7 +313,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={onDismiss}
@@ -328,7 +328,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={onExpandToggle}
         onDismiss={() => {}}
@@ -351,7 +351,7 @@ describe("PinnedMessageBanner", () => {
       render(
         <PinnedMessageBanner
           pin={makePin()}
-          role="mod"
+          viewerRole="mod"
           isExpanded={false}
           onExpandToggle={() => {}}
           onUnpin={onUnpin}
@@ -367,7 +367,7 @@ describe("PinnedMessageBanner", () => {
       render(
         <PinnedMessageBanner
           pin={makePin()}
-          role="mod"
+          viewerRole="mod"
           isExpanded={false}
           onExpandToggle={() => {}}
           onUnpin={onUnpin}
@@ -383,7 +383,7 @@ describe("PinnedMessageBanner", () => {
       render(
         <PinnedMessageBanner
           pin={makePin()}
-          role="mod"
+          viewerRole="mod"
           isExpanded={false}
           onExpandToggle={() => {}}
           onUnpin={onUnpin}
@@ -404,7 +404,7 @@ describe("PinnedMessageBanner", () => {
     const { rerender } = render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -416,7 +416,7 @@ describe("PinnedMessageBanner", () => {
     rerender(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -432,7 +432,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin()}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -445,7 +445,7 @@ describe("PinnedMessageBanner", () => {
     const { rerender } = render(
       <PinnedMessageBanner
         pin={makePin({ messageId: "msg-1", content: [{ type: "text", content: "first pin" }] })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -457,7 +457,7 @@ describe("PinnedMessageBanner", () => {
     rerender(
       <PinnedMessageBanner
         pin={makePin({ messageId: "msg-2", content: [{ type: "text", content: "second pin" }] })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -476,7 +476,7 @@ describe("PinnedMessageBanner", () => {
     const { rerender } = render(
       <PinnedMessageBanner
         pin={makePin({ content: [{ type: "text", content: longText }] })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -493,7 +493,7 @@ describe("PinnedMessageBanner", () => {
     rerender(
       <PinnedMessageBanner
         pin={makePin({ content: [{ type: "text", content: longText }] })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -515,7 +515,7 @@ describe("PinnedMessageBanner", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({ content: [{ type: "link", url: longUrl, text: longUrl }] })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -552,7 +552,7 @@ describe("PinnedMessageBanner", () => {
             ],
           },
         })}
-        role="viewer"
+        viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
@@ -577,7 +577,7 @@ describe("PinnedMessageBanner", () => {
     const { rerender } = render(
       <PinnedMessageBanner
         pin={makePin({ messageId: "msg-1" })}
-        role="mod"
+        viewerRole="mod"
         isExpanded={false}
         onExpandToggle={() => {}}
         onUnpin={onUnpin}
@@ -589,7 +589,7 @@ describe("PinnedMessageBanner", () => {
     rerender(
       <PinnedMessageBanner
         pin={makePin({ messageId: "msg-2" })}
-        role="mod"
+        viewerRole="mod"
         isExpanded={false}
         onExpandToggle={() => {}}
         onUnpin={onUnpin}
