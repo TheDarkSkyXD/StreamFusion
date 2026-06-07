@@ -28,7 +28,7 @@ interface WindowState {
   isMaximized: boolean;
 }
 
-// In-memory storage for window state (will be replaced with electron-store in Phase 1)
+// In-memory only; window bounds do not yet survive across app restarts.
 let savedWindowState: WindowState | null = null;
 
 function getDefaultBounds(): WindowBounds {

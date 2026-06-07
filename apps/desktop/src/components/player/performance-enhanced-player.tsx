@@ -1,8 +1,8 @@
 /**
  * Performance-Enhanced Live Player Wrapper
  *
- * This component demonstrates how to integrate the Phase 3.7 performance
- * optimization hooks with existing live players.
+ * This component demonstrates how to integrate the adaptive quality,
+ * background throttling, and video lifecycle hooks with existing live players.
  *
  * Features:
  * - Adaptive quality based on network conditions
