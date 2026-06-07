@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { installElectronAPIMock } from '../../test-utils';
+import { installElectronAPIMock, renderWithProviders as render } from '../../test-utils';
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
