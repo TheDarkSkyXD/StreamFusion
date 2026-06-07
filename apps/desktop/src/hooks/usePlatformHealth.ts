@@ -1,8 +1,7 @@
 /**
  * Renderer-side per-Platform health subscription. Hydrates from
  * `electronAPI.platformHealth.get()` on mount and subscribes to transition
- * pushes. `anyDegraded` reads strictly `=== "degraded"` so a future `down`
- * value doesn't accidentally light the degraded-banner.
+ * pushes. `anyDegraded` is true for any non-healthy state (degraded or down).
  */
 
 import { useEffect, useState } from "react";
@@ -25,7 +24,7 @@ function derive(kick: PlatformHealth, twitch: PlatformHealth): PlatformHealthSta
   return {
     kick,
     twitch,
-    anyDegraded: kick === "degraded" || twitch === "degraded",
+    anyDegraded: kick !== "healthy" || twitch !== "healthy",
   };
 }
 

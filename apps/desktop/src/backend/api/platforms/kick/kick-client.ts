@@ -31,11 +31,8 @@ import * as SearchEndpoints from "./endpoints/search-endpoints";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
-import {
-  acquireKickRequestSlot,
-  isNetworkLikelyDown,
-  recordTransientNetworkError,
-} from "./kick-network-health";
+import { isPlatformHealthy, recordPlatformLocalNetError } from "../../unified/platform-health";
+import { acquireKickRequestSlot } from "./kick-network-health";
 import type { KickRequestor } from "./kick-requestor";
 import type { KickApiUser, PaginatedResult, PaginationOptions } from "./kick-types";
 
@@ -270,7 +267,7 @@ class KickClient implements KickRequestor, IPlatformReader {
       _imageNegativeCache.delete(url);
     }
 
-    // Image fetches deliberately bypass `isNetworkLikelyDown()`. The gate is
+    // Image fetches deliberately bypass the platform health gate. The gate is
     // designed for retry loops (API, stream polls) that benefit from a brief
     // back-off. Image fetches are one-shot: when they return null the renderer
     // <img> goes to onError and the caller latches the error state until the
@@ -282,7 +279,7 @@ class KickClient implements KickRequestor, IPlatformReader {
     // guarding against.
     //
     // Accepted tradeoffs (see PR review): (1) image net::ERR_* failures now
-    // feed `recordTransientNetworkError`, so a CDN-only outage can arm the
+    // feed `recordPlatformLocalNetError`, so a CDN-only outage can arm the
     // gate for other Kick callers; (2) during a sustained outage, image
     // fetches occupy semaphore slots until they time out — the timeout below
     // is intentionally short (3s) to bound the worst-case wall-clock for a
@@ -325,10 +322,10 @@ class KickClient implements KickRequestor, IPlatformReader {
         const isPermanent = /^HTTP 4\d{2}$/.test(message);
         if (isPermanent) {
           _imageNegativeCache.set(url, Date.now() + _IMAGE_NEG_CACHE_TTL_MS);
-        } else {
-          recordTransientNetworkError(message);
+        } else if (/net::ERR_/.test(message)) {
+          recordPlatformLocalNetError("kick");
         }
-        const isQuiet = isPermanent || isNetworkLikelyDown();
+        const isQuiet = isPermanent || !isPlatformHealthy("kick");
         const log = isQuiet ? logger.debug : logger.warn;
         log("Kick:Client", "Image fetch failed", { message, url });
         return null;
@@ -479,7 +476,10 @@ class KickClient implements KickRequestor, IPlatformReader {
 
         // Feed net::ERR_* into the health tracker so concurrent callers learn
         // about the outage and bail out of their own retry loops.
-        recordTransientNetworkError(error?.message || String(error));
+        const errMsg = error?.message || String(error);
+        if (/net::ERR_/.test(errMsg)) {
+          recordPlatformLocalNetError("kick");
+        }
 
         // Network errors - log and throw
         logger.error("Kick:Client", "Kick API request failed", {
@@ -664,7 +664,7 @@ class KickClient implements KickRequestor, IPlatformReader {
   // no followed-channels endpoint. The endpoint is fetched with the OAuth
   // Bearer token via FollowEndpoints (see follow-endpoints.ts for the failure
   // classification model and the rationale for not gating behind
-  // isNetworkLikelyDown). This convenience returns a flat array; callers that
+  // isPlatformHealthy). This convenience returns a flat array; callers that
   // need the failure tag (notably syncFollowsOnLogin) should import
   // FollowEndpoints directly so a transient fetch failure doesn't get
   // silently coerced into "user follows zero channels" — see U4/A1 in

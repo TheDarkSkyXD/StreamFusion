@@ -3,16 +3,14 @@ import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import { sleep } from "@/lib/sleep";
 import {
+  getPlatformHealth,
   isPlatformHealthy,
   recordPlatformFailure,
+  recordPlatformLocalNetError,
   recordPlatformSuccess,
 } from "../../../unified/platform-health";
 import type { UnifiedStream } from "../../../unified/platform-types";
-import {
-  acquireKickRequestSlot,
-  isNetworkLikelyDown,
-  recordTransientNetworkError,
-} from "../kick-network-health";
+import { acquireKickRequestSlot } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { normalizeKickDate, transformKickLivestream } from "../kick-transformers";
 import {
@@ -125,7 +123,7 @@ async function getChannelDisplayInfo(
   // Skip the round-trip during a known outage — the call has no retries and
   // would just return null, leaving displayName as the lowercase slug forever
   // in callers. Returning null here lets the next refetch try fresh.
-  if (isNetworkLikelyDown()) return null;
+  if (!isPlatformHealthy("kick")) return null;
 
   const releaseSlot = await acquireKickRequestSlot();
   try {
@@ -187,8 +185,8 @@ const _publicStreamFailureCache = new Map<string, number>();
 // produces a fresh warning).
 const _publicStreamWarnedSlugs = new Set<string>();
 
-// Last-known-good cache. Only consulted when `isNetworkLikelyDown()` says the
-// Chromium network service just crashed — we'd otherwise return null and the
+// Last-known-good cache. Consulted when platform health is unhealthy (the
+// Chromium network service just crashed) — we'd otherwise return null and the
 // followed-sidebar would visibly drop every Kick channel for the duration of
 // the outage. Serving the previous state (live OR offline) keeps the UI from
 // flickering through a "channel went offline" frame and self-corrects on the
@@ -272,26 +270,27 @@ export async function getPublicStreamBySlug(
 ): Promise<UnifiedStream | null> {
   const key = slug.toLowerCase().trim();
 
-  // Stale-during-outage: when Chromium's network service just crashed, every
-  // fresh fetch will fail. Serving the last-known state keeps the UI from
-  // visibly losing every Kick channel during the ~3s restart window. The
-  // periodic refetch corrects the data once the service is back.
-  if (isNetworkLikelyDown()) {
-    const cached = _publicStreamSuccessCache.get(key);
-    if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
-      return cached.data;
-    }
-  }
-
+  // Circuit-open: when Kick is unhealthy (degraded or down), shed traffic to
+  // serve last-known-good cache. `down` sheds ALL requests (no probes; the
+  // network is crashed). `degraded` allows periodic probes to feed recovery.
   if (!isPlatformHealthy("kick")) {
-    const now = Date.now();
-    const isProbe = now - _lastProbeTimestamp >= CIRCUIT_PROBE_INTERVAL_MS;
-    if (isProbe) {
-      _lastProbeTimestamp = now;
-    } else {
+    const health = getPlatformHealth("kick");
+    if (health === "down") {
       const cached = _publicStreamSuccessCache.get(key);
       if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
         return cached.data;
+      }
+    } else {
+      // degraded — probe behavior (existing circuit-open logic)
+      const now = Date.now();
+      const isProbe = now - _lastProbeTimestamp >= CIRCUIT_PROBE_INTERVAL_MS;
+      if (isProbe) {
+        _lastProbeTimestamp = now;
+      } else {
+        const cached = _publicStreamSuccessCache.get(key);
+        if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
+          return cached.data;
+        }
       }
     }
   }
@@ -332,7 +331,7 @@ export async function getPublicStreamBySlug(
     // the entry check but its requests failed with ERR_FAILED while the
     // service was going down. Serve the cached state so the sidebar doesn't
     // flicker just because the outage straddled the request.
-    if (result === null && isNetworkLikelyDown()) {
+    if (result === null && !isPlatformHealthy("kick")) {
       const cached = _publicStreamSuccessCache.get(key);
       if (cached && Date.now() - cached.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
         return cached.data;
@@ -355,9 +354,9 @@ async function _doFetchPublicStreamBySlug(
     // Short-circuit when Chromium's network service just crashed: every
     // in-flight net.request will fail with ERR_FAILED until restart, and
     // each retry just piles more requests onto the recovering service.
-    // Surface as a normal timeout so the caller's short-TTL negative cache
-    // applies and the next refetch cycle picks the metadata back up.
-    if (isNetworkLikelyDown()) {
+    // Only bail for `down` (local crash); `degraded` (high failure rate)
+    // allows probe requests through to feed the recovery evaluator.
+    if (getPlatformHealth("kick") === "down") {
       lastError = new Error("TRANSIENT:timeout");
       break;
     }
@@ -467,7 +466,9 @@ async function _doFetchPublicStreamBySlug(
         // Feed net::ERR_* failures into the health tracker so a burst across
         // concurrent slugs flips the global flag and the remaining retries
         // (here and at other Kick call sites) bail out fast.
-        recordTransientNetworkError(normalizedError.message);
+        if (/net::ERR_/.test(normalizedError.message)) {
+          recordPlatformLocalNetError("kick");
+        }
         // Map TRANSIENT shapes onto PlatformFailureClass. Excluded shapes
         // (Status N / parse) take the non-transient break above and never
         // reach this branch.
@@ -479,7 +480,7 @@ async function _doFetchPublicStreamBySlug(
           // TRANSIENT:502 | 503 | 504.
           recordPlatformFailure("kick", "server-5xx");
         }
-        if (isNetworkLikelyDown()) break;
+        if (getPlatformHealth("kick") === "down") break;
         // Don't delay after the final attempt
         if (attempt < maxRetries - 1) {
           // Jitter ±25% so concurrent slugs don't all retry at the same
@@ -527,7 +528,7 @@ async function _doFetchPublicStreamBySlug(
     // (DNS, 5xx, parse errors — Kick is genuinely unhappy).
     const isTimeout = lastError.message === "TRANSIENT:timeout";
     const isNetCrash = /TRANSIENT:net::ERR_/.test(lastError.message || "");
-    const transient = isTimeout || isNetCrash || isNetworkLikelyDown();
+    const transient = isTimeout || isNetCrash || !isPlatformHealthy("kick");
     // Don't blacklist a slug whose positive cache is still fresh — a single
     // 5s cold-TLS timeout is exactly what the poll-hit cache was designed to
     // absorb, and letting the 30s timeout-TTL preempt a recent success would

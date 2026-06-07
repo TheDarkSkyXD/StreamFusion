@@ -599,22 +599,24 @@ app.on("child-process-gone", (_event, details) => {
   console.warn(`[Main] Child process gone: type=${details.type}, reason=${details.reason}`);
 
   if (details.type === "GPU") {
-    // GPU process crash - Chromium will auto-restart it.
+    // GPU process crash — Chromium will auto-restart it.
     // The network service typically follows the GPU down on Windows, so
-    // pre-emptively pause Kick retries to avoid hammering the recovering
-    // services with a thundering-herd of net::ERR_FAILED retries.
+    // pre-emptively mark both platforms as down to avoid hammering the
+    // recovering services with a thundering-herd of net::ERR_FAILED retries.
     console.warn("[Main] GPU process crashed - Chromium will auto-restart");
-    void import("./backend/api/platforms/kick/kick-network-health").then((m) =>
-      m.recordServiceCrash("GPU crash")
-    );
+    void import("./backend/api/unified/platform-health").then((m) => {
+      m.recordPlatformCrash("kick");
+      m.recordPlatformCrash("twitch");
+    });
   } else if (details.type === "Utility") {
-    // Utility process (e.g. network service) - usually auto-restarts.
-    // Mark Kick traffic unhealthy so in-flight retry loops bail out fast
+    // Utility process (e.g. network service) — usually auto-restarts.
+    // Mark both platforms as down so in-flight retry loops bail out fast
     // instead of cascading ERR_FAILED across every followed channel.
     console.warn("[Main] Utility process crashed");
-    void import("./backend/api/platforms/kick/kick-network-health").then((m) =>
-      m.recordServiceCrash("Utility crash")
-    );
+    void import("./backend/api/unified/platform-health").then((m) => {
+      m.recordPlatformCrash("kick");
+      m.recordPlatformCrash("twitch");
+    });
   }
   // Note: Renderer crashes are handled by 'render-process-gone' on webContents
   // We log here for telemetry but don't need manual recovery for renderers

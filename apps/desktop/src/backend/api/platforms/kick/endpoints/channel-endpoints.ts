@@ -1,8 +1,8 @@
 import { BrowserWindow } from "electron";
 import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
+import { isPlatformHealthy } from "../../../unified/platform-health";
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
-import { isNetworkLikelyDown } from "../kick-network-health";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
 import { KICK_LEGACY_API_V2_BASE, type KickApiChannel, type KickApiResponse } from "../kick-types";
@@ -332,7 +332,7 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
   // crashed/restarting. loadURL would just time out, and a hidden window is
   // an expensive resource (renderer + GPU + network partition) — exactly the
   // load profile that triggered the cascade in the first place.
-  if (isNetworkLikelyDown()) return null;
+  if (!isPlatformHealthy("kick")) return null;
 
   // Wait for our turn so only one hidden BrowserWindow exists at a time.
   // This is the single biggest GPU-load lever in the codebase.
@@ -340,7 +340,7 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
 
   // Re-check after acquiring the slot — the network may have crashed while
   // we were queued behind another caller's 10s load timeout.
-  if (isNetworkLikelyDown()) {
+  if (!isPlatformHealthy("kick")) {
     releaseSlot();
     return null;
   }
@@ -519,7 +519,7 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
     // If the network service crashed mid-load, the failure isn't this slug's
     // fault — don't penalise it with a 5-minute lockout. Re-check after the
     // failure since the crash event may have fired during loadURL.
-    networkBlip = isNetworkLikelyDown();
+    networkBlip = !isPlatformHealthy("kick");
     const errorMeta = {
       slug,
       error:
