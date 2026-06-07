@@ -15,7 +15,7 @@
  * dependent sections without a signed-in Twitch session. Cleared by default.
  */
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
@@ -32,71 +32,46 @@ interface HelixUsersResponse {
 }
 
 export function useResolveTwitchChannel(
-  login: string | null | undefined,
+  login: string | null | undefined
 ): ResolvedTwitchChannel | null | undefined {
-  const forceId = useDevModOverrideStore(
-    (s) => s.forceResolvedTwitchBroadcasterId,
-  );
-  const [state, setState] = useState<ResolvedTwitchChannel | null | undefined>(
-    undefined,
-  );
+  const forceId = useDevModOverrideStore((s) => s.forceResolvedTwitchBroadcasterId);
 
-  useEffect(() => {
-    if (!login) {
-      setState(null);
-      return;
-    }
-
-    // Dev override short-circuits Helix entirely.
-    if (forceId) {
-      setState({
-        id: forceId,
-        login: login.trim().toLowerCase(),
-        displayName: login,
-      });
-      return;
-    }
-
-    let cancelled = false;
-    setState(undefined);
-
-    (async () => {
+  const query = useQuery<ResolvedTwitchChannel | null>({
+    queryKey: ["resolveTwitchChannel", login, forceId],
+    queryFn: async () => {
+      // login is non-null here — `enabled` below gates on it.
+      if (forceId) {
+        return {
+          id: forceId,
+          login: login!.trim().toLowerCase(),
+          displayName: login!,
+        };
+      }
       try {
         const token = await window.electronAPI.auth.getToken("twitch");
         const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-        if (!token?.accessToken || !clientId) {
-          if (!cancelled) setState(null);
-          return;
-        }
-        const url = `${HELIX_BASE}/users?login=${encodeURIComponent(login.trim().toLowerCase())}`;
+        if (!token?.accessToken || !clientId) return null;
+
+        const url = `${HELIX_BASE}/users?login=${encodeURIComponent(login!.trim().toLowerCase())}`;
         const res = await fetch(url, {
           headers: {
             "Client-Id": clientId,
             Authorization: `Bearer ${token.accessToken}`,
           },
         });
-        if (!res.ok) {
-          if (!cancelled) setState(null);
-          return;
-        }
+        if (!res.ok) return null;
         const body = (await res.json()) as HelixUsersResponse;
         const first = body.data?.[0];
-        if (!first) {
-          if (!cancelled) setState(null);
-          return;
-        }
-        if (!cancelled) {
-          setState({ id: first.id, login: first.login, displayName: first.display_name });
-        }
+        if (!first) return null;
+        return { id: first.id, login: first.login, displayName: first.display_name };
       } catch {
-        if (!cancelled) setState(null);
+        return null;
       }
-    })();
+    },
+    enabled: !!login,
+    retry: false,
+  });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [login, forceId]);
-
-  return state;
+  if (!login) return null;
+  return query.data;
 }
