@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 ## Parent
 
@@ -33,3 +33,5 @@ The bundle exists because User Story 16 of the PRD asks for one logical touch of
 None — can start immediately.
 
 ## Comments
+
+Closing commit: 3e36900 refactor(emote-picker): rename EmoteDialog -> EmotePickerPopover + tame 7TV prefetch burst
