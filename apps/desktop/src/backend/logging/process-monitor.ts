@@ -1,7 +1,15 @@
 /**
  * Process-resource monitor — emits a Valo-style `[ProcessMonitor]` line on a
  * fixed interval. The body shape is grep-stable (`rss=NMB heap=NMB/NMB
- * cpu=N% load=N.N/N.N/N.N`) so log scrapers can rely on substring positions.
+ * cpu=N% load=N.N/N.N/N.N procs=[pid:type:rssMB ...]`) so log scrapers can
+ * rely on substring positions.
+ *
+ * The `procs=[...]` suffix samples Electron's `app.getAppMetrics()` so each
+ * tick records per-process working-set RSS for the host renderer, GPU
+ * process, and every utility / WCV child. Per-process heap is not in
+ * `ProcessMetric` and the main process heap is already in the `heap=`
+ * prefix, so this slice only ships RSS — slot-aware tagging arrives once
+ * StreamSlot processes exist (slice 06).
  *
  * CPU is computed across the wall-clock interval (cpuMs / intervalMs * 100 /
  * cores) using `process.cpuUsage()` deltas — no native bindings, no probe
@@ -16,14 +24,35 @@
 
 import os from "node:os";
 
+import { app } from "electron";
+
 import { logger } from "@/backend/logging/logger";
 
 const DEFAULT_INTERVAL_MS = 30_000;
 const BYTES_PER_MB = 1024 * 1024;
+const KB_PER_MB = 1024;
+
+// Subset of Electron's `ProcessMetric` we actually read. Importing the full
+// type pulls electron into the test harness; this surface keeps the seam
+// narrow and lets tests inject plain objects.
+interface ProcessMetricLike {
+  pid: number;
+  type: string;
+  name?: string;
+  memory: {
+    /** In KB per Electron docs. */
+    workingSetSize: number;
+  };
+}
 
 export interface MonitorOpts {
   /** Tick interval in ms. Default 30000. */
   intervalMs?: number;
+  /**
+   * Source of per-process metrics. Defaults to Electron's `app.getAppMetrics`.
+   * Injected in tests so we don't need a real Electron runtime.
+   */
+  getAppMetrics?: () => ProcessMetricLike[];
 }
 
 export interface ProcessSnapshot {
@@ -59,6 +88,28 @@ export function formatSnapshot(s: ProcessSnapshot): string {
   return `rss=${rss}MB heap=${heapUsed}MB/${heapTotal}MB cpu=${cpu}% load=${load}`;
 }
 
+/**
+ * Format `app.getAppMetrics()` output into a compact, grep-stable suffix that
+ * lives inside the existing ProcessMonitor line. One token per process:
+ * `pid:type:rssMB`. RSS is `workingSetSize` (KB) rounded to the nearest MB.
+ *
+ * Per-process heap is intentionally absent: Electron's `ProcessMetric.memory`
+ * only carries RSS-shaped values; V8 heap stats are only available for the
+ * current process, and the main heap is already in the `heap=` prefix.
+ */
+export function formatProcessMetrics(metrics: ProcessMetricLike[]): string {
+  const entries = metrics.map((m) => {
+    const rss = Math.round(m.memory.workingSetSize / KB_PER_MB);
+    const base = `${m.pid}:${m.type}:${rss}`;
+    if (!m.name) return base;
+    // Whitespace would break grep tools that split log lines on spaces, so
+    // collapse runs of whitespace inside utility names into a single `_`.
+    const safeName = m.name.replace(/\s+/g, "_");
+    return `${base}:${safeName}`;
+  });
+  return `procs=[${entries.join(" ")}]`;
+}
+
 function takeSnapshot(cpuPercent: number): ProcessSnapshot {
   const mem = process.memoryUsage();
   const [l1, l5, l15] = os.loadavg();
@@ -81,6 +132,10 @@ export function startProcessMonitor(opts?: MonitorOpts): () => void {
   }
 
   const intervalMs = opts?.intervalMs ?? DEFAULT_INTERVAL_MS;
+  // Default to Electron's app.getAppMetrics; tests inject a fake. Bound
+  // lazily so importing this module in unit tests doesn't crash when the
+  // Electron `app` object isn't ready.
+  const getAppMetrics = opts?.getAppMetrics ?? (() => app.getAppMetrics());
   const cpuCount = Math.max(1, os.cpus().length);
 
   const initialCpu = process.cpuUsage();
@@ -101,7 +156,19 @@ export function startProcessMonitor(opts?: MonitorOpts): () => void {
     active.lastTimestampMs = nowMs;
 
     const snapshot = takeSnapshot(cpuPercent);
-    logger.info("ProcessMonitor", formatSnapshot(snapshot));
+    // Per-process probe must never crash the tick — a failure here would
+    // silently kill the resource monitor for the rest of the session.
+    let procSegment = "";
+    try {
+      const metrics = getAppMetrics();
+      procSegment = ` ${formatProcessMetrics(metrics)}`;
+    } catch (error) {
+      // Collapse whitespace so the error tag remains a single
+      // whitespace-delimited token in the grep-stable line.
+      const safe = String(error).replace(/\s+/g, "_");
+      procSegment = ` procs=err:${safe}`;
+    }
+    logger.info("ProcessMonitor", `${formatSnapshot(snapshot)}${procSegment}`);
   }, intervalMs);
 
   const handle: ActiveMonitor = {
