@@ -41,13 +41,7 @@ beforeEach(() => {
   Object.defineProperty(process.versions, "node", { value: "20.19.0", configurable: true });
 });
 
-describe("registerAppHandlers", () => {
-  it("registers an invoke handler for APP_GET_ENVIRONMENT", () => {
-    registerAppHandlers();
-    const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
-    expect(channels).toContain(IPC_CHANNELS.APP_GET_ENVIRONMENT);
-  });
-});
+// Guards: APP_GET_ENVIRONMENT handler returns a fully-populated AppEnvironment object — isDev derived from app.isPackaged, electron/node versions from process.versions, appVersion from app.getVersion(). The wiring-only "registers an invoke handler" assertion was removed in U20.c — getInvokeHandler() throws if the channel isn't registered, so the behavior tests below already pin the registration as a side-effect.
 
 describe("APP_GET_ENVIRONMENT", () => {
   it("returns a fully-populated AppEnvironment object", async () => {

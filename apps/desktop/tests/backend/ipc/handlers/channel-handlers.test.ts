@@ -45,14 +45,7 @@ beforeEach(() => {
   registerChannelHandlers();
 });
 
-describe("registerChannelHandlers", () => {
-  it("registers all three channel IPC channels", () => {
-    const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
-    expect(channels).toContain(IPC_CHANNELS.CHANNELS_GET_BY_ID);
-    expect(channels).toContain(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
-    expect(channels).toContain(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
-  });
-});
+// Guards: CHANNELS_GET_BY_ID / CHANNELS_GET_BY_USERNAME / CHANNELS_GET_FOLLOWED IPC handlers — platform-discriminated routing (twitch → twitchClient, kick → kickClient), the {success, data}/{success, error} envelope contract, and the "Twitch not authenticated returns empty array (doesn't throw)" path. Wiring-only "registers all three channel IPC channels" assertion was removed in U20.c — getHandler() throws if a channel isn't registered, so the behavior tests below already pin the registration as a side-effect.
 
 describe("CHANNELS_GET_BY_ID", () => {
   it("fetches Twitch channel by ID", async () => {

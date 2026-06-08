@@ -271,6 +271,12 @@ describe("isSanctumBearer", () => {
   });
 });
 
+// Guards: ensureSendWindowReady — warmup deduplication (one promise across concurrent callers)
+// and the warmup-timeout path (10s deadline → throws + destroys the leaked window so the next
+// caller doesn't inherit a half-warmed window). The two warmup-timeout tests use fake timers
+// (per U20.c speed-fix); WARMUP_TIMEOUT_MS is 10s in the source and the polling uses sleep()
+// (setTimeout) inside _pollPredicate so vi.advanceTimersByTimeAsync drains the loop without
+// burning real wall-clock.
 describe("ensureSendWindowReady", () => {
   it("two concurrent calls share one warmup promise", async () => {
     const acquired: number[] = [];
@@ -304,55 +310,81 @@ describe("ensureSendWindowReady", () => {
     expect(acquired.length).toBe(1);
   });
 
-  it("rejects with send-window-warmup-timeout when predicate never resolves", async () => {
-    const fakeWin = {
-      loadURL: vi.fn(() => Promise.resolve()),
-      webContents: {
-        // Predicate returns false forever — never bearer-ready.
-        executeJavaScript: vi.fn(() => Promise.resolve(false)),
-        on: vi.fn(),
-        session: {
-          webRequest: { onBeforeSendHeaders: vi.fn() },
-        },
-      },
-      destroy: vi.fn(),
-      isDestroyed: vi.fn(() => false),
-    };
-    const { BrowserWindow } = await import("electron");
-    (BrowserWindow as any).mockImplementation(function (this: unknown) {
-      return fakeWin;
+  // Warmup-timeout tests share fake timers — production WARMUP_TIMEOUT_MS is 10s
+  // with 200ms polling via sleep() (setTimeout). vi.advanceTimersByTimeAsync drains
+  // the entire poll loop in ~ms instead of the real 10s wait. Previously these two
+  // tests cost 20.3s wall-clock combined (per U20.c speed-fix); now ~ms each.
+  describe("warmup-timeout (fake timers)", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
     });
-    // Bearer cache stays null so even a cookie-true predicate wouldn't pass.
-    await expect(ensureSendWindowReady()).rejects.toThrow(/send-window-warmup-timeout/);
-  }, 15_000);
 
-  it("destroys the leaked window on warmup failure (timeout)", async () => {
-    const destroyCalls: Array<unknown> = [];
-    const fakeWin = {
-      loadURL: vi.fn(() => Promise.resolve()),
-      webContents: {
-        executeJavaScript: vi.fn(() => Promise.resolve(false)),
-        on: vi.fn(),
-        session: {
-          webRequest: { onBeforeSendHeaders: vi.fn() },
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("rejects with send-window-warmup-timeout when predicate never resolves", async () => {
+      const fakeWin = {
+        loadURL: vi.fn(() => Promise.resolve()),
+        webContents: {
+          // Predicate returns false forever — never bearer-ready.
+          executeJavaScript: vi.fn(() => Promise.resolve(false)),
+          on: vi.fn(),
+          session: {
+            webRequest: { onBeforeSendHeaders: vi.fn() },
+          },
         },
-      },
-      destroy: vi.fn(() => { destroyCalls.push(1); }),
-      isDestroyed: vi.fn(() => false),
-    };
-    const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
+        destroy: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+      };
+      const { BrowserWindow } = await import("electron");
+      (BrowserWindow as any).mockImplementation(function (this: unknown) {
         return fakeWin;
-      } as unknown as () => unknown,
-    );
+      });
+      // Bearer cache stays null so even a cookie-true predicate wouldn't pass.
+      const promise = ensureSendWindowReady();
+      // Attach a no-op catch so the unhandled-rejection tracker stays quiet
+      // while we drive the fake-timer loop; we still assert via the same
+      // promise below.
+      promise.catch(() => {});
+      // Drain the 10s timeout's polling loop. Advance past the WARMUP_TIMEOUT_MS
+      // deadline (10s) — the loop checks `Date.now() < deadline` each iteration
+      // after a 200ms sleep, so once fake time is past 10s the loop throws.
+      await vi.advanceTimersByTimeAsync(10_100);
+      await expect(promise).rejects.toThrow(/send-window-warmup-timeout/);
+    });
 
-    await expect(ensureSendWindowReady()).rejects.toThrow(/send-window-warmup-timeout/);
-    // The window MUST have been destroyed during cleanup so it doesn't
-    // leak and shadow a successor window's state.
-    expect(destroyCalls.length).toBe(1);
-    expect(getBearerForTest()).toBeNull();
-  }, 15_000);
+    it("destroys the leaked window on warmup failure (timeout)", async () => {
+      const destroyCalls: Array<unknown> = [];
+      const fakeWin = {
+        loadURL: vi.fn(() => Promise.resolve()),
+        webContents: {
+          executeJavaScript: vi.fn(() => Promise.resolve(false)),
+          on: vi.fn(),
+          session: {
+            webRequest: { onBeforeSendHeaders: vi.fn() },
+          },
+        },
+        destroy: vi.fn(() => { destroyCalls.push(1); }),
+        isDestroyed: vi.fn(() => false),
+      };
+      const { BrowserWindow } = await import("electron");
+      (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+        function (this: unknown) {
+          return fakeWin;
+        } as unknown as () => unknown,
+      );
+
+      const promise = ensureSendWindowReady();
+      promise.catch(() => {});
+      await vi.advanceTimersByTimeAsync(10_100);
+      await expect(promise).rejects.toThrow(/send-window-warmup-timeout/);
+      // The window MUST have been destroyed during cleanup so it doesn't
+      // leak and shadow a successor window's state.
+      expect(destroyCalls.length).toBe(1);
+      expect(getBearerForTest()).toBeNull();
+    });
+  });
 });
 
 import { sendKickChatMessage } from "@/backend/api/platforms/kick/kick-send-window";

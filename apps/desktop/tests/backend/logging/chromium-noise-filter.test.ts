@@ -6,7 +6,10 @@
  * them pollute the session log. Also pins the integration touch points where
  * the tailer and native-stderr-intercept consume the predicate, since the
  * whole point of this filter is end-to-end demotion — not pure-function
- * matching in isolation.
+ * matching in isolation. The dedicated chromium-log-tailer.test.ts and
+ * native-stderr-intercept.test.ts pin the level-routing contract (ERROR /
+ * WARNING / INFO / VERBOSE) but explicitly do NOT exercise the noise-filter
+ * demotion path — that's owned here.
  *
  * Invariants pinned here:
  *   1. The exact IDCompositionDevice4 GPU-probe line from the bug report
@@ -18,10 +21,18 @@
  *   5. Empty input does not match.
  *   6. Plain non-Chromium freeform text does not match.
  *   7. tailer: matched harmless ERROR lines route to logger.debug, NOT
- *      logger.error.
+ *      logger.error. (Owned here — chromium-log-tailer.test.ts pins ERROR /
+ *      WARNING / INFO / VERBOSE level routing but does NOT exercise the
+ *      noise-demotion path; deleting this invariant would lose coverage.)
  *   8. tailer: real SSL ERROR lines still route to logger.error.
  *   9. intercept: Autofill.enable -32601 written to process.stderr routes to
- *      logger.debug, NOT logger.error.
+ *      logger.debug, NOT logger.error. (Owned here — native-stderr-intercept.test.ts
+ *      similarly pins level routing only, not noise-demotion.)
+ *
+ * Verified 2026-06-08 (U20.c): grep of chromium-log-tailer.test.ts and
+ * native-stderr-intercept.test.ts for noise/demote/harmless found no matches
+ * in either file, so the dual-ownership concern called out in the U20.c brief
+ * doesn't apply — invariants 7-9 are SOLELY owned here.
  */
 
 import fs from "node:fs";
