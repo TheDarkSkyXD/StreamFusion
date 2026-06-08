@@ -38,10 +38,13 @@ describe("PredictionPreferences defaults (U1)", () => {
 });
 
 describe("ChatDisplayPreferences defaults (U1)", () => {
-  it("defaults messageLimit to the shipped RAM-safe cap of 100 (not the origin's 500/150)", () => {
-    // Guards the U4 reconciliation: raising this regresses the 5 GB-spike fix.
-    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit).toBe(100);
-    expect(DEFAULT_USER_PREFERENCES.chatDisplay.messageLimit).toBe(100);
+  it("defaults messageLimit to 600 (the per-channel cap from PRD #62's chat-store dual-shape migration)", () => {
+    // Was 100 in the flat-array era to defend the 5 GB-spike fix. The
+    // per-channel store (commit b9f92f1 / .scratch grill notes) puts the
+    // cap on each channelKey bucket independently — 4-panel multiview
+    // worst case ≈ 4 × 600 × 500B ≈ 1.2 MB, well under the spike threshold.
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit).toBe(600);
+    expect(DEFAULT_USER_PREFERENCES.chatDisplay.messageLimit).toBe(600);
   });
 
   it("wires chatDisplay onto the top-level UserPreferences shape", () => {
@@ -80,7 +83,7 @@ describe("ChatDisplayPreferences defaults (U1)", () => {
     };
     const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
     expect(hydrated.chatDisplay).toEqual(DEFAULT_CHAT_DISPLAY_PREFERENCES);
-    expect(hydrated.chatDisplay.messageLimit).toBe(100);
+    expect(hydrated.chatDisplay.messageLimit).toBe(600);
   });
 });
 

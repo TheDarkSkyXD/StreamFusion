@@ -13,7 +13,7 @@ import { useChatStore } from '@/store/chat-store';
 // Hysteresis constants mirrored from chat-store.ts (not exported): trimming
 // fires at maxMessages + TRIM_BUFFER and trims back to maxMessages - TRIM_BUFFER.
 const TRIM_BUFFER = 10;
-const MESSAGE_LIMIT_MAX = 400;
+const MESSAGE_LIMIT_MAX = 1200;
 
 /**
  * Set chatDisplay.messageLimit on the auth store so resolveMessageLimit() in
@@ -327,10 +327,10 @@ describe('chat-store configurable message limit (U4)', () => {
     expect(useChatStore.getState().messages.length).toBeLessThanOrEqual(N + TRIM_BUFFER);
   });
 
-  it('clamps a configured value above the hard max down to 400', () => {
+  it('clamps a configured value above the hard max down to MESSAGE_LIMIT_MAX (1200)', () => {
     setMessageLimitPref(10_000);
     // Use prependMessages for the exact-cap assertion. The effective cap is
-    // MESSAGE_LIMIT_MAX (400), not 10_000.
+    // MESSAGE_LIMIT_MAX (1200 after the per-channel migration), not 10_000.
     const batch = Array.from({ length: MESSAGE_LIMIT_MAX + 50 }, (_, i) => makeMessage(`p-${i}`));
     useChatStore.getState().prependMessages(batch);
     expect(useChatStore.getState().messages).toHaveLength(MESSAGE_LIMIT_MAX);
@@ -346,13 +346,16 @@ describe('chat-store configurable message limit (U4)', () => {
     expect(useChatStore.getState().messages).toHaveLength(10);
   });
 
-  it('falls back to the default 100 when chatDisplay is not configured', () => {
+  it('falls back to the default 600 when chatDisplay is not configured', () => {
     setMessageLimitPref(undefined); // no chatDisplay group
-    const batch = Array.from({ length: 150 }, (_, i) => makeMessage(`p-${i}`));
+    // Seed enough to exceed the new default (600) so the trim path actually
+    // engages. 150 messages used to exceed the old 100 default; 800 exceeds
+    // the new 600 default by the same proportion.
+    const batch = Array.from({ length: 800 }, (_, i) => makeMessage(`p-${i}`));
     useChatStore.getState().prependMessages(batch);
-    // Default messageLimit is 100.
-    expect(useChatStore.getState().messages).toHaveLength(100);
-    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit).toBe(100);
+    // Default messageLimit is 600 after the per-channel migration.
+    expect(useChatStore.getState().messages).toHaveLength(600);
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit).toBe(600);
   });
 
   it('retains the larger paused buffer and does not lose messages on resume', () => {
