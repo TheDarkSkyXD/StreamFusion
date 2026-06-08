@@ -26,14 +26,18 @@ const apiClient = ky.create({
     ],
     afterResponse: [
       (request, _options, response) => {
-        if (!response.ok) {
-          // Centralized error logging can go here
-          logger.warn("Lib:ApiClient", "request failed", {
-            method: request.method,
-            url: request.url,
-            status: response.status,
-          });
-        }
+        if (response.ok) return;
+        // Any non-2xx is logged at error so it surfaces in the Logs viewer's
+        // Error filter — matches what DevTools shows (red text for every
+        // failed request). Some 4xx are expected (e.g. BTTV 404 for a channel
+        // with no emotes); callers that know a specific status is benign
+        // should suppress their own line rather than asking the client to
+        // silently downgrade.
+        logger.error("Lib:ApiClient", "request failed", {
+          method: request.method,
+          url: request.url,
+          status: response.status,
+        });
       },
     ],
   },

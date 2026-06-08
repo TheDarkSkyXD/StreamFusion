@@ -46,8 +46,12 @@ export function computeLogPaths(opts: ComputeLogPathsOpts): LogPaths {
     if (!opts.projectRoot) {
       throw new Error("projectRoot required in dev");
     }
+    // Dev uses a dot-prefixed `.logs/` so the folder is hidden in file
+    // browsers and easy to gitignore distinct from the catch-all `*.log`
+    // pattern. Prod paths stay unprefixed — they live in install / app-data
+    // dirs where the hidden-dot convention doesn't help.
     return {
-      logsDir: path.join(opts.projectRoot, "logs"),
+      logsDir: path.join(opts.projectRoot, ".logs"),
       bugReportsDir: path.join(opts.projectRoot, "bug-reports"),
       telemetryDir: path.join(opts.projectRoot, "telemetry"),
     };

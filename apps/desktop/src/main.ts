@@ -29,6 +29,7 @@ import { installCrashHooks } from "./backend/logging/crash-hooks";
 import { computeLogPaths, setBugReportsDir, setTelemetryDir } from "./backend/logging/log-paths";
 import { getCurrentLogPath, initLogger, logger, shutdownLogger } from "./backend/logging/logger";
 import { installNativeStderrIntercept } from "./backend/logging/native-stderr-intercept";
+import { startChromiumLogTailer } from "./backend/logging/chromium-log-tailer";
 import {
   getCurrentNoisePath,
   initNoiseLogger,
@@ -136,6 +137,19 @@ const { logsDir, bugReportsDir, telemetryDir } = computeLogPaths({
 setBugReportsDir(bugReportsDir);
 setTelemetryDir(telemetryDir);
 
+// Tell Chromium to write its native logs (e.g. `ssl_client_socket_impl`
+// handshake failures, GPU errors) into a file we own. The native-stderr
+// intercept catches Node-side writes, but Chromium's C++ code writes
+// straight to the OS file descriptor and bypasses that path. Routing to
+// a file we can tail closes that gap. Filename mirrors the main session
+// log so on-disk lifecycle matches.
+const chromiumLogPath = path.join(
+  logsDir,
+  `streamfusion-chromium-${sessionStamp.replace(/[:.]/g, "-")}.log`
+);
+app.commandLine.appendSwitch("enable-logging", "file");
+app.commandLine.appendSwitch("log-file", chromiumLogPath);
+
 initLogger({ logsDir, sessionStamp });
 initNoiseLogger({ logsDir, sessionStamp });
 installCrashHooks({ app });
@@ -155,6 +169,13 @@ setMainLogSink((level, tag, message, meta) => {
 // before native intercept goes hot — and once installed, lives for the
 // process lifetime (no uninstall on quit).
 installNativeStderrIntercept();
+
+// Tail the Chromium native log into the session log. Picks up the lines
+// that bypass process.stderr (ssl_client_socket_impl, gpu errors, etc.)
+// since they go straight to the OS file descriptor. The flags configured
+// above route those lines to chromiumLogPath; this watcher forwards each
+// append into `logger` under the "Chromium" tag.
+startChromiumLogTailer({ filePath: chromiumLogPath });
 
 import("./backend/logging/platform-health-telemetry");
 void import("./backend/api/unified/status-page-poller").then(m => m.initStatusPagePoller());

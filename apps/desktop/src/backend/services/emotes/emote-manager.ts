@@ -5,7 +5,10 @@
  * and lookup of emotes from Twitch, Kick, BTTV, FFZ, and 7TV.
  */
 
-import { logger } from "@/backend/logging/logger";
+// Cross-logger: ChatPanel imports this module via the emotes barrel, so the
+// renderer bundle would pull in `electron-log/main` through @/backend/logging/logger
+// and crash at module load with `__dirname is not defined`.
+import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type { Platform } from "@/shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";

@@ -9,7 +9,7 @@ import { computeLogPaths } from "@/backend/logging/log-paths";
 // read-only on mac/linux so we fall back to app.getPath('logs')).
 
 describe("computeLogPaths — dev (!isPackaged)", () => {
-  it("returns repo-root /logs and /bug-reports when projectRoot is supplied", () => {
+  it("returns repo-root /.logs and /bug-reports when projectRoot is supplied", () => {
     const projectRoot = path.join("C:", "repos", "StreamFusion");
     const result = computeLogPaths({
       isPackaged: false,
@@ -19,7 +19,7 @@ describe("computeLogPaths — dev (!isPackaged)", () => {
       projectRoot,
     });
 
-    expect(result.logsDir).toBe(path.join(projectRoot, "logs"));
+    expect(result.logsDir).toBe(path.join(projectRoot, ".logs"));
     expect(result.bugReportsDir).toBe(path.join(projectRoot, "bug-reports"));
   });
 
@@ -33,7 +33,7 @@ describe("computeLogPaths — dev (!isPackaged)", () => {
       projectRoot,
     });
 
-    expect(result.logsDir).toBe(path.join(projectRoot, "logs"));
+    expect(result.logsDir).toBe(path.join(projectRoot, ".logs"));
     expect(result.bugReportsDir).toBe(path.join(projectRoot, "bug-reports"));
   });
 

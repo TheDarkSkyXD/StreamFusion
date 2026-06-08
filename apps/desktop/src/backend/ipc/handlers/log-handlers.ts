@@ -42,7 +42,14 @@ interface LogWritePayload {
 interface LogsTailPayload {
   lines: unknown;
   file: unknown;
+  level?: unknown;
+  tag?: unknown;
 }
+
+// Matches `[<iso>] [<level>] [<tag>] ...`. Mirrors the client-side
+// `classifyLine` in LogsSection so what the user sees in the viewer always
+// agrees with what server-side filters dropped.
+const LINE_FORMAT = /^\[[^\]]+\]\s+\[(debug|info|warn|error)\]\s+\[([^\]]+)\]/i;
 
 function isLogLevel(value: unknown): value is LogLevel {
   return typeof value === "string" && (VALID_LEVELS as readonly string[]).includes(value);
@@ -63,7 +70,18 @@ function safeNoisePath(): string | null {
   }
 }
 
-async function readTail(filePath: string, lines: number): Promise<string[]> {
+interface ReadTailFilters {
+  /** Restrict to this severity. `undefined` = all levels. */
+  level?: LogLevel;
+  /** Case-insensitive substring match against the tag. Empty/undefined = no filter. */
+  tag?: string;
+}
+
+async function readTail(
+  filePath: string,
+  lines: number,
+  filters: ReadTailFilters = {}
+): Promise<string[]> {
   let raw: string;
   try {
     raw = await fs.readFile(filePath, "utf8");
@@ -73,7 +91,27 @@ async function readTail(filePath: string, lines: number): Promise<string[]> {
   const all = raw.split("\n");
   // Drop empty entries so a trailing newline does not surface as a blank row.
   const nonEmpty = all.filter((line) => line.length > 0);
-  return nonEmpty.slice(-lines);
+
+  const tagNeedle = filters.tag?.trim().toLowerCase() ?? "";
+  const levelFilter = filters.level;
+
+  if (!levelFilter && tagNeedle === "") {
+    // Fast path: avoid the per-line regex scan when no filters are active.
+    return nonEmpty.slice(-lines);
+  }
+
+  // Filter BEFORE the slice so a tag/level match deep in a big file isn't
+  // dropped by a small `lines` window. Lines that don't match LINE_FORMAT
+  // are treated as info + empty tag — matches the client's classifyLine.
+  const filtered = nonEmpty.filter((line) => {
+    const match = LINE_FORMAT.exec(line);
+    const level = (match ? match[1].toLowerCase() : "info") as LogLevel;
+    const tag = match ? match[2] : "";
+    if (levelFilter && level !== levelFilter) return false;
+    if (tagNeedle !== "" && !tag.toLowerCase().includes(tagNeedle)) return false;
+    return true;
+  });
+  return filtered.slice(-lines);
 }
 
 // One-shot at app startup, mirroring the convention of every other
@@ -136,13 +174,17 @@ export function registerLogHandlers(): void {
     async (_event, payload: LogsTailPayload): Promise<string[]> => {
       const lines = clampTailLines(payload?.lines);
       const file = payload?.file;
+      const filters: ReadTailFilters = {
+        level: isLogLevel(payload?.level) ? payload.level : undefined,
+        tag: typeof payload?.tag === "string" ? payload.tag : undefined,
+      };
       if (file === "noise") {
         const noisePath = safeNoisePath();
         if (noisePath === null) return [];
-        return readTail(noisePath, lines);
+        return readTail(noisePath, lines, filters);
       }
       // Default to the main log for any other value (including 'main').
-      return readTail(getCurrentLogPath(), lines);
+      return readTail(getCurrentLogPath(), lines, filters);
     }
   );
 }

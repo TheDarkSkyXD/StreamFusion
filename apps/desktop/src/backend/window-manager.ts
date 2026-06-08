@@ -10,6 +10,7 @@ import path from "node:path";
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
 import { logger } from "@/backend/logging/logger";
+import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";
 import { installContextMenu } from "./context-menu";
 import { markCleanShutdown } from "./shutdown-marker";
 
@@ -195,19 +196,12 @@ class WindowManager {
 
     installContextMenu(this.mainWindow.webContents);
 
-    // Renderer-side console messages from webContents. We only forward
-    // errors here — info/warn/debug already round-trip through the renderer's
-    // console-intercept + IPC bridge, so mirroring them would duplicate every
-    // line. Errors are what the user complained about being missed in the
-    // terminal (Chromium emits some of them straight to stderr from native
-    // code), so capturing them here closes that gap with zero duplicates.
-    this.mainWindow.webContents.on("console-message", (details) => {
-      if (details.level !== "error") return;
-      logger.error("WebContents", details.message, {
-        source: details.sourceId,
-        line: details.lineNumber,
-      });
-    });
+    // Forward warn+error from this WebContents to the session log. The
+    // helper handles both modern (string) and legacy (numeric) level shapes
+    // and tags under `WebContents`. Catches messages from frames/workers
+    // that the renderer's main-thread console-intercept can't reach (e.g.
+    // the Twitch player iframe, ad-block sub-contexts).
+    forwardWebContentsConsole(this.mainWindow.webContents, { tag: "WebContents" });
 
     // Restore maximized state
     if (savedWindowState?.isMaximized) {

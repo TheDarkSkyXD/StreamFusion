@@ -8,11 +8,23 @@
  */
 "use strict";
 const { spawn } = require("node:child_process");
+const path = require("node:path");
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
+// Resolve via package.json (which IS declared in electron-vite's `exports`
+// map) and rebuild the bin path. Calling
+// `require.resolve("electron-vite/bin/electron-vite.js")` directly throws
+// ERR_PACKAGE_PATH_NOT_EXPORTED on Node >= 22.12 because the bin subpath
+// isn't exposed in the package's exports. The bin file is still on disk
+// (it's listed in package.json#bin); we just have to find it ourselves.
+const electronViteBin = path.join(
+  path.dirname(require.resolve("electron-vite/package.json")),
+  "bin",
+  "electron-vite.js"
+);
 const child = spawn(
   process.execPath,
-  [require.resolve("electron-vite/bin/electron-vite.js"), "dev", ...process.argv.slice(2)],
+  [electronViteBin, "dev", ...process.argv.slice(2)],
   {
     env,
     stdio: "inherit",

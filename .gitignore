@@ -1,6 +1,10 @@
 # Logs
 logs
+.logs
 *.log
+
+# Claude Code worktrees (per-session isolated checkouts under .claude/worktrees/)
+.claude/worktrees/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

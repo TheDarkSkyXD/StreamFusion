@@ -808,8 +808,12 @@ const electronAPI = {
     getCurrentPath: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.LOGS_GET_CURRENT_PATH),
     getNoisePath: (): Promise<string | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.LOGS_GET_NOISE_PATH),
-    tail: (payload: { lines: number; file: "main" | "noise" }): Promise<string[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.LOGS_TAIL, payload),
+    tail: (payload: {
+      lines: number;
+      file: "main" | "noise";
+      level?: "debug" | "info" | "warn" | "error";
+      tag?: string;
+    }): Promise<string[]> => ipcRenderer.invoke(IPC_CHANNELS.LOGS_TAIL, payload),
   },
 
   // ========== Platform Health ==========

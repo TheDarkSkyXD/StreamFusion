@@ -321,8 +321,16 @@ export interface IpcPayloads {
     meta?: Record<string, unknown>;
   };
   // Tail a log file. `file` selects the main session log or the optional
-  // noise log; `lines` is clamped to [1, 5000] by the handler.
-  [IPC_CHANNELS.LOGS_TAIL]: { lines: number; file: "main" | "noise" };
+  // noise log; `lines` is clamped to [1, 5000] by the handler. Optional
+  // `level`/`tag` filters apply server-side BEFORE the tail-slice, so a
+  // tag/level match deep in the file isn't dropped by a small `lines`
+  // window. `tag` is a case-insensitive substring match.
+  [IPC_CHANNELS.LOGS_TAIL]: {
+    lines: number;
+    file: "main" | "noise";
+    level?: "debug" | "info" | "warn" | "error";
+    tag?: string;
+  };
 
   // Bug-report capture. `description` is the user's free-form text; the two
   // include flags pick whether the handler tails the main and noise logs into

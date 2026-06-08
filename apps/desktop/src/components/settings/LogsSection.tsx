@@ -97,7 +97,16 @@ export function LogsSection() {
     if (!api) return;
     setLoading(true);
     try {
-      const result = await api.tail({ lines, file });
+      // Filter server-side so a deep-file tag/level match isn't dropped by
+      // the tail window. The viewer still runs the same filter locally as
+      // belt-and-suspenders against stale responses mid-typing.
+      const trimmedTag = tagFilter.trim();
+      const result = await api.tail({
+        lines,
+        file,
+        level: level === "all" ? undefined : level,
+        tag: trimmedTag === "" ? undefined : trimmedTag,
+      });
       setTail(result);
       setError(null);
     } catch (err) {
@@ -105,9 +114,9 @@ export function LogsSection() {
     } finally {
       setLoading(false);
     }
-  }, [lines, file]);
+  }, [lines, file, level, tagFilter]);
 
-  // Re-fetch on file/lines change and on first mount.
+  // Re-fetch on file/lines/level/tag change and on first mount.
   useEffect(() => {
     void fetchTail();
   }, [fetchTail]);
@@ -157,6 +166,21 @@ export function LogsSection() {
       toast.error(err instanceof Error ? err.message : "Couldn't copy log path");
     }
   }, [activePath]);
+
+  const handleCopyLogs = useCallback(async () => {
+    if (filteredLines.length === 0) {
+      toast.error("No log lines to copy");
+      return;
+    }
+    try {
+      // Copy exactly what's rendered (post-filter), one line per row, so a
+      // paste into an issue/Slack/email matches what the user is staring at.
+      await navigator.clipboard.writeText(filteredLines.join("\n"));
+      toast.success(`Copied ${filteredLines.length} log line${filteredLines.length === 1 ? "" : "s"}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't copy log lines");
+    }
+  }, [filteredLines]);
 
   const noiseDisabled = noisePath == null;
 
@@ -316,6 +340,21 @@ export function LogsSection() {
           >
             <LuCopy className="w-4 h-4 mr-2" />
             Copy Log Path
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleCopyLogs()}
+            disabled={filteredLines.length === 0}
+            title={
+              filteredLines.length === 0
+                ? "No log lines to copy"
+                : `Copy the ${filteredLines.length} visible log line${filteredLines.length === 1 ? "" : "s"} to the clipboard`
+            }
+            className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
+          >
+            <LuCopy className="w-4 h-4 mr-2" />
+            Copy Logs
           </Button>
         </div>
 
