@@ -99,25 +99,34 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         onClick={onOpenRequest}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseEnter={rerollKickEmote}
-        className="flex-shrink-0 p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`group flex-shrink-0 flex items-center justify-center w-14 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+          isOpen ? "bg-white/20" : "hover:bg-white/10"
+        }`}
         aria-label={label}
         aria-pressed={isOpen}
         data-testid="native-emote-button"
         disabled={disabled}
       >
-        {platform === "kick" ? (
-          <img
-            src={kickEmoteUrl(hoverEmoteId)}
-            alt=""
-            width={20}
-            height={20}
-            loading="lazy"
-            decoding="async"
-            className="block transition-transform duration-150 ease-out hover:scale-110"
-          />
-        ) : (
-          <TwitchIcon size={18} />
-        )}
+        {/* KickTalk's `.emoteBtn img` — 50% opacity at rest, 100% on hover/open. */}
+        <span
+          className={`block transition-opacity duration-200 ease-out ${
+            isOpen ? "opacity-100" : "opacity-50 group-hover:opacity-100"
+          }`}
+        >
+          {platform === "kick" ? (
+            <img
+              src={kickEmoteUrl(hoverEmoteId)}
+              alt=""
+              width={24}
+              height={24}
+              loading="lazy"
+              decoding="async"
+              className="block transition-transform duration-150 ease-out group-hover:scale-110"
+            />
+          ) : (
+            <TwitchIcon size={24} />
+          )}
+        </span>
       </button>
       <EmoteDialog
         isOpen={isOpen}

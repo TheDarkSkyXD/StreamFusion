@@ -791,26 +791,43 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           )}
 
           {/* Emote buttons (native + third-party). Send button is intentionally
-            gone — Enter sends. Divider + slide-and-fade-in mirrors KickTalk's
-            `.chatInputActions` (border-left + slideAndFadeIn keyframe). */}
-          <div className="flex items-center gap-1 pl-3 ml-1 border-l border-[var(--color-border)] animate-slide-and-fade-in">
-            <NativeEmoteButton
-              platform={platform}
-              channelId={channelId}
-              isOpen={activeDialog === "native"}
-              onOpenRequest={handleNativeOpenRequest}
-              onEmoteSelect={handleEmoteSelect}
-              disabled={buttonsDisabled}
-              viewerIsSubscribed={viewerIsSubscribed}
-            />
-            <ThirdPartyEmoteButton
-              platform={platform}
-              channelId={channelId}
-              isOpen={activeDialog === "thirdParty"}
-              onOpenRequest={handleThirdPartyOpenRequest}
-              onEmoteSelect={handleEmoteSelect}
-              disabled={buttonsDisabled}
-            />
+            gone — Enter sends. Outer wrapper mirrors KickTalk's `.chatInputActions`
+            (border-left + slideAndFadeIn keyframe); inner pill mirrors
+            `.chatEmoteBtns` (bg-white/5, border lifts to white/30 when open). */}
+          <div className="flex items-center pl-3 ml-1 border-l border-[var(--color-border)] animate-slide-and-fade-in">
+            {/* Inline `borderColor` overrides the unlayered `* { border-color: var(--color-border) }`
+              in index.css, which beats Tailwind's layered border-color utilities at the
+              cascade level. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
+            <div
+              className="flex items-center h-[38px] rounded-[4px] overflow-hidden border bg-white/5 transition-colors duration-150"
+              style={{
+                borderColor:
+                  activeDialog !== null ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.05)",
+              }}
+            >
+              <NativeEmoteButton
+                platform={platform}
+                channelId={channelId}
+                isOpen={activeDialog === "native"}
+                onOpenRequest={handleNativeOpenRequest}
+                onEmoteSelect={handleEmoteSelect}
+                disabled={buttonsDisabled}
+                viewerIsSubscribed={viewerIsSubscribed}
+              />
+              <span
+                className={`h-full w-px transition-colors duration-150 ${
+                  activeDialog !== null ? "bg-white/30" : "bg-white/5"
+                }`}
+              />
+              <ThirdPartyEmoteButton
+                platform={platform}
+                channelId={channelId}
+                isOpen={activeDialog === "thirdParty"}
+                onOpenRequest={handleThirdPartyOpenRequest}
+                onEmoteSelect={handleEmoteSelect}
+                disabled={buttonsDisabled}
+              />
+            </div>
           </div>
         </div>
 
