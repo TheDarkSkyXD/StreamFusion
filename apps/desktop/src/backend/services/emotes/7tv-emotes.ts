@@ -1,16 +1,19 @@
 /**
- * 7TV Emote Provider
+ * 7TV Emote Provider (renderer side).
  *
- * Fetches emotes from the 7TV API (v3) including global emotes
- * and channel-specific emotes.
+ * Channel + global emote fetches go through `electronAPI.emotes.*` so the
+ * REST hop runs in the main process (Electron `net.fetch`, Node-side) and
+ * the inevitable 404s for Kick users with no linked 7TV account never
+ * reach renderer DevTools. See `docs/adr/0004-7tv-rest-in-main-process.md`
+ * and PRD #62.
  *
- * 7TV is the newest and most popular third-party emote provider
- * with features like zero-width emotes and high-quality animated emotes.
+ * `fetchEmoteSet(setId)` still goes through `ky` — it's a separate
+ * endpoint not yet wrapped behind IPC (out of scope for slice 2b).
  */
 
-// Cross-logger: this module is imported by renderer code via the emotes
-// barrel. Using @/backend/logging/logger would drag electron-log/main into
-// the renderer bundle and crash with `__dirname is not defined`.
+// Cross-logger: imported by renderer code via the emotes barrel.
+// `@/backend/logging/logger` would drag electron-log/main into the
+// renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
 import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
@@ -114,15 +117,15 @@ class SevenTVEmoteProvider implements EmoteProviderService {
   }
 
   /**
-   * Fetch global 7TV emotes
+   * Fetch global 7TV emotes via the main-process IPC handler.
    */
   async fetchGlobalEmotes(): Promise<Emote[]> {
     try {
-      const data = await api
-        .get(`${SevenTVEmoteProvider.BASE_URL}/emote-sets/global`)
-        .json<SevenTVEmoteSet>();
+      const data = (await window.electronAPI.emotes.get7TVGlobalEmoteSet()) as
+        | SevenTVEmoteSet
+        | null;
 
-      if (!data.emotes) {
+      if (!data?.emotes) {
         return [];
       }
 
@@ -169,48 +172,42 @@ class SevenTVEmoteProvider implements EmoteProviderService {
       identifier = channelId;
     } else {
       // Kick: without the resolved broadcaster user_id we can't address 7TV's
-      // KICK connection. Return nothing rather than 404-spamming the console
-      // with the slug or chatroom id (the previous behavior).
+      // KICK connection. Skip the call rather than 404 against the slug or
+      // chatroom id (the previous behavior).
       if (!kickUserId) {
         return [];
       }
       identifier = kickUserId;
     }
 
-    const platformName = platform.toUpperCase();
-
     try {
-      // The platform lookup returns a flat UserConnection: `emote_set` sits at
-      // the TOP LEVEL. (The `connections[]` array only exists on the 7TV-native
-      // /users/{stvId} endpoint, which this is not.)
-      const connection = await api
-        .get(`${SevenTVEmoteProvider.BASE_URL}/users/${platformName}/${identifier}`)
-        .json<SevenTVUserConnection>();
+      // Main returns the flat UserConnection on 200, or null when 7TV doesn't
+      // know this user (the 404 we're trying to keep out of DevTools). Real
+      // failures (5xx, network) throw — caught below.
+      const connection = (await window.electronAPI.emotes.get7TVUserByConnection(
+        platform,
+        identifier
+      )) as SevenTVUserConnection | null;
 
-      const emotes = connection?.emote_set?.emotes;
-      if (!emotes) {
+      if (!connection) {
+        logger.info("Emote:7TV", "No 7TV channel emotes", { platform, identifier });
         return [];
       }
+
+      const emotes = connection.emote_set?.emotes;
+      if (!emotes) return [];
 
       return emotes.map((emote) => this.transformEmote(emote, false, channelId));
-    } catch (err: any) {
-      // 404 = channel has no linked 7TV account; not an error worth surfacing.
-      if (err.response?.status === 404) {
-        logger.info("Emote:7TV", "No 7TV channel emotes", {
-          platform: platformName,
-          identifier,
-        });
-        return [];
-      }
+    } catch (err) {
       logger.warn("Emote:7TV", "Failed to fetch channel emotes", {
-        platform: platformName,
+        platform,
         identifier,
         error:
           err instanceof Error
             ? { name: err.name, message: err.message, stack: err.stack }
             : String(err),
       });
-      return []; // Fail silently for individual channels so we don't crash
+      return [];
     }
   }
 

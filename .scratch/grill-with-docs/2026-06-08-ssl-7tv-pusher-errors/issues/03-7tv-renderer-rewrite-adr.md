@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 ## Parent
 
@@ -34,3 +34,27 @@ Also write `docs/adr/0004-7tv-rest-in-main-process.md`. The ADR documents the ar
 Slice 2a: `.scratch/grill-with-docs/2026-06-08-ssl-7tv-pusher-errors/issues/02-7tv-main-service-ipc.md` (the IPC channels and main-side service must exist before this slice can call them).
 
 ## Comments
+
+### 2026-06-08 — implementation complete
+
+Driven test-first with `/tdd`. The existing renderer-side test file was rewritten in one swap from ky/nock mocks to `window.electronAPI.emotes.*` mocks, asserting the new IPC contract. Source migrated to match.
+
+**Visible behaviour changes** (slice 2a was seams-only; this slice flips them on):
+- 7TV channel + global fetches now go through main process (Electron `net.fetch`, Node-side). DevTools no longer logs the red `Failed to load resource: ... 404` for unlinked Kick users.
+- `ApiClient.afterResponse` `[error]` log line no longer fires for 7TV user-by-connection — the renderer never makes that fetch.
+- 404 path is the `null` sentinel from main, not a thrown error. Renderer logs at `info`, returns `[]`.
+
+**Files**:
+- `apps/desktop/src/backend/services/emotes/7tv-emotes.ts` — rewrote `fetchChannelEmotes` + `fetchGlobalEmotes` to use `window.electronAPI.emotes.*`. Removed the old try/catch on `err.response?.status === 404`. Platform alias now lowercase in the call (main service handles uppercase).
+- `apps/desktop/src/preload/index.ts` — added `emotes.get7TVUserByConnection` + `emotes.get7TVGlobalEmoteSet` to the electronAPI surface. Type declarations flow through `apps/desktop/src/shared/electron.d.ts` (sourced from `typeof electronAPI`).
+- `apps/desktop/tests/backend/services/emotes/7tv-emotes.test.ts` — rewrote to use `vi.stubGlobal("window", { electronAPI: { emotes: ... } })`. 6 tests (Kick/Twitch happy paths, Kick-without-userId short-circuit, null sentinel, 5xx graceful degrade, fetchGlobalEmotes happy path).
+- `docs/adr/0004-7tv-rest-in-main-process.md` — captures why main+IPC over preload-only or renderer-fetch.
+
+**Out of scope**:
+- `fetchEmoteSet(setId)` still uses `ky` — different endpoint (`/v3/emote-sets/{id}`), no new IPC channel for it yet. Will follow the same pattern when BTTV/FFZ migrate.
+
+**Quality gate**:
+- Vitest: 6/6 renderer tests pass, file under 1s. Full slice-related suite: 29/29 pass.
+- Build: exit 0.
+- Typecheck: no new errors in changed files.
+- `/deslop`: no slop to remove — the rewrite was a contract swap, not new code.

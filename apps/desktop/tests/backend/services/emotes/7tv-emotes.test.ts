@@ -1,19 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getMock = vi.fn();
+// Guards: 7TV REST goes through electronAPI.emotes.* (main-process IPC) — calling browser fetch / ky for these endpoints reintroduces the DevTools red `Failed to load resource: ... 404` line PRD #62 closed
+// Guards: 404 path is a null sentinel from main (NOT a thrown error) — the renderer logs at info and returns [] without ever hitting ApiClient[error]
+// Guards: Kick without a resolved broadcaster user_id returns [] WITHOUT invoking electronAPI — addressing 7TV with the slug or chatroom id always 404s and undoes the noise reduction
+// Guards: emotes are tagged with the emote-map key (channelId arg) not the 7TV identifier — splits the broadcaster's id (used to address 7TV) from the local key (used to look up emotes per slot)
 
-vi.mock("@/lib/api-client", () => ({
-  api: {
-    get: (...args: unknown[]) => getMock(...args),
+const emotesApi = {
+  get7TVUserByConnection: vi.fn(),
+  get7TVGlobalEmoteSet: vi.fn(),
+};
+
+vi.stubGlobal("window", {
+  electronAPI: {
+    emotes: emotesApi,
   },
-}));
+} as unknown as Window);
 
 import { SevenTVEmoteProvider } from "@/backend/services/emotes/7tv-emotes";
 
-// 7TV's GET /v3/users/{platform}/{id} returns a flat *UserConnection*:
-// `emote_set` sits at the TOP LEVEL — there is NO `connections[]` array.
-// (`connections[]` only exists on the 7TV-native /users/{stvId} endpoint.)
-// Verified live against both TWITCH and KICK on 2026-05-23.
+// 7TV's GET /v3/users/{platform}/{id} returns a flat UserConnection:
+// `emote_set` sits at the top level — no `connections[]` array. Confirmed
+// against TWITCH and KICK on 2026-05-23.
 function flatUserConnection(platform: "KICK" | "TWITCH") {
   return {
     id: "676",
@@ -55,62 +62,101 @@ function flatUserConnection(platform: "KICK" | "TWITCH") {
   };
 }
 
-function mockJsonOnce(value: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.resolve(value) });
-}
-
-function mockRejectOnce(err: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.reject(err) });
-}
-
 describe("SevenTVEmoteProvider.fetchChannelEmotes", () => {
   beforeEach(() => {
-    getMock.mockReset();
+    emotesApi.get7TVUserByConnection.mockReset();
+    emotesApi.get7TVGlobalEmoteSet.mockReset();
   });
 
-  it("Kick: queries /users/KICK/{kickUserId} and parses the flat emote_set", async () => {
-    mockJsonOnce(flatUserConnection("KICK"));
+  it("Kick: invokes electronAPI.emotes.get7TVUserByConnection('kick', userId) and parses the flat emote_set", async () => {
+    emotesApi.get7TVUserByConnection.mockResolvedValueOnce(flatUserConnection("KICK"));
     const provider = new SevenTVEmoteProvider();
 
-    // channelId (1st arg) is the emote-map key (chatroom/channel id).
-    // kickUserId (4th arg) is the broadcaster user_id 7TV indexes Kick by.
     const emotes = await provider.fetchChannelEmotes("12345", "xqc", "kick", "676");
 
-    expect(getMock).toHaveBeenCalledTimes(1);
-    expect(getMock.mock.calls[0][0]).toBe("https://7tv.io/v3/users/KICK/676");
+    expect(emotesApi.get7TVUserByConnection).toHaveBeenCalledWith("kick", "676");
     expect(emotes).toHaveLength(1);
     expect(emotes[0].name).toBe("GAMBA");
     expect(emotes[0].provider).toBe("7tv");
-    // Emotes are tagged with the emote-map key, not the 7TV identifier.
+    // Emotes are tagged with the emote-map key (chatroom/channel id),
+    // NOT the broadcaster user_id 7TV indexes Kick by.
     expect(emotes[0].channelId).toBe("12345");
   });
 
-  it("Twitch: parses the flat emote_set (regression — endpoint has no connections[])", async () => {
-    mockJsonOnce(flatUserConnection("TWITCH"));
+  it("Twitch: invokes electronAPI.emotes.get7TVUserByConnection('twitch', channelId)", async () => {
+    emotesApi.get7TVUserByConnection.mockResolvedValueOnce(flatUserConnection("TWITCH"));
     const provider = new SevenTVEmoteProvider();
 
     const emotes = await provider.fetchChannelEmotes("71092938", "xqc", "twitch");
 
-    expect(getMock.mock.calls[0][0]).toBe("https://7tv.io/v3/users/TWITCH/71092938");
+    expect(emotesApi.get7TVUserByConnection).toHaveBeenCalledWith("twitch", "71092938");
     expect(emotes).toHaveLength(1);
     expect(emotes[0].name).toBe("GAMBA");
   });
 
-  it("Kick without a resolved user_id: returns [] without hitting the slug (no 404 spam)", async () => {
+  it("Kick without a resolved user_id: returns [] WITHOUT invoking electronAPI (no 404 noise)", async () => {
     const provider = new SevenTVEmoteProvider();
 
     const emotes = await provider.fetchChannelEmotes("12345", "xqc", "kick");
 
     expect(emotes).toEqual([]);
-    expect(getMock).not.toHaveBeenCalled();
+    expect(emotesApi.get7TVUserByConnection).not.toHaveBeenCalled();
   });
 
-  it("returns [] on 404 (channel has no 7TV link)", async () => {
-    mockRejectOnce({ response: { status: 404 } });
+  it("returns [] on null sentinel from main (channel has no 7TV link)", async () => {
+    emotesApi.get7TVUserByConnection.mockResolvedValueOnce(null);
     const provider = new SevenTVEmoteProvider();
 
     const emotes = await provider.fetchChannelEmotes("71092938", "xqc", "twitch");
 
     expect(emotes).toEqual([]);
+  });
+
+  it("returns [] when a real failure surfaces (5xx, network), without crashing the caller", async () => {
+    emotesApi.get7TVUserByConnection.mockRejectedValueOnce(new Error("7TV user fetch failed: 503"));
+    const provider = new SevenTVEmoteProvider();
+
+    const emotes = await provider.fetchChannelEmotes("71092938", "xqc", "twitch");
+
+    expect(emotes).toEqual([]);
+  });
+});
+
+describe("SevenTVEmoteProvider.fetchGlobalEmotes", () => {
+  beforeEach(() => {
+    emotesApi.get7TVGlobalEmoteSet.mockReset();
+  });
+
+  it("invokes electronAPI.emotes.get7TVGlobalEmoteSet and parses the emote_set", async () => {
+    emotesApi.get7TVGlobalEmoteSet.mockResolvedValueOnce({
+      id: "global",
+      emotes: [
+        {
+          id: "01F",
+          name: "FeelsOkayMan",
+          flags: 0,
+          timestamp: 0,
+          actor_id: null,
+          data: {
+            id: "01F",
+            name: "FeelsOkayMan",
+            flags: 0,
+            lifecycle: 3,
+            state: ["LISTED"],
+            listed: true,
+            animated: false,
+            host: { url: "//cdn.7tv.app/emote/01F", files: [] },
+          },
+        },
+      ],
+    });
+    const provider = new SevenTVEmoteProvider();
+
+    const emotes = await provider.fetchGlobalEmotes();
+
+    expect(emotesApi.get7TVGlobalEmoteSet).toHaveBeenCalledOnce();
+    expect(emotes).toHaveLength(1);
+    expect(emotes[0].name).toBe("FeelsOkayMan");
+    expect(emotes[0].isGlobal).toBe(true);
   });
 });

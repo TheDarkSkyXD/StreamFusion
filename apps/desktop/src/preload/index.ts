@@ -606,6 +606,16 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW),
   },
 
+  // ========== Third-party emotes ==========
+  // 7TV REST runs in main so the inevitable 404s for unlinked Kick users
+  // never reach renderer DevTools. See ADR-0004.
+  emotes: {
+    get7TVUserByConnection: (platform: Platform, identifier: string): Promise<unknown | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION, { platform, identifier }),
+    get7TVGlobalEmoteSet: (): Promise<unknown> =>
+      ipcRenderer.invoke(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET),
+  },
+
   // ========== Ad Blocking ==========
   adblock: {
     getStatus: (): Promise<{
