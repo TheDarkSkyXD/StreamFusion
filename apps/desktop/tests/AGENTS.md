@@ -97,6 +97,60 @@ The same rule covers failure-path `// Guards:` lines (loading / error / empty / 
 
 ---
 
+## SPEED BUDGET (R12)
+
+The suite has to be fast enough to run constantly — both locally and in CI. The wall-clock budget is set per file, not per suite, because parallelism hides offenders inside an OK-looking total.
+
+**Per-file budget: 2 seconds.** A test file that runs longer than 2s when invoked in isolation (`npx vitest run tests/path/to/file.test.ts`) is over budget. Component-heavy files (heavy RTL setup, large fixtures) get a soft ceiling of 1.5s; backend client files get the full 2s.
+
+**Per-test budget: 200ms median, 500ms ceiling.** A single `it(...)` block taking >500ms is a red flag — almost always a real-timer or real-HTTP smell.
+
+### Red flags
+
+| Smell | Root cause | Fix |
+|-------|-----------|-----|
+| Single test >5s | Real timer waiting for a production timeout (e.g., warmup-timeout, retry backoff) | `vi.useFakeTimers()` + `vi.advanceTimersByTimeAsync(ms)`. The production code's elapsed wall-clock is not the test's elapsed wall-clock. |
+| File >2s with no obvious heavy fixture | `renderWithProviders` called dozens of times in one `describe` block | Hoist shared setup to a `beforeAll`, or split the `describe` into smaller files. |
+| Real `setTimeout`/`setInterval` callbacks awaited via `await new Promise(r => setTimeout(r, X))` | Test code waiting on production-scale delays | Fake timers + advance; or refactor the SUT to accept an injected scheduler. |
+| `fs.watchFile`, `net.Server`, real `BrowserWindow`, real `Pusher` instances | Integration-level setup in a unit-tier file | Move to an integration `describe` or stub the boundary. |
+
+### What this catches
+
+The audit's slowest file at audit time was `tests/backend/api/platforms/kick/kick-send-window.test.ts` at 20.3s — two `send-window-warmup-timeout` tests using real timers to let the production 10s timeout elapse. After fake-timer adoption: ~50ms total. The fix is mechanical; the rule exists so future copies of the pattern get caught at PR time.
+
+### Enforcement
+
+No mechanical lint. PR reviewers check the timing line of any changed test file. If a file you touched runs >2s in isolation, either justify it (large fixture, integration tier) or fix it before merge.
+
+---
+
+## DUPLICATE CONSOLIDATION (R13)
+
+Two tests for the same regression class is one test too many. When a regression class is guarded in N files, pick one canonical home and consolidate.
+
+### The cluster signal
+
+If you see any of these, you have a cluster:
+
+- **Same imports + same fixtures across N files.** E.g., seven adblock files all import `initAdBlockService`/`processMasterPlaylist`/`processMediaPlaylist` and mock `global.fetch` with near-identical playlist strings.
+- **Sibling tests for related components that re-test the shared logic.** E.g., three grid components (`stream-grid`, `category-grid`, `virtualized-category-grid`) each asserting "renders N cards / empty / skeleton" against mocked card+skeleton deps.
+- **Hook test re-validates what its underlying store test already validates.** E.g., `useTwitchAuth.test.tsx` testing a one-line `useAuthStore((s) => s.twitch)` selector when `auth-store.test.ts` already covers every `twitch` field transition.
+- **A re-export probe file** (`foo.test.tsx` that mocks `./foo/index` and asserts the mock rendered). The probe only proves the re-export compiles.
+
+### The consolidation rule
+
+Pick the file that owns the **deepest** layer of the behavior (closest to the source-of-truth), keep it, and delete the satellites — UNLESS the satellite guards a regression class the deeper file can't observe (e.g., a wiring contract that only fires at the outer layer). When in doubt, keep the deepest test and migrate any unique satellite assertions into it.
+
+### What counts as "unique"
+
+A satellite assertion is unique only if removing it would lose a regression class — i.e., there's a SHA in `git log` where the satellite test would have failed and the canonical test would have passed. If you can't name that SHA or a realistic class, the assertion is redundant and the satellite can be deleted.
+
+### The audit's first hit list
+
+The audit's 2026-06-08 sweep flagged: the adblock 7-file pipeline cluster, the 3-file grid-clone triplet (`stream-grid`/`category-grid`/`virtualized-category-grid`), the 3-file platform-switch routing triplet (`Stream`/`performance-enhanced-player`/`ChatPanel`), and 5 hook-vs-store overlaps in `useAuth.test.tsx` / `useChatRoomState.test.tsx` / `dev-mod-override.test.tsx` / `useUpdater.test.tsx`. All consolidated under U20.
+
+---
+
 ## REGRESSION-ON-BUG RULE (R7)
 
 When a bug is fixed, a regression test lands in the same PR (or the immediately-following PR — the audit is the catch-up). The test must:
