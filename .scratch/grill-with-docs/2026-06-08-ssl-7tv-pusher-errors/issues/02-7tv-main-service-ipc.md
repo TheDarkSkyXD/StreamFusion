@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 ## Parent
 
@@ -30,3 +30,31 @@ Note on interim state: between this slice and slice 2b, the new main service and
 None — can start immediately.
 
 ## Comments
+
+### 2026-06-08 — implementation complete
+
+Driven test-first with `/tdd`. Five TDD cycles (4 service + 1 handler):
+
+1. **Service happy path** — `fetch7TVUserByConnection("kick", "58371235")` composes `https://7tv.io/v3/users/KICK/58371235` and returns parsed JSON.
+2. **404 sentinel** — returns `null` (not throws) for unlinked accounts.
+3. **5xx + network errors** — surfaces an Error so callers can distinguish from a missing connection. Includes a guard test that the platform alias is upper-cased (7TV's router is case-sensitive).
+4. **Global emote set** — same shape: 200 → JSON, non-2xx → Error.
+5. **IPC handlers** — `registerEmoteHandlers()` registers both channels with `ipcMain.handle`; tests capture the registered handlers and assert they forward to the service with the right args, including the null-sentinel passthrough.
+
+**Files**:
+- `apps/desktop/src/backend/services/emotes/7tv-emotes-service.ts` (new)
+- `apps/desktop/src/backend/ipc/handlers/emote-handlers.ts` (new)
+- `apps/desktop/src/shared/ipc-channels.ts` (added `EMOTES_7TV_GET_USER_BY_CONNECTION`, `EMOTES_7TV_GET_GLOBAL_EMOTE_SET` + payload type)
+- `apps/desktop/src/backend/ipc-handlers.ts` (registered alongside other handlers)
+- `apps/desktop/tests/backend/services/emotes/7tv-emotes-service.test.ts` (new, 7 tests)
+- `apps/desktop/tests/backend/ipc/handlers/emote-handlers.test.ts` (new, 4 tests)
+
+**Quality gate**:
+- Vitest: 11/11 pass, both files under 1s each.
+- Build: `npm run build` exit 0.
+- Typecheck: no new errors in changed files.
+- `/deslop`: trimmed verbose JSDocs in service + redundant header in handler.
+
+**Note on HTTP layer**: PRD/issue specified Electron `net.request`, but the existing codebase uses `net.fetch` (modern Fetch-API wrapper) — see `apps/desktop/src/backend/api/platforms/kick/endpoints/stream-endpoints.ts`. Same goal (Node-side HTTP, no DevTools surface) so switched to `net.fetch` for consistency.
+
+**Interim state**: no renderer-visible change yet. The new IPC channels are registered and the service is reachable, but the renderer's `7tv-emotes.ts` still calls `ky` via the renderer ApiClient. The flip happens in slice 2b (issue 03).

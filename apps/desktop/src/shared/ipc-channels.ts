@@ -266,6 +266,13 @@ export const IPC_CHANNELS = {
   // mute icons) can re-render.
   SLOT_PRESENCE_CHANGED: "slot:presence-changed",
 
+  // ========== Third-party emote providers ==========
+  // 7TV REST calls run in main (Electron `net.fetch`) so renderer DevTools
+  // never logs the 404s that fire for Kick users with no linked 7TV
+  // account. See ADR-0004 and PRD #62.
+  EMOTES_7TV_GET_USER_BY_CONNECTION: "emotes:7tv:get-user-by-connection",
+  EMOTES_7TV_GET_GLOBAL_EMOTE_SET: "emotes:7tv:get-global-emote-set",
+
   // ========== Bug Reports ==========
   // Renderer-driven bug-report capture. The handler stitches the description,
   // tail of the main log, and tail of the noise log into a markdown file in
@@ -335,6 +342,10 @@ export interface IpcPayloads {
   // Kick chat send — chatroomId addresses the v2 broadcast endpoint; content
   // is the raw message text. ensure-ready and dispose take no payload.
   [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: { chatroomId: number; content: string };
+
+  // 7TV REST (main-process transport). Identifier is the platform's own
+  // numeric id (Twitch user_id or Kick channel.id), NOT the slug.
+  [IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION]: { platform: Platform; identifier: string };
 
   // Renderer → main log bridge. `level` is restricted to the four supported
   // severities; the handler drops anything else. `tag` is prefixed with
