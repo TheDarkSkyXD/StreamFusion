@@ -489,9 +489,7 @@ export function SettingsPage() {
   const multiviewCap = useMultiStreamStore((state) => state.multiviewCap);
   const setMultiviewCap = useMultiStreamStore((state) => state.setMultiviewCap);
   const backgroundQuality = useMultiStreamStore((state) => state.backgroundQuality);
-  const setBackgroundQualityInStore = useMultiStreamStore(
-    (state) => state.setBackgroundQuality
-  );
+  const setBackgroundQualityInStore = useMultiStreamStore((state) => state.setBackgroundQuality);
   const activeStreamCount = useMultiStreamStore((state) => state.streams.length);
   const handleMultiviewCapChange = (next: number) => {
     setMultiviewCap(next);
@@ -1213,14 +1211,11 @@ export function SettingsPage() {
                       <div className="px-6 py-2 divide-y divide-[#27272a]/60">
                         <div className="flex items-center justify-between gap-4 py-4">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-zinc-200">
-                              Background-stream quality
-                            </p>
+                            <p className="font-medium text-zinc-200">Background-stream quality</p>
                             <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
-                              How non-focused streams render. Lower settings free
-                              up RAM and bandwidth so the focused stream gets the
-                              full pipe. Changes apply live to every background
-                              slot — no app reload needed.
+                              How non-focused streams render. Lower settings free up RAM and
+                              bandwidth so the focused stream gets the full pipe. Changes apply live
+                              to every background slot — no app reload needed.
                             </p>
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
@@ -1243,9 +1238,7 @@ export function SettingsPage() {
                                 <SelectItem value="match-source">
                                   Match source (uses more RAM)
                                 </SelectItem>
-                                <SelectItem value="off">
-                                  Off (audio-only)
-                                </SelectItem>
+                                <SelectItem value="off">Off (audio-only)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

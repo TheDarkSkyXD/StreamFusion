@@ -8,10 +8,7 @@ import {
   fetchBTTVGlobalEmotes,
   fetchBTTVUserByTwitchId,
 } from "@/backend/services/emotes/bttv-emotes-service";
-import {
-  fetchFFZGlobalEmotes,
-  fetchFFZRoom,
-} from "@/backend/services/emotes/ffz-emotes-service";
+import { fetchFFZGlobalEmotes, fetchFFZRoom } from "@/backend/services/emotes/ffz-emotes-service";
 import { IPC_CHANNELS, type IpcPayloads } from "@/shared/ipc-channels";
 
 export function registerEmoteHandlers(): void {
