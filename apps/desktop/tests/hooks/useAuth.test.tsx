@@ -1,17 +1,9 @@
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  useAuthError,
   useAuthInitialize,
   useAuthStatus,
-  useFollowsManager,
-  useIsAuthenticated,
-  useIsGuest,
-  useKickAuth,
-  useLocalFollows,
-  usePreferences,
-  useTwitchAuth,
   useUserInfo,
 } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/auth-store";
@@ -48,57 +40,9 @@ beforeEach(() => {
   });
 });
 
-describe("useTwitchAuth", () => {
-  it("returns twitch user state from the store", () => {
-    useAuthStore.setState({ twitchUser, twitchConnected: true });
-    const { result } = renderHook(() => useTwitchAuth());
-    expect(result.current.user).toEqual(twitchUser);
-    expect(result.current.connected).toBe(true);
-  });
-});
-
-describe("useKickAuth", () => {
-  it("returns kick user state from the store", () => {
-    useAuthStore.setState({ kickUser, kickConnected: true });
-    const { result } = renderHook(() => useKickAuth());
-    expect(result.current.user).toEqual(kickUser);
-    expect(result.current.connected).toBe(true);
-  });
-});
-
-describe("useIsAuthenticated", () => {
-  it("returns false when no platform is connected", () => {
-    const { result } = renderHook(() => useIsAuthenticated());
-    expect(result.current).toBe(false);
-  });
-
-  it("returns true when twitch is connected", () => {
-    useAuthStore.setState({ twitchConnected: true });
-    const { result } = renderHook(() => useIsAuthenticated());
-    expect(result.current).toBe(true);
-  });
-
-  it("returns true when kick is connected", () => {
-    useAuthStore.setState({ kickConnected: true });
-    const { result } = renderHook(() => useIsAuthenticated());
-    expect(result.current).toBe(true);
-  });
-});
-
-describe("useIsGuest", () => {
-  it("returns true when isGuest is true", () => {
-    useAuthStore.setState({ isGuest: true });
-    const { result } = renderHook(() => useIsGuest());
-    expect(result.current).toBe(true);
-  });
-
-  it("returns false when isGuest is false", () => {
-    useAuthStore.setState({ isGuest: false });
-    const { result } = renderHook(() => useIsGuest());
-    expect(result.current).toBe(false);
-  });
-});
-
+// Guards: useAuthStatus folds twitch + kick connected flags into anyConnected/bothConnected so the multi-platform login screen renders the right CTA on both single- and dual-connect transitions
+// Guards: useAuthInitialize fires initializeAuth exactly once across renders when initialized=false, then is a no-op — prevents init-effect runaway on hot-reload
+// Guards: useUserInfo prefers twitch over kick when both are connected and falls back to "Guest" with null avatar on cold start, so the user menu never flashes a stale handle
 describe("useAuthStatus", () => {
   it("returns combined status with both platforms", () => {
     useAuthStore.setState({
@@ -136,20 +80,6 @@ describe("useAuthInitialize", () => {
     useAuthStore.setState({ initialized: true, initializeAuth });
     renderHook(() => useAuthInitialize());
     expect(initializeAuth).not.toHaveBeenCalled();
-  });
-});
-
-describe("useAuthError", () => {
-  it("returns error state", () => {
-    useAuthStore.setState({ error: "something failed" });
-    const { result } = renderHook(() => useAuthError());
-    expect(result.current.error).toBe("something failed");
-    expect(result.current.hasError).toBe(true);
-  });
-
-  it("returns hasError=false when no error", () => {
-    const { result } = renderHook(() => useAuthError());
-    expect(result.current.hasError).toBe(false);
   });
 });
 

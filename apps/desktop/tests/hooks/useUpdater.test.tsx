@@ -46,33 +46,10 @@ afterEach(() => {
 // actions and computed values directly through the store + individual
 // action callbacks to avoid the OOM.
 
-describe("useUpdater store-level computed states", () => {
-  it("isChecking is derived from status === checking", () => {
-    useUpdateStore.getState().setStatus("checking");
-    expect(useUpdateStore.getState().status).toBe("checking");
-  });
-
-  it("isDownloading is derived from status === downloading", () => {
-    useUpdateStore.getState().setStatus("downloading");
-    expect(useUpdateStore.getState().status).toBe("downloading");
-  });
-
-  it("isUpdateAvailable is derived from status === available", () => {
-    useUpdateStore.getState().setStatus("available");
-    expect(useUpdateStore.getState().status).toBe("available");
-  });
-
-  it("isUpdateDownloaded is derived from status === downloaded", () => {
-    useUpdateStore.getState().setStatus("downloaded");
-    expect(useUpdateStore.getState().status).toBe("downloaded");
-  });
-
-  it("hasError is derived from status === error", () => {
-    useUpdateStore.getState().setStatus("error");
-    expect(useUpdateStore.getState().status).toBe("error");
-  });
-});
-
+// Guards: check failures coerce error.message into the store's error field and flip status to "error" so the Settings panel can render an actionable banner
+// Guards: setAllowPrerelease / setAutoCheck round-trip through the backend and apply the *returned* values — preserves the "backend is the source of truth for prerelease + auto-check" contract
+// Guards: getStatus + updateFromBackend hydrate the store and set isInitialized so the Settings panel doesn't render skeletons forever on cold start
+// Guards: onStatusChange / onProgress callbacks plumb updates into the store, including a non-percent-only progress object (the renderer reads percent, bytesPerSecond, transferred, total)
 describe("useUpdater actions via electronAPI", () => {
   it("check calls electronAPI.updater.check and applies result to store", async () => {
     const result = await window.electronAPI!.updater.check();

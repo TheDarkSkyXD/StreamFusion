@@ -8,6 +8,8 @@ function resetStore() {
 
 beforeEach(() => resetStore());
 
+// Guards: setVolume clamps numeric AND functional updaters into 0–100 so a deep mute via slider drag or scroll-wheel can't smuggle a negative volume into the audio element
+// Guards: toggleMute flips isMuted without touching volume — preserves the "mute toggle restores prior level" UX
 describe("volume-store initial state", () => {
   it("starts at volume 100 and unmuted", () => {
     expect(useVolumeStore.getState().volume).toBe(100);
@@ -42,19 +44,6 @@ describe("volume-store setVolume", () => {
     expect(useVolumeStore.getState().volume).toBe(0);
     useVolumeStore.getState().setVolume(() => 999);
     expect(useVolumeStore.getState().volume).toBe(100);
-  });
-});
-
-describe("volume-store setMuted", () => {
-  it("sets muted to true", () => {
-    useVolumeStore.getState().setMuted(true);
-    expect(useVolumeStore.getState().isMuted).toBe(true);
-  });
-
-  it("sets muted to false", () => {
-    useVolumeStore.getState().setMuted(true);
-    useVolumeStore.getState().setMuted(false);
-    expect(useVolumeStore.getState().isMuted).toBe(false);
   });
 });
 

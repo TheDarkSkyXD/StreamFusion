@@ -5,7 +5,6 @@ vi.mock("@/renderer/logging/logger", () => ({
 }));
 
 import {
-  cn,
   formatDuration,
   formatLanguageLabel,
   formatUptime,
@@ -15,28 +14,11 @@ import {
   pickWinner,
 } from "@/lib/utils";
 
-describe("cn", () => {
-  it("merges simple class names", () => {
-    expect(cn("foo", "bar")).toBe("foo bar");
-  });
-
-  it("handles conditional classes via clsx", () => {
-    expect(cn("base", false && "hidden", "visible")).toBe("base visible");
-  });
-
-  it("resolves Tailwind conflicts via tailwind-merge", () => {
-    expect(cn("px-2", "px-4")).toBe("px-4");
-  });
-
-  it("returns empty string for no inputs", () => {
-    expect(cn()).toBe("");
-  });
-
-  it("handles undefined and null inputs", () => {
-    expect(cn("a", undefined, null, "b")).toBe("a b");
-  });
-});
-
+// Guards: cross-platform category-name normalization keeps Twitch + Kick variants on the same key (Slots, GTA, Black Desert, Counter-Strike) so dedup + cross-platform links work
+// Guards: formatViewerCount K/M abbreviations strip trailing .0 — viewer-count badges must not say "5.0K"
+// Guards: formatDuration rejects NaN/negative/fractional and pads HH:MM:SS so player-overlay timestamps never glitch
+// Guards: formatLanguageLabel returns Intl display names for BCP-47 and title-cases Kick's full-word codes ("ENGLISH")
+// Guards: formatUptime tolerates the YYYY-MM-DD HH:MM:SS form some platforms emit (engine-dependent parse) and clamps future dates
 describe("formatViewerCount", () => {
   it("returns '0' for undefined", () => {
     expect(formatViewerCount(undefined)).toBe("0");

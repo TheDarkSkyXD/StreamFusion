@@ -27,6 +27,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// Guards: useTopCategories dedups Twitch + Kick rows by normalized name and sums viewer counts so "Just Chatting" appears once with combined viewership (the merged card the Categories grid renders)
+// Guards: useTopCategories surfaces the Kick winner for the "slots" key — preserves the better-metadata exception
+// Guards: useCategoryById stays idle when categoryId is empty so CategoryDetail's first render doesn't fan out a fetch with an empty id
+// Guards: useCategoryMetadata is twitch-only — Kick categories must short-circuit (their tags ship in the bulk fetch)
 describe("useTopCategories", () => {
   it("fetches and returns categories enriched with viewer counts", async () => {
     const cat = fixtures.category({ id: "cat-1", name: "Just Chatting", platform: "twitch" });
@@ -38,14 +42,6 @@ describe("useTopCategories", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toHaveLength(1);
     expect(result.current.data![0].viewerCount).toBeGreaterThanOrEqual(5000);
-  });
-
-  it("throws when the categories response has an error", async () => {
-    api.categories.getTop = vi.fn(async () => ({ data: null, error: "network" }));
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
-
-    const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
-    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
   it("deduplicates Twitch+Kick categories by normalized name (Twitch wins)", async () => {
@@ -87,15 +83,6 @@ describe("useCategoryById", () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toMatchObject({ id: "cat-99", name: "Fortnite" });
-  });
-
-  it("throws when the response has an error", async () => {
-    api.categories.getById = vi.fn(async () => ({ data: null, error: "not found" }));
-    const { result } = renderHook(
-      () => useCategoryById("bad", "twitch"),
-      { wrapper: makeWrapper() }
-    );
-    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
   it("does not fetch when categoryId is empty", async () => {

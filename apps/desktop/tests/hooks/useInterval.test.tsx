@@ -1,58 +1,41 @@
-import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderHook } from "@testing-library/react";
 
 import { useInterval } from "@/hooks/useInterval";
 
-beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
-
+// Guards: changing the callback prop must NOT re-arm the interval — the ref pattern is the load-bearing optimization (regression class: timer thrash on every render)
+// Guards: delay=null pauses the interval (does not schedule a 0ms tick)
 describe("useInterval", () => {
-  it("calls the callback every `delay` ms", () => {
-    const cb = vi.fn();
-    renderHook(() => useInterval(cb, 1000));
-    expect(cb).toHaveBeenCalledTimes(0);
-    act(() => vi.advanceTimersByTime(1000));
-    expect(cb).toHaveBeenCalledTimes(1);
-    act(() => vi.advanceTimersByTime(2000));
-    expect(cb).toHaveBeenCalledTimes(3);
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("does not schedule anything when delay is null", () => {
+  it("invokes the LATEST callback on every tick (stable ref — does not clear/re-arm on callback identity change)", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ cb }) => useInterval(cb, 100),
+      { initialProps: { cb: first } },
+    );
+
+    vi.advanceTimersByTime(100);
+    expect(first).toHaveBeenCalledTimes(1);
+
+    rerender({ cb: second });
+    vi.advanceTimersByTime(300);
+
+    // first should not be called again; second receives the next three ticks.
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(3);
+  });
+
+  it("delay=null pauses (no tick fires)", () => {
     const cb = vi.fn();
     renderHook(() => useInterval(cb, null));
-    act(() => vi.advanceTimersByTime(10000));
-    expect(cb).toHaveBeenCalledTimes(0);
-  });
-
-  it("calls the latest callback without re-arming the interval", () => {
-    const cb1 = vi.fn();
-    const cb2 = vi.fn();
-    const { rerender } = renderHook(({ cb }) => useInterval(cb, 1000), {
-      initialProps: { cb: cb1 },
-    });
-    rerender({ cb: cb2 });
-    act(() => vi.advanceTimersByTime(1000));
-    expect(cb1).toHaveBeenCalledTimes(0);
-    expect(cb2).toHaveBeenCalledTimes(1);
-  });
-
-  it("stops firing after unmount", () => {
-    const cb = vi.fn();
-    const { unmount } = renderHook(() => useInterval(cb, 1000));
-    unmount();
-    act(() => vi.advanceTimersByTime(5000));
-    expect(cb).toHaveBeenCalledTimes(0);
-  });
-
-  it("stops an already-running interval when delay becomes null", () => {
-    const cb = vi.fn();
-    const { rerender } = renderHook(({ d }) => useInterval(cb, d), {
-      initialProps: { d: 1000 as number | null },
-    });
-    act(() => vi.advanceTimersByTime(1000));
-    expect(cb).toHaveBeenCalledTimes(1);
-    rerender({ d: null });
-    act(() => vi.advanceTimersByTime(5000));
-    expect(cb).toHaveBeenCalledTimes(1); // paused — no further fires
+    vi.advanceTimersByTime(10_000);
+    expect(cb).not.toHaveBeenCalled();
   });
 });

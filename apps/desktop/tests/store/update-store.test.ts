@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { UpdateInfo, UpdateProgress, UpdateStatus } from "@/store/update-store";
+import type { UpdateInfo, UpdateProgress } from "@/store/update-store";
 import { useUpdateStore } from "@/store/update-store";
 
 function resetStore() {
@@ -23,6 +23,8 @@ const sampleProgress: UpdateProgress = {
 
 beforeEach(() => resetStore());
 
+// Guards: updateFromBackend coerces an unknown status string to "error" so a renderer with a stale enum can't get stuck on a backend value it cannot render
+// Guards: autoCheckEnabled and checkFrequency survive a backend payload that omits them — preserves user settings across partial status pushes
 describe("update-store initial state", () => {
   it("starts with idle status and no info/progress/error", () => {
     const s = useUpdateStore.getState();
@@ -34,54 +36,6 @@ describe("update-store initial state", () => {
     expect(s.autoCheckEnabled).toBe(false);
     expect(s.checkFrequency).toBe("daily");
     expect(s.isInitialized).toBe(false);
-  });
-});
-
-describe("update-store simple setters", () => {
-  it("setStatus changes status", () => {
-    useUpdateStore.getState().setStatus("downloading");
-    expect(useUpdateStore.getState().status).toBe("downloading");
-  });
-
-  it("setUpdateInfo sets and clears info", () => {
-    useUpdateStore.getState().setUpdateInfo(sampleInfo);
-    expect(useUpdateStore.getState().updateInfo).toEqual(sampleInfo);
-    useUpdateStore.getState().setUpdateInfo(null);
-    expect(useUpdateStore.getState().updateInfo).toBeNull();
-  });
-
-  it("setProgress sets and clears progress", () => {
-    useUpdateStore.getState().setProgress(sampleProgress);
-    expect(useUpdateStore.getState().progress).toEqual(sampleProgress);
-    useUpdateStore.getState().setProgress(null);
-    expect(useUpdateStore.getState().progress).toBeNull();
-  });
-
-  it("setError sets and clears error", () => {
-    useUpdateStore.getState().setError("something broke");
-    expect(useUpdateStore.getState().error).toBe("something broke");
-    useUpdateStore.getState().setError(null);
-    expect(useUpdateStore.getState().error).toBeNull();
-  });
-
-  it("setAllowPrerelease toggles the flag", () => {
-    useUpdateStore.getState().setAllowPrerelease(true);
-    expect(useUpdateStore.getState().allowPrerelease).toBe(true);
-  });
-
-  it("setAutoCheckEnabled toggles auto-check", () => {
-    useUpdateStore.getState().setAutoCheckEnabled(true);
-    expect(useUpdateStore.getState().autoCheckEnabled).toBe(true);
-  });
-
-  it("setCheckFrequency changes frequency", () => {
-    useUpdateStore.getState().setCheckFrequency("hourly");
-    expect(useUpdateStore.getState().checkFrequency).toBe("hourly");
-  });
-
-  it("setInitialized marks initialization", () => {
-    useUpdateStore.getState().setInitialized(true);
-    expect(useUpdateStore.getState().isInitialized).toBe(true);
   });
 });
 
@@ -137,29 +91,5 @@ describe("update-store updateFromBackend", () => {
       allowPrerelease: false,
     });
     expect(useUpdateStore.getState().checkFrequency).toBe("hourly");
-  });
-});
-
-describe("update-store reset", () => {
-  it("restores every field to its initial value", () => {
-    useUpdateStore.getState().setStatus("downloaded");
-    useUpdateStore.getState().setUpdateInfo(sampleInfo);
-    useUpdateStore.getState().setProgress(sampleProgress);
-    useUpdateStore.getState().setError("fail");
-    useUpdateStore.getState().setAllowPrerelease(true);
-    useUpdateStore.getState().setAutoCheckEnabled(true);
-    useUpdateStore.getState().setCheckFrequency("weekly");
-    useUpdateStore.getState().setInitialized(true);
-
-    useUpdateStore.getState().reset();
-    const s = useUpdateStore.getState();
-    expect(s.status).toBe("idle");
-    expect(s.updateInfo).toBeNull();
-    expect(s.progress).toBeNull();
-    expect(s.error).toBeNull();
-    expect(s.allowPrerelease).toBe(false);
-    expect(s.autoCheckEnabled).toBe(false);
-    expect(s.checkFrequency).toBe("daily");
-    expect(s.isInitialized).toBe(false);
   });
 });

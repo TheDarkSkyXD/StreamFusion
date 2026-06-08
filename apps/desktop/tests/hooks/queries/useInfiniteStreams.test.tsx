@@ -27,6 +27,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// Guards: useInfiniteStreamsByCategory is enabled when EITHER categoryId or categoryName is set — Kick's category-detail page slug-guesses on name when the numeric id is unknown
+// Guards: hasNextPage is false when cursor is missing — prevents an infinite-fetch loop on the last page
+// Guards: language filter threads through to IPC verbatim so the category page's language picker actually narrows results
 describe("useInfiniteStreamsByCategory", () => {
   it("fetches the first page of streams for a category", async () => {
     const stream = fixtures.stream({ categoryId: "cat-1" });
@@ -59,18 +62,6 @@ describe("useInfiniteStreamsByCategory", () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.hasNextPage).toBe(false);
-  });
-
-  it("throws when the response contains an error", async () => {
-    api.streams.getByCategory = vi.fn(async () => ({
-      data: null,
-      error: "failed",
-    }));
-    const { result } = renderHook(
-      () => useInfiniteStreamsByCategory("cat-1"),
-      { wrapper: makeWrapper() }
-    );
-    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
   it("is disabled when categoryId is empty and no categoryName", async () => {

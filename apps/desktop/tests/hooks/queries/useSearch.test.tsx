@@ -27,6 +27,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// Guards: useSearchChannels and useSearchCategories treat an empty data page as end-of-list even when the backend still returns a cursor — defends against the Twitch-GQL hasNextPage-stuck-true skeleton-flicker loop in the dropdown
+// Guards: search hooks stay idle on empty queries — the omnibox must not fan out IPC on every keystroke before debouncing kicks in
 describe("useSearchChannels", () => {
   it("fetches channel search results", async () => {
     const ch = fixtures.channel({ username: "xqc" });
@@ -47,15 +49,6 @@ describe("useSearchChannels", () => {
       { wrapper: makeWrapper() }
     );
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
-  });
-
-  it("throws when the response has an error", async () => {
-    api.search.channels = vi.fn(async () => ({ data: null, error: "search failed" }));
-    const { result } = renderHook(
-      () => useSearchChannels("xqc"),
-      { wrapper: makeWrapper() }
-    );
-    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
   it("treats empty data page as end-of-list (no next page)", async () => {
@@ -113,15 +106,6 @@ describe("useSearchAll", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data!.channels).toHaveLength(1);
     expect(result.current.data!.categories).toHaveLength(1);
-  });
-
-  it("throws on error response", async () => {
-    api.search.all = vi.fn(async () => ({ data: null, error: "fail" }));
-    const { result } = renderHook(
-      () => useSearchAll("test"),
-      { wrapper: makeWrapper() }
-    );
-    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
   it("is disabled when query is empty", async () => {

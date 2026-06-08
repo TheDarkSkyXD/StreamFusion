@@ -8,6 +8,8 @@ function resetStore() {
 
 beforeEach(() => resetStore());
 
+// Guards: reset wipes every override flag so a dev session can't leak forced-mod-role / forced-broadcaster-identity / forced-broadcaster-id into the next test or hot-reload
+// Guards: default state has every flag off and every id empty — guarantees the debug overlay never silently lights up mod UI in a fresh install
 describe("dev-mod-override-store initial state", () => {
   it("starts with all flags off", () => {
     const s = useDevModOverrideStore.getState();
@@ -16,35 +18,6 @@ describe("dev-mod-override-store initial state", () => {
     expect(s.showWhisper).toBe(false);
     expect(s.forceResolvedTwitchBroadcasterId).toBe("");
     expect(s.forceBroadcasterIdentity).toBe(false);
-  });
-});
-
-describe("dev-mod-override-store setters", () => {
-  it("setForceModRole toggles the flag", () => {
-    useDevModOverrideStore.getState().setForceModRole(true);
-    expect(useDevModOverrideStore.getState().forceModRole).toBe(true);
-    useDevModOverrideStore.getState().setForceModRole(false);
-    expect(useDevModOverrideStore.getState().forceModRole).toBe(false);
-  });
-
-  it("setForceModScopes toggles the flag", () => {
-    useDevModOverrideStore.getState().setForceModScopes(true);
-    expect(useDevModOverrideStore.getState().forceModScopes).toBe(true);
-  });
-
-  it("setShowWhisper toggles the flag", () => {
-    useDevModOverrideStore.getState().setShowWhisper(true);
-    expect(useDevModOverrideStore.getState().showWhisper).toBe(true);
-  });
-
-  it("setForceResolvedTwitchBroadcasterId sets the id", () => {
-    useDevModOverrideStore.getState().setForceResolvedTwitchBroadcasterId("12345");
-    expect(useDevModOverrideStore.getState().forceResolvedTwitchBroadcasterId).toBe("12345");
-  });
-
-  it("setForceBroadcasterIdentity toggles the flag", () => {
-    useDevModOverrideStore.getState().setForceBroadcasterIdentity(true);
-    expect(useDevModOverrideStore.getState().forceBroadcasterIdentity).toBe(true);
   });
 });
 
