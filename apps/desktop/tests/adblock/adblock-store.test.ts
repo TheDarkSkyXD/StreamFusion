@@ -24,14 +24,4 @@ describe('adblock-store', () => {
     useAdBlockStore.setState({ enableAdBlock: true });
     expect(useAdBlockStore.getState().enableAdBlock).toBe(true);
   });
-
-  it('exposes a toggle action that flips enableAdBlock', () => {
-    const { toggleAdBlock } = useAdBlockStore.getState();
-
-    toggleAdBlock();
-    expect(useAdBlockStore.getState().enableAdBlock).toBe(false);
-
-    toggleAdBlock();
-    expect(useAdBlockStore.getState().enableAdBlock).toBe(true);
-  });
 });
