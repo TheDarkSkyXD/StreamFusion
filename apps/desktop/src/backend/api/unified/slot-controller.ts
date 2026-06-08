@@ -22,7 +22,12 @@ import type {
   SlotPresence,
   SlotQualityConfig,
 } from "../../../shared/slot-types";
-import { getWebContentsViewFactory, type SlotView } from "./webcontents-view-factory";
+import {
+  getSlotPreloadPath,
+  getSlotRendererUrl,
+  getWebContentsViewFactory,
+  type SlotView,
+} from "./webcontents-view-factory";
 
 interface SlotRecord {
   id: string;
@@ -53,7 +58,15 @@ export function createSlot(id: string): void {
   if (slots.has(id)) return;
   if (slots.size >= maxSlots) return;
   const presence: SlotPresence = slots.size === 0 ? "focused" : "background";
-  const view: SlotView | null = useWebContentsViews ? getWebContentsViewFactory().create({}) : null;
+  let view: SlotView | null = null;
+  if (useWebContentsViews) {
+    view = getWebContentsViewFactory().create({ preloadPath: getSlotPreloadPath() });
+    // Fire-and-forget: a load failure (dev-server down, malformed URL) is
+    // surfaced via the slot's own console → web-contents-log-forwarder.
+    // Tests inject a fake factory whose loadURL is a vi.fn() and ignore
+    // the returned promise.
+    void view.loadURL(getSlotRendererUrl());
+  }
   slots.set(id, { id, presence, view });
 }
 

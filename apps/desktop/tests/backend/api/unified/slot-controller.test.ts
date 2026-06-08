@@ -1,4 +1,23 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock electron so webcontents-view-factory's `app.getAppPath()` / `app.isPackaged`
+// + `WebContentsView` references resolve under vitest (no real Chromium).
+vi.mock("electron", () => ({
+  app: {
+    isPackaged: false,
+    getAppPath: () => "/test/app",
+  },
+  WebContentsView: class FakeWebContentsView {
+    webContents = {
+      send: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      close: vi.fn(),
+      loadURL: vi.fn(),
+    };
+    setBounds = vi.fn();
+    setVisible = vi.fn();
+  },
+}));
 
 import {
   __resetSlotControllerForTests,
@@ -22,7 +41,6 @@ import {
   setWebContentsViewFactory,
   type SlotView,
 } from "@/backend/api/unified/webcontents-view-factory";
-import { vi } from "vitest";
 
 // Guards: the slot-controller is the single source of truth for slot presence on the main process.
 // First created slot is "focused" — multiview always has exactly one focused slot when any slot exists.
@@ -49,6 +67,7 @@ function makeFakeSlotView(): SlotView & {
     } as unknown as Electron.WebContents,
     setBounds: vi.fn(),
     setVisible: vi.fn(),
+    loadURL: vi.fn(async () => {}),
     destroy: vi.fn(() => {
       destroyed = true;
     }),
@@ -296,5 +315,25 @@ describe("slot-controller WebContentsView feature flag (slice 05 plumbing)", () 
     setWebContentsViewFactory({ create: () => fakeView });
     createSlot("slot-1");
     expect(getSlotView("slot-1")).toBeNull();
+  });
+
+  it("createSlot drives the WCV to load the slot-renderer URL when the flag is on (slice 05 follow-up)", () => {
+    const fakeView = makeFakeSlotView();
+    const factory = { create: vi.fn(() => fakeView) };
+    setWebContentsViewFactory(factory);
+
+    setUseWebContentsViews(true);
+    createSlot("slot-1");
+
+    // Factory got a preload path resolved from getSlotPreloadPath().
+    expect(factory.create).toHaveBeenCalledWith(
+      expect.objectContaining({ preloadPath: expect.stringContaining("preload") })
+    );
+    // SlotView.loadURL was called with the slot-renderer URL (dev variant
+    // from the electron mock — `app.isPackaged=false` + no ELECTRON_RENDERER_URL
+    // → file:// path under /test/app/out/renderer/src/slot-renderer/index.html).
+    expect(fakeView.loadURL).toHaveBeenCalledTimes(1);
+    const loadedUrl = (fakeView.loadURL as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+    expect(loadedUrl).toMatch(/slot-renderer/);
   });
 });

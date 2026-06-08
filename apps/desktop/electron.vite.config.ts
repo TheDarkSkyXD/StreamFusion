@@ -157,7 +157,13 @@ export default defineConfig(({ mode }) => {
             build: {
                 outDir: 'out/renderer',
                 rollupOptions: {
-                    input: resolve(__dirname, 'index.html'),
+                    input: {
+                        index: resolve(__dirname, 'index.html'),
+                        // Slice 05 of renderer-OOM PRD #51: the slot WCV's own
+                        // minimal video page. Vanilla TS + HLS.js, no React,
+                        // no app chrome.
+                        slot: resolve(__dirname, 'src/slot-renderer/index.html'),
+                    },
                     treeshake: {
                         moduleSideEffects: 'no-external',
                         propertyReadSideEffects: false,

@@ -3,11 +3,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
 // Mock electron BEFORE importing the handler (matches platform-health-handlers.test.ts).
+// `app` + `WebContentsView` are pulled in transitively by webcontents-view-factory,
+// which slot-controller now imports for the slot-renderer URL/preload helpers.
 vi.mock("electron", () => ({
   ipcMain: {
     handle: vi.fn(),
     on: vi.fn(),
     removeHandler: vi.fn(),
+  },
+  app: {
+    isPackaged: false,
+    getAppPath: () => "/test/app",
+  },
+  WebContentsView: class FakeWebContentsView {
+    webContents = {
+      send: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      close: vi.fn(),
+      loadURL: vi.fn(),
+    };
+    setBounds = vi.fn();
+    setVisible = vi.fn();
   },
 }));
 
@@ -178,6 +194,7 @@ describe("registerSlotControllerHandlers — slot-05 dispatch routing", () => {
         webContents: viewWebContents,
         setBounds: vi.fn(),
         setVisible: vi.fn(),
+        loadURL: vi.fn(async () => {}),
         destroy: vi.fn(),
       }),
     });
@@ -215,6 +232,7 @@ describe("registerSlotControllerHandlers — slot-05 dispatch routing", () => {
         } as unknown as Electron.WebContents,
         setBounds: vi.fn(),
         setVisible: vi.fn(),
+        loadURL: vi.fn(async () => {}),
         destroy: vi.fn(),
       }),
     });

@@ -8,7 +8,9 @@
  * security posture pinned in webPreferences.
  */
 
-import { WebContentsView } from "electron";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { app, WebContentsView } from "electron";
 
 /**
  * The slot-controller's view of a per-slot WCV. Narrow surface: just the
@@ -19,6 +21,13 @@ export interface SlotView {
   readonly webContents: Electron.WebContents;
   setBounds(rect: { x: number; y: number; width: number; height: number }): void;
   setVisible(visible: boolean): void;
+  /**
+   * Load a URL into the WCV. Production: pass the slot-renderer file URL
+   * (or dev-server URL in dev mode). Tests: fakes record the call.
+   * Returns a Promise that resolves when the page emits dom-ready (mirrors
+   * Electron's `WebContents.loadURL` contract).
+   */
+  loadURL(url: string): Promise<void>;
   destroy(): void;
 }
 
@@ -56,6 +65,7 @@ export function createDefaultWebContentsViewFactory(): WebContentsViewFactory {
         },
         setBounds: (rect) => view.setBounds(rect),
         setVisible: (visible) => view.setVisible(visible),
+        loadURL: (url) => view.webContents.loadURL(url),
         destroy: () => {
           if (!view.webContents.isDestroyed()) {
             view.webContents.close();
@@ -79,3 +89,46 @@ export function setWebContentsViewFactory(factory: WebContentsViewFactory): void
 export function __resetWebContentsViewFactoryForTests(): void {
   activeFactory = createDefaultWebContentsViewFactory();
 }
+
+/**
+ * Resolve the URL the slot WCV should load to host its video player.
+ *
+ * - Dev (electron-vite serves the renderer): `${ELECTRON_RENDERER_URL}/src/slot-renderer/index.html`
+ * - Prod (packaged): file:// URL into the built `out/renderer/src/slot-renderer/index.html`
+ *
+ * Mirrors the window-manager pattern that loads the main BrowserWindow URL.
+ * Pure for testability — main injects `app` and `__dirname`-equivalent at
+ * call time via the env / Electron's app object.
+ */
+export function getSlotRendererUrl(): string {
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+    return `${process.env.ELECTRON_RENDERER_URL}/src/slot-renderer/index.html`;
+  }
+  // In packaged builds the main module bundle lives next to the renderer
+  // output: app.getAppPath() points at `app.asar/`, and electron-vite's
+  // default output layout puts the renderer at `out/renderer/<entry>.html`
+  // with multi-input HTMLs preserved at their relative source path. The
+  // slot-renderer's entry maps to `out/renderer/src/slot-renderer/index.html`.
+  const htmlPath = path.join(
+    app.getAppPath(),
+    "out",
+    "renderer",
+    "src",
+    "slot-renderer",
+    "index.html"
+  );
+  return pathToFileURL(htmlPath).toString();
+}
+
+/**
+ * Resolve the absolute path to the built slot preload bundle so the factory
+ * can inject it into `webPreferences.preload`. Dev/prod parity: electron-vite
+ * emits the preload bundle to `out/preload/slot.js` in both modes.
+ */
+export function getSlotPreloadPath(): string {
+  return path.join(app.getAppPath(), "out", "preload", "slot.js");
+}
+
+// Re-export for tests to spy at the call site if they need to. Kept here so
+// the factory + URL helpers share one ESM module surface.
+export const __testInternals = { fileURLToPath };
