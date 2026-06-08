@@ -10,8 +10,11 @@
 
 import { type BrowserWindow, ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
-import type { SlotEvent, SlotQualityMode } from "../../../shared/slot-types";
+import type { LoadStreamPayload, SlotEvent, SlotQualityMode } from "../../../shared/slot-types";
 import {
+  createSlot,
+  destroySlot,
+  dispatchLoadStream,
   getSlotView,
   onSlotEvent,
   rebindExistingSlots,
@@ -116,6 +119,57 @@ export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void 
     // Rebuild the slot's WCV + replay the last loadStream payload.
     requestSlotRetry(slotId);
   });
+
+  ipcMain.handle(IPC_CHANNELS.SLOT_CREATE, (_event, { slotId }: { slotId: string }) => {
+    // Slice 06: host React grid pushes its multistream-store streams into
+    // main so each one gets a WCV.
+    createSlot(slotId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SLOT_DESTROY, (_event, { slotId }: { slotId: string }) => {
+    // Slice 06: host React grid pushes removals into main. Tears down the
+    // WCV + clears the slot record.
+    destroySlot(slotId);
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.SLOT_LOAD_STREAM_REQUEST,
+    (_event, { slotId, payload }: { slotId: string; payload: LoadStreamPayload }) => {
+      // Slice 06: host resolved the playback URL and pushes the load-stream
+      // request down. slot-controller stores it on the slot (for crash
+      // recovery replay) and emits the load-stream event which the slot's
+      // WCV (or fall-back host renderer) consumes.
+      dispatchLoadStream(slotId, payload);
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.SLOT_SET_BOUNDS,
+    (
+      _event,
+      {
+        slotId,
+        rect,
+      }: {
+        slotId: string;
+        rect: { x: number; y: number; width: number; height: number };
+      }
+    ) => {
+      // Slice 06: host ResizeObserver pushes the slot's screen rect so
+      // main can pin the WCV under the React grid's placeholder div.
+      const view = getSlotView(slotId);
+      if (!view) return;
+      try {
+        view.setBounds(rect);
+      } catch (error) {
+        logger.warn("IPC:Slot", "setBounds failed", {
+          slotId,
+          rect,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
 
   onSlotEvent((event) => {
     const channel = eventToChannel(event);

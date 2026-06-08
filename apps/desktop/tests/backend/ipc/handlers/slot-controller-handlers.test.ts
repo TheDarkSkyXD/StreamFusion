@@ -255,6 +255,81 @@ describe("registerSlotControllerHandlers — slot-05 dispatch routing", () => {
     expect(presenceCallsOnView).toHaveLength(0);
   });
 
+  it("SLOT_SET_BOUNDS routes the rect to the slot's WCV setBounds", () => {
+    const { window } = makeFakeMainWindow();
+    registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
+
+    const setBounds = vi.fn();
+    const viewSend = vi.fn();
+    setWebContentsViewFactory({
+      create: () => ({
+        webContents: {
+          send: viewSend,
+          isDestroyed: vi.fn(() => false),
+          close: vi.fn(),
+        } as unknown as Electron.WebContents,
+        setBounds,
+        setVisible: vi.fn(),
+        loadURL: vi.fn(async () => {}),
+        onRenderProcessGone: vi.fn(() => () => {}),
+        destroy: vi.fn(),
+      }),
+    });
+    setUseWebContentsViews(true);
+    createSlot("slot-1");
+
+    const handler = getInvokeHandler(IPC_CHANNELS.SLOT_SET_BOUNDS);
+    handler({}, { slotId: "slot-1", rect: { x: 10, y: 20, width: 300, height: 200 } });
+
+    expect(setBounds).toHaveBeenCalledWith({ x: 10, y: 20, width: 300, height: 200 });
+  });
+
+  it("SLOT_SET_BOUNDS on a slot with no WCV is a no-op (does not throw)", () => {
+    const { window } = makeFakeMainWindow();
+    registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
+    // No flag → no view spawned.
+    createSlot("slot-1");
+
+    const handler = getInvokeHandler(IPC_CHANNELS.SLOT_SET_BOUNDS);
+    expect(() =>
+      handler({}, { slotId: "slot-1", rect: { x: 0, y: 0, width: 10, height: 10 } })
+    ).not.toThrow();
+  });
+
+  it("SLOT_CREATE + SLOT_DESTROY route to the controller", () => {
+    const { window } = makeFakeMainWindow();
+    registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
+
+    const createHandler = getInvokeHandler(IPC_CHANNELS.SLOT_CREATE);
+    createHandler({}, { slotId: "slot-1" });
+    expect(getSlotPresence("slot-1")).toBe("focused");
+
+    const destroyHandler = getInvokeHandler(IPC_CHANNELS.SLOT_DESTROY);
+    destroyHandler({}, { slotId: "slot-1" });
+    expect(getSlotPresence("slot-1")).toBeUndefined();
+  });
+
+  it("SLOT_LOAD_STREAM_REQUEST dispatches the load-stream payload via the controller", () => {
+    const { window, send } = makeFakeMainWindow();
+    registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
+
+    createSlot("slot-1");
+    const handler = getInvokeHandler(IPC_CHANNELS.SLOT_LOAD_STREAM_REQUEST);
+    handler({}, {
+      slotId: "slot-1",
+      payload: { platform: "kick", channelName: "xqc", playbackUrl: "https://x.test/m.m3u8" },
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      IPC_CHANNELS.SLOT_LOAD_STREAM,
+      expect.objectContaining({
+        type: "load-stream",
+        slotId: "slot-1",
+        payload: expect.objectContaining({ platform: "kick", channelName: "xqc" }),
+      })
+    );
+  });
+
   it("with WCV flag off, dispatch still goes to the main window (backward-compatible default)", () => {
     const { window, send } = makeFakeMainWindow();
     registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);

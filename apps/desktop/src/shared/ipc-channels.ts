@@ -272,6 +272,19 @@ export const IPC_CHANNELS = {
   // Host → main: user clicked the retry overlay. Main rebuilds the slot's
   // WCV + replays the last loadStream payload. Slice 06.
   SLOT_REQUEST_RETRY: "slot:request-retry",
+  // Host → main: push slot rect (x, y, width, height) from the React grid's
+  // ResizeObserver so main can position the WCV under the host renderer's
+  // placeholder div. Slice 06 host-side rewrite of stream-slot.tsx.
+  SLOT_SET_BOUNDS: "slot:set-bounds",
+  // Host → main: create or destroy a slot on the controller (mirrors the
+  // host's multistream-store streams list). Slice 06 lifecycle wiring.
+  SLOT_CREATE: "slot:create",
+  SLOT_DESTROY: "slot:destroy",
+  // Host → main: dispatch a load-stream into a specific slot. The host
+  // resolves the playback URL via its existing stream-playback hook and
+  // pushes it down so the slot WCV's renderer (slot-renderer/main.ts) has
+  // something to play. Slice 06.
+  SLOT_LOAD_STREAM_REQUEST: "slot:load-stream-request",
 
   // ========== Third-party emote providers ==========
   // 7TV / BTTV / FFZ REST calls run in main (Electron `net.fetch`) so
@@ -395,6 +408,16 @@ export interface IpcPayloads {
   [IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP]: { cap: number };
   [IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY]: { mode: SlotQualityMode };
   [IPC_CHANNELS.SLOT_REQUEST_RETRY]: { slotId: string };
+  [IPC_CHANNELS.SLOT_SET_BOUNDS]: {
+    slotId: string;
+    rect: { x: number; y: number; width: number; height: number };
+  };
+  [IPC_CHANNELS.SLOT_CREATE]: { slotId: string };
+  [IPC_CHANNELS.SLOT_DESTROY]: { slotId: string };
+  [IPC_CHANNELS.SLOT_LOAD_STREAM_REQUEST]: {
+    slotId: string;
+    payload: { platform: Platform; channelName: string; playbackUrl: string };
+  };
 }
 
 // ========== Stream Proxy Types (Xtra port U11) ==========

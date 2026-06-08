@@ -615,14 +615,12 @@ const electronAPI = {
     get7TVGlobalEmoteSet: (): Promise<unknown> =>
       ipcRenderer.invoke(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET),
     bttv: {
-      getGlobal: (): Promise<unknown> =>
-        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL),
+      getGlobal: (): Promise<unknown> => ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL),
       getUserByTwitchId: (channelId: string): Promise<unknown | null> =>
         ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID, { channelId }),
     },
     ffz: {
-      getGlobal: (): Promise<unknown> =>
-        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL),
+      getGlobal: (): Promise<unknown> => ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL),
       getRoom: (opts: { name?: string; channelId?: string }): Promise<unknown | null> =>
         ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM, opts),
     },
@@ -944,6 +942,37 @@ const electronAPI = {
       ) => callback(payload);
       ipcRenderer.on(IPC_CHANNELS.SLOT_PRESENCE_CHANGED, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_PRESENCE_CHANGED, handler);
+    },
+
+    // ===== Slice 06 host-side wiring =====
+    // Slot lifecycle: host React grid pushes its multistream-store streams
+    // into main so each one gets a WCV; pushes removals on unmount.
+    createSlot: (slotId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_CREATE, { slotId }),
+    destroySlot: (slotId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_DESTROY, { slotId }),
+    // Push the resolved playback URL so the slot WCV has something to play.
+    loadStream: (
+      slotId: string,
+      payload: { platform: Platform; channelName: string; playbackUrl: string }
+    ): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_LOAD_STREAM_REQUEST, { slotId, payload }),
+    // Push slot rect (x, y, width, height) from the React grid's
+    // ResizeObserver so main can pin the WCV under the React placeholder.
+    setBounds: (
+      slotId: string,
+      rect: { x: number; y: number; width: number; height: number }
+    ): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.SLOT_SET_BOUNDS, { slotId, rect }),
+    // User clicked the retry overlay after a second-crash affordance.
+    requestRetry: (slotId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_REQUEST_RETRY, { slotId }),
+    // Main → host push: a slot's WCV crashed twice in the window — render
+    // the "click to retry" overlay in the slot's chrome.
+    onRetryAffordance: (callback: (event: { slotId: string }) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: { slotId: string }) =>
+        callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.SLOT_RETRY_AFFORDANCE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_RETRY_AFFORDANCE, handler);
     },
   },
 };
