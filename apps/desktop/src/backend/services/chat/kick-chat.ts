@@ -358,13 +358,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.reconnectGeneration += 1;
 
     try {
-      // Unsubscribe from all channels
-      for (const [_slug, info] of this.channels) {
-        if (info.pusherChannel) {
-          this.pusher.unsubscribe(`chatrooms.${info.chatroomId}.v2`);
-        }
-      }
-
+      // No per-channel unsubscribe: closing the socket cleans them up
+      // server-side, and the explicit frame races pusher.disconnect().
       this.pusher.disconnect();
     } catch {
       // Ignore disconnect errors
@@ -458,13 +453,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       // Unbind ALL connection handlers
       this.pusher.connection.unbind_all();
 
-      // Unsubscribe from all channels (and drop their per-channel handlers
-      // so closures don't outlive the Pusher socket).
+      // unbind_all() drops the per-channel handler closures (local
+      // memory, no socket frame). The matching pusher.unsubscribe()
+      // calls were removed because they raced pusher.disconnect();
+      // the server cleans up channels on socket close.
       for (const [_slug, info] of this.channels) {
         if (info.pusherChannel) {
           info.pusherChannel.unbind_all();
-          this.pusher.unsubscribe(`chatrooms.${info.chatroomId}.v2`);
-          this.pusher.unsubscribe(`chatrooms.${info.chatroomId}`);
         }
       }
 
@@ -589,10 +584,15 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       // channel switch. unbind_all() drops them.
       channelInfo.pusherChannel.unbind_all();
 
-      const v2ChannelName = `chatrooms.${channelInfo.chatroomId}.v2`;
-      const baseChannelName = `chatrooms.${channelInfo.chatroomId}`;
-      this.pusher.unsubscribe(v2ChannelName);
-      this.pusher.unsubscribe(baseChannelName);
+      // Skip unsubscribe if a concurrent disconnect put the socket in
+      // CLOSING / CLOSED — pusher-js would log "WebSocket is already in
+      // CLOSING or CLOSED state". Server cleans channels up on close.
+      if (this.pusher.connection.state === "connected") {
+        const v2ChannelName = `chatrooms.${channelInfo.chatroomId}.v2`;
+        const baseChannelName = `chatrooms.${channelInfo.chatroomId}`;
+        this.pusher.unsubscribe(v2ChannelName);
+        this.pusher.unsubscribe(baseChannelName);
+      }
     }
 
     this.channels.delete(normalizedChannel);

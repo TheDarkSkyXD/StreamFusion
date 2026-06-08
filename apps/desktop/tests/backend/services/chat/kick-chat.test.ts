@@ -38,6 +38,7 @@ interface InternalChannelInfo {
   slug: string;
   chatroomId: number;
   broadcasterUserId?: number;
+  pusherChannel?: { unbind_all: () => void };
 }
 
 interface ServiceInternals {
@@ -205,5 +206,80 @@ describe("send-window disposal", () => {
     kickChatApi.disposeSendWindow.mockClear();
     await service.forceShutdown();
     expect(kickChatApi.disposeSendWindow).toHaveBeenCalled();
+  });
+});
+
+describe("KickChatService teardown does not race the Pusher socket close", () => {
+  // Guards: leaveChannel must skip pusher.unsubscribe when connection.state is not 'connected' — pusher-js otherwise tries to flush the unsubscribe frame on a closing/closed socket and logs "WebSocket is already in CLOSING or CLOSED state"
+  // Guards: disconnect() must not call pusher.unsubscribe per channel — closing the socket implicitly unsubscribes server-side, and the explicit frame races the close
+  // Guards: forceShutdown() must keep per-channel unbind_all() (local closure cleanup) but drop pusher.unsubscribe (socket-touching frame that races the disconnect)
+  function makePusherStub(state: "connected" | "disconnected" | "connecting" | "unavailable" | "failed") {
+    return {
+      connection: {
+        state,
+        unbind_all: vi.fn(),
+      },
+      unsubscribe: vi.fn(),
+      disconnect: vi.fn(),
+    };
+  }
+
+  function joinFakeChannel(
+    internals: ServiceInternals,
+    slug: string,
+    chatroomId: number,
+    pusherChannel: { unbind_all: () => void }
+  ): void {
+    internals.channels.set(slug, {
+      slug,
+      chatroomId,
+      broadcasterUserId: chatroomId + 1,
+      pusherChannel,
+    });
+  }
+
+  it("leaveChannel does not call pusher.unsubscribe when the socket is already disconnected", async () => {
+    const { service, internals } = makeService();
+    const pusher = makePusherStub("disconnected");
+    (service as unknown as { pusher: typeof pusher }).pusher = pusher;
+    const pusherChannel = { unbind_all: vi.fn() };
+    joinFakeChannel(internals, "ac7ionman", 999_111, pusherChannel);
+
+    await service.leaveChannel("ac7ionman");
+
+    expect(pusher.unsubscribe).not.toHaveBeenCalled();
+    expect(internals.channels.has("ac7ionman")).toBe(false);
+    expect(pusherChannel.unbind_all).toHaveBeenCalledOnce();
+  });
+
+  it("disconnect does not call pusher.unsubscribe per channel; only pusher.disconnect", async () => {
+    const { service, internals } = makeService();
+    const pusher = makePusherStub("connected");
+    (service as unknown as { pusher: typeof pusher }).pusher = pusher;
+    joinFakeChannel(internals, "ac7ionman", 999_111, { unbind_all: vi.fn() });
+    joinFakeChannel(internals, "xqc", 1_234, { unbind_all: vi.fn() });
+
+    await service.disconnect();
+
+    expect(pusher.unsubscribe).not.toHaveBeenCalled();
+    expect(pusher.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("forceShutdown unbinds per-channel handlers but does not call pusher.unsubscribe", async () => {
+    const { service, internals } = makeService();
+    const pusher = makePusherStub("connected");
+    (service as unknown as { pusher: typeof pusher }).pusher = pusher;
+    const chan1 = { unbind_all: vi.fn() };
+    const chan2 = { unbind_all: vi.fn() };
+    joinFakeChannel(internals, "ac7ionman", 999_111, chan1);
+    joinFakeChannel(internals, "xqc", 1_234, chan2);
+
+    await service.forceShutdown();
+
+    expect(chan1.unbind_all).toHaveBeenCalledOnce();
+    expect(chan2.unbind_all).toHaveBeenCalledOnce();
+    expect(pusher.connection.unbind_all).toHaveBeenCalledOnce();
+    expect(pusher.unsubscribe).not.toHaveBeenCalled();
+    expect(pusher.disconnect).toHaveBeenCalledOnce();
   });
 });
