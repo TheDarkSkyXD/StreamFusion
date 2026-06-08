@@ -424,3 +424,31 @@ describe("getKickPusher accessor", () => {
     expect(getKickPusher()).toBe(fakePusher);
   });
 });
+
+describe("kickPredictionsService teardown does not race the Pusher socket close", () => {
+  // Guards: release() must skip pusher.unsubscribe() when the Pusher socket is
+  // no longer in 'connected' state — the unsubscribe frame races concurrent
+  // disconnect()/forceShutdown() in kick-chat and triggers pusher-js
+  // "WebSocket is already in CLOSING or CLOSED state". Same class as the
+  // kick-chat teardown race fixed in 22f575f; predictions has its own
+  // pusher.unsubscribe call sites at unsubscribe(entry) line and the
+  // anonymous-failure cleanup branch.
+
+  it("release(channelId) does NOT call pusher.unsubscribe when the socket is already disconnected", async () => {
+    // Subscribe while connected so the entry has a pusherChannel.
+    await kickPredictionsService.acquire({
+      channelId: "12345",
+      channelSlug: "ramee",
+    });
+    expect(fakePusher.channels.has("predictions-channel-12345")).toBe(true);
+
+    // The chat-service's pusher just got disconnected (e.g. user closed the
+    // tab, switched platforms, or main.before-quit fired).
+    fakePusher.connection.state = "disconnected";
+
+    const unsubSpy = vi.spyOn(fakePusher, "unsubscribe");
+    kickPredictionsService.release({ channelId: "12345" });
+
+    expect(unsubSpy).not.toHaveBeenCalled();
+  });
+});

@@ -274,9 +274,13 @@ class KickPredictionsService {
         });
       }
       // Tear down the failed subscription so we don't accumulate dead bindings.
+      // Skip the socket-touching unsubscribe when the socket is no longer
+      // open — see the matching guard in the unsubscribe(entry) method.
       try {
         channel.unbind_all();
-        pusher.unsubscribe(channelName);
+        if (pusher.connection.state === "connected") {
+          pusher.unsubscribe(channelName);
+        }
       } catch {
         /* ignore */
       }
@@ -292,7 +296,11 @@ class KickPredictionsService {
       } catch {
         /* ignore */
       }
-      if (pusher) {
+      // Skip the socket-touching unsubscribe when the socket is closing or
+      // already closed — pusher-js logs "WebSocket is already in CLOSING or
+      // CLOSED state" once per attempted send. The server cleans up
+      // channel subscriptions when the socket closes.
+      if (pusher && pusher.connection.state === "connected") {
         try {
           pusher.unsubscribe(`predictions-channel-${entry.channelId}`);
         } catch {
