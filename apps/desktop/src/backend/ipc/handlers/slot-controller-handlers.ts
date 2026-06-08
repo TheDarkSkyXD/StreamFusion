@@ -16,6 +16,7 @@ import {
   destroySlot,
   dispatchLoadStream,
   getSlotView,
+  isWcvEnabled,
   onSlotEvent,
   rebindExistingSlots,
   requestSlotRetry,
@@ -106,6 +107,8 @@ export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void 
       setBackgroundQuality(mode);
     }
   );
+
+  ipcMain.handle(IPC_CHANNELS.SLOT_IS_WCV_ENABLED, () => isWcvEnabled());
 
   ipcMain.handle(IPC_CHANNELS.SLOT_REBIND_EXISTING_SLOTS, () => {
     // Slice 06: after a host-renderer crash + reload, the host calls this so

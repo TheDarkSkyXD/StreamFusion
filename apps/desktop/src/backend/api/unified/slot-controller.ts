@@ -154,6 +154,15 @@ export function getBackgroundQuality(): SlotQualityMode {
 }
 
 /**
+ * Reports whether the WCV-per-slot path is enabled. The host React grid
+ * uses this on mount to decide whether to render the legacy in-process
+ * player or the WCV placeholder + ResizeObserver path. Slice 06.
+ */
+export function isWcvEnabled(): boolean {
+  return useWebContentsViews;
+}
+
+/**
  * Update the slot cap from the renderer-side MultiviewCap. Caps below the
  * current slot count are accepted: existing slots are NOT retroactively
  * evicted — only future createSlot calls are blocked until the count drops

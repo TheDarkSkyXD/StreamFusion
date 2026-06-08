@@ -966,6 +966,10 @@ const electronAPI = {
     // User clicked the retry overlay after a second-crash affordance.
     requestRetry: (slotId: string): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.SLOT_REQUEST_RETRY, { slotId }),
+    // Whether the WCV-per-slot path is enabled (env flag during dogfood;
+    // becomes always-true once slice 06's host rewrite is signed off).
+    isWcvEnabled: (): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_IS_WCV_ENABLED),
     // Main → host push: a slot's WCV crashed twice in the window — render
     // the "click to retry" overlay in the slot's chrome.
     onRetryAffordance: (callback: (event: { slotId: string }) => void): (() => void) => {

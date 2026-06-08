@@ -285,6 +285,11 @@ export const IPC_CHANNELS = {
   // pushes it down so the slot WCV's renderer (slot-renderer/main.ts) has
   // something to play. Slice 06.
   SLOT_LOAD_STREAM_REQUEST: "slot:load-stream-request",
+  // Host queries this on mount to decide whether to render the legacy
+  // in-process player or the WCV placeholder + ResizeObserver path. Slice 06
+  // — once the flag is flipped to default-on, this will always return true
+  // and the legacy path is removed.
+  SLOT_IS_WCV_ENABLED: "slot:is-wcv-enabled",
 
   // ========== Third-party emote providers ==========
   // 7TV / BTTV / FFZ REST calls run in main (Electron `net.fetch`) so

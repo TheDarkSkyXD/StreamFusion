@@ -12,6 +12,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
+import { useEffect } from "react";
 
 import { useMultiStreamStore } from "@/store/multistream-store";
 
@@ -35,6 +36,36 @@ export function MultiStreamGrid() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Slice 06 / slice 07: Ctrl+1..6 focuses the slot at the given grid index.
+  // No-op when the grid is empty or the index doesn't map to a slot. Stops
+  // before reaching modifier-using shortcuts the user already trains on
+  // (Ctrl+W close, Ctrl+R reload, etc. — those use webContents hot-keys).
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
+      const digit = Number.parseInt(event.key, 10);
+      if (!Number.isInteger(digit) || digit < 1 || digit > 6) return;
+      const target = streams[digit - 1];
+      if (!target) return;
+      event.preventDefault();
+      setFocusedStream(target.id);
+      // Inform main so any per-slot WCV gets its presence promoted (slice 06
+      // controller maintains focus singleton + audio routing).
+      window.electronAPI?.slot?.requestFocus(target.id).catch(() => {});
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [streams, setFocusedStream]);
+
+  // Slice 06: after a host-renderer crash + reload, the host calls main to
+  // re-emit presence snapshots so slot chrome rebuilds. Idempotent — main
+  // just re-fires presence-changed for every live slot.
+  useEffect(() => {
+    window.electronAPI?.slot?.rebindExistingSlots?.().catch(() => {
+      /* main may not have any slots yet; safe to ignore */
+    });
+  }, []);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;

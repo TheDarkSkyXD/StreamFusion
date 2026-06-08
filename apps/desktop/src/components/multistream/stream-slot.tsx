@@ -100,6 +100,124 @@ export function StreamSlot({
 
   const isChatActive = chatStreamId === streamId;
 
+  // ===== Slice 06: WCV-per-slot path (gated by env flag during dogfood) =====
+  // When the controller has its WCV path enabled, this slot:
+  //   - tells main to create/destroy its per-slot WCV on mount/unmount
+  //   - pushes the placeholder div's screen rect to main via ResizeObserver
+  //     so the WCV stays pinned under our placeholder as the grid resizes
+  //   - pushes the resolved playback URL down so the WCV's slot-renderer
+  //     can attach HLS and play
+  //   - subscribes to retry-affordance so the overlay can render after the
+  //     second crash in the 5-min window (slice 06 retry policy)
+  // Renders a placeholder div (the WCV draws on top) instead of mounting
+  // the in-process KickLivePlayer / TwitchLivePlayer.
+  const [wcvEnabled, setWcvEnabled] = useState<boolean | null>(null);
+  const [retryAffordance, setRetryAffordance] = useState(false);
+  const placeholderRef = useRef<HTMLDivElement | null>(null);
+
+  // Probe the WCV flag on mount. Unknown (null) until the IPC resolves so we
+  // don't briefly render the legacy player while waiting.
+  useEffect(() => {
+    let cancelled = false;
+    const slot = window.electronAPI?.slot;
+    if (!slot?.isWcvEnabled) {
+      // Older preload (test harness, packaged build with stale electronAPI):
+      // assume the legacy path is the safe default.
+      setWcvEnabled(false);
+      return;
+    }
+    slot
+      .isWcvEnabled()
+      .then((enabled) => {
+        if (!cancelled) setWcvEnabled(enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setWcvEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Slot lifecycle on the main side: create on mount, destroy on unmount.
+  // Only fires when the WCV path is active so the legacy renderer stays
+  // hands-off when the flag is off.
+  useEffect(() => {
+    if (!wcvEnabled) return;
+    const slot = window.electronAPI?.slot;
+    if (!slot) return;
+    slot.createSlot(streamId).catch(() => {
+      /* main will log the failure via web-contents-log-forwarder */
+    });
+    return () => {
+      slot.destroySlot(streamId).catch(() => {
+        /* ignore — main may already be tearing down */
+      });
+    };
+  }, [wcvEnabled, streamId]);
+
+  // Push the resolved playback URL into the WCV when it changes.
+  useEffect(() => {
+    if (!wcvEnabled) return;
+    if (!playback?.url) return;
+    const slot = window.electronAPI?.slot;
+    if (!slot) return;
+    slot.loadStream(streamId, { platform, channelName, playbackUrl: playback.url }).catch(() => {
+      /* surfaced via the slot's own console + log-forwarder */
+    });
+  }, [wcvEnabled, streamId, platform, channelName, playback?.url]);
+
+  // ResizeObserver: push the placeholder's screen rect to main so the WCV
+  // stays pinned underneath it as the grid resizes.
+  useEffect(() => {
+    if (!wcvEnabled) return;
+    const node = placeholderRef.current;
+    const slot = window.electronAPI?.slot;
+    if (!node || !slot) return;
+    const pushBounds = () => {
+      const rect = node.getBoundingClientRect();
+      slot
+        .setBounds(streamId, {
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        })
+        .catch(() => {
+          /* destroyed window — main ignores */
+        });
+    };
+    pushBounds();
+    const observer = new ResizeObserver(pushBounds);
+    observer.observe(node);
+    window.addEventListener("scroll", pushBounds, { passive: true, capture: true });
+    window.addEventListener("resize", pushBounds);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", pushBounds, true);
+      window.removeEventListener("resize", pushBounds);
+    };
+  }, [wcvEnabled, streamId]);
+
+  // Retry-affordance overlay subscription. Main fires this after the second
+  // slot crash within the 5-min window (slice 06 retry policy).
+  useEffect(() => {
+    if (!wcvEnabled) return;
+    const slot = window.electronAPI?.slot;
+    if (!slot?.onRetryAffordance) return;
+    const unsubscribe = slot.onRetryAffordance(({ slotId: id }) => {
+      if (id === streamId) setRetryAffordance(true);
+    });
+    return unsubscribe;
+  }, [wcvEnabled, streamId]);
+
+  const handleRetryClick = () => {
+    setRetryAffordance(false);
+    window.electronAPI?.slot?.requestRetry(streamId).catch(() => {
+      /* main will surface the failure in its own log */
+    });
+  };
+
   return (
     <div
       ref={slotRootRef}
@@ -184,7 +302,35 @@ export function StreamSlot({
 
       {/* Video Player - Only render when we have a valid playback URL */}
       <div className="w-full h-full">
-        {!isMountReady ? (
+        {wcvEnabled ? (
+          // Slice 06: the WCV draws the video on top of this placeholder.
+          // The host renders only chrome + overlays. ResizeObserver pushes
+          // the rect to main so the WCV stays pinned underneath.
+          <div ref={placeholderRef} className="absolute inset-0 bg-black">
+            {!playback?.url && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center text-white/60 text-sm">
+                {isLoading ? "Loading stream..." : "Stream offline"}
+              </div>
+            )}
+            {retryAffordance && (
+              <div
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/70"
+                role="alert"
+              >
+                <p className="text-white text-sm mb-3">Stream crashed</p>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRetryClick();
+                  }}
+                  variant="secondary"
+                >
+                  Click to retry
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : !isMountReady ? (
           // Stagger placeholder — skeleton with channel label so the wait is
           // clearly a loading state, not a broken/blank slot.
           <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-zinc-900 to-black">
