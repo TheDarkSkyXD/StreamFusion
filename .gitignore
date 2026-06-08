@@ -5,6 +5,9 @@ logs
 
 # Claude Code worktrees (per-session isolated checkouts under .claude/worktrees/)
 .claude/worktrees/
+
+# Local working directory for transient analysis artifacts (diagnostics, vitest reports, ad-hoc scripts)
+tmp/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
