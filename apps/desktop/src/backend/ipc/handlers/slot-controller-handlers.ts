@@ -14,6 +14,8 @@ import type { SlotEvent } from "../../../shared/slot-types";
 import {
   getSlotView,
   onSlotEvent,
+  rebindExistingSlots,
+  requestSlotRetry,
   setMaxSlots,
   setSlotPresence,
 } from "../../api/unified/slot-controller";
@@ -58,6 +60,7 @@ function isDispatchEvent(event: SlotEvent): boolean {
     case "unload":
       return true;
     case "presence-changed":
+    case "retry-affordance":
       return false;
   }
 }
@@ -76,6 +79,8 @@ function eventToChannel(event: SlotEvent): string {
       return IPC_CHANNELS.SLOT_UNLOAD;
     case "presence-changed":
       return IPC_CHANNELS.SLOT_PRESENCE_CHANGED;
+    case "retry-affordance":
+      return IPC_CHANNELS.SLOT_RETRY_AFFORDANCE;
   }
 }
 
@@ -94,10 +99,16 @@ export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void 
   });
 
   ipcMain.handle(IPC_CHANNELS.SLOT_REBIND_EXISTING_SLOTS, () => {
-    // After a host-renderer crash the host calls this to ask main to push the
-    // current slot snapshot back. Slice 04 has no per-WCV state to rebind yet;
-    // the contract is wired so slice 05+ can fill it in without changing call
-    // sites.
+    // Slice 06: after a host-renderer crash + reload, the host calls this so
+    // main re-emits the current presence snapshot for every slot. The host
+    // uses those events to rebuild its slot chrome from scratch.
+    rebindExistingSlots();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SLOT_REQUEST_RETRY, (_event, { slotId }: { slotId: string }) => {
+    // Slice 06: user clicked the retry overlay after the second crash.
+    // Rebuild the slot's WCV + replay the last loadStream payload.
+    requestSlotRetry(slotId);
   });
 
   onSlotEvent((event) => {

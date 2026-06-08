@@ -45,6 +45,11 @@ export interface SlotBufferConfig {
  * Discriminated union for every slot dispatch event. Listener consumers
  * (the host renderer in slice 04, the WebContentsView in slice 05+) read
  * `type` and switch.
+ *
+ * `retry-affordance` (slice 06): emitted after the SECOND crash within the
+ * 5-minute window. Host renderer responds by showing a "Stream crashed —
+ * click to retry" overlay in the slot's chrome. When the user clicks, the
+ * host calls slot:request-retry which rebuilds the WCV.
  */
 export type SlotEvent =
   | { type: "load-stream"; slotId: string; payload: LoadStreamPayload }
@@ -52,4 +57,5 @@ export type SlotEvent =
   | { type: "set-quality"; slotId: string; config: SlotQualityConfig }
   | { type: "set-buffer-config"; slotId: string; config: SlotBufferConfig }
   | { type: "unload"; slotId: string }
-  | { type: "presence-changed"; slotId: string; presence: SlotPresence };
+  | { type: "presence-changed"; slotId: string; presence: SlotPresence }
+  | { type: "retry-affordance"; slotId: string };

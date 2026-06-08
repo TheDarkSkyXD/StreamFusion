@@ -30,7 +30,7 @@ onPlatformHealthChanged((event) => {
 
   try {
     fs.mkdirSync(telemetryDir, { recursive: true });
-    fs.appendFileSync(logPath, line + "\n", "utf8");
+    fs.appendFileSync(logPath, `${line}\n`, "utf8");
   } catch (err) {
     logger.warn("PlatformHealthTelemetry", "Failed to write telemetry line", {
       error: String(err),

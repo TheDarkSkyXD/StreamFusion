@@ -17,6 +17,15 @@ import { app, WebContentsView } from "electron";
  * webContents handle (for IPC fan-out) and the lifecycle controls main needs
  * to drive from the React grid (rect, visibility, destroy).
  */
+/**
+ * Details surfaced by Electron's `render-process-gone` event. Only the bits
+ * the slot-controller's crash recovery actually needs.
+ */
+export interface SlotCrashDetails {
+  reason: string;
+  exitCode?: number;
+}
+
 export interface SlotView {
   readonly webContents: Electron.WebContents;
   setBounds(rect: { x: number; y: number; width: number; height: number }): void;
@@ -28,6 +37,13 @@ export interface SlotView {
    * Electron's `WebContents.loadURL` contract).
    */
   loadURL(url: string): Promise<void>;
+  /**
+   * Subscribe to the WCV's `render-process-gone` event. Returns an
+   * unsubscribe handle. Slice 06 of the renderer-OOM PRD wires this into
+   * the slot-controller's crash recovery policy. Tests inject a fake
+   * SlotView that exposes a trigger helper.
+   */
+  onRenderProcessGone(callback: (details: SlotCrashDetails) => void): () => void;
   destroy(): void;
 }
 
@@ -66,6 +82,13 @@ export function createDefaultWebContentsViewFactory(): WebContentsViewFactory {
         setBounds: (rect) => view.setBounds(rect),
         setVisible: (visible) => view.setVisible(visible),
         loadURL: (url) => view.webContents.loadURL(url),
+        onRenderProcessGone: (callback) => {
+          const handler = (_event: Electron.Event, details: Electron.RenderProcessGoneDetails) => {
+            callback({ reason: details.reason, exitCode: details.exitCode });
+          };
+          view.webContents.on("render-process-gone", handler);
+          return () => view.webContents.off("render-process-gone", handler);
+        },
         destroy: () => {
           if (!view.webContents.isDestroyed()) {
             view.webContents.close();

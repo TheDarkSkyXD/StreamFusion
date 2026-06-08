@@ -265,6 +265,13 @@ export const IPC_CHANNELS = {
   // Main → host: notify when slot presence changes so chrome (active outline,
   // mute icons) can re-render.
   SLOT_PRESENCE_CHANGED: "slot:presence-changed",
+  // Main → host: fired after a slot's WCV crashes for the SECOND time in the
+  // 5-min window. Host renderer responds by showing a "Stream crashed — click
+  // to retry" overlay in the slot's chrome. Slice 06 of PRD #51.
+  SLOT_RETRY_AFFORDANCE: "slot:retry-affordance",
+  // Host → main: user clicked the retry overlay. Main rebuilds the slot's
+  // WCV + replays the last loadStream payload. Slice 06.
+  SLOT_REQUEST_RETRY: "slot:request-retry",
 
   // ========== Third-party emote providers ==========
   // 7TV REST calls run in main (Electron `net.fetch`) so renderer DevTools
@@ -381,6 +388,7 @@ export interface IpcPayloads {
   [IPC_CHANNELS.SLOT_REQUEST_FOCUS]: { slotId: string };
   [IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP]: { cap: number };
   [IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY]: { mode: SlotQualityMode };
+  [IPC_CHANNELS.SLOT_REQUEST_RETRY]: { slotId: string };
 }
 
 // ========== Stream Proxy Types (Xtra port U11) ==========

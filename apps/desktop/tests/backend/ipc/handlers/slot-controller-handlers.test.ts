@@ -195,6 +195,7 @@ describe("registerSlotControllerHandlers — slot-05 dispatch routing", () => {
         setBounds: vi.fn(),
         setVisible: vi.fn(),
         loadURL: vi.fn(async () => {}),
+        onRenderProcessGone: vi.fn(() => () => {}),
         destroy: vi.fn(),
       }),
     });
@@ -233,6 +234,7 @@ describe("registerSlotControllerHandlers — slot-05 dispatch routing", () => {
         setBounds: vi.fn(),
         setVisible: vi.fn(),
         loadURL: vi.fn(async () => {}),
+        onRenderProcessGone: vi.fn(() => () => {}),
         destroy: vi.fn(),
       }),
     });

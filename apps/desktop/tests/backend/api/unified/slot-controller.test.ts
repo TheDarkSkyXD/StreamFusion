@@ -32,6 +32,8 @@ import {
   getSlotPresence,
   getSlotView,
   onSlotEvent,
+  rebindExistingSlots,
+  requestSlotRetry,
   setMaxSlots,
   setSlotPresence,
   setUseWebContentsViews,
@@ -54,9 +56,11 @@ beforeEach(() => {
 function makeFakeSlotView(): SlotView & {
   __sendCalls: unknown[][];
   __destroyed: boolean;
+  __triggerCrash: (reason?: string) => void;
 } {
   const sendCalls: unknown[][] = [];
   let destroyed = false;
+  let crashCallback: ((details: { reason: string }) => void) | null = null;
   return {
     webContents: {
       send: vi.fn((channel: string, payload: unknown) => sendCalls.push([channel, payload])),
@@ -68,6 +72,12 @@ function makeFakeSlotView(): SlotView & {
     setBounds: vi.fn(),
     setVisible: vi.fn(),
     loadURL: vi.fn(async () => {}),
+    onRenderProcessGone: vi.fn((cb) => {
+      crashCallback = cb;
+      return () => {
+        if (crashCallback === cb) crashCallback = null;
+      };
+    }),
     destroy: vi.fn(() => {
       destroyed = true;
     }),
@@ -76,6 +86,9 @@ function makeFakeSlotView(): SlotView & {
     },
     get __destroyed() {
       return destroyed;
+    },
+    __triggerCrash(reason = "crashed") {
+      crashCallback?.({ reason });
     },
   };
 }
@@ -317,6 +330,14 @@ describe("slot-controller WebContentsView feature flag (slice 05 plumbing)", () 
     expect(getSlotView("slot-1")).toBeNull();
   });
 
+  it("attaches a render-process-gone listener on the spawned WCV (slice 06 wiring)", () => {
+    const fakeView = makeFakeSlotView();
+    setWebContentsViewFactory({ create: () => fakeView });
+    setUseWebContentsViews(true);
+    createSlot("slot-1");
+    expect(fakeView.onRenderProcessGone).toHaveBeenCalledTimes(1);
+  });
+
   it("createSlot drives the WCV to load the slot-renderer URL when the flag is on (slice 05 follow-up)", () => {
     const fakeView = makeFakeSlotView();
     const factory = { create: vi.fn(() => fakeView) };
@@ -335,5 +356,160 @@ describe("slot-controller WebContentsView feature flag (slice 05 plumbing)", () 
     expect(fakeView.loadURL).toHaveBeenCalledTimes(1);
     const loadedUrl = (fakeView.loadURL as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
     expect(loadedUrl).toMatch(/slot-renderer/);
+  });
+});
+
+describe("slot-controller crash recovery (slice 06)", () => {
+  function setupWithFakeFactory() {
+    const created: ReturnType<typeof makeFakeSlotView>[] = [];
+    setWebContentsViewFactory({
+      create: () => {
+        const v = makeFakeSlotView();
+        created.push(v);
+        return v;
+      },
+    });
+    setUseWebContentsViews(true);
+    return { created };
+  }
+
+  it("first crash within the window: silently rebuilds the WCV and replays the last loadStream", () => {
+    const { created } = setupWithFakeFactory();
+    createSlot("slot-1");
+    expect(created).toHaveLength(1);
+    const initialView = created[0];
+
+    dispatchLoadStream("slot-1", { platform: "kick", channelName: "xqc" });
+
+    const events: unknown[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+
+    initialView.__triggerCrash("oom");
+
+    // A new view was spawned, the old one was destroyed.
+    expect(created).toHaveLength(2);
+    expect(initialView.__destroyed).toBe(true);
+
+    // load-stream replayed onto the new slot lifecycle.
+    const replays = events.filter(
+      (e) => (e as { type: string; slotId: string }).type === "load-stream"
+    );
+    expect(replays).toContainEqual(
+      expect.objectContaining({
+        type: "load-stream",
+        slotId: "slot-1",
+        payload: { platform: "kick", channelName: "xqc" },
+      })
+    );
+
+    // No affordance was emitted on the first crash.
+    const affordances = events.filter(
+      (e) => (e as { type: string }).type === "retry-affordance"
+    );
+    expect(affordances).toHaveLength(0);
+
+    unsubscribe();
+  });
+
+  it("second crash within the window: emits retry-affordance instead of rebuilding silently", () => {
+    const { created } = setupWithFakeFactory();
+    createSlot("slot-1");
+    dispatchLoadStream("slot-1", { platform: "twitch", channelName: "lirik" });
+
+    // First crash → silent retry.
+    created[0].__triggerCrash();
+    expect(created).toHaveLength(2);
+
+    const events: unknown[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+
+    // Second crash within the same window → affordance.
+    created[1].__triggerCrash();
+
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "retry-affordance", slotId: "slot-1" })
+    );
+    // No third view was spawned (the controller waits for the user to click retry).
+    expect(created).toHaveLength(2);
+    // The dead second view was torn down.
+    expect(created[1].__destroyed).toBe(true);
+    // Slot record still exists — the host needs it to render the overlay.
+    expect(getSlotPresence("slot-1")).toBe("focused");
+    expect(getSlotView("slot-1")).toBeNull();
+
+    unsubscribe();
+  });
+
+  it("requestSlotRetry rebuilds a slot after the affordance was shown + replays the last stream", () => {
+    const { created } = setupWithFakeFactory();
+    createSlot("slot-1");
+    dispatchLoadStream("slot-1", { platform: "kick", channelName: "moonmoon" });
+    created[0].__triggerCrash();
+    created[1].__triggerCrash();
+    expect(getSlotView("slot-1")).toBeNull();
+
+    const events: unknown[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+
+    requestSlotRetry("slot-1");
+
+    expect(created).toHaveLength(3);
+    expect(getSlotView("slot-1")).toBe(created[2]);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "load-stream",
+        slotId: "slot-1",
+        payload: { platform: "kick", channelName: "moonmoon" },
+      })
+    );
+
+    unsubscribe();
+  });
+
+  it("requestSlotRetry on a live (un-crashed) slot is a no-op", () => {
+    const { created } = setupWithFakeFactory();
+    createSlot("slot-1");
+    expect(created).toHaveLength(1);
+
+    requestSlotRetry("slot-1");
+
+    expect(created).toHaveLength(1); // No second view spawned.
+  });
+
+  it("destroySlot also unsubscribes the crash listener so a late crash callback doesn't rebuild", () => {
+    const { created } = setupWithFakeFactory();
+    createSlot("slot-1");
+    const view = created[0];
+
+    destroySlot("slot-1");
+    view.__triggerCrash(); // Should be a no-op now (listener detached).
+
+    // No second view was created.
+    expect(created).toHaveLength(1);
+    expect(getSlotPresence("slot-1")).toBeUndefined();
+  });
+
+  it("rebindExistingSlots re-emits a presence-changed event for every alive slot", () => {
+    const { created } = setupWithFakeFactory();
+    createSlot("slot-1");
+    createSlot("slot-2");
+    expect(created).toHaveLength(2);
+
+    const events: unknown[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+
+    rebindExistingSlots();
+
+    const presenceEvents = events.filter(
+      (e) => (e as { type: string }).type === "presence-changed"
+    );
+    expect(presenceEvents).toContainEqual(
+      expect.objectContaining({ slotId: "slot-1", presence: "focused" })
+    );
+    expect(presenceEvents).toContainEqual(
+      expect.objectContaining({ slotId: "slot-2", presence: "background" })
+    );
+
+    unsubscribe();
   });
 });
