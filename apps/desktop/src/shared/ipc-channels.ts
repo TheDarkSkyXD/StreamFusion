@@ -14,6 +14,7 @@ import type {
   TwitchUser,
   UserPreferences,
 } from "./auth-types";
+import type { SlotQualityMode } from "./slot-types";
 
 export const IPC_CHANNELS = {
   // App lifecycle
@@ -241,6 +242,30 @@ export const IPC_CHANNELS = {
   // Tail the last N lines of either log file for the LogsSection preview.
   LOGS_TAIL: "logs:tail",
 
+  // ========== Slot Controller (slice 04 of renderer-OOM PRD #51) ==========
+  // Host → main: renderer drives focus + cap + background-quality settings into
+  // the main-process slot-controller. `slot:rebind-existing-slots` is fired by
+  // the host after its own crash-recovery reload so main can resync state.
+  SLOT_REQUEST_FOCUS: "slot:request-focus",
+  SLOT_SET_MULTIVIEW_CAP: "slot:set-multiview-cap",
+  SLOT_SET_BACKGROUND_QUALITY: "slot:set-background-quality",
+  SLOT_REBIND_EXISTING_SLOTS: "slot:rebind-existing-slots",
+  // Main → slot: dispatched via webContents.send. Slice 04 consumer is the
+  // host renderer; slice 05+ replaces with per-slot WebContentsView consumers.
+  SLOT_LOAD_STREAM: "slot:load-stream",
+  SLOT_SET_MUTE: "slot:set-mute",
+  SLOT_SET_QUALITY: "slot:set-quality",
+  SLOT_SET_BUFFER_CONFIG: "slot:set-buffer-config",
+  SLOT_UNLOAD: "slot:unload",
+  // Slot → main: lifecycle and metrics signals from the slot consumer. Wired
+  // in slice 04, exercised in slice 05+ once a real WCV emits.
+  SLOT_CRASHED: "slot:crashed",
+  SLOT_METRICS: "slot:metrics",
+  SLOT_PLAYBACK_EVENT: "slot:playback-event",
+  // Main → host: notify when slot presence changes so chrome (active outline,
+  // mute icons) can re-render.
+  SLOT_PRESENCE_CHANGED: "slot:presence-changed",
+
   // ========== Bug Reports ==========
   // Renderer-driven bug-report capture. The handler stitches the description,
   // tail of the main log, and tail of the noise log into a markdown file in
@@ -340,6 +365,11 @@ export interface IpcPayloads {
     includeMainLog: boolean;
     includeNoiseLog: boolean;
   };
+
+  // Slot-controller IPC payloads (slice 04 of #51).
+  [IPC_CHANNELS.SLOT_REQUEST_FOCUS]: { slotId: string };
+  [IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP]: { cap: number };
+  [IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY]: { mode: SlotQualityMode };
 }
 
 // ========== Stream Proxy Types (Xtra port U11) ==========

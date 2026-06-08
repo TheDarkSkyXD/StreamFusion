@@ -32,6 +32,13 @@ import {
   type VersionInfo,
 } from "../shared/ipc-channels";
 import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../shared/mod-log-types";
+import type {
+  LoadStreamPayload,
+  SlotBufferConfig,
+  SlotPresence,
+  SlotQualityConfig,
+  SlotQualityMode,
+} from "../shared/slot-types";
 
 // Define the API exposed to the renderer
 const electronAPI = {
@@ -846,6 +853,78 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.RETENTION_GET, { scope }),
     set: (scope: RetentionScope, days: number | null): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.RETENTION_SET, { scope, days }),
+  },
+
+  // ========== Slot Controller (slice 04 of renderer-OOM PRD #51) ==========
+  // Host commands main, and subscribes to main's dispatch fan-out + presence
+  // notifications. Slice 04 has no per-slot WebContentsView yet — the host
+  // renderer is the temporary consumer of `onLoadStream` etc., to be replaced
+  // by the per-slot WCV preload in slice 05.
+  slot: {
+    requestFocus: (slotId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_REQUEST_FOCUS, { slotId }),
+    setMultiviewCap: (cap: number): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP, { cap }),
+    setBackgroundQuality: (mode: SlotQualityMode): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY, { mode }),
+    rebindExistingSlots: (): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SLOT_REBIND_EXISTING_SLOTS),
+    onLoadStream: (
+      callback: (event: { slotId: string; payload: LoadStreamPayload }) => void
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: { slotId: string; payload: LoadStreamPayload }
+      ) => callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.SLOT_LOAD_STREAM, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_LOAD_STREAM, handler);
+    },
+    onSetMute: (
+      callback: (event: { slotId: string; muted: boolean }) => void
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: { slotId: string; muted: boolean }
+      ) => callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.SLOT_SET_MUTE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_SET_MUTE, handler);
+    },
+    onSetQuality: (
+      callback: (event: { slotId: string; config: SlotQualityConfig }) => void
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: { slotId: string; config: SlotQualityConfig }
+      ) => callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.SLOT_SET_QUALITY, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_SET_QUALITY, handler);
+    },
+    onSetBufferConfig: (
+      callback: (event: { slotId: string; config: SlotBufferConfig }) => void
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: { slotId: string; config: SlotBufferConfig }
+      ) => callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.SLOT_SET_BUFFER_CONFIG, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_SET_BUFFER_CONFIG, handler);
+    },
+    onUnload: (callback: (event: { slotId: string }) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: { slotId: string }) =>
+        callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.SLOT_UNLOAD, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_UNLOAD, handler);
+    },
+    onPresenceChanged: (
+      callback: (event: { slotId: string; presence: SlotPresence }) => void
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: { slotId: string; presence: SlotPresence }
+      ) => callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.SLOT_PRESENCE_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_PRESENCE_CHANGED, handler);
+    },
   },
 };
 

@@ -20,6 +20,7 @@ import { registerKickChatHandlers } from "./ipc/handlers/kick-chat-handlers";
 import { registerLogHandlers } from "./ipc/handlers/log-handlers";
 import { registerModLogHandlers } from "./ipc/handlers/modlog-handlers";
 import { registerPlatformHealthHandlers } from "./ipc/handlers/platform-health-handlers";
+import { registerSlotControllerHandlers } from "./ipc/handlers/slot-controller-handlers";
 import { applyPersistedProxyOnStart, registerProxyHandlers } from "./ipc/handlers/proxy-handlers";
 import { registerSearchHandlers } from "./ipc/handlers/search-handlers";
 import { registerStorageHandlers } from "./ipc/handlers/storage-handlers";
@@ -47,6 +48,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerUpdateHandlers(mainWindow);
   registerProxyHandlers();
   registerPlatformHealthHandlers(mainWindow);
+  registerSlotControllerHandlers(mainWindow);
   registerTokenStatusHandlers();
   registerLogHandlers();
   registerBugReportHandlers(getBugReportsDir());
