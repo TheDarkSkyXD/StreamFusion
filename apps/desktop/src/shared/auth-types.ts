@@ -322,9 +322,11 @@ export interface ChatDisplayPreferences {
   recentMessagesLimit: number;
   /**
    * Max messages retained in the live buffer before the oldest are pruned.
-   * Default 100 matches the shipped RAM-safe cap; the consumer clamps to <= 400
-   * (raising it regresses the 5 GB-spike mitigation; the array is shared across
-   * multiview panels). See plan U4.
+   * Default 600, clamped by the consumer to [10, 1200]. Default 600 sits at
+   * the midpoint of the settings slider; ceiling 1200 gives headroom above
+   * KickTalk's 600-message paused cap while bounding RAM (the array is still
+   * a single flat list shared across multiview panels — see Plan C for the
+   * per-channel store refactor).
    */
   messageLimit: number;
 }
@@ -563,7 +565,7 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   showPredictions: true,
   recentMessagesOnJoin: true,
   recentMessagesLimit: 100,
-  messageLimit: 100,
+  messageLimit: 600,
 };
 
 /**

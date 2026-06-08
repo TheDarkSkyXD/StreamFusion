@@ -234,3 +234,14 @@ body {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* KickTalk-style chat scrollbar (mirrors KickTalk's `*::-webkit-scrollbar`
+   rules from Input.scss with the --scrollbar-thumb value from the dark theme). */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #90909077;
+  border-radius: 2px;
+  background-clip: content-box;
+}

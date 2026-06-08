@@ -22,12 +22,14 @@ import { useAuthStore } from "./auth-store";
 // but the smaller cap meaningfully reduces GC churn and resident size.
 //
 // The normal cap is now a user preference (chatDisplay.messageLimit, default
-// 100) resolved via resolveMessageLimit() and clamped to [MESSAGE_LIMIT_MIN,
-// MESSAGE_LIMIT_MAX]. The max stays 400 so a misconfigured value can't
-// reintroduce the RAM spike (the array is shared across multiview panels).
-const MESSAGE_LIMIT_PAUSED = 400;
+// 600) resolved via resolveMessageLimit() and clamped to [MESSAGE_LIMIT_MIN,
+// MESSAGE_LIMIT_MAX]. Ceiling 1200 keeps the default 600 visually centered on
+// the settings slider (midpoint of 10..1200 ≈ 605) while still giving headroom
+// above KickTalk's 600-message paused cap. Floor stays at 10 so power users
+// can dial way down for performance on tiny machines.
+const MESSAGE_LIMIT_PAUSED = 1200;
 const MESSAGE_LIMIT_MIN = 10;
-const MESSAGE_LIMIT_MAX = 400;
+const MESSAGE_LIMIT_MAX = 1200;
 
 // Force trim when this many messages over limit (avoids frequent small trims)
 const TRIM_BUFFER = 10;

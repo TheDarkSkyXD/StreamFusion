@@ -230,7 +230,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           atBottomStateChange={handleAtBottomStateChange}
           scrollerRef={scrollerCallbackRef}
           style={{ height: "100%", width: "100%", flex: 1 }}
-          className="no-scrollbar"
+          className="chat-scrollbar"
         />
 
         {isPaused && (

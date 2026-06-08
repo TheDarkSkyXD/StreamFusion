@@ -375,7 +375,7 @@ function EventsGroup() {
         note="Higher values use more memory."
         value={cd.messageLimit}
         min={10}
-        max={400}
+        max={1200}
         step={10}
         onChange={(v) => set("messageLimit", v)}
       />

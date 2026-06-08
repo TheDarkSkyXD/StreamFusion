@@ -78,6 +78,10 @@ _Avoid_: AuthService, AuthClient, OAuth2Client.
 The Platform-neutral lifecycle seam every chat adapter implements: `connect | disconnect | on | sendMessage | joinChannel | leaveChannel`. Defined in `shared/chat-types.ts` alongside `ChatServiceEvents`. Renderer components and hooks hold a `ChatConnection`, never the concrete `TwitchChatService` / `KickChatService` class. Constructed via `chatFactory.open(platform, options)`.
 _Avoid_: ChatService, ChatClient, IRCConnection (Twitch-only flavour).
 
+**channelKey**:
+The canonical bucket identifier used by the chat store and message batcher: a composite string `${platform}:${channelId}` (e.g. `"kick:12345"`, `"twitch:71092938"`). Built only via `buildChannelKey(platform, channelId)` in `store/chat-store.ts` — never assembled inline. Keys `state.messagesByChannel` and `state.pausedChannels`, and scopes the `addMessageBatched` flush timer so each channel batches independently. Distinct from `ChannelRef`, which is a lookup reference (slug or id) and is not stable enough to use as a map key.
+_Avoid_: chatroomKey, roomKey, bare platform string.
+
 **PlatformHealth**:
 The per-Platform reachability state observed from this app: `"healthy" | "degraded" | "down"`. `degraded` means a rolling failure-rate threshold of remote TRANSIENT failures (timeouts, 5xx) has tripped — the platform is up but flaky. `down` means a short-fuse burst of Chromium net::ERR_* — the LOCAL network/GPU service has crashed and every request will fail until it restarts. Owned by `backend/api/unified/platform-health.ts`. Callers consult `isPlatformHealthy(platform)` before issuing a request and serve stale-success cache when unhealthy; main → renderer IPC fires on transitions so the UI can show a degraded-platform banner.
 _Avoid_: outage flag, network-down, isOnline (overloaded with browser navigator).

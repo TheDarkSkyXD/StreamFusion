@@ -904,7 +904,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         {/* U7 — the gear + its "Clear local chat" action moved to the panel
          *  header popover (outside ChatPanelTabs). The footer is now just the
          *  message composer. */}
-        <div className="py-3">
+        <div className="p-2">
           <ChatInput
             ref={chatInputRef}
             platform="twitch"

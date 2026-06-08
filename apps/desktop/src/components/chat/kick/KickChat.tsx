@@ -875,7 +875,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         {/* U7 — the gear + its "Clear local chat" action moved to the panel
          *  header popover (outside ChatPanelTabs). The footer is now just the
          *  message composer. */}
-        <div className="p-3">
+        <div className="p-2">
           <ChatInput
             ref={chatInputRef}
             platform="kick"
