@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useMultiStreamStore } from "@/store/multistream-store";
+import {
+  DEFAULT_BACKGROUND_QUALITY,
+  DEFAULT_MULTIVIEW_CAP,
+  MULTISTREAM_STORE_VERSION,
+  MULTIVIEW_CAP_MAX,
+  MULTIVIEW_CAP_MIN,
+  migrateMultiStreamState,
+  useMultiStreamStore,
+} from "@/store/multistream-store";
 
 function resetStore() {
   useMultiStreamStore.setState({
@@ -9,6 +17,8 @@ function resetStore() {
     focusedStreamId: null,
     isChatOpen: true,
     chatStreamId: null,
+    multiviewCap: DEFAULT_MULTIVIEW_CAP,
+    backgroundQuality: DEFAULT_BACKGROUND_QUALITY,
   });
 }
 
@@ -43,11 +53,122 @@ describe("multistream-store addStream", () => {
     expect(useMultiStreamStore.getState().streams).toHaveLength(1);
   });
 
-  it("caps at 6 streams", () => {
+  it("caps stream count at MultiviewCap (default 4)", () => {
+    for (let i = 0; i < 8; i++) {
+      useMultiStreamStore.getState().addStream("twitch", `channel${i}`);
+    }
+    expect(useMultiStreamStore.getState().streams).toHaveLength(DEFAULT_MULTIVIEW_CAP);
+    expect(DEFAULT_MULTIVIEW_CAP).toBe(4);
+  });
+
+  it("honors a user-raised MultiviewCap when adding streams", () => {
+    useMultiStreamStore.getState().setMultiviewCap(6);
     for (let i = 0; i < 8; i++) {
       useMultiStreamStore.getState().addStream("twitch", `channel${i}`);
     }
     expect(useMultiStreamStore.getState().streams).toHaveLength(6);
+  });
+
+  it("does not silently truncate when a request would exceed the cap", () => {
+    useMultiStreamStore.getState().setMultiviewCap(2);
+    useMultiStreamStore.getState().addStream("twitch", "a");
+    useMultiStreamStore.getState().addStream("twitch", "b");
+    const before = useMultiStreamStore.getState().streams.length;
+    useMultiStreamStore.getState().addStream("twitch", "c");
+    const after = useMultiStreamStore.getState().streams.length;
+    // No silent truncation: the count stays at the cap, no slot was dropped or replaced.
+    expect(before).toBe(2);
+    expect(after).toBe(2);
+    expect(useMultiStreamStore.getState().streams.map((s) => s.channelName)).toEqual(["a", "b"]);
+  });
+});
+
+describe("multistream-store MultiviewCap", () => {
+  it("defaults to 4 on a fresh store", () => {
+    expect(useMultiStreamStore.getState().multiviewCap).toBe(DEFAULT_MULTIVIEW_CAP);
+    expect(DEFAULT_MULTIVIEW_CAP).toBe(4);
+  });
+
+  it("exposes MULTIVIEW_CAP_MIN=1 and MULTIVIEW_CAP_MAX=6", () => {
+    expect(MULTIVIEW_CAP_MIN).toBe(1);
+    expect(MULTIVIEW_CAP_MAX).toBe(6);
+  });
+
+  it("setMultiviewCap clamps below the min", () => {
+    useMultiStreamStore.getState().setMultiviewCap(0);
+    expect(useMultiStreamStore.getState().multiviewCap).toBe(MULTIVIEW_CAP_MIN);
+  });
+
+  it("setMultiviewCap clamps above the max", () => {
+    useMultiStreamStore.getState().setMultiviewCap(99);
+    expect(useMultiStreamStore.getState().multiviewCap).toBe(MULTIVIEW_CAP_MAX);
+  });
+
+  it("setMultiviewCap accepts in-range values", () => {
+    useMultiStreamStore.getState().setMultiviewCap(3);
+    expect(useMultiStreamStore.getState().multiviewCap).toBe(3);
+  });
+});
+
+describe("multistream-store BackgroundQuality default", () => {
+  it("defaults to 'auto-low' on a fresh store", () => {
+    expect(useMultiStreamStore.getState().backgroundQuality).toBe("auto-low");
+    expect(DEFAULT_BACKGROUND_QUALITY).toBe("auto-low");
+  });
+});
+
+describe("multistream-store schema migration", () => {
+  it("MULTISTREAM_STORE_VERSION is bumped to 1 or higher", () => {
+    expect(MULTISTREAM_STORE_VERSION).toBeGreaterThanOrEqual(1);
+  });
+
+  it("migrates v0 fixture: seeds defaults without losing prior preferences", () => {
+    // v0 fixture: the old persisted shape — no MultiviewCap, no BackgroundQuality,
+    // and a `layout` that was hard-coded back to 'grid' on persist.
+    const v0 = {
+      streams: [
+        { id: "kick-a", platform: "kick", channelName: "a", isMuted: false, volume: 0.5 },
+        { id: "twitch-b", platform: "twitch", channelName: "b", isMuted: true, volume: 0.7 },
+      ],
+      layout: "grid",
+      isChatOpen: false,
+      chatStreamId: "kick-a",
+    };
+
+    const migrated = migrateMultiStreamState(v0, 0);
+
+    expect(migrated.multiviewCap).toBe(DEFAULT_MULTIVIEW_CAP);
+    expect(migrated.backgroundQuality).toBe(DEFAULT_BACKGROUND_QUALITY);
+    expect(migrated.streams).toEqual(v0.streams);
+    expect(migrated.isChatOpen).toBe(false);
+    expect(migrated.chatStreamId).toBe("kick-a");
+  });
+
+  it("migration leaves already-current values untouched", () => {
+    const current = {
+      streams: [],
+      layout: "grid",
+      isChatOpen: true,
+      chatStreamId: null,
+      multiviewCap: 6,
+      backgroundQuality: "match-source" as const,
+    };
+    const migrated = migrateMultiStreamState(current, MULTISTREAM_STORE_VERSION);
+    expect(migrated.multiviewCap).toBe(6);
+    expect(migrated.backgroundQuality).toBe("match-source");
+  });
+
+  it("migration clamps a corrupt out-of-range MultiviewCap to the valid range", () => {
+    const corrupt = {
+      streams: [],
+      layout: "grid",
+      isChatOpen: true,
+      chatStreamId: null,
+      multiviewCap: 42,
+      backgroundQuality: "auto-low" as const,
+    };
+    const migrated = migrateMultiStreamState(corrupt, MULTISTREAM_STORE_VERSION);
+    expect(migrated.multiviewCap).toBe(MULTIVIEW_CAP_MAX);
   });
 
   it("does not overwrite chatStreamId when one is already set", () => {
