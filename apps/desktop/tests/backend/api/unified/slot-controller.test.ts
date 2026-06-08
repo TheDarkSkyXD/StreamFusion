@@ -11,16 +11,55 @@ import {
   dispatchUnload,
   getFocusedSlotId,
   getSlotPresence,
+  getSlotView,
   onSlotEvent,
   setMaxSlots,
   setSlotPresence,
+  setUseWebContentsViews,
 } from "@/backend/api/unified/slot-controller";
+import {
+  __resetWebContentsViewFactoryForTests,
+  setWebContentsViewFactory,
+  type SlotView,
+} from "@/backend/api/unified/webcontents-view-factory";
+import { vi } from "vitest";
 
 // Guards: the slot-controller is the single source of truth for slot presence on the main process.
 // First created slot is "focused" — multiview always has exactly one focused slot when any slot exists.
 // (Slice 04 of the renderer-OOM PRD #51; this test pins the focus-singleton invariant before any WCV lands.)
 
-beforeEach(() => __resetSlotControllerForTests());
+beforeEach(() => {
+  __resetSlotControllerForTests();
+  __resetWebContentsViewFactoryForTests();
+});
+
+function makeFakeSlotView(): SlotView & {
+  __sendCalls: unknown[][];
+  __destroyed: boolean;
+} {
+  const sendCalls: unknown[][] = [];
+  let destroyed = false;
+  return {
+    webContents: {
+      send: vi.fn((channel: string, payload: unknown) => sendCalls.push([channel, payload])),
+      isDestroyed: vi.fn(() => destroyed),
+      close: vi.fn(() => {
+        destroyed = true;
+      }),
+    } as unknown as Electron.WebContents,
+    setBounds: vi.fn(),
+    setVisible: vi.fn(),
+    destroy: vi.fn(() => {
+      destroyed = true;
+    }),
+    get __sendCalls() {
+      return sendCalls;
+    },
+    get __destroyed() {
+      return destroyed;
+    },
+  };
+}
 
 describe("slot-controller createSlot", () => {
   it("registers a new slot and makes the first one focused", () => {
@@ -193,5 +232,69 @@ describe("slot-controller event fan-out (slice 04 dispatch seam)", () => {
     dispatchSetMute("ghost", true);
     unsubscribe();
     expect(events).toHaveLength(0);
+  });
+});
+
+describe("slot-controller WebContentsView feature flag (slice 05 plumbing)", () => {
+  it("createSlot does NOT spawn a view by default (flag off in production)", () => {
+    const created: SlotView[] = [];
+    setWebContentsViewFactory({
+      create: () => {
+        const v = makeFakeSlotView();
+        created.push(v);
+        return v;
+      },
+    });
+    createSlot("slot-1");
+    expect(created).toHaveLength(0);
+    expect(getSlotView("slot-1")).toBeNull();
+  });
+
+  it("with setUseWebContentsViews(true), createSlot spawns a view via the factory", () => {
+    const fakeView = makeFakeSlotView();
+    const factory = { create: vi.fn(() => fakeView) };
+    setWebContentsViewFactory(factory);
+
+    setUseWebContentsViews(true);
+    createSlot("slot-1");
+
+    expect(factory.create).toHaveBeenCalledTimes(1);
+    expect(getSlotView("slot-1")).toBe(fakeView);
+  });
+
+  it("destroySlot tears down the slot's view if one was spawned", () => {
+    const fakeView = makeFakeSlotView();
+    setWebContentsViewFactory({ create: () => fakeView });
+    setUseWebContentsViews(true);
+    createSlot("slot-1");
+
+    destroySlot("slot-1");
+
+    expect(fakeView.destroy).toHaveBeenCalledTimes(1);
+    expect(getSlotView("slot-1")).toBeNull();
+  });
+
+  it("flag turned off after some slots exist does not retroactively destroy views; further creates skip the factory", () => {
+    const fakeView = makeFakeSlotView();
+    const factory = { create: vi.fn(() => fakeView) };
+    setWebContentsViewFactory(factory);
+    setUseWebContentsViews(true);
+
+    createSlot("slot-1");
+    expect(getSlotView("slot-1")).toBe(fakeView);
+
+    setUseWebContentsViews(false);
+    createSlot("slot-2");
+    expect(getSlotView("slot-2")).toBeNull();
+    expect(getSlotView("slot-1")).toBe(fakeView); // pre-existing slot's view survives
+  });
+
+  it("__resetSlotControllerForTests clears the flag back to off", () => {
+    setUseWebContentsViews(true);
+    __resetSlotControllerForTests();
+    const fakeView = makeFakeSlotView();
+    setWebContentsViewFactory({ create: () => fakeView });
+    createSlot("slot-1");
+    expect(getSlotView("slot-1")).toBeNull();
   });
 });

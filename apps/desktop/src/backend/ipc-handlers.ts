@@ -19,6 +19,7 @@ import { registerChatHandlers } from "./ipc/handlers/chat-handlers";
 import { registerKickChatHandlers } from "./ipc/handlers/kick-chat-handlers";
 import { registerLogHandlers } from "./ipc/handlers/log-handlers";
 import { registerModLogHandlers } from "./ipc/handlers/modlog-handlers";
+import { setUseWebContentsViews } from "./api/unified/slot-controller";
 import { registerPlatformHealthHandlers } from "./ipc/handlers/platform-health-handlers";
 import { registerSlotControllerHandlers } from "./ipc/handlers/slot-controller-handlers";
 import { applyPersistedProxyOnStart, registerProxyHandlers } from "./ipc/handlers/proxy-handlers";
@@ -48,6 +49,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerUpdateHandlers(mainWindow);
   registerProxyHandlers();
   registerPlatformHealthHandlers(mainWindow);
+  // Slice 05 (#56) dogfood flag: enables per-slot WebContentsViews when the
+  // env var is set. Off by default in production. Set on slot-controller
+  // BEFORE the handlers register so the very first createSlot call sees the
+  // correct flag value. Will become a runtime setting after slice 06 sign-off.
+  if (process.env.STREAMFUSION_WEBCONTENTS_VIEW_SLOTS === "1") {
+    setUseWebContentsViews(true);
+    logger.info("IPC:Bootstrap", "WebContentsView-per-slot enabled by env flag");
+  }
   registerSlotControllerHandlers(mainWindow);
   registerTokenStatusHandlers();
   registerLogHandlers();

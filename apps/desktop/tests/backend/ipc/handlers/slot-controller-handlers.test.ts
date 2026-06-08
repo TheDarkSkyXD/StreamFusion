@@ -20,7 +20,12 @@ import {
   getFocusedSlotId,
   getSlotPresence,
   setSlotPresence,
+  setUseWebContentsViews,
 } from "@/backend/api/unified/slot-controller";
+import {
+  __resetWebContentsViewFactoryForTests,
+  setWebContentsViewFactory,
+} from "@/backend/api/unified/webcontents-view-factory";
 import { registerSlotControllerHandlers } from "@/backend/ipc/handlers/slot-controller-handlers";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
@@ -49,6 +54,7 @@ function makeFakeMainWindow() {
 beforeEach(() => {
   vi.clearAllMocks();
   __resetSlotControllerForTests();
+  __resetWebContentsViewFactoryForTests();
 });
 
 // Guards: slot-controller IPC bridge — host→main channels mutate the controller,
@@ -151,5 +157,101 @@ describe("registerSlotControllerHandlers — main → renderer dispatch fan-out"
     dispatchLoadStream("slot-1", { platform: "kick", channelName: "xqc" });
 
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe("registerSlotControllerHandlers — slot-05 dispatch routing", () => {
+  it("routes dispatch events to the slot's WebContentsView when the WCV flag is on", () => {
+    const { window, send } = makeFakeMainWindow();
+    registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
+
+    // Inject a fake WCV factory + flip the flag, then create slot 1 so it
+    // gets a view.
+    const viewSend = vi.fn();
+    const viewWebContents = {
+      send: viewSend,
+      isDestroyed: vi.fn(() => false),
+      close: vi.fn(),
+    } as unknown as Electron.WebContents;
+    setWebContentsViewFactory({
+      create: () => ({
+        webContents: viewWebContents,
+        setBounds: vi.fn(),
+        setVisible: vi.fn(),
+        destroy: vi.fn(),
+      }),
+    });
+    setUseWebContentsViews(true);
+    createSlot("slot-1");
+
+    dispatchLoadStream("slot-1", { platform: "kick", channelName: "xqc" });
+
+    // The dispatch landed on the slot's WCV — NOT on the main window.
+    expect(viewSend).toHaveBeenCalledWith(
+      IPC_CHANNELS.SLOT_LOAD_STREAM,
+      expect.objectContaining({
+        type: "load-stream",
+        slotId: "slot-1",
+        payload: { platform: "kick", channelName: "xqc" },
+      })
+    );
+    const dispatchCallsOnMain = send.mock.calls.filter(
+      ([ch]) => ch === IPC_CHANNELS.SLOT_LOAD_STREAM
+    );
+    expect(dispatchCallsOnMain).toHaveLength(0);
+  });
+
+  it("presence-changed always goes to the host (slot chrome lives there, never the WCV)", () => {
+    const { window, send } = makeFakeMainWindow();
+    registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
+
+    const viewSend = vi.fn();
+    setWebContentsViewFactory({
+      create: () => ({
+        webContents: {
+          send: viewSend,
+          isDestroyed: vi.fn(() => false),
+          close: vi.fn(),
+        } as unknown as Electron.WebContents,
+        setBounds: vi.fn(),
+        setVisible: vi.fn(),
+        destroy: vi.fn(),
+      }),
+    });
+    setUseWebContentsViews(true);
+    createSlot("slot-1");
+    createSlot("slot-2");
+
+    setSlotPresence("slot-2", "focused");
+
+    const presenceCallsOnMain = send.mock.calls.filter(
+      ([ch]) => ch === IPC_CHANNELS.SLOT_PRESENCE_CHANGED
+    );
+    expect(presenceCallsOnMain.length).toBeGreaterThan(0);
+
+    const presenceCallsOnView = viewSend.mock.calls.filter(
+      ([ch]) => ch === IPC_CHANNELS.SLOT_PRESENCE_CHANGED
+    );
+    expect(presenceCallsOnView).toHaveLength(0);
+  });
+
+  it("with WCV flag off, dispatch still goes to the main window (backward-compatible default)", () => {
+    const { window, send } = makeFakeMainWindow();
+    registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
+
+    // Factory installed but flag never flipped — no view spawned.
+    setWebContentsViewFactory({
+      create: vi.fn(() => {
+        throw new Error("factory must not be called when flag is off");
+      }),
+    });
+
+    createSlot("slot-1");
+    dispatchLoadStream("slot-1", { platform: "kick", channelName: "xqc" });
+
+    expect(send).toHaveBeenCalledWith(
+      IPC_CHANNELS.SLOT_LOAD_STREAM,
+      expect.objectContaining({ slotId: "slot-1" })
+    );
   });
 });

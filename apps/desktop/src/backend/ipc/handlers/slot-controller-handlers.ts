@@ -10,6 +10,7 @@
 
 import { type BrowserWindow, ipcMain } from "electron";
 import {
+  getSlotView,
   onSlotEvent,
   setMaxSlots,
   setSlotPresence,
@@ -18,21 +19,46 @@ import { logger } from "../../logging/logger";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { SlotEvent } from "../../../shared/slot-types";
 
-function sendToWindow(mainWindow: BrowserWindow, channel: string, payload: unknown): void {
+function sendToWebContents(
+  webContents: Electron.WebContents | undefined,
+  channel: string,
+  payload: unknown
+): boolean {
   try {
-    if (
-      mainWindow &&
-      !mainWindow.isDestroyed() &&
-      mainWindow.webContents &&
-      !mainWindow.webContents.isDestroyed()
-    ) {
-      mainWindow.webContents.send(channel, payload);
+    if (webContents && !webContents.isDestroyed()) {
+      webContents.send(channel, payload);
+      return true;
     }
   } catch (error) {
     logger.warn("IPC:Slot", "Could not push event", {
       channel,
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+  return false;
+}
+
+function sendToWindow(mainWindow: BrowserWindow, channel: string, payload: unknown): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    sendToWebContents(mainWindow.webContents, channel, payload);
+  }
+}
+
+/**
+ * True for events that target the slot's player (the WCV when one exists,
+ * the host renderer otherwise). Presence transitions and any other
+ * informational events stay on the host because slot chrome lives there.
+ */
+function isDispatchEvent(event: SlotEvent): boolean {
+  switch (event.type) {
+    case "load-stream":
+    case "set-mute":
+    case "set-quality":
+    case "set-buffer-config":
+    case "unload":
+      return true;
+    case "presence-changed":
+      return false;
   }
 }
 
@@ -75,7 +101,31 @@ export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void 
   });
 
   onSlotEvent((event) => {
-    sendToWindow(mainWindow, eventToChannel(event), event);
+    const channel = eventToChannel(event);
+    if (isDispatchEvent(event)) {
+      // Prefer the slot's own WebContentsView when present (slice 05+ path).
+      // Fall back to the host renderer when there's no per-slot WCV.
+      const view = getSlotView(event.slotId);
+      if (view) {
+        sendToWebContents(view.webContents, channel, event);
+        return;
+      }
+    }
+    sendToWindow(mainWindow, channel, event);
+  });
+
+  // Slot → main inbound events. Slice 04 wired the channels; slice 06 will
+  // consume `slot:crashed` to drive crash retries, slice 02 already feeds
+  // metrics via process-monitor — these are observe-only loggers for now so
+  // the per-slot WCV preload can call into them safely from slice 05 onward.
+  ipcMain.on(IPC_CHANNELS.SLOT_CRASHED, (_event, payload: unknown) => {
+    logger.warn("IPC:Slot", "slot reported crashed", { payload });
+  });
+  ipcMain.on(IPC_CHANNELS.SLOT_METRICS, (_event, payload: unknown) => {
+    logger.debug("IPC:Slot", "slot reported metrics", { payload });
+  });
+  ipcMain.on(IPC_CHANNELS.SLOT_PLAYBACK_EVENT, (_event, payload: unknown) => {
+    logger.debug("IPC:Slot", "slot reported playback event", { payload });
   });
 
   logger.info("IPC:Slot", "Slot-controller IPC handlers registered");

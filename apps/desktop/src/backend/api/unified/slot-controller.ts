@@ -7,8 +7,15 @@
  * Slice 04 of the renderer-OOM PRD (#51). At this slice the controller emits
  * dispatch events through `onSlotEvent` — the WebContentsView consumer lands
  * in slice 05; the host renderer is the temporary consumer in slice 04.
+ *
+ * Slice 05 (#56) plumbing: when `setUseWebContentsViews(true)` is set, each
+ * createSlot also spawns a per-slot WCV via the webcontents-view-factory.
+ * The view is stored on the slot record so the IPC bridge can route dispatch
+ * events to it. Flag defaults to OFF — the renderer-path fall-back is the
+ * source of truth until slice 06's full migration + dogfood sign-off.
  */
 
+import { getWebContentsViewFactory, type SlotView } from "./webcontents-view-factory";
 import type {
   LoadStreamPayload,
   SlotBufferConfig,
@@ -20,10 +27,12 @@ import type {
 interface SlotRecord {
   id: string;
   presence: SlotPresence;
+  view: SlotView | null;
 }
 
 const slots = new Map<string, SlotRecord>();
 const listeners = new Set<(event: SlotEvent) => void>();
+let useWebContentsViews = false;
 
 /**
  * Hard upper bound on concurrent slots. The renderer's MultiviewCap (settings
@@ -44,11 +53,33 @@ export function createSlot(id: string): void {
   if (slots.has(id)) return;
   if (slots.size >= maxSlots) return;
   const presence: SlotPresence = slots.size === 0 ? "focused" : "background";
-  slots.set(id, { id, presence });
+  const view: SlotView | null = useWebContentsViews
+    ? getWebContentsViewFactory().create({})
+    : null;
+  slots.set(id, { id, presence, view });
 }
 
 export function destroySlot(id: string): void {
+  const slot = slots.get(id);
+  if (!slot) return;
+  if (slot.view) {
+    slot.view.destroy();
+  }
   slots.delete(id);
+}
+
+/**
+ * Toggle the WCV-per-slot path. OFF by default so production renderers keep
+ * driving the player in-process. Slice 06 flips this on by default after the
+ * dogfood sign-off; until then it's an opt-in dev flag.
+ */
+export function setUseWebContentsViews(enabled: boolean): void {
+  useWebContentsViews = enabled;
+}
+
+/** Returns the SlotView spawned for this slot when the flag was on, else null. */
+export function getSlotView(id: string): SlotView | null {
+  return slots.get(id)?.view ?? null;
 }
 
 /**
@@ -127,7 +158,17 @@ export function dispatchUnload(slotId: string): void {
 }
 
 export function __resetSlotControllerForTests(): void {
+  for (const slot of slots.values()) {
+    if (slot.view) {
+      try {
+        slot.view.destroy();
+      } catch {
+        // Test fakes may already have torn down; ignore.
+      }
+    }
+  }
   slots.clear();
   listeners.clear();
   maxSlots = 6;
+  useWebContentsViews = false;
 }

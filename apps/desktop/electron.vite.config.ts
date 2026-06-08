@@ -96,6 +96,10 @@ export default defineConfig(({ mode }) => {
                 rollupOptions: {
                     input: {
                         index: resolve(__dirname, 'src/preload/index.ts'),
+                        // Slice 05 of renderer-OOM PRD (#51): narrow preload
+                        // loaded into each StreamSlot's WebContentsView. Exposes
+                        // ONLY the slot IPC surface (no broader electronAPI).
+                        slot: resolve(__dirname, 'src/preload/slot.ts'),
                     },
                 },
                 sourcemap: !isProduction,
