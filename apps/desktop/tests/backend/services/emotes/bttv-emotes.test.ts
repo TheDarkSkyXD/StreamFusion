@@ -1,22 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getMock = vi.fn();
+// Guards: BTTV REST goes through electronAPI.emotes.bttv.* (main-process IPC) — calling renderer fetch reintroduces the DevTools red "Failed to load resource: ... 404" line PRD #62 closed
+// Guards: 404 path is a null sentinel from main (NOT a thrown error) — the renderer logs at info and returns [] without hitting the ApiClient error log
+// Guards: BTTV is Twitch-only and expects a numeric Twitch user id — non-twitch platforms and non-numeric channel ids short-circuit WITHOUT touching the IPC
 
-vi.mock("@/lib/api-client", () => ({
-  api: {
-    get: (...args: unknown[]) => getMock(...args),
+const bttvApi = {
+  getGlobal: vi.fn(),
+  getUserByTwitchId: vi.fn(),
+};
+
+vi.stubGlobal("window", {
+  electronAPI: {
+    emotes: {
+      bttv: bttvApi,
+    },
   },
-}));
+} as unknown as Window);
 
 import { bttvEmoteProvider } from "@/backend/services/emotes/bttv-emotes";
-
-function mockJsonOnce(value: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.resolve(value) });
-}
-
-function mockRejectOnce(err: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.reject(err) });
-}
 
 function makeBTTVEmote(overrides: Record<string, unknown> = {}) {
   return {
@@ -30,20 +31,20 @@ function makeBTTVEmote(overrides: Record<string, unknown> = {}) {
 
 describe("BTTVEmoteProvider", () => {
   beforeEach(() => {
-    getMock.mockReset();
+    bttvApi.getGlobal.mockReset();
+    bttvApi.getUserByTwitchId.mockReset();
   });
 
   describe("fetchGlobalEmotes", () => {
-    it("fetches and transforms global emotes", async () => {
-      mockJsonOnce([
+    it("invokes electronAPI.emotes.bttv.getGlobal and transforms the response", async () => {
+      bttvApi.getGlobal.mockResolvedValueOnce([
         makeBTTVEmote({ id: "g1", code: "SourPls" }),
         makeBTTVEmote({ id: "g2", code: "catJAM", animated: true }),
       ]);
 
       const result = await bttvEmoteProvider.fetchGlobalEmotes();
 
-      expect(getMock).toHaveBeenCalledTimes(1);
-      expect(getMock.mock.calls[0][0]).toContain("/cached/emotes/global");
+      expect(bttvApi.getGlobal).toHaveBeenCalledOnce();
       expect(result).toHaveLength(2);
       expect(result[0].provider).toBe("bttv");
       expect(result[0].isGlobal).toBe(true);
@@ -53,7 +54,7 @@ describe("BTTVEmoteProvider", () => {
     });
 
     it("marks gif imageType as animated", async () => {
-      mockJsonOnce([
+      bttvApi.getGlobal.mockResolvedValueOnce([
         makeBTTVEmote({ id: "g1", code: "GifEmote", imageType: "gif", animated: false }),
       ]);
 
@@ -61,15 +62,15 @@ describe("BTTVEmoteProvider", () => {
       expect(result[0].isAnimated).toBe(true);
     });
 
-    it("throws on API error", async () => {
-      mockRejectOnce(new Error("server error"));
+    it("rethrows on transport error so callers can decide", async () => {
+      bttvApi.getGlobal.mockRejectedValueOnce(new Error("server error"));
       await expect(bttvEmoteProvider.fetchGlobalEmotes()).rejects.toThrow("server error");
     });
   });
 
   describe("fetchChannelEmotes", () => {
-    it("fetches channel emotes for Twitch ID", async () => {
-      mockJsonOnce({
+    it("invokes electronAPI.emotes.bttv.getUserByTwitchId(channelId) and merges channel+shared emotes", async () => {
+      bttvApi.getUserByTwitchId.mockResolvedValueOnce({
         id: "bttv-user-1",
         bots: [],
         avatar: "https://example.com/avatar.png",
@@ -79,7 +80,7 @@ describe("BTTVEmoteProvider", () => {
 
       const result = await bttvEmoteProvider.fetchChannelEmotes("12345", "testuser");
 
-      expect(getMock.mock.calls[0][0]).toContain("/cached/users/twitch/12345");
+      expect(bttvApi.getUserByTwitchId).toHaveBeenCalledWith("12345");
       expect(result).toHaveLength(2);
       expect(result[0].isGlobal).toBe(false);
       expect(result[0].channelId).toBe("12345");
@@ -87,26 +88,26 @@ describe("BTTVEmoteProvider", () => {
       expect(result[1].name).toBe("SharedEmote");
     });
 
-    it("returns empty array for non-twitch platform", async () => {
+    it("returns [] for non-twitch platform WITHOUT touching IPC", async () => {
       const result = await bttvEmoteProvider.fetchChannelEmotes("123", "test", "kick");
       expect(result).toEqual([]);
-      expect(getMock).not.toHaveBeenCalled();
+      expect(bttvApi.getUserByTwitchId).not.toHaveBeenCalled();
     });
 
-    it("returns empty array for non-numeric channel ID", async () => {
+    it("returns [] for non-numeric channel ID WITHOUT touching IPC", async () => {
       const result = await bttvEmoteProvider.fetchChannelEmotes("not-a-number", "test");
       expect(result).toEqual([]);
-      expect(getMock).not.toHaveBeenCalled();
+      expect(bttvApi.getUserByTwitchId).not.toHaveBeenCalled();
     });
 
-    it("returns empty array on 404", async () => {
-      mockRejectOnce({ response: { status: 404 } });
+    it("returns [] on null sentinel (channel not on BTTV)", async () => {
+      bttvApi.getUserByTwitchId.mockResolvedValueOnce(null);
       const result = await bttvEmoteProvider.fetchChannelEmotes("99999", "nobody");
       expect(result).toEqual([]);
     });
 
-    it("returns empty array on other errors (graceful)", async () => {
-      mockRejectOnce(new Error("timeout"));
+    it("returns [] gracefully on transport error (5xx, network)", async () => {
+      bttvApi.getUserByTwitchId.mockRejectedValueOnce(new Error("timeout"));
       const result = await bttvEmoteProvider.fetchChannelEmotes("12345", "user");
       expect(result).toEqual([]);
     });
@@ -114,7 +115,7 @@ describe("BTTVEmoteProvider", () => {
 
   describe("emote transformation", () => {
     it("includes user/owner info when present", async () => {
-      mockJsonOnce([
+      bttvApi.getGlobal.mockResolvedValueOnce([
         makeBTTVEmote({
           id: "owned-1",
           code: "OwnedEmote",
@@ -136,14 +137,14 @@ describe("BTTVEmoteProvider", () => {
     });
 
     it("omits owner when user is absent", async () => {
-      mockJsonOnce([makeBTTVEmote({ id: "no-owner", code: "NoOwner" })]);
+      bttvApi.getGlobal.mockResolvedValueOnce([makeBTTVEmote({ id: "no-owner", code: "NoOwner" })]);
 
       const result = await bttvEmoteProvider.fetchGlobalEmotes();
       expect(result[0].owner).toBeUndefined();
     });
 
     it("generates correct CDN URLs", async () => {
-      mockJsonOnce([makeBTTVEmote({ id: "cdn-test", code: "CDN" })]);
+      bttvApi.getGlobal.mockResolvedValueOnce([makeBTTVEmote({ id: "cdn-test", code: "CDN" })]);
 
       const result = await bttvEmoteProvider.fetchGlobalEmotes();
       expect(result[0].urls.url1x).toBe("https://cdn.betterttv.net/emote/cdn-test/1x.webp");
@@ -152,7 +153,7 @@ describe("BTTVEmoteProvider", () => {
     });
 
     it("all emotes are NOT zero-width", async () => {
-      mockJsonOnce([makeBTTVEmote()]);
+      bttvApi.getGlobal.mockResolvedValueOnce([makeBTTVEmote()]);
       const result = await bttvEmoteProvider.fetchGlobalEmotes();
       expect(result[0].isZeroWidth).toBe(false);
     });

@@ -1,22 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getMock = vi.fn();
+// Guards: FFZ REST goes through electronAPI.emotes.ffz.* (main-process IPC) — calling renderer fetch reintroduces the DevTools 404 line PRD #62 closed
+// Guards: 404 is a null sentinel from main (NOT a thrown error); renderer logs info and returns []
+// Guards: FFZ is Twitch-only — Kick callers short-circuit WITHOUT touching the IPC. Renderer hands {name, channelId} to main and lets the service pick the endpoint
 
-vi.mock("@/lib/api-client", () => ({
-  api: {
-    get: (...args: unknown[]) => getMock(...args),
+const ffzApi = {
+  getGlobal: vi.fn(),
+  getRoom: vi.fn(),
+};
+
+vi.stubGlobal("window", {
+  electronAPI: {
+    emotes: {
+      ffz: ffzApi,
+    },
   },
-}));
+} as unknown as Window);
 
 import { ffzEmoteProvider } from "@/backend/services/emotes/ffz-emotes";
-
-function mockJsonOnce(value: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.resolve(value) });
-}
-
-function mockRejectOnce(err: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.reject(err) });
-}
 
 function makeFFZEmote(overrides: Record<string, unknown> = {}) {
   return {
@@ -38,12 +39,13 @@ function makeFFZEmote(overrides: Record<string, unknown> = {}) {
 
 describe("FFZEmoteProvider", () => {
   beforeEach(() => {
-    getMock.mockReset();
+    ffzApi.getGlobal.mockReset();
+    ffzApi.getRoom.mockReset();
   });
 
   describe("fetchGlobalEmotes", () => {
-    it("fetches and transforms global emotes from default sets", async () => {
-      mockJsonOnce({
+    it("invokes electronAPI.emotes.ffz.getGlobal and transforms default-set emotes", async () => {
+      ffzApi.getGlobal.mockResolvedValueOnce({
         default_sets: [3],
         sets: {
           "3": {
@@ -60,8 +62,7 @@ describe("FFZEmoteProvider", () => {
 
       const result = await ffzEmoteProvider.fetchGlobalEmotes();
 
-      expect(getMock).toHaveBeenCalledTimes(1);
-      expect(getMock.mock.calls[0][0]).toContain("/set/global");
+      expect(ffzApi.getGlobal).toHaveBeenCalledOnce();
       expect(result).toHaveLength(2);
       expect(result[0].provider).toBe("ffz");
       expect(result[0].isGlobal).toBe(true);
@@ -69,7 +70,7 @@ describe("FFZEmoteProvider", () => {
     });
 
     it("merges emotes from multiple default sets", async () => {
-      mockJsonOnce({
+      ffzApi.getGlobal.mockResolvedValueOnce({
         default_sets: [3, 4],
         sets: {
           "3": {
@@ -91,15 +92,15 @@ describe("FFZEmoteProvider", () => {
       expect(result).toHaveLength(2);
     });
 
-    it("throws on API error", async () => {
-      mockRejectOnce(new Error("network error"));
+    it("rethrows on transport error so callers can decide", async () => {
+      ffzApi.getGlobal.mockRejectedValueOnce(new Error("network error"));
       await expect(ffzEmoteProvider.fetchGlobalEmotes()).rejects.toThrow("network error");
     });
   });
 
   describe("fetchChannelEmotes", () => {
-    it("fetches channel emotes by name", async () => {
-      mockJsonOnce({
+    it("hands {name, channelId} to main so the service can pick name-first vs id-fallback", async () => {
+      ffzApi.getRoom.mockResolvedValueOnce({
         room: {
           _id: 1,
           twitch_id: 12345,
@@ -121,14 +122,14 @@ describe("FFZEmoteProvider", () => {
 
       const result = await ffzEmoteProvider.fetchChannelEmotes("12345", "testchannel");
 
-      expect(getMock.mock.calls[0][0]).toContain("/room/testchannel");
+      expect(ffzApi.getRoom).toHaveBeenCalledWith({ name: "testchannel", channelId: "12345" });
       expect(result).toHaveLength(1);
       expect(result[0].isGlobal).toBe(false);
       expect(result[0].channelId).toBe("12345");
     });
 
-    it("uses ID lookup when name is not provided", async () => {
-      mockJsonOnce({
+    it("omits name when only channelId is provided so main falls back to /room/id/{id}", async () => {
+      ffzApi.getRoom.mockResolvedValueOnce({
         room: {
           _id: 1,
           twitch_id: 12345,
@@ -139,33 +140,28 @@ describe("FFZEmoteProvider", () => {
           moderator_badge: null,
         },
         sets: {
-          "100": {
-            id: 100,
-            _type: 1,
-            title: "Channel Emotes",
-            emoticons: [],
-          },
+          "100": { id: 100, _type: 1, title: "Channel Emotes", emoticons: [] },
         },
       });
 
       await ffzEmoteProvider.fetchChannelEmotes("12345");
-      expect(getMock.mock.calls[0][0]).toContain("/room/id/12345");
+      expect(ffzApi.getRoom).toHaveBeenCalledWith({ name: undefined, channelId: "12345" });
     });
 
-    it("returns empty array for non-twitch platform", async () => {
+    it("returns [] for non-twitch platform WITHOUT touching IPC", async () => {
       const result = await ffzEmoteProvider.fetchChannelEmotes("123", "test", "kick");
       expect(result).toEqual([]);
-      expect(getMock).not.toHaveBeenCalled();
+      expect(ffzApi.getRoom).not.toHaveBeenCalled();
     });
 
-    it("returns empty array on 404", async () => {
-      mockRejectOnce({ response: { status: 404 } });
+    it("returns [] on null sentinel (channel not on FFZ)", async () => {
+      ffzApi.getRoom.mockResolvedValueOnce(null);
       const result = await ffzEmoteProvider.fetchChannelEmotes("12345", "nonexistent");
       expect(result).toEqual([]);
     });
 
-    it("returns empty array on non-404 errors (graceful)", async () => {
-      mockRejectOnce(new Error("timeout"));
+    it("returns [] gracefully on transport error", async () => {
+      ffzApi.getRoom.mockRejectedValueOnce(new Error("timeout"));
       const result = await ffzEmoteProvider.fetchChannelEmotes("12345", "testchannel");
       expect(result).toEqual([]);
     });
@@ -173,7 +169,7 @@ describe("FFZEmoteProvider", () => {
 
   describe("emote transformation", () => {
     it("marks modifier emotes as zero-width", async () => {
-      mockJsonOnce({
+      ffzApi.getGlobal.mockResolvedValueOnce({
         default_sets: [1],
         sets: {
           "1": {
@@ -190,7 +186,7 @@ describe("FFZEmoteProvider", () => {
     });
 
     it("uses animated URLs when available", async () => {
-      mockJsonOnce({
+      ffzApi.getGlobal.mockResolvedValueOnce({
         default_sets: [1],
         sets: {
           "1": {
@@ -218,7 +214,7 @@ describe("FFZEmoteProvider", () => {
     });
 
     it("includes owner info when present", async () => {
-      mockJsonOnce({
+      ffzApi.getGlobal.mockResolvedValueOnce({
         default_sets: [1],
         sets: {
           "1": {

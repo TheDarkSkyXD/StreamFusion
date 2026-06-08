@@ -1,14 +1,15 @@
 /**
- * FrankerFaceZ (FFZ) Emote Provider
+ * FrankerFaceZ (FFZ) Emote Provider (renderer side).
  *
- * Fetches emotes from the FrankerFaceZ API including global emotes
- * and channel-specific emotes.
+ * Channel + global emote fetches go through `electronAPI.emotes.ffz.*` so
+ * the REST hop runs in the main process (Electron `net.fetch`). The 404s
+ * for Twitch channels with no FFZ room never reach renderer DevTools.
+ * See ADR-0004.
  */
 
-import { api } from "@/lib/api-client";
-// Cross-logger: this module is imported by renderer code via the emotes
-// barrel. Using @/backend/logging/logger would drag electron-log/main into
-// the renderer bundle and crash with `__dirname is not defined`.
+// Cross-logger: imported by renderer code via the emotes barrel.
+// `@/backend/logging/logger` would drag electron-log/main into the
+// renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
@@ -73,19 +74,13 @@ interface FFZRoomResponse {
 class FFZEmoteProvider implements EmoteProviderService {
   readonly name = "ffz" as const;
 
-  private static readonly BASE_URL = "https://api.frankerfacez.com/v1";
   private static readonly CDN_URL = "https://cdn.frankerfacez.com/emote";
 
-  /**
-   * Fetch global FFZ emotes
-   */
   async fetchGlobalEmotes(): Promise<Emote[]> {
     try {
-      const data = await api
-        .get(`${FFZEmoteProvider.BASE_URL}/set/global`)
-        .json<FFZGlobalResponse>();
+      const data = (await window.electronAPI.emotes.ffz.getGlobal()) as FFZGlobalResponse | null;
+      if (!data) return [];
 
-      // Extract emotes from all default sets
       const emotes: Emote[] = [];
       for (const setId of data.default_sets) {
         const set = data.sets[setId.toString()];
@@ -93,7 +88,6 @@ class FFZEmoteProvider implements EmoteProviderService {
           emotes.push(...set.emoticons.map((e) => this.transformEmote(e, true)));
         }
       }
-
       return emotes;
     } catch (error) {
       logger.error("Emote:FFZ", "Failed to fetch global emotes", {
@@ -107,48 +101,41 @@ class FFZEmoteProvider implements EmoteProviderService {
   }
 
   /**
-   * Fetch channel-specific FFZ emotes
-   * @param channelId - Twitch user ID (FFZ only supports Twitch)
-   * @param channelName - Channel name/login (alternative to ID)
-   * @param platform - Platform identifier (ffz only supports 'twitch')
+   * Fetch channel-specific FFZ emotes. FFZ is Twitch-only — Kick callers
+   * get [] without touching the wire. Prefers name lookup over channel id
+   * (FFZ name lookups are more reliable per the upstream API contract).
    */
   async fetchChannelEmotes(
     channelId: string,
     channelName?: string,
     platform: "twitch" | "kick" = "twitch"
   ): Promise<Emote[]> {
-    // FFZ only supports Twitch - skip for other platforms
     if (platform !== "twitch") {
       logger.info("Emote:FFZ", "Skipping - FFZ only supports Twitch channels");
       return [];
     }
 
     try {
-      // FFZ supports both ID and name lookup
-      // Prefer name if available as it's more reliable
-      const endpoint = channelName
-        ? `${FFZEmoteProvider.BASE_URL}/room/${channelName.toLowerCase()}`
-        : `${FFZEmoteProvider.BASE_URL}/room/id/${channelId}`;
+      const data = (await window.electronAPI.emotes.ffz.getRoom({
+        name: channelName,
+        channelId,
+      })) as FFZRoomResponse | null;
 
-      const data = await api.get(endpoint).json<FFZRoomResponse>();
+      if (!data) {
+        logger.info("Emote:FFZ", "Channel has no FFZ emotes", {
+          channel: channelName || channelId,
+        });
+        return [];
+      }
 
-      // Extract emotes from all sets
       const emotes: Emote[] = [];
       for (const set of Object.values(data.sets)) {
         if (set?.emoticons) {
           emotes.push(...set.emoticons.map((e) => this.transformEmote(e, false, channelId)));
         }
       }
-
       return emotes;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        // Channel not on FFZ - this is common and expected
-        logger.info("Emote:FFZ", "Channel has no FFZ emotes", {
-          channel: channelName || channelId,
-        });
-        return [];
-      }
+    } catch (error) {
       logger.warn("Emote:FFZ", "Failed to fetch channel emotes", {
         channel: channelName || channelId,
         error:
@@ -160,9 +147,6 @@ class FFZEmoteProvider implements EmoteProviderService {
     }
   }
 
-  /**
-   * Get URL for an FFZ emote
-   */
   getEmoteUrl(emote: Emote, size: "1x" | "2x" | "4x" = "2x"): string {
     switch (size) {
       case "1x":
@@ -176,9 +160,6 @@ class FFZEmoteProvider implements EmoteProviderService {
     }
   }
 
-  /**
-   * Build FFZ emote URL
-   */
   static buildEmoteUrl(emoteId: number | string, size: "1" | "2" | "4" = "2"): string {
     return `${FFZEmoteProvider.CDN_URL}/${emoteId}/${size}`;
   }
@@ -188,8 +169,6 @@ class FFZEmoteProvider implements EmoteProviderService {
   private transformEmote(emote: FFZEmote, isGlobal: boolean, channelId?: string): Emote {
     const id = emote.id.toString();
     const hasAnimated = emote.animated && Object.keys(emote.animated).length > 0;
-
-    // Prefer animated URLs if available
     const urls = hasAnimated && emote.animated ? emote.animated : emote.urls;
 
     return {
@@ -220,3 +199,4 @@ class FFZEmoteProvider implements EmoteProviderService {
 export const ffzEmoteProvider = new FFZEmoteProvider();
 
 // Also export class for testing
+export { FFZEmoteProvider };

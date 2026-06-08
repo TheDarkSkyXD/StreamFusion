@@ -274,11 +274,15 @@ export const IPC_CHANNELS = {
   SLOT_REQUEST_RETRY: "slot:request-retry",
 
   // ========== Third-party emote providers ==========
-  // 7TV REST calls run in main (Electron `net.fetch`) so renderer DevTools
-  // never logs the 404s that fire for Kick users with no linked 7TV
-  // account. See ADR-0004 and PRD #62.
+  // 7TV / BTTV / FFZ REST calls run in main (Electron `net.fetch`) so
+  // renderer DevTools never logs the 404s that fire for channels with no
+  // linked / known account. See ADR-0004 and PRD #62.
   EMOTES_7TV_GET_USER_BY_CONNECTION: "emotes:7tv:get-user-by-connection",
   EMOTES_7TV_GET_GLOBAL_EMOTE_SET: "emotes:7tv:get-global-emote-set",
+  EMOTES_BTTV_GET_GLOBAL: "emotes:bttv:get-global",
+  EMOTES_BTTV_GET_USER_BY_TWITCH_ID: "emotes:bttv:get-user-by-twitch-id",
+  EMOTES_FFZ_GET_GLOBAL: "emotes:ffz:get-global",
+  EMOTES_FFZ_GET_ROOM: "emotes:ffz:get-room",
 
   // ========== Bug Reports ==========
   // Renderer-driven bug-report capture. The handler stitches the description,
@@ -353,6 +357,8 @@ export interface IpcPayloads {
   // 7TV REST (main-process transport). Identifier is the platform's own
   // numeric id (Twitch user_id or Kick channel.id), NOT the slug.
   [IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION]: { platform: Platform; identifier: string };
+  [IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID]: { channelId: string };
+  [IPC_CHANNELS.EMOTES_FFZ_GET_ROOM]: { name?: string; channelId?: string };
 
   // Renderer → main log bridge. `level` is restricted to the four supported
   // severities; the handler drops anything else. `tag` is prefixed with

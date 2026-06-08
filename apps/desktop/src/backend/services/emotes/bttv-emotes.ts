@@ -1,14 +1,15 @@
 /**
- * BetterTTV (BTTV) Emote Provider
+ * BetterTTV (BTTV) Emote Provider (renderer side).
  *
- * Fetches emotes from the BetterTTV API including global emotes
- * and channel-specific emotes.
+ * Channel + global emote fetches go through `electronAPI.emotes.bttv.*` so
+ * the REST hop runs in the main process (Electron `net.fetch`). The 404s
+ * for Twitch channels with no BTTV emote set never reach renderer
+ * DevTools. See ADR-0004.
  */
 
-import { api } from "@/lib/api-client";
-// Cross-logger: this module is imported by renderer code via the emotes
-// barrel. Using @/backend/logging/logger would drag electron-log/main into
-// the renderer bundle and crash with `__dirname is not defined`.
+// Cross-logger: imported by renderer code via the emotes barrel.
+// `@/backend/logging/logger` would drag electron-log/main into the
+// renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
@@ -39,17 +40,12 @@ interface BTTVChannelResponse {
 class BTTVEmoteProvider implements EmoteProviderService {
   readonly name = "bttv" as const;
 
-  private static readonly BASE_URL = "https://api.betterttv.net/3";
   private static readonly CDN_URL = "https://cdn.betterttv.net/emote";
 
-  /**
-   * Fetch global BTTV emotes
-   */
   async fetchGlobalEmotes(): Promise<Emote[]> {
     try {
-      const data = await api
-        .get(`${BTTVEmoteProvider.BASE_URL}/cached/emotes/global`)
-        .json<BTTVEmote[]>();
+      const data = (await window.electronAPI.emotes.bttv.getGlobal()) as BTTVEmote[] | null;
+      if (!data) return [];
       return data.map((emote) => this.transformEmote(emote, true));
     } catch (error) {
       logger.error("Emote:BTTV", "Failed to fetch global emotes", {
@@ -63,45 +59,39 @@ class BTTVEmoteProvider implements EmoteProviderService {
   }
 
   /**
-   * Fetch channel-specific BTTV emotes
-   * @param channelId - Twitch user ID (BTTV only supports Twitch IDs)
-   * @param channelName - Optional channel name (unused for BTTV)
-   * @param platform - Platform identifier (bttv only supports 'twitch')
+   * Fetch channel-specific BTTV emotes. BTTV is Twitch-only — Kick callers
+   * get an empty array without touching the wire. Non-numeric channel ids
+   * also short-circuit because BTTV expects the numeric Twitch user id.
    */
   async fetchChannelEmotes(
     channelId: string,
     channelName?: string,
     platform: "twitch" | "kick" = "twitch"
   ): Promise<Emote[]> {
-    // BTTV only supports Twitch - skip for other platforms
     if (platform !== "twitch") {
       logger.info("Emote:BTTV", "Skipping - BTTV only supports Twitch channels");
       return [];
     }
-
-    // Validate channelId looks like a Twitch ID (numeric)
     if (!/^\d+$/.test(channelId)) {
       logger.info("Emote:BTTV", "Skipping - Channel ID is not a valid Twitch ID", { channelId });
       return [];
     }
 
     try {
-      const data = await api
-        .get(`${BTTVEmoteProvider.BASE_URL}/cached/users/twitch/${channelId}`)
-        .json<BTTVChannelResponse>();
+      const data = (await window.electronAPI.emotes.bttv.getUserByTwitchId(
+        channelId
+      )) as BTTVChannelResponse | null;
 
-      // Combine channel emotes and shared emotes
-      const allEmotes = [...data.channelEmotes, ...data.sharedEmotes];
-
-      return allEmotes.map((emote) => this.transformEmote(emote, false, channelId));
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        // Channel not on BTTV - this is common and expected
+      if (!data) {
         logger.info("Emote:BTTV", "Channel has no BTTV emotes", {
           channel: channelName || channelId,
         });
         return [];
       }
+
+      const allEmotes = [...data.channelEmotes, ...data.sharedEmotes];
+      return allEmotes.map((emote) => this.transformEmote(emote, false, channelId));
+    } catch (error) {
       logger.warn("Emote:BTTV", "Failed to fetch channel emotes", {
         channelId,
         error:
@@ -113,9 +103,6 @@ class BTTVEmoteProvider implements EmoteProviderService {
     }
   }
 
-  /**
-   * Get URL for a BTTV emote
-   */
   getEmoteUrl(emote: Emote, size: "1x" | "2x" | "4x" = "2x"): string {
     switch (size) {
       case "1x":
@@ -129,11 +116,7 @@ class BTTVEmoteProvider implements EmoteProviderService {
     }
   }
 
-  /**
-   * Build BTTV emote URL
-   */
   static buildEmoteUrl(emoteId: string, size: "1x" | "2x" | "3x" = "2x"): string {
-    // Use webp format for smaller file sizes
     return `${BTTVEmoteProvider.CDN_URL}/${emoteId}/${size}.webp`;
   }
 
@@ -168,3 +151,4 @@ class BTTVEmoteProvider implements EmoteProviderService {
 export const bttvEmoteProvider = new BTTVEmoteProvider();
 
 // Also export class for testing
+export { BTTVEmoteProvider };

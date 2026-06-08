@@ -14,9 +14,24 @@ vi.mock("electron", () => ({
 const serviceMock = vi.hoisted(() => ({
   fetch7TVUserByConnection: vi.fn(),
   fetch7TVGlobalEmoteSet: vi.fn(),
+  fetchBTTVGlobalEmotes: vi.fn(),
+  fetchBTTVUserByTwitchId: vi.fn(),
+  fetchFFZGlobalEmotes: vi.fn(),
+  fetchFFZRoom: vi.fn(),
 }));
 
-vi.mock("@/backend/services/emotes/7tv-emotes-service", () => serviceMock);
+vi.mock("@/backend/services/emotes/7tv-emotes-service", () => ({
+  fetch7TVUserByConnection: serviceMock.fetch7TVUserByConnection,
+  fetch7TVGlobalEmoteSet: serviceMock.fetch7TVGlobalEmoteSet,
+}));
+vi.mock("@/backend/services/emotes/bttv-emotes-service", () => ({
+  fetchBTTVGlobalEmotes: serviceMock.fetchBTTVGlobalEmotes,
+  fetchBTTVUserByTwitchId: serviceMock.fetchBTTVUserByTwitchId,
+}));
+vi.mock("@/backend/services/emotes/ffz-emotes-service", () => ({
+  fetchFFZGlobalEmotes: serviceMock.fetchFFZGlobalEmotes,
+  fetchFFZRoom: serviceMock.fetchFFZRoom,
+}));
 
 import { registerEmoteHandlers } from "@/backend/ipc/handlers/emote-handlers";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
@@ -73,5 +88,34 @@ describe("registerEmoteHandlers", () => {
 
     expect(serviceMock.fetch7TVGlobalEmoteSet).toHaveBeenCalledOnce();
     expect(result).toEqual(setJson);
+  });
+
+  it("registers all BTTV + FFZ channels", () => {
+    const registered = ipcMock.handle.mock.calls.map(([c]) => c);
+    expect(registered).toContain(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL);
+    expect(registered).toContain(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID);
+    expect(registered).toContain(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL);
+    expect(registered).toContain(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM);
+  });
+
+  it("forwards BTTV user-by-twitch-id and passes the null sentinel through", async () => {
+    serviceMock.fetchBTTVUserByTwitchId.mockResolvedValue(null);
+    const handler = captureHandler(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID);
+
+    const result = await handler({}, { channelId: "71092938" });
+
+    expect(serviceMock.fetchBTTVUserByTwitchId).toHaveBeenCalledWith("71092938");
+    expect(result).toBeNull();
+  });
+
+  it("forwards FFZ room with the original {name, channelId} opts", async () => {
+    const room = { room: { _id: 1 }, sets: {} };
+    serviceMock.fetchFFZRoom.mockResolvedValue(room);
+    const handler = captureHandler(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM);
+
+    const result = await handler({}, { name: "xqc" });
+
+    expect(serviceMock.fetchFFZRoom).toHaveBeenCalledWith({ name: "xqc" });
+    expect(result).toEqual(room);
   });
 });

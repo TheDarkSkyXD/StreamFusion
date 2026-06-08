@@ -607,13 +607,25 @@ const electronAPI = {
   },
 
   // ========== Third-party emotes ==========
-  // 7TV REST runs in main so the inevitable 404s for unlinked Kick users
-  // never reach renderer DevTools. See ADR-0004.
+  // 7TV / BTTV / FFZ REST runs in main so the 404s for channels with no
+  // linked / known account never reach renderer DevTools. See ADR-0004.
   emotes: {
     get7TVUserByConnection: (platform: Platform, identifier: string): Promise<unknown | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION, { platform, identifier }),
     get7TVGlobalEmoteSet: (): Promise<unknown> =>
       ipcRenderer.invoke(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET),
+    bttv: {
+      getGlobal: (): Promise<unknown> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL),
+      getUserByTwitchId: (channelId: string): Promise<unknown | null> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID, { channelId }),
+    },
+    ffz: {
+      getGlobal: (): Promise<unknown> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL),
+      getRoom: (opts: { name?: string; channelId?: string }): Promise<unknown | null> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM, opts),
+    },
   },
 
   // ========== Ad Blocking ==========
@@ -889,9 +901,7 @@ const electronAPI = {
       ipcRenderer.on(IPC_CHANNELS.SLOT_LOAD_STREAM, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_LOAD_STREAM, handler);
     },
-    onSetMute: (
-      callback: (event: { slotId: string; muted: boolean }) => void
-    ): (() => void) => {
+    onSetMute: (callback: (event: { slotId: string; muted: boolean }) => void): (() => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
         payload: { slotId: string; muted: boolean }

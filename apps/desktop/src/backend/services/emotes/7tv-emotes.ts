@@ -11,11 +11,11 @@
  * endpoint not yet wrapped behind IPC (out of scope for slice 2b).
  */
 
+import { api } from "@/lib/api-client";
 // Cross-logger: imported by renderer code via the emotes barrel.
 // `@/backend/logging/logger` would drag electron-log/main into the
 // renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
-import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
 /** 7TV emote file structure */
@@ -121,9 +121,8 @@ class SevenTVEmoteProvider implements EmoteProviderService {
    */
   async fetchGlobalEmotes(): Promise<Emote[]> {
     try {
-      const data = (await window.electronAPI.emotes.get7TVGlobalEmoteSet()) as
-        | SevenTVEmoteSet
-        | null;
+      const data =
+        (await window.electronAPI.emotes.get7TVGlobalEmoteSet()) as SevenTVEmoteSet | null;
 
       if (!data?.emotes) {
         return [];

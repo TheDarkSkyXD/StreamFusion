@@ -4,6 +4,14 @@ import {
   fetch7TVGlobalEmoteSet,
   fetch7TVUserByConnection,
 } from "@/backend/services/emotes/7tv-emotes-service";
+import {
+  fetchBTTVGlobalEmotes,
+  fetchBTTVUserByTwitchId,
+} from "@/backend/services/emotes/bttv-emotes-service";
+import {
+  fetchFFZGlobalEmotes,
+  fetchFFZRoom,
+} from "@/backend/services/emotes/ffz-emotes-service";
 import { IPC_CHANNELS, type IpcPayloads } from "@/shared/ipc-channels";
 
 export function registerEmoteHandlers(): void {
@@ -20,4 +28,29 @@ export function registerEmoteHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET, async () => {
     return fetch7TVGlobalEmoteSet();
   });
+
+  ipcMain.handle(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL, async () => {
+    return fetchBTTVGlobalEmotes();
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID,
+    async (
+      _event,
+      { channelId }: IpcPayloads[typeof IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID]
+    ) => {
+      return fetchBTTVUserByTwitchId(channelId);
+    }
+  );
+
+  ipcMain.handle(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL, async () => {
+    return fetchFFZGlobalEmotes();
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.EMOTES_FFZ_GET_ROOM,
+    async (_event, opts: IpcPayloads[typeof IPC_CHANNELS.EMOTES_FFZ_GET_ROOM]) => {
+      return fetchFFZRoom(opts);
+    }
+  );
 }
