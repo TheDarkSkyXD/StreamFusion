@@ -15,11 +15,55 @@ If a question can be answered by exploring the codebase, explore the codebase in
 
 <supporting-info>
 
+## Overview
+
+A grill session has three phases — setup, an interview loop with mandatory checkpointing, and a close-out that produces docs and (optionally) a PRD. Inline updates to `CONTEXT.md` / ADRs happen throughout, not at the end.
+
+### Lifecycle
+
+1. **Setup** — create the session folder + `notes.md`, tell the user the path.
+2. **Interview loop** (repeat until done) — ask one question → record the answer → checkpoint: append to `notes.md`, update `CONTEXT.md` if a term resolved, write an ADR if the decision is hard-to-reverse + surprising + a real trade-off → next question.
+3. **End** — reconcile `notes.md` against CONTEXT.md / ADRs; if feature-shaped, produce a PRD and route it via `docs/agents/issue-tracker.md`; link the PRD location back into `notes.md`; recommend `/to-issues`.
+
+### Where things land
+
+For grill-originated features, the grill session folder IS the feature folder for the local-markdown tracker — PRD, implementation issues, mockups, and notes all live together under one session folder, each artifact type in its own subfolder.
+
+```
+<project-root>/
+├── .scratch/
+│   └── grill-with-docs/                              ← one subfolder per grill session
+│       ├── 2026-06-06-checkout-flow/                 ← visual session that became a feature
+│       │   ├── notes.md                              ← raw Q&A audit trail (always)
+│       │   ├── prd.md                                ← PRD (written by grill close-out, local tracker only)
+│       │   ├── designs/                              ← lazy, only for frontend/UI sessions
+│       │   │   ├── layout.html
+│       │   │   ├── layout-v2.html
+│       │   │   └── nav.html
+│       │   └── issues/                               ← lazy, written by /to-issues
+│       │       ├── 01-cart.md
+│       │       └── 02-checkout.md
+│       └── 2026-06-07-domain-glossary/               ← non-visual, terminology-only session
+│           └── notes.md                              ← no designs/, no prd.md, no issues/ (not feature-shaped)
+├── CONTEXT.md                                        ← glossary; updated inline (single-context repos)
+├── docs/
+│   ├── adr/NNNN-<slug>.md                            ← ADRs (lazy, written when a decision warrants one)
+│   └── agents/issue-tracker.md                       ← read at end-of-session to pick PRD destination
+```
+
+Multi-context repos (`CONTEXT-MAP.md` at the root) put `CONTEXT.md` and `docs/adr/` under each context's own folder instead of at the project root.
+
+GitHub-tracker projects publish the PRD as a GitHub issue and implementation tickets as GitHub issues — so `prd.md` and the `issues/` subfolder are not written locally. The session folder still holds `notes.md` (with links to the GitHub URLs) and any `designs/`. The `prd.md` and `issues/` artifacts only appear when the tracker is local-markdown.
+
 ## Setup (do this BEFORE the first question)
 
-1. **Create the capture file** at `grill-with-docs-designs/{YYYY-MM-DD}-{topic-slug}.md` (create the `grill-with-docs-designs/` folder if it doesn't exist). Every grilling session lives here, regardless of which context it touches. Polished outputs (CONTEXT.md updates, ADRs) land in their own files — the capture file is the raw audit trail.
+1. **Each grilling session gets its own folder under `<project-root>/.scratch/grill-with-docs/{YYYY-MM-DD}-{topic-slug}/`.** Inside that folder, the markdown capture file is always `notes.md` — the raw Q&A audit trail. So the full path is `<project-root>/.scratch/grill-with-docs/{YYYY-MM-DD}-{topic-slug}/notes.md`.
+   - **Always anchor paths to the project root**, not the current working directory. Find the root with `git rev-parse --show-toplevel` (or fall back to the highest folder containing a project marker like `package.json`, `pyproject.toml`, `Cargo.toml`, `.git/`, etc. if not in a git repo).
+   - Create the session folder if it doesn't exist. Polished outputs (CONTEXT.md updates, ADRs) land in their own files outside the session folder — the capture file is the raw audit trail.
    - Get today's date with `date +%F` (Bash) if you don't already know it.
-2. **Create the file immediately** with a header: title, date, the goal of the session, and an empty "Open flags" section.
+   - Note: `.scratch/` is also used by the local-markdown issue tracker convention, where features-not-from-a-grill live at `.scratch/<feature-slug>/`. The `grill-with-docs/` namespace is distinct enough that it won't collide with feature slugs. **Only when the project's tracker is local-markdown** (set via `/setup-skills` and recorded in `docs/agents/issue-tracker.md`) does the grill session folder also double as the feature folder — the PRD lives at `prd.md` (root of the session folder) and `/to-issues` outputs land in an `issues/` subfolder as `01-<slug>.md`, `02-<slug>.md`, …, inside the grill session folder rather than in a separate `.scratch/<feature-slug>/`. For GitHub or GitLab trackers, the PRD and implementation issues live on the remote tracker — the grill folder only holds `notes.md` (with links to those URLs) and any `designs/`.
+   - A sibling `designs/` subfolder inside the session folder (`<project-root>/.scratch/grill-with-docs/{YYYY-MM-DD}-{topic-slug}/designs/`) is reserved for HTML visual mockups only — never write markdown there. It's created lazily by the visual companion (see below), and only when the session actually has frontend/UI/visual decisions to make.
+2. **Create the capture file immediately** with a header: title, date, the goal of the session, and an empty "Open flags" section.
 3. **Tell the user where you're saving**, in one line. Then ask Q1.
 
 ## The checkpoint rule (non-negotiable)
@@ -99,9 +143,11 @@ If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The ma
 
 Create files lazily — only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.
 
-## Visual companion (for frontend/UI questions)
+## Visual companion (frontend/UI/visual sessions only)
 
-When a question involves UI layout, component design, navigation, or any visual/spatial decision, create an HTML prototype so the user can **see** the options instead of reading about them. Read [VISUAL-COMPANION.md](./VISUAL-COMPANION.md) for the full guide — it covers when to show vs. stay in text, how to write prototypes, the CSS toolkit, and design tips.
+**Hard skip rule:** If the session has no frontend/UI/visual surface — backend work, domain modeling, terminology sharpening, ADR-only discussions, infrastructure, data pipelines — do NOT offer or mention the visual companion at all. Stay in text the entire session, and do not create the `designs/` subfolder.
+
+Only when the session genuinely involves UI layout, component design, navigation, or visual/spatial decisions: create HTML prototypes in `<project-root>/.scratch/grill-with-docs/{YYYY-MM-DD}-{topic-slug}/designs/` so the user can **see** the options instead of reading about them. That folder holds HTML mockups only — never markdown. Read [VISUAL-COMPANION.md](./VISUAL-COMPANION.md) for the full guide — it covers when to show vs. stay in text, how to write prototypes, the CSS toolkit, and design tips.
 
 ## During the session
 
@@ -142,5 +188,21 @@ If any of the three is missing, skip the ADR. Use the format in [ADR-FORMAT.md](
 - Do a final read of the capture file for contradictions or gaps and reconcile them.
 - Verify CONTEXT.md and any new ADRs match the final state in the capture file (the log is the source of truth during the session).
 - Give the user a short recap: what's captured, what was added to CONTEXT.md / ADRs, what's still flagged, and the suggested next step.
+
+### Producing the PRD
+
+If the session produced feature-shaped output (something the user wants to ship), turn it into a PRD. Skip this entirely if the session was purely about sharpening terminology or updating CONTEXT.md / ADRs.
+
+Where the PRD lands is determined at setup time by `/setup-skills`, not per-session. The choice is recorded in `docs/agents/issue-tracker.md`. Read that file first to pick the right path:
+
+- **GitHub tracker** → invoke `/to-prd` to publish the PRD as a GitHub issue using the `gh` CLI.
+- **Local-markdown tracker** → write the PRD directly into the grill session's own folder as `<project-root>/.scratch/grill-with-docs/{YYYY-MM-DD}-{topic-slug}/prd.md`. The grill session folder doubles as the feature folder: `prd.md` sits at the session root next to `notes.md` and the `designs/` subfolder, and `/to-issues` writes implementation tickets into an `issues/` subfolder (`issues/01-<slug>.md`, `issues/02-<slug>.md`, …). Each artifact type gets its own subfolder; the PRD stays at the root because there's only one. Use the same template `/to-prd` produces: Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes.
+- **GitLab or other tracker** → follow the publish path documented in `docs/agents/issue-tracker.md`.
+
+In all cases, append a `## PRD` section to the top of the grill session's `notes.md` with the resulting URL (GitHub/GitLab) or local file path (`prd.md`). For GitHub/GitLab the tracker location is canonical and the link is the audit trail; for local-markdown the PRD already sits in the same folder as `notes.md`, so the link is just a same-folder reference for symmetry.
+
+If `docs/agents/issue-tracker.md` does not exist, the project has not run `/setup-skills` yet. Recommend the user run it first so the PRD destination is unambiguous, rather than guessing.
+
+After the PRD is published or written, recommend running `/to-issues` to break it into independently-grabbable implementation tickets. For local-markdown tracker projects, `/to-issues` should write the numbered issue files into the `issues/` subfolder of this grill session folder, not a separate `.scratch/<feature-slug>/`.
 
 </supporting-info>
