@@ -1,20 +1,24 @@
 # Visual Companion Guide
 
-When a grilling question involves UI layout, component design, navigation structure, or any visual/spatial decision, create an HTML prototype so the user can **see** the options instead of just reading about them.
+When a grilling question involves UI layout, component design, navigation structure, or any visual/spatial decision, create an HTML prototype so the user can **see** the options instead of just reading about them. Output is HTML only — never markdown, never any other format.
+
+## Hard skip rule
+
+If the session has no frontend/UI/visual surface — backend work, domain modeling, terminology sharpening, ADR-only discussions, infrastructure, data pipelines — do NOT offer or mention the visual companion at all. Stay in text the entire session, and do not create the `designs/` subfolder under the session folder. The companion exists for visual decisions only; bringing it up in a non-visual session adds noise.
 
 ## The test
 
-Decide per-question: **"would the user understand this better by seeing it than reading it?"**
+For sessions that DO have a frontend/visual surface, decide per-question: **"would the user understand this better by seeing it than reading it?"**
 
 **Show a prototype** for: UI mockups, wireframes, layouts, navigation structures, component designs, side-by-side visual comparisons, design polish, spatial relationships, state machines, flowcharts.
 
 **Stay in text** for: requirements/scope questions, conceptual A/B/C choices, tradeoff lists, technical decisions, terminology, clarifying questions.
 
-A question like "What kind of wizard do you want?" is conceptual — stay in text. "Which of these wizard layouts feels right?" is visual — show a prototype.
+A question *about* a UI topic is not automatically a visual question. "What kind of wizard do you want?" is conceptual — stay in text. "Which of these wizard layouts feels right?" is visual — show a prototype.
 
 ## Offering the visual companion
 
-When the grilling session involves a topic that will likely have visual questions (frontend feature, UI redesign, component library, etc.), offer the visual companion early — as its own standalone message before continuing with questions:
+Only offer when the session passes the hard skip rule above AND the topic will likely have visual questions (frontend feature, UI redesign, component library, etc.). Offer it early — as its own standalone message before continuing with questions:
 
 > "This topic will involve some layout/UI decisions. I can show you visual mockups as we go — want me to do that?"
 
@@ -22,7 +26,7 @@ If declined, stay text-only. If accepted, use prototypes whenever the per-questi
 
 ## How it works
 
-1. Write a self-contained HTML file to `grill-with-docs-designs/{topic-slug}-{screen-name}.html` (same folder as the capture file).
+1. Write a self-contained HTML file to `<project-root>/.scratch/grill-with-docs/{YYYY-MM-DD}-{topic-slug}/designs/{screen-name}.html`. Use the **same session folder** as the markdown capture file (`notes.md` sits at the session-folder root; HTML mockups live under `designs/` inside it). Find the project root with `git rev-parse --show-toplevel`. The `designs/` folder is HTML-only — never write markdown there. Create it lazily on first write.
 2. Open it so the user can see it (see **Displaying prototypes** below).
 3. Give a brief text summary in chat and ask the user to respond.
 4. For iterations, write a new versioned file (e.g. `layout-v2.html`, `layout-v3.html`) — never overwrite.
@@ -33,10 +37,10 @@ If declined, stay text-only. If accepted, use prototypes whenever the per-questi
 Use whichever method is available in the current environment. Try them in this order:
 
 1. **`show_preview` tool** (Valo) — if available, use it. Renders the HTML directly in the right panel, no browser needed.
-2. **Open in default browser** — use the platform command to open the HTML file:
-   - macOS: `open grill-with-docs-designs/layout.html`
-   - Windows: `start grill-with-docs-designs/layout.html`
-   - Linux: `xdg-open grill-with-docs-designs/layout.html`
+2. **Open in default browser** — use the platform command to open the HTML file (paths relative to project root, replace `{session}` with the actual session folder name):
+   - macOS: `open .scratch/grill-with-docs/{session}/designs/layout.html`
+   - Windows: `start .scratch/grill-with-docs/{session}/designs/layout.html`
+   - Linux: `xdg-open .scratch/grill-with-docs/{session}/designs/layout.html`
 3. **Tell the user the path** — if neither works (sandbox restrictions, remote environment), tell the user the file path and ask them to open it manually.
 
 For iterations (v2, v3…), open the new file the same way. The browser opens a new tab or replaces the current one — either is fine.
