@@ -1,10 +1,15 @@
 /**
- * EmoteDialog Component
+ * EmotePickerPopover Component
  *
- * Reusable anchored-popover dialog used by both native and third-party emote buttons.
- * Translates KickTalk's EmoteDialogs.jsx pattern: search bar, sub-section icon row,
- * pinned Recent/Favorites, collapsible provider sections with IntersectionObserver
- * infinite scroll, and Kick subscriber-only lock overlay.
+ * Reusable anchored popover used by both native and third-party emote buttons.
+ * Not a modal dialog — it portals to body and renders at `position: fixed`
+ * anchored to an external ref, with no backdrop, no focus trap, and no
+ * escape-to-close-modal semantics. The container therefore carries no
+ * `role="dialog"`; `aria-label` is retained so screen readers can still
+ * identify the picker. Translates KickTalk's emote picker pattern: search
+ * bar, sub-section icon row, pinned Recent/Favorites, collapsible provider
+ * sections with IntersectionObserver infinite scroll, and Kick
+ * subscriber-only lock overlay.
  */
 
 import type React from "react";
@@ -15,16 +20,16 @@ import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-t
 import { useEmoteStore } from "../../store/emote-store";
 import { EmoteImage } from "./EmoteImage";
 
-export type EmoteDialogScope = "native" | "thirdParty";
-export type EmoteDialogPlatform = "twitch" | "kick";
+export type EmotePickerScope = "native" | "thirdParty";
+export type EmotePickerPlatform = "twitch" | "kick";
 
-interface EmoteDialogProps {
+interface EmotePickerPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (emote: Emote) => void;
   anchorRef: React.RefObject<HTMLElement>;
-  scope: EmoteDialogScope;
-  platform: EmoteDialogPlatform;
+  scope: EmotePickerScope;
+  platform: EmotePickerPlatform;
   channelId?: string | null;
   /**
    * Only consulted by Kick-native. `undefined` = unknown → no lock overlay.
@@ -51,8 +56,8 @@ interface SubSectionConfig {
 
 /** Compute the providers covered by a given scope+platform. */
 function getProvidersForScope(
-  scope: EmoteDialogScope,
-  platform: EmoteDialogPlatform
+  scope: EmotePickerScope,
+  platform: EmotePickerPlatform
 ): EmoteProvider[] {
   if (scope === "native") {
     return platform === "twitch" ? ["twitch"] : ["kick"];
@@ -151,8 +156,8 @@ const StarIcon: React.FC<{ filled: boolean }> = ({ filled }) => (
 );
 
 function getSubSectionsForScope(
-  scope: EmoteDialogScope,
-  platform: EmoteDialogPlatform
+  scope: EmotePickerScope,
+  platform: EmotePickerPlatform
 ): SubSectionConfig[] {
   if (scope === "native" && platform === "twitch") {
     return [
@@ -190,6 +195,16 @@ const PROVIDER_LABELS: Record<EmoteProvider, string> = {
 };
 
 const PAGE_SIZE = 20;
+
+/**
+ * Maximum number of `new Image()` instances the prefetch pump() loop may
+ * construct per tick. Capped low (4) so the burst stops triggering
+ * `net::ERR_CONNECTION_RESET 200 (OK)` from cdn.7tv.app — the CDN was
+ * dropping a chunk of the prior 16-per-tick burst before the connection
+ * fully settled. Failed URLs are retried exactly once with jitter (see
+ * `img.onerror` below).
+ */
+const PREFETCH_BATCH_SIZE = 4;
 
 /* ------------------------------------------------------------------------ */
 /* Section                                                                  */
@@ -282,7 +297,7 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
             <>
               <div className="grid grid-cols-8 gap-1">
                 {emotes.slice(0, visibleCount).map((emote) => (
-                  <EmoteDialogItem
+                  <EmotePickerItem
                     key={`${emote.provider}-${emote.id}`}
                     emote={emote}
                     locked={showLock(emote)}
@@ -311,7 +326,7 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
 /* Item                                                                     */
 /* ------------------------------------------------------------------------ */
 
-interface EmoteDialogItemProps {
+interface EmotePickerItemProps {
   emote: Emote;
   locked: boolean;
   favorited: boolean;
@@ -319,13 +334,13 @@ interface EmoteDialogItemProps {
   onFavoriteClick: (emote: Emote) => void;
 }
 
-const EmoteDialogItem = memo(function EmoteDialogItem({
+const EmotePickerItem = memo(function EmotePickerItem({
   emote,
   locked,
   favorited,
   onSelect,
   onFavoriteClick,
-}: EmoteDialogItemProps) {
+}: EmotePickerItemProps) {
   const [hovered, setHovered] = useState(false);
 
   const handleClick = useCallback(() => {
@@ -392,13 +407,13 @@ const EmoteDialogItem = memo(function EmoteDialogItem({
   );
 });
 
-EmoteDialogItem.displayName = "EmoteDialogItem";
+EmotePickerItem.displayName = "EmotePickerItem";
 
 /* ------------------------------------------------------------------------ */
 /* Main dialog                                                              */
 /* ------------------------------------------------------------------------ */
 
-export const EmoteDialog: React.FC<EmoteDialogProps> = ({
+export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   isOpen,
   onClose,
   onSelect,
@@ -620,14 +635,48 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
       typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : null;
     let idx = 0;
     let handle: number | null = null;
+    // URLs whose first load failed and have been re-scheduled once. Cleared
+    // by onload when the URL eventually arrives, so long sessions don't grow
+    // this set unboundedly.
+    const retriedUrls = new Set<string>();
+    // setTimeout handles for the jittered retry attempts so the cleanup can
+    // cancel any still-pending ones.
+    const retryTimeouts = new Set<number>();
+
+    const loadOne = (url: string) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.setAttribute("fetchpriority", "low");
+      img.onload = () => {
+        retriedUrls.delete(url);
+      };
+      img.onerror = () => {
+        if (retriedUrls.has(url)) return; // already retried once — give up silently
+        retriedUrls.add(url);
+        // Jittered ~200ms retry. Spread retries out so a 7TV CDN hiccup that
+        // dropped the original batch doesn't get hit by N synchronous retries.
+        const delay = 200 + Math.floor(((url.length * 13) % 200)); // deterministic 200-400ms jitter
+        // timer-allowlist: one-shot retry for a single failed prefetch Image (SP2 out-of-scope)
+        const handle = window.setTimeout(() => {
+          retryTimeouts.delete(handle);
+          const retry = new Image();
+          retry.decoding = "async";
+          retry.setAttribute("fetchpriority", "low");
+          retry.onload = () => {
+            retriedUrls.delete(url);
+          };
+          // No onerror on the retry — second failure is silent.
+          retry.src = url;
+        }, delay);
+        retryTimeouts.add(handle);
+      };
+      img.src = url;
+    };
 
     const pump = () => {
-      const end = Math.min(idx + 16, urls.length);
+      const end = Math.min(idx + PREFETCH_BATCH_SIZE, urls.length);
       for (; idx < end; idx++) {
-        const img = new Image();
-        img.decoding = "async";
-        img.setAttribute("fetchpriority", "low");
-        img.src = urls[idx];
+        loadOne(urls[idx]);
       }
       handle = idx < urls.length ? (ric ? ric(pump) : window.setTimeout(pump, 32)) : null; // timer-allowlist: self-rescheduling pump() prefetch loop (rIC fallback; SP2 out-of-scope)
     };
@@ -641,6 +690,9 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
         if (ric) window.cancelIdleCallback(handle);
         else window.clearTimeout(handle);
       }
+      for (const h of retryTimeouts) window.clearTimeout(h);
+      retryTimeouts.clear();
+      retriedUrls.clear();
     };
   }, [isOpen, providers, emotesByProvider]);
 
@@ -678,8 +730,7 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   return createPortal(
     <div
       ref={containerRef}
-      data-testid="emote-dialog"
-      role="dialog"
+      data-testid="emote-picker-popover"
       aria-label={`${platform} ${scope} emote picker`}
       className="fixed z-50 w-[360px] max-h-[480px] flex flex-col bg-[var(--color-background-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl overflow-hidden"
       style={{
@@ -765,4 +816,4 @@ export const EmoteDialog: React.FC<EmoteDialogProps> = ({
   );
 };
 
-export default EmoteDialog;
+export default EmotePickerPopover;

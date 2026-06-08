@@ -1,5 +1,5 @@
 /**
- * NativeEmoteButton — trigger button + anchored EmoteDialog pair for the
+ * NativeEmoteButton — trigger button + anchored EmotePickerPopover pair for the
  * platform-native emote scope (Twitch global/channel or Kick global/channel/
  * emoji). Rendered inside ChatInput; parent owns the active-dialog state via
  * `isOpen` + `onOpenRequest`, so mutual exclusion with ThirdPartyEmoteButton
@@ -19,7 +19,7 @@ import type { Emote } from "../../../backend/services/emotes/emote-types";
 import type { ChatPlatform } from "../../../shared/chat-types";
 import { useEmoteStore } from "../../../store/emote-store";
 import { TwitchIcon } from "../../icons/PlatformIcons";
-import { EmoteDialog } from "../EmoteDialog";
+import { EmotePickerPopover } from "../EmotePickerPopover";
 
 /** KickTalk's hardcoded fallback Kick emote ID (used when no provider emotes
  *  are loaded yet). Surfaces a recognizable green-blob KEKW on first paint. */
@@ -33,7 +33,7 @@ interface NativeEmoteButtonProps {
   onOpenRequest: () => void;
   onEmoteSelect: (emote: Emote) => void;
   disabled?: boolean;
-  /** Forwarded to EmoteDialog. Only consulted for Kick-native. `undefined`
+  /** Forwarded to EmotePickerPopover. Only consulted for Kick-native. `undefined`
    *  means "unknown subscription status" → no lock overlay (U8 semantics). */
   viewerIsSubscribed?: boolean;
 }
@@ -99,7 +99,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         onClick={onOpenRequest}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseEnter={rerollKickEmote}
-        className={`group flex-shrink-0 flex items-center justify-center w-14 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`group flex-shrink-0 flex items-center justify-center w-10 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
           isOpen ? "bg-white/20" : "hover:bg-white/10"
         }`}
         aria-label={label}
@@ -128,7 +128,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
           )}
         </span>
       </button>
-      <EmoteDialog
+      <EmotePickerPopover
         isOpen={isOpen}
         onClose={onOpenRequest}
         onSelect={onEmoteSelect}

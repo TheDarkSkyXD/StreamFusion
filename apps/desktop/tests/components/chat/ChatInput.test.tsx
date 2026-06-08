@@ -2,9 +2,10 @@
  * ChatInput tests — U9 layout.
  *
  * The new ChatInput hosts InfoBanner + two emote buttons (each with its own
- * EmoteDialog) and no longer renders a send button. We mock InfoBanner and
- * EmoteDialog at the module boundary to keep these tests focused on the
- * input shell + wiring; the real components have their own test suites.
+ * EmotePickerPopover) and no longer renders a send button. We mock InfoBanner
+ * and EmotePickerPopover at the module boundary to keep these tests focused
+ * on the input shell + wiring; the real components have their own test
+ * suites.
  */
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
@@ -30,11 +31,10 @@ vi.mock('@/store/chat-store', () => ({
 }));
 
 // Selector-capable zustand mock — mirrors EmotePicker.test.tsx so any
-// `useEmoteStore((s) => s.foo)` calls inside EmoteDialog (or descendants)
-// don't blow up under the mock. We don't mock EmoteDialog itself for the
-// "no dialog rendered when closed" assertions, but we do for the
-// "renders dialog on open" assertion below — EmoteDialog has its own
-// behavior tests.
+// `useEmoteStore((s) => s.foo)` calls inside EmotePickerPopover (or
+// descendants) don't blow up under the mock. We mock EmotePickerPopover
+// itself for the open-state assertions below — the real component has its
+// own behavior tests.
 vi.mock('@/store/emote-store', () => {
   const state = {
     searchEmotes: () => [],
@@ -72,10 +72,10 @@ vi.mock('@/components/chat/InfoBanner', () => ({
     infoBannerImpl(props) ?? null,
 }));
 
-// Mock EmoteDialog so we can assert open/closed state without pulling in
-// the dialog's portal positioning / shallow-zustand wiring.
-vi.mock('@/components/chat/EmoteDialog', () => ({
-  EmoteDialog: ({
+// Mock EmotePickerPopover so we can assert open/closed state without pulling
+// in the popover's portal positioning / shallow-zustand wiring.
+vi.mock('@/components/chat/EmotePickerPopover', () => ({
+  EmotePickerPopover: ({
     isOpen,
     scope,
   }: {
@@ -83,9 +83,7 @@ vi.mock('@/components/chat/EmoteDialog', () => ({
     scope: 'native' | 'thirdParty';
     onClose: () => void;
   }) =>
-    isOpen ? (
-      <div data-testid={`emote-dialog-${scope}`} role="dialog" />
-    ) : null,
+    isOpen ? <div data-testid={`emote-picker-popover-${scope}`} /> : null,
 }));
 
 vi.mock('@/components/chat/EmoteAutocomplete', () => {
@@ -245,30 +243,30 @@ describe('ChatInput — InfoBanner integration', () => {
 });
 
 describe('ChatInput — emote dialogs', () => {
-  it('clicking the native button opens NativeEmoteDialog only', () => {
+  it('clicking the native button opens NativeEmotePicker only', () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput();
     fireEvent.click(screen.getByTestId('native-emote-button'));
-    expect(screen.getByTestId('emote-dialog-native')).toBeInTheDocument();
-    expect(screen.queryByTestId('emote-dialog-thirdParty')).toBeNull();
+    expect(screen.getByTestId('emote-picker-popover-native')).toBeInTheDocument();
+    expect(screen.queryByTestId('emote-picker-popover-thirdParty')).toBeNull();
   });
 
-  it('clicking the third-party button opens ThirdPartyEmoteDialog only', () => {
+  it('clicking the third-party button opens ThirdPartyEmotePicker only', () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput();
     fireEvent.click(screen.getByTestId('third-party-emote-button'));
-    expect(screen.getByTestId('emote-dialog-thirdParty')).toBeInTheDocument();
-    expect(screen.queryByTestId('emote-dialog-native')).toBeNull();
+    expect(screen.getByTestId('emote-picker-popover-thirdParty')).toBeInTheDocument();
+    expect(screen.queryByTestId('emote-picker-popover-native')).toBeNull();
   });
 
   it('opening native closes third-party (mutual exclusion)', () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput();
     fireEvent.click(screen.getByTestId('third-party-emote-button'));
-    expect(screen.getByTestId('emote-dialog-thirdParty')).toBeInTheDocument();
+    expect(screen.getByTestId('emote-picker-popover-thirdParty')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('native-emote-button'));
-    expect(screen.queryByTestId('emote-dialog-thirdParty')).toBeNull();
-    expect(screen.getByTestId('emote-dialog-native')).toBeInTheDocument();
+    expect(screen.queryByTestId('emote-picker-popover-thirdParty')).toBeNull();
+    expect(screen.getByTestId('emote-picker-popover-native')).toBeInTheDocument();
   });
 
   it('clicking the same button again closes its dialog', () => {
@@ -276,9 +274,9 @@ describe('ChatInput — emote dialogs', () => {
     renderInput();
     const btn = screen.getByTestId('native-emote-button');
     fireEvent.click(btn);
-    expect(screen.getByTestId('emote-dialog-native')).toBeInTheDocument();
+    expect(screen.getByTestId('emote-picker-popover-native')).toBeInTheDocument();
     fireEvent.click(btn);
-    expect(screen.queryByTestId('emote-dialog-native')).toBeNull();
+    expect(screen.queryByTestId('emote-picker-popover-native')).toBeNull();
   });
 
   it('disables both emote buttons when ChatInput is disabled', () => {

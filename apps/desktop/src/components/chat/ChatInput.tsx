@@ -49,7 +49,7 @@ export interface ChatInputProps {
   chatroomId?: number;
   /** Stable channel identifier for room-state lookups (broadcaster ID on
    *  Twitch, chatroom/channel ID on Kick). `null` when the ID hasn't
-   *  resolved yet — InfoBanner and both EmoteDialogs degrade gracefully
+   *  resolved yet — InfoBanner and both EmotePickerPopovers degrade gracefully
    *  rather than keying off an empty string (which would alias every
    *  not-yet-resolved channel into a single shared `platform:` store key
    *  and contaminate cross-channel state — see code review R9). */
@@ -648,9 +648,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       [emoteAutocomplete.isActive, mentionAutocomplete.isActive, handleSend, reply, clearReply]
     );
 
-    // Outside-click only closes autocompletes here. EmoteDialog owns its own
-    // outside-click (it portals out of `containerRef`, so this handler would
-    // close it on every dialog interaction otherwise).
+    // Outside-click only closes autocompletes here. EmotePickerPopover owns its
+    // own outside-click (it portals out of `containerRef`, so this handler would
+    // close it on every popover interaction otherwise).
     useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
         if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -794,12 +794,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             gone — Enter sends. Outer wrapper mirrors KickTalk's `.chatInputActions`
             (border-left + slideAndFadeIn keyframe); inner pill mirrors
             `.chatEmoteBtns` (bg-white/5, border lifts to white/30 when open). */}
-          <div className="flex items-center pl-3 ml-1 border-l border-[var(--color-border)] animate-slide-and-fade-in">
+          <div className="flex items-center pl-2 ml-1 -mr-1 border-l border-[var(--color-border)] animate-slide-and-fade-in">
             {/* Inline `borderColor` overrides the unlayered `* { border-color: var(--color-border) }`
               in index.css, which beats Tailwind's layered border-color utilities at the
-              cascade level. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
+              cascade level. `bg-[#191919]` is KickTalk's --bg-input (dark theme) so the
+              square buttons read as solid input-box surfaces instead of the subtler
+              white/5 overlay. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
             <div
-              className="flex items-center h-[38px] rounded-[4px] overflow-hidden border bg-white/5 transition-colors duration-150"
+              className="flex items-center h-9 rounded-[4px] overflow-hidden border bg-[#191919] transition-colors duration-150"
               style={{
                 borderColor:
                   activeDialog !== null ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.05)",

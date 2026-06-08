@@ -100,7 +100,7 @@ afterEach(() => {
   observers.length = 0;
 });
 
-import { EmoteDialog } from '@/components/chat/EmoteDialog';
+import { EmotePickerPopover } from '@/components/chat/EmotePickerPopover';
 
 /* ------------------------------------------------------------------------- */
 /* Helpers                                                                   */
@@ -124,7 +124,7 @@ function makeEmote(partial: Partial<Emote> & { id: string; name: string; provide
   };
 }
 
-function renderDialog(props: Partial<React.ComponentProps<typeof EmoteDialog>> = {}) {
+function renderPicker(props: Partial<React.ComponentProps<typeof EmotePickerPopover>> = {}) {
   // Create a real anchor element attached to the DOM.
   const anchor = document.createElement('button');
   anchor.textContent = 'anchor';
@@ -133,7 +133,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof EmoteDialog>> =
   const onClose = props.onClose ?? vi.fn();
   const onSelect = props.onSelect ?? vi.fn();
   const utils = render(
-    <EmoteDialog
+    <EmotePickerPopover
       isOpen={props.isOpen ?? true}
       onClose={onClose}
       onSelect={onSelect}
@@ -158,9 +158,9 @@ function findSection(title: string): HTMLElement | null {
 /* Tests                                                                     */
 /* ------------------------------------------------------------------------- */
 
-describe('EmoteDialog', () => {
+describe('EmotePickerPopover', () => {
   it('renders nothing when closed', () => {
-    const { container } = renderDialog({ isOpen: false });
+    const { container } = renderPicker({ isOpen: false });
     expect(container.firstChild).toBeNull();
   });
 
@@ -169,7 +169,7 @@ describe('EmoteDialog', () => {
       ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
       ['7tv', [makeEmote({ id: 's1', name: 'PogChamp', provider: '7tv' })]],
     ]);
-    renderDialog({ scope: 'native', platform: 'kick' });
+    renderPicker({ scope: 'native', platform: 'kick' });
     expect(screen.getByRole('button', { name: /^Kick/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^7TV/ })).not.toBeInTheDocument();
   });
@@ -180,7 +180,7 @@ describe('EmoteDialog', () => {
       ['bttv', [makeEmote({ id: 'b1', name: 'monkaS', provider: 'bttv' })]],
       ['ffz', [makeEmote({ id: 'f1', name: 'OhMyDog', provider: 'ffz' })]],
     ]);
-    renderDialog({ scope: 'thirdParty', platform: 'twitch' });
+    renderPicker({ scope: 'thirdParty', platform: 'twitch' });
     // Section header buttons have aria-expanded; sub-section icons have aria-pressed.
     expect(screen.getByRole('button', { name: /^7TV/, expanded: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^BetterTTV/, expanded: true })).toBeInTheDocument();
@@ -193,7 +193,7 @@ describe('EmoteDialog', () => {
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ['kick', [makeEmote({ id: 'k3', name: 'kickEmote', provider: 'kick' })]],
     ]);
-    renderDialog({ scope: 'native', platform: 'kick' });
+    renderPicker({ scope: 'native', platform: 'kick' });
     const headings = screen.getAllByRole('button', { name: /^(Recent|Favorites|Kick)/ });
     const titles = headings.map((h) => h.textContent ?? '');
     const recentIdx = titles.findIndex((t) => t.startsWith('Recent'));
@@ -208,7 +208,7 @@ describe('EmoteDialog', () => {
       makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' }),
       makeEmote({ id: 's1', name: 'PogChamp', provider: '7tv' }),
     ];
-    renderDialog({ scope: 'native', platform: 'kick' });
+    renderPicker({ scope: 'native', platform: 'kick' });
     // Only kickHype should appear in Recent (scoped to kick provider).
     expect(screen.getByLabelText('kickHype')).toBeInTheDocument();
     expect(screen.queryByLabelText('PogChamp')).not.toBeInTheDocument();
@@ -222,7 +222,7 @@ describe('EmoteDialog', () => {
       ]],
       ['bttv', [makeEmote({ id: 'b1', name: 'monkaS', provider: 'bttv' })]],
     ]);
-    renderDialog({ scope: 'thirdParty', platform: 'twitch' });
+    renderPicker({ scope: 'thirdParty', platform: 'twitch' });
     const input = screen.getByPlaceholderText(/search/i);
     fireEvent.change(input, { target: { value: 'pog' } });
     expect(screen.getByLabelText('PogChamp')).toBeInTheDocument();
@@ -238,7 +238,7 @@ describe('EmoteDialog', () => {
       ['bttv', [makeEmote({ id: 'b1', name: 'monkaS', provider: 'bttv' })]],
       ['ffz', [makeEmote({ id: 'f1', name: 'OhMyDog', provider: 'ffz' })]],
     ]);
-    renderDialog({ scope: 'thirdParty', platform: 'twitch' });
+    renderPicker({ scope: 'thirdParty', platform: 'twitch' });
 
     // Click the 7TV sub-section icon (aria-label "7TV", aria-pressed=false).
     fireEvent.click(screen.getByRole('button', { name: '7TV', pressed: false }));
@@ -258,7 +258,7 @@ describe('EmoteDialog', () => {
       ['bttv', [makeEmote({ id: 'b1', name: 'monkaS', provider: 'bttv' })]],
       ['ffz', [makeEmote({ id: 'f1', name: 'OhMyDog', provider: 'ffz' })]],
     ]);
-    renderDialog({ scope: 'thirdParty', platform: 'twitch' });
+    renderPicker({ scope: 'thirdParty', platform: 'twitch' });
 
     const stvIcon = screen.getByRole('button', { name: '7TV', pressed: false });
     fireEvent.click(stvIcon);
@@ -273,7 +273,7 @@ describe('EmoteDialog', () => {
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
     ]);
-    renderDialog({ scope: 'native', platform: 'kick' });
+    renderPicker({ scope: 'native', platform: 'kick' });
     expect(screen.getByLabelText('kickHype')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Kick/ }));
     expect(screen.queryByLabelText('kickHype')).not.toBeInTheDocument();
@@ -286,7 +286,7 @@ describe('EmoteDialog', () => {
       makeEmote({ id: `k${i}`, name: `emote${i}`, provider: 'kick' })
     );
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([['kick', fifty]]);
-    renderDialog({ scope: 'native', platform: 'kick' });
+    renderPicker({ scope: 'native', platform: 'kick' });
     // Initial 20 rendered.
     expect(screen.getByLabelText('emote0')).toBeInTheDocument();
     expect(screen.getByLabelText('emote19')).toBeInTheDocument();
@@ -308,7 +308,7 @@ describe('EmoteDialog', () => {
       subscribersOnly: true,
     });
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([['kick', [locked]]]);
-    const { onSelect } = renderDialog({
+    const { onSelect } = renderPicker({
       scope: 'native',
       platform: 'kick',
       viewerIsSubscribed: false,
@@ -329,7 +329,7 @@ describe('EmoteDialog', () => {
       subscribersOnly: true,
     });
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([['kick', [emote]]]);
-    const { onSelect } = renderDialog({
+    const { onSelect } = renderPicker({
       scope: 'native',
       platform: 'kick',
       viewerIsSubscribed: true,
@@ -349,7 +349,7 @@ describe('EmoteDialog', () => {
       subscribersOnly: true,
     });
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([['kick', [emote]]]);
-    renderDialog({ scope: 'native', platform: 'kick' /* viewerIsSubscribed omitted */ });
+    renderPicker({ scope: 'native', platform: 'kick' /* viewerIsSubscribed omitted */ });
     expect(screen.queryByTestId('emote-lock-overlay')).not.toBeInTheDocument();
     expect(screen.getByLabelText('subOnly')).toBeInTheDocument();
   });
@@ -362,18 +362,18 @@ describe('EmoteDialog', () => {
       subscribersOnly: true,
     });
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([['twitch', [emote]]]);
-    renderDialog({ scope: 'native', platform: 'twitch', viewerIsSubscribed: false });
+    renderPicker({ scope: 'native', platform: 'twitch', viewerIsSubscribed: false });
     expect(screen.queryByTestId('emote-lock-overlay')).not.toBeInTheDocument();
   });
 
   it('outside click closes the dialog', () => {
-    const { onClose } = renderDialog({ scope: 'native', platform: 'kick' });
+    const { onClose } = renderPicker({ scope: 'native', platform: 'kick' });
     fireEvent.mouseDown(document.body);
     expect(onClose).toHaveBeenCalled();
   });
 
   it('Escape key closes the dialog', () => {
-    const { onClose } = renderDialog({ scope: 'native', platform: 'kick' });
+    const { onClose } = renderPicker({ scope: 'native', platform: 'kick' });
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
@@ -381,7 +381,7 @@ describe('EmoteDialog', () => {
   it('favorite toggle: hover then click star fires useEmoteStore.toggleFavorite', () => {
     const emote = makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' });
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([['kick', [emote]]]);
-    renderDialog({ scope: 'native', platform: 'kick' });
+    renderPicker({ scope: 'native', platform: 'kick' });
     const emoteBtn = screen.getByLabelText('kickHype');
     // The hover wrapper is the button's parent <div>.
     const wrapper = emoteBtn.parentElement as HTMLElement;
@@ -395,8 +395,66 @@ describe('EmoteDialog', () => {
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
     ]);
-    renderDialog({ scope: 'native', platform: 'kick' });
+    renderPicker({ scope: 'native', platform: 'kick' });
     const input = screen.getByPlaceholderText(/search emotes/i);
     expect(document.activeElement).toBe(input); // fails on old code: focus is on a 100ms timer
+  });
+});
+
+/* ------------------------------------------------------------------------- */
+/* Prefetch concurrency cap (PRD #62 issue 04)                               */
+/* ------------------------------------------------------------------------- */
+
+describe('EmotePickerPopover prefetch concurrency cap', () => {
+  // The pump() loop schedules a fresh batch on requestIdleCallback / setTimeout
+  // every tick. Within a SINGLE pump-tick the per-call constructions must
+  // never exceed PREFETCH_BATCH_SIZE (4). We verify by counting Image()
+  // constructions on the synchronous first tick — the rIC-deferred ticks
+  // are out of scope for this assertion.
+
+  // Guards: net::ERR_CONNECTION_RESET 200(OK) from cdn.7tv.app — the prior
+  // 16-per-tick burst overwhelmed the CDN's per-IP connection budget on
+  // emote-rich kick channels. Capping per-tick to 4 + jittered onerror
+  // retry-once silences the burst class without losing eventual coverage.
+
+  it('never constructs more than PREFETCH_BATCH_SIZE (4) Image() instances per pump tick', () => {
+    const constructions: Image[] = [];
+    type ImageCtor = typeof Image;
+    const RealImage = globalThis.Image as ImageCtor;
+    class CountingImage extends RealImage {
+      constructor() {
+        super();
+        constructions.push(this);
+      }
+    }
+    const orig = (globalThis as unknown as { Image: ImageCtor }).Image;
+    (globalThis as unknown as { Image: ImageCtor }).Image =
+      CountingImage as unknown as ImageCtor;
+
+    // Block the deferred-pump scheduler: keep the initial 150ms primer
+    // setTimeout from firing while we mount, so we can measure the size of
+    // the FIRST pump-tick batch in isolation.
+    vi.useFakeTimers();
+
+    try {
+      // 16 emotes — would have triggered a single full-burst pump under the
+      // old code; under the new code the first tick should cap at 4.
+      const sixteen = Array.from({ length: 16 }, (_, i) =>
+        makeEmote({ id: `s${i}`, name: `emote${i}`, provider: '7tv' })
+      );
+      mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([['7tv', sixteen]]);
+
+      renderPicker({ scope: 'thirdParty', platform: 'twitch' });
+
+      // Advance the 150ms primer so the FIRST pump tick fires.
+      act(() => {
+        vi.advanceTimersByTime(160);
+      });
+
+      expect(constructions.length).toBeLessThanOrEqual(4);
+    } finally {
+      (globalThis as unknown as { Image: ImageCtor }).Image = orig;
+      vi.useRealTimers();
+    }
   });
 });

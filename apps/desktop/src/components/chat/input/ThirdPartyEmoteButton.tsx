@@ -1,5 +1,5 @@
 /**
- * ThirdPartyEmoteButton — trigger button + anchored EmoteDialog pair for the
+ * ThirdPartyEmoteButton — trigger button + anchored EmotePickerPopover pair for the
  * third-party emote scope (7TV/BTTV/FFZ on Twitch, 7TV on Kick).
  *
  * Always shows the 7TV brand mark — it's the only third-party provider that
@@ -16,7 +16,7 @@ import { useRef } from "react";
 import type { Emote } from "../../../backend/services/emotes/emote-types";
 import type { ChatPlatform } from "../../../shared/chat-types";
 import { SevenTVIcon } from "../../icons/PlatformIcons";
-import { EmoteDialog } from "../EmoteDialog";
+import { EmotePickerPopover } from "../EmotePickerPopover";
 
 interface ThirdPartyEmoteButtonProps {
   platform: ChatPlatform;
@@ -44,7 +44,7 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
         type="button"
         onClick={onOpenRequest}
         onMouseDown={(e) => e.stopPropagation()}
-        className={`group flex-shrink-0 flex items-center justify-center w-14 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`group flex-shrink-0 flex items-center justify-center w-10 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
           isOpen ? "bg-white/20" : "hover:bg-white/10"
         }`}
         aria-label="Open third-party emote picker"
@@ -63,7 +63,7 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
           <SevenTVIcon size={24} />
         </span>
       </button>
-      <EmoteDialog
+      <EmotePickerPopover
         isOpen={isOpen}
         onClose={onOpenRequest}
         onSelect={onEmoteSelect}
