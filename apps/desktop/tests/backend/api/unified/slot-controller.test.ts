@@ -28,16 +28,19 @@ import {
   dispatchSetMute,
   dispatchSetQuality,
   dispatchUnload,
+  getBackgroundQuality,
   getFocusedSlotId,
   getSlotPresence,
   getSlotView,
   onSlotEvent,
   rebindExistingSlots,
   requestSlotRetry,
+  setBackgroundQuality,
   setMaxSlots,
   setSlotPresence,
   setUseWebContentsViews,
 } from "@/backend/api/unified/slot-controller";
+import type { SlotEvent } from "@/shared/slot-types";
 import {
   __resetWebContentsViewFactoryForTests,
   setWebContentsViewFactory,
@@ -489,6 +492,34 @@ describe("slot-controller crash recovery (slice 06)", () => {
     expect(getSlotPresence("slot-1")).toBeUndefined();
   });
 
+  it("hidden→focused transition resurrects the WCV and replays the last loadStream", () => {
+    const { created } = setupWithFakeFactory();
+    createSlot("slot-1");
+    dispatchLoadStream("slot-1", { platform: "kick", channelName: "loltyler1" });
+    expect(created).toHaveLength(1);
+
+    setSlotPresence("slot-1", "hidden");
+    expect(getSlotView("slot-1")).toBeNull();
+    expect(created[0].__destroyed).toBe(true);
+
+    const events: SlotEvent[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+
+    setSlotPresence("slot-1", "focused");
+
+    expect(created).toHaveLength(2);
+    expect(getSlotView("slot-1")).toBe(created[1]);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "load-stream",
+        slotId: "slot-1",
+        payload: { platform: "kick", channelName: "loltyler1" },
+      })
+    );
+
+    unsubscribe();
+  });
+
   it("rebindExistingSlots re-emits a presence-changed event for every alive slot", () => {
     const { created } = setupWithFakeFactory();
     createSlot("slot-1");
@@ -510,6 +541,135 @@ describe("slot-controller crash recovery (slice 06)", () => {
       expect.objectContaining({ slotId: "slot-2", presence: "background" })
     );
 
+    unsubscribe();
+  });
+});
+
+describe("slot-controller SlotPresence behavior matrix (slice 07)", () => {
+  function eventsOfType<T extends SlotEvent["type"]>(events: SlotEvent[], type: T) {
+    return events.filter((e) => e.type === type);
+  }
+
+  it("getBackgroundQuality defaults to 'auto-low' on a fresh controller", () => {
+    expect(getBackgroundQuality()).toBe("auto-low");
+  });
+
+  it("setSlotPresence(focused) emits set-mute(false) + set-quality + set-buffer-config", () => {
+    createSlot("slot-1");
+    createSlot("slot-2");
+    // slot-1 is already focused (first created); promote slot-2.
+    const events: SlotEvent[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+    setSlotPresence("slot-2", "focused");
+
+    const slot2Mutes = events.filter(
+      (e) => e.type === "set-mute" && e.slotId === "slot-2"
+    );
+    expect(slot2Mutes).toContainEqual(
+      expect.objectContaining({ type: "set-mute", slotId: "slot-2", muted: false })
+    );
+    // Slot-1 was demoted to background, so it got muted via the cascading
+    // emitConfigForSlot call.
+    const slot1Mutes = events.filter(
+      (e) => e.type === "set-mute" && e.slotId === "slot-1"
+    );
+    expect(slot1Mutes).toContainEqual(
+      expect.objectContaining({ type: "set-mute", slotId: "slot-1", muted: true })
+    );
+
+    // Focused slot-2 got a 30s/60s forward/max buffer.
+    const slot2Buffers = events.filter(
+      (e) => e.type === "set-buffer-config" && e.slotId === "slot-2"
+    );
+    expect(slot2Buffers[0]).toMatchObject({
+      type: "set-buffer-config",
+      slotId: "slot-2",
+      config: { maxBufferLengthSec: 30 },
+    });
+
+    unsubscribe();
+  });
+
+  it("setSlotPresence(background) emits muted=true + clamped buffers (10s)", () => {
+    createSlot("slot-1");
+    createSlot("slot-2");
+    const events: SlotEvent[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+    // slot-2 starts background; transition explicit (no-op for presence, but
+    // we instead promote slot-1 stay focused and demote via setSlotPresence
+    // path on a new slot creation). Easier: hide then unhide slot-2.
+    setSlotPresence("slot-2", "hidden");
+    setSlotPresence("slot-2", "background");
+
+    const slot2Buffers = events.filter(
+      (e) => e.type === "set-buffer-config" && e.slotId === "slot-2"
+    );
+    // Last buffer config emitted for slot-2 should be the background tuple.
+    const last = slot2Buffers[slot2Buffers.length - 1];
+    expect(last).toMatchObject({
+      slotId: "slot-2",
+      config: { maxBufferLengthSec: 10 },
+    });
+
+    unsubscribe();
+  });
+
+  it("setSlotPresence(hidden) emits an unload event (no further config events)", () => {
+    createSlot("slot-1");
+    createSlot("slot-2");
+    const events: SlotEvent[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+
+    setSlotPresence("slot-2", "hidden");
+
+    const unloads = events.filter((e) => e.type === "unload" && e.slotId === "slot-2");
+    expect(unloads).toHaveLength(1);
+
+    // Hidden slots get no quality / buffer dispatch (there's no player).
+    const slot2Configs = events.filter(
+      (e) =>
+        e.slotId === "slot-2" && (e.type === "set-quality" || e.type === "set-buffer-config")
+    );
+    expect(slot2Configs).toHaveLength(0);
+
+    unsubscribe();
+  });
+
+  it("setBackgroundQuality flows the new quality to every currently-background slot live", () => {
+    createSlot("slot-1");
+    createSlot("slot-2");
+    createSlot("slot-3");
+    // slot-1 focused, slot-2 + slot-3 background.
+    const events: SlotEvent[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+
+    setBackgroundQuality("off");
+
+    // Both backgrounds got re-emitted with the new quality.
+    const qualityEvents = eventsOfType(events, "set-quality");
+    expect(qualityEvents).toContainEqual(
+      expect.objectContaining({ slotId: "slot-2", config: { mode: "off" } })
+    );
+    expect(qualityEvents).toContainEqual(
+      expect.objectContaining({ slotId: "slot-3", config: { mode: "off" } })
+    );
+    // Focused slot did NOT get a re-emit — it's unaffected by the
+    // background-quality setting.
+    expect(qualityEvents).not.toContainEqual(
+      expect.objectContaining({ slotId: "slot-1", config: { mode: "off" } })
+    );
+
+    unsubscribe();
+  });
+
+  it("setBackgroundQuality with the same value is a no-op (no thrash)", () => {
+    createSlot("slot-1");
+    createSlot("slot-2");
+    const events: SlotEvent[] = [];
+    const unsubscribe = onSlotEvent((e) => events.push(e));
+    // Default is "auto-low"; re-setting to "auto-low" should emit nothing.
+    setBackgroundQuality("auto-low");
+    expect(events).toHaveLength(0);
     unsubscribe();
   });
 });

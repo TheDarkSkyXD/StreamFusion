@@ -15,12 +15,14 @@
  * source of truth until slice 06's full migration + dogfood sign-off.
  */
 
+import { resolveSlotConfig } from "../../../shared/slot-presence-config";
 import type {
   LoadStreamPayload,
   SlotBufferConfig,
   SlotEvent,
   SlotPresence,
   SlotQualityConfig,
+  SlotQualityMode,
 } from "../../../shared/slot-types";
 import { decideSlotRetryOutcome } from "./slot-retry-policy";
 import {
@@ -45,6 +47,13 @@ interface SlotRecord {
 const slots = new Map<string, SlotRecord>();
 const listeners = new Set<(event: SlotEvent) => void>();
 let useWebContentsViews = false;
+/**
+ * User's BackgroundQuality preference. Pushed from the renderer via
+ * `setBackgroundQuality(mode)` (which the IPC handler invokes from
+ * `slot:set-background-quality`). Defaults to the same `"auto-low"` that
+ * multistream-store seeds on a fresh install (slice 03).
+ */
+let userBackgroundQuality: SlotQualityMode = "auto-low";
 
 /**
  * Hard upper bound on concurrent slots. The renderer's MultiviewCap (settings
@@ -125,6 +134,26 @@ export function getSlotView(id: string): SlotView | null {
 }
 
 /**
+ * Update the user's BackgroundQuality preference (slice 07). On every change
+ * we re-emit the resolved slot config for each currently-background slot so
+ * the running pickers reconfigure live without an app reload.
+ */
+export function setBackgroundQuality(mode: SlotQualityMode): void {
+  if (mode === userBackgroundQuality) return;
+  userBackgroundQuality = mode;
+  for (const slot of slots.values()) {
+    if (slot.presence === "background") {
+      emitConfigForSlot(slot.id, slot.presence);
+    }
+  }
+}
+
+/** Reads the controller's current copy of the BackgroundQuality pref. */
+export function getBackgroundQuality(): SlotQualityMode {
+  return userBackgroundQuality;
+}
+
+/**
  * Update the slot cap from the renderer-side MultiviewCap. Caps below the
  * current slot count are accepted: existing slots are NOT retroactively
  * evicted — only future createSlot calls are blocked until the count drops
@@ -146,10 +175,70 @@ export function getFocusedSlotId(): string | null {
 }
 
 /**
+ * Apply the SlotPresence behavior matrix (slice 07): emit the dispatch
+ * events the slot needs based on its current presence + the user's
+ * BackgroundQuality preference. `hidden` slots get an `unload` instead of
+ * config events because there's nothing left to configure.
+ */
+function emitConfigForSlot(id: string, presence: SlotPresence): void {
+  if (presence === "hidden") {
+    emit({ type: "unload", slotId: id });
+    return;
+  }
+  const cfg = resolveSlotConfig(presence, userBackgroundQuality);
+  emit({ type: "set-mute", slotId: id, muted: cfg.muted });
+  emit({ type: "set-quality", slotId: id, config: { mode: cfg.quality } });
+  emit({
+    type: "set-buffer-config",
+    slotId: id,
+    config: {
+      maxBufferLengthSec: cfg.forwardBufferSec,
+      maxMaxBufferLengthSec: cfg.forwardBufferSec * 2,
+      liveSyncDurationCount: 3,
+    },
+  });
+}
+
+/**
+ * Hidden→visible transitions resurrect the WCV: spawn a fresh view, replay
+ * the last loadStream so the slot resumes from where the host expects, and
+ * re-subscribe to the crash listener.
+ */
+function reviveSlot(slot: SlotRecord): void {
+  if (!useWebContentsViews || slot.view) return;
+  const view = spawnViewForSlot(slot.id);
+  slot.view = view;
+  attachCrashListener(slot, view);
+  if (slot.lastLoadStream) {
+    emit({ type: "load-stream", slotId: slot.id, payload: slot.lastLoadStream });
+  }
+}
+
+/**
+ * Hide a slot: tear down its WCV + HLS but keep the slot record + last
+ * loadStream payload so a future visible transition can resume cheaply.
+ */
+function suspendSlot(slot: SlotRecord): void {
+  if (slot.unsubscribeCrashListener) {
+    slot.unsubscribeCrashListener();
+    slot.unsubscribeCrashListener = null;
+  }
+  if (slot.view) {
+    try {
+      slot.view.destroy();
+    } catch {
+      // Already destroyed — ignore.
+    }
+    slot.view = null;
+  }
+}
+
+/**
  * Transition a slot's presence. Promoting a slot to `focused` demotes any
  * previously-focused slot to `background` — the controller enforces the
- * focus-singleton invariant. Setting `hidden` or `background` does not touch
- * other slots.
+ * focus-singleton invariant. After every transition the slot gets its
+ * config dispatched (slice 07's behavior matrix), and hidden/visible
+ * lifecycle effects fire (slice 07 WCV teardown/resume).
  */
 export function setSlotPresence(id: string, presence: SlotPresence): void {
   const slot = slots.get(id);
@@ -159,12 +248,23 @@ export function setSlotPresence(id: string, presence: SlotPresence): void {
       if (other.id !== id && other.presence === "focused") {
         other.presence = "background";
         emit({ type: "presence-changed", slotId: other.id, presence: "background" });
+        emitConfigForSlot(other.id, "background");
       }
     }
   }
   if (slot.presence === presence) return;
+  const wasHidden = slot.presence === "hidden";
   slot.presence = presence;
   emit({ type: "presence-changed", slotId: id, presence });
+
+  // Hidden→visible: bring the WCV back. Visible→hidden: tear it down.
+  if (presence === "hidden") {
+    suspendSlot(slot);
+  } else if (wasHidden) {
+    reviveSlot(slot);
+  }
+
+  emitConfigForSlot(id, presence);
 }
 
 export function onSlotEvent(listener: (event: SlotEvent) => void): () => void {
@@ -299,4 +399,5 @@ export function __resetSlotControllerForTests(): void {
   listeners.clear();
   maxSlots = 6;
   useWebContentsViews = false;
+  userBackgroundQuality = "auto-low";
 }

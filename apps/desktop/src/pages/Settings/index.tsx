@@ -69,6 +69,7 @@ import type { CheckFrequency, TokenStatusResult } from "@/shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAuthStore } from "@/store/auth-store";
 import {
+  type BackgroundQuality,
   MULTIVIEW_CAP_MAX,
   MULTIVIEW_CAP_MIN,
   useMultiStreamStore,
@@ -288,12 +289,18 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
     description: "Seconds of video buffered ahead.",
   },
   { tab: "buffer", label: "Max buffer", description: "Hard cap on buffered seconds." },
-  // Multiview (slice 03) — single row today; background-quality joins it in slice 08.
+  // Multiview (slice 03 + slice 08 background-quality row).
   {
     tab: "multiview",
     label: "Maximum concurrent streams",
     description: "User-configurable upper bound on simultaneous StreamSlots",
     keywords: ["multistream", "slots", "cap", "ram", "memory", "grid", "tiles"],
+  },
+  {
+    tab: "multiview",
+    label: "Background-stream quality",
+    description: "How non-focused slots render: auto-low / match-source / off",
+    keywords: ["background", "quality", "480p", "ram", "memory", "auto-low", "match-source"],
   },
   // Chat — content delegated to ChatSettingsSection. One umbrella entry so the
   // tab surfaces for "emotes", "events", "bttv", etc.
@@ -476,14 +483,28 @@ export function SettingsPage() {
   const enableAdBlock = useAdBlockStore((state) => state.enableAdBlock);
   const setEnableAdBlock = useAdBlockStore((state) => state.setEnableAdBlock);
 
-  // Multiview state (slice 03). MultiviewCap is the user-configurable upper
-  // bound on simultaneous StreamSlots; BackgroundQuality is read elsewhere
-  // (UI for it ships in slice 08, this tab only surfaces the cap today).
+  // Multiview state (slice 03 + slice 08). MultiviewCap is the user-
+  // configurable upper bound on simultaneous StreamSlots; BackgroundQuality
+  // controls how non-focused slots render (auto-low / match-source / off).
   const multiviewCap = useMultiStreamStore((state) => state.multiviewCap);
   const setMultiviewCap = useMultiStreamStore((state) => state.setMultiviewCap);
+  const backgroundQuality = useMultiStreamStore((state) => state.backgroundQuality);
+  const setBackgroundQualityInStore = useMultiStreamStore(
+    (state) => state.setBackgroundQuality
+  );
   const activeStreamCount = useMultiStreamStore((state) => state.streams.length);
   const handleMultiviewCapChange = (next: number) => {
     setMultiviewCap(next);
+    notifySettingsSaved();
+  };
+  const handleBackgroundQualityChange = (next: BackgroundQuality) => {
+    // Persist locally + push to main so currently-background WCV slots
+    // reconfigure live (slice 07 wired the controller-side fan-out).
+    setBackgroundQualityInStore(next);
+    window.electronAPI?.slot?.setBackgroundQuality(next).catch(() => {
+      // No main-process listener in dev or a brief startup window — the
+      // persisted value still drives new slot starts; nothing to surface.
+    });
     notifySettingsSaved();
   };
 
@@ -1173,6 +1194,66 @@ export function SettingsPage() {
 
                       <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
                         Range: {MULTIVIEW_CAP_MIN}–{MULTIVIEW_CAP_MAX}. Default is 4.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Background-stream quality (slice 08 of PRD #51 / issue #59).
+                      Controls how non-focused slots render: full quality keeps
+                      the RAM cost high; auto-low is the default RAM-friendly
+                      clamp; off disables video on backgrounds entirely. */}
+                  {isRowVisible("Background-stream quality") && (
+                    <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                          Background streams
+                        </h3>
+                      </div>
+
+                      <div className="px-6 py-2 divide-y divide-[#27272a]/60">
+                        <div className="flex items-center justify-between gap-4 py-4">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-zinc-200">
+                              Background-stream quality
+                            </p>
+                            <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
+                              How non-focused streams render. Lower settings free
+                              up RAM and bandwidth so the focused stream gets the
+                              full pipe. Changes apply live to every background
+                              slot — no app reload needed.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <Select
+                              value={backgroundQuality}
+                              onValueChange={(v) =>
+                                handleBackgroundQualityChange(v as BackgroundQuality)
+                              }
+                            >
+                              <SelectTrigger
+                                aria-label="Background-stream quality"
+                                className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
+                              >
+                                <SelectValue placeholder="Select quality" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
+                                <SelectItem value="auto-low">
+                                  Auto-low (≤480p, recommended)
+                                </SelectItem>
+                                <SelectItem value="match-source">
+                                  Match source (uses more RAM)
+                                </SelectItem>
+                                <SelectItem value="off">
+                                  Off (audio-only)
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
+                        Default: auto-low.
                       </div>
                     </div>
                   )}

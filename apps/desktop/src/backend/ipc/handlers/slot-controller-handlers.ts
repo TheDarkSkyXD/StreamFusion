@@ -10,12 +10,13 @@
 
 import { type BrowserWindow, ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
-import type { SlotEvent } from "../../../shared/slot-types";
+import type { SlotEvent, SlotQualityMode } from "../../../shared/slot-types";
 import {
   getSlotView,
   onSlotEvent,
   rebindExistingSlots,
   requestSlotRetry,
+  setBackgroundQuality,
   setMaxSlots,
   setSlotPresence,
 } from "../../api/unified/slot-controller";
@@ -93,10 +94,15 @@ export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void 
     setMaxSlots(cap);
   });
 
-  ipcMain.handle(IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY, () => {
-    // Slice 04 only acknowledges. The persisted value lives in
-    // multistream-store on the renderer; slice 08 wires the read path.
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY,
+    (_event, { mode }: { mode: SlotQualityMode }) => {
+      // Slice 07: push the user's BackgroundQuality preference into the
+      // slot-controller. Every currently-background slot re-emits its config
+      // synchronously so the running pickers reconfigure without a reload.
+      setBackgroundQuality(mode);
+    }
+  );
 
   ipcMain.handle(IPC_CHANNELS.SLOT_REBIND_EXISTING_SLOTS, () => {
     // Slice 06: after a host-renderer crash + reload, the host calls this so
