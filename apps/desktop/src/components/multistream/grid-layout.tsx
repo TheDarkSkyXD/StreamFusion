@@ -12,7 +12,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useMultiStreamStore } from "@/store/multistream-store";
 
@@ -37,6 +37,17 @@ export function MultiStreamGrid() {
     })
   );
 
+  // Wrap setFocusedStream so every focus change also tells main to promote
+  // the slot. The slot-controller enforces the focus-singleton invariant
+  // (slice 07 audio routing — only the focused slot is unmuted).
+  const focusSlot = useCallback(
+    (slotId: string) => {
+      setFocusedStream(slotId);
+      window.electronAPI?.slot?.requestFocus(slotId).catch(() => {});
+    },
+    [setFocusedStream]
+  );
+
   // Slice 06 / slice 07: Ctrl+1..6 focuses the slot at the given grid index.
   // No-op when the grid is empty or the index doesn't map to a slot. Stops
   // before reaching modifier-using shortcuts the user already trains on
@@ -49,14 +60,11 @@ export function MultiStreamGrid() {
       const target = streams[digit - 1];
       if (!target) return;
       event.preventDefault();
-      setFocusedStream(target.id);
-      // Inform main so any per-slot WCV gets its presence promoted (slice 06
-      // controller maintains focus singleton + audio routing).
-      window.electronAPI?.slot?.requestFocus(target.id).catch(() => {});
+      focusSlot(target.id);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [streams, setFocusedStream]);
+  }, [streams, focusSlot]);
 
   // Slice 06: after a host-renderer crash + reload, the host calls main to
   // re-emit presence snapshots so slot chrome rebuilds. Idempotent — main
@@ -139,7 +147,7 @@ export function MultiStreamGrid() {
                     channelName={stream.channelName}
                     isMuted={stream.isMuted}
                     onRemove={() => removeStream(stream.id)}
-                    onFocus={() => setFocusedStream(stream.id)}
+                    onFocus={() => focusSlot(stream.id)}
                     isFocused={false}
                     // +1 so the side-rail slots stagger after the focused slot
                     slotIndex={sideRailIndex + 1}
