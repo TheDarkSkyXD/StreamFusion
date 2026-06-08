@@ -45,12 +45,8 @@ import {
   type VideoMetadataData,
 } from "twitch-gql-queries";
 import { logger } from "@/backend/logging/logger";
-import {
-  recordPlatformFailure,
-  recordPlatformSuccess,
-} from "../../unified/platform-health";
-
 import type { PlatformFailureClass } from "../../unified/platform-health";
+import { recordPlatformFailure, recordPlatformSuccess } from "../../unified/platform-health";
 
 import type {
   UnifiedCategory,
@@ -61,9 +57,13 @@ import type {
 } from "../../unified/platform-types";
 import type { GqlError, PaginatedResult, PaginationOptions } from "./twitch-types";
 
-function classifyGqlErrorForHealth(error: unknown, httpStatus?: number): PlatformFailureClass | null {
+function classifyGqlErrorForHealth(
+  error: unknown,
+  httpStatus?: number
+): PlatformFailureClass | null {
   if (httpStatus !== undefined) {
-    if (httpStatus === 401 || httpStatus === 403 || httpStatus === 404 || httpStatus === 429) return null;
+    if (httpStatus === 401 || httpStatus === 403 || httpStatus === 404 || httpStatus === 429)
+      return null;
     if (httpStatus >= 500) return "server-5xx";
   }
 
@@ -76,7 +76,10 @@ function classifyGqlErrorForHealth(error: unknown, httpStatus?: number): Platfor
     if (/gql request failed: (401|403|404|429)/.test(msg)) return null;
   }
 
-  if (error instanceof TypeError || (error instanceof Error && error.message.toLowerCase().includes("fetch"))) {
+  if (
+    error instanceof TypeError ||
+    (error instanceof Error && error.message.toLowerCase().includes("fetch"))
+  ) {
     return "net-error";
   }
 

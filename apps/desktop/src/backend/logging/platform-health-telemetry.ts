@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { onPlatformHealthChanged } from "../api/unified/platform-health";
-import type { PlatformHealth } from "../api/unified/platform-health";
 import type { Platform } from "../../shared/auth-types";
+import type { PlatformHealth } from "../api/unified/platform-health";
+import { onPlatformHealthChanged } from "../api/unified/platform-health";
 import { getTelemetryDir } from "./log-paths";
 import { logger } from "./logger";
 

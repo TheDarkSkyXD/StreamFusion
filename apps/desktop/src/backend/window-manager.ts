@@ -10,8 +10,8 @@ import path from "node:path";
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
 import { logger } from "@/backend/logging/logger";
-import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";
 import { installContextMenu } from "./context-menu";
+import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";
 import { markCleanShutdown } from "./shutdown-marker";
 
 // No longer using Electron Forge globals - electron-vite provides:

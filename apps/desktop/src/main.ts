@@ -24,12 +24,12 @@ import {
 import { disposeSendWindow } from "./backend/api/platforms/kick/kick-send-window";
 import { authWindowManager, protocolHandler, twitchAuthService } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
+import { startChromiumLogTailer } from "./backend/logging/chromium-log-tailer";
 import { installConsoleIntercept } from "./backend/logging/console-intercept";
 import { installCrashHooks } from "./backend/logging/crash-hooks";
 import { computeLogPaths, setBugReportsDir, setTelemetryDir } from "./backend/logging/log-paths";
 import { getCurrentLogPath, initLogger, logger, shutdownLogger } from "./backend/logging/logger";
 import { installNativeStderrIntercept } from "./backend/logging/native-stderr-intercept";
-import { startChromiumLogTailer } from "./backend/logging/chromium-log-tailer";
 import {
   getCurrentNoisePath,
   initNoiseLogger,
@@ -38,7 +38,6 @@ import {
 import { startProcessMonitor } from "./backend/logging/process-monitor";
 import { redactObject } from "./backend/logging/redactor";
 import { pruneLogs } from "./backend/logging/rotation";
-import { installRendererCrashRecovery } from "./backend/recovery/renderer-crash-recovery";
 import {
   KICK_IMAGE_SCHEME,
   registerKickImageProtocol,
@@ -47,6 +46,7 @@ import {
   registerTwitchImageProtocol,
   TWITCH_IMAGE_SCHEME,
 } from "./backend/protocols/twitch-image-protocol";
+import { installRendererCrashRecovery } from "./backend/recovery/renderer-crash-recovery";
 import { attachCertVerifyDiagToAllSessions } from "./backend/services/cert-verify-diagnostics";
 import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
 import { dbService } from "./backend/services/database-service";
@@ -180,7 +180,7 @@ installNativeStderrIntercept();
 startChromiumLogTailer({ filePath: chromiumLogPath });
 
 import("./backend/logging/platform-health-telemetry");
-void import("./backend/api/unified/status-page-poller").then(m => m.initStatusPagePoller());
+void import("./backend/api/unified/status-page-poller").then((m) => m.initStatusPagePoller());
 
 logger.info("Main", "Logging initialized", {
   logFile: getCurrentLogPath(),

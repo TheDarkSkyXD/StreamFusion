@@ -722,7 +722,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
         {/* Main Input Area */}
         <div
-          className={`relative flex items-end gap-2 ${reply ? "rounded-b-md" : "rounded-md"} border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 py-2`}
+          className={`relative flex items-end gap-2 ${reply ? "rounded-b-md" : "rounded-md"} border border-[var(--color-border)] bg-[#191919] px-3 py-2`}
         >
           {/* Text Input — the overlay above the textarea renders emote tokens
             (e.g. `KEKW`) as images so the user can see live previews inline.

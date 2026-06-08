@@ -176,7 +176,9 @@ export function LogsSection() {
       // Copy exactly what's rendered (post-filter), one line per row, so a
       // paste into an issue/Slack/email matches what the user is staring at.
       await navigator.clipboard.writeText(filteredLines.join("\n"));
-      toast.success(`Copied ${filteredLines.length} log line${filteredLines.length === 1 ? "" : "s"}`);
+      toast.success(
+        `Copied ${filteredLines.length} log line${filteredLines.length === 1 ? "" : "s"}`
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't copy log lines");
     }

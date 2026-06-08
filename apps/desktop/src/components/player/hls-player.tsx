@@ -519,75 +519,75 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           hls.loadSource(src);
           hls.attachMedia(video);
         } else {
-        hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: bufferConfig.lowLatencyMode,
-          startFragPrefetch: true, // Start fetching fragment immediately for faster start
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: bufferConfig.lowLatencyMode,
+            startFragPrefetch: true, // Start fetching fragment immediately for faster start
 
-          // === AGGRESSIVE MEMORY MANAGEMENT FOR LONG-RUNNING STREAMS ===
-          // These settings prevent memory creep during 4-12+ hour sessions
-          // HLS.js leaks ~5-15MB/hour from segment accumulation without these limits
-          backBufferLength: 30, // Reduced from 90: Only keep 30s behind (was causing memory buildup)
-          maxBufferLength: bufferConfig.maxBufferLength, // Forward buffer (user-tunable on live)
-          maxMaxBufferLength: bufferConfig.maxMaxBufferLength, // Hard cap (user-tunable on live)
-          maxBufferSize: bufferConfig.maxBufferSize, // Scaled with maxMaxBufferLength so it isn't clamped
+            // === AGGRESSIVE MEMORY MANAGEMENT FOR LONG-RUNNING STREAMS ===
+            // These settings prevent memory creep during 4-12+ hour sessions
+            // HLS.js leaks ~5-15MB/hour from segment accumulation without these limits
+            backBufferLength: 30, // Reduced from 90: Only keep 30s behind (was causing memory buildup)
+            maxBufferLength: bufferConfig.maxBufferLength, // Forward buffer (user-tunable on live)
+            maxMaxBufferLength: bufferConfig.maxMaxBufferLength, // Hard cap (user-tunable on live)
+            maxBufferSize: bufferConfig.maxBufferSize, // Scaled with maxMaxBufferLength so it isn't clamped
 
-          // Low-latency live streaming optimizations
-          liveSyncDurationCount: bufferConfig.liveSyncDurationCount, // Target live latency (user-tunable on live)
-          liveMaxLatencyDurationCount: bufferConfig.liveMaxLatencyDurationCount, // Derived > liveSync so config stays valid
+            // Low-latency live streaming optimizations
+            liveSyncDurationCount: bufferConfig.liveSyncDurationCount, // Target live latency (user-tunable on live)
+            liveMaxLatencyDurationCount: bufferConfig.liveMaxLatencyDurationCount, // Derived > liveSync so config stays valid
 
-          // Buffer stall recovery settings (HLS.js handles these automatically)
-          maxBufferHole: 0.5, // Increased tolerance for buffer gaps (default 0.1)
-          highBufferWatchdogPeriod: 3, // Seconds before nudging starts (default 3)
-          nudgeOffset: 0.2, // Nudge amount per retry (default 0.1)
-          nudgeMaxRetry: 5, // Max nudge attempts before fatal (default 3)
-          // Buffer append error retry settings
-          appendErrorMaxRetry: 5, // Retry buffer append up to 5 times (default 3)
+            // Buffer stall recovery settings (HLS.js handles these automatically)
+            maxBufferHole: 0.5, // Increased tolerance for buffer gaps (default 0.1)
+            highBufferWatchdogPeriod: 3, // Seconds before nudging starts (default 3)
+            nudgeOffset: 0.2, // Nudge amount per retry (default 0.1)
+            nudgeMaxRetry: 5, // Max nudge attempts before fatal (default 3)
+            // Buffer append error retry settings
+            appendErrorMaxRetry: 5, // Retry buffer append up to 5 times (default 3)
 
-          // === ADAPTIVE FAST OFFLINE DETECTION SETTINGS ===
-          // Manifest loading - detect offline quickly (stream ended/unavailable)
-          // Adaptive: longer timeouts on slow connections to prevent false positives
-          manifestLoadingTimeOut: isProxyUrl
-            ? Math.round(5000 * timeoutMultiplier)
-            : Math.round(8000 * timeoutMultiplier),
-          manifestLoadingMaxRetry: isProxyUrl ? 0 : 1, // Minimal retries - if manifest 404s, stream is gone
-          manifestLoadingRetryDelay: 500, // Very short delay between retries (default 1000)
-          manifestLoadingMaxRetryTimeout: isProxyUrl
-            ? Math.round(5000 * timeoutMultiplier)
-            : Math.round(10000 * timeoutMultiplier),
+            // === ADAPTIVE FAST OFFLINE DETECTION SETTINGS ===
+            // Manifest loading - detect offline quickly (stream ended/unavailable)
+            // Adaptive: longer timeouts on slow connections to prevent false positives
+            manifestLoadingTimeOut: isProxyUrl
+              ? Math.round(5000 * timeoutMultiplier)
+              : Math.round(8000 * timeoutMultiplier),
+            manifestLoadingMaxRetry: isProxyUrl ? 0 : 1, // Minimal retries - if manifest 404s, stream is gone
+            manifestLoadingRetryDelay: 500, // Very short delay between retries (default 1000)
+            manifestLoadingMaxRetryTimeout: isProxyUrl
+              ? Math.round(5000 * timeoutMultiplier)
+              : Math.round(10000 * timeoutMultiplier),
 
-          // Level/playlist loading - also needs fast detection for offline
-          levelLoadingTimeOut: isProxyUrl
-            ? Math.round(5000 * timeoutMultiplier)
-            : Math.round(8000 * timeoutMultiplier),
-          levelLoadingMaxRetry: isProxyUrl ? 0 : 1, // Minimal retries
-          levelLoadingRetryDelay: 500, // Short delay
-          levelLoadingMaxRetryTimeout: isProxyUrl
-            ? Math.round(5000 * timeoutMultiplier)
-            : Math.round(10000 * timeoutMultiplier),
+            // Level/playlist loading - also needs fast detection for offline
+            levelLoadingTimeOut: isProxyUrl
+              ? Math.round(5000 * timeoutMultiplier)
+              : Math.round(8000 * timeoutMultiplier),
+            levelLoadingMaxRetry: isProxyUrl ? 0 : 1, // Minimal retries
+            levelLoadingRetryDelay: 500, // Short delay
+            levelLoadingMaxRetryTimeout: isProxyUrl
+              ? Math.round(5000 * timeoutMultiplier)
+              : Math.round(10000 * timeoutMultiplier),
 
-          // Fragment loading - more tolerant since transient errors are common during live playback
-          // Adaptive: significantly longer on slow connections (fragments take longer to download)
-          fragLoadingTimeOut: Math.round(15000 * timeoutMultiplier), // 15s base, up to 30s on 2G
-          fragLoadingMaxRetry: 4, // Reduced from 6, still handles transient errors
-          fragLoadingRetryDelay: 500, // Faster retry (was 1000)
-          fragLoadingMaxRetryTimeout: Math.round(20000 * timeoutMultiplier), // Cap total retry time
+            // Fragment loading - more tolerant since transient errors are common during live playback
+            // Adaptive: significantly longer on slow connections (fragments take longer to download)
+            fragLoadingTimeOut: Math.round(15000 * timeoutMultiplier), // 15s base, up to 30s on 2G
+            fragLoadingMaxRetry: 4, // Reduced from 6, still handles transient errors
+            fragLoadingRetryDelay: 500, // Faster retry (was 1000)
+            fragLoadingMaxRetryTimeout: Math.round(20000 * timeoutMultiplier), // Cap total retry time
 
-          xhrSetup: (xhr, _url) => {
-            xhr.withCredentials = false; // Important to avoid CORS issues with wildcards
-          },
+            xhrSetup: (xhr, _url) => {
+              xhr.withCredentials = false; // Important to avoid CORS issues with wildcards
+            },
 
-          // Kick clips are cut mid-GOP, so seg 0 has no keyframe and hls.js
-          // opens an audio-only MediaSource that can't accept the video that
-          // shows up in seg 1. See kick-clip-loader.ts.
-          ...(isKickClipPlaylistUrl(src) ? { pLoader: createKickClipPlaylistLoader() } : {}),
-        });
-        hlsRef.current = hls;
-        if (onHlsInstance) onHlsInstance(hls);
+            // Kick clips are cut mid-GOP, so seg 0 has no keyframe and hls.js
+            // opens an audio-only MediaSource that can't accept the video that
+            // shows up in seg 1. See kick-clip-loader.ts.
+            ...(isKickClipPlaylistUrl(src) ? { pLoader: createKickClipPlaylistLoader() } : {}),
+          });
+          hlsRef.current = hls;
+          if (onHlsInstance) onHlsInstance(hls);
 
-        logger.debug("Player:HLS", "initializing HLS", { src });
-        hls.loadSource(src);
-        hls.attachMedia(video);
+          logger.debug("Player:HLS", "initializing HLS", { src });
+          hls.loadSource(src);
+          hls.attachMedia(video);
         } // close slice 09 reuse else-branch
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {

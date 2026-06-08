@@ -8,8 +8,8 @@
  * self-clears 3s after the last error. In-memory only.
  */
 
-import { logger } from "../../logging/logger";
 import type { Platform } from "../../../shared/auth-types";
+import { logger } from "../../logging/logger";
 
 export type PlatformHealth = "healthy" | "degraded" | "down";
 
@@ -61,8 +61,22 @@ interface PlatformState {
 }
 
 const states: Record<Platform, PlatformState> = {
-  kick: { outcomes: [], status: "healthy", startedAt: 0, downUntil: 0, netErrorTimestamps: [], statusPageSignal: "no-signal" },
-  twitch: { outcomes: [], status: "healthy", startedAt: 0, downUntil: 0, netErrorTimestamps: [], statusPageSignal: "no-signal" },
+  kick: {
+    outcomes: [],
+    status: "healthy",
+    startedAt: 0,
+    downUntil: 0,
+    netErrorTimestamps: [],
+    statusPageSignal: "no-signal",
+  },
+  twitch: {
+    outcomes: [],
+    status: "healthy",
+    startedAt: 0,
+    downUntil: 0,
+    netErrorTimestamps: [],
+    statusPageSignal: "no-signal",
+  },
 };
 
 const listeners = new Set<(event: PlatformHealthEvent) => void>();
@@ -86,8 +100,18 @@ function evaluate(platform: Platform, now: number): void {
 
   state.status = "degraded";
   state.startedAt = now;
-  logger.warn("PlatformHealth", `${platform} degraded: ${failures}/${state.outcomes.length} requests failed in last 60s. Backing off.`);
-  emit({ platform, status: "degraded", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source: "internal" });
+  logger.warn(
+    "PlatformHealth",
+    `${platform} degraded: ${failures}/${state.outcomes.length} requests failed in last 60s. Backing off.`
+  );
+  emit({
+    platform,
+    status: "degraded",
+    startedAt: now,
+    sampleSize: state.outcomes.length,
+    failureRate: rate,
+    source: "internal",
+  });
 }
 
 function getEffectiveCooldown(state: PlatformState): number {
@@ -115,7 +139,14 @@ function evaluateRecovery(platform: Platform, now: number): void {
   state.startedAt = now;
   state.statusPageSignal = "no-signal";
   logger.warn("PlatformHealth", `${platform} recovered after ${degradedDurationSec}s`);
-  emit({ platform, status: "healthy", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source });
+  emit({
+    platform,
+    status: "healthy",
+    startedAt: now,
+    sampleSize: state.outcomes.length,
+    failureRate: rate,
+    source,
+  });
 }
 
 function emit(event: PlatformHealthEvent): void {
@@ -167,7 +198,14 @@ export function recordPlatformLocalNetError(platform: Platform): void {
       const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
       const rate = state.outcomes.length > 0 ? failures / state.outcomes.length : 1;
       logger.warn("PlatformHealth", `${platform} down: local network crash detected`);
-      emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source: "internal" });
+      emit({
+        platform,
+        status: "down",
+        startedAt: now,
+        sampleSize: state.outcomes.length,
+        failureRate: rate,
+        source: "internal",
+      });
     }
   }
 }
@@ -185,7 +223,14 @@ export function recordPlatformCrash(platform: Platform): void {
     const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
     const rate = state.outcomes.length > 0 ? failures / state.outcomes.length : 1;
     logger.warn("PlatformHealth", `${platform} down: local network crash detected`);
-    emit({ platform, status: "down", startedAt: now, sampleSize: state.outcomes.length, failureRate: rate, source: "internal" });
+    emit({
+      platform,
+      status: "down",
+      startedAt: now,
+      sampleSize: state.outcomes.length,
+      failureRate: rate,
+      source: "internal",
+    });
   }
 }
 

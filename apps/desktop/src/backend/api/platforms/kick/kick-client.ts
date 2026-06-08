@@ -22,6 +22,7 @@ import { clients } from "../../unified/registry";
 // Re-export common types for compatibility
 export type { PaginatedResult, PaginationOptions } from "./kick-types";
 
+import { isPlatformHealthy, recordPlatformLocalNetError } from "../../unified/platform-health";
 // Import endpoints
 import * as CategoryEndpoints from "./endpoints/category-endpoints";
 import * as ChannelEndpoints from "./endpoints/channel-endpoints";
@@ -31,7 +32,6 @@ import * as SearchEndpoints from "./endpoints/search-endpoints";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
-import { isPlatformHealthy, recordPlatformLocalNetError } from "../../unified/platform-health";
 import { acquireKickRequestSlot } from "./kick-network-health";
 import type { KickRequestor } from "./kick-requestor";
 import type { KickApiUser, PaginatedResult, PaginationOptions } from "./kick-types";

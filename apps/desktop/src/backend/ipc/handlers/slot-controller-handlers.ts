@@ -9,6 +9,8 @@
  */
 
 import { type BrowserWindow, ipcMain } from "electron";
+import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import type { SlotEvent } from "../../../shared/slot-types";
 import {
   getSlotView,
   onSlotEvent,
@@ -16,8 +18,6 @@ import {
   setSlotPresence,
 } from "../../api/unified/slot-controller";
 import { logger } from "../../logging/logger";
-import { IPC_CHANNELS } from "../../../shared/ipc-channels";
-import type { SlotEvent } from "../../../shared/slot-types";
 
 function sendToWebContents(
   webContents: Electron.WebContents | undefined,

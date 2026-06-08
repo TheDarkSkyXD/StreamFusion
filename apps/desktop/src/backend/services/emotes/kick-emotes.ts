@@ -5,11 +5,11 @@
  * subscriber emotes.
  */
 
+import { api } from "@/lib/api-client";
 // Cross-logger: this module is imported by renderer code via the emotes
 // barrel. Using @/backend/logging/logger would drag electron-log/main into
 // the renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
-import { api } from "@/lib/api-client";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
 /** Kick emote structure from API */

@@ -1,0 +1,36 @@
+# Force LF line endings on text source files. Biome (apps/desktop/biome.json)
+# pins `lineEnding: "lf"`, so a CRLF-checked-out file fails `biome format`
+# even on a clean tree. This file makes git store + check out matching paths
+# with LF on every platform, eliminating the Windows CRLF drift.
+#
+# Apply broadly to all common text formats. Binary assets stay binary. See
+# https://git-scm.com/docs/gitattributes for the matcher syntax.
+
+*               text=auto eol=lf
+
+# Explicit binary exceptions — never let `text=auto` decide on these.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.icns          binary
+*.webp          binary
+*.woff          binary
+*.woff2         binary
+*.ttf           binary
+*.otf           binary
+*.eot           binary
+*.mp4           binary
+*.webm          binary
+*.zip           binary
+*.gz            binary
+*.tgz           binary
+*.7z            binary
+*.exe           binary
+*.dll           binary
+*.dmg           binary
+*.snap          binary
+*.AppImage      binary
+*.deb           binary
+*.rpm           binary

@@ -15,7 +15,6 @@
  * source of truth until slice 06's full migration + dogfood sign-off.
  */
 
-import { getWebContentsViewFactory, type SlotView } from "./webcontents-view-factory";
 import type {
   LoadStreamPayload,
   SlotBufferConfig,
@@ -23,6 +22,7 @@ import type {
   SlotPresence,
   SlotQualityConfig,
 } from "../../../shared/slot-types";
+import { getWebContentsViewFactory, type SlotView } from "./webcontents-view-factory";
 
 interface SlotRecord {
   id: string;
@@ -53,9 +53,7 @@ export function createSlot(id: string): void {
   if (slots.has(id)) return;
   if (slots.size >= maxSlots) return;
   const presence: SlotPresence = slots.size === 0 ? "focused" : "background";
-  const view: SlotView | null = useWebContentsViews
-    ? getWebContentsViewFactory().create({})
-    : null;
+  const view: SlotView | null = useWebContentsViews ? getWebContentsViewFactory().create({}) : null;
   slots.set(id, { id, presence, view });
 }
 

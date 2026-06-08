@@ -148,7 +148,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
     <div
       data-testid="info-banner"
       data-platform={platform}
-      className="flex items-center gap-1 px-2 py-0.5 text-sm font-semibold text-[var(--color-foreground,#EFEFF1)] bg-[var(--color-background-secondary,#1a1a1d)] border border-b-0 border-[var(--color-border,rgba(83,83,95,0.48))] rounded-t-md"
+      className="flex items-center gap-1 px-2 py-0.5 text-sm font-semibold text-[var(--color-foreground,#EFEFF1)] bg-[#262626] border border-b-0 border-[var(--color-border,rgba(83,83,95,0.48))] rounded-t-md"
     >
       <Tooltip>
         <TooltipTrigger asChild>

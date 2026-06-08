@@ -2,12 +2,8 @@ import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
-import {
-  recordPlatformFailure,
-  recordPlatformSuccess,
-} from "../../unified/platform-health";
-
 import type { PlatformFailureClass } from "../../unified/platform-health";
+import { recordPlatformFailure, recordPlatformSuccess } from "../../unified/platform-health";
 import type { TwitchClientError } from "./twitch-types";
 
 export class TwitchRequestor {
@@ -251,7 +247,19 @@ export class TwitchRequestor {
 
       const errorWithCause = error as Error & { cause?: { code?: string }; code?: string };
       const code = errorWithCause.cause?.code || errorWithCause.code;
-      if (code && ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED", "ENETUNREACH", "EHOSTUNREACH", "EPIPE", "EAI_AGAIN"].includes(code)) {
+      if (
+        code &&
+        [
+          "ECONNRESET",
+          "ETIMEDOUT",
+          "ENOTFOUND",
+          "ECONNREFUSED",
+          "ENETUNREACH",
+          "EHOSTUNREACH",
+          "EPIPE",
+          "EAI_AGAIN",
+        ].includes(code)
+      ) {
         return code === "ETIMEDOUT" ? "timeout" : "net-error";
       }
 

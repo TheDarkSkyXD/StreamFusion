@@ -18,8 +18,8 @@
 import { BrowserWindow } from "electron";
 
 import { logger } from "@/backend/logging/logger";
-import { isPlatformHealthy } from "../../../unified/platform-health";
 import type { KickPinnedMessage } from "../../../../../shared/chat-types";
+import { isPlatformHealthy } from "../../../unified/platform-health";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
 
 import { acquireBrowserWindowSlot } from "./channel-endpoints";

@@ -7,6 +7,11 @@
  * never change.
  */
 
+import type {
+  LoadStreamPayload,
+  SlotBufferConfig,
+  SlotQualityConfig,
+} from "../../../shared/slot-types";
 import {
   createSlot,
   destroySlot,
@@ -16,11 +21,6 @@ import {
   dispatchSetQuality,
   dispatchUnload,
 } from "./slot-controller";
-import type {
-  LoadStreamPayload,
-  SlotBufferConfig,
-  SlotQualityConfig,
-} from "../../../shared/slot-types";
 
 export interface SlotHost {
   readonly id: string;

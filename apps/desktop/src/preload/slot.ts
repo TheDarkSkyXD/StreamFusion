@@ -15,11 +15,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import { IPC_CHANNELS } from "../shared/ipc-channels";
-import type {
-  LoadStreamPayload,
-  SlotBufferConfig,
-  SlotQualityConfig,
-} from "../shared/slot-types";
+import type { LoadStreamPayload, SlotBufferConfig, SlotQualityConfig } from "../shared/slot-types";
 
 /** Payload emitted by the slot back to main on a fatal-shape crash. */
 export interface SlotCrashedPayload {
@@ -56,9 +52,7 @@ const slotAPI = {
     ipcRenderer.on(IPC_CHANNELS.SLOT_LOAD_STREAM, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.SLOT_LOAD_STREAM, handler);
   },
-  onSetMute: (
-    callback: (payload: { slotId: string; muted: boolean }) => void
-  ): (() => void) => {
+  onSetMute: (callback: (payload: { slotId: string; muted: boolean }) => void): (() => void) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
       payload: { slotId: string; muted: boolean }

@@ -655,7 +655,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         retriedUrls.add(url);
         // Jittered ~200ms retry. Spread retries out so a 7TV CDN hiccup that
         // dropped the original batch doesn't get hit by N synchronous retries.
-        const delay = 200 + Math.floor(((url.length * 13) % 200)); // deterministic 200-400ms jitter
+        const delay = 200 + Math.floor((url.length * 13) % 200); // deterministic 200-400ms jitter
         // timer-allowlist: one-shot retry for a single failed prefetch Image (SP2 out-of-scope)
         const handle = window.setTimeout(() => {
           retryTimeouts.delete(handle);
