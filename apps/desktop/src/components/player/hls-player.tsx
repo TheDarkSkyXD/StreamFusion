@@ -88,6 +88,44 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     // Expose video ref to parent
     useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
 
+    // Mount-only HLS instance lifecycle (slice 09 of renderer-OOM PRD #51).
+    // Owns the destroy(). On src change the src-change effect just calls
+    // detachMedia()->loadSource(newSrc)->attachMedia() to reuse the existing
+    // instance, avoiding the decoder re-init cost on channel-hop. The actual
+    // construction lives in the src-change effect below — this effect only
+    // tears down on true unmount.
+    useEffect(() => {
+      return () => {
+        const hls = hlsRef.current;
+        if (hls) {
+          try {
+            hls.destroy();
+          } catch (_e) {
+            // Already destroyed by an in-handler error path; ignore.
+          }
+          hlsRef.current = null;
+        }
+        const video = videoRef.current;
+        if (video) {
+          // Force Chromium to release decoder/GPU buffers held by the <video>
+          // element. Skipped during app shutdown — Chromium frees everything
+          // when the process dies, and walking these synchronously can wedge
+          // a heap-pressured renderer's close path.
+          const isShuttingDown =
+            (window as unknown as { __shuttingDown?: boolean }).__shuttingDown === true;
+          if (!isShuttingDown) {
+            try {
+              video.pause();
+              video.removeAttribute("src");
+              video.load();
+            } catch {
+              // Element may already be torn down in StrictMode; ignore.
+            }
+          }
+        }
+      };
+    }, []);
+
     // Heartbeat: check every 5s that fragments are still arriving (fast offline detection).
     // Active only while heartbeatDelay is a number (set by MANIFEST_PARSED, cleared on teardown).
     useInterval(() => {
@@ -116,6 +154,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         });
         setHeartbeatDelay(null);
         hls.destroy();
+        hlsRef.current = null;
         onErrorRef.current?.({
           code: "NO_FRAGMENTS",
           message: "No video data received - stream may be offline or token expired",
@@ -133,6 +172,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         });
         setHeartbeatDelay(null);
         hls.destroy();
+        hlsRef.current = null;
         onErrorRef.current?.({
           code: "STREAM_OFFLINE",
           message: "Stream ended or became unavailable",
@@ -215,6 +255,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           );
           setStallWatchdogDelay(null);
           hls?.destroy();
+          hlsRef.current = null;
           onErrorRef.current?.({
             code: "DECODER_STALL",
             message: "Video decoder stalled — reloading stream",
@@ -463,6 +504,21 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             : DEFAULT_BUFFER_PREFERENCES
         );
 
+        // Slice 09 reuse: if an alive HLS instance exists from a prior src on
+        // this mount, swap its source via detachMedia()->loadSource()->attachMedia()
+        // instead of constructing a new instance + new decoder. Stale handlers
+        // capture old prop closures (autoPlay/currentLevel/onHlsInstance), so
+        // off-all and re-register below.
+        if (hlsRef.current) {
+          hls = hlsRef.current;
+          hls.off(Hls.Events.MANIFEST_PARSED);
+          hls.off(Hls.Events.ERROR);
+          hls.off(Hls.Events.FRAG_LOADED);
+          logger.debug("Player:HLS", "reusing HLS instance for new source", { src });
+          hls.detachMedia();
+          hls.loadSource(src);
+          hls.attachMedia(video);
+        } else {
         hls = new Hls({
           enableWorker: true,
           lowLatencyMode: bufferConfig.lowLatencyMode,
@@ -532,6 +588,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         logger.debug("Player:HLS", "initializing HLS", { src });
         hls.loadSource(src);
         hls.attachMedia(video);
+        } // close slice 09 reuse else-branch
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
           logger.debug("Player:HLS", "manifest parsed", { levels: data.levels.length });
@@ -607,6 +664,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           if (data.details === "manifestLoadError" && (statusCode === 404 || statusCode === 403)) {
             logger.debug("Player:HLS", "stream unavailable, stopping retries", { statusCode });
             hls?.destroy();
+            hlsRef.current = null;
             onErrorRef.current?.({
               code: "STREAM_OFFLINE",
               message: "Stream offline or unavailable",
@@ -621,6 +679,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           if (data.details === "manifestLoadError" && statusCode === 500) {
             logger.debug("Player:HLS", "proxy/server error, triggering fallback", { statusCode });
             hls?.destroy();
+            hlsRef.current = null;
             onErrorRef.current?.({
               code: "PROXY_ERROR",
               message: "Proxy server error (500)",
@@ -636,6 +695,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               statusCode: statusCode || "unknown",
             });
             hls?.destroy();
+            hlsRef.current = null;
             onErrorRef.current?.({
               code: "PROXY_ERROR",
               message: `Proxy error: ${statusCode || "manifest load failed"}`,
@@ -678,6 +738,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                   originalError: data,
                 });
                 hls?.destroy();
+                hlsRef.current = null;
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR: {
                 // Rate limit recovery attempts to prevent infinite recovery loops
@@ -702,6 +763,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                     originalError: data,
                   });
                   hls?.destroy();
+                  hlsRef.current = null;
                 }
                 break;
               }
@@ -714,6 +776,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                   originalError: data,
                 });
                 hls?.destroy();
+                hlsRef.current = null;
                 break;
             }
           } else {
@@ -780,6 +843,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               logger.debug("Player:HLS", "multiple fragment errors - token may have expired");
               setHeartbeatDelay(null);
               hls?.destroy();
+              hlsRef.current = null;
               onErrorRef.current?.({
                 code: "TOKEN_EXPIRED",
                 message: "Playback token may have expired - reload required",
@@ -885,12 +949,13 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         setMemoryCleanupDelay(null);
         setStallWatchdogDelay(null);
 
-        if (hls) {
-          hls.destroy();
-        }
-        hlsRef.current = null;
+        // Slice 09: HLS destruction + video element src-teardown moved to the
+        // mount-only effect above so the instance survives across src changes
+        // (channel-hop within a slot reuses the decoder).
 
-        // Remove event listeners from video element to prevent memory leaks
+        // Remove event listeners from video element to prevent memory leaks.
+        // These are scope-local to each effect run, so they DO need replacing
+        // every src change.
         if (currentVideo) {
           if (handleLoadedMetadata) {
             currentVideo.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -900,26 +965,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
           if (handlePlayReset) {
             currentVideo.removeEventListener("play", handlePlayReset);
-          }
-
-          // Force Chromium to release the underlying media decoder + GPU
-          // buffers. hls.destroy() drops the JS HLS state but the <video>
-          // element holds onto decoded frames until src is cleared and
-          // load() resets the resource. Frees 5-20 MB per stream nav.
-          //
-          // Skipped during app shutdown: Chromium frees everything when the
-          // process dies, and walking these synchronously can wedge the
-          // close path on a heap-pressured renderer.
-          const isShuttingDown =
-            (window as unknown as { __shuttingDown?: boolean }).__shuttingDown === true;
-          if (!isShuttingDown) {
-            try {
-              currentVideo.pause();
-              currentVideo.removeAttribute("src");
-              currentVideo.load();
-            } catch {
-              // Element may already be torn down in StrictMode — ignore.
-            }
           }
         }
       };
