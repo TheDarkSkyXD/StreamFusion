@@ -13,6 +13,29 @@ export interface MultiStreamConfig {
 
 export type LayoutMode = "grid" | "focus";
 
+/**
+ * BackgroundQuality controls how non-focused StreamSlots render in multiview.
+ * Persisted now (slice 03) so the slice 08 UI has a value to read against the
+ * same versioned migration. Behavior is wired in later slices (07 + 08).
+ *
+ * - `auto-low`: clamp background slots to <= 480p (the default, RAM-friendly).
+ * - `match-source`: background slots render at the same quality as the focused slot.
+ * - `off`: background slots are audio-only / no video render.
+ */
+export type BackgroundQuality = "auto-low" | "match-source" | "off";
+
+export const MULTIVIEW_CAP_MIN = 1;
+export const MULTIVIEW_CAP_MAX = 6;
+export const DEFAULT_MULTIVIEW_CAP = 4;
+export const DEFAULT_BACKGROUND_QUALITY: BackgroundQuality = "auto-low";
+
+/**
+ * Persisted schema version for the multistream-store. Bumped from 0 -> 1 in
+ * slice 03 to introduce `MultiviewCap` + `BackgroundQuality`. The migration
+ * preserves all prior user preferences (streams, chat target, chat openness).
+ */
+export const MULTISTREAM_STORE_VERSION = 1;
+
 interface MultiStreamState {
   // Streams
   streams: MultiStreamConfig[];
@@ -37,6 +60,74 @@ interface MultiStreamState {
   // Audio
   toggleMute: (streamId: string) => void;
   setVolume: (streamId: string, volume: number) => void;
+
+  // MultiviewCap (slice 03): user-configurable upper bound on simultaneous
+  // StreamSlots. Range MULTIVIEW_CAP_MIN..MULTIVIEW_CAP_MAX, default 4.
+  multiviewCap: number;
+  setMultiviewCap: (n: number) => void;
+
+  // BackgroundQuality (slice 03): persisted default for the SlotPresence quality
+  // clamp on background slots. UI to configure this ships in slice 08.
+  backgroundQuality: BackgroundQuality;
+  setBackgroundQuality: (q: BackgroundQuality) => void;
+}
+
+/** Clamp a number into the MultiviewCap range. */
+function clampMultiviewCap(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_MULTIVIEW_CAP;
+  const rounded = Math.round(n);
+  return Math.max(MULTIVIEW_CAP_MIN, Math.min(MULTIVIEW_CAP_MAX, rounded));
+}
+
+const VALID_BACKGROUND_QUALITIES: ReadonlySet<BackgroundQuality> = new Set([
+  "auto-low",
+  "match-source",
+  "off",
+]);
+
+function isBackgroundQuality(v: unknown): v is BackgroundQuality {
+  return typeof v === "string" && VALID_BACKGROUND_QUALITIES.has(v as BackgroundQuality);
+}
+
+/**
+ * Migrate a persisted multistream-store payload to the current schema.
+ * Pure function; exported so the persist middleware AND the migration test
+ * call it through the same seam.
+ *
+ * v0 -> v1: introduce MultiviewCap (default 4) and BackgroundQuality
+ * ('auto-low'). All other prior preferences are preserved as-is. Out-of-range
+ * values found in a partially-corrupt payload are clamped, not discarded.
+ */
+export function migrateMultiStreamState(
+  persisted: unknown,
+  _version: number
+): Pick<
+  MultiStreamState,
+  "streams" | "layout" | "isChatOpen" | "chatStreamId" | "multiviewCap" | "backgroundQuality"
+> {
+  const p = (persisted ?? {}) as Record<string, unknown>;
+
+  const streams = Array.isArray(p.streams) ? (p.streams as MultiStreamConfig[]) : [];
+  const layout: LayoutMode = p.layout === "focus" ? "focus" : "grid";
+  const isChatOpen = typeof p.isChatOpen === "boolean" ? p.isChatOpen : true;
+  const chatStreamId = typeof p.chatStreamId === "string" ? p.chatStreamId : null;
+
+  const rawCap = p.multiviewCap;
+  const multiviewCap =
+    typeof rawCap === "number" ? clampMultiviewCap(rawCap) : DEFAULT_MULTIVIEW_CAP;
+
+  const backgroundQuality = isBackgroundQuality(p.backgroundQuality)
+    ? p.backgroundQuality
+    : DEFAULT_BACKGROUND_QUALITY;
+
+  return {
+    streams,
+    layout,
+    isChatOpen,
+    chatStreamId,
+    multiviewCap,
+    backgroundQuality,
+  };
 }
 
 export const useMultiStreamStore = create<MultiStreamState>()(
@@ -47,10 +138,15 @@ export const useMultiStreamStore = create<MultiStreamState>()(
       focusedStreamId: null,
       isChatOpen: true,
       chatStreamId: null,
+      multiviewCap: DEFAULT_MULTIVIEW_CAP,
+      backgroundQuality: DEFAULT_BACKGROUND_QUALITY,
 
       addStream: (platform, channelName) =>
         set((state) => {
-          if (state.streams.length >= 6) return state; // Max 6 streams
+          // Cap is the user-configurable MultiviewCap, not a hard-coded 6.
+          // Reaching the cap is a hard stop — we do NOT silently truncate or
+          // evict an existing slot to make room.
+          if (state.streams.length >= state.multiviewCap) return state;
           const id = `${platform}-${channelName}`;
           if (state.streams.some((s) => s.id === id)) return state; // No duplicates
 
@@ -117,13 +213,24 @@ export const useMultiStreamStore = create<MultiStreamState>()(
         set((state) => ({
           streams: state.streams.map((s) => (s.id === streamId ? { ...s, volume } : s)),
         })),
+
+      // Clamp to the supported range. Caps below the current slot count are
+      // accepted: existing slots are not retroactively evicted; future
+      // addStream calls are blocked until the count is back under the cap.
+      setMultiviewCap: (n) => set({ multiviewCap: clampMultiviewCap(n) }),
+
+      setBackgroundQuality: (q) => set({ backgroundQuality: q }),
     }),
     {
       name: "multistream-storage",
+      version: MULTISTREAM_STORE_VERSION,
+      migrate: (persisted, version) => migrateMultiStreamState(persisted, version),
       partialize: (state) => ({
         streams: state.streams,
         layout: "grid",
         isChatOpen: state.isChatOpen,
+        multiviewCap: state.multiviewCap,
+        backgroundQuality: state.backgroundQuality,
       }),
     }
   )

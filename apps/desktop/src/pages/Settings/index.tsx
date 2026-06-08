@@ -13,6 +13,7 @@ import {
   LuFileText,
   LuGauge,
   LuKeyRound,
+  LuLayoutGrid,
   LuLink,
   LuMessageSquare,
   LuMonitor,
@@ -65,11 +66,17 @@ import {
 import type { CheckFrequency, TokenStatusResult } from "@/shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAuthStore } from "@/store/auth-store";
+import {
+  MULTIVIEW_CAP_MAX,
+  MULTIVIEW_CAP_MIN,
+  useMultiStreamStore,
+} from "@/store/multistream-store";
 
 const SETTINGS_TABS = [
   "playback",
   "player-controls",
   "buffer",
+  "multiview",
   "chat",
   "adblock",
   "proxy",
@@ -209,6 +216,17 @@ export function SettingsPage() {
   // Ad-block state
   const enableAdBlock = useAdBlockStore((state) => state.enableAdBlock);
   const setEnableAdBlock = useAdBlockStore((state) => state.setEnableAdBlock);
+
+  // Multiview state (slice 03). MultiviewCap is the user-configurable upper
+  // bound on simultaneous StreamSlots; BackgroundQuality is read elsewhere
+  // (UI for it ships in slice 08, this tab only surfaces the cap today).
+  const multiviewCap = useMultiStreamStore((state) => state.multiviewCap);
+  const setMultiviewCap = useMultiStreamStore((state) => state.setMultiviewCap);
+  const activeStreamCount = useMultiStreamStore((state) => state.streams.length);
+  const handleMultiviewCapChange = (next: number) => {
+    setMultiviewCap(next);
+    notifySettingsSaved();
+  };
 
   // Updater state
   const {
@@ -472,6 +490,13 @@ export function SettingsPage() {
               description="Live latency & stability"
               isActive={activeTab === "buffer"}
               onClick={() => setActiveTab("buffer")}
+            />
+            <SidebarItem
+              icon={LuLayoutGrid}
+              label="Multiview"
+              description="Slot count & memory trade-off"
+              isActive={activeTab === "multiview"}
+              onClick={() => setActiveTab("multiview")}
             />
             <SidebarItem
               icon={LuMessageSquare}
@@ -804,6 +829,71 @@ export function SettingsPage() {
 
                 <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
                   Changes apply when the stream next loads.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Multiview Tab (slice 03) — exposes MultiviewCap. Background
+              stream quality lands here in slice 08; today this tab only
+              surfaces the cap slider. */}
+          {activeTab === "multiview" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Multiview</h2>
+                <p className="text-zinc-400">
+                  Set how many streams you can watch side by side, and how the app spends memory on
+                  background streams.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Multiview cap
+                  </h3>
+                </div>
+
+                <div className="px-6 py-2 divide-y divide-[#27272a]/60">
+                  <div className="flex items-center justify-between gap-4 py-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-200">Maximum concurrent streams</p>
+                      <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
+                        Each extra stream gets its own renderer process for crash isolation, so
+                        every step up costs real memory. Pick the lowest number you actually watch
+                        at once. Most viewers do well at 4. Bump it to 6 if you regularly run a full
+                        grid and have RAM to spare; drop to 2 on tight machines.
+                      </p>
+                      {activeStreamCount > multiviewCap && (
+                        <p className="text-xs text-amber-400 mt-2">
+                          You have {activeStreamCount} streams open. Lowering the cap below the
+                          current count won't close any open streams; it only blocks new ones from
+                          being added.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <input
+                        type="range"
+                        min={MULTIVIEW_CAP_MIN}
+                        max={MULTIVIEW_CAP_MAX}
+                        step={1}
+                        value={multiviewCap}
+                        onChange={(e) =>
+                          handleMultiviewCapChange(Number.parseInt(e.target.value, 10))
+                        }
+                        className="w-40 accent-zinc-300"
+                        aria-label="Maximum concurrent streams"
+                      />
+                      <span className="w-16 text-right text-sm tabular-nums text-zinc-200">
+                        {multiviewCap} {multiviewCap === 1 ? "stream" : "streams"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
+                  Range: {MULTIVIEW_CAP_MIN}–{MULTIVIEW_CAP_MAX}. Default is 4.
                 </div>
               </div>
             </div>
