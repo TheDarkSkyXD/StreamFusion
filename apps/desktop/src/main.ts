@@ -38,6 +38,7 @@ import {
 import { startProcessMonitor } from "./backend/logging/process-monitor";
 import { redactObject } from "./backend/logging/redactor";
 import { pruneLogs } from "./backend/logging/rotation";
+import { installRendererCrashRecovery } from "./backend/recovery/renderer-crash-recovery";
 import {
   KICK_IMAGE_SCHEME,
   registerKickImageProtocol,
@@ -471,6 +472,7 @@ app.on("ready", async () => {
   });
 
   const mainWindow = windowManager.createMainWindow();
+  installRendererCrashRecovery({ webContents: mainWindow.webContents });
 
   // Tear down every other BrowserWindow when the main window starts to close.
   // Any hidden helper window (Kick send-window, OAuth popup, future scraper)
@@ -521,6 +523,7 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     const mainWindow = windowManager.createMainWindow();
+    installRendererCrashRecovery({ webContents: mainWindow.webContents });
     cosmeticInjectionService.injectIntoWindow(mainWindow);
     registerIpcHandlers(mainWindow);
   }
@@ -608,49 +611,29 @@ app.on("web-contents-created", (_event, contents) => {
 
 // ============================================================================
 // CRASH RECOVERY
-// Auto-recover from renderer crashes during long streaming sessions.
-// Video decoding + HLS buffers can cause renderer OOM after many hours.
+// GPU / utility child-process loss is mirrored into PlatformHealth so in-flight
+// retry loops bail out fast instead of cascading net::ERR_FAILED. Host
+// renderer auto-reload on oom/killed lives in `installRendererCrashRecovery`
+// (wired against `mainWindow.webContents` above). Structured logging of every
+// `render-process-gone` event is owned by `installCrashHooks` (CrashHooks tag).
 // ============================================================================
 app.on("child-process-gone", (_event, details) => {
-  console.warn(`[Main] Child process gone: type=${details.type}, reason=${details.reason}`);
-
   if (details.type === "GPU") {
-    // GPU process crash — Chromium will auto-restart it.
-    // The network service typically follows the GPU down on Windows, so
-    // pre-emptively mark both platforms as down to avoid hammering the
-    // recovering services with a thundering-herd of net::ERR_FAILED retries.
-    console.warn("[Main] GPU process crashed - Chromium will auto-restart");
+    // GPU process crash — Chromium will auto-restart it. The network service
+    // typically follows the GPU down on Windows, so pre-emptively mark both
+    // platforms as down to avoid hammering the recovering services with a
+    // thundering-herd of net::ERR_FAILED retries.
     void import("./backend/api/unified/platform-health").then((m) => {
       m.recordPlatformCrash("kick");
       m.recordPlatformCrash("twitch");
     });
   } else if (details.type === "Utility") {
-    // Utility process (e.g. network service) — usually auto-restarts.
-    // Mark both platforms as down so in-flight retry loops bail out fast
-    // instead of cascading ERR_FAILED across every followed channel.
-    console.warn("[Main] Utility process crashed");
+    // Utility process (e.g. network service) — usually auto-restarts. Mark
+    // both platforms as down so in-flight retry loops bail out fast instead
+    // of cascading ERR_FAILED across every followed channel.
     void import("./backend/api/unified/platform-health").then((m) => {
       m.recordPlatformCrash("kick");
       m.recordPlatformCrash("twitch");
     });
   }
-  // Note: Renderer crashes are handled by 'render-process-gone' on webContents
-  // We log here for telemetry but don't need manual recovery for renderers
-  // since the user would need to reload the page anyway
-});
-
-// Handle renderer process crashes with more detail
-app.on("web-contents-created", (_event, contents) => {
-  contents.on("render-process-gone", (_e, details) => {
-    console.error(
-      `[Main] Renderer crashed: reason=${details.reason}, exitCode=${details.exitCode}`
-    );
-
-    // If OOM killed, log for debugging
-    if (details.reason === "oom" || details.reason === "killed") {
-      console.error(
-        "[Main] Renderer was OOM killed - consider reducing buffer sizes or using BrowserView isolation for video"
-      );
-    }
-  });
 });
