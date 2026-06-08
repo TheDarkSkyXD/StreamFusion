@@ -42,12 +42,21 @@ RIGHT (vertical):
 
 ## Workflow
 
+### 0. Read local test conventions (do this first, every time)
+
+Before planning, read the project's local test rules. Walk up from the test file's directory looking for `tests/AGENTS.md` (or `tests/CLAUDE.md`) and read it; also read the root `AGENTS.md` TESTING section. These files define the project-specific bar — `// Guards:` comment conventions, regression-on-bug verification procedures, per-file speed budgets, duplicate-consolidation rules, failure-coverage tiers, do-not-delete lists — that extends or sharpens the generic philosophy in this skill.
+
+If no project-local test rules exist, this step is a no-op and the generic workflow below applies as-is. The skill stays portable across projects.
+
+**Why this is step 0:** the philosophy below ("test behavior, not internals") is the floor. The project's local rules tell you what THAT means in this codebase — which regression classes are load-bearing, which patterns are forbidden, what comment every new test must carry. Skipping local rules produces tests that pass surface review but miss the contracts the project has already paid for in past bugs.
+
 ### 1. Planning
 
 When exploring the codebase, use the project's domain glossary so that test names and interface vocabulary match the project's language, and respect ADRs in the area you're touching.
 
 Before writing any code:
 
+- [ ] Project-local test rules from step 0 have been read and are reflected in the plan below
 - [ ] Confirm with user what interface changes are needed
 - [ ] Confirm with user which behaviors to test (prioritize)
 - [ ] Identify opportunities for [deep modules](deep-modules.md) (small interface, deep implementation)
