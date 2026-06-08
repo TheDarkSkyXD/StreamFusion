@@ -31,4 +31,14 @@ Non-critical-path test coverage gaps and source bugs discovered during the [test
 
 ---
 
+### Flaky parallel-execution race in `bug-report-handlers.test.ts` — 2026-06-08 (U20.c)
+
+> Discovered during U20.c backend sweep. `tests/backend/ipc/handlers/bug-report-handlers.test.ts` reported "1 failed" during one of several parallel vitest runs (6,117 ms wall) but passes deterministically in isolation (237 ms tests / 2.47 s total wall). Pre-existing — not introduced by U20.c.
+>
+> **Hypothesis:** shared global state (likely `ipcMain.handle` registration, file-system path, or environment variable) leaks across files when worker threads run concurrently with neighboring backend tests.
+>
+> **Out of U20 scope** because (a) reproducing requires a specific parallel-execution ordering that the in-isolation run does not surface, and (b) the symptom is in pre-existing test infrastructure, not in any code U20 touched. The U20 final full-suite run is the authoritative green/red signal for U20.
+
+---
+
 <!-- Append more entries per batch as gaps are discovered. -->
