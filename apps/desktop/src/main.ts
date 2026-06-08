@@ -46,6 +46,7 @@ import {
   registerTwitchImageProtocol,
   TWITCH_IMAGE_SCHEME,
 } from "./backend/protocols/twitch-image-protocol";
+import { attachCertVerifyDiagToAllSessions } from "./backend/services/cert-verify-diagnostics";
 import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
 import { dbService } from "./backend/services/database-service";
 import { networkAdBlockService } from "./backend/services/network-adblock-service";
@@ -403,20 +404,10 @@ app.on("ready", async () => {
   // Mark session as started (remove sentinel until clean shutdown)
   markSessionStarted();
 
-  // Cert-error diagnostic logger. The C++ ssl_client_socket layer logs net errors
-  // without the URL — this hook captures the hostname on failures. callback(-3)
-  // uses the platform default; we never override trust. Tag [cert-debug-r8a2]
-  // makes the block grep-removable once we identify the offending host.
-  session.defaultSession.setCertificateVerifyProc((request, callback) => {
-    if (request.errorCode !== 0 || request.verificationResult !== "net::OK") {
-      console.warn(
-        `[cert-debug-r8a2] Cert validation issue for ${request.hostname}: ` +
-          `errorCode=${request.errorCode}, verificationResult=${request.verificationResult}, ` +
-          `isIssuedByKnownRoot=${request.isIssuedByKnownRoot}`
-      );
-    }
-    callback(-3);
-  });
+  // Cert-error diagnostic logger. Custom partitions + the utility/network
+  // process never touch session.defaultSession, so the proc has to fan out
+  // across every session — see cert-verify-diagnostics.ts for details.
+  attachCertVerifyDiagToAllSessions(app, session.defaultSession);
 
   // Wake-aware Twitch refresh. A laptop that slept across the token's
   // expiry can leave the proactive setTimeout running stale and IRC torn

@@ -19,6 +19,7 @@
  * raised around the logger call so the nested write skips re-entry.
  */
 
+import { isHarmlessChromiumNoise } from "@/backend/logging/chromium-noise-filter";
 import { logger } from "@/backend/logging/logger";
 
 export interface InstallOpts {
@@ -66,7 +67,10 @@ function routeLine(line: string, tag: string): void {
   if (trimmed.length === 0) return;
   const match = CHROMIUM_PREFIX.exec(trimmed);
   if (match) {
-    const level = LEVEL_MAP[match[1] as ChromiumLevel];
+    let level = LEVEL_MAP[match[1] as ChromiumLevel];
+    // Demote known-harmless GPU / DevTools probe noise so it doesn't drown
+    // real errors in the session log.
+    if (isHarmlessChromiumNoise(trimmed)) level = "debug";
     logger[level]("Chromium", trimmed);
     return;
   }

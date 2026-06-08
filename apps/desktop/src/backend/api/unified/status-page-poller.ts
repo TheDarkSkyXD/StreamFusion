@@ -1,4 +1,6 @@
+import { createManagedInterval } from "../../../lib/managed-interval";
 import type { Platform } from "../../../shared/auth-types";
+import { logger } from "../../logging/logger";
 import {
   onPlatformHealthChanged,
   recordStatusPageSignal,
@@ -14,11 +16,12 @@ const KICK_STATUS_URL = "https://status.kick.com/api/v2/status.json";
 
 const RESOLVED_STATUSES = new Set(["resolved", "postmortem"]);
 
-const pollers = new Map<Platform, ReturnType<typeof setInterval>>();
+const pollers = new Map<Platform, ReturnType<typeof createManagedInterval>>();
 
 async function pollTwitchStatus(): Promise<StatusPageSignal> {
+  let url = TWITCH_STATUS_URL;
   try {
-    const statusRes = await fetch(TWITCH_STATUS_URL, { signal: AbortSignal.timeout(10_000) });
+    const statusRes = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!statusRes.ok) return "no-signal";
 
     const statusJson = await statusRes.json();
@@ -26,7 +29,8 @@ async function pollTwitchStatus(): Promise<StatusPageSignal> {
 
     if (indicator === "none") return "all-clear";
 
-    const incidentsRes = await fetch(TWITCH_INCIDENTS_URL, { signal: AbortSignal.timeout(10_000) });
+    url = TWITCH_INCIDENTS_URL;
+    const incidentsRes = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!incidentsRes.ok) return "no-signal";
 
     const incidentsJson = await incidentsRes.json();
@@ -40,14 +44,16 @@ async function pollTwitchStatus(): Promise<StatusPageSignal> {
     );
 
     return unresolvedWithApi ? "confirmed-outage" : "all-clear";
-  } catch {
+  } catch (err) {
+    logger.warn("StatusPoller", "[poller-r9c2] fetch failed", { url, err: String(err) });
     return "no-signal";
   }
 }
 
 async function pollKickStatus(): Promise<StatusPageSignal> {
+  const url = KICK_STATUS_URL;
   try {
-    const res = await fetch(KICK_STATUS_URL, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return "no-signal";
 
     const json = await res.json();
@@ -56,7 +62,8 @@ async function pollKickStatus(): Promise<StatusPageSignal> {
     if (indicator === "none") return "all-clear";
 
     return "confirmed-outage";
-  } catch {
+  } catch (err) {
+    logger.warn("StatusPoller", "[poller-r9c2] fetch failed", { url, err: String(err) });
     return "no-signal";
   }
 }
@@ -69,14 +76,17 @@ async function pollPlatform(platform: Platform): Promise<void> {
 function startPoller(platform: Platform): void {
   if (pollers.has(platform)) return;
   void pollPlatform(platform);
-  const id = setInterval(() => void pollPlatform(platform), STATUS_PAGE_POLL_INTERVAL_MS);
-  pollers.set(platform, id);
+  const handle = createManagedInterval(
+    () => void pollPlatform(platform),
+    STATUS_PAGE_POLL_INTERVAL_MS
+  );
+  pollers.set(platform, handle);
 }
 
 function stopPoller(platform: Platform): void {
-  const id = pollers.get(platform);
-  if (id != null) {
-    clearInterval(id);
+  const handle = pollers.get(platform);
+  if (handle != null) {
+    handle.stop();
     pollers.delete(platform);
   }
 }
@@ -92,6 +102,6 @@ export function initStatusPagePoller(): void {
 }
 
 export function __resetStatusPagePollerForTests(): void {
-  for (const [, id] of pollers) clearInterval(id);
+  for (const [, handle] of pollers) handle.stop();
   pollers.clear();
 }

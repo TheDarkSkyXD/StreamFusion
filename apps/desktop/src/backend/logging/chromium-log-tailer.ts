@@ -25,6 +25,7 @@
 
 import fs from "node:fs";
 
+import { isHarmlessChromiumNoise } from "@/backend/logging/chromium-noise-filter";
 import { logger } from "@/backend/logging/logger";
 
 export interface ChromiumLogTailerOpts {
@@ -58,7 +59,10 @@ function routeLine(line: string): void {
     // Drop silently.
     return;
   }
-  const level = LEVEL_MAP[match[1] as ChromiumLevel];
+  let level = LEVEL_MAP[match[1] as ChromiumLevel];
+  // Demote known-harmless GPU / DevTools probe noise to debug so it stops
+  // pretending to be an actionable error in the session log.
+  if (isHarmlessChromiumNoise(trimmed)) level = "debug";
   logger[level]("Chromium", trimmed);
 }
 
