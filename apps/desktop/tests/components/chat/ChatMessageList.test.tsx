@@ -38,14 +38,19 @@ vi.mock('react-virtuoso', () => ({
 
 import { ChatMessageList } from '@/components/chat/ChatMessageList';
 
+// Guards: empty state (no messages yet) must still render the virtuoso container so the layout doesn't collapse and the next message has somewhere to mount
+// Guards: isPaused overlay must render the "Chat paused due to scroll" banner so the viewer can recover bottom-pin scrolling without reloading
+// Guards: setPaused(false) must fire on mount so a reconnect doesn't strand the list in a paused state from the prior session
 describe('ChatMessageList', () => {
-  it('renders an empty list when no messages', () => {
+  it('empty: renders the virtuoso container even with no messages', () => {
     mockState.messages = [];
+    mockState.isPaused = false;
     const { getByTestId } = render(<ChatMessageList />);
     expect(getByTestId('virtuoso')).toBeInTheDocument();
   });
 
   it('renders one row per message', () => {
+    mockState.isPaused = false;
     mockState.messages = [
       // biome-ignore lint/suspicious/noExplicitAny: test shape
       { id: 'a', username: 'u1', displayName: 'User 1' } as any,
@@ -58,7 +63,16 @@ describe('ChatMessageList', () => {
 
   it('clears paused state on mount', () => {
     mockState.messages = [];
+    mockState.isPaused = false;
     render(<ChatMessageList />);
     expect(setPaused).toHaveBeenCalledWith(false);
+  });
+
+  it('isPaused: renders the paused overlay banner so the viewer can scroll back to live', () => {
+    mockState.messages = [];
+    mockState.isPaused = true;
+    const { getByText } = render(<ChatMessageList />);
+    // The default (non-hover) banner copy is "Chat paused due to scroll".
+    expect(getByText(/chat paused due to scroll/i)).toBeInTheDocument();
   });
 });

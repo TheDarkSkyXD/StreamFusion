@@ -87,6 +87,10 @@ function resetSearchMock() {
   searchMockState.categoriesFetchNextPage = vi.fn(() => Promise.resolve());
 }
 
+// Guards: loading state — debounced fetch in flight (useDebounce stub returns the value immediately here) lets the dropdown still mount on focus while the next page resolves
+// Guards: error/empty state — useSearchChannels / useSearchCategories returning empty pages leaves the dropdown without items; "See all results" CTA still renders so users have a way forward
+// Guards: 100-cap pagination class — when combined results hit the cap AND more remain, footer flips to "Show more"; the auto-fetch on near-bottom scroll halts (otherwise the dropdown would re-fetch indefinitely)
+// Guards: dedup absorption — when a page arrives with zero net new IDs (Twitch re-serves under a fresh cursor), the dropdown must not auto-fetch the next page. Without this the dropdown loops forever
 describe('UnifiedSearchInput', () => {
   beforeEach(() => {
     resetSearchMock();

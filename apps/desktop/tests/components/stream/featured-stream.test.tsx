@@ -10,8 +10,11 @@ vi.mock('@/components/ui/proxied-image', () => ({
 
 import { FeaturedStream } from '@/components/stream/featured-stream';
 
+// Guards: loading state — render skeleton variant when isLoading=true so the featured slot doesn't flash a "no stream" panel before data lands
+// Guards: error/no-data state — renders null when no stream is provided and not loading; parent decides whether to mount a fallback featured banner or hide entirely
+// Guards: success state — stream title + live badge render for a provided stream; users see what's live in the hero panel
 describe('FeaturedStream', () => {
-  it('renders loading skeleton when isLoading', () => {
+  it('loading: renders skeleton variant when isLoading=true', () => {
     const { container } = renderWithProviders(<FeaturedStream isLoading={true} />);
     expect(container.querySelector('[class*="rounded-xl"]')).toBeInTheDocument();
   });

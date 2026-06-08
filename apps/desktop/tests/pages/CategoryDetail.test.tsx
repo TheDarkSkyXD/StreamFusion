@@ -48,6 +48,9 @@ function emptyInfinite() {
   } as unknown as ReturnType<typeof useInfiniteStreamsByCategory>;
 }
 
+// Guards: loading state — useCategoryById isLoading=true renders the .animate-pulse header skeleton so the page doesn't flash an empty header before the box art arrives
+// Guards: error state — useCategoryById returns data=undefined → category name "Unknown Category" surfaces; the streams grid still mounts so users can see live streams while the category metadata recovers
+// Guards: empty state — useInfiniteStreamsByCategory returns pages=[] for both primary + secondary → streams grid shows 0 streams; distinct from loading via the absent .animate-pulse
 describe('CategoryDetailPage', () => {
   beforeEach(() => {
     installElectronAPIMock();
@@ -56,7 +59,7 @@ describe('CategoryDetailPage', () => {
     useInfiniteStreamsByCategoryMock.mockReturnValue(emptyInfinite());
   });
 
-  it('renders the loading skeleton while category is loading', () => {
+  it('loading: renders the .animate-pulse header skeleton while category is loading', () => {
     useCategoryByIdMock.mockReturnValue({ data: undefined, isLoading: true } as ReturnType<typeof useCategoryById>);
     const { container } = renderWithProviders(<CategoryDetailPage />);
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
@@ -93,5 +96,32 @@ describe('CategoryDetailPage', () => {
     } as unknown as ReturnType<typeof useInfiniteStreamsByCategory>);
     renderWithProviders(<CategoryDetailPage />);
     expect(screen.getByTestId('stream-grid')).toHaveTextContent('2 streams');
+  });
+
+  it('error: useCategoryById returns data=undefined (Helix 5xx) → streams grid still mounts so users can browse live streams while metadata recovers', () => {
+    useCategoryByIdMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<typeof useCategoryById>);
+    useInfiniteStreamsByCategoryMock.mockReturnValue({
+      data: { pages: [{ data: [fixtures.stream({ id: 'a' })] }] },
+      isLoading: false,
+      isFetchingNextPage: false,
+      hasNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as ReturnType<typeof useInfiniteStreamsByCategory>);
+    renderWithProviders(<CategoryDetailPage />);
+    expect(screen.getByTestId('stream-grid')).toHaveTextContent('1 streams');
+  });
+
+  it('empty: no live streams in either platform fan-out → grid renders the empty-message branch (distinct from loading via absent .animate-pulse)', () => {
+    useCategoryByIdMock.mockReturnValue({
+      data: fixtures.category({ name: 'Empty Cat' }),
+      isLoading: false,
+    } as ReturnType<typeof useCategoryById>);
+    // Default emptyInfinite() returns pages=[] — both calls. The mocked
+    // StreamGrid renders its `emptyMessage` prop when streams.length === 0.
+    const { container } = renderWithProviders(<CategoryDetailPage />);
+    expect(screen.getByTestId('stream-grid')).toHaveTextContent(/no active streams found/i);
+    // The category header skeleton must NOT be on screen — distinguishes
+    // empty-but-loaded from still-loading.
+    expect(container.querySelector('.animate-pulse')).toBeNull();
   });
 });

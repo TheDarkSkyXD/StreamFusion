@@ -14,6 +14,9 @@ vi.mock('@/store/follow-store', () => ({
 
 import { AuthProvider } from '@/components/auth/AuthProvider';
 
+// Guards: loading state — useAuthInitialize hasn't resolved → render the fallback (or null) instead of leaking the children with undefined auth context behind them
+// Guards: error state — token validation fail surfaces as initialized=true with no user; the children render, the auth-store flips to logged-out, hydrate still runs (no leftover follows from a prior session). The component's contract is "never block app boot on auth failure"
+// Guards: hydrate-on-init — follow-store hydrate fires exactly once after initialization; missing this leaks follow state between sessions
 describe('AuthProvider', () => {
   beforeEach(() => {
     hydrate.mockReset();

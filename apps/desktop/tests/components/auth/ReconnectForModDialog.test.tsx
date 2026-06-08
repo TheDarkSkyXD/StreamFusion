@@ -66,6 +66,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// Guards: every U4 scope plus U7 pin scopes + the two unban-requests scopes — adding/removing a scope here is a contract change for the entire mod console; the dialog must continue to enumerate them all
+// Guards: unknown-scope fallback — an unrecognized scope id renders as raw text (not silently dropped), so an outdated build never hides a scope it doesn't know about
+// Guards: reconnect order — logoutTwitch fires before loginTwitch (verified via invocation order); skipping logout would leak the prior session's scopes
+// Guards: error path — login throws after a successful logout: dialog must stay open and onReconnected NOT fire so the user can retry and the registered retry callback isn't burned prematurely
+// Guards: "Not now" path — closing without reconnecting preserves the registered onReconnected callback so a later successful reconnect still fires it
 describe("ReconnectForModDialog", () => {
   it("renders nothing when isOpen=false", () => {
     render(<ReconnectForModDialog />);
@@ -156,6 +161,39 @@ describe("ReconnectForModDialog", () => {
       useReconnectDialogStore.getState().fireReconnected();
     });
     expect(onReconnected).toHaveBeenCalledTimes(1);
+  });
+
+  it("error: login throws after logout succeeds → onReconnected MUST NOT fire and dialog stays open", async () => {
+    const onReconnected = vi.fn();
+    // login rejects; logout still resolves.
+    loginTwitch.mockImplementationOnce(async () => {
+      throw new Error("OAuth window closed");
+    });
+    render(<ReconnectForModDialog />);
+    act(() => {
+      useReconnectDialogStore.getState().open({
+        missingScopes: ["channel:manage:raids"],
+        onReconnected,
+      });
+    });
+
+    const origOnError = window.onerror;
+    window.onerror = () => true;
+    try {
+      fireEvent.click(screen.getByRole("button", { name: /^reconnect$/i }));
+      await waitFor(() => expect(logoutTwitch).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(loginTwitch).toHaveBeenCalledTimes(1));
+    } finally {
+      window.onerror = origOnError;
+    }
+
+    // onReconnected must never fire when login throws — the user hasn't yet
+    // re-granted scopes, so a callback that re-runs the mod action would
+    // re-fail in exactly the same way.
+    expect(onReconnected).not.toHaveBeenCalled();
+    // The registered callback survives so the next successful reconnect still
+    // fires it.
+    expect(useReconnectDialogStore.getState().onReconnected).toBe(onReconnected);
   });
 
   it("clicking Not now closes without invoking logout/login or the retry callback", () => {

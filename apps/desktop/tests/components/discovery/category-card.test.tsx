@@ -10,6 +10,9 @@ vi.mock('@/components/ui/proxied-image', () => ({
 
 import { CategoryCard } from '@/components/discovery/category-card';
 
+// Guards: viewerCount=0 / undefined hides the viewer-count label entirely; viewerCount>0 surfaces "Nk viewers" so users don't see "0 viewers" on a genuinely live category
+// Guards: name + box art render together — both are required for the card to be useful; missing either degrades to a "what category is this?" UX failure
+// Note: image-onError fallback is delegated to ProxiedImage; covered in its own tests (proxied-image mocks here keep the test fast)
 describe('CategoryCard', () => {
   beforeEach(() => {
     installElectronAPIMock();

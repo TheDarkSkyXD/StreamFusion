@@ -70,6 +70,11 @@ function setTwitchUser() {
   }));
 }
 
+// Guards: status transitions (ACTIVE → LOCKED → RESOLVED / CANCELED) drive distinct UI — Voting locked / Winner / Refunded copy must each surface so viewers can tell what happened
+// Guards: createdAt=null and LOCKED render a static / empty progress bar instead of throwing — guards the "no anchor / past window" edge cases the poller sometimes serves
+// Guards: ENDED_AUTO_DISMISS_MS (60s) must fire for RESOLVED, never for ACTIVE, and not bounce when the parent passes a fresh inline onAutoDismiss every render (P1-3 regression)
+// Guards: read-only contract — no vote form / deeplink in expanded state even when a Twitch user is signed in. The widget mirrors Twitch but never offers in-app voting
+// Exempt: no async branch in source — prediction data is delivered via prop from Twitch GQL / Kick Pusher. Loading + empty + error live in the upstream chat-services (TwitchChat / KickChat); when there's no active prediction, the parent simply omits the banner.
 describe("PredictionBanner (read-only viewer widget)", () => {
   it("renders collapsed by default with the platform-native CTA label (Twitch → 'See Details')", () => {
     render(<PredictionBanner prediction={makePrediction()} />);

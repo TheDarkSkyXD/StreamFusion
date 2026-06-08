@@ -31,6 +31,11 @@ function makePin(overrides: Partial<NormalizedPinnedMessage> = {}): NormalizedPi
   };
 }
 
+// Guards: pin metadata empty paths (pinnedBy=null → "Pinned message" fallback; sentAt=null → timestamp omitted; no badges → header still renders) must never throw — the banner is rendered eagerly while the GQL pin poller resolves
+// Guards: viewer vs mod role gating — mods see Unpin (with two-step confirm) and never see "Hide for yourself"; viewers see "Hide for yourself" only when expanded
+// Guards: AE3 unpin confirm flow — first click arms, second click within 5s fires onUnpin, auto-reverts otherwise. Guards regression cfb0033-area where an accidental unpin must require a second click
+// Guards: long-content paths (truncate-safe usernames, break-words body, break-all on link fragments) — the banner must not push siblings off-screen at multistream's ~280px slot floor
+// Exempt: no async branch in source — pin data is delivered via prop from the upstream Twitch GQL pin poller / Kick Pusher event. Loading/error live in the poller; the empty state ("no pinned message") is "parent omits the banner entirely", validated at PinnedMessageBanner's consumer (TwitchChat / KickChat).
 describe("PinnedMessageBanner", () => {
   it("renders pinnedBy label and content (no author prefix on body — Twitch-faithful)", () => {
     render(

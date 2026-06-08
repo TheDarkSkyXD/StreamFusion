@@ -17,6 +17,8 @@ const emote = {
   },
 };
 
+// Guards: loading state hides the emote behind a pulsing placeholder and reveals it only after onLoad — prevents zero-width emote flash before the CDN responds
+// Guards: error state (CDN 404 / blocked) renders the emote name as text fallback so the message stays readable even when 7TV/BTTV serves a 404
 describe('EmoteImage', () => {
   it('renders the emote with name as alt', () => {
     render(<EmoteImage emote={emote} />);
@@ -35,9 +37,16 @@ describe('EmoteImage', () => {
     expect(onClick).toHaveBeenCalledWith(emote);
   });
 
-  it('shows a name fallback if the image errors', () => {
+  it('error: shows the emote name as text fallback when the CDN serves a 404 / blocked image', () => {
     render(<EmoteImage emote={emote} />);
     fireEvent.error(screen.getByAltText('Kappa'));
     expect(screen.getByText('Kappa')).toBeInTheDocument();
+  });
+
+  it('loading: keeps the loading placeholder (animate-pulse) on screen until onLoad fires', () => {
+    const { container } = render(<EmoteImage emote={emote} />);
+    // The placeholder span is rendered with animate-pulse until the image's
+    // onLoad fires. We never fire it here, so the placeholder stays.
+    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 });

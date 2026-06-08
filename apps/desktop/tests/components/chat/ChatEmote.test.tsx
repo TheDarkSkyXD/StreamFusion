@@ -30,6 +30,9 @@ beforeEach(() => {
   }));
 });
 
+// Guards: chat emote rendering must respect the viewer's emoteSizePx / overlayEmotes / animatedEmotes prefs — silently regressing to defaults would change chat readability without the viewer's consent
+// Guards: ChatEmote owns sticky-tooltip state — outside-click + Escape must dismiss it, otherwise the tooltip portal will trap viewer interaction on the next message
+// Exempt: ChatEmote has no image-onError fallback in its source (unlike EmoteImage) — the punch list's "unknown emote → text token" path actually lives upstream in the message parser, not this leaf
 describe('ChatEmote', () => {
   it('renders the emote image with the name as alt text', () => {
     render(<ChatEmote id="e1" name="Kappa" url="https://x.test/kappa.png" platform="twitch" />);

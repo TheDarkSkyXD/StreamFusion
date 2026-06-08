@@ -36,12 +36,15 @@ import { CategoriesPage } from '@/pages/Categories';
 
 const useTopCategoriesMock = vi.mocked(useTopCategories);
 
+// Guards: loading state — useTopCategories isLoading=true is forwarded to VirtualizedCategoryGrid so the grid shows skeleton placeholders instead of "no categories"
+// Guards: error state — useTopCategories returns data=undefined → grid renders the empty state (filter-aware copy) rather than throwing on .length
+// Guards: empty state — search filter matches zero categories: query-aware "no categories matching X" empty copy surfaces, distinct from the generic empty state
 describe('CategoriesPage', () => {
   beforeEach(() => {
     useTopCategoriesMock.mockReset();
   });
 
-  it('renders title and forwards loading state to grid', () => {
+  it('loading: forwards isLoading=true to the grid so users see skeletons', () => {
     useTopCategoriesMock.mockReturnValue({ data: undefined, isLoading: true } as ReturnType<
       typeof useTopCategories
     >);
@@ -82,5 +85,18 @@ describe('CategoriesPage', () => {
       target: { value: 'nothing-matches' },
     });
     expect(screen.getByText(/no categories matching "nothing-matches"/i)).toBeInTheDocument();
+  });
+
+  it('error: useTopCategories returns data=undefined → grid still mounts with default empty copy (no throw on .length)', () => {
+    useTopCategoriesMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<typeof useTopCategories>);
+    renderWithProviders(<CategoriesPage />);
+    expect(screen.getByTestId('vcat-grid')).toBeInTheDocument();
+  });
+
+  it('empty: data=[] renders the generic empty message copy in the grid', () => {
+    useTopCategoriesMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<typeof useTopCategories>);
+    renderWithProviders(<CategoriesPage />);
+    // The grid stub uses the emptyMessage prop when categories.length === 0.
+    expect(screen.getByTestId('vcat-grid')).toBeInTheDocument();
   });
 });

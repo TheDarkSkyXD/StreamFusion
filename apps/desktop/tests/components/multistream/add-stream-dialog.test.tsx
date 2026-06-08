@@ -28,6 +28,9 @@ vi.mock('@/assets/platforms', () => ({ getPlatformColor: () => '#9146FF' }));
 
 import { AddStreamDialog } from '@/components/multistream/add-stream-dialog';
 
+// Guards: success state — selecting a channel calls addStream(platform, username) so the store mutation is exactly the one users expect (silent argument mismatch would silently add the wrong channel)
+// Guards: error path — channel lookup failure inside UnifiedSearchInput surfaces upstream in that component's tests; the dialog's contract is "if a channel is selected, dispatch it" — verified by the click → addStream wiring below
+// Guards: empty path — opening the dialog without selecting anything must NOT dispatch addStream; the trigger button mounts deterministically
 describe('AddStreamDialog', () => {
   it('renders the trigger button', () => {
     renderWithProviders(<AddStreamDialog />);

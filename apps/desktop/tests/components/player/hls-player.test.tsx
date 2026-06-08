@@ -30,12 +30,15 @@ vi.mock('hls.js', () => {
 
 import { HlsPlayer } from '@/components/player/hls-player';
 
+// Guards: mount path — HlsPlayer ALWAYS mounts the <video> element so the layout is reserved before HLS init resolves; the parent's loading overlay sits on top until canplay fires
+// Guards: error recovery contract — onError is invoked with PlayerError shape for NETWORK_ERROR / MEDIA_ERROR / NO_FRAGMENTS / STREAM_OFFLINE. Recovery sequence: nudge → startLoad → recoverMediaError → fatal shouldRefresh. The SUT's recovery logic owns this; tests/components/player/hls-player-stall-watchdog.test.tsx covers the stall-watchdog branch
+// Note: full error-path coverage lives in hls-player-stall-watchdog.test.tsx + the player-controls test files. This file locks the video-element mount contract — the rest is delegated.
 describe('HlsPlayer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders a video element', () => {
+  it('mount: always mounts the video element so the layout reserves space while HLS init resolves', () => {
     const { container } = render(<HlsPlayer src="https://x.test/playlist.m3u8" />);
     expect(container.querySelector('video')).toBeInTheDocument();
   });

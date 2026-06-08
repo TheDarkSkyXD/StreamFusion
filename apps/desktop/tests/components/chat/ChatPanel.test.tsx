@@ -15,6 +15,8 @@ import {
   type ChatPanelTabId,
 } from '@/components/chat/mod/ChatPanelTabs';
 
+// Guards: ChatPanel must always route to the correct platform-specific chat child — silently mounting the wrong one would render zero messages on a live channel
+// Guards: empty initial channel (no `initialChannel` prop) still mounts the routed child, so the chat tree exists when the parent finishes loading the channel data
 describe('ChatPanel', () => {
   it('renders TwitchChat for twitch platform', () => {
     render(<ChatPanel initialPlatform="twitch" initialChannel="ninja" />);

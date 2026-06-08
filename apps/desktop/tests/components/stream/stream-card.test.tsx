@@ -29,6 +29,12 @@ vi.mock('@/hooks/usePlatformHealth', () => ({
 
 import { StreamCard } from '@/components/stream/stream-card';
 
+// Guards: title/viewer-count must surface — the card is the primary way users see what's live; missing data here makes the grid look like a placeholder maze
+// Guards: live badge gating — only `isLive` streams render the "Live" badge; degrading this would let offline thumbnails look live
+// Guards: staleness overlay — when a platform is degraded/down (per usePlatformHealth), the card gets opacity-75 AND a "X minutes ago" timestamp badge if startedAt is set. The opacity is the user-visible "this might be stale" signal that prevents users from thinking the platform died on them
+// Guards: empty paths — startedAt=null suppresses the timestamp badge but the opacity-75 still fires (the platform is still degraded; we just can't show when this stream started). Guards against null-deref on the date math
+// Guards: recovery — flipping the platform health back to healthy removes the overlay; the badge disappears with it (rerender path verified)
+// Note: image-onError fallback path is delegated to ProxiedImage (the leaf with the actual onError handler). ProxiedImage is mocked here to keep the test fast; its fallback contract is covered in proxied-image's own tests.
 describe('StreamCard', () => {
   beforeEach(() => {
     installElectronAPIMock();

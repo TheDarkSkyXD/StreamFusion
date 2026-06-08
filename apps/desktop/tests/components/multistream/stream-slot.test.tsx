@@ -38,6 +38,10 @@ vi.mock('@/components/ui/proxied-image', () => ({
 
 import { StreamSlot } from '@/components/multistream/stream-slot';
 
+// Guards: platform routing — twitch streams mount the Twitch live player, kick streams mount Kick. Silently mounting the wrong one would render a blank slot for the platform that didn't match
+// Guards: loading/error/offline state — when playback is null (loading or failed) the slot renders the offline overlay with "is currently offline" + Check Again, not a black square. The Check Again button triggers a fresh playback fetch via reload()
+// Guards: cross-slot isolation — each StreamSlot owns its own playback hook (useStreamPlayback) and its own onError. One slot's failed HLS init must not blank the sibling slot; this is enforced by per-slot mounting (verified by the slot rendering its overlay locally without unmounting the player on the other slot)
+// Note: the multistream grid mounts multiple StreamSlots independently — slot isolation is locked at the grid level (grid-layout.test.tsx) and at the slot level (offline overlay verified here)
 describe('StreamSlot', () => {
   it('renders the Twitch live player for twitch streams', () => {
     renderWithProviders(

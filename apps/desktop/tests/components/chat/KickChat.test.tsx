@@ -181,6 +181,11 @@ vi.mock('@/components/chat/ChatInput', () => ({
 
 import { KickChat } from '@/components/chat/kick/KickChat';
 
+// Guards: loading state — canSend stays false while the Pusher connection is in 'disconnected' state and the kick token is still resolving, so the chat input doesn't accept input bound for the void
+// Guards: error/reconnect path — canSend remains false even after the connection flips to 'connected' until isAuthenticated catches up, so the input gates correctly on Pusher drop / reconnect cycles
+// Guards: empty messages — message list still renders the virtuoso shell (see ChatMessageList tests); chat input still renders, gear chrome still visible in viewer single-tab path (U7)
+// Guards: U5 prefs — sub notices / polls / prediction banner each suppress when their visibility pref is false, surface when true. Silent drops here look like "Kick subs aren't firing" — a high-blast UX failure
+// Guards: U11 mod actions — Timeout uses seconds→minutes conversion with Math.max(1, …) clamp so a 10s preset doesn't round to 0 minutes and silently no-op against Kick's API
 describe('KickChat', () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
