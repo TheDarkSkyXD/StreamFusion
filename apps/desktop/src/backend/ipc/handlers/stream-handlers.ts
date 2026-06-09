@@ -7,7 +7,7 @@ import type { IPlatformReader } from "../../api/unified/platform-reader";
 import { clients } from "../../api/unified/registry";
 import { storageService } from "../../services/storage-service";
 
-export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 45 * 1000;
+export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 0;
 
 export function shouldDeferKickStartupFollowedStreamScan(
   platform: Platform | undefined,
@@ -334,6 +334,7 @@ export function registerStreamHandlers(): void {
               graceMs: KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
             });
           } else if (localKick.length > 0) {
+            const scanStartedAt = Date.now();
             const uniqueSlugs = [...new Set(localKick.map((f) => f.channelName))];
 
             // Stagger by 60ms each so N parallel /channels/{slug} fetches don't
@@ -372,6 +373,13 @@ export function registerStreamHandlers(): void {
                 });
               }
             }
+
+            logger.info("IPC:Stream", "Completed Kick followed-stream scan", {
+              followCount: localKick.length,
+              scannedCount: uniqueSlugs.length,
+              liveCount: kickStreams.length,
+              durationMs: Date.now() - scanStartedAt,
+            });
           }
 
           results.push({ platform: "kick", data: kickStreams });

@@ -257,9 +257,9 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
 });
 
 describe("STREAMS_GET_FOLLOWED", () => {
-  it("detects only startup Kick followed-stream scans as deferrable", () => {
-    expect(shouldDeferKickStartupFollowedStreamScan(undefined, 1000, 0)).toBe(true);
-    expect(shouldDeferKickStartupFollowedStreamScan("kick", 1000, 0)).toBe(true);
+  it("keeps startup Kick followed-stream scans enabled", () => {
+    expect(shouldDeferKickStartupFollowedStreamScan(undefined, 1000, 0)).toBe(false);
+    expect(shouldDeferKickStartupFollowedStreamScan("kick", 1000, 0)).toBe(false);
     expect(shouldDeferKickStartupFollowedStreamScan("twitch", 1000, 0)).toBe(false);
     expect(
       shouldDeferKickStartupFollowedStreamScan(
@@ -270,19 +270,44 @@ describe("STREAMS_GET_FOLLOWED", () => {
     ).toBe(false);
   });
 
-  it("defers local Kick followed-stream fan-out during startup", async () => {
+  it("scans all local Kick follows so requested result limits do not hide live channels", async () => {
     vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
     vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
-      platform === "kick" ? ([{ channelName: "kick-one" }, { channelName: "kick-two" }] as any) : []
+      platform === "kick"
+        ? ([
+            { channelName: "kick-one" },
+            { channelName: "kick-two" },
+            { channelName: "kick-three" },
+          ] as any)
+        : []
     );
+    vi.mocked(kickClient.getPublicStreamBySlug).mockResolvedValue(null);
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
-    const result = (await handler({}, {})) as any;
+    const result = (await handler({}, { platform: "kick", limit: 2 })) as any;
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual([]);
-    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
+    expect(kickClient.getPublicStreamBySlug).toHaveBeenCalledTimes(3);
+    expect(kickClient.getPublicStreamBySlug).toHaveBeenNthCalledWith(
+      1,
+      "kick-one",
+      0,
+      expect.any(AbortSignal)
+    );
+    expect(kickClient.getPublicStreamBySlug).toHaveBeenNthCalledWith(
+      2,
+      "kick-two",
+      60,
+      expect.any(AbortSignal)
+    );
+    expect(kickClient.getPublicStreamBySlug).toHaveBeenNthCalledWith(
+      3,
+      "kick-three",
+      120,
+      expect.any(AbortSignal)
+    );
   });
 
   it("merges and sorts by viewerCount when both platforms requested", async () => {

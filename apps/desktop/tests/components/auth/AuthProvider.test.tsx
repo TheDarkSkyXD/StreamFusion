@@ -14,9 +14,9 @@ vi.mock('@/store/follow-store', () => ({
 
 import { AuthProvider } from '@/components/auth/AuthProvider';
 
-// Guards: loading state — useAuthInitialize hasn't resolved → render the fallback (or null) instead of leaking the children with undefined auth context behind them
+// Guards: startup state — useAuthInitialize hasn't resolved → still render children so cached follows can paint before token refresh/network work completes
 // Guards: error state — token validation fail surfaces as initialized=true with no user; the children render, the auth-store flips to logged-out, hydrate still runs (no leftover follows from a prior session). The component's contract is "never block app boot on auth failure"
-// Guards: hydrate-on-init — follow-store hydrate fires exactly once after initialization; missing this leaks follow state between sessions
+// Guards: hydrate-on-mount — follow-store hydrate fires immediately, not after auth init; missing this delays the followed sidebar on startup
 describe('AuthProvider', () => {
   beforeEach(() => {
     hydrate.mockReset();
@@ -25,25 +25,25 @@ describe('AuthProvider', () => {
 
   it('renders children once initialized', () => {
     render(
-      <AuthProvider fallback={<div>loading</div>}>
+      <AuthProvider>
         <div>app-content</div>
       </AuthProvider>
     );
     expect(screen.getByText('app-content')).toBeInTheDocument();
   });
 
-  it('renders the fallback while uninitialized', () => {
+  it('renders children while auth initialization is still running', () => {
     isInitialized = false;
     render(
-      <AuthProvider fallback={<div>loading-fallback</div>}>
+      <AuthProvider>
         <div>app-content</div>
       </AuthProvider>
     );
-    expect(screen.getByText('loading-fallback')).toBeInTheDocument();
-    expect(screen.queryByText('app-content')).not.toBeInTheDocument();
+    expect(screen.getByText('app-content')).toBeInTheDocument();
   });
 
-  it('calls hydrate() on the follow store after initialization', () => {
+  it('calls hydrate() on the follow store immediately, before auth init completes', () => {
+    isInitialized = false;
     render(
       <AuthProvider>
         <div>x</div>

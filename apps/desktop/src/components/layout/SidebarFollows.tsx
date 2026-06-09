@@ -117,10 +117,31 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     [liveChannels, offlineChannels]
   );
 
-  const visibleItems = useMemo(
-    () => (collapsed ? allItems : allItems.slice(0, visibleCount)),
-    [allItems, visibleCount, collapsed]
-  );
+  const visibleItems = useMemo(() => {
+    if (collapsed) return allItems;
+
+    const visible = allItems.slice(0, visibleCount);
+    const hasVisibleKick = visible.some((item) => item.data.platform === "kick");
+    if (hasVisibleKick || !allItems.some((item) => item.data.platform === "kick")) {
+      return visible;
+    }
+
+    const visibleKeys = new Set(
+      visible.map((item) =>
+        item.type === "live" ? getStreamKey(item.data) : getChannelKey(item.data)
+      )
+    );
+    const kickFill = allItems
+      .filter((item) => item.data.platform === "kick")
+      .filter((item) => {
+        const key = item.type === "live" ? getStreamKey(item.data) : getChannelKey(item.data);
+        return !visibleKeys.has(key);
+      })
+      .slice(0, Math.min(2, visibleCount));
+
+    if (kickFill.length === 0) return visible;
+    return [...visible.slice(0, visibleCount - kickFill.length), ...kickFill];
+  }, [allItems, visibleCount, collapsed]);
 
   // Handlers for Show More/Less
   const handleShowMore = () => setVisibleCount((prev) => prev + 5);

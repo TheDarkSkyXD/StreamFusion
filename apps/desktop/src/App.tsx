@@ -18,13 +18,7 @@ function App() {
   return (
     <QueryProvider>
       <TooltipProvider>
-        <AuthProvider
-          fallback={
-            <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
-              Loading StreamFusion...
-            </div>
-          }
-        >
+        <AuthProvider>
           <RouterProvider router={router} />
           <DebugPanel />
           <ToastRoot />

@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fixtures, renderWithProviders, routerMock, screen } from '../../test-utils';
 
+const storeState = vi.hoisted(() => ({
+  twitchConnected: true,
+  kickConnected: false,
+  localFollows: [] as unknown[],
+}));
+
 // Guards: loading state — render skeleton avatars (5 placeholders) when both followed-channels + followed-streams are still resolving, so the sidebar doesn't flash empty before data lands
+// Guards: startup cache state — cached local Kick follows render while followed-streams is still loading, so Kick rows are not blocked by the slower live-status scan
 // Guards: error state — followed-streams Helix call fails: sidebar degrades to the "follow channels to see them here" empty card rather than blanking. The whole point of a sidebar is to not vanish on a transient API error
 // Guards: empty state — distinct from error; "no follows + no streams" renders the empty card with the heart icon and the "Follow channels…" hint copy
 
@@ -18,11 +25,15 @@ vi.mock('@/hooks/queries/useStreams', () => ({
 
 vi.mock('@/store/auth-store', () => ({
   useAuthStore: (selector: (s: unknown) => unknown) =>
-    selector({ twitchConnected: true, kickConnected: false }),
+    selector({
+      twitchConnected: storeState.twitchConnected,
+      kickConnected: storeState.kickConnected,
+    }),
 }));
 
 vi.mock('@/store/follow-store', () => ({
-  useFollowStore: (selector: (s: unknown) => unknown) => selector({ localFollows: [] }),
+  useFollowStore: (selector: (s: unknown) => unknown) =>
+    selector({ localFollows: storeState.localFollows }),
 }));
 
 vi.mock('@/components/ui/platform-avatar', () => ({
@@ -40,6 +51,9 @@ describe('SidebarFollows', () => {
   beforeEach(() => {
     useFollowedChannelsMock.mockReset();
     useFollowedStreamsMock.mockReset();
+    storeState.twitchConnected = true;
+    storeState.kickConnected = false;
+    storeState.localFollows = [];
   });
 
   it('loading: renders skeleton placeholders while both queries resolve', () => {
@@ -51,6 +65,72 @@ describe('SidebarFollows', () => {
     // 5 skeleton rows render with rounded-full avatar placeholders.
     const placeholders = container.querySelectorAll('.rounded-full');
     expect(placeholders.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('startup cache: renders cached Kick follows while followed streams are still loading', () => {
+    storeState.kickConnected = true;
+    storeState.localFollows = [
+      fixtures.channel({
+        id: 'kick-cached',
+        platform: 'kick',
+        username: 'kickcached',
+        displayName: 'KickCached',
+      }),
+    ];
+    useFollowedChannelsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    } as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    expect(screen.getAllByText('KickCached').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
+  });
+
+  it('startup cache: keeps cached Kick follows visible when Twitch live rows fill the first slice', () => {
+    storeState.localFollows = [
+      fixtures.channel({
+        id: 'kick-cached',
+        platform: 'kick',
+        username: 'kickcached',
+        displayName: 'KickCached',
+      }),
+    ];
+    const twitchChannels = Array.from({ length: 12 }, (_, i) =>
+      fixtures.channel({
+        id: `twitch-${i}`,
+        username: `twitch${i}`,
+        displayName: `Twitch ${i}`,
+      })
+    );
+    const twitchStreams = twitchChannels.map((channel, i) =>
+      fixtures.stream({
+        id: `stream-${i}`,
+        channelId: channel.id,
+        channelName: channel.username,
+        channelDisplayName: channel.displayName,
+        viewerCount: 1000 - i,
+      })
+    );
+    useFollowedChannelsMock.mockImplementation((platform) =>
+      ({
+        data: platform === 'twitch' ? twitchChannels : [],
+        isLoading: false,
+      }) as unknown as ReturnType<typeof useFollowedChannels>
+    );
+    useFollowedStreamsMock.mockReturnValue({
+      data: twitchStreams,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    expect(screen.getAllByText('KickCached').length).toBeGreaterThan(0);
   });
 
   it('error: degrades to empty-card copy when followed-streams resolves with no data (Helix 5xx surfaces as data=undefined)', () => {
