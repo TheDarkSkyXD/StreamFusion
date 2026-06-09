@@ -10,6 +10,7 @@ const storeState = vi.hoisted(() => ({
 
 // Guards: loading state — render skeleton avatars (5 placeholders) when both followed-channels + followed-streams are still resolving, so the sidebar doesn't flash empty before data lands
 // Guards: startup cache state — cached local Kick follows render while followed-streams is still loading, so Kick rows are not blocked by the slower live-status scan
+// Guards: platform split — Twitch and Kick followed-streams load through separate queries so Kick's slower live scan cannot block Twitch/sidebar paint
 // Guards: error state — followed-streams Helix call fails: sidebar degrades to the "follow channels to see them here" empty card rather than blanking. The whole point of a sidebar is to not vanish on a transient API error
 // Guards: empty state — distinct from error; "no follows + no streams" renders the empty card with the heart icon and the "Follow channels…" hint copy
 
@@ -131,6 +132,29 @@ describe('SidebarFollows', () => {
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
     expect(screen.getAllByText('KickCached').length).toBeGreaterThan(0);
+  });
+
+  it('platform split: queries Twitch and Kick followed streams independently', () => {
+    storeState.twitchConnected = true;
+    storeState.kickConnected = true;
+    useFollowedChannelsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    expect(useFollowedStreamsMock).toHaveBeenCalledWith('twitch', 100, { enabled: true });
+    expect(useFollowedStreamsMock).toHaveBeenCalledWith('kick', 100, { enabled: true });
+    expect(useFollowedStreamsMock).not.toHaveBeenCalledWith(
+      undefined,
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it('error: degrades to empty-card copy when followed-streams resolves with no data (Helix 5xx surfaces as data=undefined)', () => {

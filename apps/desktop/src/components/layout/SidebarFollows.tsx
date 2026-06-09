@@ -23,11 +23,28 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   const twitchConnected = useAuthStore((state) => state.twitchConnected);
   const kickConnected = useAuthStore((state) => state.kickConnected);
   const localFollows = useFollowStore((state) => state.localFollows);
+  const hasLocalTwitchFollows = localFollows.some((follow) => follow.platform === "twitch");
+  const hasLocalKickFollows = localFollows.some((follow) => follow.platform === "kick");
 
   // Fetch data
   const { data: twitchFollows } = useFollowedChannels("twitch", { enabled: twitchConnected });
   const { data: kickFollows } = useFollowedChannels("kick", { enabled: kickConnected });
-  const { data: liveStreams, isLoading } = useFollowedStreams();
+  const { data: twitchLiveStreams, isLoading: twitchStreamsLoading } = useFollowedStreams(
+    "twitch",
+    100,
+    {
+      enabled: twitchConnected || hasLocalTwitchFollows,
+    }
+  );
+  const { data: kickLiveStreams, isLoading: kickStreamsLoading } = useFollowedStreams("kick", 100, {
+    enabled: kickConnected || hasLocalKickFollows,
+  });
+  const liveStreams = useMemo(() => {
+    const streams = [...(twitchLiveStreams ?? []), ...(kickLiveStreams ?? [])];
+    streams.sort((a, b) => b.viewerCount - a.viewerCount);
+    return streams;
+  }, [twitchLiveStreams, kickLiveStreams]);
+  const isLoading = twitchStreamsLoading || kickStreamsLoading;
   const [visibleCount, setVisibleCount] = useState(10);
 
   // Merge and sort channels
