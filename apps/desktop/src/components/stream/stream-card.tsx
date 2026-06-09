@@ -137,7 +137,7 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
     >
       <Card
         data-testid="stream-card"
-        className={`h-full border-transparent bg-transparent hover:bg-[var(--color-background-secondary)] transition-colors duration-200 overflow-hidden group-hover:ring-1 group-hover:ring-[var(--color-border)] motion-reduce:transition-none ${isStale ? "opacity-75" : ""}`}
+        className="h-full border-transparent bg-transparent hover:bg-[var(--color-background-secondary)] transition-colors duration-200 overflow-hidden group-hover:ring-1 group-hover:ring-[var(--color-border)] motion-reduce:transition-none"
       >
         <div className="relative aspect-video w-full overflow-hidden rounded-lg">
           <ProxiedImage

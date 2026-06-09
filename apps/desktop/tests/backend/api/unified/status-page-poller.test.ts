@@ -33,6 +33,7 @@ function defaultKickStatusResponse(url: string | URL | Request): Response {
   return new Response(JSON.stringify({}), { status: 200 });
 }
 
+// Guards: Kick status-page incidents tied only to Other/catch-all stay all-clear so the global outage banner only follows main system-status services.
 describe("status-page-poller (slice 08)", () => {
   let originalFetch: typeof globalThis.fetch;
   let platformHealth: typeof import("@/backend/api/unified/platform-health");
@@ -179,7 +180,7 @@ describe("status-page-poller (slice 08)", () => {
 
   it("Kick: partial outage service produces 'confirmed-outage'", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ services: [{ name: "Other", status: "Partial outage" }] }), {
+      new Response(JSON.stringify({ services: [{ name: "Platform", status: "Partial outage" }] }), {
         status: 200,
       })
     );
@@ -203,9 +204,9 @@ describe("status-page-poller (slice 08)", () => {
           JSON.stringify({
             services: [
               {
-                id: "P3CL6N4",
-                name: "KICK - Catch All",
-                display_name: "Other",
+                id: "PLATFORM",
+                name: "Platform",
+                display_name: "Platform",
               },
             ],
           }),
@@ -220,7 +221,7 @@ describe("status-page-poller (slice 08)", () => {
                 post_type: "incident",
                 latest_update: {
                   status_id: "PSU2YIK",
-                  impacts: [{ service_id: "P3CL6N4", severity_id: "PCAUUKL" }],
+                  impacts: [{ service_id: "PLATFORM", severity_id: "PCAUUKL" }],
                   message:
                     "<p>KICK is currently experiencing a degraded performance. We are aware of this and looking into it.</p>",
                 },
@@ -269,9 +270,66 @@ describe("status-page-poller (slice 08)", () => {
     );
   });
 
+  it("Kick: PagerDuty posts affecting only Other produce 'all-clear'", async () => {
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            services: [
+              {
+                id: "P3CL6N4",
+                name: "KICK - Catch All",
+                display_name: "Other",
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            posts: [
+              {
+                post_type: "incident",
+                latest_update: {
+                  status_id: "PSU2YIK",
+                  impacts: [{ service_id: "P3CL6N4", severity_id: "PCAUUKL" }],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            post_enums: [
+              {
+                id: "PSU2YIK",
+                name: "investigating",
+                post_enum_type: "status",
+              },
+              {
+                id: "PCAUUKL",
+                name: "partial outage",
+                post_enum_type: "impacts",
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
+  });
+
   it("Kick: major outage service wording is forwarded as status-page detail", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ services: [{ name: "Other", status: "Major outage" }] }), {
+      new Response(JSON.stringify({ services: [{ name: "Platform", status: "Major outage" }] }), {
         status: 200,
       })
     );

@@ -30,7 +30,7 @@ const KICK_IMPACT_PATTERNS: Array<[RegExp, string]> = [
   [/\bdegraded performance\b/i, "Degraded performance"],
   [/\bdegraded\b/i, "Degraded"],
 ];
-const KICK_SERVICE_NAME_KEYS = ["name", "display_name", "displayName", "label", "service_name"];
+const KICK_SERVICE_NAME_KEYS = ["display_name", "displayName", "name", "label", "service_name"];
 const KICK_SERVICE_STATUS_KEYS = ["status", "impact", "state", "status_text", "statusText"];
 
 const pollers = new Map<Platform, ReturnType<typeof createManagedInterval>>();
@@ -149,12 +149,18 @@ function normalizeKickStatusLabel(value: string): string {
   return sanitized.length === 0 ? value : sanitized[0].toUpperCase() + sanitized.slice(1);
 }
 
+function isKickMainStatusService(name: string): boolean {
+  const normalized = sanitizeStatusString(name).toLowerCase();
+  return normalized.length > 0 && normalized !== "other" && !normalized.includes("catch all");
+}
+
 function buildServiceStatusDetail(servicesJson: unknown): StatusPageDetail | undefined {
   const affected = collectKickServiceStatuses(servicesJson)
     .map((service) => ({
       name: service.name,
       impact: normalizeKickStatusLabel(service.status),
     }))
+    .filter((service) => isKickMainStatusService(service.name))
     .filter((service) => !OPERATIONAL_TEXT_PATTERN.test(service.impact));
 
   if (affected.length === 0) return undefined;
@@ -253,7 +259,8 @@ function buildKickPostStatusDetail(
     .filter((post) => isOpenKickPost(post, enumMap))
     .flatMap((post) => post.latest_update?.impacts ?? [])
     .map((impact) => {
-      const serviceName = serviceMap.get(impact.service_id ?? "") ?? "Kick";
+      const serviceName = serviceMap.get(impact.service_id ?? "");
+      if (serviceName == null || !isKickMainStatusService(serviceName)) return undefined;
       const status = getEnumName(enumMap, impact.severity_id);
       return status == null
         ? undefined
