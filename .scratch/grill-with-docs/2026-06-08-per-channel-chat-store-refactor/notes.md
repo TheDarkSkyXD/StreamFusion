@@ -12,9 +12,13 @@ Date: 2026-06-08 · Goal: Decide design and migration plan for refactoring `chat
 - **Dedupe scope:** per-channel full bucket scan (≤ 1200 entries), same emote-richer preference logic for Kick optimistic echo.
 - **Safety net:** dev-only assertion `state.messages.length === sum(state.messagesByChannel[k].length)` after every add during migration.
 - **Rollout (rough cut, handed to /to-issues):** PR 1 infrastructure + dual-write; PR 2 ChatMessageList migration (multiview win lands); PR 3 mod actions per-channel (clearMessages, delete, pause); PR 4 service-tied eviction + delete flat `state.messages` and `state.isPaused`.
+- **Completion update (2026-06-08):** All four local slices are done. The user explicitly approved overriding the original release-soak gate for slice 04 before deleting flat `state.messages`; no 30+ minute release soak was performed in this local run. Focused tests, lint, type-check, full vitest, and build passed after the final cleanup.
 
 ## ADR
 [ADR 0005 — Per-channel chat message store with dual-shape migration](../../../docs/adr/0005-per-channel-chat-store.md)
+
+## PRD
+[prd.md](./prd.md) — local-markdown tracker per `docs/agents/issue-tracker.md`. Ready for `/to-issues` to break into 4 implementation tickets (infrastructure, ChatMessageList migration, mod actions, eviction + cleanup).
 
 ## CONTEXT.md updates
 - Added `channelKey` term (composite `${platform}:${channelId}` bucket id with canonical builder; distinct from ChannelRef).

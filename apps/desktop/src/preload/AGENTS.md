@@ -75,7 +75,7 @@ Every `on` registration returns a cleanup function (`() => ipcRenderer.removeLis
 | `updater` | Check/download/install, settings, push progress events |
 | `env` | Runtime-environment snapshot (`isDev`, platform, app/electron/node versions) |
 | `bugReports` | Bug-report capture (write / open-folder / get-dir / list) |
-| `logs` | Renderer→main log write + log-folder open / current-path / noise-path / tail |
+| `logs` | Renderer→main log write + log-folder open / current-path / noise-path / network-path / tail |
 | `modLog` | Mod-log insert/query/sweep |
 | `retention` | Retention-scope get/set |
 

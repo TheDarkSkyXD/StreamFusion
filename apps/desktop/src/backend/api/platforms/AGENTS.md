@@ -61,10 +61,10 @@ getTopStreams           ↔  getTopStreams
 
 - **kick-client.ts**: Mixes HTTP, auth, retries, and API proxying
 - **stream-endpoints.ts**: Manual `net.request` reimplementation
-- Kick uses legacy/undocumented APIs as fallback (fragile)
+- Kick has official Public API docs at `https://docs.kick.com/`; legacy/undocumented APIs still exist as fallbacks for gaps. See `kick/AGENTS.md`.
 
 ## NOTES
 
-- Kick API lacks official docs; reverse-engineered
-- Twitch uses Helix + GQL supplement
+- Kick has official Public API docs, but some StreamFusion behavior still depends on reverse-engineered `kick.com/api/*` routes where the official API has gaps.
+- Twitch uses official Helix plus web GQL supplements. See `twitch/AGENTS.md`.
 - Pagination differs: Twitch (cursor), Kick (page numbers sometimes)
