@@ -10,7 +10,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import type { KickSendResult } from "../backend/api/platforms/kick/kick-send-window";
-import type { PlatformHealth, PlatformHealthEvent } from "../backend/api/unified/platform-health";
+import type {
+  PlatformHealth,
+  PlatformHealthEvent,
+  StatusPageDetail,
+} from "../backend/api/unified/platform-health";
 import type {
   AuthToken,
   KickUser,
@@ -835,11 +839,14 @@ const electronAPI = {
     getCurrentPath: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.LOGS_GET_CURRENT_PATH),
     getNoisePath: (): Promise<string | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.LOGS_GET_NOISE_PATH),
+    getNetworkPath: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOGS_GET_NETWORK_PATH),
     tail: (payload: {
       lines: number;
-      file: "main" | "noise";
+      file: "main" | "noise" | "network";
       level?: "debug" | "info" | "warn" | "error";
       tag?: string;
+      query?: string | string[];
     }): Promise<string[]> => ipcRenderer.invoke(IPC_CHANNELS.LOGS_TAIL, payload),
   },
 
@@ -847,8 +854,11 @@ const electronAPI = {
   // `get()` hydrates; `onChange` subscribes to transition pushes and returns
   // an unsubscribe for useEffect cleanup. See ADR-0002.
   platformHealth: {
-    get: (): Promise<{ kick: PlatformHealth; twitch: PlatformHealth }> =>
-      ipcRenderer.invoke(IPC_CHANNELS.PLATFORM_HEALTH_GET),
+    get: (): Promise<{
+      kick: PlatformHealth;
+      twitch: PlatformHealth;
+      details?: { kick?: StatusPageDetail; twitch?: StatusPageDetail };
+    }> => ipcRenderer.invoke(IPC_CHANNELS.PLATFORM_HEALTH_GET),
     onChange: (callback: (event: PlatformHealthEvent) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: PlatformHealthEvent) =>
         callback(payload);

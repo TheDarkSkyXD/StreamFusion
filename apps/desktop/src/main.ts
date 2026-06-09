@@ -18,6 +18,7 @@ import {
   Menu,
   powerMonitor,
   protocol,
+  type Session,
   session,
   shell,
 } from "electron";
@@ -30,6 +31,14 @@ import { installCrashHooks } from "./backend/logging/crash-hooks";
 import { computeLogPaths, setBugReportsDir, setTelemetryDir } from "./backend/logging/log-paths";
 import { getCurrentLogPath, initLogger, logger, shutdownLogger } from "./backend/logging/logger";
 import { installNativeStderrIntercept } from "./backend/logging/native-stderr-intercept";
+import { installNetworkDevtoolsRecorder } from "./backend/logging/network-devtools-recorder";
+import { installNetworkLogRouter } from "./backend/logging/network-log-router";
+import {
+  getCurrentNetworkPath,
+  initNetworkLogger,
+  shutdownNetworkLogger,
+} from "./backend/logging/network-logger";
+import { installNetworkRequestLogger } from "./backend/logging/network-request-logger";
 import {
   getCurrentNoisePath,
   initNoiseLogger,
@@ -154,6 +163,7 @@ app.commandLine.appendSwitch("log-file", chromiumLogPath);
 
 initLogger({ logsDir, sessionStamp });
 initNoiseLogger({ logsDir, sessionStamp });
+initNetworkLogger({ logsDir, sessionStamp });
 installCrashHooks({ app });
 installConsoleIntercept();
 
@@ -164,6 +174,8 @@ installConsoleIntercept();
 setMainLogSink((level, tag, message, meta) => {
   logger[level](tag, message, meta);
 });
+
+installNetworkLogRouter();
 
 // Capture lines written directly to process.stderr / process.stdout by
 // native Chromium / Electron internals. Must come AFTER initLogger /
@@ -184,6 +196,7 @@ void import("./backend/api/unified/status-page-poller").then((m) => m.initStatus
 
 logger.info("Main", "Logging initialized", {
   logFile: getCurrentLogPath(),
+  networkLogFile: getCurrentNetworkPath(),
   bugReportsDir,
 });
 
@@ -253,29 +266,48 @@ protocol.registerSchemesAsPrivileged([
  *
  * This interceptor catches any direct image loads that bypass the ProxiedImage component.
  */
+const networkBlockedSessions = new WeakSet<Session>();
+
+function installNetworkRequestBlocker(
+  targetSession: Session,
+  options: { skipTwitchManifests?: boolean } = {}
+): void {
+  if (networkBlockedSessions.has(targetSession)) return;
+  networkBlockedSessions.add(targetSession);
+
+  targetSession.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
+    // Skip manifest URLs - handled by twitchManifestProxy on defaultSession.
+    if (
+      options.skipTwitchManifests &&
+      details.url.includes("ttvnw.net") &&
+      details.url.includes(".m3u8")
+    ) {
+      callback({});
+      return;
+    }
+
+    const result = networkAdBlockService.shouldBlock(details.url);
+    if (result.blocked) {
+      callback({ cancel: true });
+      return;
+    }
+    callback({});
+  });
+}
+
 function setupRequestInterceptors(): void {
   // Twitch manifest proxy (handles m3u8 interception for ad removal)
   // MUST be registered before the general onBeforeRequest handler
   twitchManifestProxy.registerInterceptor();
 
-  // Network-level ad blocking (onBeforeRequest)
-  session.defaultSession.webRequest.onBeforeRequest(
-    { urls: ["<all_urls>"] },
-    (details, callback) => {
-      // Skip manifest URLs - handled by twitchManifestProxy
-      if (details.url.includes("ttvnw.net") && details.url.includes(".m3u8")) {
-        callback({});
-        return;
-      }
-
-      const result = networkAdBlockService.shouldBlock(details.url);
-      if (result.blocked) {
-        callback({ cancel: true });
-        return;
-      }
-      callback({});
-    }
-  );
+  // Network-level ad/tracking blocking. Install on every session so hidden
+  // Kick helper windows and custom partitions do not bypass request blocking.
+  installNetworkRequestLogger(session.defaultSession);
+  installNetworkRequestBlocker(session.defaultSession, { skipTwitchManifests: true });
+  app.on("session-created", (createdSession) => {
+    installNetworkRequestLogger(createdSession);
+    installNetworkRequestBlocker(createdSession);
+  });
 
   // Header modification for Kick CDN (onBeforeSendHeaders)
   session.defaultSession.webRequest.onBeforeSendHeaders(
@@ -372,6 +404,16 @@ app.on("ready", async () => {
             }
           },
         },
+        {
+          label: "Copy Network Log Path",
+          click: () => {
+            try {
+              clipboard.writeText(getCurrentNetworkPath());
+            } catch {
+              // Network logger not initialized — silently skip rather than throw.
+            }
+          },
+        },
       ],
     },
   ]);
@@ -384,6 +426,9 @@ app.on("ready", async () => {
   });
   void pruneLogs(logsDir, { prefix: "streamfusion-noise-", keep: 10 }).catch((error) => {
     logger.warn("Main", "Failed to prune noise log files", { error: String(error) });
+  });
+  void pruneLogs(logsDir, { prefix: "streamfusion-network-", keep: 10 }).catch((error) => {
+    logger.warn("Main", "Failed to prune network log files", { error: String(error) });
   });
 
   // Check if last shutdown was clean - if not, clear cache to fix potential corruption
@@ -563,6 +608,11 @@ app.on("before-quit", (event) => {
     } catch {
       // Best-effort.
     }
+    try {
+      await shutdownNetworkLogger();
+    } catch {
+      // Best-effort.
+    }
   };
 
   const win = windowManager.getMainWindow();
@@ -604,6 +654,7 @@ app.on("will-quit", () => {
 
 // Security: Prevent new window creation from renderer
 app.on("web-contents-created", (_event, contents) => {
+  installNetworkDevtoolsRecorder(contents);
   contents.setWindowOpenHandler(() => {
     return { action: "deny" };
   });

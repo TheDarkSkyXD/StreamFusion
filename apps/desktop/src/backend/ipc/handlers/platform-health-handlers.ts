@@ -9,22 +9,36 @@ import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { clearKickStreamFailureCache } from "../../api/platforms/kick/endpoints/stream-endpoints";
 import {
   getPlatformHealth,
+  getPlatformStatusPageDetail,
   onPlatformHealthChanged,
   type PlatformHealth,
+  type StatusPageDetail,
 } from "../../api/unified/platform-health";
 import { logger } from "../../logging/logger";
 
 export interface PlatformHealthSnapshot {
   kick: PlatformHealth;
   twitch: PlatformHealth;
+  details?: {
+    kick?: StatusPageDetail;
+    twitch?: StatusPageDetail;
+  };
 }
 
 export function registerPlatformHealthHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IPC_CHANNELS.PLATFORM_HEALTH_GET, (): PlatformHealthSnapshot => {
-    return {
+    const snapshot: PlatformHealthSnapshot = {
       kick: getPlatformHealth("kick"),
       twitch: getPlatformHealth("twitch"),
     };
+    const kickDetail = getPlatformStatusPageDetail("kick");
+    const twitchDetail = getPlatformStatusPageDetail("twitch");
+    if (kickDetail != null || twitchDetail != null) {
+      snapshot.details = {};
+      if (kickDetail != null) snapshot.details.kick = kickDetail;
+      if (twitchDetail != null) snapshot.details.twitch = twitchDetail;
+    }
+    return snapshot;
   });
 
   onPlatformHealthChanged((event) => {

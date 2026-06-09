@@ -6,25 +6,35 @@
 
 import { useEffect, useState } from "react";
 
-import type { PlatformHealth } from "@/backend/api/unified/platform-health";
+import type { PlatformHealth, StatusPageDetail } from "@/backend/api/unified/platform-health";
 
 interface PlatformHealthState {
   kick: PlatformHealth;
   twitch: PlatformHealth;
   anyDegraded: boolean;
+  details: {
+    kick?: StatusPageDetail;
+    twitch?: StatusPageDetail;
+  };
 }
 
 const INITIAL_STATE: PlatformHealthState = {
   kick: "healthy",
   twitch: "healthy",
   anyDegraded: false,
+  details: {},
 };
 
-function derive(kick: PlatformHealth, twitch: PlatformHealth): PlatformHealthState {
+function derive(
+  kick: PlatformHealth,
+  twitch: PlatformHealth,
+  details: PlatformHealthState["details"] = {}
+): PlatformHealthState {
   return {
     kick,
     twitch,
     anyDegraded: kick !== "healthy" || twitch !== "healthy",
+    details,
   };
 }
 
@@ -39,14 +49,20 @@ export function usePlatformHealth(): PlatformHealthState {
 
     void bridge.get().then((snapshot) => {
       if (cancelled) return;
-      setState(derive(snapshot.kick, snapshot.twitch));
+      setState(derive(snapshot.kick, snapshot.twitch, snapshot.details ?? {}));
     });
 
     const unsubscribe = bridge.onChange((event) => {
       setState((prev) => {
         const next = { kick: prev.kick, twitch: prev.twitch };
         next[event.platform] = event.status;
-        return derive(next.kick, next.twitch);
+        const details = { ...prev.details };
+        if (event.status === "healthy") {
+          delete details[event.platform];
+        } else if (event.statusPageDetail != null) {
+          details[event.platform] = event.statusPageDetail;
+        }
+        return derive(next.kick, next.twitch, details);
       });
     });
 

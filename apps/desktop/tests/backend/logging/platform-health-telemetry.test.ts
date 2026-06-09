@@ -51,6 +51,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 10,
       failureRate: 0.65,
+      source: "internal",
     });
 
     expect(appendFileSyncSpy).toHaveBeenCalledOnce();
@@ -74,6 +75,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 10,
       failureRate: 0.65,
+      source: "internal",
     });
 
     subscribedListener!({
@@ -82,6 +84,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 12,
       failureRate: 0.2,
+      source: "internal",
     });
 
     expect(appendFileSyncSpy).toHaveBeenCalledTimes(2);
@@ -109,6 +112,7 @@ describe("platform-health-telemetry", () => {
         startedAt: Date.now(),
         sampleSize: 10,
         failureRate: 0.65,
+        source: "internal",
       });
     }).not.toThrow();
 
@@ -131,6 +135,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 5,
       failureRate: 1.0,
+      source: "internal",
     });
 
     const written = appendFileSyncSpy.mock.calls[0][1] as string;
@@ -155,6 +160,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 10,
       failureRate: 0.65,
+      source: "internal",
     });
 
     const filePath = appendFileSyncSpy.mock.calls[0][0] as string;
@@ -170,6 +176,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 10,
       failureRate: 0.65,
+      source: "internal",
     });
 
     expect(mkdirSyncSpy).toHaveBeenCalledWith(TEST_TELEMETRY_DIR, { recursive: true });
@@ -184,6 +191,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 10,
       failureRate: 0.65,
+      source: "internal",
     });
 
     subscribedListener!({
@@ -192,6 +200,7 @@ describe("platform-health-telemetry", () => {
       startedAt: Date.now(),
       sampleSize: 8,
       failureRate: 0.7,
+      source: "internal",
     });
 
     const first = JSON.parse((appendFileSyncSpy.mock.calls[0][1] as string).trim());

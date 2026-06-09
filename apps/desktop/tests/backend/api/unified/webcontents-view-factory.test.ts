@@ -84,9 +84,11 @@ describe("webcontents-view-factory injection seam", () => {
       setBounds: vi.fn(),
       setVisible: vi.fn(),
       destroy: vi.fn(),
+      loadURL: vi.fn(async () => {}),
+      onRenderProcessGone: vi.fn(),
     };
     const fakeFactory = { create: vi.fn(() => fakeView) };
-    setWebContentsViewFactory(fakeFactory);
+    setWebContentsViewFactory(fakeFactory as unknown as Parameters<typeof setWebContentsViewFactory>[0]);
 
     const view = getWebContentsViewFactory().create({ preloadPath: "ignored.js" });
     expect(view).toBe(fakeView);

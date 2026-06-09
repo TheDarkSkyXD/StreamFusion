@@ -20,9 +20,26 @@ describe("PlatformHealthBanner", () => {
     mockHook.mockReturnValue({ kick: "degraded", twitch: "healthy", anyDegraded: true });
     renderWithProviders(<PlatformHealthBanner />);
     const banner = screen.getByRole("status");
-    expect(banner).toHaveTextContent("Kick is having issues right now. Showing last-known state.");
+    expect(banner).toHaveTextContent(
+      "Kick is degraded right now. Some Kick data may be cached or delayed."
+    );
     expect(banner.className).toMatch(/bg-black/);
     expect(banner.className).toMatch(/text-\[#53FC18\]/);
+  });
+
+  it("renders Kick status-page detail when available", () => {
+    mockHook.mockReturnValue({
+      kick: "degraded",
+      twitch: "healthy",
+      anyDegraded: true,
+      details: {
+        kick: { summary: "Kick status: Major outage - KICK Outage." },
+      },
+    });
+    renderWithProviders(<PlatformHealthBanner />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Kick status: Major outage - KICK Outage."
+    );
   });
 
   it("renders Twitch-only copy with Twitch purple when only Twitch is degraded", () => {
@@ -41,7 +58,7 @@ describe("PlatformHealthBanner", () => {
     renderWithProviders(<PlatformHealthBanner />);
     const banner = screen.getByRole("status");
     expect(banner).toHaveTextContent(
-      "Kick and Twitch are both having issues right now. Showing last-known state."
+      "Kick and Twitch are degraded right now. Some data may be cached or delayed."
     );
     expect(banner.className).toMatch(/bg-gray-700/);
     expect(banner.className).toMatch(/text-white/);

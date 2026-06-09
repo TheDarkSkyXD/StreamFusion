@@ -934,16 +934,75 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
     expect(getPlatformHealth("kick")).toBe("healthy");
   });
 
-  it("status-page signal NEVER causes healthy-to-degraded transition", async () => {
-    const { getPlatformHealth, recordStatusPageSignal } = await import(
+  it("confirmed status-page outage causes healthy-to-degraded transition", async () => {
+    const { getPlatformHealth, onPlatformHealthChanged, recordStatusPageSignal } = await import(
       "@/backend/api/unified/platform-health"
     );
 
+    const events: Array<{ platform: string; status: string; source?: string }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    recordStatusPageSignal("kick", "confirmed-outage", {
+      summary: "Kick status: Partial outage - KICK Degraded Functionality.",
+      impact: "Partial outage",
+      headline: "KICK Degraded Functionality",
+    });
+    expect(getPlatformHealth("kick")).toBe("degraded");
+
+    const degradedEvent = events.find((e) => e.platform === "kick" && e.status === "degraded");
+    expect(degradedEvent).toBeDefined();
+    expect(degradedEvent!.source).toBe("status-page");
+    expect(degradedEvent).toMatchObject({
+      statusPageDetail: {
+        summary: "Kick status: Partial outage - KICK Degraded Functionality.",
+      },
+    });
+  });
+
+  it("status-page detail updates emit another degraded event", async () => {
+    const { onPlatformHealthChanged, recordStatusPageSignal } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: Array<{
+      platform: string;
+      status: string;
+      statusPageDetail?: { summary: string };
+    }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
+    recordStatusPageSignal("kick", "confirmed-outage", {
+      summary: "Kick status: Partial outage - KICK Degraded Functionality.",
+      impact: "Partial outage",
+    });
+    recordStatusPageSignal("kick", "confirmed-outage", {
+      summary: "Kick status: Major outage - KICK Outage.",
+      impact: "Major outage",
+    });
+
+    const degradedEvents = events.filter((e) => e.platform === "kick" && e.status === "degraded");
+    expect(degradedEvents).toHaveLength(2);
+    expect(degradedEvents[1].statusPageDetail?.summary).toBe(
+      "Kick status: Major outage - KICK Outage."
+    );
+  });
+
+  it("all-clear recovers a status-page-created degradation", async () => {
+    const { getPlatformHealth, onPlatformHealthChanged, recordStatusPageSignal } = await import(
+      "@/backend/api/unified/platform-health"
+    );
+
+    const events: Array<{ platform: string; status: string; source?: string }> = [];
+    onPlatformHealthChanged((e) => events.push(e));
+
     recordStatusPageSignal("kick", "confirmed-outage");
+    recordStatusPageSignal("kick", "all-clear");
+
     expect(getPlatformHealth("kick")).toBe("healthy");
 
-    recordStatusPageSignal("twitch", "confirmed-outage");
-    expect(getPlatformHealth("twitch")).toBe("healthy");
+    const recoveryEvent = events.find((e) => e.platform === "kick" && e.status === "healthy");
+    expect(recoveryEvent).toBeDefined();
+    expect(recoveryEvent!.source).toBe("status-page");
   });
 
   it("recovery event includes source: 'status-page' when signal was active", async () => {

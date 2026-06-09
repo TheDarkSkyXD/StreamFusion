@@ -23,6 +23,7 @@ import {
   __resetPlatformHealthForTests,
   recordPlatformFailure,
   recordPlatformSuccess,
+  recordStatusPageSignal,
 } from "@/backend/api/unified/platform-health";
 import { registerPlatformHealthHandlers } from "@/backend/ipc/handlers/platform-health-handlers";
 
@@ -84,6 +85,29 @@ describe("registerPlatformHealthHandlers", () => {
     const result = (await handler({})) as { kick: string; twitch: string };
 
     expect(result).toEqual({ kick: "degraded", twitch: "healthy" });
+  });
+
+  it("includes status-page detail in PLATFORM_HEALTH_GET snapshots when present", async () => {
+    const { window } = makeFakeMainWindow();
+    registerPlatformHealthHandlers(window as unknown as Electron.BrowserWindow);
+
+    recordStatusPageSignal("kick", "confirmed-outage", {
+      summary: "Kick status: Major outage - KICK Outage.",
+      impact: "Major outage",
+    });
+
+    const handler = getInvokeHandler(IPC_CHANNELS.PLATFORM_HEALTH_GET);
+    const result = (await handler({})) as {
+      kick: string;
+      twitch: string;
+      details?: { kick?: { summary: string } };
+    };
+
+    expect(result).toMatchObject({
+      kick: "degraded",
+      twitch: "healthy",
+      details: { kick: { summary: "Kick status: Major outage - KICK Outage." } },
+    });
   });
 
   it("pushes PLATFORM_HEALTH_CHANGED to the main window webContents on transition", () => {

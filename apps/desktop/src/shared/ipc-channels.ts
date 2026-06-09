@@ -239,6 +239,9 @@ export const IPC_CHANNELS = {
   // Read the noise side-channel log path; returns null if the noise logger
   // is not initialized (it's optional / app-controlled at boot).
   LOGS_GET_NOISE_PATH: "logs:get-noise-path",
+  // Read the network side-channel log path; returns null if the logger has
+  // not been initialized.
+  LOGS_GET_NETWORK_PATH: "logs:get-network-path",
   // Tail the last N lines of either log file for the LogsSection preview.
   LOGS_TAIL: "logs:tail",
 
@@ -387,16 +390,18 @@ export interface IpcPayloads {
     message: string;
     meta?: Record<string, unknown>;
   };
-  // Tail a log file. `file` selects the main session log or the optional
-  // noise log; `lines` is clamped to [1, 5000] by the handler. Optional
+  // Tail a log file. `file` selects the main session log, network side-channel,
+  // or optional noise log; `lines` is clamped to [1, 5000] by the handler. Optional
   // `level`/`tag` filters apply server-side BEFORE the tail-slice, so a
   // tag/level match deep in the file isn't dropped by a small `lines`
-  // window. `tag` is a case-insensitive substring match.
+  // window. `tag` is a case-insensitive substring match. `query` matches
+  // against the whole line, OR-ing multiple values.
   [IPC_CHANNELS.LOGS_TAIL]: {
     lines: number;
-    file: "main" | "noise";
+    file: "main" | "noise" | "network";
     level?: "debug" | "info" | "warn" | "error";
     tag?: string;
+    query?: string | string[];
   };
 
   // Bug-report capture. `description` is the user's free-form text; the two

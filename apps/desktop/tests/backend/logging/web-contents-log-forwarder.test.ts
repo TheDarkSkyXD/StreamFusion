@@ -5,6 +5,7 @@ import { forwardWebContentsConsole } from "@/backend/logging/web-contents-log-fo
 // Mock the project logger so the test can assert level + tag without touching
 // the real log file.
 const mocks = vi.hoisted(() => ({
+  loggerDebug: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
 }));
@@ -14,7 +15,7 @@ vi.mock("@/backend/logging/logger", () => ({
     warn: mocks.loggerWarn,
     error: mocks.loggerError,
     info: vi.fn(),
-    debug: vi.fn(),
+    debug: mocks.loggerDebug,
   },
 }));
 
@@ -37,6 +38,7 @@ function makeFakeWebContents() {
 }
 
 beforeEach(() => {
+  mocks.loggerDebug.mockClear();
   mocks.loggerWarn.mockClear();
   mocks.loggerError.mockClear();
 });
@@ -44,19 +46,13 @@ beforeEach(() => {
 describe("forwardWebContentsConsole — works with arbitrary WebContents (slice 05 contract)", () => {
   it("subscribes a console-message handler on the provided WebContents", () => {
     const fakeWC = makeFakeWebContents();
-    forwardWebContentsConsole(
-      fakeWC as unknown as Electron.WebContents,
-      { tag: "SlotView-0" }
-    );
+    forwardWebContentsConsole(fakeWC as unknown as Electron.WebContents, { tag: "SlotView-0" });
     expect(fakeWC.on).toHaveBeenCalledWith("console-message", expect.any(Function));
   });
 
   it("routes a warning message into logger.warn under the provided tag", () => {
     const fakeWC = makeFakeWebContents();
-    forwardWebContentsConsole(
-      fakeWC as unknown as Electron.WebContents,
-      { tag: "SlotView-0" }
-    );
+    forwardWebContentsConsole(fakeWC as unknown as Electron.WebContents, { tag: "SlotView-0" });
 
     fakeWC.emitConsoleMessage({
       level: "warning",
@@ -74,22 +70,60 @@ describe("forwardWebContentsConsole — works with arbitrary WebContents (slice 
 
   it("routes an error message into logger.error under the provided tag", () => {
     const fakeWC = makeFakeWebContents();
-    forwardWebContentsConsole(
-      fakeWC as unknown as Electron.WebContents,
-      { tag: "SlotView-3" }
-    );
+    forwardWebContentsConsole(fakeWC as unknown as Electron.WebContents, { tag: "SlotView-3" });
 
     fakeWC.emitConsoleMessage({ level: "error", message: "decoder crashed" });
 
     expect(mocks.loggerError).toHaveBeenCalledWith("SlotView-3", "decoder crashed", undefined);
   });
 
+  it("demotes Pusher closed-socket errors from pusher-js teardown to debug", () => {
+    const fakeWC = makeFakeWebContents();
+    forwardWebContentsConsole(fakeWC as unknown as Electron.WebContents, { tag: "WebContents" });
+
+    fakeWC.emitConsoleMessage({
+      level: "error",
+      message: "WebSocket is already in CLOSING or CLOSED state.",
+      sourceId: "http://localhost:5173/node_modules/.vite/deps/pusher-js.js?v=808c741b",
+      lineNumber: 1282,
+    });
+
+    expect(mocks.loggerDebug).toHaveBeenCalledWith(
+      "WebContents",
+      "WebSocket is already in CLOSING or CLOSED state.",
+      {
+        source: "http://localhost:5173/node_modules/.vite/deps/pusher-js.js?v=808c741b",
+        line: 1282,
+      }
+    );
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+
+  it("keeps non-Pusher closed-socket errors visible", () => {
+    const fakeWC = makeFakeWebContents();
+    forwardWebContentsConsole(fakeWC as unknown as Electron.WebContents, { tag: "WebContents" });
+
+    fakeWC.emitConsoleMessage({
+      level: "error",
+      message: "WebSocket is already in CLOSING or CLOSED state.",
+      sourceId: "http://localhost:5173/src/app-websocket.ts",
+      lineNumber: 10,
+    });
+
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      "WebContents",
+      "WebSocket is already in CLOSING or CLOSED state.",
+      {
+        source: "http://localhost:5173/src/app-websocket.ts",
+        line: 10,
+      }
+    );
+    expect(mocks.loggerDebug).not.toHaveBeenCalled();
+  });
+
   it("ignores info / debug / verbose levels (avoid third-party noise)", () => {
     const fakeWC = makeFakeWebContents();
-    forwardWebContentsConsole(
-      fakeWC as unknown as Electron.WebContents,
-      { tag: "SlotView-0" }
-    );
+    forwardWebContentsConsole(fakeWC as unknown as Electron.WebContents, { tag: "SlotView-0" });
 
     fakeWC.emitConsoleMessage({ level: "info", message: "noise" });
     fakeWC.emitConsoleMessage({ level: "verbose", message: "more noise" });
@@ -101,10 +135,7 @@ describe("forwardWebContentsConsole — works with arbitrary WebContents (slice 
 
   it("handles the older numeric-level shape (3=error, 2=warn)", () => {
     const fakeWC = makeFakeWebContents();
-    forwardWebContentsConsole(
-      fakeWC as unknown as Electron.WebContents,
-      { tag: "SlotView-0" }
-    );
+    forwardWebContentsConsole(fakeWC as unknown as Electron.WebContents, { tag: "SlotView-0" });
 
     fakeWC.emitConsoleMessage({ level: 2, message: "old-shape warn" });
     fakeWC.emitConsoleMessage({ level: 3, message: "old-shape error" });

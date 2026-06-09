@@ -32,6 +32,10 @@ vi.mock("@/backend/logging/noise-logger", () => ({
   getCurrentNoisePath: vi.fn(),
 }));
 
+vi.mock("@/backend/logging/network-logger", () => ({
+  getCurrentNetworkPath: vi.fn(),
+}));
+
 vi.mock("@/backend/ipc/sender-origin", () => ({
   isAllowedSender: vi.fn(),
 }));
@@ -41,6 +45,7 @@ import { ipcMain, shell } from "electron";
 import { registerLogHandlers } from "@/backend/ipc/handlers/log-handlers";
 import { isAllowedSender } from "@/backend/ipc/sender-origin";
 import { getCurrentLogPath, logger } from "@/backend/logging/logger";
+import { getCurrentNetworkPath } from "@/backend/logging/network-logger";
 import { getCurrentNoisePath } from "@/backend/logging/noise-logger";
 
 const loggerMock = vi.mocked(logger);
@@ -68,14 +73,17 @@ const DISALLOWED_REMOTE = { senderFrame: { url: "https://www.twitch.tv/embed" } 
 let tmpDir: string;
 let mainLogPath: string;
 let noiseLogPath: string;
+let networkLogPath: string;
 
 beforeEach(async () => {
   vi.clearAllMocks();
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "sf-log-handlers-"));
   mainLogPath = path.join(tmpDir, "streamfusion-main.log");
   noiseLogPath = path.join(tmpDir, "streamfusion-noise.log");
+  networkLogPath = path.join(tmpDir, "streamfusion-network.log");
   vi.mocked(getCurrentLogPath).mockReturnValue(mainLogPath);
   vi.mocked(getCurrentNoisePath).mockReturnValue(noiseLogPath);
+  vi.mocked(getCurrentNetworkPath).mockReturnValue(networkLogPath);
   vi.mocked(isAllowedSender).mockReturnValue(true);
   vi.mocked(shell.openPath).mockResolvedValue("");
 });
@@ -91,12 +99,13 @@ describe("registerLogHandlers — channel registration", () => {
     expect(channels).toContain(IPC_CHANNELS.LOG_WRITE);
   });
 
-  it("registers invoke handlers for LOGS_OPEN_FOLDER, LOGS_GET_CURRENT_PATH, LOGS_GET_NOISE_PATH, LOGS_TAIL", () => {
+  it("registers invoke handlers for LOGS_OPEN_FOLDER, LOGS_GET_CURRENT_PATH, LOGS_GET_NOISE_PATH, LOGS_GET_NETWORK_PATH, LOGS_TAIL", () => {
     registerLogHandlers();
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(channels).toContain(IPC_CHANNELS.LOGS_OPEN_FOLDER);
     expect(channels).toContain(IPC_CHANNELS.LOGS_GET_CURRENT_PATH);
     expect(channels).toContain(IPC_CHANNELS.LOGS_GET_NOISE_PATH);
+    expect(channels).toContain(IPC_CHANNELS.LOGS_GET_NETWORK_PATH);
     expect(channels).toContain(IPC_CHANNELS.LOGS_TAIL);
   });
 });
@@ -210,6 +219,25 @@ describe("LOGS_GET_NOISE_PATH", () => {
   });
 });
 
+describe("LOGS_GET_NETWORK_PATH", () => {
+  it("returns the path from getCurrentNetworkPath()", async () => {
+    registerLogHandlers();
+    const handler = getInvokeHandler(IPC_CHANNELS.LOGS_GET_NETWORK_PATH);
+    const result = await handler(ALLOWED_FILE);
+    expect(result).toBe(networkLogPath);
+  });
+
+  it("returns null when getCurrentNetworkPath throws", async () => {
+    vi.mocked(getCurrentNetworkPath).mockImplementation(() => {
+      throw new Error("Network logger is not initialized");
+    });
+    registerLogHandlers();
+    const handler = getInvokeHandler(IPC_CHANNELS.LOGS_GET_NETWORK_PATH);
+    const result = await handler(ALLOWED_FILE);
+    expect(result).toBeNull();
+  });
+});
+
 describe("LOGS_OPEN_FOLDER", () => {
   it("opens the directory containing the current log file", async () => {
     registerLogHandlers();
@@ -261,6 +289,17 @@ describe("LOGS_TAIL", () => {
     expect(result).toEqual(["y", "z"]);
   });
 
+  it("returns the last N lines of the network file when file='network'", async () => {
+    const content = ["network-a", "network-b", "network-c"].join("\n");
+    await fs.writeFile(networkLogPath, content);
+
+    registerLogHandlers();
+    const handler = getInvokeHandler(IPC_CHANNELS.LOGS_TAIL);
+
+    const result = (await handler(ALLOWED_FILE, { lines: 2, file: "network" })) as string[];
+    expect(result).toEqual(["network-b", "network-c"]);
+  });
+
   it("strips trailing empty lines", async () => {
     await fs.writeFile(mainLogPath, "one\ntwo\n\n\n");
     registerLogHandlers();
@@ -305,5 +344,39 @@ describe("LOGS_TAIL", () => {
 
     const result = (await handler(ALLOWED_FILE, { lines: 10, file: "noise" })) as string[];
     expect(result).toEqual([]);
+  });
+
+  it("returns [] for file='network' when the network logger is not initialized", async () => {
+    vi.mocked(getCurrentNetworkPath).mockImplementation(() => {
+      throw new Error("Network logger is not initialized");
+    });
+    registerLogHandlers();
+    const handler = getInvokeHandler(IPC_CHANNELS.LOGS_TAIL);
+
+    const result = (await handler(ALLOWED_FILE, { lines: 10, file: "network" })) as string[];
+    expect(result).toEqual([]);
+  });
+
+  it("filters by full-line query before slicing the tail", async () => {
+    const content = [
+      "[2026-06-08T20:00:00.000Z] [info] [Main] startup",
+      "[2026-06-08T20:00:01.000Z] [warn] [Chromium] turn_port allocate error",
+      "[2026-06-08T20:00:02.000Z] [info] [Main] filler-1",
+      "[2026-06-08T20:00:03.000Z] [info] [Main] filler-2",
+      "[2026-06-08T20:00:04.000Z] [info] [Main] filler-3",
+    ].join("\n");
+    await fs.writeFile(mainLogPath, content);
+
+    registerLogHandlers();
+    const handler = getInvokeHandler(IPC_CHANNELS.LOGS_TAIL);
+
+    const result = (await handler(ALLOWED_FILE, {
+      lines: 1,
+      file: "main",
+      query: ["turn_port", "websocket"],
+    })) as string[];
+    expect(result).toEqual([
+      "[2026-06-08T20:00:01.000Z] [warn] [Chromium] turn_port allocate error",
+    ]);
   });
 });

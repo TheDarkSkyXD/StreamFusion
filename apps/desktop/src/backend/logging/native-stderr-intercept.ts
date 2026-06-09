@@ -45,6 +45,8 @@ const state: PatchState = {
 let isWriting = false;
 
 const CHROMIUM_PREFIX = /^\[\d+:\d+\/\d+\.\d+:(ERROR|WARNING|INFO|VERBOSE):/;
+const STREAMFUSION_LOG_PREFIX =
+  /^\[\d{4}-\d{2}-\d{2}T[^\]]+Z\] \[(debug|info|warn|error)\] \[[^\]]+\] /;
 
 type ChromiumLevel = "ERROR" | "WARNING" | "INFO" | "VERBOSE";
 type LoggerLevel = "debug" | "info" | "warn" | "error";
@@ -65,6 +67,7 @@ function chunkToString(chunk: unknown): string {
 function routeLine(line: string, tag: string): void {
   const trimmed = line.trim();
   if (trimmed.length === 0) return;
+  if (STREAMFUSION_LOG_PREFIX.test(trimmed)) return;
   const match = CHROMIUM_PREFIX.exec(trimmed);
   if (match) {
     let level = LEVEL_MAP[match[1] as ChromiumLevel];

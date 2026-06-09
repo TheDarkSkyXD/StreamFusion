@@ -181,6 +181,19 @@ describe("installNativeStderrIntercept — plain text fallthrough", () => {
     expect(logger.info).toHaveBeenCalledWith("Chromium", "buffered hello");
   });
 
+  it("does not re-route StreamFusion formatted log lines", async () => {
+    const { mod, logger } = await freshIntercept();
+    process.stderr.write = vi.fn().mockReturnValue(true) as unknown as typeof process.stderr.write;
+
+    uninstallers.push(mod.installNativeStderrIntercept());
+    process.stderr.write("[2026-06-08T16:52:04.684Z] [info] [Main] Logging initialized\n");
+
+    expect(logger.info).not.toHaveBeenCalled();
+    expect(logger.debug).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
   it("skips empty chunks", async () => {
     const { mod, logger } = await freshIntercept();
     process.stderr.write = vi.fn().mockReturnValue(true) as unknown as typeof process.stderr.write;

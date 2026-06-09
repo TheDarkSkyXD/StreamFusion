@@ -11,7 +11,8 @@
  *   - LOGS_GET_CURRENT_PATH: absolute path of the active session log.
  *   - LOGS_GET_NOISE_PATH: absolute path of the noise side-channel log, or
  *     null when the noise logger has not been initialized.
- *   - LOGS_TAIL: read the last N lines of either log file (clamped to [1,5000]).
+ *   - LOGS_GET_NETWORK_PATH: absolute path of the network side-channel log.
+ *   - LOGS_TAIL: read the last N lines of any log file (clamped to [1,5000]).
  *
  * The renderer `tag` is namespaced with `Renderer:` before reaching the
  * logger so the on-disk format keeps main- and renderer-side messages
@@ -25,6 +26,7 @@ import { ipcMain, shell } from "electron";
 
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { getCurrentLogPath, type LogLevel, logger } from "../../logging/logger";
+import { getCurrentNetworkPath } from "../../logging/network-logger";
 import { getCurrentNoisePath } from "../../logging/noise-logger";
 import { isAllowedSender } from "../sender-origin";
 
@@ -44,6 +46,7 @@ interface LogsTailPayload {
   file: unknown;
   level?: unknown;
   tag?: unknown;
+  query?: unknown;
 }
 
 // Matches `[<iso>] [<level>] [<tag>] ...`. Mirrors the client-side
@@ -70,11 +73,30 @@ function safeNoisePath(): string | null {
   }
 }
 
+function safeNetworkPath(): string | null {
+  try {
+    return getCurrentNetworkPath();
+  } catch {
+    return null;
+  }
+}
+
 interface ReadTailFilters {
   /** Restrict to this severity. `undefined` = all levels. */
   level?: LogLevel;
   /** Case-insensitive substring match against the tag. Empty/undefined = no filter. */
   tag?: string;
+  /** Case-insensitive substring match against the whole line. Multiple values are OR'd. */
+  query?: string[];
+}
+
+function normalizeQuery(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  return values
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item.length > 0)
+    .slice(0, 25);
 }
 
 async function readTail(
@@ -94,8 +116,9 @@ async function readTail(
 
   const tagNeedle = filters.tag?.trim().toLowerCase() ?? "";
   const levelFilter = filters.level;
+  const queryNeedles = filters.query ?? [];
 
-  if (!levelFilter && tagNeedle === "") {
+  if (!levelFilter && tagNeedle === "" && queryNeedles.length === 0) {
     // Fast path: avoid the per-line regex scan when no filters are active.
     return nonEmpty.slice(-lines);
   }
@@ -109,6 +132,12 @@ async function readTail(
     const tag = match ? match[2] : "";
     if (levelFilter && level !== levelFilter) return false;
     if (tagNeedle !== "" && !tag.toLowerCase().includes(tagNeedle)) return false;
+    if (
+      queryNeedles.length > 0 &&
+      !queryNeedles.some((needle) => line.toLowerCase().includes(needle))
+    ) {
+      return false;
+    }
     return true;
   });
   return filtered.slice(-lines);
@@ -169,6 +198,10 @@ export function registerLogHandlers(): void {
     return safeNoisePath();
   });
 
+  ipcMain.handle(IPC_CHANNELS.LOGS_GET_NETWORK_PATH, (): string | null => {
+    return safeNetworkPath();
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.LOGS_TAIL,
     async (_event, payload: LogsTailPayload): Promise<string[]> => {
@@ -177,11 +210,17 @@ export function registerLogHandlers(): void {
       const filters: ReadTailFilters = {
         level: isLogLevel(payload?.level) ? payload.level : undefined,
         tag: typeof payload?.tag === "string" ? payload.tag : undefined,
+        query: normalizeQuery(payload?.query),
       };
       if (file === "noise") {
         const noisePath = safeNoisePath();
         if (noisePath === null) return [];
         return readTail(noisePath, lines, filters);
+      }
+      if (file === "network") {
+        const networkPath = safeNetworkPath();
+        if (networkPath === null) return [];
+        return readTail(networkPath, lines, filters);
       }
       // Default to the main log for any other value (including 'main').
       return readTail(getCurrentLogPath(), lines, filters);

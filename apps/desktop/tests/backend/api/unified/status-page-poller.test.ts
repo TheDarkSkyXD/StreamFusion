@@ -23,6 +23,16 @@ function fireEvent(event: HealthEvent) {
   for (const listener of listeners) listener(event);
 }
 
+function defaultKickStatusResponse(url: string | URL | Request): Response {
+  const href = String(url);
+  if (href.includes("/api/services")) {
+    return new Response(JSON.stringify({ services: [{ name: "Other", status: "Operational" }] }), {
+      status: 200,
+    });
+  }
+  return new Response(JSON.stringify({}), { status: 200 });
+}
+
 describe("status-page-poller (slice 08)", () => {
   let originalFetch: typeof globalThis.fetch;
   let platformHealth: typeof import("@/backend/api/unified/platform-health");
@@ -32,7 +42,7 @@ describe("status-page-poller (slice 08)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
     originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn();
+    globalThis.fetch = vi.fn((url) => Promise.resolve(defaultKickStatusResponse(url)));
     listeners.clear();
     platformHealth = await import("@/backend/api/unified/platform-health");
     vi.mocked(platformHealth.recordStatusPageSignal).mockClear();
@@ -49,6 +59,10 @@ describe("status-page-poller (slice 08)", () => {
     );
     __resetStatusPagePollerForTests();
     initStatusPagePoller();
+    await vi.advanceTimersByTimeAsync(1);
+    vi.mocked(globalThis.fetch).mockClear();
+    vi.mocked(platformHealth.recordStatusPageSignal).mockClear();
+    loggerMock.warn.mockClear();
   });
 
   afterEach(() => {
@@ -56,10 +70,12 @@ describe("status-page-poller (slice 08)", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("does NOT start polling while platform is healthy", () => {
-    vi.advanceTimersByTime(120_000);
+  it("starts Kick polling while platform is healthy, but does not poll Twitch", async () => {
+    await vi.advanceTimersByTimeAsync(120_000);
 
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => String(url));
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.every((url) => url.startsWith("https://status.kick.com/"))).toBe(true);
   });
 
   it("starts polling on healthy-to-degraded transition", async () => {
@@ -74,7 +90,7 @@ describe("status-page-poller (slice 08)", () => {
     expect(globalThis.fetch).toHaveBeenCalled();
   });
 
-  it("stops polling on degraded-to-healthy transition", async () => {
+  it("stops Twitch polling on degraded-to-healthy transition", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ status: { indicator: "none" } }), { status: 200 })
     );
@@ -88,7 +104,8 @@ describe("status-page-poller (slice 08)", () => {
     vi.mocked(globalThis.fetch).mockClear();
     await vi.advanceTimersByTimeAsync(120_000);
 
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => String(url));
+    expect(urls.every((url) => !url.startsWith("https://status.twitch.com/"))).toBe(true);
   });
 
   it("Twitch: indicator 'none' produces 'all-clear'", async () => {
@@ -160,22 +177,133 @@ describe("status-page-poller (slice 08)", () => {
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("twitch", "all-clear");
   });
 
-  it("Kick: 404 on status.json produces 'no-signal'", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response("Not Found", { status: 404 }));
+  it("Kick: partial outage service produces 'confirmed-outage'", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ services: [{ name: "Other", status: "Partial outage" }] }), {
+        status: 200,
+      })
+    );
 
-    fireEvent({ platform: "kick", status: "degraded", startedAt: Date.now() });
+    await vi.advanceTimersByTimeAsync(60_000);
 
-    await vi.advanceTimersByTimeAsync(1);
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
+      "kick",
+      "confirmed-outage",
+      expect.objectContaining({
+        summary: "Kick status: Partial outage.",
+        impact: "Partial outage",
+      })
+    );
+  });
 
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
+  it("Kick: PagerDuty posts + service IDs produce simple system-status detail and ignore HTML body", async () => {
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            services: [
+              {
+                id: "P3CL6N4",
+                name: "KICK - Catch All",
+                display_name: "Other",
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            posts: [
+              {
+                post_type: "incident",
+                latest_update: {
+                  status_id: "PSU2YIK",
+                  impacts: [{ service_id: "P3CL6N4", severity_id: "PCAUUKL" }],
+                  message:
+                    "<p>KICK is currently experiencing a degraded performance. We are aware of this and looking into it.</p>",
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            post_enums: [
+              {
+                id: "PSU2YIK",
+                name: "investigating",
+                post_enum_type: "status",
+              },
+              {
+                id: "PCAUUKL",
+                name: "partial outage",
+                post_enum_type: "impacts",
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
+      "kick",
+      "confirmed-outage",
+      expect.objectContaining({
+        summary: "Kick status: Partial outage.",
+        impact: "Partial outage",
+      })
+    );
+    expect(platformHealth.recordStatusPageSignal).not.toHaveBeenCalledWith(
+      "kick",
+      "confirmed-outage",
+      expect.objectContaining({
+        summary: expect.stringContaining("<p>"),
+      })
+    );
+  });
+
+  it("Kick: major outage service wording is forwarded as status-page detail", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ services: [{ name: "Other", status: "Major outage" }] }), {
+        status: 200,
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
+      "kick",
+      "confirmed-outage",
+      expect.objectContaining({
+        summary: "Kick status: Major outage.",
+        impact: "Major outage",
+      })
+    );
+  });
+
+  it("Kick: operational services produce 'all-clear'", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ services: [{ name: "Other", status: "Operational" }] }), {
+        status: 200,
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
   });
 
   it("fetch failure produces 'no-signal' (never throws)", async () => {
     vi.mocked(globalThis.fetch).mockRejectedValue(new Error("network error"));
 
-    fireEvent({ platform: "kick", status: "degraded", startedAt: Date.now() });
-
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
   });
@@ -230,9 +358,7 @@ describe("status-page-poller (slice 08)", () => {
   it("Kick status fetch rejection: logs warn with the Kick URL in meta", async () => {
     vi.mocked(globalThis.fetch).mockRejectedValue(new Error("dns failure"));
 
-    fireEvent({ platform: "kick", status: "degraded", startedAt: Date.now() });
-
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(loggerMock.warn).toHaveBeenCalledTimes(1);
     const [tag, message, meta] = loggerMock.warn.mock.calls[0] as [
@@ -242,7 +368,7 @@ describe("status-page-poller (slice 08)", () => {
     ];
     expect(tag).toBe("StatusPoller");
     expect(message).toContain("[poller-r9c2]");
-    expect(meta.url).toBe("https://status.kick.com/api/v2/status.json");
+    expect(meta.url).toBe("https://status.kick.com/api/services");
     expect(typeof meta.err).toBe("string");
     expect((meta.err as string).length).toBeGreaterThan(0);
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
@@ -285,19 +411,10 @@ describe("status-page-poller (slice 08)", () => {
   });
 
   it("poll interval is 60s", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ status: { indicator: "none" } }), { status: 200 })
-    );
-
-    fireEvent({ platform: "twitch", status: "degraded", startedAt: Date.now() });
-
-    await vi.advanceTimersByTimeAsync(1);
-    const callsAfterFirstPoll = vi.mocked(globalThis.fetch).mock.calls.length;
-
     await vi.advanceTimersByTimeAsync(59_998);
-    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(callsAfterFirstPoll);
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(0);
 
     await vi.advanceTimersByTimeAsync(2);
-    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(callsAfterFirstPoll);
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(0);
   });
 });

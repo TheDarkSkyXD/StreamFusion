@@ -38,6 +38,14 @@ export interface Logger {
   error(tag: string, message: string, meta?: Record<string, unknown>): void;
 }
 
+export type LogSink = (entry: {
+  level: LogLevel;
+  tag: string;
+  message: string;
+  meta?: Record<string, unknown>;
+  line: string;
+}) => void;
+
 const VALID_LEVELS: readonly LogLevel[] = ["debug", "info", "warn", "error"] as const;
 
 interface LoggerState {
@@ -51,6 +59,8 @@ const state: LoggerState = {
   shutDown: false,
   filePath: "",
 };
+
+const sinks = new Set<LogSink>();
 
 function isLogLevel(value: string | undefined): value is LogLevel {
   return value !== undefined && (VALID_LEVELS as readonly string[]).includes(value);
@@ -94,6 +104,13 @@ function emit(level: LogLevel, tag: string, message: string, meta?: Record<strin
     meta,
   });
   writeRaw(level, line);
+  for (const sink of sinks) {
+    try {
+      sink({ level, tag, message, meta, line });
+    } catch {
+      // Side-channel diagnostics must never break the primary logger.
+    }
+  }
 }
 
 export const logger: Logger = {
@@ -157,6 +174,13 @@ export function getCurrentLogPath(): string {
     throw new Error("Logger is not initialized — call initLogger() first.");
   }
   return state.filePath;
+}
+
+export function addLogSink(sink: LogSink): () => void {
+  sinks.add(sink);
+  return () => {
+    sinks.delete(sink);
+  };
 }
 
 export async function shutdownLogger(): Promise<void> {

@@ -31,6 +31,12 @@ export const STATUS_PAGE_POLL_INTERVAL_MS = 60_000;
 
 export type StatusPageSignal = "confirmed-outage" | "all-clear" | "no-signal";
 
+export interface StatusPageDetail {
+  summary: string;
+  headline?: string;
+  impact?: string;
+}
+
 /** Rolling window for net::ERR_* burst detection. */
 export const ERROR_BURST_WINDOW_MS = 2_000;
 /** Number of net::ERR_* errors within the burst window to trip `down`. */
@@ -45,6 +51,7 @@ export interface PlatformHealthEvent {
   sampleSize: number;
   failureRate: number;
   source: "internal" | "status-page";
+  statusPageDetail?: StatusPageDetail;
 }
 
 type Outcome = { ts: number; failed: boolean };
@@ -53,11 +60,13 @@ interface PlatformState {
   outcomes: Outcome[];
   status: PlatformHealth;
   startedAt: number;
+  statusSource: "internal" | "status-page" | null;
   /** Timestamp (epoch ms) until which the `down` state is active. 0 = not down. */
   downUntil: number;
   /** Rolling timestamps of recent net::ERR_* errors for burst detection. */
   netErrorTimestamps: number[];
   statusPageSignal: StatusPageSignal;
+  statusPageDetail?: StatusPageDetail;
 }
 
 const states: Record<Platform, PlatformState> = {
@@ -65,6 +74,7 @@ const states: Record<Platform, PlatformState> = {
     outcomes: [],
     status: "healthy",
     startedAt: 0,
+    statusSource: null,
     downUntil: 0,
     netErrorTimestamps: [],
     statusPageSignal: "no-signal",
@@ -73,6 +83,7 @@ const states: Record<Platform, PlatformState> = {
     outcomes: [],
     status: "healthy",
     startedAt: 0,
+    statusSource: null,
     downUntil: 0,
     netErrorTimestamps: [],
     statusPageSignal: "no-signal",
@@ -100,6 +111,7 @@ function evaluate(platform: Platform, now: number): void {
 
   state.status = "degraded";
   state.startedAt = now;
+  state.statusSource = "internal";
   logger.warn(
     "PlatformHealth",
     `${platform} degraded: ${failures}/${state.outcomes.length} requests failed in last 60s. Backing off.`
@@ -123,6 +135,7 @@ function getEffectiveCooldown(state: PlatformState): number {
 function evaluateRecovery(platform: Platform, now: number): void {
   const state = states[platform];
   if (state.status !== "degraded") return;
+  if (state.statusSource === "status-page" && state.statusPageSignal !== "all-clear") return;
 
   const effectiveCooldown = getEffectiveCooldown(state);
   if (now - state.startedAt < effectiveCooldown) return;
@@ -137,6 +150,7 @@ function evaluateRecovery(platform: Platform, now: number): void {
     state.statusPageSignal !== "no-signal" ? "status-page" : "internal";
   state.status = "healthy";
   state.startedAt = now;
+  state.statusSource = null;
   state.statusPageSignal = "no-signal";
   logger.warn("PlatformHealth", `${platform} recovered after ${degradedDurationSec}s`);
   emit({
@@ -153,6 +167,13 @@ function emit(event: PlatformHealthEvent): void {
   for (const listener of listeners) {
     listener(event);
   }
+}
+
+function statusPageDetailsEqual(
+  a: StatusPageDetail | undefined,
+  b: StatusPageDetail | undefined
+): boolean {
+  return a?.summary === b?.summary && a?.headline === b?.headline && a?.impact === b?.impact;
 }
 
 export function recordPlatformFailure(platform: Platform, _errorClass: PlatformFailureClass): void {
@@ -248,6 +269,10 @@ export function getPlatformHealth(platform: Platform): PlatformHealth {
   return state.status;
 }
 
+export function getPlatformStatusPageDetail(platform: Platform): StatusPageDetail | undefined {
+  return states[platform].statusPageDetail;
+}
+
 export function isPlatformHealthy(platform: Platform): boolean {
   return getPlatformHealth(platform) === "healthy";
 }
@@ -261,8 +286,78 @@ export function onPlatformHealthChanged(
   };
 }
 
-export function recordStatusPageSignal(platform: Platform, signal: StatusPageSignal): void {
-  states[platform].statusPageSignal = signal;
+export function recordStatusPageSignal(
+  platform: Platform,
+  signal: StatusPageSignal,
+  detail?: StatusPageDetail
+): void {
+  const now = Date.now();
+  const state = states[platform];
+  const previousDetail = state.statusPageDetail;
+  state.statusPageSignal = signal;
+  if (signal === "confirmed-outage" && detail != null) {
+    state.statusPageDetail = detail;
+  }
+
+  if (signal === "confirmed-outage" && state.status === "healthy") {
+    state.status = "degraded";
+    state.startedAt = now;
+    state.statusSource = "status-page";
+    logger.warn("PlatformHealth", `${platform} degraded: status page confirmed outage`);
+    emit({
+      platform,
+      status: "degraded",
+      startedAt: now,
+      sampleSize: state.outcomes.length,
+      failureRate: 0,
+      source: "status-page",
+      statusPageDetail: state.statusPageDetail,
+    });
+    return;
+  }
+
+  if (
+    signal === "confirmed-outage" &&
+    state.status === "degraded" &&
+    !statusPageDetailsEqual(previousDetail, state.statusPageDetail)
+  ) {
+    emit({
+      platform,
+      status: "degraded",
+      startedAt: state.startedAt,
+      sampleSize: state.outcomes.length,
+      failureRate: 0,
+      source: "status-page",
+      statusPageDetail: state.statusPageDetail,
+    });
+    return;
+  }
+
+  if (
+    signal === "all-clear" &&
+    state.status === "degraded" &&
+    state.statusSource === "status-page"
+  ) {
+    state.status = "healthy";
+    state.startedAt = now;
+    state.statusSource = null;
+    state.statusPageSignal = "no-signal";
+    state.statusPageDetail = undefined;
+    logger.warn("PlatformHealth", `${platform} recovered after status page all-clear`);
+    emit({
+      platform,
+      status: "healthy",
+      startedAt: now,
+      sampleSize: state.outcomes.length,
+      failureRate: 0,
+      source: "status-page",
+    });
+    return;
+  }
+
+  if (signal === "all-clear") {
+    state.statusPageDetail = undefined;
+  }
 }
 
 export function __resetPlatformHealthForTests(): void {
@@ -270,9 +365,11 @@ export function __resetPlatformHealthForTests(): void {
     states[key].outcomes.length = 0;
     states[key].status = "healthy";
     states[key].startedAt = 0;
+    states[key].statusSource = null;
     states[key].downUntil = 0;
     states[key].netErrorTimestamps.length = 0;
     states[key].statusPageSignal = "no-signal";
+    states[key].statusPageDetail = undefined;
   }
   listeners.clear();
 }

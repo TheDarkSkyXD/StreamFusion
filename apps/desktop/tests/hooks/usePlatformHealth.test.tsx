@@ -32,6 +32,7 @@ describe("usePlatformHealth", () => {
     expect(result.current.kick).toBe("healthy");
     expect(result.current.twitch).toBe("healthy");
     expect(result.current.anyDegraded).toBe(false);
+    expect(result.current.details).toEqual({});
 
     // Unblock the get so React doesn't warn about pending state.
     await act(async () => {
@@ -57,7 +58,14 @@ describe("usePlatformHealth", () => {
   it("updates state when an onChange event arrives", async () => {
     const api = installElectronAPIMock();
     let changeHandler:
-      | ((event: { platform: string; status: string; startedAt: number }) => void)
+      | ((
+          event: {
+            platform: string;
+            status: string;
+            startedAt: number;
+            statusPageDetail?: { summary: string };
+          }
+        ) => void)
       | null = null;
     api.platformHealth = {
       get: vi.fn(async () => ({ kick: "healthy", twitch: "healthy" })),
@@ -79,6 +87,53 @@ describe("usePlatformHealth", () => {
     expect(result.current.kick).toBe("degraded");
     expect(result.current.twitch).toBe("healthy");
     expect(result.current.anyDegraded).toBe(true);
+  });
+
+  it("stores status-page details from hydration and onChange events", async () => {
+    const api = installElectronAPIMock();
+    let changeHandler:
+      | ((
+          event: {
+            platform: string;
+            status: string;
+            startedAt: number;
+            statusPageDetail?: { summary: string };
+          }
+        ) => void)
+      | null = null;
+    api.platformHealth = {
+      get: vi.fn(async () => ({
+        kick: "degraded",
+        twitch: "healthy",
+        details: { kick: { summary: "Kick status: Partial outage." } },
+      })),
+      onChange: vi.fn((cb: typeof changeHandler) => {
+        changeHandler = cb;
+        return () => {};
+      }),
+    };
+
+    const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
+    const { result } = renderHook(() => usePlatformHealth());
+
+    await waitFor(() => expect(result.current.details.kick?.summary).toBe("Kick status: Partial outage."));
+
+    act(() => {
+      changeHandler?.({
+        platform: "kick",
+        status: "degraded",
+        startedAt: Date.now(),
+        statusPageDetail: { summary: "Kick status: Major outage." },
+      });
+    });
+
+    expect(result.current.details.kick?.summary).toBe("Kick status: Major outage.");
+
+    act(() => {
+      changeHandler?.({ platform: "kick", status: "healthy", startedAt: Date.now() });
+    });
+
+    expect(result.current.details.kick).toBeUndefined();
   });
 
   it("derives anyDegraded=true when EITHER platform is degraded", async () => {

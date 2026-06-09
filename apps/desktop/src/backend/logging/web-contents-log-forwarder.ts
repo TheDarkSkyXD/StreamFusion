@@ -18,9 +18,12 @@ import type { WebContents } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 
-type ForwardedLevel = "warn" | "error";
+type ConsoleLevel = "warn" | "error";
 
-function normalizeLevel(level: unknown): ForwardedLevel | null {
+const PUSHER_CLOSED_SOCKET_MESSAGE = "WebSocket is already in CLOSING or CLOSED state.";
+const PUSHER_JS_SOURCE = /(?:^|\/)pusher-js(?:\.js)?(?:\?|$)/;
+
+function normalizeLevel(level: unknown): ConsoleLevel | null {
   // String form (Electron >= 28): "verbose" | "info" | "warning" | "error".
   // Some versions emit "warn" instead of "warning" — accept either.
   if (typeof level === "string") {
@@ -36,6 +39,14 @@ function normalizeLevel(level: unknown): ForwardedLevel | null {
     return null;
   }
   return null;
+}
+
+function isHarmlessConsoleNoise(message: string, meta: Record<string, unknown>): boolean {
+  return (
+    message === PUSHER_CLOSED_SOCKET_MESSAGE &&
+    typeof meta.source === "string" &&
+    PUSHER_JS_SOURCE.test(meta.source)
+  );
 }
 
 export interface ForwardOpts {
@@ -63,6 +74,10 @@ export function forwardWebContentsConsole(webContents: WebContents, opts: Forwar
     const meta: Record<string, unknown> = {};
     if (typeof d?.sourceId === "string" && d.sourceId.length > 0) meta.source = d.sourceId;
     if (typeof d?.lineNumber === "number") meta.line = d.lineNumber;
+    if (isHarmlessConsoleNoise(message, meta)) {
+      logger.debug(opts.tag, message, Object.keys(meta).length > 0 ? meta : undefined);
+      return;
+    }
     logger[mapped](opts.tag, message, Object.keys(meta).length > 0 ? meta : undefined);
   });
 }
