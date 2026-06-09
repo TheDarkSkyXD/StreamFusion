@@ -74,7 +74,21 @@ export async function syncKickFollowsAfterLogin(
   return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
 
+export const KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS = 60 * 1000;
+
+export function shouldDeferKickStartupFollowRefresh(
+  platform: Platform,
+  trigger: "interval" | "focus",
+  now: number,
+  startedAt: number,
+  graceMs: number = KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS
+): boolean {
+  return platform === "kick" && trigger === "focus" && now - startedAt < graceMs;
+}
+
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
+  const authHandlersStartedAt = Date.now();
+
   /**
    * Helper to safely send IPC messages to the renderer.
    * Prevents "Render frame was disposed" errors when the window is closing.
@@ -216,6 +230,14 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   function maybeRefreshFollows(platform: Platform, trigger: "interval" | "focus"): void {
     if (!storageService.hasToken(platform)) return;
     const now = Date.now();
+    if (shouldDeferKickStartupFollowRefresh(platform, trigger, now, authHandlersStartedAt)) {
+      logger.debug("IPC:Auth", "deferred Kick follow refresh during startup", {
+        trigger,
+        elapsedMs: now - authHandlersStartedAt,
+        graceMs: KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
+      });
+      return;
+    }
     if (trigger === "focus") {
       const last = lastRefreshAt.get(platform) ?? 0;
       if (now - last < FOCUS_REFRESH_COOLDOWN_MS) return;

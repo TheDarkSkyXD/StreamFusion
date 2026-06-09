@@ -15,7 +15,10 @@ const mocks = vi.hoisted(() => ({
     twitchUser: null as { id: string; login: string; displayName: string } | null,
     kickUser: null as { id: number; username: string; slug: string } | null,
   },
-  getModeratedChannels: vi.fn(async () => []),
+  getModeratedChannels: vi.fn(
+    async (..._args: unknown[]) =>
+      [] as Array<{ broadcaster_id: string; broadcaster_login: string; broadcaster_name: string }>
+  ),
 }));
 
 vi.mock("@/store/auth-store", () => {

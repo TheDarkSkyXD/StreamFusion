@@ -43,7 +43,7 @@ afterEach(() => {
 
 describe("requestDeviceCode", () => {
   it("posts to the device auth endpoint and returns parsed result", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
         device_code: "dc-123",
         user_code: "ABCD-EFGH",
@@ -64,7 +64,9 @@ describe("requestDeviceCode", () => {
       interval: 5,
     });
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const call = fetchMock.mock.calls[0];
+    expect(call).toBeDefined();
+    const [url, init] = call!;
     expect(url).toBe("https://id.twitch.tv/oauth2/device");
     expect(init.method).toBe("POST");
     const body = init.body as string;
@@ -222,7 +224,7 @@ describe("pollForToken", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe("Authorization denied by user");
+    expect((err as Error).message).toBe("Authorization denied by user");
   });
 
   it("rejects on expired_token", async () => {
@@ -237,7 +239,7 @@ describe("pollForToken", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toContain("Device code expired");
+    expect((err as Error).message).toContain("Device code expired");
   });
 
   it("rejects on unknown error", async () => {
@@ -254,7 +256,7 @@ describe("pollForToken", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe("Weird thing");
+    expect((err as Error).message).toBe("Weird thing");
   });
 
   it("rejects when device code expires by time", async () => {
@@ -270,7 +272,7 @@ describe("pollForToken", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toContain("Device code expired");
+    expect((err as Error).message).toContain("Device code expired");
   });
 
   it("continues polling on network error (does not reject)", async () => {

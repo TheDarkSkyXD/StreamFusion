@@ -31,6 +31,17 @@ interface StreamCardProps {
 // trigger prefetches, short enough that intentional hovers still warm the
 // cache before the user clicks.
 const HOVER_PREFETCH_DELAY_MS = 150;
+export const KICK_STARTUP_HOVER_PREFETCH_GRACE_MS = 45 * 1000;
+
+const streamCardModuleStartedAt = Date.now();
+
+export function shouldDeferKickStartupHoverPrefetch(
+  platform: UnifiedStream["platform"],
+  now: number,
+  startedAt: number
+): boolean {
+  return platform === "kick" && now - startedAt < KICK_STARTUP_HOVER_PREFETCH_GRACE_MS;
+}
 
 // Memoize StreamCard to prevent re-renders when grid updates but individual stream hasn't changed
 export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCardProps) => {
@@ -44,6 +55,12 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
 
   const prefetchTimer = useManagedTimeout(
     useCallback(() => {
+      if (
+        shouldDeferKickStartupHoverPrefetch(stream.platform, Date.now(), streamCardModuleStartedAt)
+      ) {
+        return;
+      }
+
       queryClient.prefetchQuery({
         queryKey: CHANNEL_KEYS.byUsername(stream.channelName, stream.platform),
         queryFn: async () => {

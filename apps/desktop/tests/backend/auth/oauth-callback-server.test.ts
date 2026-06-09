@@ -77,7 +77,7 @@ describe("waitForCallback", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe("State mismatch");
+    expect((err as Error).message).toBe("State mismatch");
   });
 
   it("rejects when callback carries an error parameter", async () => {
@@ -98,7 +98,7 @@ describe("waitForCallback", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe("User denied");
+    expect((err as Error).message).toBe("User denied");
   });
 
   it("rejects when error has no description", async () => {
@@ -117,7 +117,7 @@ describe("waitForCallback", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe("access_denied");
+    expect((err as Error).message).toBe("access_denied");
   });
 
   it("rejects when code or state is missing", async () => {
@@ -136,7 +136,7 @@ describe("waitForCallback", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe("Invalid callback: missing code or state");
+    expect((err as Error).message).toBe("Invalid callback: missing code or state");
   });
 
   it("returns 404 for non-callback paths", async () => {
@@ -167,7 +167,7 @@ describe("waitForCallback", () => {
 
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toContain("OAuth timeout");
+    expect((err as Error).message).toContain("OAuth timeout");
   });
 
   it("works with kick platform", async () => {

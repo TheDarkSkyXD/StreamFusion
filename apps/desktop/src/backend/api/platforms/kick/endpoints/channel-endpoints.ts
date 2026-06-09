@@ -1,7 +1,7 @@
 import { BrowserWindow } from "electron";
 import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
-import { isPlatformHealthy } from "../../../unified/platform-health";
+import { getPlatformHealth } from "../../../unified/platform-health";
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
@@ -130,7 +130,7 @@ export async function getChannel(
         // CRITICAL: Multi-field validation to ensure we got the correct channel
         // Check both slug AND that it's not empty/null
         if (!apiChannel.slug || apiChannel.slug.toLowerCase() !== normalizedSlug) {
-          logger.warn(
+          logger.debug(
             "Kick:Endpoints:Channel",
             "API identity mismatch; rejecting response (Kick API bug)",
             {
@@ -273,6 +273,10 @@ const _publicChannelWarnedSlugs = new Set<string>();
 const PUBLIC_CHANNEL_FAILURE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_CHANNEL_LOAD_TIMEOUT_MS = 10000;
 
+function isKickLocallyDown(): boolean {
+  return getPlatformHealth("kick") === "down";
+}
+
 // Serialise BrowserWindow creation. Each hidden window spins up a fresh
 // Chromium renderer + GPU context — opening 5 at once (search-handlers'
 // batch-of-5 verification) is the single largest GPU-load spike under the
@@ -328,19 +332,26 @@ export async function getPublicChannel(slug: string): Promise<UnifiedChannel | n
 }
 
 async function _doFetchPublicChannel(slug: string, key: string): Promise<UnifiedChannel | null> {
+  const startedAt = Date.now();
+  let queueWaitMs = 0;
+  let loadMs: number | undefined;
+  let extractMs: number | undefined;
+
   // Skip the BrowserWindow round-trip if the network service is currently
   // crashed/restarting. loadURL would just time out, and a hidden window is
   // an expensive resource (renderer + GPU + network partition) — exactly the
   // load profile that triggered the cascade in the first place.
-  if (!isPlatformHealthy("kick")) return null;
+  if (isKickLocallyDown()) return null;
 
   // Wait for our turn so only one hidden BrowserWindow exists at a time.
   // This is the single biggest GPU-load lever in the codebase.
+  const queuedAt = Date.now();
   const releaseSlot = await acquireBrowserWindowSlot();
+  queueWaitMs = Date.now() - queuedAt;
 
   // Re-check after acquiring the slot — the network may have crashed while
   // we were queued behind another caller's 10s load timeout.
-  if (!isPlatformHealthy("kick")) {
+  if (isKickLocallyDown()) {
     releaseSlot();
     return null;
   }
@@ -370,12 +381,16 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       setTimeout(() => reject(new Error("Page load timeout")), PUBLIC_CHANNEL_LOAD_TIMEOUT_MS)
     );
 
+    const loadStartedAt = Date.now();
     await Promise.race([loadPromise, timeoutPromise]);
+    loadMs = Date.now() - loadStartedAt;
 
     // Extract JSON content from the page body
+    const extractStartedAt = Date.now();
     const pageContent = await win.webContents.executeJavaScript(`
             document.body.innerText;
         `);
+    extractMs = Date.now() - extractStartedAt;
 
     if (!pageContent) {
       logger.warn("Kick:Endpoints:Channel", "Empty response for slug", { slug });
@@ -461,13 +476,19 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
     // Extract chatroom ID for Pusher WebSocket subscription
     const chatroomId = data.chatroom?.id;
     const chatroomSettings = mapKickChatroomToSettings(data.chatroom);
-    logger.debug("Kick:Endpoints:Channel", "Extracted channel data", {
-      slug,
-      userId,
-      chatroomId,
-      hasChatroom: !!data.chatroom,
-      chatroomKeys: data.chatroom ? Object.keys(data.chatroom) : "N/A",
-    });
+
+    const totalMs = Date.now() - startedAt;
+    if (totalMs >= 2000 || queueWaitMs >= 500) {
+      logger.info("Kick:Endpoints:Channel", "Public Kick channel lookup slow", {
+        slug,
+        totalMs,
+        queueWaitMs,
+        loadMs,
+        extractMs,
+        hasChatroom: !!data.chatroom,
+        isLive: data.livestream !== null,
+      });
+    }
 
     failed = false;
     _publicChannelWarnedSlugs.delete(key);
@@ -519,9 +540,13 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
     // If the network service crashed mid-load, the failure isn't this slug's
     // fault — don't penalise it with a 5-minute lockout. Re-check after the
     // failure since the crash event may have fired during loadURL.
-    networkBlip = !isPlatformHealthy("kick");
+    networkBlip = isKickLocallyDown();
     const errorMeta = {
       slug,
+      totalMs: Date.now() - startedAt,
+      queueWaitMs,
+      loadMs,
+      extractMs,
       error:
         error instanceof Error
           ? { name: error.name, message: error.message, stack: error.stack }

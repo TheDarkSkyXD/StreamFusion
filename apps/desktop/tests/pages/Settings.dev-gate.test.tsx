@@ -108,6 +108,7 @@ function installEnvMock(isDev: boolean) {
   api.logs = {
     getCurrentPath: vi.fn(async () => "/tmp/streamfusion.log"),
     getNoisePath: vi.fn(async () => "/tmp/streamfusion-noise.log"),
+    getNetworkPath: vi.fn(async () => "/tmp/streamfusion-network.log"),
     tail: vi.fn(async () => []),
     openFolder: vi.fn(async () => ({ ok: true })),
   };

@@ -390,6 +390,8 @@ describe("search-endpoints", () => {
         thumbnailUrl: "",
         isLive: true,
         startedAt: "",
+        language: "en",
+        tags: [],
       });
 
       const client = createMockClient({ isAuthenticated: vi.fn(() => false) });

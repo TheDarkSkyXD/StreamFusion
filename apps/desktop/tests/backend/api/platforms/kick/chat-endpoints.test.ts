@@ -18,6 +18,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("@/backend/api/unified/platform-health", () => ({
+  getPlatformHealth: vi.fn(() => "healthy"),
   isPlatformHealthy: vi.fn(() => true),
   recordPlatformFailure: vi.fn(),
   recordPlatformSuccess: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
 }));
 
 import { getKickChannelHistory } from "@/backend/api/platforms/kick/endpoints/chat-endpoints";
-import { isPlatformHealthy } from "@/backend/api/unified/platform-health";
+import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
 
 describe("chat-endpoints -- getKickChannelHistory", () => {
   beforeEach(() => {
@@ -36,6 +37,7 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
     mockExecuteJavaScript.mockReset();
     mockDestroy.mockReset();
     mockIsDestroyed.mockReset().mockReturnValue(false);
+    vi.mocked(getPlatformHealth).mockReturnValue("healthy");
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
   });
 
@@ -49,12 +51,23 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null when platform is not healthy", async () => {
-    vi.mocked(isPlatformHealthy).mockReturnValue(false);
+  it("returns null when platform is down", async () => {
+    vi.mocked(getPlatformHealth).mockReturnValue("down");
 
     const result = await getKickChannelHistory("12345");
 
     expect(result).toBeNull();
+    expect(mockLoadURL).not.toHaveBeenCalled();
+  });
+
+  it("still attempts history when platform is degraded", async () => {
+    vi.mocked(getPlatformHealth).mockReturnValue("degraded");
+    mockExecuteJavaScript.mockResolvedValueOnce(JSON.stringify({ data: { messages: [] } }));
+
+    const result = await getKickChannelHistory("12345");
+
+    expect(result).not.toBeNull();
+    expect(mockLoadURL).toHaveBeenCalled();
   });
 
   it("returns messages and pinned message from a well-formed response", async () => {
@@ -161,9 +174,9 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
   });
 
   it("returns null when platform becomes unhealthy after acquiring slot", async () => {
-    vi.mocked(isPlatformHealthy)
-      .mockReturnValueOnce(true) // First check passes
-      .mockReturnValueOnce(false); // Second check (post-slot) fails
+    vi.mocked(getPlatformHealth)
+      .mockReturnValueOnce("healthy") // First check passes
+      .mockReturnValueOnce("down"); // Second check (post-slot) fails
 
     const result = await getKickChannelHistory("12345");
 

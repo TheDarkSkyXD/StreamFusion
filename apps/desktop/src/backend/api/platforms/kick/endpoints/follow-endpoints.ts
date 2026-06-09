@@ -97,30 +97,12 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
     return { status: "error", reason: "no-token" };
   }
 
-  // Try the cheap path first: Bearer auth via fetch(). If Kick ever extends
-  // the OAuth API to cover follows, this lets us pick it up automatically.
-  // Live testing on 2026-05-21 confirmed Bearer is rejected with 403, so the
-  // BrowserWindow fallback below is the real workhorse — but the Bearer
-  // attempt costs ~30ms and the fallback covers every failure path it produces.
-  const bearerResult = await _tryBearerFetch(token);
-  if (bearerResult.status === "ok") return bearerResult;
-  if (bearerResult.status === "error" && bearerResult.reason === "no-token") {
-    return bearerResult;
-  }
-
-  // Fall through to cookie-auth BrowserWindow for auth-failed,
-  // cloudflare-challenge, parse-error, and network-error. The window inherits
-  // the OAuth window's session cookies (default session, where id.kick.com
-  // cookies live) — Kick's cross-subdomain SSO sets a kick.com apex session
-  // when we visit kick.com while authenticated on id.kick.com.
-  //
-  // Dedupe the fallback notice via _warnOnce so reconnect-loops (re-firing
-  // syncFollowsOnLogin on every visibility-change) don't spam the user's
-  // log file. The per-reason _warnOnce inside _tryBearerFetch already
-  // covers the actual failure cause.
-  _warnOnce(
-    bearerResult.reason,
-    `Bearer path failed with reason="${bearerResult.reason}". Trying BrowserWindow cookie-auth fallback...`
+  // Live testing on 2026-05-21 confirmed the v2 followed-channels endpoint
+  // rejects Kick OAuth Bearer tokens with 403. Do not perform a known-failing
+  // request on every sync; go directly to the cookie-auth BrowserWindow path.
+  logger.debug(
+    "Kick:Endpoints:Follow",
+    "Using BrowserWindow cookie-auth fallback for followed channels"
   );
   return _fetchViaBrowserWindow();
 }
@@ -159,10 +141,9 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
   }
 
   if (response.status === 401 || response.status === 403) {
-    _warnOnce(
-      "auth-failed",
-      `Kick v2 followed-channels rejected Bearer auth (status ${response.status}). If this persists, the endpoint may require session-cookie auth via BrowserWindow.`
-    );
+    logger.debug("Kick:Endpoints:Follow", "Kick v2 followed-channels rejected Bearer auth", {
+      status: response.status,
+    });
     return { status: "error", reason: "auth-failed" };
   }
 

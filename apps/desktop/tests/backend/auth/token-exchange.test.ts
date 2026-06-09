@@ -56,7 +56,7 @@ afterEach(() => {
 
 describe("exchangeCodeForToken", () => {
   it("sends code + redirect_uri + code_verifier as JSON and returns parsed AuthToken", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
         access_token: "at-123",
         refresh_token: "rt-456",
@@ -79,10 +79,12 @@ describe("exchangeCodeForToken", () => {
     expect(token.expiresAt).toBe(Date.now() + 14400 * 1000);
     expect(token.scope).toEqual(["chat:read", "chat:edit"]);
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const call0 = fetchMock.mock.calls[0];
+    expect(call0).toBeDefined();
+    const [url, init] = call0!;
     expect(url).toBe("https://worker.test/auth/twitch/token");
     expect(init.method).toBe("POST");
-    const body = JSON.parse(init.body);
+    const body = JSON.parse(init.body as string);
     expect(body.code).toBe("auth-code");
     expect(body.redirect_uri).toBe("http://localhost:8765/auth/twitch/callback");
     expect(body.code_verifier).toBe("verifier");
@@ -100,7 +102,9 @@ describe("exchangeCodeForToken", () => {
       usesPkce: false,
     });
 
-    const fetchMock = vi.fn(async () => jsonResponse({ access_token: "at", token_type: "bearer" }));
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      jsonResponse({ access_token: "at", token_type: "bearer" })
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await tokenExchangeService.exchangeCodeForToken({
@@ -110,7 +114,9 @@ describe("exchangeCodeForToken", () => {
       pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
     });
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const call0 = fetchMock.mock.calls[0];
+    expect(call0).toBeDefined();
+    const body = JSON.parse(call0![1].body as string);
     expect(body.code_verifier).toBeUndefined();
   });
 
@@ -212,7 +218,7 @@ describe("exchangeCodeForToken", () => {
 
 describe("refreshToken", () => {
   it("derives refresh endpoint from token endpoint and returns new token", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
         access_token: "new-at",
         refresh_token: "new-rt",
@@ -230,9 +236,11 @@ describe("refreshToken", () => {
     expect(token.accessToken).toBe("new-at");
     expect(token.refreshToken).toBe("new-rt");
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const call0 = fetchMock.mock.calls[0];
+    expect(call0).toBeDefined();
+    const [url, init] = call0!;
     expect(url).toBe("https://worker.test/auth/twitch/refresh");
-    const body = JSON.parse(init.body);
+    const body = JSON.parse(init.body as string);
     expect(body.refresh_token).toBe("old-rt");
   });
 
@@ -275,7 +283,9 @@ describe("refreshToken", () => {
 
 describe("revokeToken", () => {
   it("sends token + client_id as URL-encoded form and returns true", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(null, true, 200));
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      jsonResponse(null, true, 200)
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await tokenExchangeService.revokeToken({
@@ -285,11 +295,15 @@ describe("revokeToken", () => {
 
     expect(result).toBe(true);
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const call0 = fetchMock.mock.calls[0];
+    expect(call0).toBeDefined();
+    const [url, init] = call0!;
     expect(url).toBe("https://id.twitch.tv/oauth2/revoke");
-    expect(init.headers["Content-Type"]).toBe("application/x-www-form-urlencoded");
-    expect(init.body).toContain("client_id=twitch-client-id");
-    expect(init.body).toContain("token=the-token");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/x-www-form-urlencoded"
+    );
+    expect(init.body as string).toContain("client_id=twitch-client-id");
+    expect(init.body as string).toContain("token=the-token");
   });
 
   it("returns true even on non-OK response (revoke is best-effort)", async () => {

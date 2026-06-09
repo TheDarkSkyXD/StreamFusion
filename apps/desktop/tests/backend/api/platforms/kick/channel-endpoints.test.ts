@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/backend/api/unified/platform-health", () => ({
+  getPlatformHealth: vi.fn(() => "healthy"),
   isPlatformHealthy: vi.fn(() => true),
 }));
 
@@ -25,7 +26,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-import { isPlatformHealthy } from "@/backend/api/unified/platform-health";
+import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 import {
   mapKickChatroomToSettings,
@@ -50,6 +51,7 @@ describe("channel-endpoints", () => {
     mockExecuteJavaScript.mockReset();
     mockDestroy.mockReset();
     mockTitle = "";
+    vi.mocked(getPlatformHealth).mockReturnValue("healthy");
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
   });
 
@@ -92,12 +94,25 @@ describe("channel-endpoints", () => {
   });
 
   describe("getPublicChannel", () => {
-    it("returns null when network is likely down", async () => {
-      vi.mocked(isPlatformHealthy).mockReturnValue(false);
+    it("returns null when network is down", async () => {
+      vi.mocked(getPlatformHealth).mockReturnValue("down");
 
       const result = await getPublicChannel("test-slug");
 
       expect(result).toBeNull();
+      expect(mockLoadURL).not.toHaveBeenCalled();
+    });
+
+    it("still attempts public channel lookup when platform is degraded", async () => {
+      vi.mocked(getPlatformHealth).mockReturnValue("degraded");
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({ id: 12345, slug: "degraded-slug", user: { username: "Degraded" } })
+      );
+
+      const result = await getPublicChannel("degraded-slug");
+
+      expect(result).not.toBeNull();
+      expect(mockLoadURL).toHaveBeenCalled();
     });
 
     it("returns a UnifiedChannel from a well-formed v2 response", async () => {
@@ -417,6 +432,45 @@ describe("channel-endpoints", () => {
       const result = await getChannel(client, "both-fail");
 
       expect(result).toBeNull();
+    });
+
+    it("keeps authenticated API identity mismatches out of warning logs", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => undefined);
+      mockLoadURL.mockRejectedValueOnce(new Error("timeout"));
+
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 200,
+              slug: "wrong-channel",
+              channel_description: "",
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+              stream: null,
+            },
+          ],
+        }),
+      });
+
+      const result = await getChannel(client, "requested-channel");
+
+      expect(result).toBeNull();
+      expect(debugSpy).toHaveBeenCalledWith(
+        "[Kick:Endpoints:Channel]",
+        "API identity mismatch; rejecting response (Kick API bug)",
+        expect.objectContaining({
+          requestedSlug: "requested-channel",
+          returnedSlug: "wrong-channel",
+        })
+      );
+      expect(
+        warnSpy.mock.calls.some(
+          ([, message]) => message === "API identity mismatch; rejecting response (Kick API bug)"
+        )
+      ).toBe(false);
     });
 
     it("normalizes slug to lowercase for cache", async () => {

@@ -7,7 +7,19 @@ import type { IPlatformReader } from "../../api/unified/platform-reader";
 import { clients } from "../../api/unified/registry";
 import { storageService } from "../../services/storage-service";
 
+export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 45 * 1000;
+
+export function shouldDeferKickStartupFollowedStreamScan(
+  platform: Platform | undefined,
+  now: number,
+  handlersStartedAt: number
+): boolean {
+  if (platform !== undefined && platform !== "kick") return false;
+  return now - handlersStartedAt < KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS;
+}
+
 export function registerStreamHandlers(): void {
+  const streamHandlersStartedAt = Date.now();
   // Tracks the active followed-streams dispatch. A new poll aborts the prior
   // one so orphan stagger timers from a stale dispatch (e.g. focus + manual
   // refresh firing back-to-back) reject cleanly instead of holding semaphore
@@ -284,6 +296,11 @@ export function registerStreamHandlers(): void {
         };
 
         const fetchKickFollowed = async () => {
+          const deferLocalFollowScan = shouldDeferKickStartupFollowedStreamScan(
+            params.platform,
+            Date.now(),
+            streamHandlersStartedAt
+          );
           const localKick = storageService.getActiveFollowsByPlatform("kick");
           const kickStreams: any[] = [];
           const seenIds = new Set<string>();
@@ -311,7 +328,12 @@ export function registerStreamHandlers(): void {
           }
 
           // 2. Local Follows (Guest/Public)
-          if (localKick.length > 0) {
+          if (localKick.length > 0 && deferLocalFollowScan) {
+            logger.info("IPC:Stream", "Deferred Kick followed-stream scan during startup", {
+              followCount: localKick.length,
+              graceMs: KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
+            });
+          } else if (localKick.length > 0) {
             const uniqueSlugs = [...new Set(localKick.map((f) => f.channelName))];
 
             // Stagger by 60ms each so N parallel /channels/{slug} fetches don't

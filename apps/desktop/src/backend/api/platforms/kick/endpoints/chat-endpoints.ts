@@ -19,7 +19,7 @@ import { BrowserWindow } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import type { KickPinnedMessage } from "../../../../../shared/chat-types";
-import { isPlatformHealthy } from "../../../unified/platform-health";
+import { getPlatformHealth } from "../../../unified/platform-health";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
 
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
@@ -61,10 +61,10 @@ export interface KickChannelHistory {
  * Callers should treat null as "no history available" and continue.
  */
 export async function getKickChannelHistory(channelId: string): Promise<KickChannelHistory | null> {
-  if (!channelId || !isPlatformHealthy("kick")) return null;
+  if (!channelId || getPlatformHealth("kick") === "down") return null;
 
   const releaseSlot = await acquireBrowserWindowSlot();
-  if (!isPlatformHealthy("kick")) {
+  if (getPlatformHealth("kick") === "down") {
     releaseSlot();
     return null;
   }

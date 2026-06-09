@@ -8,7 +8,9 @@ import {
 } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/auth-store";
 
-const twitchUser = {
+import type { KickUser, TwitchUser } from "@/shared/auth-types";
+
+const twitchUser: TwitchUser = {
   id: "1",
   login: "testuser",
   displayName: "TestUser",
@@ -17,10 +19,12 @@ const twitchUser = {
   broadcasterType: "",
 };
 
-const kickUser = {
+const kickUser: KickUser = {
   id: 2,
   username: "kickuser",
+  slug: "kickuser",
   profilePic: "https://example.com/kick.png",
+  verified: false,
 };
 
 beforeEach(() => {

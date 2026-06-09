@@ -19,6 +19,21 @@ import { kickClient } from "../api/platforms/kick/kick-client";
 
 export const KICK_IMAGE_SCHEME = "kick-image";
 
+const PLACEHOLDER_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64"
+);
+
+function placeholderResponse(): Response {
+  return new Response(new Uint8Array(PLACEHOLDER_PNG), {
+    status: 200,
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 /**
  * Build a kick-image:// URL from a Kick CDN URL. Run this in the renderer when
  * setting <img src> for Kick-hosted images.
@@ -46,17 +61,17 @@ export function registerKickImageProtocol(): void {
     const url = new URL(request.url);
     const u = url.searchParams.get("u");
     if (!u) {
-      return new Response(null, { status: 400 });
+      return placeholderResponse();
     }
 
     const originalUrl = decodeOriginalUrl(u);
-    if (!originalUrl) {
-      return new Response(null, { status: 400 });
+    if (!originalUrl || !/^https?:\/\//i.test(originalUrl)) {
+      return placeholderResponse();
     }
 
     const result = await kickClient.fetchImageBytes(originalUrl);
     if (!result) {
-      return new Response(null, { status: 404 });
+      return placeholderResponse();
     }
 
     return new Response(new Uint8Array(result.buffer), {

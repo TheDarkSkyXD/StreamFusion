@@ -90,7 +90,12 @@ function resolveSrc(src: string | undefined | null): string | null {
 // small and we don't want to false-fallback them.
 function isProxyPlaceholder(el: HTMLImageElement, resolvedSrc: string | null): boolean {
   if (!resolvedSrc) return false;
-  if (!resolvedSrc.startsWith(`${TWITCH_IMAGE_SCHEME}://`)) return false;
+  if (
+    !resolvedSrc.startsWith(`${TWITCH_IMAGE_SCHEME}://`) &&
+    !resolvedSrc.startsWith(`${KICK_IMAGE_SCHEME}://`)
+  ) {
+    return false;
+  }
   return el.naturalWidth === 1 && el.naturalHeight === 1;
 }
 

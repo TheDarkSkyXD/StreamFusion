@@ -56,7 +56,7 @@ class NetworkAdBlockService {
       description: "Google IMA SDK",
     },
     {
-      pattern: /^https?:\/\/pubads\.g\.doubleclick\.net/i,
+      pattern: /^https?:\/\/(?:pubads|securepubads)\.g\.doubleclick\.net/i,
       category: "ads",
       description: "DoubleClick",
     },
@@ -69,6 +69,21 @@ class NetworkAdBlockService {
       pattern: /^https?:\/\/.*\.amazon-adsystem\.com/i,
       category: "ads",
       description: "Amazon Ads",
+    },
+    {
+      pattern: /^https?:\/\/(?:www\.)?googletagmanager\.com/i,
+      category: "tracking",
+      description: "Google Tag Manager",
+    },
+    {
+      pattern: /^https?:\/\/(?:www\.)?google-analytics\.com/i,
+      category: "tracking",
+      description: "Google Analytics",
+    },
+    {
+      pattern: /^https?:\/\/(?:[^/]+\.)?useinsider\.com/i,
+      category: "tracking",
+      description: "Insider analytics",
     },
 
     // Medium: Event tracking

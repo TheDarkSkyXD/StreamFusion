@@ -10,8 +10,16 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 vi.mock('@/components/search/UnifiedSearchInput', () => ({
-  UnifiedSearchInput: ({ placeholder, onSearch }: { placeholder?: string; onSearch?: (t: string) => void }) => (
-    <button type="button" onClick={() => onSearch?.('foo')}>
+  UnifiedSearchInput: ({
+    inputClassName,
+    placeholder,
+    onSearch,
+  }: {
+    inputClassName?: string;
+    placeholder?: string;
+    onSearch?: (t: string) => void;
+  }) => (
+    <button type="button" data-input-class={inputClassName} onClick={() => onSearch?.('foo')}>
       {placeholder}
     </button>
   ),
@@ -22,8 +30,29 @@ import { SearchBar } from '@/components/TopNavBar/SearchBar';
 describe('SearchBar', () => {
   it('wires onSearch to navigate to /search', () => {
     renderWithProviders(<SearchBar />);
-    const btn = screen.getByText(/search streams, channels, categories/i);
+    const btn = screen.getByText(/enter streamer name/i);
     btn.click();
     expect(navigate).toHaveBeenCalledWith({ to: '/search', search: { q: 'foo' } });
+  });
+
+  it('uses the KickTalk input background color', () => {
+    renderWithProviders(<SearchBar />);
+    expect(screen.getByText(/enter streamer name/i)).toHaveAttribute(
+      'data-input-class',
+      expect.stringContaining('!bg-[#191919]')
+    );
+  });
+
+  it('uses the KickTalk placeholder gray', () => {
+    renderWithProviders(<SearchBar />);
+    expect(screen.getByText(/enter streamer name/i)).toHaveAttribute(
+      'data-input-class',
+      expect.stringContaining('placeholder:!text-white/30')
+    );
+  });
+
+  it('uses the KickTalk navbar search placeholder', () => {
+    renderWithProviders(<SearchBar />);
+    expect(screen.getByText('Enter streamer name...')).toBeInTheDocument();
   });
 });

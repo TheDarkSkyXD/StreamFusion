@@ -34,8 +34,7 @@ const sampleEntries = [
 ];
 
 beforeEach(() => {
-  // @ts-expect-error -- test-only stub
-  window.electronAPI = {
+  (window as unknown as { electronAPI: unknown }).electronAPI = {
     modLog: {
       query: vi.fn().mockResolvedValue(sampleEntries),
     },
@@ -43,8 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // @ts-expect-error -- clean up
-  delete window.electronAPI;
+  delete (window as unknown as { electronAPI?: unknown }).electronAPI;
 });
 
 describe("useModLog", () => {

@@ -10,8 +10,7 @@ vi.mock("@/renderer/logging/logger", () => ({
 const WAIT_OPTS = { timeout: 3000 };
 
 beforeEach(() => {
-  // @ts-expect-error -- test-only stub
-  window.electronAPI = {
+  (window as unknown as { electronAPI: unknown }).electronAPI = {
     streams: {
       getPlaybackUrl: vi.fn().mockResolvedValue({
         success: true,
@@ -22,8 +21,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // @ts-expect-error -- clean up
-  delete window.electronAPI;
+  delete (window as unknown as { electronAPI?: unknown }).electronAPI;
 });
 
 describe("useStreamPlayback", () => {

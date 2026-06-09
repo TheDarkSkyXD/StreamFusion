@@ -7,23 +7,38 @@ vi.mock("@/renderer/logging/logger", () => ({
 
 import { useUpdateStore } from "@/store/update-store";
 
-const backendState = {
-  status: "idle" as const,
+// Loosened to `string` so the test can flip status to "available"/"downloaded"/etc
+// without casting at every site — the real backend API is the union, but each
+// test only inspects the field after writing it via updateFromBackend().
+const backendState: {
+  status: string;
+  updateInfo: null;
+  progress: null;
+  error: null;
+  allowPrerelease: boolean;
+  autoCheckEnabled: boolean;
+  checkFrequency: string;
+} = {
+  status: "idle",
   updateInfo: null,
   progress: null,
   error: null,
   allowPrerelease: false,
   autoCheckEnabled: false,
-  checkFrequency: "daily" as const,
+  checkFrequency: "daily",
 };
 
 beforeEach(() => {
   useUpdateStore.getState().reset();
 
-  // @ts-expect-error -- test-only stub
-  window.electronAPI = {
+  (window as unknown as { electronAPI: unknown }).electronAPI = {
     updater: {
       getStatus: vi.fn().mockResolvedValue(backendState),
+      getSettings: vi.fn().mockResolvedValue({
+        allowPrerelease: false,
+        autoCheckEnabled: false,
+        checkFrequency: "daily",
+      }),
       onStatusChange: vi.fn(() => vi.fn()),
       onProgress: vi.fn(() => vi.fn()),
       check: vi.fn().mockResolvedValue({ ...backendState, status: "not-available" }),
@@ -36,8 +51,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // @ts-expect-error -- clean up
-  delete window.electronAPI;
+  delete (window as unknown as { electronAPI?: unknown }).electronAPI;
 });
 
 // The useUpdater hook calls `useUpdateStore()` without a selector, which
@@ -109,13 +123,14 @@ describe("useUpdater initialization flow", () => {
 
   it("onStatusChange callback applies state to the store", () => {
     let handler: ((state: typeof backendState) => void) | null = null;
-    window.electronAPI!.updater.onStatusChange = vi.fn((cb: typeof handler) => {
+    const api = window.electronAPI!.updater as unknown as Record<string, unknown>;
+    api.onStatusChange = vi.fn((cb: typeof handler) => {
       handler = cb;
       return vi.fn();
     });
 
-    window.electronAPI!.updater.onStatusChange((state: typeof backendState) => {
-      useUpdateStore.getState().updateFromBackend(state);
+    (api.onStatusChange as (cb: typeof handler) => () => void)((state) => {
+      useUpdateStore.getState().updateFromBackend(state as never);
     });
 
     handler!({ ...backendState, status: "available" });
@@ -124,13 +139,14 @@ describe("useUpdater initialization flow", () => {
 
   it("onProgress callback sets progress in the store", () => {
     let handler: ((p: { percent: number }) => void) | null = null;
-    window.electronAPI!.updater.onProgress = vi.fn((cb: typeof handler) => {
+    const api = window.electronAPI!.updater as unknown as Record<string, unknown>;
+    api.onProgress = vi.fn((cb: typeof handler) => {
       handler = cb;
       return vi.fn();
     });
 
-    window.electronAPI!.updater.onProgress((progress: { percent: number }) => {
-      useUpdateStore.getState().setProgress(progress as any);
+    (api.onProgress as (cb: typeof handler) => () => void)((progress) => {
+      useUpdateStore.getState().setProgress(progress as never);
     });
 
     handler!({ percent: 42 });
@@ -140,8 +156,7 @@ describe("useUpdater initialization flow", () => {
 
 describe("useUpdater without electronAPI", () => {
   it("all electronAPI calls are no-ops when the API is absent", () => {
-    // @ts-expect-error -- clean up
-    delete window.electronAPI;
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI;
     expect(window.electronAPI?.updater).toBeUndefined();
   });
 });

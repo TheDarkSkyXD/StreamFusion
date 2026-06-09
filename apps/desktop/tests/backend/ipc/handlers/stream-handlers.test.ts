@@ -70,7 +70,11 @@ import { ipcMain } from "electron";
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { clients } from "@/backend/api/unified/registry";
-import { registerStreamHandlers } from "@/backend/ipc/handlers/stream-handlers";
+import {
+  KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
+  registerStreamHandlers,
+  shouldDeferKickStartupFollowedStreamScan,
+} from "@/backend/ipc/handlers/stream-handlers";
 import { storageService } from "@/backend/services/storage-service";
 
 type Handler = (event: unknown, params?: unknown) => Promise<unknown>;
@@ -253,6 +257,34 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
 });
 
 describe("STREAMS_GET_FOLLOWED", () => {
+  it("detects only startup Kick followed-stream scans as deferrable", () => {
+    expect(shouldDeferKickStartupFollowedStreamScan(undefined, 1000, 0)).toBe(true);
+    expect(shouldDeferKickStartupFollowedStreamScan("kick", 1000, 0)).toBe(true);
+    expect(shouldDeferKickStartupFollowedStreamScan("twitch", 1000, 0)).toBe(false);
+    expect(
+      shouldDeferKickStartupFollowedStreamScan(
+        "kick",
+        KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS + 1,
+        0
+      )
+    ).toBe(false);
+  });
+
+  it("defers local Kick followed-stream fan-out during startup", async () => {
+    vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
+      platform === "kick" ? ([{ channelName: "kick-one" }, { channelName: "kick-two" }] as any) : []
+    );
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = (await handler({}, {})) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([]);
+    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
+  });
+
   it("merges and sorts by viewerCount when both platforms requested", async () => {
     vi.mocked(twitchClient.isAuthenticated).mockReturnValue(true);
     vi.mocked(twitchClient.getFollowedStreams).mockResolvedValue({
@@ -341,10 +373,13 @@ describe("STREAMS_GET_PLAYBACK_URL", () => {
 
   it("returns error envelope on unsupported platform", async () => {
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
-    const result = (await handler({}, {
-      platform: "youtube" as any,
-      channelSlug: "test",
-    })) as any;
+    const result = (await handler(
+      {},
+      {
+        platform: "youtube" as any,
+        channelSlug: "test",
+      }
+    )) as any;
 
     expect(result.success).toBe(false);
   });

@@ -27,9 +27,7 @@ vi.mock("../../../../../src/backend/services/storage-service", () => ({
   },
 }));
 
-const { storageService } = await import(
-  "../../../../../src/backend/services/storage-service"
-);
+const { storageService } = await import("../../../../../src/backend/services/storage-service");
 
 import {
   _resetWarnedForTests,
@@ -113,9 +111,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
   });
 
   it("accepts a top-level array (not wrapped in `data`)", async () => {
-    fetchSpy.mockResolvedValueOnce(
-      jsonResponse([{ id: 1, slug: "a", user: { username: "A" } }])
-    );
+    fetchSpy.mockResolvedValueOnce(jsonResponse([{ id: 1, slug: "a", user: { username: "A" } }]));
 
     const result = await _tryBearerFetch(TEST_TOKEN);
 
@@ -136,14 +132,18 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("classifies 401 as auth-failed and warns once", async () => {
+  it("classifies 401 as auth-failed without warning for the expected Bearer rejection", async () => {
     fetchSpy.mockResolvedValueOnce(textResponse("", { status: 401 }));
 
     const result = await _tryBearerFetch(TEST_TOKEN);
 
     expect(result).toEqual({ status: "error", reason: "auth-failed" });
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(String(warnSpy.mock.calls[0]?.[1] ?? "")).toMatch(/auth/i);
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(vi.mocked(logger.debug)).toHaveBeenCalledWith(
+      "Kick:Endpoints:Follow",
+      "Kick v2 followed-channels rejected Bearer auth",
+      { status: 401 }
+    );
   });
 
   it("classifies 403 as auth-failed", async () => {
@@ -159,7 +159,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
   it("classifies Cloudflare challenge HTML separately from parse-error", async () => {
     fetchSpy.mockResolvedValueOnce(
       textResponse(
-        '<!DOCTYPE html><html><head><title>Just a moment...</title></head><body>cf-browser-verification</body></html>',
+        "<!DOCTYPE html><html><head><title>Just a moment...</title></head><body>cf-browser-verification</body></html>",
         { status: 200 }
       )
     );
@@ -220,10 +220,9 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
     // already latched in _warned after the first call.
     expect(warnSpy.mock.calls.length).toBe(warnsAfterFirst);
     // And the per-class cap holds: at most one warn per reason class.
-    // Currently observed classes: 'auth-failed' (from Bearer) and
-    // 'network-error' (from BrowserWindow fallback failing in node env).
+    // Currently observed class: 'network-error' from BrowserWindow fallback
+    // failing in node env. The expected Bearer auth-failed path stays debug.
     expect(warnsAfterFirst).toBeLessThanOrEqual(2);
-    expect(warnsAfterFirst).toBeGreaterThanOrEqual(1);
   });
 
   it("shares the in-flight Promise across concurrent callers", async () => {
@@ -240,14 +239,14 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
 
     const [resA, resB] = await Promise.all([a, b]);
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(resA).toEqual(resB);
   });
 
-  it("includes Authorization Bearer header on the fetch", async () => {
+  it("_tryBearerFetch includes Authorization Bearer header on the diagnostic fetch", async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ data: [] }));
 
-    await getAllFollowedChannels();
+    await _tryBearerFetch(TEST_TOKEN);
 
     expect(fetchSpy).toHaveBeenCalledWith(
       FETCH_URL,

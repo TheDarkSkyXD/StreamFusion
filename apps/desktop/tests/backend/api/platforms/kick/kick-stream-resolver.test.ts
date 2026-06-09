@@ -1,5 +1,5 @@
+import Module from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import Module from "module";
 
 /* ------------------------------------------------------------------ *
  * Electron mock: kick-stream-resolver.ts uses `require("electron")`  *
@@ -101,9 +101,7 @@ describe("KickStreamResolver", () => {
 
     it("throws when no playback URL is found in response", async () => {
       // Provide fresh Response for each retry attempt (Response bodies are single-use)
-      mockFetch.mockImplementation(async () =>
-        jsonResponse({ livestream: { is_live: true } })
-      );
+      mockFetch.mockImplementation(async () => jsonResponse({ livestream: { is_live: true } }));
 
       await expect(resolver.getStreamPlaybackUrl("no-url-channel")).rejects.toThrow(
         "No playback URL found"
@@ -189,6 +187,7 @@ describe("KickStreamResolver", () => {
     });
 
     it("treats validatePlaybackUrl timeout as valid (assumes URL might work)", async () => {
+      const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
       mockFetch
         .mockResolvedValueOnce(
           jsonResponse({
@@ -201,6 +200,8 @@ describe("KickStreamResolver", () => {
       const result = await resolver.getStreamPlaybackUrl("slow-validation");
 
       expect(result.url).toBe("https://example.com/stream.m3u8");
+      expect(timeoutSpy).toHaveBeenNthCalledWith(1, 5000);
+      expect(timeoutSpy).toHaveBeenNthCalledWith(2, 1500);
     });
   });
 

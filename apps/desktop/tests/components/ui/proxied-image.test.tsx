@@ -92,6 +92,23 @@ describe('ProxiedImage', () => {
     expect(screen.queryByRole('img', { name: 'Dana' })).toBeNull();
   });
 
+  it('treats a 1x1 response on the kick-image:// protocol as upstream failure and falls back', async () => {
+    const upstream =
+      'https://images.kick.com/video_thumbnails/z7oMLoDcD3va/iBP8BzqJxpzh/720.webp';
+    const onProxyError = vi.fn();
+    render(<ProxiedImage src={upstream} alt="Kick VOD" onProxyError={onProxyError} />);
+    const img = await screen.findByRole('img', { name: 'Kick VOD' });
+    expect(img.getAttribute('src')?.startsWith('kick-image://image?u=')).toBe(true);
+
+    Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 1 });
+    Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 1 });
+    fireEvent.load(img);
+
+    await waitFor(() => expect(screen.getByText('K')).toBeInTheDocument());
+    expect(onProxyError).toHaveBeenCalled();
+    expect(screen.queryByRole('img', { name: 'Kick VOD' })).toBeNull();
+  });
+
   it('skips the network request and shows the fallback when a URL has already 403d this session', async () => {
     // First render: image errors, URL gets added to the session-level broken-URL set.
     const { unmount } = render(

@@ -4,15 +4,15 @@ vi.mock("@/lib/cross-logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-const mockCookiesGet = vi.fn(async () => []);
-const mockCookiesRemove = vi.fn(async () => undefined);
+const mockCookiesGet = vi.fn(async (_filter: { domain?: string; name?: string }) => [] as unknown[]);
+const mockCookiesRemove = vi.fn(async (_url: string, _name: string) => undefined);
 
 vi.mock("electron", () => ({
   session: {
     defaultSession: {
       cookies: {
-        get: (...a: unknown[]) => mockCookiesGet(...a),
-        remove: (...a: unknown[]) => mockCookiesRemove(...a),
+        get: (filter: { domain?: string; name?: string }) => mockCookiesGet(filter),
+        remove: (url: string, name: string) => mockCookiesRemove(url, name),
       },
     },
   },
@@ -366,7 +366,7 @@ describe("fetchCurrentUser", () => {
   });
 
   it("uses provided accessToken parameter", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
         data: [{ user_id: 1, name: "u" }],
       })
@@ -375,7 +375,9 @@ describe("fetchCurrentUser", () => {
 
     await kickAuthService.fetchCurrentUser("explicit-token");
 
-    const headers = fetchMock.mock.calls[0][1].headers;
+    const call0 = fetchMock.mock.calls[0];
+    expect(call0).toBeDefined();
+    const headers = call0![1].headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer explicit-token");
   });
 
@@ -449,7 +451,7 @@ describe("ensureValidAppToken", () => {
 
 describe("clearKickSessionCookies (via logout)", () => {
   it("preserves cf_clearance and __cf_bm cookies", async () => {
-    mockCookiesGet.mockImplementation(async ({ domain }: { domain: string }) => {
+    mockCookiesGet.mockImplementation(async ({ domain }: { domain?: string; name?: string }) => {
       if (domain === ".kick.com") {
         return [
           { name: "cf_clearance", domain: ".kick.com", secure: true, path: "/" },
@@ -463,8 +465,9 @@ describe("clearKickSessionCookies (via logout)", () => {
     await kickAuthService.logout();
 
     expect(mockCookiesRemove).toHaveBeenCalledTimes(1);
-    const removedName = mockCookiesRemove.mock.calls[0][1];
-    expect(removedName).toBe("kick_session");
+    const removeCall = mockCookiesRemove.mock.calls[0];
+    expect(removeCall).toBeDefined();
+    expect(removeCall![1]).toBe("kick_session");
   });
 
   it("handles cookie enumeration failure gracefully", async () => {
@@ -476,7 +479,7 @@ describe("clearKickSessionCookies (via logout)", () => {
   });
 
   it("handles individual cookie removal failure gracefully", async () => {
-    mockCookiesGet.mockImplementation(async ({ domain }: { domain: string }) => {
+    mockCookiesGet.mockImplementation(async ({ domain }: { domain?: string; name?: string }) => {
       if (domain === "kick.com") {
         return [{ name: "session_token", domain: "kick.com", secure: true, path: "/" }];
       }
@@ -490,7 +493,7 @@ describe("clearKickSessionCookies (via logout)", () => {
   });
 
   it("skips cookies with empty domain", async () => {
-    mockCookiesGet.mockImplementation(async ({ domain }: { domain: string }) => {
+    mockCookiesGet.mockImplementation(async ({ domain }: { domain?: string; name?: string }) => {
       if (domain === ".kick.com") {
         return [{ name: "orphan", domain: "", secure: false, path: "/" }];
       }

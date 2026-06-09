@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { syncKickFollowsAfterLogin } from "@/backend/ipc/handlers/auth-handlers";
+import {
+  KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
+  shouldDeferKickStartupFollowRefresh,
+  syncKickFollowsAfterLogin,
+} from "@/backend/ipc/handlers/auth-handlers";
 
 // Guards the A1 fix: a transient Cloudflare/Kasada/auth failure must NOT
 // trigger an account-follows clear, because that would silently wipe the
@@ -179,5 +183,31 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       addedCount: 1,
       removedCount: 2,
     });
+  });
+});
+
+describe("shouldDeferKickStartupFollowRefresh", () => {
+  it("defers Kick focus refresh during the startup grace period", () => {
+    expect(
+      shouldDeferKickStartupFollowRefresh(
+        "kick",
+        "focus",
+        1000 + KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS - 1,
+        1000
+      )
+    ).toBe(true);
+  });
+
+  it("does not defer Twitch, interval refreshes, or Kick focus after the grace period", () => {
+    expect(shouldDeferKickStartupFollowRefresh("twitch", "focus", 1000, 0)).toBe(false);
+    expect(shouldDeferKickStartupFollowRefresh("kick", "interval", 1000, 0)).toBe(false);
+    expect(
+      shouldDeferKickStartupFollowRefresh(
+        "kick",
+        "focus",
+        1000 + KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
+        1000
+      )
+    ).toBe(false);
   });
 });

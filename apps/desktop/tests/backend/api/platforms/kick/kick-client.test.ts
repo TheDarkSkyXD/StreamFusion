@@ -127,7 +127,7 @@ describe("KickClient", () => {
     mockSessionFetch.mockReset();
     vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(true);
     vi.mocked(kickAuthService.getAccessToken).mockReturnValue("test-token");
-    vi.mocked(kickAuthService.ensureValidToken).mockResolvedValue(undefined);
+    vi.mocked(kickAuthService.ensureValidToken).mockResolvedValue(true);
     vi.mocked(kickAuthService.refreshToken).mockResolvedValue(null);
     ({ kickClient } = await import("@/backend/api/platforms/kick/kick-client"));
   });

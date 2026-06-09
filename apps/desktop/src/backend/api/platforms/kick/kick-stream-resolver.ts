@@ -3,6 +3,9 @@ import { sleep } from "@/lib/sleep";
 import type { StreamPlayback } from "../../../../components/player/types";
 import { KICK_LEGACY_API_V1_BASE } from "./kick-types";
 
+const KICK_API_REQUEST_TIMEOUT_MS = 5000;
+const PLAYBACK_URL_VALIDATION_TIMEOUT_MS = 1500;
+
 export class KickStreamResolver {
   /**
    * Validate that a playback URL is actually accessible
@@ -26,7 +29,7 @@ export class KickStreamResolver {
           // Only fetch first 1KB to minimize bandwidth
           Range: "bytes=0-1024",
         },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(PLAYBACK_URL_VALIDATION_TIMEOUT_MS),
       });
 
       // 200-299 or 206 (Partial Content) = valid; 404/403 = stream gone
@@ -71,7 +74,7 @@ export class KickStreamResolver {
         Referer: "https://kick.com/",
         "X-Requested-With": "XMLHttpRequest",
       },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(KICK_API_REQUEST_TIMEOUT_MS),
     });
 
     if (res.status === 404) {

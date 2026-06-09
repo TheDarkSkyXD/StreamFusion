@@ -287,7 +287,7 @@ describe("fetchCurrentUser", () => {
   });
 
   it("uses provided accessToken instead of stored one", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
         data: [
           {
@@ -305,7 +305,9 @@ describe("fetchCurrentUser", () => {
 
     await twitchAuthService.fetchCurrentUser("explicit-token");
 
-    const headers = fetchMock.mock.calls[0][1].headers;
+    const call0 = fetchMock.mock.calls[0];
+    expect(call0).toBeDefined();
+    const headers = call0![1].headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer explicit-token");
   });
 

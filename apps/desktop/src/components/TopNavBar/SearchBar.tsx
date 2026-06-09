@@ -19,8 +19,9 @@ export const SearchBar = memo(function SearchBar({ className }: SearchBarProps) 
   return (
     <UnifiedSearchInput
       className={className}
+      inputClassName="!bg-[#191919] placeholder:!text-white/30"
       onSearch={handleSearch}
-      placeholder="Search streams, channels, categories..."
+      placeholder="Enter streamer name..."
     />
   );
 });
