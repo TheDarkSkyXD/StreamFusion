@@ -10,12 +10,12 @@ import { KickEmoteProvider } from "@/backend/services/emotes/kick-emotes";
 type TransformEmoteFn = (
   emote: { id: number; channel_id?: number; name: string; subscribers_only: boolean },
   channelId?: string,
+  setName?: string | null,
 ) => unknown;
 
 function transform(): TransformEmoteFn {
   const provider = new KickEmoteProvider();
-  // biome-ignore lint/suspicious/noExplicitAny: reaching into private for test
-  return ((provider as any).transformEmote as TransformEmoteFn).bind(provider);
+  return (provider as unknown as { transformEmote: TransformEmoteFn }).transformEmote.bind(provider);
 }
 
 describe("KickEmoteProvider.transformEmote", () => {
@@ -57,6 +57,7 @@ describe("KickEmoteProvider.transformEmote", () => {
       isZeroWidth: boolean;
       channelId?: string;
       urls: { url1x: string; url2x: string; url4x?: string };
+      kickSection?: string;
     };
     expect(out.id).toBe("99");
     expect(out.name).toBe("PogChamp");
@@ -68,5 +69,22 @@ describe("KickEmoteProvider.transformEmote", () => {
     expect(out.urls.url1x).toContain("/emotes/99/");
     expect(out.urls.url2x).toContain("/emotes/99/");
     expect(out.urls.url4x).toContain("/emotes/99/");
+    expect(out.kickSection).toBe("channel");
+  });
+
+  it.each([
+    { setName: "channel_set", kickSection: "channel", isGlobal: false },
+    { setName: null, kickSection: "channel", isGlobal: false },
+    { setName: "Global", kickSection: "global", isGlobal: true },
+    { setName: "Emojis", kickSection: "emoji", isGlobal: true },
+  ])("maps KickTalk set '$setName' to kickSection=$kickSection", ({ setName, kickSection, isGlobal }) => {
+    const out = transform()(
+      { id: 123, name: "kickThing", subscribers_only: false },
+      "channel-42",
+      setName,
+    ) as { kickSection?: string; isGlobal: boolean };
+
+    expect(out.kickSection).toBe(kickSection);
+    expect(out.isGlobal).toBe(isGlobal);
   });
 });

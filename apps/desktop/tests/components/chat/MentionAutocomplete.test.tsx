@@ -3,14 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MentionAutocomplete } from '@/components/chat/MentionAutocomplete';
 import type { ChatMessage } from '@/shared/chat-types';
-import { useChatStore } from '@/store/chat-store';
+import { buildChannelKey, useChatStore } from '@/store/chat-store';
 
-function makeMessage(username: string, displayName: string, color = '#fff'): ChatMessage {
+function makeMessage(
+  username: string,
+  displayName: string,
+  color = '#fff',
+  channel = 'test'
+): ChatMessage {
   return {
     id: `${username}-${Math.random()}`,
     platform: 'twitch',
     type: 'message',
-    channel: 'test',
+    channel,
     userId: username,
     username,
     displayName,
@@ -26,7 +31,7 @@ function makeMessage(username: string, displayName: string, color = '#fff'): Cha
 }
 
 function resetChatStore(): void {
-  useChatStore.setState({ messages: [] });
+  useChatStore.setState({ messagesByChannel: {} });
 }
 
 describe('MentionAutocomplete', () => {
@@ -42,6 +47,7 @@ describe('MentionAutocomplete', () => {
         onClose={vi.fn()}
         isActive={false}
         platform="twitch"
+        channel="test"
       />
     );
     expect(container.firstChild).toBeNull();
@@ -56,6 +62,7 @@ describe('MentionAutocomplete', () => {
         onClose={vi.fn()}
         isActive={true}
         platform="twitch"
+        channel="test"
       />
     );
     expect(container.firstChild).toBeNull();
@@ -63,11 +70,13 @@ describe('MentionAutocomplete', () => {
 
   it('registers keydown listener once across selectedIndex changes', () => {
     useChatStore.setState({
-      messages: [
-        makeMessage('alice', 'Alice'),
-        makeMessage('alex', 'Alex'),
-        makeMessage('andre', 'Andre'),
-      ],
+      messagesByChannel: {
+        [buildChannelKey('twitch', 'test')]: [
+          makeMessage('alice', 'Alice'),
+          makeMessage('alex', 'Alex'),
+          makeMessage('andre', 'Andre'),
+        ],
+      },
     });
 
     const addSpy = vi.spyOn(document, 'addEventListener');
@@ -80,6 +89,7 @@ describe('MentionAutocomplete', () => {
       onClose: vi.fn(),
       isActive: true,
       platform: 'twitch' as const,
+      channel: 'test',
     };
 
     const { rerender } = render(<MentionAutocomplete {...props} />);
@@ -104,7 +114,9 @@ describe('MentionAutocomplete', () => {
 
   it('removes listener when isActive flips to false', () => {
     useChatStore.setState({
-      messages: [makeMessage('alice', 'Alice')],
+      messagesByChannel: {
+        [buildChannelKey('twitch', 'test')]: [makeMessage('alice', 'Alice')],
+      },
     });
 
     const removeSpy = vi.spyOn(document, 'removeEventListener');
@@ -117,6 +129,7 @@ describe('MentionAutocomplete', () => {
       onClose: vi.fn(),
       isActive: true,
       platform: 'twitch' as const,
+      channel: 'test',
     };
 
     const { rerender } = render(<MentionAutocomplete {...props} />);
@@ -126,5 +139,30 @@ describe('MentionAutocomplete', () => {
     expect(removedKeydowns).toBeGreaterThan(initialRemoveCount);
 
     removeSpy.mockRestore();
+  });
+
+  it('builds suggestions from the active channel bucket only', () => {
+    const channelKey = buildChannelKey('twitch', 'alpha');
+    useChatStore.setState({
+      messagesByChannel: {
+        [channelKey]: [makeMessage('alice', 'Alice', '#fff', 'alpha')],
+        [buildChannelKey('twitch', 'bravo')]: [makeMessage('bravo', 'Bravo', '#fff', 'bravo')],
+      },
+    });
+
+    const { getByText, queryByText } = render(
+      <MentionAutocomplete
+        inputValue="@a"
+        cursorPosition={2}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        isActive={true}
+        platform="twitch"
+        channel="alpha"
+      />
+    );
+
+    expect(getByText('Alice')).toBeInTheDocument();
+    expect(queryByText('Bravo')).toBeNull();
   });
 });

@@ -92,9 +92,9 @@ describe("shutdown-marker", () => {
       wasCleanShutdown();
       markSessionStarted();
 
-      const writePath = mocks.writeFileSync.mock.calls[0][0] as string;
-      const existsPath = mocks.existsSync.mock.calls[0][0] as string;
-      const unlinkPath = mocks.unlinkSync.mock.calls[0][0] as string;
+      const writePath = (mocks.writeFileSync.mock.calls[0] as unknown[])[0] as string;
+      const existsPath = (mocks.existsSync.mock.calls[0] as unknown[])[0] as string;
+      const unlinkPath = (mocks.unlinkSync.mock.calls[0] as unknown[])[0] as string;
       expect(writePath).toBe(existsPath);
       expect(existsPath).toBe(unlinkPath);
     });

@@ -22,6 +22,7 @@ import type {
   KickPoll,
   NormalizedPinnedMessage,
 } from "../../../shared/chat-types";
+import { buildChannelKey, useChatStore } from "../../../store/chat-store";
 // Type-only import: lets us reference the KickSendResult shape without pulling
 // kick-send-window's main-only deps (electron / better-sqlite3 via the
 // storage-service chain) into the renderer bundle. The runtime calls go
@@ -201,6 +202,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   // Tracks how many components are actively using this service
   // Only performs full shutdown when count reaches 0
   private activeUsers = 0;
+  private channelUsers: Map<string, number> = new Map();
 
   // ========== Public API ==========
 
@@ -376,8 +378,11 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * Call this when a component starts using the service
    * Must be paired with release() when the component unmounts
    */
-  acquire(): void {
+  acquire(channel?: string): void {
     this.activeUsers++;
+    if (channel) {
+      this.channelUsers.set(channel, (this.channelUsers.get(channel) ?? 0) + 1);
+    }
     this.log(`Service acquired (active users: ${this.activeUsers})`);
   }
 
@@ -390,9 +395,21 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * @returns Promise that resolves when cleanup is complete
    */
   async release(channel?: string): Promise<void> {
-    // Leave the specific channel if provided
+    let shouldLeaveChannel = false;
     if (channel) {
+      const channelUserCount = this.channelUsers.get(channel);
+      if (channelUserCount === undefined || channelUserCount <= 1) {
+        this.channelUsers.delete(channel);
+        shouldLeaveChannel = true;
+      } else {
+        this.channelUsers.set(channel, channelUserCount - 1);
+      }
+    }
+
+    // Leave and evict the specific channel only after its final panel releases.
+    if (channel && shouldLeaveChannel) {
       await this.leaveChannel(channel);
+      useChatStore.getState().dropChannel(buildChannelKey("kick", channel));
     }
 
     this.activeUsers = Math.max(0, this.activeUsers - 1);
@@ -442,6 +459,12 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.reconnectGeneration += 1;
     this.activeUsers = 0;
     this.reconnectAttempts = 0;
+
+    const { dropChannel } = useChatStore.getState();
+    for (const channel of this.channels.keys()) {
+      dropChannel(buildChannelKey("kick", channel));
+    }
+    this.channelUsers.clear();
 
     if (!this.pusher) {
       this.setConnectionState("disconnected");

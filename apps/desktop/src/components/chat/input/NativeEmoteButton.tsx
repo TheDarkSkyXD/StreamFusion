@@ -16,6 +16,7 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Emote } from "../../../backend/services/emotes/emote-types";
+import { useChannelByUsername } from "../../../hooks/queries/useChannels";
 import type { ChatPlatform } from "../../../shared/chat-types";
 import { useEmoteStore } from "../../../store/emote-store";
 import { TwitchIcon } from "../../icons/PlatformIcons";
@@ -28,6 +29,11 @@ const kickEmoteUrl = (id: string) => `https://files.kick.com/emotes/${id}/fullsi
 
 interface NativeEmoteButtonProps {
   platform: ChatPlatform;
+  /** Channel username (slug) — used to fetch the streamer's avatar for the
+   *  picker's channel-tab thumbnail. The query is React-Query-cached and
+   *  shares its key with Stream's `useChannelByUsername`, so this is a free
+   *  cache hit on the chat page. */
+  channel: string;
   channelId: string | null;
   isOpen: boolean;
   onOpenRequest: () => void;
@@ -36,19 +42,31 @@ interface NativeEmoteButtonProps {
   /** Forwarded to EmotePickerPopover. Only consulted for Kick-native. `undefined`
    *  means "unknown subscription status" → no lock overlay (U8 semantics). */
   viewerIsSubscribed?: boolean;
+  /**
+   * Optional positioning anchor for the popover. ChatInput passes the 7TV button
+   * here so native Kick/Twitch pickers open from the same viewport position as
+   * the third-party picker.
+   */
+  popoverAnchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
   platform,
+  channel,
   channelId,
   isOpen,
   onOpenRequest,
   onEmoteSelect,
   disabled = false,
   viewerIsSubscribed,
+  popoverAnchorRef,
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const anchorRef = popoverAnchorRef ?? buttonRef;
   const label = `Open ${platform} emote picker`;
+  const { data: channelData } = useChannelByUsername(channel, platform);
+  const channelAvatarUrl = channelData?.avatarUrl ?? null;
+  const channelLabel = channelData?.displayName || channelData?.username || channel;
 
   // Kick-specific: cycle through real channel/global Kick emotes on hover so
   // the button matches KickTalk's `kickEmoteButton` UX (random emote image
@@ -99,7 +117,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         onClick={onOpenRequest}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseEnter={rerollKickEmote}
-        className={`group flex-shrink-0 flex items-center justify-center w-10 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`group flex-shrink-0 flex items-center justify-center w-14 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
           isOpen ? "bg-white/20" : "hover:bg-white/10"
         }`}
         aria-label={label}
@@ -132,11 +150,13 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         isOpen={isOpen}
         onClose={onOpenRequest}
         onSelect={onEmoteSelect}
-        anchorRef={buttonRef as React.RefObject<HTMLElement>}
+        anchorRef={anchorRef as React.RefObject<HTMLElement>}
         scope="native"
         platform={platform}
         channelId={channelId}
         viewerIsSubscribed={viewerIsSubscribed}
+        channelAvatarUrl={channelAvatarUrl}
+        channelLabel={channelLabel}
       />
     </>
   );

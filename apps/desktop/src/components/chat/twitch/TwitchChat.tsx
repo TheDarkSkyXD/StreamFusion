@@ -46,7 +46,7 @@ import type {
   UserNotice,
 } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
-import { useChatStore } from "../../../store/chat-store";
+import { buildChannelKey, useChatStore } from "../../../store/chat-store";
 import { useDevModOverrideStore } from "../../../store/dev-mod-override-store";
 import { useEmoteStore } from "../../../store/emote-store";
 import { useRoomStateStore } from "../../../store/room-state-store";
@@ -126,6 +126,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const clearMessages = useChatStore((state) => state.clearMessages);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const deleteMessagesByUser = useChatStore((state) => state.deleteMessagesByUser);
+  const channelKey = buildChannelKey("twitch", channel);
 
   // Emote store — actions only; no render-time data needed here.
   const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
@@ -200,7 +201,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const twitchUser = useAuthStore((state) => state.twitchUser);
 
   // Track current channel for cleanup
-  // Initialize with null so we know when it's the first connection (and clear previous messages)
+  // Initialize with null so we know when it's the first connection.
   const currentChannelRef = useRef<string | null>(null);
   // Imperative handle on ChatInput for the pinned-message Reply action.
   const chatInputRef = useRef<ChatInputHandle>(null);
@@ -215,15 +216,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     const connect = async () => {
       try {
-        // Clear previous messages only when channel changes
-        // This will also be true on first mount since ref starts as null
+        // Track channel changes for service cleanup. Chat history is now scoped
+        // by channel bucket, so switching channels no longer destructively
+        // clears the shared store.
         if (currentChannelRef.current !== channel) {
-          clearMessages();
           currentChannelRef.current = channel;
         }
 
         // Acquire a reference to the service (for multiview support)
-        twitchChatService.acquire();
+        twitchChatService.acquire(channel);
 
         // The "Connecting to channel..." / "Connected to the channel" lines
         // mark the start of the LIVE session — they're injected inside
@@ -509,7 +510,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         });
         const enriched =
           enrichedContent === message.content ? message : { ...message, content: enrichedContent };
-        addMessageBatched(enriched, "twitch");
+        addMessageBatched(enriched, channelKey);
       }
     };
 
@@ -549,14 +550,16 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     const handleClearChat = (clear: ClearChat) => {
       if (clear.platform !== "twitch") return;
+      if (clear.channel !== channel) return;
       // U5 — `showClearChat` gates the chat-cleared NOTICE line, not the
       // moderation effect itself: the messages are still removed (a mod
       // cleared chat), only the "Chat was cleared" / ban marker is hidden.
       const cd =
         useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+      const clearChannelKey = buildChannelKey("twitch", clear.channel);
 
       if (clear.isClearAll) {
-        clearMessages(clear.platform);
+        clearMessages(clearChannelKey);
         if (!cd.showClearChat) return;
         addMessage({
           id: crypto.randomUUID(),
@@ -576,11 +579,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           isAction: false,
         });
       } else if (clear.targetUserId) {
-        const { messages } = useChatStore.getState();
+        const messages = useChatStore.getState().messagesByChannel[clearChannelKey] ?? [];
         const lastMsg = [...messages]
           .reverse()
           .find((m) => m.userId === clear.targetUserId && m.type === "message");
-        deleteMessagesByUser(clear.targetUserId);
+        deleteMessagesByUser(clearChannelKey, clear.targetUserId);
         addMessage({
           id: crypto.randomUUID(),
           platform: clear.platform,
@@ -607,7 +610,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     };
 
     const handleMessageDeleted = (deletion: MessageDeletion) => {
-      deleteMessage(deletion.messageId);
+      if (deletion.channel !== channel) return;
+      deleteMessage(buildChannelKey("twitch", deletion.channel), deletion.messageId);
     };
 
     const handleError = (error: Error) => {
@@ -679,6 +683,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     clearMessages,
     deleteMessage,
     deleteMessagesByUser,
+    channelKey,
+    channel,
     channelId,
     predictionDismissGate,
     pollTimer,
@@ -854,6 +860,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       <div className="flex-1 min-h-0 relative">
         <ChatMessageList
           key={`twitch-${channel}`}
+          channelKey={channelKey}
           onPin={
             isMod
               ? (message) => {

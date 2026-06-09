@@ -18,6 +18,7 @@ import { createPortal } from "react-dom";
 import { useShallow } from "zustand/react/shallow";
 import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-types";
 import { useEmoteStore } from "../../store/emote-store";
+import { KickIcon } from "../icons/PlatformIcons";
 import { EmoteImage } from "./EmoteImage";
 
 export type EmotePickerScope = "native" | "thirdParty";
@@ -36,6 +37,14 @@ interface EmotePickerPopoverProps {
    * `false` + emote.subscribersOnly === true → lock overlay.
    */
   viewerIsSubscribed?: boolean;
+  /**
+   * Channel avatar URL. When provided, the "channel" sub-section icon shows the
+   * streamer's profile picture instead of the generic person silhouette —
+   * matches KickTalk's tab row where each section opens with its source's
+   * recognizable mark.
+   */
+  channelAvatarUrl?: string | null;
+  channelLabel?: string | null;
 }
 
 /**
@@ -46,12 +55,13 @@ interface EmotePickerPopoverProps {
  *   - thirdParty twitch: "7tv" | "bttv" | "ffz"
  *   - thirdParty kick:   "channel" | "global"
  */
-type SubSection = "channel" | "global" | "emoji" | "7tv" | "bttv" | "ffz";
+type SubSection = "recent" | "channel" | "global" | "emoji" | "7tv" | "bttv" | "ffz";
 
 interface SubSectionConfig {
   id: SubSection;
   label: string;
   icon: React.ReactNode;
+  targetSectionId: string;
 }
 
 /** Compute the providers covered by a given scope+platform. */
@@ -66,21 +76,19 @@ function getProvidersForScope(
   return platform === "twitch" ? ["7tv", "bttv", "ffz"] : ["7tv"];
 }
 
+// KickTalk's globe-fill icon (src/renderer/src/assets/icons/globe-fill.svg) —
+// filled solid-globe glyph with latitude/longitude relief carved out. Replaces
+// the prior thin stroke globe so this tab row matches KickTalk visually.
 const GlobeIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-    width={18}
-    height={18}
+    fill="currentColor"
+    viewBox="0 0 256 256"
+    width={22}
+    height={22}
+    aria-hidden="true"
   >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 010 18M12 3a14 14 0 000 18M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-    />
+    <path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm78.36,64H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM216,128a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM128,43a115.27,115.27,0,0,1,26,45H102A115.11,115.11,0,0,1,128,43ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48Zm50.35,61.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z" />
   </svg>
 );
 
@@ -102,7 +110,7 @@ const ChannelIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const EmojiIcon: React.FC<{ className?: string }> = ({ className }) => (
+const ClockIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     className={className}
     fill="none"
@@ -110,14 +118,31 @@ const EmojiIcon: React.FC<{ className?: string }> = ({ className }) => (
     viewBox="0 0 24 24"
     width={18}
     height={18}
+    aria-hidden="true"
   >
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth={2}
-      d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+      d="M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z"
     />
   </svg>
+);
+
+// KickTalk's channel-tab thumbnail: the streamer's profile picture rendered as
+// a 24×24 rounded square (matches `.dialogHeadMenuItem > img` size in
+// reference/KickTalk-main `Input.scss`). Object-cover so non-square source
+// images crop centered rather than squashing.
+const ChannelAvatarIcon: React.FC<{ src: string }> = ({ src }) => (
+  <img
+    src={src}
+    alt=""
+    width={24}
+    height={24}
+    loading="lazy"
+    decoding="async"
+    className="w-6 h-6 rounded-[3px] object-cover"
+  />
 );
 
 const LockIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -128,13 +153,17 @@ const LockIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const CaretIcon: React.FC<{ className?: string; open: boolean }> = ({ className, open }) => (
   <svg
-    className={`${className ?? ""} transition-transform ${open ? "rotate-0" : "-rotate-90"}`}
-    fill="currentColor"
-    viewBox="0 0 24 24"
-    width={14}
-    height={14}
+    className={`${className ?? ""} opacity-50 transition-[transform,opacity] duration-200 ease-in-out group-hover:opacity-100 ${open ? "rotate-180" : "rotate-0"}`}
+    fill="none"
+    viewBox="0 0 32 32"
+    width={20}
+    height={20}
+    aria-hidden="true"
   >
-    <path d="M7 10l5 5 5-5H7z" />
+    <path
+      d="M27.0612 13.0615L17.0612 23.0615C16.9218 23.2013 16.7563 23.3123 16.5739 23.388C16.3916 23.4637 16.1961 23.5027 15.9987 23.5027C15.8013 23.5027 15.6058 23.4637 15.4235 23.388C15.2411 23.3123 15.0756 23.2013 14.9362 23.0615L4.9362 13.0615C4.6544 12.7797 4.49609 12.3975 4.49609 11.999C4.49609 11.6005 4.6544 11.2183 4.9362 10.9365C5.21799 10.6547 5.60018 10.4964 5.9987 10.4964C6.39721 10.4964 6.7794 10.6547 7.0612 10.9365L15.9999 19.8752L24.9387 10.9352C25.2205 10.6534 25.6027 10.4951 26.0012 10.4951C26.3997 10.4951 26.7819 10.6534 27.0637 10.9352C27.3455 11.217 27.5038 11.5992 27.5038 11.9977C27.5038 12.3962 27.3455 12.7784 27.0637 13.0602L27.0612 13.0615Z"
+      fill="currentColor"
+    />
   </svg>
 );
 
@@ -157,32 +186,64 @@ const StarIcon: React.FC<{ filled: boolean }> = ({ filled }) => (
 
 function getSubSectionsForScope(
   scope: EmotePickerScope,
-  platform: EmotePickerPlatform
+  platform: EmotePickerPlatform,
+  channelAvatarUrl?: string | null
 ): SubSectionConfig[] {
+  const frequent: SubSectionConfig = {
+    id: "recent",
+    label: "Frequently Used",
+    icon: <ClockIcon />,
+    targetSectionId: "frequent",
+  };
+  const channelIcon = channelAvatarUrl ? (
+    <ChannelAvatarIcon src={channelAvatarUrl} />
+  ) : (
+    <ChannelIcon />
+  );
+
   if (scope === "native" && platform === "twitch") {
     return [
-      { id: "channel", label: "Channel", icon: <ChannelIcon /> },
-      { id: "global", label: "Global", icon: <GlobeIcon /> },
+      frequent,
+      { id: "channel", label: "Channel", icon: channelIcon, targetSectionId: "channel" },
+      { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
     ];
   }
   if (scope === "native" && platform === "kick") {
     return [
-      { id: "channel", label: "Channel", icon: <ChannelIcon /> },
-      { id: "global", label: "Global", icon: <GlobeIcon /> },
-      { id: "emoji", label: "Emojis", icon: <EmojiIcon /> },
+      frequent,
+      { id: "channel", label: "Channel", icon: channelIcon, targetSectionId: "channel" },
+      { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
+      { id: "emoji", label: "Emojis", icon: <KickIcon size={18} />, targetSectionId: "emoji" },
     ];
   }
   if (scope === "thirdParty" && platform === "twitch") {
     return [
-      { id: "7tv", label: "7TV", icon: <span className="font-bold text-xs">7TV</span> },
-      { id: "bttv", label: "BTTV", icon: <span className="font-bold text-xs">B</span> },
-      { id: "ffz", label: "FFZ", icon: <span className="font-bold text-xs">FFZ</span> },
+      frequent,
+      {
+        id: "7tv",
+        label: "7TV",
+        icon: <span className="font-bold text-xs">7TV</span>,
+        targetSectionId: "7tv",
+      },
+      {
+        id: "bttv",
+        label: "BTTV",
+        icon: <span className="font-bold text-xs">B</span>,
+        targetSectionId: "bttv",
+      },
+      {
+        id: "ffz",
+        label: "FFZ",
+        icon: <span className="font-bold text-xs">FFZ</span>,
+        targetSectionId: "ffz",
+      },
     ];
   }
   // thirdParty kick
   return [
-    { id: "channel", label: "Channel", icon: <ChannelIcon /> },
-    { id: "global", label: "Global", icon: <GlobeIcon /> },
+    frequent,
+    { id: "channel", label: "Channel", icon: channelIcon, targetSectionId: "channel" },
+    { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
   ];
 }
 
@@ -193,6 +254,11 @@ const PROVIDER_LABELS: Record<EmoteProvider, string> = {
   bttv: "BetterTTV",
   ffz: "FrankerFaceZ",
 };
+
+function getKickEmoteSection(emote: Emote): "channel" | "global" | "emoji" {
+  if (emote.kickSection) return emote.kickSection;
+  return emote.isGlobal ? "global" : "channel";
+}
 
 const PAGE_SIZE = 20;
 
@@ -211,6 +277,7 @@ const PREFETCH_BATCH_SIZE = 4;
 /* ------------------------------------------------------------------------ */
 
 interface EmoteSectionProps {
+  sectionId: string;
   title: string;
   emotes: Emote[];
   collapsedHeaderOnly?: boolean;
@@ -225,9 +292,11 @@ interface EmoteSectionProps {
    * has scrolled out of the dialog and snowballs the whole list on open.
    */
   scrollRoot?: React.RefObject<HTMLElement | null>;
+  sectionRef?: (node: HTMLDivElement | null) => void;
 }
 
 const EmoteSection: React.FC<EmoteSectionProps> = ({
+  sectionId,
   title,
   emotes,
   collapsedHeaderOnly = false,
@@ -236,6 +305,7 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
   onFavoriteClick,
   isFavorite,
   scrollRoot,
+  sectionRef,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -270,17 +340,21 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
   }, [isOpen, collapsedHeaderOnly, emotes.length, visibleCount, scrollRoot]);
 
   return (
-    <div className="border-b border-[var(--color-border)] last:border-b-0">
+    <div
+      ref={sectionRef}
+      data-emote-section-id={sectionId}
+      className="border-b border-[var(--color-border)] last:border-b-0 scroll-mt-2"
+    >
       <button
         type="button"
-        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)] hover:bg-white/5"
+        className="group w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)] hover:bg-white/5"
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
       >
-        <span>
+        <span className="text-[#777777]">
           {title}
           {collapsedHeaderOnly && (
-            <span className="ml-2 normal-case font-normal text-[var(--color-foreground-muted)]">
+            <span className="ml-2 normal-case font-normal text-[#777777]">
               ({emotes.length} match{emotes.length === 1 ? "" : "es"})
             </span>
           )}
@@ -288,14 +362,14 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
         <CaretIcon open={isOpen && !collapsedHeaderOnly} />
       </button>
       {isOpen && !collapsedHeaderOnly && (
-        <div className="p-2">
+        <div className="p-3">
           {emotes.length === 0 ? (
             <div className="text-center py-4 text-xs text-[var(--color-foreground-muted)]">
               No emotes
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-8 gap-1">
+              <div className="flex flex-row flex-wrap gap-2">
                 {emotes.slice(0, visibleCount).map((emote) => (
                   <EmotePickerItem
                     key={`${emote.provider}-${emote.id}`}
@@ -360,7 +434,7 @@ const EmotePickerItem = memo(function EmotePickerItem({
 
   return (
     <div
-      className="relative group flex items-center justify-center p-1 rounded-md hover:bg-white/10 transition-colors"
+      className="relative group flex h-10 aspect-square items-center justify-center rounded-[4px] border border-[#515151] bg-transparent p-1 ring-1 ring-inset ring-[#515151] transition-[background-color,border-color,box-shadow] duration-150 ease-in-out hover:bg-white/[0.08] hover:border-[#666666] hover:ring-[#666666]"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       title={emote.name}
@@ -422,9 +496,14 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   platform,
   channelId: _channelId,
   viewerIsSubscribed,
+  channelAvatarUrl,
+  channelLabel,
 }) => {
   const providers = useMemo(() => getProvidersForScope(scope, platform), [scope, platform]);
-  const subSections = useMemo(() => getSubSectionsForScope(scope, platform), [scope, platform]);
+  const subSections = useMemo(
+    () => getSubSectionsForScope(scope, platform, channelAvatarUrl),
+    [scope, platform, channelAvatarUrl]
+  );
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSubSection, setActiveSubSection] = useState<SubSection | null>(null);
@@ -433,6 +512,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const { recentEmotes, favoriteEmotes, activeChannelId, loadedChannels, loadedGlobalPlatforms } =
     useEmoteStore(
@@ -555,30 +635,6 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     [searchQuery]
   );
 
-  /**
-   * Apply the active sub-section filter to emotes belonging to a specific
-   * provider. Sub-section semantics:
-   *   - "channel" → emote.isGlobal === false
-   *   - "global"  → emote.isGlobal === true
-   *   - "emoji"   → kick emojis. We do not have a distinct emoji flag in the
-   *                 emote type today; we approximate by keeping all kick
-   *                 globals. (Plan does not require precise separation.)
-   *   - "7tv" | "bttv" | "ffz" → already handled at the provider level.
-   */
-  const applySubSectionFilter = useCallback(
-    (emote: Emote): boolean => {
-      if (!activeSubSection) return true;
-      if (activeSubSection === "7tv" || activeSubSection === "bttv" || activeSubSection === "ffz") {
-        return emote.provider === activeSubSection;
-      }
-      if (activeSubSection === "channel") return emote.isGlobal === false;
-      if (activeSubSection === "global") return emote.isGlobal === true;
-      if (activeSubSection === "emoji") return emote.isGlobal === true;
-      return true;
-    },
-    [activeSubSection]
-  );
-
   /* ---------------------------- pinned ---------------------------- */
   const recentInScope = useMemo(
     () => recentEmotes.filter((e) => inScope(e) && matchesSearch(e)),
@@ -590,27 +646,48 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   );
 
   /* ----------------------- per-provider lists ---------------------- */
-  const providerLists = useMemo(() => {
-    return providers
-      .filter((provider) => {
-        // Sub-section icon filter only restricts the lower (provider) sections.
-        if (
-          activeSubSection === "7tv" ||
-          activeSubSection === "bttv" ||
-          activeSubSection === "ffz"
-        ) {
-          return provider === activeSubSection;
-        }
-        return true;
-      })
-      .map((provider) => {
-        const all = emotesByProvider.get(provider) ?? [];
-        const filtered = all
-          .filter((e) => matchesSearch(e))
-          .filter((e) => applySubSectionFilter(e));
-        return { provider, emotes: filtered };
-      });
-  }, [providers, activeSubSection, emotesByProvider, matchesSearch, applySubSectionFilter]);
+  const providerSections = useMemo(() => {
+    const channelTitle = channelLabel?.trim() || "Channel";
+    return providers.flatMap((provider) => {
+      const all = (emotesByProvider.get(provider) ?? []).filter((e) => matchesSearch(e));
+
+      if (provider === "kick" && platform === "kick") {
+        return [
+          {
+            id: "channel",
+            title: channelTitle,
+            emotes: all.filter((e) => getKickEmoteSection(e) === "channel"),
+          },
+          {
+            id: "global",
+            title: "Global",
+            emotes: all.filter((e) => getKickEmoteSection(e) === "global"),
+          },
+          {
+            id: "emoji",
+            title: "Emojis",
+            emotes: all.filter((e) => getKickEmoteSection(e) === "emoji"),
+          },
+        ];
+      }
+
+      if (provider === "7tv" && platform === "kick") {
+        return [
+          { id: "channel", title: channelTitle, emotes: all.filter((e) => !e.isGlobal) },
+          { id: "global", title: "Global", emotes: all.filter((e) => e.isGlobal) },
+        ];
+      }
+
+      if (provider === "twitch" && platform === "twitch") {
+        return [
+          { id: "channel", title: channelTitle, emotes: all.filter((e) => !e.isGlobal) },
+          { id: "global", title: "Global", emotes: all.filter((e) => e.isGlobal) },
+        ];
+      }
+
+      return [{ id: provider, title: PROVIDER_LABELS[provider], emotes: all }];
+    });
+  }, [providers, emotesByProvider, matchesSearch, platform, channelLabel]);
 
   /* --------------------- prefetch images on open --------------------- */
   // Warm the browser image cache for the whole in-scope set when the picker
@@ -705,8 +782,19 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     [addRecentEmote, onSelect]
   );
 
-  const handleSubSectionClick = useCallback((id: SubSection) => {
-    setActiveSubSection((cur) => (cur === id ? null : id));
+  const setSectionRef = useCallback(
+    (id: string) => (node: HTMLDivElement | null) => {
+      sectionRefs.current[id] = node;
+    },
+    []
+  );
+
+  const handleSubSectionClick = useCallback((sub: SubSectionConfig) => {
+    setActiveSubSection(sub.id);
+    sectionRefs.current[sub.targetSectionId]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }, []);
 
   /* --------------------------- lock predicate --------------------------- */
@@ -750,26 +838,37 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         />
       </div>
 
-      {/* Sub-section icon row */}
+      {/* Sub-section icon row — KickTalk `.dialogHeadMenuItem` spec:
+       *    32×32, 4px radius, 1px border #ffffff33, hover bg #ffffff21 /
+       *    border #ffffff37, icon opacity 0.5 → 1. The avatar tab keeps full
+       *    opacity at rest (it's a photo, not a glyph; dimming it makes the
+       *    channel feel "off"). */}
       {subSections.length > 0 && (
-        <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--color-border)]">
+        <div className="flex items-center gap-1 px-2 py-2 border-b border-[var(--color-border)]">
           {subSections.map((sub) => {
             const active = activeSubSection === sub.id;
+            const isAvatar = sub.id === "channel" && !!channelAvatarUrl;
             return (
               <button
                 key={sub.id}
                 type="button"
-                onClick={() => handleSubSectionClick(sub.id)}
+                onClick={() => handleSubSectionClick(sub)}
                 aria-pressed={active}
                 aria-label={sub.label}
                 title={sub.label}
-                className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${
+                className={`group/tab flex items-center justify-center w-8 h-8 rounded-[4px] border transition-[background-color,border-color] duration-200 ease-in-out text-white ${
                   active
-                    ? "bg-white/15 text-white"
-                    : "text-[var(--color-foreground-muted)] hover:bg-white/5 hover:text-white"
+                    ? "bg-white/[0.13] border-white/[0.22]"
+                    : "bg-transparent border-white/20 hover:bg-white/[0.13] hover:border-white/[0.22]"
                 }`}
               >
-                {sub.icon}
+                <span
+                  className={`flex items-center justify-center transition-opacity duration-200 ease-in-out ${
+                    isAvatar || active ? "opacity-100" : "opacity-50 group-hover/tab:opacity-100"
+                  }`}
+                >
+                  {sub.icon}
+                </span>
               </button>
             );
           })}
@@ -779,7 +878,8 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       {/* Body */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <EmoteSection
-          title="Recent"
+          sectionId="frequent"
+          title="Frequently Used"
           emotes={recentInScope}
           collapsedHeaderOnly={searching}
           showLock={showLock}
@@ -787,8 +887,10 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
           scrollRoot={scrollRef}
+          sectionRef={setSectionRef("frequent")}
         />
         <EmoteSection
+          sectionId="favorites"
           title="Favorites"
           emotes={favoritesInScope}
           collapsedHeaderOnly={searching}
@@ -797,17 +899,20 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
           scrollRoot={scrollRef}
+          sectionRef={setSectionRef("favorites")}
         />
-        {providerLists.map(({ provider, emotes }) => (
+        {providerSections.map(({ id, title, emotes }) => (
           <EmoteSection
-            key={provider}
-            title={PROVIDER_LABELS[provider]}
+            key={id}
+            sectionId={id}
+            title={title}
             emotes={emotes}
             showLock={showLock}
             onEmoteClick={handleEmoteClick}
             onFavoriteClick={toggleFavorite}
             isFavorite={isFavorite}
             scrollRoot={scrollRef}
+            sectionRef={setSectionRef(id)}
           />
         ))}
       </div>

@@ -34,6 +34,8 @@ import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
 } from '@/shared/auth-types';
 import { useAuthStore } from '@/store/auth-store';
+import { buildChannelKey, useChatStore } from '@/store/chat-store';
+import type { ChatMessage } from '@/shared/chat-types';
 
 function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   useAuthStore.setState((s) => ({
@@ -58,6 +60,26 @@ function makeRawMessages(n: number) {
   }));
 }
 
+function makeStoredMessage(id: string, channel: string, rawContent: string): ChatMessage {
+  return {
+    id,
+    platform: 'kick',
+    type: 'message',
+    channel,
+    userId: 'u1',
+    username: 'someone',
+    displayName: 'Someone',
+    color: '#fff',
+    badges: [],
+    content: [{ type: 'text', content: rawContent }],
+    rawContent,
+    timestamp: new Date(),
+    isDeleted: false,
+    isHighlighted: false,
+    isAction: false,
+  };
+}
+
 const baseParams = {
   channelId: 'chan-1',
   channel: 'xqc',
@@ -71,6 +93,10 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
   beforeEach(() => {
     api = installElectronAPIMock();
     setChatDisplay({});
+    useChatStore.setState({
+      messagesByChannel: {},
+      pausedChannels: new Set(),
+    });
   });
 
   it('seeds history by default', async () => {
@@ -82,7 +108,8 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
     const onPinned = vi.fn();
     await seedKickChatHistory({ ...baseParams, prependMessages: prepend, onPinnedMessage: onPinned });
     expect(prepend).toHaveBeenCalledTimes(1);
-    expect(prepend.mock.calls[0][0]).toHaveLength(4);
+    expect(prepend.mock.calls[0][0]).toBe(buildChannelKey('kick', 'xqc'));
+    expect(prepend.mock.calls[0][1]).toHaveLength(4);
   });
 
   it('does not seed recent messages when recentMessagesOnJoin is false', async () => {
@@ -119,10 +146,37 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
     const prepend = vi.fn();
     const onPinned = vi.fn();
     await seedKickChatHistory({ ...baseParams, prependMessages: prepend, onPinnedMessage: onPinned });
-    const seeded = prepend.mock.calls[0][0] as Array<{ rawContent: string }>;
+    expect(prepend.mock.calls[0][0]).toBe(buildChannelKey('kick', 'xqc'));
+    const seeded = prepend.mock.calls[0][1] as Array<{ rawContent: string }>;
     expect(seeded).toHaveLength(3);
     // newest-first input [c0..c9]; the 3 newest are c0,c1,c2, prepended in
     // chronological order (oldest-of-kept first) → c2, c1, c0.
     expect(seeded.map((m) => m.rawContent)).toEqual(['c2', 'c1', 'c0']);
+  });
+
+  it('after eviction, re-opening seeds fresh history without stale scrollback', async () => {
+    const channelKey = buildChannelKey('kick', 'xqc');
+    const stale = makeStoredMessage('stale', 'xqc', 'stale scrollback');
+    useChatStore.setState({
+      messagesByChannel: { [channelKey]: [stale] },
+      pausedChannels: new Set([channelKey]),
+    });
+    useChatStore.getState().dropChannel(channelKey);
+    api.chat.getKickHistory = vi.fn(async () => ({
+      success: true,
+      data: { messages: makeRawMessages(2), pinnedMessage: null },
+    }));
+
+    await seedKickChatHistory({
+      ...baseParams,
+      prependMessages: useChatStore.getState().prependMessages,
+      onPinnedMessage: vi.fn(),
+    });
+
+    const bucket = useChatStore.getState().messagesByChannel[channelKey] ?? [];
+    expect(api.chat.getKickHistory).toHaveBeenCalledTimes(1);
+    expect(bucket.map((m) => m.rawContent)).toEqual(['c1', 'c0']);
+    expect(bucket.map((m) => m.rawContent)).not.toContain('stale scrollback');
+    expect(useChatStore.getState().pausedChannels.has(channelKey)).toBe(false);
   });
 });

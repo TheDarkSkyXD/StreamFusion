@@ -1,78 +1,156 @@
-import { render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ChatMessageList } from "@/components/chat/ChatMessageList";
+import { getRenderCounts, resetRenderCounts } from "@/components/dev/use-render-count";
+import type { ChatMessage } from "@/shared/chat-types";
+import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
-const setPaused = vi.fn();
-let mockState = {
-  messages: [] as Array<{ id: string; username: string; displayName: string }>,
-  isPaused: false,
-};
-
-vi.mock('@/store/chat-store', () => ({
-  useChatStore: (selector?: (s: unknown) => unknown) => {
-    const state = { ...mockState, setPaused };
-    return selector ? selector(state) : state;
-  },
-}));
-
-vi.mock('@/components/chat/ChatMessage', () => ({
+vi.mock("@/components/chat/ChatMessage", () => ({
   ChatMessage: ({ message }: { message: { displayName: string } }) => (
     <div data-testid="chat-message">{message.displayName}</div>
   ),
 }));
 
-vi.mock('react-virtuoso', () => ({
+vi.mock("react-virtuoso", () => ({
   Virtuoso: ({
     data,
     itemContent,
+    atBottomStateChange,
+    scrollerRef,
   }: {
     data: Array<{ id: string }>;
     itemContent: (i: number, m: unknown) => React.ReactNode;
-  }) => (
-    <div data-testid="virtuoso">
-      {data.map((m, i) => (
-        <div key={m.id}>{itemContent(i, m)}</div>
-      ))}
-    </div>
-  ),
+    atBottomStateChange?: (atBottom: boolean) => void;
+    scrollerRef?: (el: HTMLElement | null) => void;
+  }) => {
+    const scroller = document.createElement("div");
+    scrollerRef?.(scroller);
+    return (
+      <div data-testid="virtuoso">
+        <button
+          type="button"
+          onClick={() => {
+            const wheel = new Event("wheel") as WheelEvent;
+            Object.defineProperty(wheel, "deltaY", { value: -1 });
+            scroller.dispatchEvent(wheel);
+            atBottomStateChange?.(false);
+          }}
+        >
+          leave bottom
+        </button>
+        <button type="button" onClick={() => atBottomStateChange?.(true)}>
+          return bottom
+        </button>
+        {data.map((m, i) => (
+          <div key={m.id}>{itemContent(i, m)}</div>
+        ))}
+      </div>
+    );
+  },
 }));
 
-import { ChatMessageList } from '@/components/chat/ChatMessageList';
+const channelA = buildChannelKey("twitch", "alpha");
+const channelB = buildChannelKey("twitch", "bravo");
+
+function message(id: string, channel: string, displayName = id): ChatMessage {
+  return {
+    id,
+    platform: "twitch",
+    type: "message",
+    channel,
+    userId: `user-${id}`,
+    username: `user-${id}`,
+    displayName,
+    color: "#fff",
+    badges: [],
+    content: [{ type: "text", content: displayName }],
+    rawContent: displayName,
+    timestamp: new Date("2026-06-08T00:00:00.000Z"),
+    isDeleted: false,
+    isHighlighted: false,
+    isAction: false,
+  };
+}
+
+function resetChatStore() {
+  useChatStore.getState().cleanupBatching();
+  useChatStore.setState({
+    messagesByChannel: {},
+    pausedChannels: new Set(),
+    batchingEnabled: true,
+    batchingInterval: 50,
+  });
+}
 
 // Guards: empty state (no messages yet) must still render the virtuoso container so the layout doesn't collapse and the next message has somewhere to mount
-// Guards: isPaused overlay must render the "Chat paused due to scroll" banner so the viewer can recover bottom-pin scrolling without reloading
-// Guards: setPaused(false) must fire on mount so a reconnect doesn't strand the list in a paused state from the prior session
-describe('ChatMessageList', () => {
-  it('empty: renders the virtuoso container even with no messages', () => {
-    mockState.messages = [];
-    mockState.isPaused = false;
-    const { getByTestId } = render(<ChatMessageList />);
-    expect(getByTestId('virtuoso')).toBeInTheDocument();
+// Guards: per-channel message reads keep a busy multiview panel from re-rendering sibling ChatMessageList instances
+// Guards: per-channel pause state renders the "Chat paused due to scroll" banner only for the panel the viewer scrolled
+// Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
+describe("ChatMessageList", () => {
+  beforeEach(() => {
+    resetChatStore();
+    resetRenderCounts();
   });
 
-  it('renders one row per message', () => {
-    mockState.isPaused = false;
-    mockState.messages = [
-      // biome-ignore lint/suspicious/noExplicitAny: test shape
-      { id: 'a', username: 'u1', displayName: 'User 1' } as any,
-      // biome-ignore lint/suspicious/noExplicitAny: test shape
-      { id: 'b', username: 'u2', displayName: 'User 2' } as any,
-    ];
-    const { getAllByTestId } = render(<ChatMessageList />);
-    expect(getAllByTestId('chat-message')).toHaveLength(2);
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it('clears paused state on mount', () => {
-    mockState.messages = [];
-    mockState.isPaused = false;
-    render(<ChatMessageList />);
-    expect(setPaused).toHaveBeenCalledWith(false);
+  it("empty: renders the virtuoso container even with no messages", () => {
+    const { getByTestId } = render(<ChatMessageList channelKey={channelA} />);
+    expect(getByTestId("virtuoso")).toBeInTheDocument();
   });
 
-  it('isPaused: renders the paused overlay banner so the viewer can scroll back to live', () => {
-    mockState.messages = [];
-    mockState.isPaused = true;
-    const { getByText } = render(<ChatMessageList />);
-    // The default (non-hover) banner copy is "Chat paused due to scroll".
-    expect(getByText(/chat paused due to scroll/i)).toBeInTheDocument();
+  it("renders only messages for its channel bucket", () => {
+    act(() => {
+      useChatStore.getState().addMessage(message("a", "alpha", "Alpha"));
+      useChatStore.getState().addMessage(message("b", "bravo", "Bravo"));
+    });
+
+    const { getAllByTestId } = render(<ChatMessageList channelKey={channelA} />);
+
+    expect(getAllByTestId("chat-message")).toHaveLength(1);
+    expect(getAllByTestId("chat-message")[0]).toHaveTextContent("Alpha");
+  });
+
+  it("re-renders only the ChatMessageList whose channel receives a message", () => {
+    render(
+      <>
+        <ChatMessageList channelKey={channelA} />
+        <ChatMessageList channelKey={channelB} />
+      </>
+    );
+    const initialCounts = getRenderCounts();
+
+    act(() => {
+      useChatStore.getState().addMessage(message("a", "alpha", "Alpha"));
+    });
+
+    const nextCounts = getRenderCounts();
+    expect(nextCounts[`ChatMessageList:${channelA}`]).toBeGreaterThan(
+      initialCounts[`ChatMessageList:${channelA}`]
+    );
+    expect(nextCounts[`ChatMessageList:${channelB}`]).toBe(
+      initialCounts[`ChatMessageList:${channelB}`]
+    );
+  });
+
+  it("keeps pause state scoped to the channel that scrolls away from bottom", async () => {
+    vi.useFakeTimers();
+    const { getAllByText, queryByText } = render(
+      <>
+        <ChatMessageList channelKey={channelA} />
+        <ChatMessageList channelKey={channelB} />
+      </>
+    );
+
+    fireEvent.click(getAllByText("leave bottom")[0]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
+    expect(useChatStore.getState().pausedChannels.has(channelB)).toBe(false);
+    expect(queryByText(/chat paused due to scroll/i)).toBeInTheDocument();
   });
 });

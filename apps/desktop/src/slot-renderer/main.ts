@@ -24,12 +24,16 @@ declare global {
   }
 }
 
-const video = document.getElementById("player") as HTMLVideoElement | null;
-if (!video) {
+const videoEl = document.getElementById("player") as HTMLVideoElement | null;
+if (!videoEl) {
   // The HTML guarantees the element exists; this is purely a defensive
   // typeguard so the rest of the file can treat `video` as non-null.
   throw new Error("slot-renderer: <video> element missing");
 }
+// Re-binding to a fresh const carries the narrowing through closures below;
+// TS would otherwise lose `videoEl !== null` inside the callback bodies and
+// flag every access as possibly-null.
+const video: HTMLVideoElement = videoEl;
 
 const slotAPI = window.slotAPI;
 if (!slotAPI) {

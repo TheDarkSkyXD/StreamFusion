@@ -21,6 +21,7 @@ import { parseTwitchMessage } from "../../../backend/services/chat/twitch-parser
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
 import type { ChatMessage } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
+import { buildChannelKey } from "../../../store/chat-store";
 
 export interface SeedTwitchChatHistoryParams {
   /** Channel login (slug) — recent-messages.robotty.de takes the login, not the broadcaster id. */
@@ -28,7 +29,7 @@ export interface SeedTwitchChatHistoryParams {
   /** Returns false once the host effect has been torn down — checked between awaits. */
   isMounted: () => boolean;
   /** Insert these parsed messages at the front of the store. */
-  prependMessages: (messages: ChatMessage[]) => void;
+  prependMessages: (channelKey: string, messages: ChatMessage[]) => void;
 }
 
 /**
@@ -106,7 +107,7 @@ export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams)
     // Cap to the most-recent `limit` entries. `parsed` is oldest-first, so the
     // tail is the newest — keep those so the seed lands the freshest context.
     const capped = parsed.length > limit ? parsed.slice(-limit) : parsed;
-    if (capped.length > 0) prependMessages(capped);
+    if (capped.length > 0) prependMessages(buildChannelKey("twitch", channel), capped);
   } catch (error) {
     logger.debug("UI:Chat:TwitchHistory", "seed failed", {
       error: error instanceof Error ? error.message : String(error),

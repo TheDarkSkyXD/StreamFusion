@@ -30,6 +30,7 @@ import type {
   NormalizedPinnedMessage,
 } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
+import { buildChannelKey } from "../../../store/chat-store";
 
 export interface SeedKickChatHistoryParams {
   /** Kick channel's internal db id (from `UnifiedChannel.id`). */
@@ -39,7 +40,7 @@ export interface SeedKickChatHistoryParams {
   /** Returns false once the host effect has been torn down — checked between awaits. */
   isMounted: () => boolean;
   /** Insert these parsed messages at the front of the store. */
-  prependMessages: (messages: ChatMessage[]) => void;
+  prependMessages: (channelKey: string, messages: ChatMessage[]) => void;
   /** Subscriber-badge lookup for the channel; pass undefined if unloaded. */
   subscriberBadges: SubscriberBadge[] | undefined;
   /** Restore the pinned-message banner if the history payload includes one. */
@@ -103,7 +104,7 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
         message.isHistorical = true;
         parsed.push(message);
       }
-      prependMessages(parsed);
+      prependMessages(buildChannelKey("kick", channel), parsed);
     }
 
     if (rawPinned) {

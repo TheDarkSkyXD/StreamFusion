@@ -16,7 +16,10 @@ import { useChatStore } from "../store/chat-store";
  */
 export function useAppShutdown(): void {
   useEffect(() => {
-    const cleanup = window.electronAPI.onBeforeQuit(() => {
+    const onBeforeQuit = window.electronAPI?.onBeforeQuit;
+    if (typeof onBeforeQuit !== "function") return undefined;
+
+    const cleanup = onBeforeQuit(() => {
       (window as unknown as { __shuttingDown?: boolean }).__shuttingDown = true;
       // Fire-and-forget: we don't wait on these. Main's 3s timer is the floor.
       void kickChatService.forceShutdown().catch(() => undefined);

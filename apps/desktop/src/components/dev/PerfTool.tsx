@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { ChatMessage, ChatPlatform } from "../../shared/chat-types";
-import { useChatStore } from "../../store/chat-store";
+import { buildChannelKey, useChatStore } from "../../store/chat-store";
 
 import { getActiveIntervalCount, installIntervalTracker } from "./interval-tracker";
 import { DEBUG_TOKENS } from "./tokens";
@@ -80,7 +80,9 @@ function injectStressChat(): () => void {
       isHighlighted: false,
       isAction: false,
     };
-    useChatStore.getState().addMessageBatched(synthetic, platform);
+    useChatStore
+      .getState()
+      .addMessageBatched(synthetic, buildChannelKey(platform, synthetic.channel));
   }, intervalMs);
   return () => window.clearInterval(id);
 }

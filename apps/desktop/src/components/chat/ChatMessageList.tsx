@@ -14,8 +14,10 @@ import type { UsernameChannelContext } from "./Username";
 // are ignored. Mirrors Xtra's SCROLL_STATE_DRAGGING gate, adapted for web.
 
 const MemoizedChatMessage = memo(ChatMessage);
+const EMPTY_MESSAGES: ChatMessageType[] = [];
 
 interface ChatMessageListProps {
+  channelKey: string;
   onReply?: (message: ChatMessageType) => void;
   /** Optional pin action — when provided, a hover Pin button is rendered on
    *  Twitch chat messages. Latest-ref pattern below keeps itemContent stable. */
@@ -35,17 +37,29 @@ interface ChatMessageListProps {
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
-  ({ onReply, onPin, onTimeout, onBan, onUnban, onDelete, selfUserId, currentChannelContext }) => {
-    useRenderCount("ChatMessageList");
-    const messages = useChatStore((state) => state.messages);
-    const isPaused = useChatStore((state) => state.isPaused);
+  ({
+    channelKey,
+    onReply,
+    onPin,
+    onTimeout,
+    onBan,
+    onUnban,
+    onDelete,
+    selfUserId,
+    currentChannelContext,
+  }) => {
+    useRenderCount(`ChatMessageList:${channelKey}`);
+    const messages = useChatStore((state) => state.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
+    const isPaused = useChatStore((state) => state.pausedChannels.has(channelKey));
     const setPaused = useChatStore((state) => state.setPaused);
 
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const scrollerRef = useRef<HTMLElement | null>(null);
     const userScrolledUpRef = useRef(false);
     const pendingPauseRef = useRef(false);
-    const pauseTimer = useManagedTimeout(useCallback(() => setPaused(true), [setPaused]));
+    const pauseTimer = useManagedTimeout(
+      useCallback(() => setPaused(channelKey, true), [channelKey, setPaused])
+    );
 
     // Latest-ref pattern: keep `itemContent`'s identity stable across renders so
     // Virtuoso doesn't see it change (which would unmount/remount rows). A
@@ -118,8 +132,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     useEffect(() => {
       userScrolledUpRef.current = false;
       pendingPauseRef.current = false;
-      setPaused(false);
-    }, [setPaused]);
+      setPaused(channelKey, false);
+    }, [channelKey, setPaused]);
 
     const onWheelScroll = useCallback((e: Event) => {
       if ((e as WheelEvent).deltaY < 0) {
@@ -185,26 +199,26 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           userScrolledUpRef.current = false;
           pendingPauseRef.current = false;
           pauseTimer.clear();
-          setPaused(false);
+          setPaused(channelKey, false);
         } else {
           if (!userScrolledUpRef.current) return;
           pendingPauseRef.current = true;
           pauseTimer.start(200);
         }
       },
-      [setPaused, pauseTimer]
+      [channelKey, setPaused, pauseTimer]
     );
 
     const scrollToBottom = useCallback(() => {
       userScrolledUpRef.current = false;
       pendingPauseRef.current = false;
-      setPaused(false);
+      setPaused(channelKey, false);
       virtuosoRef.current?.scrollToIndex({
         index: "LAST",
         align: "end",
         behavior: "auto",
       });
-    }, [setPaused]);
+    }, [channelKey, setPaused]);
 
     const followOutput = useCallback(
       (_isAtBottom: boolean) => {

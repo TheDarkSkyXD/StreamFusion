@@ -50,6 +50,105 @@ function resolveMessageLimit(): number {
   return Math.min(MESSAGE_LIMIT_MAX, Math.max(MESSAGE_LIMIT_MIN, Math.floor(configured)));
 }
 
+/**
+ * Canonical bucket identifier for the per-channel message store (Plan C,
+ * slice 01). Composite `${platform}:${channel}` — the platform prefix
+ * disambiguates the same channel slug across providers (Twitch and Kick can
+ * each have a channel slugged "xqc"). Always construct keys via this helper;
+ * never assemble inline so a typo can't silently fork a bucket.
+ */
+export function buildChannelKey(platform: ChatPlatform, channel: string): string {
+  return `${platform}:${channel}`;
+}
+
+/**
+ * Append a message to its channel's bucket, applying per-channel trim hysteresis
+ * (trim when bucket >= maxMessages + TRIM_BUFFER, trim back to
+ * maxMessages - TRIM_BUFFER). Returns a new `messagesByChannel` map with the
+ * target bucket replaced; other buckets share references.
+ */
+function appendToBucketWithTrim(
+  buckets: Record<string, ChatMessage[]>,
+  channelKey: string,
+  message: ChatMessage,
+  maxMessages: number
+): Record<string, ChatMessage[]> {
+  const current = buckets[channelKey] ?? [];
+  const next =
+    current.length >= maxMessages + TRIM_BUFFER
+      ? [...current.slice(-(maxMessages - TRIM_BUFFER)), message]
+      : [...current, message];
+  return { ...buckets, [channelKey]: next };
+}
+
+/**
+ * Replace a message in its bucket by id (used by the emote-richer dedupe path).
+ * If the bucket or the id isn't present, returns the map unchanged.
+ */
+function replaceMessageInBucket(
+  buckets: Record<string, ChatMessage[]>,
+  channelKey: string,
+  message: ChatMessage
+): Record<string, ChatMessage[]> {
+  const current = buckets[channelKey];
+  if (!current) return buckets;
+  const idx = current.findIndex((m) => m.id === message.id);
+  if (idx === -1) return buckets;
+  const next = current.slice();
+  next[idx] = message;
+  return { ...buckets, [channelKey]: next };
+}
+
+/**
+ * Apply a flushed batch to a single channel's bucket: dedupes against the
+ * bucket using the emote-richer rule, appends fresh messages, then trims the
+ * target bucket. All messages in the batch share `channelKey`.
+ */
+function applyBatchToBucket(
+  buckets: Record<string, ChatMessage[]>,
+  channelKey: string,
+  batch: ChatMessage[],
+  maxMessages: number
+): Record<string, ChatMessage[]> {
+  const current = buckets[channelKey] ?? [];
+  const idIndex = new Map<string, number>();
+  current.forEach((m, i) => idIndex.set(m.id, i));
+  const fresh: ChatMessage[] = [];
+  const replacements: { index: number; message: ChatMessage }[] = [];
+  for (const m of batch) {
+    const existingIdx = idIndex.get(m.id);
+    if (existingIdx === undefined) {
+      idIndex.set(m.id, current.length + fresh.length);
+      fresh.push(m);
+      continue;
+    }
+    const existing =
+      existingIdx < current.length ? current[existingIdx] : fresh[existingIdx - current.length];
+    const newHasEmotes = m.content.some((f) => f.type === "emote");
+    const existingHasEmotes = existing.content.some((f) => f.type === "emote");
+    if (newHasEmotes && !existingHasEmotes) {
+      if (existingIdx < current.length) {
+        replacements.push({ index: existingIdx, message: m });
+      } else {
+        fresh[existingIdx - current.length] = m;
+      }
+    }
+  }
+  if (fresh.length === 0 && replacements.length === 0) return buckets;
+
+  let base = current;
+  if (replacements.length > 0) {
+    base = base.slice();
+    for (const { index, message } of replacements) {
+      base[index] = message;
+    }
+  }
+  const merged = [...base, ...fresh];
+  const trimmed =
+    merged.length > maxMessages + TRIM_BUFFER ? merged.slice(-(maxMessages - TRIM_BUFFER)) : merged;
+  return { ...buckets, [channelKey]: trimmed };
+}
+
 // Batching configuration
 interface MessageBatch {
   queue: ChatMessage[];
@@ -60,9 +159,11 @@ interface MessageBatch {
 const messageBatches: Record<string, MessageBatch> = {};
 
 interface ChatState {
-  messages: ChatMessage[];
+  /** Per-channel message buckets, keyed by `buildChannelKey(platform, channel)`. */
+  messagesByChannel: Record<string, ChatMessage[]>;
   connectionStatus: Record<ChatPlatform, ChatConnectionStatus>;
-  isPaused: boolean;
+  /** Per-channel pause state. */
+  pausedChannels: Set<string>;
 
   // Batching settings
   batchingEnabled: boolean;
@@ -70,20 +171,25 @@ interface ChatState {
 
   // Actions
   addMessage: (message: ChatMessage) => void;
+  /**
+   * ChannelKey is per channel, not per platform, so each chat panel's batch
+   * fires on its own 50ms cadence.
+   */
   addMessageBatched: (message: ChatMessage, channelKey: string) => void;
   flushBatch: (channelKey: string) => void;
   /**
-   * Insert a batch of messages at the front of the array, in the order given.
+   * Insert a batch of messages at the front of the channel bucket, in the order given.
    * Used to seed historical chat after live messages have already started
    * arriving — appending would put history below the live feed, which is the
    * wrong chronological order.
    */
-  prependMessages: (messages: ChatMessage[]) => void;
-  clearMessages: (platform?: ChatPlatform) => void;
-  deleteMessage: (messageId: string) => void;
-  deleteMessagesByUser: (userId: string) => void;
+  prependMessages: (channelKey: string, messages: ChatMessage[]) => void;
+  clearMessages: (channelKey: string) => void;
+  dropChannel: (channelKey: string) => void;
+  deleteMessage: (channelKey: string, messageId: string) => void;
+  deleteMessagesByUser: (channelKey: string, userId: string) => void;
   updateConnectionStatus: (status: ChatConnectionStatus) => void;
-  setPaused: (paused: boolean) => void;
+  setPaused: (channelKey: string, paused: boolean) => void;
   setBatchingEnabled: (enabled: boolean) => void;
   setBatchingInterval: (interval: number) => void;
   cleanupBatching: () => void;
@@ -121,8 +227,8 @@ export const useChatStore = create<ChatState>()(
       set = wrappedSet;
     }
     return {
-      messages: [],
-      isPaused: false,
+      messagesByChannel: {},
+      pausedChannels: new Set<string>(),
       // Batching enabled by default. On busy streams (Kick xQc-tier or Twitch
       // raid bursts at 30+ msg/sec), grouping store updates into 50ms windows
       // collapses 30 Zustand notifies → ~20 ChatMessageList commits, which is
@@ -147,6 +253,7 @@ export const useChatStore = create<ChatState>()(
 
       addMessage: (message) => {
         __debug.addMessage++;
+        const messageChannelKey = buildChannelKey(message.platform, message.channel);
         // Direct-add path. Flush any pending batches first so system messages,
         // ban markers, and clear-chat events don't appear out of chronological
         // order with batched chat messages that arrived before them.
@@ -156,46 +263,51 @@ export const useChatStore = create<ChatState>()(
           }
         }
         set((state) => {
-          const currentMessages = state.messages;
+          const channelKey = messageChannelKey;
 
-          // Duplicate prevention - check last 50 messages only (optimization).
-          // When a duplicate id arrives, prefer the version with emote fragments
-          // over the one without. This handles the Kick optimistic-echo race:
+          // Duplicate prevention is now scoped to the channel's bucket (Plan C
+          // slice 01). The same message id appearing in two different channels
+          // is two distinct messages — would happen rarely in production (Twitch
+          // and Kick IDs are namespaced) but the scoped dedupe is the correct
+          // semantic and matches KickTalk's per-room dedupe.
+          //
+          // When a duplicate id arrives within a channel, prefer the version
+          // with emote fragments. This handles the Kick optimistic-echo race:
           // the Pusher broadcast of the user's own message (~50-150ms) routinely
           // beats the HTTP send response that triggers the local echo (~300ms),
-          // so the dropped duplicate is often the richer echo. Without this
-          // preference, third-party / overlay emote info from the local emote
-          // slots would be lost on every send.
-          const recentMessages = currentMessages.slice(-50);
-          const dupIdx = recentMessages.findIndex((m) => m.id === message.id);
+          // so the dropped duplicate is often the richer echo.
+          const bucket = state.messagesByChannel[channelKey] ?? [];
+          const dupIdx = bucket.findIndex((m) => m.id === message.id);
           if (dupIdx !== -1) {
-            const existing = recentMessages[dupIdx];
+            const existing = bucket[dupIdx];
             const newHasEmotes = message.content.some((f) => f.type === "emote");
             const existingHasEmotes = existing.content.some((f) => f.type === "emote");
             if (newHasEmotes && !existingHasEmotes) {
-              // Replace the leaner existing with the emote-richer incoming.
-              const absoluteIdx = currentMessages.length - recentMessages.length + dupIdx;
-              const replaced = currentMessages.slice();
-              replaced[absoluteIdx] = message;
-              return { messages: replaced };
+              return {
+                messagesByChannel: replaceMessageInBucket(
+                  state.messagesByChannel,
+                  channelKey,
+                  message
+                ),
+              };
             }
             return state;
           }
 
-          // Dynamic limit based on pause state
-          const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : resolveMessageLimit();
+          const bucketMaxMessages = state.pausedChannels.has(channelKey)
+            ? MESSAGE_LIMIT_PAUSED
+            : resolveMessageLimit();
 
-          // Only trim when significantly over limit (reduces allocation frequency)
-          const needsTrim = currentMessages.length >= maxMessages + TRIM_BUFFER;
+          const messagesByChannel = appendToBucketWithTrim(
+            state.messagesByChannel,
+            channelKey,
+            message,
+            bucketMaxMessages
+          );
 
-          if (needsTrim) {
-            // Trim more aggressively - remove TRIM_BUFFER + 1 messages at once
-            const trimmedMessages = currentMessages.slice(-(maxMessages - TRIM_BUFFER));
-            return { messages: [...trimmedMessages, message] };
-          }
-
-          // Normal append - mutate-in-place style for better performance
-          return { messages: [...currentMessages, message] };
+          return {
+            messagesByChannel,
+          };
         });
       },
 
@@ -249,60 +361,55 @@ export const useChatStore = create<ChatState>()(
         if (queued.length === 0) return;
 
         set((state) => {
-          const currentMessages = state.messages;
-          const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : resolveMessageLimit();
+          const bucketMaxMessages = state.pausedChannels.has(channelKey)
+            ? MESSAGE_LIMIT_PAUSED
+            : resolveMessageLimit();
 
-          // Dedup against existing store AND within this batch. The within-batch
-          // case matters in multi-view: each KickChat/TwitchChat instance
+          // Dedupe is scoped to the channel's bucket: same id in two different
+          // channels is two distinct messages (matches the addMessage
+          // per-channel dedupe and KickTalk's per-room dedupe). The
+          // within-batch case still matters in multi-view: each chat panel
           // subscribes to its shared service, so the same inbound message is
-          // enqueued once per mounted chat panel.
-          // When a duplicate id arrives, prefer the version with emote fragments
-          // — same reasoning as the addMessage path above: the Kick optimistic
-          // echo with emote fragments can lose the race to the Pusher text
-          // broadcast, and we don't want to keep the leaner one.
+          // enqueued once per mounted panel for THIS channel. Emote-richer
+          // preference resolves the Kick optimistic-echo race.
+          const bucket = state.messagesByChannel[channelKey] ?? [];
           const idIndex = new Map<string, number>();
-          currentMessages.forEach((m, i) => idIndex.set(m.id, i));
+          bucket.forEach((m, i) => idIndex.set(m.id, i));
           const fresh: ChatMessage[] = [];
-          const replacements: { index: number; message: ChatMessage }[] = [];
+          const bucketReplacements: { index: number; message: ChatMessage }[] = [];
           for (const m of queued) {
             const existingIdx = idIndex.get(m.id);
             if (existingIdx === undefined) {
-              idIndex.set(m.id, currentMessages.length + fresh.length);
+              idIndex.set(m.id, bucket.length + fresh.length);
               fresh.push(m);
               continue;
             }
             const existing =
-              existingIdx < currentMessages.length
-                ? currentMessages[existingIdx]
-                : fresh[existingIdx - currentMessages.length];
+              existingIdx < bucket.length
+                ? bucket[existingIdx]
+                : fresh[existingIdx - bucket.length];
             const newHasEmotes = m.content.some((f) => f.type === "emote");
             const existingHasEmotes = existing.content.some((f) => f.type === "emote");
             if (newHasEmotes && !existingHasEmotes) {
-              if (existingIdx < currentMessages.length) {
-                replacements.push({ index: existingIdx, message: m });
+              if (existingIdx < bucket.length) {
+                bucketReplacements.push({ index: existingIdx, message: m });
               } else {
-                fresh[existingIdx - currentMessages.length] = m;
+                fresh[existingIdx - bucket.length] = m;
               }
             }
           }
-          if (fresh.length === 0 && replacements.length === 0) return state;
+          if (fresh.length === 0 && bucketReplacements.length === 0) return state;
 
-          let base = currentMessages;
-          if (replacements.length > 0) {
-            base = base.slice();
-            for (const { index, message } of replacements) {
-              base[index] = message;
-            }
-          }
-          const merged = [...base, ...fresh];
-          // Hysteresis: only trim once we exceed maxMessages + TRIM_BUFFER, then
-          // trim back to maxMessages - TRIM_BUFFER. Same pattern as addMessage's
-          // single-message path so a flush of small batches doesn't trigger a
-          // copy on every flush at the cap.
-          if (merged.length > maxMessages + TRIM_BUFFER) {
-            return { messages: merged.slice(-(maxMessages - TRIM_BUFFER)) };
-          }
-          return { messages: merged };
+          const nextBuckets = applyBatchToBucket(
+            state.messagesByChannel,
+            channelKey,
+            queued,
+            bucketMaxMessages
+          );
+
+          return {
+            messagesByChannel: nextBuckets,
+          };
         });
       },
 
@@ -322,45 +429,91 @@ export const useChatStore = create<ChatState>()(
         Object.keys(messageBatches).forEach((key) => delete messageBatches[key]);
       },
 
-      prependMessages: (incoming) =>
+      prependMessages: (channelKey, incoming) => {
         set((state) => {
           if (incoming.length === 0) return state;
           // Drop anything that's already in the store so we don't duplicate
           // messages that arrived live before the history fetch returned.
-          const existing = new Set(state.messages.map((m) => m.id));
+          const current = state.messagesByChannel[channelKey] ?? [];
+          const existing = new Set(current.map((m) => m.id));
           const fresh = incoming.filter((m) => !existing.has(m.id));
           if (fresh.length === 0) return state;
-          const merged = [...fresh, ...state.messages];
-          const maxMessages = state.isPaused ? MESSAGE_LIMIT_PAUSED : resolveMessageLimit();
-          if (merged.length > maxMessages) {
-            // Keep the most recent `maxMessages` — same trim policy as addMessage.
-            return { messages: merged.slice(-maxMessages) };
-          }
-          return { messages: merged };
-        }),
 
-      clearMessages: (platform) =>
-        set((state) => {
-          if (platform) {
-            return { messages: state.messages.filter((m) => m.platform !== platform) };
-          }
-          return { messages: [] };
-        }),
+          const bucketMerged = [...fresh, ...current];
+          const bucketCap = state.pausedChannels.has(channelKey)
+            ? MESSAGE_LIMIT_PAUSED
+            : resolveMessageLimit();
+          const bucketTrimmed =
+            bucketMerged.length > bucketCap ? bucketMerged.slice(-bucketCap) : bucketMerged;
 
-      deleteMessage: (messageId) => {
-        __debug.deleteMessage++;
-        set((state) => ({
-          messages: state.messages.map((m) => (m.id === messageId ? { ...m, isDeleted: true } : m)),
-        }));
+          return {
+            messagesByChannel: { ...state.messagesByChannel, [channelKey]: bucketTrimmed },
+          };
+        });
       },
 
-      deleteMessagesByUser: (userId) => {
+      clearMessages: (channelKey) => {
+        set((state) => {
+          const messagesByChannel = { ...state.messagesByChannel };
+          delete messagesByChannel[channelKey];
+          return {
+            messagesByChannel,
+          };
+        });
+      },
+
+      dropChannel: (channelKey) =>
+        set((state) => {
+          if (!state.messagesByChannel[channelKey] && !state.pausedChannels.has(channelKey)) {
+            return state;
+          }
+
+          const messagesByChannel = { ...state.messagesByChannel };
+          delete messagesByChannel[channelKey];
+
+          const pausedChannels = new Set(state.pausedChannels);
+          pausedChannels.delete(channelKey);
+
+          return {
+            messagesByChannel,
+            pausedChannels,
+          };
+        }),
+
+      deleteMessage: (channelKey, messageId) => {
+        __debug.deleteMessage++;
+        set((state) => {
+          const bucket = state.messagesByChannel[channelKey];
+          const messagesByChannel = bucket
+            ? {
+                ...state.messagesByChannel,
+                [channelKey]: bucket.map((m) =>
+                  m.id === messageId ? { ...m, isDeleted: true } : m
+                ),
+              }
+            : state.messagesByChannel;
+          return {
+            messagesByChannel,
+          };
+        });
+      },
+
+      deleteMessagesByUser: (channelKey, userId) => {
         __debug.deleteMessagesByUser++;
-        set((state) => ({
-          messages: state.messages.map((m) =>
-            m.userId === userId ? { ...m, isDeleted: true } : m
-          ),
-        }));
+        set((state) => {
+          const bucket = state.messagesByChannel[channelKey];
+          const messagesByChannel = bucket
+            ? {
+                ...state.messagesByChannel,
+                [channelKey]: bucket.map((m) =>
+                  m.userId === userId ? { ...m, isDeleted: true } : m
+                ),
+              }
+            : state.messagesByChannel;
+          return {
+            messagesByChannel,
+          };
+        });
       },
 
       updateConnectionStatus: (status) => {
@@ -392,9 +545,19 @@ export const useChatStore = create<ChatState>()(
         });
       },
 
-      setPaused: (paused) => {
+      setPaused: (channelKey, paused) => {
         __debug.setPaused++;
-        set({ isPaused: paused });
+        set((state) => {
+          const pausedChannels = new Set(state.pausedChannels);
+          if (paused) {
+            pausedChannels.add(channelKey);
+          } else {
+            pausedChannels.delete(channelKey);
+          }
+          return {
+            pausedChannels,
+          };
+        });
       },
       setBatchingEnabled: (enabled) => set({ batchingEnabled: enabled }),
       setBatchingInterval: (interval) => set({ batchingInterval: interval }),

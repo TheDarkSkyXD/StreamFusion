@@ -9,6 +9,8 @@ import type { Platform } from "@/shared/auth-types";
 /** Supported emote providers */
 export type EmoteProvider = "twitch" | "kick" | "bttv" | "ffz" | "7tv";
 
+export type KickEmoteSection = "channel" | "global" | "emoji";
+
 /** Emote data structure */
 export interface Emote {
   /** Unique identifier for the emote */
@@ -31,6 +33,12 @@ export interface Emote {
   owner?: EmoteOwner;
   /** Kick subscriber-only flag. Present on Kick emotes; absent elsewhere. */
   subscribersOnly?: boolean;
+  /**
+   * Kick's /emotes/{channel} response is grouped by set name:
+   * channel_set, Global, and Emojis. Preserve that source section so the picker
+   * can render KickTalk-style separate sections instead of flattening globals.
+   */
+  kickSection?: KickEmoteSection;
   /**
    * When the emote was added to its set (7TV only), as a Unix-ms timestamp.
    * 7TV's `ActiveEmote.timestamp` field — the "Added on" date KickTalk surfaces.

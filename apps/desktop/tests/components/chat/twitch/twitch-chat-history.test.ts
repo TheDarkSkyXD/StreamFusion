@@ -39,6 +39,8 @@ import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
 } from '@/shared/auth-types';
 import { useAuthStore } from '@/store/auth-store';
+import { buildChannelKey, useChatStore } from '@/store/chat-store';
+import type { ChatMessage } from '@/shared/chat-types';
 
 function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   useAuthStore.setState((s) => ({
@@ -50,12 +52,36 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   }));
 }
 
+function makeStoredMessage(id: string, channel: string, rawContent: string): ChatMessage {
+  return {
+    id,
+    platform: 'twitch',
+    type: 'message',
+    channel,
+    userId: 'u1',
+    username: 'ninja',
+    displayName: 'Ninja',
+    color: '#fff',
+    badges: [],
+    content: [{ type: 'text', content: rawContent }],
+    rawContent,
+    timestamp: new Date(),
+    isDeleted: false,
+    isHighlighted: false,
+    isAction: false,
+  };
+}
+
 describe('seedTwitchChatHistory (U5 recent-messages-on-join)', () => {
   // biome-ignore lint/suspicious/noExplicitAny: test IPC surface.
   let api: any;
   beforeEach(() => {
     api = installElectronAPIMock();
     setChatDisplay({}); // defaults: recentMessagesOnJoin true, limit 100
+    useChatStore.setState({
+      messagesByChannel: {},
+      pausedChannels: new Set(),
+    });
   });
 
   function makeRawMessages(n: number): string[] {
@@ -71,7 +97,8 @@ describe('seedTwitchChatHistory (U5 recent-messages-on-join)', () => {
     await seedTwitchChatHistory({ channel: 'ninja', isMounted: () => true, prependMessages: prepend });
     expect(api.chat.getTwitchHistory).toHaveBeenCalledTimes(1);
     expect(prepend).toHaveBeenCalledTimes(1);
-    expect(prepend.mock.calls[0][0]).toHaveLength(5);
+    expect(prepend.mock.calls[0][0]).toBe(buildChannelKey('twitch', 'ninja'));
+    expect(prepend.mock.calls[0][1]).toHaveLength(5);
   });
 
   it('does not fetch or seed when recentMessagesOnJoin is false', async () => {
@@ -94,9 +121,36 @@ describe('seedTwitchChatHistory (U5 recent-messages-on-join)', () => {
     }));
     const prepend = vi.fn();
     await seedTwitchChatHistory({ channel: 'ninja', isMounted: () => true, prependMessages: prepend });
-    const seeded = prepend.mock.calls[0][0] as Array<{ rawContent: string }>;
+    expect(prepend.mock.calls[0][0]).toBe(buildChannelKey('twitch', 'ninja'));
+    const seeded = prepend.mock.calls[0][1] as Array<{ rawContent: string }>;
     expect(seeded).toHaveLength(3);
     // rawMessages are oldest-first (m0..m9); the kept tail is the newest 3.
     expect(seeded.map((m) => m.rawContent)).toEqual(['m7', 'm8', 'm9']);
+  });
+
+  it('after eviction, re-opening seeds fresh history without stale scrollback', async () => {
+    const channelKey = buildChannelKey('twitch', 'ninja');
+    const stale = makeStoredMessage('stale', 'ninja', 'stale scrollback');
+    useChatStore.setState({
+      messagesByChannel: { [channelKey]: [stale] },
+      pausedChannels: new Set([channelKey]),
+    });
+    useChatStore.getState().dropChannel(channelKey);
+    api.chat.getTwitchHistory = vi.fn(async () => ({
+      success: true,
+      data: { rawMessages: makeRawMessages(2) },
+    }));
+
+    await seedTwitchChatHistory({
+      channel: 'ninja',
+      isMounted: () => true,
+      prependMessages: useChatStore.getState().prependMessages,
+    });
+
+    const bucket = useChatStore.getState().messagesByChannel[channelKey] ?? [];
+    expect(api.chat.getTwitchHistory).toHaveBeenCalledTimes(1);
+    expect(bucket.map((m) => m.rawContent)).toEqual(['m0', 'm1']);
+    expect(bucket.map((m) => m.rawContent)).not.toContain('stale scrollback');
+    expect(useChatStore.getState().pausedChannels.has(channelKey)).toBe(false);
   });
 });

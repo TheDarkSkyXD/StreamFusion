@@ -20,7 +20,7 @@ import type {
   ContentFragment,
   UserNotice,
 } from "../../../shared/chat-types";
-
+import { buildChannelKey, useChatStore } from "../../../store/chat-store";
 import { badgeResolver } from "./badge-resolver";
 import {
   getDefaultColor,
@@ -105,6 +105,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   // Tracks how many components are actively using this service
   // Only performs full shutdown when count reaches 0
   private activeUsers = 0;
+  private channelUsers: Map<string, number> = new Map();
 
   // ========== Public API ==========
 
@@ -302,8 +303,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    * Call this when a component starts using the service
    * Must be paired with release() when the component unmounts
    */
-  acquire(): void {
+  acquire(channel?: string): void {
     this.activeUsers++;
+    if (channel) {
+      const normalizedChannel = this.normalizeChannel(channel);
+      this.channelUsers.set(normalizedChannel, (this.channelUsers.get(normalizedChannel) ?? 0) + 1);
+    }
     this.log(`Service acquired (active users: ${this.activeUsers})`);
   }
 
@@ -316,9 +321,24 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    * @returns Promise that resolves when cleanup is complete
    */
   async release(channel?: string): Promise<void> {
-    // Leave the specific channel if provided
+    let shouldLeaveChannel = false;
     if (channel) {
+      const normalizedChannel = this.normalizeChannel(channel);
+      const channelUserCount = this.channelUsers.get(normalizedChannel);
+      if (channelUserCount === undefined || channelUserCount <= 1) {
+        this.channelUsers.delete(normalizedChannel);
+        shouldLeaveChannel = true;
+      } else {
+        this.channelUsers.set(normalizedChannel, channelUserCount - 1);
+      }
+    }
+
+    // Leave and evict the specific channel only after its final panel releases.
+    if (channel && shouldLeaveChannel) {
       await this.leaveChannel(channel);
+      useChatStore
+        .getState()
+        .dropChannel(buildChannelKey("twitch", this.normalizeChannel(channel)));
     }
 
     this.activeUsers = Math.max(0, this.activeUsers - 1);
@@ -371,6 +391,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.currentConnectionId++;
     this.connectingPromise = null;
     this.reconnectAttempts = 0;
+
+    const { dropChannel } = useChatStore.getState();
+    for (const channel of this.channels) {
+      dropChannel(buildChannelKey("twitch", channel));
+    }
+    this.channelUsers.clear();
 
     if (!this.client) {
       this.setConnectionState("disconnected");

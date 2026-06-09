@@ -10,7 +10,16 @@
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const emotePickerPopoverCalls = vi.hoisted(
+  () =>
+    [] as Array<{
+      isOpen: boolean;
+      scope: 'native' | 'thirdParty';
+      anchorRef: { current: HTMLElement | null };
+    }>,
+);
 
 vi.mock('@/backend/services/chat/kick-chat', () => ({
   kickChatService: {
@@ -27,7 +36,7 @@ vi.mock('@/backend/services/chat/twitch-chat', () => ({
 }));
 
 vi.mock('@/store/chat-store', () => ({
-  useChatStore: () => ({ messages: [] }),
+  useChatStore: () => ({ messagesByChannel: {} }),
 }));
 
 // Selector-capable zustand mock — mirrors EmotePicker.test.tsx so any
@@ -78,12 +87,16 @@ vi.mock('@/components/chat/EmotePickerPopover', () => ({
   EmotePickerPopover: ({
     isOpen,
     scope,
+    anchorRef,
   }: {
     isOpen: boolean;
     scope: 'native' | 'thirdParty';
     onClose: () => void;
-  }) =>
-    isOpen ? <div data-testid={`emote-picker-popover-${scope}`} /> : null,
+    anchorRef: { current: HTMLElement | null };
+  }) => {
+    emotePickerPopoverCalls.push({ isOpen, scope, anchorRef });
+    return isOpen ? <div data-testid={`emote-picker-popover-${scope}`} /> : null;
+  },
 }));
 
 vi.mock('@/components/chat/EmoteAutocomplete', () => {
@@ -99,6 +112,13 @@ vi.mock('@/components/chat/EmoteAutocomplete', () => {
     useEmoteAutocomplete: () => ctl,
   };
 });
+
+// Both emote buttons now look up the channel avatar for the picker's
+// channel-tab thumbnail. Stub the hook so we don't need a QueryClientProvider
+// in this shell-focused suite.
+vi.mock('@/hooks/queries/useChannels', () => ({
+  useChannelByUsername: () => ({ data: undefined }),
+}));
 
 vi.mock('@/components/chat/MentionAutocomplete', () => {
   const ctl = {
@@ -118,6 +138,11 @@ import { kickChatService } from '@/backend/services/chat/kick-chat';
 import { twitchChatService } from '@/backend/services/chat/twitch-chat';
 import { ChatInput, type ChatInputHandle } from '@/components/chat/ChatInput';
 import type { ChatMessage } from '@/shared/chat-types';
+
+beforeEach(() => {
+  emotePickerPopoverCalls.length = 0;
+  infoBannerImpl.mockReset();
+});
 
 function renderInput(overrides: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
   return render(
@@ -269,6 +294,23 @@ describe('ChatInput — emote dialogs', () => {
     expect(screen.getByTestId('emote-picker-popover-native')).toBeInTheDocument();
   });
 
+  it('anchors the native picker to the third-party picker position', () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput();
+    fireEvent.click(screen.getByTestId('native-emote-button'));
+
+    const nativePopover = [...emotePickerPopoverCalls]
+      .reverse()
+      .find((call) => call.scope === 'native');
+    const thirdPartyPopover = [...emotePickerPopoverCalls]
+      .reverse()
+      .find((call) => call.scope === 'thirdParty');
+
+    expect(nativePopover?.isOpen).toBe(true);
+    expect(nativePopover?.anchorRef).toBe(thirdPartyPopover?.anchorRef);
+    expect(nativePopover?.anchorRef.current).toBe(screen.getByTestId('third-party-emote-button'));
+  });
+
   it('clicking the same button again closes its dialog', () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput();
@@ -291,6 +333,21 @@ describe('ChatInput — emote dialogs', () => {
     renderInput({ canSend: false });
     expect(screen.getByTestId('native-emote-button')).toBeDisabled();
     expect(screen.getByTestId('third-party-emote-button')).toBeDisabled();
+  });
+
+  it('uses the KickTalk emote button frame sizing and border treatment', () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput({ platform: 'kick' });
+    const nativeButton = screen.getByTestId('native-emote-button');
+    const thirdPartyButton = screen.getByTestId('third-party-emote-button');
+    const buttonFrame = nativeButton.parentElement;
+    const actionRail = buttonFrame?.parentElement;
+
+    expect(nativeButton).toHaveClass('w-14');
+    expect(thirdPartyButton).toHaveClass('w-14');
+    expect(buttonFrame).toHaveClass('h-[38px]', 'border', 'bg-white/5');
+    expect(buttonFrame).toHaveStyle({ borderColor: 'rgba(255,255,255,0.05)' });
+    expect(actionRail).toHaveStyle({ borderLeftColor: 'rgba(255,255,255,0.16)' });
   });
 });
 

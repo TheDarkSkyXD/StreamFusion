@@ -102,6 +102,10 @@ afterEach(() => {
 
 import { EmotePickerPopover } from '@/components/chat/EmotePickerPopover';
 
+type IntendedEmotePickerPopoverProps = React.ComponentProps<typeof EmotePickerPopover> & {
+  channelLabel?: string | null;
+};
+
 /* ------------------------------------------------------------------------- */
 /* Helpers                                                                   */
 /* ------------------------------------------------------------------------- */
@@ -121,10 +125,11 @@ function makeEmote(partial: Partial<Emote> & { id: string; name: string; provide
     },
     owner: partial.owner,
     subscribersOnly: partial.subscribersOnly,
+    kickSection: partial.kickSection,
   };
 }
 
-function renderPicker(props: Partial<React.ComponentProps<typeof EmotePickerPopover>> = {}) {
+function renderPicker(props: Partial<IntendedEmotePickerPopoverProps> = {}) {
   // Create a real anchor element attached to the DOM.
   const anchor = document.createElement('button');
   anchor.textContent = 'anchor';
@@ -132,18 +137,19 @@ function renderPicker(props: Partial<React.ComponentProps<typeof EmotePickerPopo
   const anchorRef = { current: anchor } as React.RefObject<HTMLElement>;
   const onClose = props.onClose ?? vi.fn();
   const onSelect = props.onSelect ?? vi.fn();
-  const utils = render(
-    <EmotePickerPopover
-      isOpen={props.isOpen ?? true}
-      onClose={onClose}
-      onSelect={onSelect}
-      anchorRef={anchorRef}
-      scope={props.scope ?? 'native'}
-      platform={props.platform ?? 'kick'}
-      channelId={props.channelId ?? 'chan-1'}
-      viewerIsSubscribed={props.viewerIsSubscribed}
-    />
-  );
+  const pickerProps: IntendedEmotePickerPopoverProps = {
+    isOpen: props.isOpen ?? true,
+    onClose,
+    onSelect,
+    anchorRef,
+    scope: props.scope ?? 'native',
+    platform: props.platform ?? 'kick',
+    channelId: props.channelId ?? 'chan-1',
+    viewerIsSubscribed: props.viewerIsSubscribed,
+    channelAvatarUrl: props.channelAvatarUrl,
+    channelLabel: props.channelLabel,
+  };
+  const utils = render(<EmotePickerPopover {...pickerProps} />);
   return { ...utils, onClose, onSelect, anchor };
 }
 
@@ -152,6 +158,19 @@ function findSection(title: string): HTMLElement | null {
     ?? screen.queryByRole('button', { name: new RegExp(`^${title}`, 'i') });
   if (!heading) return null;
   return heading.parentElement;
+}
+
+function findSectionById(id: string): HTMLElement | null {
+  return document.querySelector(`[data-emote-section-id="${id}"]`);
+}
+
+function mockElementScrollIntoView() {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scrollIntoView,
+  });
+  return scrollIntoView;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -170,7 +189,9 @@ describe('EmotePickerPopover', () => {
       ['7tv', [makeEmote({ id: 's1', name: 'PogChamp', provider: '7tv' })]],
     ]);
     renderPicker({ scope: 'native', platform: 'kick' });
-    expect(screen.getByRole('button', { name: /^Kick/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Channel/, expanded: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Global/, expanded: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Emojis/, expanded: true })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^7TV/ })).not.toBeInTheDocument();
   });
 
@@ -187,29 +208,34 @@ describe('EmotePickerPopover', () => {
     expect(screen.getByRole('button', { name: /^FrankerFaceZ/, expanded: true })).toBeInTheDocument();
   });
 
-  it('pins Recent and Favorites at the top of the body', () => {
+  it('pins Frequently Used and Favorites at the top of the body', () => {
     mockState.recentEmotes = [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })];
     mockState.favoriteEmotes = [makeEmote({ id: 'k2', name: 'kickFav', provider: 'kick' })];
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ['kick', [makeEmote({ id: 'k3', name: 'kickEmote', provider: 'kick' })]],
     ]);
     renderPicker({ scope: 'native', platform: 'kick' });
-    const headings = screen.getAllByRole('button', { name: /^(Recent|Favorites|Kick)/ });
+    expect(screen.queryByRole('button', { name: /^Recent/, expanded: true })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Frequently Used/, expanded: true })).toBeInTheDocument();
+
+    const headings = screen.getAllByRole('button', { name: /^(Frequently Used|Favorites|Emojis)/ });
     const titles = headings.map((h) => h.textContent ?? '');
-    const recentIdx = titles.findIndex((t) => t.startsWith('Recent'));
+    const frequentIdx = titles.findIndex((t) => t.startsWith('Frequently Used'));
     const favoritesIdx = titles.findIndex((t) => t.startsWith('Favorites'));
-    const kickIdx = titles.findIndex((t) => t.startsWith('Kick'));
-    expect(recentIdx).toBeLessThan(kickIdx);
-    expect(favoritesIdx).toBeLessThan(kickIdx);
+    const emojiIdx = titles.findIndex((t) => t.startsWith('Emojis'));
+    expect(frequentIdx).not.toBe(-1);
+    expect(frequentIdx).toBeLessThan(emojiIdx);
+    expect(favoritesIdx).toBeLessThan(emojiIdx);
   });
 
-  it('filters Recent to scope providers', () => {
+  it('filters Frequently Used to scope providers', () => {
     mockState.recentEmotes = [
       makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' }),
       makeEmote({ id: 's1', name: 'PogChamp', provider: '7tv' }),
     ];
     renderPicker({ scope: 'native', platform: 'kick' });
-    // Only kickHype should appear in Recent (scoped to kick provider).
+    expect(screen.getByRole('button', { name: /^Frequently Used/, expanded: true })).toBeInTheDocument();
+    // Only kickHype should appear in Frequently Used (scoped to kick provider).
     expect(screen.getByLabelText('kickHype')).toBeInTheDocument();
     expect(screen.queryByLabelText('PogChamp')).not.toBeInTheDocument();
   });
@@ -230,7 +256,26 @@ describe('EmotePickerPopover', () => {
     expect(screen.queryByLabelText('monkaS')).not.toBeInTheDocument();
   });
 
-  it('sub-section filter (thirdParty twitch): click 7TV hides BTTV/FFZ but keeps Recent/Favorites', () => {
+  it('renders a Frequently Used sub-section button that scrolls to the pinned section', () => {
+    const scrollIntoView = mockElementScrollIntoView();
+    mockState.recentEmotes = [makeEmote({ id: 'k-r', name: 'oftenUsed', provider: 'kick' })];
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
+    ]);
+    renderPicker({ scope: 'native', platform: 'kick' });
+
+    const frequentlyUsedButton = screen.getByRole('button', {
+      name: 'Frequently Used',
+      pressed: false,
+    });
+    fireEvent.click(frequentlyUsedButton);
+
+    expect(screen.getByRole('button', { name: /^Frequently Used/, expanded: true })).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('sub-section navigation (thirdParty twitch): click 7TV scrolls without hiding BTTV/FFZ', () => {
+    const scrollIntoView = mockElementScrollIntoView();
     mockState.recentEmotes = [makeEmote({ id: 's-r', name: 'recentSTV', provider: '7tv' })];
     mockState.favoriteEmotes = [makeEmote({ id: 's-f', name: 'favSTV', provider: '7tv' })];
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
@@ -243,16 +288,18 @@ describe('EmotePickerPopover', () => {
     // Click the 7TV sub-section icon (aria-label "7TV", aria-pressed=false).
     fireEvent.click(screen.getByRole('button', { name: '7TV', pressed: false }));
 
-    // 7TV section heading still present (aria-expanded distinguishes from icon).
+    // All provider sections remain rendered; the button is navigation, not a filter.
     expect(screen.getByRole('button', { name: /^7TV/, expanded: true })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^BetterTTV/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^FrankerFaceZ/ })).not.toBeInTheDocument();
-    // Recent and Favorites stay visible.
-    expect(screen.getByRole('button', { name: /^Recent/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^BetterTTV/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^FrankerFaceZ/ })).toBeInTheDocument();
+    // Pinned sections stay visible.
+    expect(screen.getByRole('button', { name: /^Frequently Used/, expanded: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Favorites/ })).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
-  it('sub-section filter toggles off when re-clicked', () => {
+  it('sub-section navigation can be clicked repeatedly without hiding provider sections', () => {
+    const scrollIntoView = mockElementScrollIntoView();
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ['7tv', [makeEmote({ id: 's1', name: 'PogChamp', provider: '7tv' })]],
       ['bttv', [makeEmote({ id: 'b1', name: 'monkaS', provider: 'bttv' })]],
@@ -262,22 +309,121 @@ describe('EmotePickerPopover', () => {
 
     const stvIcon = screen.getByRole('button', { name: '7TV', pressed: false });
     fireEvent.click(stvIcon);
-    expect(screen.queryByRole('button', { name: /^BetterTTV/ })).not.toBeInTheDocument();
-    // click again to clear
-    const stvIconActive = screen.getByRole('button', { name: '7TV', pressed: true });
-    fireEvent.click(stvIconActive);
     expect(screen.getByRole('button', { name: /^BetterTTV/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '7TV', pressed: true }));
+    expect(screen.getByRole('button', { name: /^BetterTTV/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^FrankerFaceZ/ })).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
+  it('sub-section navigation (native kick): Global and channel buttons scroll without hiding other sections', () => {
+    const scrollIntoView = mockElementScrollIntoView();
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ['kick', [
+        makeEmote({ id: 'k-channel', name: 'streamerWave', provider: 'kick', isGlobal: false, kickSection: 'channel' }),
+        makeEmote({ id: 'k-global', name: 'globalKick', provider: 'kick', isGlobal: true, kickSection: 'global' }),
+      ]],
+    ]);
+    renderPicker({
+      scope: 'native',
+      platform: 'kick',
+      channelAvatarUrl: 'https://example.test/avatar.webp',
+      channelLabel: 'DarkSky',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Channel', pressed: false }));
+    expect(screen.getByLabelText('streamerWave')).toBeInTheDocument();
+    expect(screen.getByLabelText('globalKick')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Global', pressed: false }));
+    expect(screen.getByLabelText('streamerWave')).toBeInTheDocument();
+    expect(screen.getByLabelText('globalKick')).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders an Emojis sub-section button for native Kick emotes and clicking it navigates', () => {
+    const scrollIntoView = mockElementScrollIntoView();
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ['kick', [
+        makeEmote({ id: 'k-channel', name: 'streamerWave', provider: 'kick', isGlobal: false, kickSection: 'channel' }),
+        makeEmote({ id: 'k-emoji', name: 'kickSmile', provider: 'kick', isGlobal: true, kickSection: 'emoji' }),
+      ]],
+    ]);
+    renderPicker({ scope: 'native', platform: 'kick' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Emojis', pressed: false }));
+
+    expect(screen.getByLabelText('streamerWave')).toBeInTheDocument();
+    expect(screen.getByLabelText('kickSmile')).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('separates native Kick channel, Global, and Emojis by KickTalk set metadata', () => {
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ['kick', [
+        makeEmote({ id: 'k-channel', name: 'streamerWave', provider: 'kick', isGlobal: false, kickSection: 'channel' }),
+        makeEmote({ id: 'k-global', name: 'globalKick', provider: 'kick', isGlobal: true, kickSection: 'global' }),
+        makeEmote({ id: 'k-emoji', name: 'kickSmile', provider: 'kick', isGlobal: true, kickSection: 'emoji' }),
+      ]],
+    ]);
+    renderPicker({ scope: 'native', platform: 'kick', channelLabel: 'DarkSky' });
+
+    const channelSection = findSectionById('channel');
+    const globalSection = findSectionById('global');
+    const emojiSection = findSectionById('emoji');
+
+    expect(channelSection).not.toBeNull();
+    expect(globalSection).not.toBeNull();
+    expect(emojiSection).not.toBeNull();
+    if (!channelSection || !globalSection || !emojiSection) return;
+
+    expect(within(channelSection).getByLabelText('streamerWave')).toBeInTheDocument();
+    expect(within(channelSection).queryByLabelText('globalKick')).not.toBeInTheDocument();
+    expect(within(channelSection).queryByLabelText('kickSmile')).not.toBeInTheDocument();
+
+    expect(within(globalSection).getByLabelText('globalKick')).toBeInTheDocument();
+    expect(within(globalSection).queryByLabelText('streamerWave')).not.toBeInTheDocument();
+    expect(within(globalSection).queryByLabelText('kickSmile')).not.toBeInTheDocument();
+
+    expect(within(emojiSection).getByLabelText('kickSmile')).toBeInTheDocument();
+    expect(within(emojiSection).queryByLabelText('streamerWave')).not.toBeInTheDocument();
+    expect(within(emojiSection).queryByLabelText('globalKick')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { scope: 'native' as const, provider: 'kick' as EmoteProvider },
+    { scope: 'thirdParty' as const, provider: '7tv' as EmoteProvider },
+  ])('uses the channel display name for $scope Kick channel emote sections when an avatar is present', ({ scope, provider }) => {
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      [provider, [makeEmote({
+        id: `${provider}-channel`,
+        name: `${provider}StreamerWave`,
+        provider,
+        isGlobal: false,
+      })]],
+    ]);
+    renderPicker({
+      scope,
+      platform: 'kick',
+      channelAvatarUrl: 'https://example.test/avatar.webp',
+      channelLabel: 'DarkSky Live',
+    });
+
+    const channelSection = findSection('DarkSky Live');
+    expect(channelSection).not.toBeNull();
+    if (!channelSection) return;
+    expect(within(channelSection).getByLabelText(`${provider}StreamerWave`)).toBeInTheDocument();
   });
 
   it('collapsible section toggles expanded/collapsed', () => {
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
-      ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
+      ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick', isGlobal: true, kickSection: 'emoji' })]],
     ]);
     renderPicker({ scope: 'native', platform: 'kick' });
     expect(screen.getByLabelText('kickHype')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Kick/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Emojis/, expanded: true }));
     expect(screen.queryByLabelText('kickHype')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Kick/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Emojis/, expanded: false }));
     expect(screen.getByLabelText('kickHype')).toBeInTheDocument();
   });
 
@@ -391,6 +537,51 @@ describe('EmotePickerPopover', () => {
     expect(mockState.toggleFavorite).toHaveBeenCalledWith(emote);
   });
 
+  it('renders each emote as a KickTalk-style bordered square tile', () => {
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
+    ]);
+    renderPicker({ scope: 'native', platform: 'kick' });
+
+    const emoteBtn = screen.getByLabelText('kickHype');
+    const tile = emoteBtn.parentElement as HTMLElement;
+    const emoteItems = tile.parentElement as HTMLElement;
+
+    expect(emoteItems).toHaveClass('flex', 'flex-wrap', 'gap-2');
+    expect(tile).toHaveClass(
+      'h-10',
+      'aspect-square',
+      'rounded-[4px]',
+      'border',
+      'border-[#515151]',
+      'ring-1',
+      'ring-inset',
+      'ring-[#515151]',
+      'p-1',
+    );
+  });
+
+  it('renders section dropdown arrows at KickTalk size', () => {
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
+    ]);
+    renderPicker({ scope: 'native', platform: 'kick' });
+
+    const channelHeader = screen.getByRole('button', { name: /^Channel/, expanded: true });
+    const channelLabel = channelHeader.querySelector('span');
+    const caret = channelHeader.querySelector('svg');
+
+    expect(channelHeader).toHaveClass('group', 'text-[var(--color-foreground-muted)]');
+    expect(channelHeader).not.toHaveClass('text-[#777777]');
+    expect(channelLabel).toHaveClass('text-[#777777]');
+    expect(caret).not.toBeNull();
+    expect(caret).toHaveAttribute('width', '20');
+    expect(caret).toHaveAttribute('height', '20');
+    expect(caret).toHaveAttribute('viewBox', '0 0 32 32');
+    expect(caret).toHaveClass('opacity-50', 'rotate-180');
+    expect(caret).not.toHaveClass('text-[#777777]', 'text-white');
+  });
+
   it('focuses the search input when opened', () => {
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ['kick', [makeEmote({ id: 'k1', name: 'kickHype', provider: 'kick' })]],
@@ -418,7 +609,7 @@ describe('EmotePickerPopover prefetch concurrency cap', () => {
   // retry-once silences the burst class without losing eventual coverage.
 
   it('never constructs more than PREFETCH_BATCH_SIZE (4) Image() instances per pump tick', () => {
-    const constructions: Image[] = [];
+    const constructions: HTMLImageElement[] = [];
     type ImageCtor = typeof Image;
     const RealImage = globalThis.Image as ImageCtor;
     class CountingImage extends RealImage {

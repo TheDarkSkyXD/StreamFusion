@@ -280,6 +280,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     // Refs
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const thirdPartyPopoverAnchorRef = useRef<HTMLElement | null>(null);
 
     // Signed-in Kick user — needed to attach a sender identity to the optimistic
     // local echo of outbound messages. Kick's web v2 send path delivers the
@@ -772,6 +773,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               onClose={mentionAutocomplete.deactivate}
               isActive={mentionAutocomplete.isActive}
               platform={platform}
+              channel={channel}
             />
           </div>
 
@@ -794,14 +796,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             gone — Enter sends. Outer wrapper mirrors KickTalk's `.chatInputActions`
             (border-left + slideAndFadeIn keyframe); inner pill mirrors
             `.chatEmoteBtns` (bg-white/5, border lifts to white/30 when open). */}
-          <div className="flex items-center pl-2 ml-1 -mr-1 border-l border-[var(--color-border)] animate-slide-and-fade-in">
+          <div
+            className="flex items-center pl-3 ml-1 -mr-1 border-l animate-slide-and-fade-in"
+            style={{ borderLeftColor: "rgba(255,255,255,0.16)" }}
+          >
             {/* Inline `borderColor` overrides the unlayered `* { border-color: var(--color-border) }`
               in index.css, which beats Tailwind's layered border-color utilities at the
-              cascade level. `bg-[#191919]` is KickTalk's --bg-input (dark theme) so the
-              square buttons read as solid input-box surfaces instead of the subtler
-              white/5 overlay. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
+              cascade level. `bg-white/5` matches KickTalk's `.chatEmoteBtns`
+              surface; the surrounding input box stays on KickTalk's darker
+              --bg-input. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
             <div
-              className="flex items-center h-9 rounded-[4px] overflow-hidden border bg-[#191919] transition-colors duration-150"
+              className="flex items-center h-[38px] rounded-[4px] overflow-hidden border bg-white/5 transition-colors duration-150"
               style={{
                 borderColor:
                   activeDialog !== null ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.05)",
@@ -809,12 +814,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             >
               <NativeEmoteButton
                 platform={platform}
+                channel={channel}
                 channelId={channelId}
                 isOpen={activeDialog === "native"}
                 onOpenRequest={handleNativeOpenRequest}
                 onEmoteSelect={handleEmoteSelect}
                 disabled={buttonsDisabled}
                 viewerIsSubscribed={viewerIsSubscribed}
+                popoverAnchorRef={thirdPartyPopoverAnchorRef}
               />
               <span
                 className={`h-full w-px transition-colors duration-150 ${
@@ -823,11 +830,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               />
               <ThirdPartyEmoteButton
                 platform={platform}
+                channel={channel}
                 channelId={channelId}
                 isOpen={activeDialog === "thirdParty"}
                 onOpenRequest={handleThirdPartyOpenRequest}
                 onEmoteSelect={handleEmoteSelect}
                 disabled={buttonsDisabled}
+                popoverAnchorRef={thirdPartyPopoverAnchorRef}
               />
             </div>
           </div>

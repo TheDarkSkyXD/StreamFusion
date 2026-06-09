@@ -35,6 +35,15 @@ afterEach(() => {
 });
 
 describe("useAppShutdown", () => {
+  it("does nothing when the Electron bridge is unavailable", () => {
+    // @ts-expect-error -- test-only missing bridge
+    delete window.electronAPI;
+
+    expect(() => renderHook(() => useAppShutdown())).not.toThrow();
+    expect(kickChatService.forceShutdown).not.toHaveBeenCalled();
+    expect(twitchChatService.forceShutdown).not.toHaveBeenCalled();
+  });
+
   it("registers an onBeforeQuit listener on mount", () => {
     renderHook(() => useAppShutdown());
     expect(window.electronAPI!.onBeforeQuit).toHaveBeenCalledTimes(1);

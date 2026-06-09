@@ -10,6 +10,7 @@ import {
 // U11 — capture the latest ChatMessageList props so tests can simulate a
 // toolbar click without rendering the full message virtuoso.
 const lastListProps: {
+  channelKey?: string;
   onBan?: (m: unknown) => void;
   onTimeout?: (m: unknown) => void;
   onUnban?: (m: unknown) => void;
@@ -131,7 +132,6 @@ vi.mock('@/backend/services/chat/twitch-hermes-client', () => ({
 }));
 
 const storeState = {
-  messages: [],
   connectionStatus: {
     twitch: { platform: 'twitch', state: 'disconnected', channels: [], isAuthenticated: false },
     kick: { platform: 'kick', state: 'disconnected', channels: [], isAuthenticated: false },
@@ -154,7 +154,10 @@ vi.mock('@/store/chat-store', () => {
     getState: () => typeof storeState;
   };
   useChatStore.getState = () => storeState;
-  return { useChatStore };
+  return {
+    buildChannelKey: (platform: string, channel: string) => `${platform}:${channel}`,
+    useChatStore,
+  };
 });
 
 const loadGlobalEmotesMock = vi.fn();
@@ -175,6 +178,7 @@ vi.mock('@/store/emote-store', () => {
 
 vi.mock('@/components/chat/ChatMessageList', () => ({
   ChatMessageList: (props: typeof lastListProps) => {
+    lastListProps.channelKey = props.channelKey;
     lastListProps.onBan = props.onBan;
     lastListProps.onTimeout = props.onTimeout;
     lastListProps.onUnban = props.onUnban;
@@ -219,7 +223,7 @@ const fakePrediction = {
 // Guards: loading state — canSend stays false while Hermes is connecting and the IRC token is resolving (selector returns boolean primitive, not undefined)
 // Guards: error path — a missing-scopes Helix response triggers promptReconnect with the listed scopes, surfacing the ReconnectForModDialog rather than silently no-opping
 // Guards: empty messages — message list still renders (see ChatMessageList tests); chat input + chat-settings gear render in viewer single-tab path (U7) so the chrome doesn't disappear under the tab-shell refactor
-// Guards: U5 prefs — sub/raid notice + chat-cleared notice + prediction banner each suppress when their visibility pref is false. clearMessages('twitch') still runs even when its notice is suppressed (moderation action is real, only the notice text is hidden)
+// Guards: U5 prefs — sub/raid notice + chat-cleared notice + prediction banner each suppress when their visibility pref is false. clearMessages('twitch:ninja') still runs even when its notice is suppressed (moderation action is real, only the notice text is hidden)
 // Guards: U11 — Ban toolbar click opens ModActionConfirmDialog; confirm fires banUser with the broadcaster/moderator/user ids assembled from the page route
 describe('TwitchChat', () => {
   beforeEach(() => {
@@ -234,6 +238,7 @@ describe('TwitchChat', () => {
     lastListProps.onUnban = undefined;
     lastListProps.onDelete = undefined;
     lastListProps.selfUserId = undefined;
+    lastListProps.channelKey = undefined;
     banUserMock.mockReset();
     timeoutUserMock.mockReset();
     unbanUserMock.mockReset();
@@ -251,6 +256,11 @@ describe('TwitchChat', () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
+  });
+
+  it('passes the per-channel key to ChatMessageList', () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    expect(lastListProps.channelKey).toBe('twitch:ninja');
   });
 
   // U7 — the chat-settings gear lives in the panel header chrome OUTSIDE
@@ -406,8 +416,8 @@ describe('TwitchChat', () => {
         timestamp: new Date(),
       });
     });
-    // The moderation effect runs (chat is cleared for the platform)...
-    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch');
+    // The moderation effect runs (chat is cleared for this channel)...
+    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch:ninja');
     // ...but the "Chat was cleared" system line is not added.
     expect(addMessageCalledWithText('Chat was cleared')).toBe(false);
   });
@@ -422,7 +432,7 @@ describe('TwitchChat', () => {
         timestamp: new Date(),
       });
     });
-    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch');
+    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch:ninja');
     expect(addMessageCalledWithText('Chat was cleared')).toBe(true);
   });
 

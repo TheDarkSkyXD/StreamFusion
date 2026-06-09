@@ -8,7 +8,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatPlatform } from "../../shared/chat-types";
-import { useChatStore } from "../../store/chat-store";
+import { buildChannelKey, useChatStore } from "../../store/chat-store";
 
 interface MentionAutocompleteProps {
   /** Current input value */
@@ -23,6 +23,8 @@ interface MentionAutocompleteProps {
   isActive: boolean;
   /** Platform to filter chatters by */
   platform: ChatPlatform;
+  /** Channel whose chatters should be suggested */
+  channel: string;
   /** Maximum number of suggestions to show */
   maxSuggestions?: number;
   /** Minimum characters after trigger before showing suggestions */
@@ -57,6 +59,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   onClose,
   isActive,
   platform,
+  channel,
   maxSuggestions = 8,
   minChars = 0,
 }) => {
@@ -69,12 +72,13 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   // what we are trying to avoid for high-volume chats.
   const recentChatters: RecentChatter[] = useMemo(() => {
     if (!isActive) return [];
-    const messages = useChatStore.getState().messages;
+    const channelKey = buildChannelKey(platform, channel);
+    const messages = useChatStore.getState().messagesByChannel[channelKey] ?? [];
     const chatterMap = new Map<string, RecentChatter>();
     const start = Math.max(0, messages.length - RECENT_CHATTER_SCAN_LIMIT);
     for (let i = messages.length - 1; i >= start; i--) {
       const msg = messages[i];
-      if (msg.type !== "message" || msg.platform !== platform) continue;
+      if (msg.type !== "message") continue;
       if (!chatterMap.has(msg.username)) {
         chatterMap.set(msg.username, {
           username: msg.username,
@@ -85,7 +89,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
       }
     }
     return Array.from(chatterMap.values());
-  }, [isActive, platform]);
+  }, [channel, isActive, platform]);
 
   // Find the current autocomplete match (text after @)
   const match = useMemo((): AutocompleteMatch | null => {

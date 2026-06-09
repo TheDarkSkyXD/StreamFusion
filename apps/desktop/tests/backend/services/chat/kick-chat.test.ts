@@ -25,6 +25,8 @@ vi.stubGlobal("window", {
 } as unknown as Window);
 
 import { KickChatService } from "@/backend/services/chat/kick-chat";
+import { buildChannelKey, useChatStore } from "@/store/chat-store";
+import type { ChatMessage } from "@/shared/chat-types";
 
 // Guards: kick-chat sendMessage wire format — POST /public/v1/chat must carry the
 // broadcaster's user_id (channel data.id), NOT the chatroom id used for Pusher.
@@ -43,6 +45,7 @@ interface InternalChannelInfo {
 
 interface ServiceInternals {
   channels: Map<string, InternalChannelInfo>;
+  channelUsers: Map<string, number>;
 }
 
 function makeService(): { service: KickChatService; internals: ServiceInternals } {
@@ -50,6 +53,96 @@ function makeService(): { service: KickChatService; internals: ServiceInternals 
   const internals = service as unknown as ServiceInternals;
   return { service, internals };
 }
+
+function makeChatMessage(id: string, channel: string): ChatMessage {
+  return {
+    id,
+    platform: "kick",
+    channel,
+    userId: "user-1",
+    username: "tester",
+    displayName: "Tester",
+    color: "#fff",
+    content: [{ type: "text", content: "hello" }],
+    badges: [],
+    rawContent: "hello",
+    timestamp: new Date(),
+    type: "message",
+    isDeleted: false,
+    isHighlighted: false,
+    isAction: false,
+  };
+}
+
+function seedKickBucket(channel: string): string {
+  const channelKey = buildChannelKey("kick", channel);
+  const message = makeChatMessage("m-1", channel);
+  useChatStore.setState({
+    messagesByChannel: { [channelKey]: [message] },
+    pausedChannels: new Set([channelKey]),
+  });
+  return channelKey;
+}
+
+afterEach(() => {
+  useChatStore.setState({
+    messagesByChannel: {},
+    pausedChannels: new Set(),
+  });
+});
+
+describe("KickChatService channel-scoped release eviction", () => {
+  it("keeps a channel bucket while another panel still holds it, then evicts on the last release", async () => {
+    const { service, internals } = makeService();
+    const channelKey = seedKickBucket("xqc");
+    const pusherChannel = { unbind_all: vi.fn() };
+    internals.channels.set("xqc", {
+      slug: "xqc",
+      chatroomId: 1,
+      broadcasterUserId: 2,
+      pusherChannel,
+    });
+
+    service.acquire("xqc");
+    service.acquire("xqc");
+
+    await service.release("xqc");
+
+    expect(useChatStore.getState().messagesByChannel[channelKey]).toHaveLength(1);
+    expect(useChatStore.getState().pausedChannels.has(channelKey)).toBe(true);
+    expect(internals.channels.has("xqc")).toBe(true);
+    expect(pusherChannel.unbind_all).not.toHaveBeenCalled();
+
+    await service.release("xqc");
+
+    expect(useChatStore.getState().messagesByChannel[channelKey]).toBeUndefined();
+    expect(useChatStore.getState().pausedChannels.has(channelKey)).toBe(false);
+    expect(internals.channels.has("xqc")).toBe(false);
+  });
+
+  it("evicts active channel buckets during force shutdown", async () => {
+    const { service, internals } = makeService();
+    const channelKey = seedKickBucket("xqc");
+    const pusher = {
+      connection: { unbind_all: vi.fn() },
+      disconnect: vi.fn(),
+    };
+    (service as unknown as { pusher: typeof pusher }).pusher = pusher;
+    internals.channels.set("xqc", {
+      slug: "xqc",
+      chatroomId: 1,
+      broadcasterUserId: 2,
+      pusherChannel: { unbind_all: vi.fn() },
+    });
+    service.acquire("xqc");
+
+    await service.forceShutdown();
+
+    expect(useChatStore.getState().messagesByChannel[channelKey]).toBeUndefined();
+    expect(useChatStore.getState().pausedChannels.has(channelKey)).toBe(false);
+    expect(internals.channelUsers.has("xqc")).toBe(false);
+  });
+});
 
 describe("KickChatService.sendMessage", () => {
   beforeEach(() => {

@@ -17,11 +17,14 @@ vi.mock("@/hooks/useModLog", () => ({
 
 import { UserPopout } from "@/components/chat/mod/UserPopout/UserPopout";
 import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
+import type { ChatMessage } from "@/shared/chat-types";
+import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 const mockedUseUserProfile = vi.mocked(useUserProfile);
 
 beforeEach(() => {
   mockedUseUserProfile.mockReset();
+  useChatStore.setState({ messagesByChannel: {} });
   // Stub the electronAPI for openExternal usage inside the footer.
   // biome-ignore lint/suspicious/noExplicitAny: test stub
   (globalThis as any).window.electronAPI = {
@@ -29,6 +32,26 @@ beforeEach(() => {
     auth: { getToken: vi.fn().mockResolvedValue(null) },
   };
 });
+
+function makeMessage(id: string, channel: string, rawContent: string): ChatMessage {
+  return {
+    id,
+    platform: "twitch",
+    type: "message",
+    channel,
+    userId: "u1",
+    username: "alice",
+    displayName: "Alice",
+    color: "#fff",
+    badges: [],
+    content: [{ type: "text", content: rawContent }],
+    rawContent,
+    timestamp: new Date(),
+    isDeleted: false,
+    isHighlighted: false,
+    isAction: false,
+  };
+}
 
 function renderPopout(open = true) {
   return render(
@@ -88,6 +111,38 @@ describe("UserPopout", () => {
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("@alice")).toBeInTheDocument();
     expect(screen.getByTestId("user-popout-footer")).toBeInTheDocument();
+  });
+
+  it("shows recent messages from the current channel bucket only", () => {
+    mockedUseUserProfile.mockReturnValue({
+      profile: {
+        userId: "u1",
+        username: "alice",
+        displayName: "Alice",
+        avatarUrl: "",
+        createdAt: "2020-01-01T00:00:00Z",
+        followSince: null,
+        subscription: null,
+        isFounder: false,
+        isVip: false,
+        isMod: false,
+      },
+      loading: false,
+      error: null,
+    });
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [
+          makeMessage("current", "streamer", "right channel"),
+        ],
+        [buildChannelKey("twitch", "other")]: [makeMessage("other", "other", "wrong channel")],
+      },
+    });
+
+    renderPopout();
+
+    expect(screen.getByText("right channel")).toBeInTheDocument();
+    expect(screen.queryByText("wrong channel")).toBeNull();
   });
 
   it("renders nothing in the document body when open=false", () => {

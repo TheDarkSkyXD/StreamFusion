@@ -10,7 +10,7 @@ import { api } from "@/lib/api-client";
 // barrel. Using @/backend/logging/logger would drag electron-log/main into
 // the renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
-import type { Emote, EmoteProviderService } from "./emote-types";
+import type { Emote, EmoteProviderService, KickEmoteSection } from "./emote-types";
 
 /** Kick emote structure from API */
 interface KickEmoteResponse {
@@ -30,7 +30,7 @@ interface KickChannelEmotesResponse {
 
 interface KickEmoteSetResponse {
   id: string;
-  name: string;
+  name?: string | null;
   emotes: KickEmoteResponse[];
 }
 
@@ -99,7 +99,7 @@ class KickEmoteProvider implements EmoteProviderService {
         emoteSets.forEach((set) => {
           if (set.emotes && Array.isArray(set.emotes)) {
             set.emotes.forEach((emote) => {
-              emotes.push(this.transformEmote(emote, channelId));
+              emotes.push(this.transformEmote(emote, channelId, set.name));
             });
           }
         });
@@ -186,8 +186,20 @@ class KickEmoteProvider implements EmoteProviderService {
 
   // ========== Private Methods ==========
 
-  private transformEmote(emote: KickEmoteResponse, channelId?: string): Emote {
+  private getKickSection(setName?: string | null): KickEmoteSection {
+    const normalized = (setName || "channel_set").trim().toLowerCase();
+    if (normalized === "channel_set") return "channel";
+    if (normalized === "emojis") return "emoji";
+    return "global";
+  }
+
+  private transformEmote(
+    emote: KickEmoteResponse,
+    channelId?: string,
+    setName?: string | null
+  ): Emote {
     const id = emote.id.toString();
+    const kickSection = this.getKickSection(setName);
 
     // Kick emotes typically only have a 'fullsize' variant exposed reliably
     // We use fullsize for all resolutions to ensure they load
@@ -197,7 +209,7 @@ class KickEmoteProvider implements EmoteProviderService {
       id,
       name: emote.name,
       provider: "kick",
-      isGlobal: false, // Kick emotes are always channel-specific
+      isGlobal: kickSection !== "channel",
       isAnimated: false, // Kick emotes are typically static
       isZeroWidth: false,
       channelId,
@@ -207,6 +219,7 @@ class KickEmoteProvider implements EmoteProviderService {
         url4x: fullUrl,
       },
       subscribersOnly: emote.subscribers_only,
+      kickSection,
     };
   }
 }

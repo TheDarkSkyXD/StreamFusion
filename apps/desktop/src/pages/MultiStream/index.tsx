@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuLayoutGrid, LuMaximize, LuMessageSquare } from "react-icons/lu";
 
+import { ChatPanel } from "@/components/chat";
 import { AddStreamDialog } from "@/components/multistream/add-stream-dialog";
 import { MultiStreamGrid } from "@/components/multistream/grid-layout";
 import { Button } from "@/components/ui/button";
+import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useMultiStreamStore } from "@/store/multistream-store";
@@ -20,6 +22,8 @@ function pctToPx(pct: number): number {
 export function MultiStreamPage() {
   const { streams, layout, setLayout, isChatOpen, toggleChat, chatStreamId } =
     useMultiStreamStore();
+  const streamsRef = useRef(streams);
+  streamsRef.current = streams;
 
   // Chat display prefs — chatWidthPct seeds the docked width; persisted on drag
   // end. Pre-load `preferences` is null, so the raw pct is undefined until prefs
@@ -88,7 +92,27 @@ export function MultiStreamPage() {
     };
   }, [isResizing, resize, stopResizing]);
 
+  useEffect(() => {
+    return () => {
+      const slot = window.electronAPI?.slot;
+      if (!slot?.destroySlot) return;
+      for (const stream of streamsRef.current) {
+        Promise.resolve(slot.destroySlot(stream.id)).catch(() => {
+          /* main may already be tearing down or the slot may already be gone */
+        });
+      }
+    };
+  }, []);
+
   const activeChatStream = streams.find((s) => s.id === chatStreamId);
+  const { data: activeChatChannel } = useChannelByUsername(
+    activeChatStream?.channelName ?? "",
+    activeChatStream?.platform ?? "twitch"
+  );
+  const subscriberBadges = useMemo(
+    () => (activeChatStream?.platform === "kick" ? activeChatChannel?.subscriberBadges : undefined),
+    [activeChatStream?.platform, activeChatChannel?.subscriberBadges]
+  );
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -163,21 +187,29 @@ export function MultiStreamPage() {
                   </span>
                 </h2>
               </div>
-              <div className="flex-1 p-3">
-                {/* Placeholder for real chat component */}
-                <p className="text-[var(--color-foreground-muted)] text-sm">
-                  {activeChatStream
-                    ? `Chat for ${activeChatStream.channelName} (${activeChatStream.platform})`
-                    : "Select a stream to view chat"}
-                </p>
-              </div>
-              <div className="p-3 border-t border-[var(--color-border)]">
-                <input
-                  type="text"
-                  placeholder="Send a message..."
-                  disabled={!activeChatStream}
-                  className="w-full h-10 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] text-sm focus:outline-none focus:ring-1 focus:ring-white"
-                />
+              <div className="flex-1 min-h-0">
+                {activeChatStream ? (
+                  <ChatPanel
+                    initialPlatform={activeChatStream.platform}
+                    initialChannel={activeChatStream.channelName}
+                    channelId={activeChatChannel?.id}
+                    chatroomId={
+                      activeChatStream.platform === "kick"
+                        ? activeChatChannel?.chatroomId
+                        : undefined
+                    }
+                    kickUserId={
+                      activeChatStream.platform === "kick"
+                        ? activeChatChannel?.kickUserId
+                        : undefined
+                    }
+                    subscriberBadges={subscriberBadges}
+                  />
+                ) : (
+                  <p className="p-3 text-[var(--color-foreground-muted)] text-sm">
+                    Select a stream to view chat
+                  </p>
+                )}
               </div>
             </div>
           </>

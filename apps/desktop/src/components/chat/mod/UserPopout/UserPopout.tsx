@@ -21,8 +21,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
-import { useChatStore } from "@/store/chat-store";
+import { buildChannelKey, useChatStore } from "@/store/chat-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
 import { UserModHistory } from "./UserModHistory";
@@ -44,6 +45,7 @@ export interface UserPopoutProps {
 }
 
 const RECENT_MESSAGE_LIMIT = 10;
+const EMPTY_MESSAGES: ChatMessage[] = [];
 
 export function UserPopout({
   userId,
@@ -63,7 +65,8 @@ export function UserPopout({
     channelSlug
   );
 
-  const messages = useChatStore((s) => s.messages);
+  const channelKey = buildChannelKey(platform, channelSlug);
+  const messages = useChatStore((s) => s.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
   const recentMessages = useMemo(() => {
     return messages
       .filter(

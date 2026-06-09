@@ -20,7 +20,7 @@ import type {
   NormalizedPinnedMessage,
   UnifiedPrediction,
 } from "../../shared/chat-types";
-import { useChatStore } from "../../store/chat-store";
+import { buildChannelKey, useChatStore } from "../../store/chat-store";
 import { useDevModOverrideStore } from "../../store/dev-mod-override-store";
 import { useReconnectDialogStore } from "../../store/reconnect-dialog-store";
 
@@ -121,6 +121,7 @@ function PillButton({
 
 export function ChatSimTool() {
   const [platform, setPlatform] = useState<ChatPlatform>("twitch");
+  const debugChannelKey = buildChannelKey(platform, "debug-channel");
 
   const inject = (overrides: Partial<ChatMessage>) => {
     const u = pickUser();
@@ -223,7 +224,7 @@ export function ChatSimTool() {
   };
 
   const injectClearAll = () => {
-    useChatStore.getState().clearMessages(platform);
+    useChatStore.getState().clearMessages(debugChannelKey);
     inject({
       type: "system",
       userId: "system",
@@ -276,9 +277,9 @@ export function ChatSimTool() {
   };
 
   const injectDeleteLast = () => {
-    const messages = useChatStore.getState().messages;
+    const messages = useChatStore.getState().messagesByChannel[debugChannelKey] ?? [];
     const last = [...messages].reverse().find((m) => m.type === "message");
-    if (last) useChatStore.getState().deleteMessage(last.id);
+    if (last) useChatStore.getState().deleteMessage(debugChannelKey, last.id);
   };
 
   const injectPinnedKick = () => {

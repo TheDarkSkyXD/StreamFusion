@@ -9,6 +9,7 @@ import {
 
 // U11 — capture ChatMessageList callbacks so tests can simulate toolbar clicks.
 const lastListProps: {
+  channelKey?: string;
   onBan?: (m: unknown) => void;
   onTimeout?: (m: unknown) => void;
   onUnban?: (m: unknown) => void;
@@ -118,7 +119,6 @@ vi.mock('@/components/chat/PredictionBanner', () => ({
 }));
 
 const storeState = {
-  messages: [],
   connectionStatus: {
     twitch: { platform: 'twitch', state: 'disconnected', channels: [], isAuthenticated: false },
     kick: { platform: 'kick', state: 'disconnected', channels: [], isAuthenticated: false },
@@ -141,7 +141,10 @@ vi.mock('@/store/chat-store', () => {
     getState: () => typeof storeState;
   };
   useChatStore.getState = () => storeState;
-  return { useChatStore };
+  return {
+    buildChannelKey: (platform: string, channel: string) => `${platform}:${channel}`,
+    useChatStore,
+  };
 });
 
 const loadGlobalEmotesMock = vi.fn();
@@ -162,6 +165,7 @@ vi.mock('@/store/emote-store', () => {
 
 vi.mock('@/components/chat/ChatMessageList', () => ({
   ChatMessageList: (props: typeof lastListProps) => {
+    lastListProps.channelKey = props.channelKey;
     lastListProps.onBan = props.onBan;
     lastListProps.onTimeout = props.onTimeout;
     lastListProps.onUnban = props.onUnban;
@@ -180,12 +184,15 @@ vi.mock('@/components/chat/ChatInput', () => ({
 }));
 
 import { KickChat } from '@/components/chat/kick/KickChat';
+import { kickChatService } from '@/backend/services/chat/kick-chat';
+import { kickPredictionsService } from '@/backend/services/chat/kick-predictions-service';
 
 // Guards: loading state — canSend stays false while the Pusher connection is in 'disconnected' state and the kick token is still resolving, so the chat input doesn't accept input bound for the void
 // Guards: error/reconnect path — canSend remains false even after the connection flips to 'connected' until isAuthenticated catches up, so the input gates correctly on Pusher drop / reconnect cycles
 // Guards: empty messages — message list still renders the virtuoso shell (see ChatMessageList tests); chat input still renders, gear chrome still visible in viewer single-tab path (U7)
 // Guards: U5 prefs — sub notices / polls / prediction banner each suppress when their visibility pref is false, surface when true. Silent drops here look like "Kick subs aren't firing" — a high-blast UX failure
 // Guards: U11 mod actions — Timeout uses seconds→minutes conversion with Math.max(1, …) clamp so a 10s preset doesn't round to 0 minutes and silently no-op against Kick's API
+// Guards: cleanup releases Kick prediction subscriptions before the shared chat Pusher socket can close, preventing pusher-js "WebSocket is already in CLOSING or CLOSED state" console errors on unmount
 describe('KickChat', () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
@@ -198,10 +205,15 @@ describe('KickChat', () => {
     lastListProps.onUnban = undefined;
     lastListProps.onDelete = undefined;
     lastListProps.selfUserId = undefined;
+    lastListProps.channelKey = undefined;
     banKickUserMock.mockReset();
     timeoutKickUserMock.mockReset();
     unbanKickUserMock.mockReset();
     deleteKickMessageMock.mockReset();
+    vi.mocked(kickChatService.acquire).mockClear();
+    vi.mocked(kickChatService.release).mockClear();
+    vi.mocked(kickPredictionsService.acquire).mockClear();
+    vi.mocked(kickPredictionsService.release).mockClear();
     loadGlobalEmotesMock.mockReset();
     storeState.addMessage = vi.fn();
     setMockChatDisplay({});
@@ -213,6 +225,24 @@ describe('KickChat', () => {
     render(<KickChat channel="xqc" chatroomId={12345} />);
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
+  });
+
+  it('passes the per-channel key to ChatMessageList', () => {
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+    expect(lastListProps.channelKey).toBe('kick:xqc');
+  });
+
+  it('releases predictions before releasing the shared Kick chat socket on unmount', () => {
+    mockIsKickMod.value = false;
+    const { unmount } = render(<KickChat channel="xqc" channelId="12345" chatroomId={12345} />);
+
+    unmount();
+
+    expect(kickPredictionsService.release).toHaveBeenCalledWith({ channelId: '12345' });
+    expect(kickChatService.release).toHaveBeenCalledWith('xqc');
+    expect(
+      vi.mocked(kickPredictionsService.release).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(kickChatService.release).mock.invocationCallOrder[0]);
   });
 
   // U7 — the chat-settings gear lives in the panel header chrome OUTSIDE
