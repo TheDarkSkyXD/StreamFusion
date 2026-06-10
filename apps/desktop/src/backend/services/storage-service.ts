@@ -29,6 +29,8 @@ import { dbService, type PendingFollowAction, type PendingFollowWrite } from "./
 
 // ========== Default Values ==========
 
+const KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY = "kick-account-follows-verified-v2";
+
 const defaults: StorageSchema = {
   authTokens: {},
   appTokens: {},
@@ -328,13 +330,10 @@ class StorageService {
    *   - No token (signed out / session expired) → return rows with
    *     `source = 'guest'` ONLY. Platform-tagged rows stay in the DB but are
    *     intentionally hidden until the user signs back in.
-   *   - Token present → return rows with `source = platform`. This is the
-   *     union of sync-imported rows and FollowButton-while-signed-in clicks,
-   *     no dedup needed (they share the same source value and addFollow's
-   *     INSERT OR REPLACE collapses duplicates via UNIQUE(platform, channel_id, source)).
-   *   - Token present but no platform-tagged rows yet (fresh login mid-sync,
-   *     or sync returned empty/error) → fall back to guest follows so the
-   *     sidebar isn't briefly empty during the import window.
+   *   - Token present -> return rows with `source = platform`. Platform-source
+   *     rows are confirmed account follows from sync.
+   *   - Token present but no platform-tagged rows -> return [] so guest/local
+   *     follows do not appear as account follows.
    *
    * The token check is the source of truth for "is the user signed in?",
    * not DB presence — a session that died silently still leaves rows in the
@@ -344,10 +343,10 @@ class StorageService {
     if (!this.hasToken(platform)) {
       return dbService.getFollowsByPlatformAndSource(platform, "guest");
     }
-    const platformFollows = dbService.getFollowsByPlatformAndSource(platform, platform);
-    if (platformFollows.length === 0) {
-      return dbService.getFollowsByPlatformAndSource(platform, "guest");
+    if (platform === "kick" && !dbService.get<boolean>(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY)) {
+      return [];
     }
+    const platformFollows = dbService.getFollowsByPlatformAndSource(platform, platform);
     return platformFollows;
   }
 
@@ -433,7 +432,7 @@ class StorageService {
   }
 
   /**
-   * Apply the platform's authoritative follow list additively. See
+   * Apply the platform's authoritative follow list. See
    * `database-service.ts#upsertSyncedFollows` for the full semantics.
    *
    * Returns the same counts the IPC payload needs:
@@ -441,16 +440,17 @@ class StorageService {
    *   - `pendingCount`: rows remaining in pending_follow_writes (drives U8 banner)
    *   - `addedCount`: new rows the sync introduced (drives the renderer's
    *     decision to refetch — metadata-only refreshes report 0)
-   *   - `removedCount`: always 0 — sync never removes rows under the
-   *     additive model. Kept in the return shape so the renderer-gate's
-   *     `added > 0 || removed > 0` check stays valid for any code path
-   *     that does explicitly remove rows.
+   *   - `removedCount`: stale platform-source rows pruned because they were
+   *     absent from the authoritative fetched list
    */
   upsertSyncedFollows(
     platform: Platform,
     follows: Array<Omit<LocalFollow, "id" | "followedAt">>
   ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number } {
     const result = dbService.upsertSyncedFollows(platform, follows);
+    if (platform === "kick") {
+      dbService.set(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY, true);
+    }
     logger.debug("Service:Storage", "Synced follows", {
       platform,
       accountCount: result.accountCount,

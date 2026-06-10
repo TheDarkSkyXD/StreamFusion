@@ -226,12 +226,27 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
 
   /**
    * Search for channels
-   * Uses GQL - no API key needed
+   * Authenticated searches prefer Helix because it supports real cursor
+   * pagination. Logged-out searches fall back to public GQL.
    */
   async searchChannels(
     query: string,
     options: PaginationOptions & { liveOnly?: boolean } = {}
   ): Promise<PaginatedResult<UnifiedChannel>> {
+    if (this.isAuthenticated()) {
+      try {
+        const SearchEndpoints = await import("./endpoints/search-endpoints");
+        return await SearchEndpoints.searchChannels(this, query, options);
+      } catch (error) {
+        logger.warn("Twitch:Client", "Helix searchChannels failed, falling back to GQL", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
+      }
+    }
+
     try {
       return await GqlClient.gqlSearchChannels(query, options);
     } catch (error) {

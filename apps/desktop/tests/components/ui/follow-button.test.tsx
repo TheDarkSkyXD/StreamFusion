@@ -10,6 +10,7 @@ const openExternal = vi.fn();
 const toastFn = vi.fn();
 let mockIsFollowing = false;
 let mockFollowSource: FollowSource | null = null;
+let mockKickConnected = false;
 
 vi.mock('@/store/follow-store', () => ({
   useFollowStore: () => ({
@@ -17,6 +18,11 @@ vi.mock('@/store/follow-store', () => ({
     toggleFollow,
     getFollowSource: () => (mockIsFollowing ? mockFollowSource : null),
   }),
+}));
+
+vi.mock('@/store/auth-store', () => ({
+  useAuthStore: (selector: (state: { kickConnected: boolean }) => unknown) =>
+    selector({ kickConnected: mockKickConnected }),
 }));
 
 vi.mock('@/hooks/useElectron', () => ({
@@ -30,12 +36,14 @@ vi.mock('sonner', () => ({
 import { FollowButton } from '@/components/ui/follow-button';
 
 describe('FollowButton', () => {
+  // Guards: signed-in Kick follow clicks must send the user to Kick instead of creating a local fake account follow.
   beforeEach(() => {
     toggleFollow.mockReset();
     openExternal.mockReset();
     toastFn.mockReset();
     mockIsFollowing = false;
     mockFollowSource = null;
+    mockKickConnected = false;
   });
 
   it('renders "Follow" label when not following', () => {
@@ -104,6 +112,22 @@ describe('FollowButton', () => {
     const [message, opts] = toastFn.mock.calls[0] as [string, { action: { onClick: () => void } }];
     expect(message).toMatch(/kick/i);
     // Simulate the user clicking the "Open Kick" action button in the toast.
+    opts.action.onClick();
+    expect(openExternal).toHaveBeenCalledWith('https://kick.com/summit1g');
+  });
+
+  it('routes signed-in Kick follow clicks to kick.com instead of toggling locally', () => {
+    mockKickConnected = true;
+    renderWithProviders(
+      <FollowButton channel={fixtures.channel({ platform: 'kick', username: 'Summit1G' })} />
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(toggleFollow).not.toHaveBeenCalled();
+    expect(toastFn).toHaveBeenCalledTimes(1);
+    const [message, opts] = toastFn.mock.calls[0] as [string, { action: { onClick: () => void } }];
+    expect(message).toMatch(/follow.*kick/i);
     opts.action.onClick();
     expect(openExternal).toHaveBeenCalledWith('https://kick.com/summit1g');
   });

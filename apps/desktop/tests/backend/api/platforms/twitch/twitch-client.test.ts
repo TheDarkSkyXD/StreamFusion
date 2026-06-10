@@ -117,6 +117,7 @@ vi.mock("@/backend/api/unified/registry", () => ({
 }));
 
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
+import { twitchAuthService } from "@/backend/auth/twitch-auth";
 
 describe("TwitchClient", () => {
   beforeEach(() => {
@@ -231,7 +232,27 @@ describe("TwitchClient", () => {
   });
 
   describe("searchChannels", () => {
-    it("delegates to GQL on success", async () => {
+    it("uses Helix when authenticated so search results can paginate channels", async () => {
+      const { searchChannels } = await import(
+        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+      );
+      (searchChannels as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: [{ id: "helix-c1" }],
+        cursor: "next",
+      });
+
+      const result = await twitchClient.searchChannels("test", { first: 50, after: "pg2" });
+
+      expect(result).toEqual({ data: [{ id: "helix-c1" }], cursor: "next" });
+      expect(searchChannels).toHaveBeenCalledWith(twitchClient, "test", {
+        first: 50,
+        after: "pg2",
+      });
+      expect(mockGqlSearchChannels).not.toHaveBeenCalled();
+    });
+
+    it("delegates to GQL when logged out", async () => {
+      (twitchAuthService.isAuthenticated as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
       const channels = { data: [{ id: "c1" }], cursor: "next" };
       mockGqlSearchChannels.mockResolvedValueOnce(channels);
 
@@ -240,12 +261,17 @@ describe("TwitchClient", () => {
       expect(result).toEqual(channels);
     });
 
-    it("falls back to Helix on GQL failure", async () => {
-      mockGqlSearchChannels.mockRejectedValueOnce(new Error("GQL error"));
+    it("falls back to GQL when authenticated Helix search fails", async () => {
+      const { searchChannels } = await import(
+        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+      );
+      (searchChannels as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Helix error"));
+      const channels = { data: [{ id: "gql-c1" }], cursor: "next" };
+      mockGqlSearchChannels.mockResolvedValueOnce(channels);
 
       const result = await twitchClient.searchChannels("test");
 
-      expect(result).toBeDefined();
+      expect(result).toEqual(channels);
     });
   });
 

@@ -81,6 +81,7 @@ export const IPC_CHANNELS = {
   AUTH_REFRESH_KICK: "auth:refresh-kick",
   AUTH_FETCH_TWITCH_USER: "auth:fetch-twitch-user",
   AUTH_FETCH_KICK_USER: "auth:fetch-kick-user",
+  AUTH_SYNC_FOLLOWS: "auth:sync-follows",
 
   // Auth - Device Code Flow (Twitch)
   AUTH_DCF_START: "auth:dcf-start",
@@ -339,6 +340,7 @@ export interface IpcPayloads {
   [IPC_CHANNELS.AUTH_CLEAR_TOKEN]: { platform: Platform };
   [IPC_CHANNELS.AUTH_HAS_TOKEN]: { platform: Platform };
   [IPC_CHANNELS.AUTH_IS_TOKEN_EXPIRED]: { platform: Platform };
+  [IPC_CHANNELS.AUTH_SYNC_FOLLOWS]: { platform: Platform };
 
   // User data
   [IPC_CHANNELS.AUTH_SAVE_TWITCH_USER]: { user: TwitchUser };

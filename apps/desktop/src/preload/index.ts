@@ -232,6 +232,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT_KICK),
     fetchKickUser: (): Promise<{ success: boolean; user?: KickUser; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_FETCH_KICK_USER),
+    syncFollows: (platform: Platform): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AUTH_SYNC_FOLLOWS, { platform }),
 
     // Listen for Kick session expiry pushed from the main process
     onKickSessionExpired: (callback: () => void): (() => void) => {

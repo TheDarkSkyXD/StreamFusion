@@ -4,7 +4,7 @@ import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSearchAll, useSearchCategories, useSearchChannels } from "@/hooks/queries/useSearch";
-import { installElectronAPIMock, fixtures } from "../../test-utils";
+import { fixtures, installElectronAPIMock } from "../../test-utils";
 
 function makeWrapper() {
   const client = new QueryClient({
@@ -34,21 +34,44 @@ describe("useSearchChannels", () => {
     const ch = fixtures.channel({ username: "xqc" });
     api.search.channels = vi.fn(async () => ({ data: [ch], error: null, cursor: null }));
 
-    const { result } = renderHook(
-      () => useSearchChannels("xqc"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useSearchChannels("xqc"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data!.pages[0].data).toHaveLength(1);
     expect(result.current.data!.pages[0].data[0].username).toBe("xqc");
   });
 
   it("is disabled when query is empty", async () => {
-    const { result } = renderHook(
-      () => useSearchChannels(""),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useSearchChannels(""), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+  });
+
+  it("fetches one-character channel queries", async () => {
+    const ch = fixtures.channel({ username: "a" });
+    api.search.channels = vi.fn(async () => ({ data: [ch], error: null, cursor: null }));
+
+    const { result } = renderHook(() => useSearchChannels("x"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(api.search.channels).toHaveBeenCalledWith({
+      query: "x",
+      platform: undefined,
+      limit: 50,
+      after: undefined,
+    });
+  });
+
+  it("reuses fresh cached channel results on remount", async () => {
+    const wrapper = makeWrapper();
+    const ch = fixtures.channel({ username: "xqc" });
+    api.search.channels = vi.fn(async () => ({ data: [ch], error: null, cursor: null }));
+
+    const first = renderHook(() => useSearchChannels("xqc"), { wrapper });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+
+    const second = renderHook(() => useSearchChannels(" xqc "), { wrapper });
+    await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
+
+    expect(api.search.channels).toHaveBeenCalledTimes(1);
   });
 
   it("treats empty data page as end-of-list (no next page)", async () => {
@@ -57,10 +80,7 @@ describe("useSearchChannels", () => {
       error: null,
       cursor: "some-cursor",
     }));
-    const { result } = renderHook(
-      () => useSearchChannels("ghost"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useSearchChannels("ghost"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.hasNextPage).toBe(false);
   });
@@ -71,19 +91,15 @@ describe("useSearchCategories", () => {
     const cat = fixtures.category({ name: "Fortnite" });
     api.categories.search = vi.fn(async () => ({ data: [cat], error: null, cursor: null }));
 
-    const { result } = renderHook(
-      () => useSearchCategories("fortnite"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useSearchCategories("fortnite"), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data!.pages[0].data).toHaveLength(1);
   });
 
   it("is disabled when query is empty", async () => {
-    const { result } = renderHook(
-      () => useSearchCategories(""),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useSearchCategories(""), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
   });
 });
@@ -99,20 +115,29 @@ describe("useSearchAll", () => {
     };
     api.search.all = vi.fn(async () => ({ data: payload, error: null }));
 
-    const { result } = renderHook(
-      () => useSearchAll("test"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useSearchAll("test"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data!.channels).toHaveLength(1);
     expect(result.current.data!.categories).toHaveLength(1);
   });
 
   it("is disabled when query is empty", async () => {
-    const { result } = renderHook(
-      () => useSearchAll(""),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useSearchAll(""), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+  });
+
+  it("fetches one-character combined queries", async () => {
+    api.search.all = vi.fn(async () => ({
+      data: { channels: [], categories: [], streams: [], videos: [], clips: [] },
+      error: null,
+    }));
+
+    const { result } = renderHook(() => useSearchAll("x"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(api.search.all).toHaveBeenCalledWith({
+      query: "x",
+      platform: undefined,
+      limit: 5,
+    });
   });
 });

@@ -172,9 +172,11 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
   for (const channel of channels) {
     const slugLower = channel.username.toLowerCase();
 
-    // Skip channels already enriched by upstream search steps (Step 4 top-streams
-    // fuzzy match populates avatarUrl + isLive). Saves an API round trip.
-    if (channel.avatarUrl && channel.followerCount !== undefined) {
+    // Skip channels already enriched by upstream search steps. Kick's live
+    // directory populates avatarUrl + isLive but not followerCount; sending
+    // those through the official channel lookup can drop valid live channels
+    // when the official batch response is partial.
+    if (channel.avatarUrl && (channel.followerCount !== undefined || channel.isLive)) {
       enrichedChannels.set(slugLower, channel);
       continue;
     }
@@ -366,14 +368,24 @@ export function registerSearchHandlers(): void {
           );
         }
 
-        // Kick search — only on first page (Kick has no cursor-based pagination)
-        if ((!params.platform || params.platform === "kick") && !params.after) {
+        // Kick search. Combined cross-platform pagination keeps using Twitch's
+        // cursor because the platforms cannot share a cursor, but Kick-only
+        // result pages can continue through Kick's live-channel scan.
+        const shouldSearchKick = params.platform === "kick" || (!params.platform && !params.after);
+        if (shouldSearchKick) {
           searchPromises.push(
             (async () => {
-              logger.debug("IPC:Search", "Searching Kick", { query: params.query });
-              const result = await kickClient.searchChannels(params.query);
+              logger.debug("IPC:Search", "Searching Kick", {
+                query: params.query,
+                after: params.after,
+              });
+              const result = await kickClient.searchChannels(params.query, {
+                limit: params.limit || 50,
+                cursor: params.after,
+              });
               logger.debug("IPC:Search", "Kick returned raw results", {
                 count: result.data.length,
+                cursor: result.cursor,
               });
 
               let channels = result.data.filter(isValidChannel);
@@ -398,8 +410,9 @@ export function registerSearchHandlers(): void {
 
               logger.debug("IPC:Search", "Kick final channels", {
                 count: channels.length,
+                cursor: result.cursor,
               });
-              return { platform: "kick" as Platform, data: channels };
+              return { platform: "kick" as Platform, data: channels, cursor: result.cursor };
             })().catch((err) => {
               logger.warn("IPC:Search", "Failed to search Kick channels", {
                 error:
@@ -498,6 +511,7 @@ export function registerSearchHandlers(): void {
         const kickUser = storageService.getKickUser();
         const twitchUser = storageService.getTwitchUser();
         const normalizedQuery = params.query.toLowerCase().trim();
+        const channelFirstOnly = normalizedQuery.length === 1;
 
         const results: {
           channels: any[];
@@ -512,105 +526,150 @@ export function registerSearchHandlers(): void {
           videos: [],
           clips: [],
         };
+        const searchTasks: Promise<void>[] = [];
 
         if (!params.platform || params.platform === "twitch") {
-          try {
-            const [channelResult, categoryResult] = await Promise.all([
-              twitchClient.searchChannels(params.query, {
-                first: params.limit || 10,
-                liveOnly: false,
-              }),
-              twitchClient.searchCategories(params.query, { first: params.limit || 10 }),
-            ]);
+          searchTasks.push(
+            (async () => {
+              try {
+                const channelSearch = twitchClient.searchChannels(params.query, {
+                  first: params.limit || 10,
+                  liveOnly: false,
+                });
+                const categorySearch = channelFirstOnly
+                  ? Promise.resolve({ data: [] })
+                  : twitchClient.searchCategories(params.query, { first: params.limit || 10 });
+                const [channelResult, categoryResult] = await Promise.all([
+                  channelSearch,
+                  categorySearch,
+                ]);
 
-            // Filter channels - validate and remove invalid/own accounts
-            let validChannels = channelResult.data.filter(isValidChannel);
-            if (twitchUser) {
-              validChannels = validChannels.filter((c) => {
-                const matchesUser = c.username.toLowerCase() === twitchUser.login.toLowerCase();
-                if (matchesUser) {
-                  return normalizedQuery === twitchUser.login.toLowerCase();
+                // Filter channels - validate and remove invalid/own accounts
+                let validChannels = channelResult.data.filter(isValidChannel);
+                if (twitchUser) {
+                  validChannels = validChannels.filter((c) => {
+                    const matchesUser = c.username.toLowerCase() === twitchUser.login.toLowerCase();
+                    if (matchesUser) {
+                      return normalizedQuery === twitchUser.login.toLowerCase();
+                    }
+                    return true;
+                  });
                 }
-                return true;
-              });
-            }
 
-            // Verify channels exist via Twitch API (filters deleted accounts)
-            const verifiedTwitchChannels = await filterVerifiedChannels(validChannels, "twitch");
-            results.channels.push(...verifiedTwitchChannels);
+                // Verify channels exist via Twitch API (filters deleted accounts)
+                const verifiedTwitchChannels = await filterVerifiedChannels(
+                  validChannels,
+                  "twitch"
+                );
+                results.channels.push(...verifiedTwitchChannels);
 
-            // Add live streams from verified channels
-            const liveChannels = verifiedTwitchChannels.filter((c) => c.isLive);
-            results.streams.push(...liveChannels.map((c) => ({ ...c, platform: "twitch" })));
+                // Add live streams from verified channels
+                const liveChannels = verifiedTwitchChannels.filter((c) => c.isLive);
+                results.streams.push(...liveChannels.map((c) => ({ ...c, platform: "twitch" })));
 
-            results.categories.push(...categoryResult.data);
-          } catch (err) {
-            logger.warn("IPC:Search", "Failed to search Twitch", {
-              error:
-                err instanceof Error
-                  ? { name: err.name, message: err.message, stack: err.stack }
-                  : String(err),
-            });
-          }
+                results.categories.push(...categoryResult.data);
+              } catch (err) {
+                logger.warn("IPC:Search", "Failed to search Twitch", {
+                  error:
+                    err instanceof Error
+                      ? { name: err.name, message: err.message, stack: err.stack }
+                      : String(err),
+                });
+              }
+            })()
+          );
         }
 
         if (!params.platform || params.platform === "kick") {
-          try {
-            const searchResult = await kickClient.search(params.query);
+          searchTasks.push(
+            (async () => {
+              try {
+                if (channelFirstOnly) {
+                  const channelResult = await kickClient.searchChannels(params.query);
+                  let channels = channelResult.data
+                    .map((c) => ({ ...c, platform: "kick" }))
+                    .filter(isValidChannel);
 
-            if (searchResult.channels) {
-              // Filter out invalid/deleted channels
-              let channels = searchResult.channels
-                .map((c) => ({ ...c, platform: "kick" }))
-                .filter(isValidChannel);
-
-              if (kickUser) {
-                channels = channels.filter((c) => {
-                  const matchesUser = c.username.toLowerCase() === kickUser.slug.toLowerCase();
-                  if (matchesUser) {
-                    return normalizedQuery === kickUser.slug.toLowerCase();
+                  if (kickUser) {
+                    channels = channels.filter((c) => {
+                      const matchesUser = c.username.toLowerCase() === kickUser.slug.toLowerCase();
+                      if (matchesUser) {
+                        return normalizedQuery === kickUser.slug.toLowerCase();
+                      }
+                      return true;
+                    });
                   }
-                  return true;
+
+                  const verifiedKickChannels = await filterVerifiedChannels(channels, "kick");
+                  results.channels.push(...verifiedKickChannels);
+                  results.streams.push(
+                    ...verifiedKickChannels
+                      .filter((c) => c.isLive)
+                      .map((c) => ({ ...c, platform: "kick" }))
+                  );
+                  return;
+                }
+
+                const searchResult = await kickClient.search(params.query);
+
+                if (searchResult.channels) {
+                  // Filter out invalid/deleted channels
+                  let channels = searchResult.channels
+                    .map((c) => ({ ...c, platform: "kick" }))
+                    .filter(isValidChannel);
+
+                  if (kickUser) {
+                    channels = channels.filter((c) => {
+                      const matchesUser = c.username.toLowerCase() === kickUser.slug.toLowerCase();
+                      if (matchesUser) {
+                        return normalizedQuery === kickUser.slug.toLowerCase();
+                      }
+                      return true;
+                    });
+                  }
+
+                  // Verify channels exist via Kick API (filters deleted accounts)
+                  const verifiedKickChannels = await filterVerifiedChannels(channels, "kick");
+                  results.channels.push(...verifiedKickChannels);
+                }
+
+                if (searchResult.streams) {
+                  let streams = searchResult.streams.map((s) => ({
+                    ...s,
+                    platform: "kick",
+                  }));
+
+                  if (kickUser) {
+                    streams = streams.filter((s) => {
+                      const matchesUser =
+                        s.channelName.toLowerCase() === kickUser.slug.toLowerCase();
+                      if (matchesUser) {
+                        return normalizedQuery === kickUser.slug.toLowerCase();
+                      }
+                      return true;
+                    });
+                  }
+                  results.streams.push(...streams);
+                }
+
+                if (searchResult.categories) {
+                  results.categories.push(
+                    ...searchResult.categories.map((c) => ({ ...c, platform: "kick" }))
+                  );
+                }
+              } catch (err) {
+                logger.warn("IPC:Search", "Failed to search Kick", {
+                  error:
+                    err instanceof Error
+                      ? { name: err.name, message: err.message, stack: err.stack }
+                      : String(err),
                 });
               }
-
-              // Verify channels exist via Kick API (filters deleted accounts)
-              const verifiedKickChannels = await filterVerifiedChannels(channels, "kick");
-              results.channels.push(...verifiedKickChannels);
-            }
-
-            if (searchResult.streams) {
-              let streams = searchResult.streams.map((s) => ({
-                ...s,
-                platform: "kick",
-              }));
-
-              if (kickUser) {
-                streams = streams.filter((s) => {
-                  const matchesUser = s.channelName.toLowerCase() === kickUser.slug.toLowerCase();
-                  if (matchesUser) {
-                    return normalizedQuery === kickUser.slug.toLowerCase();
-                  }
-                  return true;
-                });
-              }
-              results.streams.push(...streams);
-            }
-
-            if (searchResult.categories) {
-              results.categories.push(
-                ...searchResult.categories.map((c) => ({ ...c, platform: "kick" }))
-              );
-            }
-          } catch (err) {
-            logger.warn("IPC:Search", "Failed to search Kick", {
-              error:
-                err instanceof Error
-                  ? { name: err.name, message: err.message, stack: err.stack }
-                  : String(err),
-            });
-          }
+            })()
+          );
         }
+
+        await Promise.all(searchTasks);
 
         // Sort channels by relevance
         results.channels.sort((a, b) => {

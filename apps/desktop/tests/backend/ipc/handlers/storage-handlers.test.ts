@@ -46,16 +46,29 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// Guards: signed-in Kick Follow clicks must not create local rows that look like confirmed Kick account follows.
 describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
-  it("signed in to the channel's platform → writes source = the platform name", () => {
-    vi.mocked(storageService.hasToken).mockReturnValue(true);
+  it("signed in to Twitch -> writes source = twitch", () => {
+    vi.mocked(storageService.hasToken).mockImplementation((p: Platform) => p === "twitch");
+    registerStorageHandlers();
+
+    const follow = makeFollow("twitch");
+    getFollowsAddHandler()({}, { follow });
+
+    expect(storageService.hasToken).toHaveBeenCalledWith("twitch");
+    expect(storageService.addLocalFollow).toHaveBeenCalledWith(follow, "twitch");
+  });
+
+  it("signed in to Kick -> rejects local add instead of creating a fake account follow", () => {
+    vi.mocked(storageService.hasToken).mockImplementation((p: Platform) => p === "kick");
     registerStorageHandlers();
 
     const follow = makeFollow("kick");
-    getFollowsAddHandler()({}, { follow });
+    expect(() => getFollowsAddHandler()({}, { follow })).toThrow(
+      "Kick account follows must be confirmed by Kick"
+    );
 
-    expect(storageService.hasToken).toHaveBeenCalledWith("kick");
-    expect(storageService.addLocalFollow).toHaveBeenCalledWith(follow, "kick");
+    expect(storageService.addLocalFollow).not.toHaveBeenCalled();
   });
 
   it("signed out of the channel's platform → writes source='guest'", () => {
@@ -84,7 +97,7 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
   });
 
   it("returns whatever addLocalFollow returns (pass-through)", () => {
-    vi.mocked(storageService.hasToken).mockReturnValue(true);
+    vi.mocked(storageService.hasToken).mockReturnValue(false);
     const row = {
       id: "x",
       platform: "kick",
@@ -93,7 +106,7 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
       displayName: "Summit1G",
       profileImage: "",
       followedAt: "t",
-      source: "kick",
+      source: "guest",
     } as LocalFollow;
     vi.mocked(storageService.addLocalFollow).mockReturnValue(row);
     registerStorageHandlers();

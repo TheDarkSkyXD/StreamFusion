@@ -51,8 +51,11 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   const { liveChannels, offlineChannels } = useMemo(() => {
     const channelMap = new Map<string, UnifiedChannel>();
 
-    // 1. Add Local Follows (using centralized key generation)
-    localFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
+    // 1. Add Local Follows (using centralized key generation). When Kick is
+    // connected, Kick rows must come from the verified account-follow sync.
+    localFollows
+      .filter((c) => !(kickConnected && c.platform === "kick"))
+      .forEach((c) => channelMap.set(getChannelKey(c), c));
 
     // 2. Add Remote Follows (overwrite local if dupes to get fresh data)
     if (twitchFollows) twitchFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
@@ -124,7 +127,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     offline.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
     return { liveChannels: live, offlineChannels: offline };
-  }, [localFollows, twitchFollows, kickFollows, liveStreams]);
+  }, [localFollows, twitchFollows, kickFollows, liveStreams, kickConnected]);
 
   const allItems = useMemo(
     () => [

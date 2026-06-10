@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // vi.mock factories are hoisted above imports, so spies must come from
 // vi.hoisted to be reachable from inside the factory closure.
-const { removeQueriesSpy, followStoreHydrateSpy } = vi.hoisted(() => ({
+const { removeQueriesSpy, invalidateQueriesSpy, followStoreHydrateSpy } = vi.hoisted(() => ({
   removeQueriesSpy: vi.fn(),
+  invalidateQueriesSpy: vi.fn(),
   followStoreHydrateSpy: vi.fn(async () => {}),
 }));
 
 vi.mock("@/providers/query-provider", () => ({
-  queryClient: { removeQueries: removeQueriesSpy },
+  queryClient: { removeQueries: removeQueriesSpy, invalidateQueries: invalidateQueriesSpy },
 }));
 
 vi.mock("@/store/follow-store", () => ({
@@ -19,12 +20,14 @@ vi.mock("@/store/follow-store", () => ({
 
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
+import type { AuthStatus } from "@/shared/ipc-channels";
 import { useAuthStore } from "@/store/auth-store";
 
 const initialAuthState = useAuthStore.getState();
 
 beforeEach(() => {
   removeQueriesSpy.mockReset();
+  invalidateQueriesSpy.mockReset();
   followStoreHydrateSpy.mockReset();
   followStoreHydrateSpy.mockResolvedValue(undefined);
 
@@ -185,6 +188,7 @@ describe("auth-store session-expired listeners — follow-cache cleanup", () => 
         // a no-op register is enough — the listener is registered but never
         // invoked here.
         onFollowsSynced: vi.fn(() => () => {}),
+        syncFollows: vi.fn(async () => ({ success: true })),
       },
       follows: { getAll: vi.fn(async () => []) },
       preferences: { get: vi.fn(async () => ({})) },
@@ -256,5 +260,102 @@ describe("auth-store session-expired listeners — follow-cache cleanup", () => 
       queryKey: STREAM_KEYS.followed(),
     });
     expect(followStoreHydrateSpy).toHaveBeenCalled();
+  });
+});
+
+describe("auth-store account-follow startup sync", () => {
+  // Guards: existing Kick sessions request an account-follow sync after the renderer
+  // listener is registered, so restart shows the real Kick account's live/offline follows.
+  function installAuthApi(status: AuthStatus) {
+    let followsSyncedCb:
+      | ((data: { platform: "twitch" | "kick"; addedCount?: number; removedCount?: number }) => void)
+      | null = null;
+    const api = {
+      auth: {
+        getStatus: vi.fn(async () => status),
+        refreshTwitchToken: vi.fn(async () => ({ success: true })),
+        refreshKickToken: vi.fn(async () => ({ success: true })),
+        clearToken: vi.fn(async () => {}),
+        clearTwitchUser: vi.fn(async () => {}),
+        clearKickUser: vi.fn(async () => {}),
+        onTwitchAuthLost: vi.fn(() => () => {}),
+        onKickSessionExpired: vi.fn(() => () => {}),
+        onFollowsSynced: vi.fn(
+          (
+            cb: (data: {
+              platform: "twitch" | "kick";
+              addedCount?: number;
+              removedCount?: number;
+            }) => void
+          ) => {
+            followsSyncedCb = cb;
+            return () => {};
+          }
+        ),
+        syncFollows: vi.fn(async () => ({ success: true })),
+      },
+      follows: { getAll: vi.fn(async () => []) },
+      preferences: { get: vi.fn(async () => ({})) },
+    };
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: api,
+    });
+    return {
+      api,
+      triggerFollowsSynced: (data: {
+        platform: "twitch" | "kick";
+        addedCount?: number;
+        removedCount?: number;
+      }) => {
+        if (!followsSyncedCb) throw new Error("onFollowsSynced not registered");
+        followsSyncedCb(data);
+      },
+    };
+  }
+
+  it("requests a Kick follow sync on startup when an existing Kick account is connected", async () => {
+    const { api } = installAuthApi({
+      twitch: { connected: false, user: null, hasToken: false, isExpired: false },
+      kick: {
+        connected: true,
+        user: { id: "k1", username: "kickuser", displayName: "KickUser" } as never,
+        hasToken: true,
+        isExpired: false,
+      },
+      isGuest: false,
+    });
+
+    await useAuthStore.getState().initializeAuth();
+
+    expect(api.auth.onFollowsSynced).toHaveBeenCalledBefore(api.auth.syncFollows);
+    expect(api.auth.syncFollows).toHaveBeenCalledWith("kick");
+  });
+
+  it("invalidates Kick followed channels and streams when Kick sync completes", async () => {
+    const { triggerFollowsSynced } = installAuthApi({
+      twitch: { connected: false, user: null, hasToken: false, isExpired: false },
+      kick: {
+        connected: true,
+        user: { id: "k1", username: "kickuser", displayName: "KickUser" } as never,
+        hasToken: true,
+        isExpired: false,
+      },
+      isGuest: false,
+    });
+
+    await useAuthStore.getState().initializeAuth();
+    triggerFollowsSynced({ platform: "kick", addedCount: 0, removedCount: 0 });
+
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: CHANNEL_KEYS.followed("kick"),
+    });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: STREAM_KEYS.followed("kick"),
+    });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: STREAM_KEYS.followed(),
+    });
   });
 });

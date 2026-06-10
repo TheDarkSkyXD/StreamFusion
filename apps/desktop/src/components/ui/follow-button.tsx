@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useOpenExternal } from "@/hooks/useElectron";
 import { cn } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 
 interface FollowButtonProps {
@@ -32,6 +33,7 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
   const isFollowing = isFollowingStore(channel);
   const followSource = isFollowing ? getFollowSource(channel) : null;
   const openExternal = useOpenExternal();
+  const kickConnected = useAuthStore((state) => state.kickConnected);
   const [isHovering, setIsHovering] = useState(false);
 
   const platform = channel.platform as Platform;
@@ -73,6 +75,18 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
       return;
     }
 
+    if (!isFollowing && platform === "kick" && kickConnected && channel.username) {
+      const url = buildKickChannelUrl(channel.username);
+      toast("Follow this channel on Kick", {
+        description: `Open ${channel.displayName || channel.username} on kick.com so the follow is saved to your Kick account.`,
+        action: {
+          label: "Open Kick",
+          onClick: () => openExternal(url),
+        },
+      });
+      return;
+    }
+
     toggleFollow(channel);
   };
 
@@ -104,9 +118,11 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
           ? "Followed via your Twitch account — click to manage on twitch.tv"
           : isManagedByKick
             ? "Followed via your Kick account — click to manage on kick.com"
-            : isFollowing
-              ? "Unfollow"
-              : "Follow"
+            : !isFollowing && platform === "kick" && kickConnected
+              ? "Open on kick.com to follow with your Kick account"
+              : isFollowing
+                ? "Unfollow"
+                : "Follow"
       }
     >
       {isFollowing ? (

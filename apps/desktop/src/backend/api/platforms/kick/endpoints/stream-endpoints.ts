@@ -830,7 +830,6 @@ export async function getPublicTopStreams(
   }
 
   try {
-    const { net } = require("electron");
     const language = options.language || "en";
 
     // Try multiple endpoints — some may be blocked or return limited data.
@@ -838,7 +837,11 @@ export async function getPublicTopStreams(
     // global dumps. If the endpoint honors `category_id` we get a real
     // per-category result; if not, the param is silently ignored and we still
     // get the global dump (which we filter client-side downstream).
-    const categoryQuery = options.categoryId ? `?category_id=${options.categoryId}` : "";
+    const queryParams = new URLSearchParams();
+    if (options.categoryId) queryParams.set("category_id", options.categoryId);
+    if (options.cursor) queryParams.set("cursor", options.cursor);
+    const queryString = queryParams.toString();
+    const categoryQuery = queryString ? `?${queryString}` : "";
     const endpoints = options.categoryId
       ? [
           // Category-filtered guesses first (anonymous, web app shape)
@@ -850,9 +853,9 @@ export async function getPublicTopStreams(
           `https://kick.com/stream/livestreams/${language}`,
         ]
       : [
+          `https://api.kick.com/private/v1/livestreams${categoryQuery}`,
           `https://kick.com/stream/livestreams/${language}`,
           `https://kick.com/stream/featured-livestreams/${language}`,
-          `https://api.kick.com/private/v1/livestreams`,
         ];
 
     let bestData: any = null;
@@ -881,7 +884,11 @@ export async function getPublicTopStreams(
         }
 
         if (data) {
-          const rawList = Array.isArray(data) ? data : data.data || data.livestreams || [];
+          const rawList = Array.isArray(data)
+            ? data
+            : Array.isArray(data.data)
+              ? data.data
+              : data.data?.livestreams || data.livestreams || [];
 
           if (rawList.length > bestCount) {
             bestData = data;
@@ -907,14 +914,21 @@ export async function getPublicTopStreams(
     // Handle different response formats
     const rawList = Array.isArray(bestData)
       ? bestData
-      : bestData.data || bestData.livestreams || [];
+      : Array.isArray(bestData.data)
+        ? bestData.data
+        : bestData.data?.livestreams || bestData.livestreams || [];
+    const nextCursor = bestData?.data?.next_cursor || bestData?.next_cursor;
 
     for (const item of rawList) {
       // Basic validation - handle different response structures
-      // IMPORTANT: Prefer item.channel?.slug (the actual channel slug like "xqc")
+      // IMPORTANT: Prefer channel slug fields (the actual channel slug like "xqc")
       // over item.slug which is the LIVESTREAM slug (UUID-prefixed, e.g., "f084f107-atl-w-...")
-      // The legacy endpoint kick.com/stream/livestreams/en returns item.slug as a livestream slug
-      const slug = item.channel?.slug || item.broadcaster_username || item.slug;
+      // The legacy endpoint kick.com/stream/livestreams/en returns item.slug as a livestream slug.
+      const slug =
+        item.streamer?.channel?.slug ||
+        item.channel?.slug ||
+        item.broadcaster_username ||
+        item.slug;
       if (!item || !slug) continue;
 
       // Extract thumbnail URL - different endpoints use different field structures
@@ -922,6 +936,7 @@ export async function getPublicTopStreams(
         item.thumbnail?.url ||
         item.thumbnail?.src ||
         item.thumbnail_url ||
+        item.metadata?.thumbnail_url ||
         (typeof item.thumbnail === "string" ? item.thumbnail : "") ||
         item.livestream?.thumbnail?.url ||
         "";
@@ -931,6 +946,7 @@ export async function getPublicTopStreams(
       // Official API returns kick.com/img/... URLs which work directly
       // Legacy API returns files.kick.com/... URLs which may return 403 but still useful as fallback
       const avatarUrl =
+        item.streamer?.user?.profile_picture ||
         item.profile_picture || // Official API field (kick.com/img/... - works!)
         item.user?.profile_picture ||
         item.channel?.user?.profile_picture ||
@@ -941,16 +957,19 @@ export async function getPublicTopStreams(
 
       // Extract category - legacy endpoint nests categories in an array
       const categoryId = (
+        item.metadata?.category?.id ||
         item.category_id ||
         item.category?.id ||
         item.categories?.[0]?.id ||
         ""
       ).toString();
-      const categoryName = item.category?.name || item.categories?.[0]?.name || "";
+      const categoryName =
+        item.metadata?.category?.name || item.category?.name || item.categories?.[0]?.name || "";
       // Side effect: remember slug so we can use the slug-based category-livestreams
       // endpoint on future calls (it's the only way to get real server-side
       // category filtering for unauthenticated users).
-      const categorySlug = item.category?.slug || item.categories?.[0]?.slug || "";
+      const categorySlug =
+        item.metadata?.category?.slug || item.category?.slug || item.categories?.[0]?.slug || "";
       rememberCategorySlug(categoryId, categorySlug);
 
       streams.push({
@@ -958,6 +977,8 @@ export async function getPublicTopStreams(
         platform: "kick",
         channelId: (
           item.channel?.id ||
+          item.streamer?.channel?.id ||
+          item.streamer?.user?.id ||
           item.channel_id ||
           item.broadcaster_user_id ||
           item.channel?.user_id ||
@@ -966,6 +987,7 @@ export async function getPublicTopStreams(
         ).toString(),
         channelName: slug,
         channelDisplayName:
+          item.streamer?.user?.username ||
           item.channel?.user?.username ||
           item.user?.username ||
           item.broadcaster_display_name ||
@@ -973,14 +995,15 @@ export async function getPublicTopStreams(
           item.broadcaster_username ||
           slug,
         channelAvatar: avatarUrl,
-        title: item.session_title || item.title || "",
-        viewerCount: item.viewer_count ?? item.viewers ?? 0,
+        title: item.metadata?.title || item.session_title || item.title || "",
+        viewerCount: item.viewers_count ?? item.viewer_count ?? item.viewers ?? 0,
         thumbnailUrl: thumbnailUrl,
         isLive: true,
-        startedAt: normalizeKickDate(item.created_at || item.start_time),
-        language: item.language || language,
+        startedAt: normalizeKickDate(item.started_at || item.created_at || item.start_time),
+        language: item.metadata?.language || item.language || language,
         tags: item.custom_tags && item.custom_tags.length > 0 ? item.custom_tags : item.tags || [],
-        isMature: item.is_mature ?? item.has_mature_content ?? false,
+        isMature:
+          item.metadata?.has_mature_content ?? item.is_mature ?? item.has_mature_content ?? false,
         categoryId,
         categoryName,
       });
@@ -1013,7 +1036,10 @@ export async function getPublicTopStreams(
       result = result.slice(0, options.limit);
     }
 
-    return { data: result };
+    return {
+      data: result,
+      cursor: nextCursor && nextCursor !== options.cursor ? String(nextCursor) : undefined,
+    };
   } catch {
     return { data: [] };
   }

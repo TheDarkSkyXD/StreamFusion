@@ -9,16 +9,14 @@ import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../../shar
 
 /**
  * Source tag on `local_follows`. Three values:
- *   - "guest"   : user clicked Follow while signed OUT of the row's platform.
- *                 Visible regardless of sign-in state.
- *   - "kick"    : the row belongs to Kick. Visible only when signed in to Kick.
- *   - "twitch"  : the row belongs to Twitch. Visible only when signed in to Twitch.
+ *   - "guest"   : local follow. Visible when no live platform token exists.
+ *   - "kick"    : Kick account follow confirmed by sync. Visible only when signed in to Kick.
+ *   - "twitch"  : Twitch account follow confirmed by sync. Visible only when signed in to Twitch.
  *
- * Platform-tagged rows are written by BOTH the sync (importing the platform's
- * account follow list) AND the FollowButton when the user clicks Follow while
- * signed in. The model is intentionally additive: sync never removes rows.
- * External unfollows (e.g. on kick.com or twitch.tv) are NOT auto-detected;
- * the user removes them via in-app Unfollow.
+ * Platform-tagged rows are written by account sync. Successful sync is
+ * authoritative: rows absent from the fetched account list are pruned so
+ * external unfollows and failed local-only follows do not masquerade as
+ * account follows.
  *
  * Pre-2026-05-29 schemas used "account" and "local" as separate sources; the
  * migration in `init()` collapses them to the row's platform value.
@@ -337,7 +335,7 @@ export class DatabaseService {
   }
 
   /**
-   * Apply the platform's authoritative follow list to local rows additively.
+   * Apply the platform's authoritative follow list to local rows.
    *
    * Semantics (post-2026-05-29 source-collapse):
    *   - Upserts every fetched row as `source = platform` (INSERT OR REPLACE).
@@ -345,10 +343,8 @@ export class DatabaseService {
    *     it gets the fresh display_name / profile_image — metadata-only refresh.
    *   - SKIPS fetched rows blocked by a `pending_follow_writes` unfollow
    *     tombstone — the user just clicked Unfollow in-app; don't re-adopt.
-   *   - NEVER deletes rows. External unfollows (on kick.com / twitch.tv) are
-   *     intentionally NOT auto-detected. The user removes them via in-app
-   *     Unfollow. App-clicked follows that never made it to the platform
-   *     account list survive across every sync.
+   *   - Removes existing platform-source rows that are absent from a
+   *     successful fetched list.
    *   - Cleans up pending_follow_writes rows that reflect a now-confirmed
    *     external state (pending follow + channel IN fetched = push landed;
    *     pending unfollow + channel NOT in fetched = unfollow landed).
@@ -363,9 +359,8 @@ export class DatabaseService {
    *          have a platform-source row pre-sync. Drives the renderer's decision
    *          to refetch the followed-channels query. Metadata-only syncs report
    *          addedCount = 0.
-   *          removedCount: ALWAYS 0 — sync never removes rows. Kept in the return
-   *          shape so the renderer-gate (`added > 0 || removed > 0`) stays valid
-   *          for any future code path that does want to report removals.
+   *          removedCount: count of stale platform-source rows pruned because
+   *          they were absent from the authoritative fetched list.
    */
   upsertSyncedFollows(
     platform: string,
@@ -442,12 +437,20 @@ export class DatabaseService {
       (p) => !fetchedFollows.some((f) => fetchedMatchesPending(f, p))
     );
 
+    const stalePlatformRows = existingPlatformRows.filter(
+      (existing) => !toAdopt.some((f) => existingMatchesFetched(existing, f))
+    );
+
     // addedCount = adopted rows that didn't already exist as platform-source.
     const addedCount = toAdopt.filter(
       (f) => !existingPlatformRows.some((existing) => existingMatchesFetched(existing, f))
     ).length;
 
     const txn = this.database.transaction(() => {
+      const delFollow = this.database.prepare("DELETE FROM local_follows WHERE id = ?");
+      for (const row of stalePlatformRows) {
+        delFollow.run(row.id);
+      }
       for (const follow of toAdopt) {
         this.addFollow(follow, platform as FollowSource);
       }
@@ -478,7 +481,7 @@ export class DatabaseService {
       accountCount: Number(accountCount),
       pendingCount: Number(pendingCount),
       addedCount,
-      removedCount: 0,
+      removedCount: stalePlatformRows.length,
     };
   }
 

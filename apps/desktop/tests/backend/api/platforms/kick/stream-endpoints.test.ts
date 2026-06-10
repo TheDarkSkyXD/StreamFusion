@@ -12,9 +12,7 @@ import { logger } from "@/backend/logging/logger";
 // same hoist time, so the shared mutable state + fake-fetch factory live
 // there together.
 const mockState = vi.hoisted(() => {
-  type QueuedResponse =
-    | { kind: "ok"; body: string }
-    | { kind: "error"; message: string };
+  type QueuedResponse = { kind: "ok"; body: string } | { kind: "error"; message: string };
 
   const state = {
     responseQueue: [] as QueuedResponse[],
@@ -144,9 +142,9 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     // staggerDelay sees the already-aborted signal at the top of its body
     // and rejects synchronously with AbortError. The outer in-flight promise
     // rejects, so the network call is never made.
-    await expect(
-      getPublicStreamBySlug("brand-new-slug", 200, ac.signal),
-    ).rejects.toThrow(/AbortError/);
+    await expect(getPublicStreamBySlug("brand-new-slug", 200, ac.signal)).rejects.toThrow(
+      /AbortError/
+    );
 
     expect(mockState.state.netRequestCalls).toHaveLength(0);
   });
@@ -168,6 +166,66 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
   // the audit's `no-source-mod` rule precludes that. The guard is
   // referenced from the file-level `// Guards:` comment instead so a
   // future maintainer trying to delete it triggers reviewer attention.
+});
+
+describe("getPublicTopStreams", () => {
+  let getPublicTopStreams: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicTopStreams;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    ({ getPublicTopStreams } = await import(
+      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
+    ));
+  });
+
+  it("parses private livestream pages and forwards the real next cursor", async () => {
+    const livestreams = Array.from({ length: 50 }, (_, index) => ({
+      id: `stream-${index}`,
+      streamer: {
+        user: {
+          id: `user-${index}`,
+          username: `Alpha${index}`,
+          profile_picture: `https://example.com/${index}.webp`,
+        },
+        channel: {
+          id: `channel-${index}`,
+          slug: `alpha-${index}`,
+        },
+      },
+      metadata: {
+        title: `Live ${index}`,
+        language: "en",
+        has_mature_content: false,
+        category: { id: "category-1", name: "Just Chatting", slug: "just-chatting" },
+      },
+      viewers_count: 100 - index,
+      thumbnail_url: `https://example.com/thumb-${index}.webp`,
+      started_at: "2026-06-09T12:00:00Z",
+    }));
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        status: { code: 200 },
+        data: {
+          livestreams,
+          next_cursor: "livestream_next",
+          version: "1",
+        },
+      }),
+    });
+
+    const result = await getPublicTopStreams({ limit: 10, cursor: "livestream_prev" });
+
+    expect(mockState.state.netRequestCalls[0]?.url).toContain(
+      "https://api.kick.com/private/v1/livestreams?cursor=livestream_prev"
+    );
+    expect(result.data).toHaveLength(10);
+    expect(result.data[0].channelName).toBe("alpha-0");
+    expect(result.cursor).toBe("livestream_next");
+  });
 });
 
 describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)", () => {
@@ -345,10 +403,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
     await vi.advanceTimersByTimeAsync(5_000);
     await promise;
 
-    expect(platformHealthSpies.recordPlatformFailure).toHaveBeenCalledWith(
-      "kick",
-      "server-5xx",
-    );
+    expect(platformHealthSpies.recordPlatformFailure).toHaveBeenCalledWith("kick", "server-5xx");
     expect(platformHealthSpies.recordPlatformSuccess).toHaveBeenCalledWith("kick");
   });
 });
@@ -387,9 +442,9 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
     await vi.advanceTimersByTimeAsync(10_000);
     await promise;
 
-    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "Kick:Endpoints:Stream"
-    );
+    const warnCalls = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([tag]) => tag === "Kick:Endpoints:Stream");
     expect(warnCalls).toHaveLength(1);
     expect(warnCalls[0][1]).toMatch(/Failed to fetch public Kick stream/);
   });
@@ -405,12 +460,12 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
     await vi.advanceTimersByTimeAsync(10_000);
     await promise;
 
-    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "Kick:Endpoints:Stream"
-    );
-    const debugCalls = vi.mocked(logger.debug).mock.calls.filter(
-      ([tag]) => tag === "Kick:Endpoints:Stream"
-    );
+    const warnCalls = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([tag]) => tag === "Kick:Endpoints:Stream");
+    const debugCalls = vi
+      .mocked(logger.debug)
+      .mock.calls.filter(([tag]) => tag === "Kick:Endpoints:Stream");
     expect(warnCalls).toHaveLength(0);
     expect(debugCalls.length).toBeGreaterThanOrEqual(1);
     expect(debugCalls.some(([, msg]) => /Failed to fetch public Kick stream/.test(msg))).toBe(true);
@@ -427,9 +482,9 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
     await vi.advanceTimersByTimeAsync(10_000);
     await promise;
 
-    const warnCalls1 = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "Kick:Endpoints:Stream"
-    );
+    const warnCalls1 = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([tag]) => tag === "Kick:Endpoints:Stream");
     expect(warnCalls1).toHaveLength(1);
 
     const { clearKickStreamFailureCache } = await import(
@@ -449,9 +504,9 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
     await vi.advanceTimersByTimeAsync(10_000);
     await promise;
 
-    const warnCalls2 = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "Kick:Endpoints:Stream"
-    );
+    const warnCalls2 = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([tag]) => tag === "Kick:Endpoints:Stream");
     expect(warnCalls2).toHaveLength(1);
   });
 });

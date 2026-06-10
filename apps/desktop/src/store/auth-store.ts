@@ -250,19 +250,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         // Hydrate is cheap and idempotent — covers the guest-follows store that
         // doesn't ride React Query.
         void useFollowStore.getState().hydrate();
-        // Only refetch the channels list when something actually changed. A
-        // background sync that finds the same channels (the common case) is
-        // a no-op for the renderer — the sidebar keeps its existing rows
-        // mounted and doesn't repaint.
-        if (netChanged) {
+        // Kick also invalidates on no-op syncs because the verified-follow
+        // marker can flip without row diffs. Streams refetch too so live/offline
+        // sections update immediately.
+        if (platform === "kick" || netChanged) {
           queryClient.invalidateQueries({ queryKey: CHANNEL_KEYS.followed(platform) });
+          queryClient.invalidateQueries({ queryKey: STREAM_KEYS.followed(platform) });
+          queryClient.invalidateQueries({ queryKey: STREAM_KEYS.followed() });
         }
-        // Intentionally NOT invalidating STREAM_KEYS.followed() here. The
-        // 60-second `useFollowedStreams` polling picks up new live status
-        // naturally. The previous unconditional invalidation raced with the
-        // in-flight Kick stagger fan-out in stream-handlers' _kickFollowsAbort,
-        // causing the older poll to return a truncated list first and briefly
-        // hide live Kick streams from the sidebar.
       });
 
       window.electronAPI.auth.onTwitchAuthLost(() => {
@@ -291,6 +286,23 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           },
         });
       });
+
+      const syncStartupFollows = async (platform: Platform): Promise<void> => {
+        try {
+          await window.electronAPI.auth.syncFollows(platform);
+        } catch (error) {
+          logger.warn("Store:Auth", "startup follow sync failed", {
+            platform,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
+        }
+      };
+
+      if (status.twitch.connected) void syncStartupFollows("twitch");
+      if (status.kick.connected) void syncStartupFollows("kick");
     } catch (error) {
       logger.error("Store:Auth", "failed to initialize auth", {
         error: error instanceof Error ? error.message : String(error),

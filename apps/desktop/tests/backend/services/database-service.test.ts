@@ -403,7 +403,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     expect(rows.map((r) => r.channelId).sort()).toEqual(["111", "222"]);
   });
 
-  it("pre-existing platform rows NOT in fetched list survive (additive sync, no deletion)", () => {
+  it("removes pre-existing platform rows that are absent from a successful fetched list", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
@@ -417,16 +417,15 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     const result = svc.upsertSyncedFollows("kick", [fetched("999", "other")]);
 
-    // Both rows present after sync — additive semantics.
-    expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 1, removedCount: 0 });
+    // Only the fetched row survives after authoritative reconciliation.
+    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 1, removedCount: 1 });
     const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
-    expect(rows.map((r) => r.channelId).sort()).toEqual(["411439", "999"]);
+    expect(rows.map((r) => r.channelId)).toEqual(["999"]);
   });
 
-  it("external unfollow is NOT auto-detected — row in DB but absent from fetched list survives", () => {
-    // Explicit contract test: under the additive model, sync NEVER removes
-    // rows. If you unfollow on kick.com / twitch.tv, the row stays in DB
-    // until you click Unfollow inside the app.
+  it("external unfollow is auto-detected when the authoritative fetched list is empty", () => {
+    // A successful empty fetched list means the account follows no channels
+    // for this platform, so old platform-source rows must be pruned.
     const svc = new DatabaseService();
     svc.initialize();
 
@@ -437,8 +436,8 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     const result = svc.upsertSyncedFollows("twitch", []);
 
-    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(1);
+    expect(result).toEqual({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 1 });
+    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(0);
   });
 
   it("re-fetching the same channels updates metadata in place and reports addedCount=0 (no-op sync gate)", () => {
@@ -572,9 +571,10 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     const result = svc.upsertSyncedFollows("twitch", []);
 
-    // twitch alice survives (additive). kick row + pending untouched.
-    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(1);
+    // twitch alice was absent from the authoritative Twitch list. Kick row +
+    // pending write remain untouched because sync is scoped by platform.
+    expect(result).toEqual({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 1 });
+    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(0);
     expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
     expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
   });
@@ -606,9 +606,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     expect(result.removedCount).toBe(0);
   });
 
-  it("removedCount is always 0 — sync never deletes under the additive model", () => {
-    // Pin the contract: even when the fetched list shrinks substantially
-    // relative to existing rows, removedCount stays 0.
+  it("reports removedCount when a successful sync prunes stale account rows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
@@ -621,8 +619,9 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     const result = svc.upsertSyncedFollows("kick", [fetched("1", "c1")]);
 
-    expect(result.removedCount).toBe(0);
-    expect(result.accountCount).toBe(5);
+    expect(result.removedCount).toBe(4);
+    expect(result.accountCount).toBe(1);
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick").map((r) => r.channelId)).toEqual(["1"]);
   });
 });
 

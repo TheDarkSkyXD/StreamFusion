@@ -27,7 +27,10 @@ vi.mock("electron-store", () => ({
 
 vi.mock("@/backend/services/database-service", () => ({
   dbService: {
+    get: vi.fn(),
+    set: vi.fn(),
     getFollowsByPlatformAndSource: vi.fn(),
+    upsertSyncedFollows: vi.fn(),
   },
 }));
 
@@ -51,6 +54,13 @@ beforeEach(() => {
   vi.mocked(dbService.getFollowsByPlatformAndSource).mockImplementation(
     (_p, source) => rowsBySource[source] ?? []
   );
+  vi.mocked(dbService.get).mockReturnValue(true);
+  vi.mocked(dbService.upsertSyncedFollows).mockReturnValue({
+    accountCount: 0,
+    pendingCount: 0,
+    addedCount: 0,
+    removedCount: 0,
+  });
 });
 
 afterEach(() => {
@@ -83,18 +93,28 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
     expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
   });
 
-  it("token + no platform-tagged rows yet: falls back to guest follows (fresh-login bridge)", () => {
-    // Token present but no kick-source rows yet (fresh login mid-sync, or a
-    // sync that returned empty/error). Surface guest follows so the sidebar
-    // isn't briefly empty during the import window.
+  it("token + unverified Kick account rows: returns [] instead of stale source=kick rows", () => {
+    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.mocked(dbService.get).mockReturnValue(false);
+    rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: [] };
+
+    const result = storageService.getActiveFollowsByPlatform("kick");
+
+    expect(result).toEqual([]);
+    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "kick");
+  });
+
+  it("token + no platform-tagged rows yet: returns [] instead of guest follows", () => {
+    // Signed-in account views must not surface guest/local follows as though
+    // the platform account follows them.
     vi.spyOn(storageService, "hasToken").mockReturnValue(true);
     rowsBySource = { guest: kickGuestRows, kick: [], twitch: [] };
 
     const result = storageService.getActiveFollowsByPlatform("kick");
 
-    expect(result).toEqual(kickGuestRows);
+    expect(result).toEqual([]);
     expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
-    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "guest");
+    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "guest");
   });
 
   it("token + neither platform-tagged nor guest rows: returns []", () => {
@@ -118,5 +138,11 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
     expect(result).toEqual(twitchRows);
     expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("twitch", "twitch");
     expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("twitch", "kick");
+  });
+
+  it("marks Kick account follows verified after a successful sync", () => {
+    storageService.upsertSyncedFollows("kick", []);
+
+    expect(dbService.set).toHaveBeenCalledWith("kick-account-follows-verified-v2", true);
   });
 });

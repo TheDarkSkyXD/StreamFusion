@@ -1,5 +1,5 @@
+import Module from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import Module from "module";
 
 /* ------------------------------------------------------------------ *
  * Electron mock: search-endpoints.ts uses `require("electron")` (CJS)*
@@ -25,7 +25,7 @@ vi.mock("@/lib/managed-interval", () => ({
 
 vi.mock("@/backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   getStreamBySlug: vi.fn().mockResolvedValue(null),
-  getTopStreamsCached: vi.fn().mockResolvedValue([]),
+  getPublicTopStreams: vi.fn().mockResolvedValue({ data: [] }),
   rememberCategorySlug: vi.fn(),
 }));
 
@@ -40,11 +40,17 @@ vi.mock("@/backend/api/platforms/kick/endpoints/category-endpoints", () => ({
   searchCategories: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
-import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
-import { searchChannels, search } from "@/backend/api/platforms/kick/endpoints/search-endpoints";
-import { getPublicChannel, getChannel } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
-import { getStreamBySlug, getTopStreamsCached } from "@/backend/api/platforms/kick/endpoints/stream-endpoints";
 import { searchCategories } from "@/backend/api/platforms/kick/endpoints/category-endpoints";
+import {
+  getChannel,
+  getPublicChannel,
+} from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
+import { search, searchChannels } from "@/backend/api/platforms/kick/endpoints/search-endpoints";
+import {
+  getPublicTopStreams,
+  getStreamBySlug,
+} from "@/backend/api/platforms/kick/endpoints/stream-endpoints";
+import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
@@ -62,12 +68,14 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// Guards: Kick channel search suggestions must not use the hidden BrowserWindow channel lookup path.
+// Guards: Kick full search should parallelize independent category/channel/stream work where possible.
 describe("search-endpoints", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     vi.mocked(getPublicChannel).mockReset().mockResolvedValue(null);
     vi.mocked(getChannel).mockReset().mockResolvedValue(null);
-    vi.mocked(getTopStreamsCached).mockReset().mockResolvedValue([]);
+    vi.mocked(getPublicTopStreams).mockReset().mockResolvedValue({ data: [] });
     vi.mocked(getStreamBySlug).mockReset().mockResolvedValue(null);
     vi.mocked(searchCategories).mockReset().mockResolvedValue({ data: [] });
   });
@@ -77,26 +85,27 @@ describe("search-endpoints", () => {
   });
 
   describe("searchChannels", () => {
-    it("returns exact match from public API (Step 1)", async () => {
-      vi.mocked(getPublicChannel).mockResolvedValueOnce({
-        id: "100",
-        platform: "kick",
-        username: "streamer",
-        displayName: "Streamer",
-        avatarUrl: "https://example.com/avatar.webp",
-        bannerUrl: "",
-        bio: "",
-        isLive: true,
-        isVerified: false,
-        isPartner: false,
-      });
+    it("does not use the BrowserWindow public channel path for live search suggestions", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          channels: [
+            {
+              id: 100,
+              slug: "streamer",
+              username: "Streamer",
+              followers_count: 5000,
+            },
+          ],
+        })
+      );
 
       const client = createMockClient();
       const result = await searchChannels(client, "streamer");
 
+      expect(getPublicChannel).not.toHaveBeenCalled();
       expect(result.data).toHaveLength(1);
       expect(result.data[0].username).toBe("streamer");
-      expect(result.data[0].isLive).toBe(true);
+      expect(result.data[0].followerCount).toBe(5000);
     });
 
     it("returns results from public search endpoint (Step 2)", async () => {
@@ -138,51 +147,36 @@ describe("search-endpoints", () => {
 
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
-          channels: [
-            { id: 100, slug: "dup-channel", username: "DupChannel" },
-          ],
+          channels: [{ id: 100, slug: "dup-channel", username: "DupChannel" }],
         })
       );
 
-      vi.mocked(getTopStreamsCached).mockResolvedValueOnce([
-        {
-          id: "stream-1",
-          platform: "kick",
-          channelId: "100",
-          channelName: "dup-channel",
-          channelDisplayName: "DupChannel",
-          channelAvatar: "",
-          title: "Live",
-          viewerCount: 50,
-          thumbnailUrl: "",
-          isLive: true,
-          startedAt: "",
-        } as any,
-      ]);
+      vi.mocked(getPublicTopStreams).mockResolvedValueOnce({
+        data: [
+          {
+            id: "stream-1",
+            platform: "kick",
+            channelId: "100",
+            channelName: "dup-channel",
+            channelDisplayName: "DupChannel",
+            channelAvatar: "",
+            title: "Live",
+            viewerCount: 50,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+          } as any,
+        ],
+      });
 
       const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
       const result = await searchChannels(client, "dup-channel");
 
-      const matches = result.data.filter(
-        (c) => c.username.toLowerCase() === "dup-channel"
-      );
+      const matches = result.data.filter((c) => c.username.toLowerCase() === "dup-channel");
       expect(matches).toHaveLength(1);
     });
 
-    it("merges avatar from Step 1 with follower count from Step 2", async () => {
-      vi.mocked(getPublicChannel).mockResolvedValueOnce({
-        id: "100",
-        platform: "kick",
-        username: "merge-test",
-        displayName: "MergeTest",
-        avatarUrl: "https://example.com/avatar.webp",
-        bannerUrl: "",
-        bio: "",
-        isLive: false,
-        isVerified: false,
-        isPartner: false,
-      });
-
+    it("merges avatar from top streams with follower count from public search", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           channels: [
@@ -195,6 +189,23 @@ describe("search-endpoints", () => {
           ],
         })
       );
+      vi.mocked(getPublicTopStreams).mockResolvedValueOnce({
+        data: [
+          {
+            id: "stream-1",
+            platform: "kick",
+            channelId: "100",
+            channelName: "merge-test",
+            channelDisplayName: "MergeTest",
+            channelAvatar: "https://example.com/avatar.webp",
+            title: "Live",
+            viewerCount: 50,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+          } as any,
+        ],
+      });
 
       const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
       const result = await searchChannels(client, "merge-test");
@@ -206,21 +217,23 @@ describe("search-endpoints", () => {
     });
 
     it("includes fuzzy matches from top streams (Step 4)", async () => {
-      vi.mocked(getTopStreamsCached).mockResolvedValueOnce([
-        {
-          id: "s1",
-          platform: "kick",
-          channelId: "300",
-          channelName: "fuzzy-match",
-          channelDisplayName: "FuzzyMatch",
-          channelAvatar: "https://example.com/av.webp",
-          title: "Playing",
-          viewerCount: 1000,
-          thumbnailUrl: "",
-          isLive: true,
-          startedAt: "",
-        } as any,
-      ]);
+      vi.mocked(getPublicTopStreams).mockResolvedValueOnce({
+        data: [
+          {
+            id: "s1",
+            platform: "kick",
+            channelId: "300",
+            channelName: "fuzzy-match",
+            channelDisplayName: "FuzzyMatch",
+            channelAvatar: "https://example.com/av.webp",
+            title: "Playing",
+            viewerCount: 1000,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+          } as any,
+        ],
+      });
 
       mockFetch.mockResolvedValueOnce(jsonResponse({ channels: [] }));
 
@@ -230,6 +243,73 @@ describe("search-endpoints", () => {
       const found = result.data.find((c) => c.username === "fuzzy-match");
       expect(found).toBeDefined();
       expect(found!.isLive).toBe(true);
+    });
+
+    it("pages live-channel matches for one-letter Kick search results", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ channels: [] }));
+      vi.mocked(getPublicTopStreams)
+        .mockResolvedValueOnce({
+          data: [
+            {
+              id: "s1",
+              platform: "kick",
+              channelId: "1",
+              channelName: "alpha",
+              channelDisplayName: "Alpha",
+              channelAvatar: "https://example.com/a.webp",
+              title: "Live",
+              viewerCount: 100,
+              thumbnailUrl: "",
+              isLive: true,
+              startedAt: "",
+            } as any,
+            {
+              id: "s2",
+              platform: "kick",
+              channelId: "2",
+              channelName: "bravo",
+              channelDisplayName: "Bravo",
+              channelAvatar: "https://example.com/b.webp",
+              title: "Live",
+              viewerCount: 90,
+              thumbnailUrl: "",
+              isLive: true,
+              startedAt: "",
+            } as any,
+          ],
+          cursor: "100",
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              id: "s3",
+              platform: "kick",
+              channelId: "3",
+              channelName: "charlie",
+              channelDisplayName: "Charlie",
+              channelAvatar: "https://example.com/c.webp",
+              title: "Live",
+              viewerCount: 80,
+              thumbnailUrl: "",
+              isLive: true,
+              startedAt: "",
+            } as any,
+          ],
+          cursor: "200",
+        });
+
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+      const firstPage = await searchChannels(client, "a", { limit: 2 });
+      const secondPage = await searchChannels(client, "a", { cursor: firstPage.cursor, limit: 1 });
+
+      expect(firstPage.data.map((c) => c.username)).toEqual(["alpha", "bravo"]);
+      expect(firstPage.cursor).toBe("100");
+      expect(secondPage.data.map((c) => c.username)).toEqual(["charlie"]);
+      expect(secondPage.cursor).toBe("200");
+      expect(getPublicTopStreams).toHaveBeenNthCalledWith(2, {
+        limit: 100,
+        cursor: "100",
+      });
     });
 
     it("uses authenticated API (Step 3) when client is authenticated", async () => {
@@ -284,9 +364,7 @@ describe("search-endpoints", () => {
 
     it("handles search API returning data in array format", async () => {
       mockFetch.mockResolvedValueOnce(
-        jsonResponse([
-          { id: 1, slug: "array-channel", username: "ArrayChannel" },
-        ])
+        jsonResponse([{ id: 1, slug: "array-channel", username: "ArrayChannel" }])
       );
 
       const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
@@ -299,9 +377,7 @@ describe("search-endpoints", () => {
     it("handles search API returning data in {data: [...]} format", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
-          data: [
-            { id: 1, slug: "data-channel", username: "DataChannel" },
-          ],
+          data: [{ id: 1, slug: "data-channel", username: "DataChannel" }],
         })
       );
 
@@ -321,19 +397,16 @@ describe("search-endpoints", () => {
       expect(result.data).toEqual([]);
     });
 
-    it("continues searching even when Step 1 throws", async () => {
-      vi.mocked(getPublicChannel).mockRejectedValueOnce(new Error("Step 1 failed"));
-
+    it("continues searching when a short-query endpoint fails", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("first endpoint failed"));
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
-          channels: [
-            { id: 1, slug: "step2-result", username: "Step2" },
-          ],
+          channels: [{ id: 1, slug: "step2-result", username: "Step2" }],
         })
       );
 
       const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
-      const result = await searchChannels(client, "step2-result");
+      const result = await searchChannels(client, "st");
 
       expect(result.data.length).toBeGreaterThanOrEqual(1);
     });
@@ -363,20 +436,18 @@ describe("search-endpoints", () => {
     it("fetches stream info for live channels in search results", async () => {
       vi.mocked(searchCategories).mockResolvedValueOnce({ data: [] });
 
-      vi.mocked(getPublicChannel).mockResolvedValueOnce({
-        id: "100",
-        platform: "kick",
-        username: "live-search",
-        displayName: "LiveSearch",
-        avatarUrl: "",
-        bannerUrl: "",
-        bio: "",
-        isLive: true,
-        isVerified: false,
-        isPartner: false,
-      });
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ channels: [] }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          channels: [
+            {
+              id: 100,
+              slug: "live-search",
+              username: "LiveSearch",
+              isLive: true,
+            },
+          ],
+        })
+      );
 
       vi.mocked(getStreamBySlug).mockResolvedValueOnce({
         id: "s-100",

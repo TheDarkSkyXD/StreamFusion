@@ -47,10 +47,12 @@ export function FollowingPage() {
     const channelMap = new Map<string, UnifiedChannel>();
 
     // Add local follows
-    localFollows.forEach((channel) => {
-      // LocalFollows store now returns UnifiedChannel[] (hydrated from backend)
-      channelMap.set(getChannelKey(channel), channel);
-    });
+    localFollows
+      .filter((channel) => !(kickConnected && channel.platform === "kick"))
+      .forEach((channel) => {
+        // LocalFollows store now returns UnifiedChannel[] (hydrated from backend)
+        channelMap.set(getChannelKey(channel), channel);
+      });
 
     // Add remote follows (Twitch) - overwrites local if exists (fresh data)
     if (twitchFollows) {

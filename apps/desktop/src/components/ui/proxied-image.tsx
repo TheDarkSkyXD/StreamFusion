@@ -31,10 +31,12 @@ const TWITCH_IMAGE_SCHEME = "twitch-image";
 // re-renders. In-memory only — forgotten on app restart, so if the asset
 // recovers we'll pick it up on the next launch.
 const brokenUrls = new Set<string>();
+const directProxyFailedUrls = new Set<string>();
 
 /** Test-only escape hatch — production code should never need this. */
 export function _resetProxiedImageBrokenUrls(): void {
   brokenUrls.clear();
+  directProxyFailedUrls.clear();
 }
 
 // Domains that route through kick-image:// (Referer/Origin spoofing).
@@ -73,13 +75,20 @@ function toBase64Url(value: string): string {
   return btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function resolveSrc(src: string | undefined | null): string | null {
+function resolveProxiedSrc(src: string, scheme: ProxyScheme): string {
+  return `${scheme}://image?u=${toBase64Url(src)}`;
+}
+
+function resolveSrc(src: string | undefined | null, forceProxy: boolean = false): string | null {
   if (!src || src.trim() === "") return null;
   if (src.startsWith("data:")) return src;
   if (!src.startsWith("http")) return null;
   const scheme = chooseProxy(src);
   if (scheme) {
-    return `${scheme}://image?u=${toBase64Url(src)}`;
+    if (!forceProxy && !directProxyFailedUrls.has(src)) {
+      return src;
+    }
+    return resolveProxiedSrc(src, scheme);
   }
   return src;
 }
@@ -136,7 +145,10 @@ export function ProxiedImage({
   height,
   onProxyError,
 }: ProxiedImageProps) {
-  const resolvedSrc = useMemo(() => resolveSrc(src), [src]);
+  const [forceProxySrc, setForceProxySrc] = useState<string | null>(null);
+  const forceProxy = src === forceProxySrc;
+  const resolvedSrc = useMemo(() => resolveSrc(src, forceProxy), [src, forceProxy]);
+  const proxyScheme = useMemo(() => (src?.startsWith("http") ? chooseProxy(src) : null), [src]);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const seenSrcRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -224,6 +236,14 @@ export function ProxiedImage({
         setIsLoaded(true);
       }}
       onError={() => {
+        if (proxyScheme && src && resolvedSrc === src && !directProxyFailedUrls.has(src)) {
+          directProxyFailedUrls.add(src);
+          const proxiedSrc = resolveProxiedSrc(src, proxyScheme);
+          setForceProxySrc(src);
+          setIsLoaded(false);
+          setHasError(brokenUrls.has(proxiedSrc));
+          return;
+        }
         if (resolvedSrc) brokenUrls.add(resolvedSrc);
         setHasError(true);
         onProxyError?.();

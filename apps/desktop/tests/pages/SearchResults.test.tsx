@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fixtures, renderWithProviders, routerMock, screen } from '../test-utils';
 
-vi.mock('@tanstack/react-router', () => routerMock({ search: { q: 'ninja' } }));
+vi.mock('@tanstack/react-router', () => routerMock({ search: { q: 'A' } }));
 
 vi.mock('@/hooks/queries/useSearch', () => ({
   useSearchAll: vi.fn(),
+  useSearchChannels: vi.fn(),
 }));
 
 vi.mock('@/components/stream/stream-grid', () => ({
@@ -24,13 +25,28 @@ vi.mock('@/components/ui/platform-avatar', () => ({
   PlatformAvatar: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
-import { useSearchAll } from '@/hooks/queries/useSearch';
+import { useSearchAll, useSearchChannels } from '@/hooks/queries/useSearch';
 import { SearchPage } from '@/pages/SearchResults';
 
 const useSearchAllMock = vi.mocked(useSearchAll);
+const useSearchChannelsMock = vi.mocked(useSearchChannels);
 
 function emptyResults() {
   return { channels: [], streams: [], videos: [], clips: [], categories: [] };
+}
+
+function channelQuery(
+  pages: Array<{ data: ReturnType<typeof fixtures.channel>[] }> = [{ data: [] }],
+  overrides: Partial<ReturnType<typeof useSearchChannels>> = {}
+) {
+  return {
+    data: { pages },
+    isLoading: false,
+    isFetchingNextPage: false,
+    hasNextPage: false,
+    fetchNextPage: vi.fn(),
+    ...overrides,
+  } as unknown as ReturnType<typeof useSearchChannels>;
 }
 
 // Guards: loading state — useSearchAll isLoading=true forwards through to StreamGrid+CategoryGrid via the isLoading prop so the user sees skeletons, not "0 results"
@@ -39,6 +55,8 @@ function emptyResults() {
 describe('SearchPage', () => {
   beforeEach(() => {
     useSearchAllMock.mockReset();
+    useSearchChannelsMock.mockReset();
+    useSearchChannelsMock.mockReturnValue(channelQuery());
   });
 
   it('renders the search header for a non-empty query with no hits', () => {
@@ -46,6 +64,41 @@ describe('SearchPage', () => {
     renderWithProviders(<SearchPage />);
     expect(screen.getByText(/search results for/i)).toBeInTheDocument();
     expect(screen.getByText(/found 0 results/i)).toBeInTheDocument();
+  });
+
+  it('searches the full results page for a one-letter query', () => {
+    useSearchAllMock.mockReturnValue({ data: emptyResults(), isLoading: false } as unknown as ReturnType<typeof useSearchAll>);
+    renderWithProviders(<SearchPage />);
+    expect(useSearchAllMock).toHaveBeenCalledWith('A', undefined, 20);
+    expect(useSearchChannelsMock).toHaveBeenCalledWith('A', undefined, 50);
+  });
+
+  it('renders all channel pages from the dedicated channel search, not the capped search-all bundle', () => {
+    const cappedBundleChannel = fixtures.channel({
+      id: 'bundle-only',
+      username: 'bundleonly',
+      displayName: 'BundleOnly',
+    });
+    const channels = Array.from({ length: 60 }, (_, i) =>
+      fixtures.channel({
+        id: `a-${i}`,
+        username: `alpha${i}`,
+        displayName: `Alpha${i}`,
+      })
+    );
+    useSearchAllMock.mockReturnValue({
+      data: { ...emptyResults(), channels: [cappedBundleChannel] },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+    useSearchChannelsMock.mockReturnValue(
+      channelQuery([{ data: channels.slice(0, 50) }, { data: channels.slice(50) }])
+    );
+
+    renderWithProviders(<SearchPage />);
+
+    expect(screen.getByText(/found 60 results/i)).toBeInTheDocument();
+    expect(screen.getAllByText('Alpha59').length).toBeGreaterThan(0);
+    expect(screen.queryByText('BundleOnly')).not.toBeInTheDocument();
   });
 
   it('renders streams returned by the search API', () => {

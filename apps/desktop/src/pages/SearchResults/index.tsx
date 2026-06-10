@@ -13,11 +13,12 @@ import { StreamGrid } from "@/components/stream/stream-grid";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSearchAll } from "@/hooks/queries/useSearch";
+import { useSearchAll, useSearchChannels } from "@/hooks/queries/useSearch";
 import { cn, formatDuration } from "@/lib/utils";
 
 /* CATEGORIES SECTION */
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";
+const SEARCH_RESULTS_CHANNEL_PAGE_SIZE = 50;
 
 // Platform-agnostic unified search
 export function SearchPage() {
@@ -27,25 +28,99 @@ export function SearchPage() {
   const [platformFilter, setPlatformFilter] = React.useState<"all" | "twitch" | "kick">("all");
   const [liveOnly, setLiveOnly] = React.useState(false);
   const [selectedClip, setSelectedClip] = React.useState<UnifiedClip | null>(null);
+  const [channelsExhaustedByRepeat, setChannelsExhaustedByRepeat] = React.useState(false);
+  const channelSearchPlatform = platformFilter === "all" ? undefined : platformFilter;
+  const channelSearchKey = `${q.trim().toLowerCase()}|${channelSearchPlatform ?? "all"}`;
 
   // Pass platform filter to the query. Pass undefined if 'all'.
-  const { data, isLoading } = useSearchAll(
-    q,
-    platformFilter === "all" ? undefined : platformFilter,
-    20
-  );
+  const { data, isLoading } = useSearchAll(q, channelSearchPlatform, 20);
+  const {
+    data: channelsInfiniteData,
+    isLoading: channelsLoading,
+    isFetchingNextPage: channelsFetchingNextPage,
+    hasNextPage: channelsHasNextPage,
+    fetchNextPage: fetchMoreChannels,
+  } = useSearchChannels(q, channelSearchPlatform, SEARCH_RESULTS_CHANNEL_PAGE_SIZE);
 
   const results = data;
+  const rawChannelResults = React.useMemo(
+    () => channelsInfiniteData?.pages.flatMap((page) => page.data) ?? [],
+    [channelsInfiniteData]
+  );
+
+  const allChannelResults = React.useMemo(() => {
+    const byKey = new Map<string, UnifiedChannel>();
+    for (const channel of rawChannelResults) {
+      byKey.set(`${channel.platform}-${channel.id}`, channel);
+    }
+    return Array.from(byKey.values());
+  }, [rawChannelResults]);
+
+  const channelPaginationRef = React.useRef({
+    key: "",
+    pageCount: 0,
+    uniqueCount: 0,
+    exhaustedByRepeat: false,
+  });
+
+  React.useEffect(() => {
+    const pageCount = channelsInfiniteData?.pages.length ?? 0;
+    const state = channelPaginationRef.current;
+
+    if (state.key !== channelSearchKey) {
+      channelPaginationRef.current = {
+        key: channelSearchKey,
+        pageCount,
+        uniqueCount: allChannelResults.length,
+        exhaustedByRepeat: false,
+      };
+      setChannelsExhaustedByRepeat(false);
+      return;
+    }
+
+    if (pageCount > state.pageCount && allChannelResults.length === state.uniqueCount) {
+      state.exhaustedByRepeat = true;
+      setChannelsExhaustedByRepeat(true);
+    }
+    state.pageCount = pageCount;
+    state.uniqueCount = allChannelResults.length;
+  }, [allChannelResults.length, channelSearchKey, channelsInfiniteData?.pages.length]);
+
+  React.useEffect(() => {
+    if (
+      !q.trim() ||
+      channelsExhaustedByRepeat ||
+      !channelsHasNextPage ||
+      channelsFetchingNextPage
+    ) {
+      return;
+    }
+
+    void fetchMoreChannels();
+  }, [
+    q,
+    channelsExhaustedByRepeat,
+    channelsFetchingNextPage,
+    channelsHasNextPage,
+    fetchMoreChannels,
+  ]);
 
   // Apply Client-Side Filtering (Live Only)
-  // Note: Platform filtering is handled by the API via useSearchAll
+  // Note: Platform filtering is handled by the API via useSearchChannels.
   const filteredChannels = React.useMemo(() => {
-    const channels = results?.channels || [];
+    const normalizedQuery = q.toLowerCase().trim();
+    const channels = allChannelResults.filter((channel) => {
+      if (!normalizedQuery) return true;
+      return (
+        channel.username.toLowerCase().includes(normalizedQuery) ||
+        channel.displayName.toLowerCase().includes(normalizedQuery)
+      );
+    });
     if (liveOnly) {
       return channels.filter((c) => c.isLive);
     }
     return channels;
-  }, [results?.channels, liveOnly]);
+  }, [allChannelResults, liveOnly, q]);
 
   const filteredStreams = results?.streams || []; // Streams are inherently live
 
@@ -113,6 +188,11 @@ export function SearchPage() {
 
   const showTopMatches = (activeTab === "all" || activeTab === "channels") && topMatches.length > 0;
   const showChannels = (activeTab === "all" || activeTab === "channels") && otherMatches.length > 0;
+  const showChannelLoading =
+    (activeTab === "all" || activeTab === "channels") &&
+    (channelsLoading ||
+      channelsFetchingNextPage ||
+      (channelsHasNextPage && !channelsExhaustedByRepeat));
   const showCategories =
     (activeTab === "all" || activeTab === "categories") && filteredCategories.length > 0;
   const showStreams =
@@ -269,7 +349,7 @@ export function SearchPage() {
       )}
 
       {/* CHANNELS SECTION */}
-      {showChannels && (
+      {(showChannels || showChannelLoading) && (
         <section>
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">Channels</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -312,6 +392,16 @@ export function SearchPage() {
                 )}
               </Link>
             ))}
+            {showChannelLoading &&
+              Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={`channel-loading-${index}`}
+                  className="flex flex-col items-center text-center p-4 rounded-xl"
+                >
+                  <Skeleton className="w-20 h-20 rounded-full mb-3" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              ))}
           </div>
         </section>
       )}
@@ -461,6 +551,9 @@ export function SearchPage() {
       {/* EMPTY STATE */}
       {results &&
         filteredChannels.length === 0 &&
+        !channelsLoading &&
+        !channelsFetchingNextPage &&
+        (!channelsHasNextPage || channelsExhaustedByRepeat) &&
         filteredStreams.length === 0 &&
         filteredCategories.length === 0 &&
         filteredVideos.length === 0 &&

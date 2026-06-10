@@ -47,7 +47,8 @@ vi.mock("@/backend/logging/logger", () => ({
 }));
 
 import { ipcMain } from "electron";
-
+import { getChannelsBySlugs } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
+import { getUsersById } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { registerSearchHandlers } from "@/backend/ipc/handlers/search-handlers";
@@ -62,6 +63,16 @@ function getHandler(channel: string): Handler {
   return call[1];
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(storageService.getKickUser).mockReturnValue(null);
@@ -71,6 +82,8 @@ beforeEach(() => {
   registerSearchHandlers();
 });
 
+// Guards: search IPC keeps platform failures isolated and returns partial results instead of blocking the UI.
+// Guards: full search starts Twitch and Kick work in parallel so the search results page waits for the slower platform, not both in sequence.
 describe("registerSearchHandlers", () => {
   it("registers both search channels", () => {
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
@@ -123,7 +136,28 @@ describe("SEARCH_CHANNELS", () => {
     expect(twitchClient.searchChannels).not.toHaveBeenCalled();
   });
 
-  it("skips Kick on paginated requests (Kick has no cursor pagination)", async () => {
+  it("continues Kick-only paginated requests with the Kick cursor", async () => {
+    vi.mocked(kickClient.searchChannels).mockResolvedValue({
+      data: [{ id: "2", username: "next-kick", displayName: "NextKick", isLive: true }],
+      cursor: "kick-page-3",
+    } as any);
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
+    const result = (await handler(
+      {},
+      { query: "test", platform: "kick", after: "kick-page-2", limit: 50 }
+    )) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(1);
+    expect(result.cursor).toBe("kick-page-3");
+    expect(kickClient.searchChannels).toHaveBeenCalledWith("test", {
+      limit: 50,
+      cursor: "kick-page-2",
+    });
+  });
+
+  it("skips Kick on combined paginated requests because the shared cursor belongs to Twitch", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [],
       cursor: undefined,
@@ -167,6 +201,46 @@ describe("SEARCH_CHANNELS", () => {
 
     expect(result.data).toHaveLength(1);
     expect(result.data[0].username).toBe("good");
+  });
+
+  it("does not run Kick enrichment lookups for unauthenticated search suggestions", async () => {
+    vi.mocked(kickClient.searchChannels).mockResolvedValue({
+      data: [{ id: "1", username: "good", displayName: "Good", isLive: false }],
+    } as any);
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
+    const result = (await handler({}, { query: "good", platform: "kick" })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(1);
+    expect(getChannelsBySlugs).not.toHaveBeenCalled();
+    expect(getUsersById).not.toHaveBeenCalled();
+  });
+
+  it("preserves live Kick directory matches that already have avatars", async () => {
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(true);
+    vi.mocked(kickClient.searchChannels).mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          username: "odablock",
+          displayName: "odablock",
+          avatarUrl: "https://example.com/oda.webp",
+          isLive: true,
+        },
+      ],
+      cursor: "100",
+    } as any);
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
+    const result = (await handler({}, { query: "A", platform: "kick", limit: 50 })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].username).toBe("odablock");
+    expect(result.cursor).toBe("100");
+    expect(getChannelsBySlugs).not.toHaveBeenCalled();
+    expect(getUsersById).not.toHaveBeenCalled();
   });
 
   it("sorts live channels first in combined results", async () => {
@@ -361,5 +435,50 @@ describe("SEARCH_ALL", () => {
 
     expect(result.success).toBe(true);
     expect(result.data.channels.length).toBe(1);
+  });
+
+  it("starts Kick full search before Twitch full search resolves", async () => {
+    const twitchChannels = deferred<any>();
+    const twitchCategories = deferred<any>();
+    vi.mocked(twitchClient.searchChannels).mockReturnValue(twitchChannels.promise);
+    vi.mocked(twitchClient.searchCategories).mockReturnValue(twitchCategories.promise);
+    vi.mocked(kickClient.search).mockResolvedValue({
+      channels: [{ id: "k1", username: "kchan", displayName: "KChan" }],
+      streams: [],
+      categories: [],
+    } as any);
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
+    const pending = handler({}, { query: "test" });
+
+    await vi.waitFor(() => expect(kickClient.search).toHaveBeenCalledWith("test"));
+
+    twitchChannels.resolve({ data: [], cursor: undefined });
+    twitchCategories.resolve({ data: [] });
+    const result = (await pending) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data.channels).toHaveLength(1);
+  });
+
+  it("keeps one-letter full search channel-first instead of fanning out broad category searches", async () => {
+    vi.mocked(twitchClient.searchChannels).mockResolvedValue({
+      data: [{ id: "t1", username: "alpha", displayName: "Alpha", isLive: false }],
+      cursor: undefined,
+    } as any);
+    vi.mocked(kickClient.searchChannels).mockResolvedValue({
+      data: [{ id: "k1", username: "ace", displayName: "Ace", isLive: true }],
+    } as any);
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
+    const result = (await handler({}, { query: "A", limit: 20 })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data.channels).toHaveLength(2);
+    expect(result.data.streams).toHaveLength(1);
+    expect(result.data.categories).toEqual([]);
+    expect(twitchClient.searchCategories).not.toHaveBeenCalled();
+    expect(kickClient.search).not.toHaveBeenCalled();
+    expect(kickClient.searchChannels).toHaveBeenCalledWith("A");
   });
 });

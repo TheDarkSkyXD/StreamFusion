@@ -347,6 +347,18 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     };
   });
 
+  ipcMain.handle(
+    IPC_CHANNELS.AUTH_SYNC_FOLLOWS,
+    async (_event, { platform }: { platform: Platform }) => {
+      if (!storageService.hasToken(platform) || storageService.isTokenExpired(platform)) {
+        return { success: false, error: "not-authenticated" };
+      }
+
+      await syncFollowsOnLogin(platform);
+      return { success: true };
+    }
+  );
+
   // ========== Auth - OAuth Flow using Localhost Callback Server ==========
 
   // Track in-progress OAuth flows to prevent state mismatch from multiple clicks

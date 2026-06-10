@@ -11,13 +11,17 @@ import type { Platform } from "../../shared/auth-types";
 
 const SEARCH_KEYS = {
   all: ["search"] as const,
-  channels: (query: string, platform?: Platform) =>
-    [...SEARCH_KEYS.all, "channels", query, platform] as const,
-  categories: (query: string, platform?: Platform) =>
-    [...SEARCH_KEYS.all, "categories", query, platform] as const,
-  everything: (query: string, platform?: Platform) =>
-    [...SEARCH_KEYS.all, "everything", query, platform] as const,
+  channels: (query: string, platform?: Platform, limit?: number) =>
+    [...SEARCH_KEYS.all, "channels", query, platform, limit] as const,
+  categories: (query: string, platform?: Platform, limit?: number) =>
+    [...SEARCH_KEYS.all, "categories", query, platform, limit] as const,
+  everything: (query: string, platform?: Platform, limit?: number) =>
+    [...SEARCH_KEYS.all, "everything", query, platform, limit] as const,
 };
+
+const MIN_REMOTE_SEARCH_LENGTH = 1;
+const SEARCH_STALE_TIME_MS = 5 * 60_000;
+const SEARCH_GC_TIME_MS = 10 * 60_000;
 
 // Electron IPC has no native AbortSignal propagation — the backend will still
 // finish the work, but the renderer ignores stale results so a fast typer
@@ -29,12 +33,14 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 }
 
 export function useSearchChannels(query: string, platform?: Platform, limit: number = 50) {
+  const normalizedQuery = query.trim();
+
   return useInfiniteQuery({
-    queryKey: SEARCH_KEYS.channels(query, platform),
+    queryKey: SEARCH_KEYS.channels(normalizedQuery, platform, limit),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.search.channels({
-        query,
+        query: normalizedQuery,
         platform,
         limit,
         after: pageParam,
@@ -51,18 +57,21 @@ export function useSearchChannels(query: string, platform?: Platform, limit: num
     // Treat an empty page as end-of-list regardless of cursor.
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
-    enabled: !!query,
-    staleTime: 60_000,
+    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    staleTime: SEARCH_STALE_TIME_MS,
+    gcTime: SEARCH_GC_TIME_MS,
   });
 }
 
 export function useSearchCategories(query: string, platform?: Platform, limit: number = 20) {
+  const normalizedQuery = query.trim();
+
   return useInfiniteQuery({
-    queryKey: SEARCH_KEYS.categories(query, platform),
+    queryKey: SEARCH_KEYS.categories(normalizedQuery, platform, limit),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.categories.search({
-        query,
+        query: normalizedQuery,
         platform,
         limit,
         after: pageParam,
@@ -80,8 +89,9 @@ export function useSearchCategories(query: string, platform?: Platform, limit: n
     // can't see the post-filter emptiness.
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
-    enabled: !!query,
-    staleTime: 60_000,
+    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    staleTime: SEARCH_STALE_TIME_MS,
+    gcTime: SEARCH_GC_TIME_MS,
   });
 }
 
@@ -94,15 +104,24 @@ export interface SearchAllResponse {
 }
 
 export function useSearchAll(query: string, platform?: Platform, limit: number = 5) {
+  const normalizedQuery = query.trim();
+
   return useQuery({
-    queryKey: SEARCH_KEYS.everything(query, platform),
+    queryKey: SEARCH_KEYS.everything(normalizedQuery, platform, limit),
     queryFn: async () => {
-      const response = await window.electronAPI.search.all({ query, platform, limit });
+      const response = await window.electronAPI.search.all({
+        query: normalizedQuery,
+        platform,
+        limit,
+      });
       if (response.error) {
         throw new Error(response.error as unknown as string);
       }
       return response.data as SearchAllResponse;
     },
-    enabled: !!query,
+    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    staleTime: SEARCH_STALE_TIME_MS,
+    gcTime: SEARCH_GC_TIME_MS,
+    placeholderData: (previousData) => previousData,
   });
 }

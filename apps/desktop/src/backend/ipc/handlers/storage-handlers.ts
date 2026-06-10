@@ -45,9 +45,14 @@ export function registerStorageHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_ADD,
     (_event, { follow }: { follow: Omit<LocalFollow, "id" | "followedAt"> }) => {
-      // Route the source by the channel's OWN platform login state: signed in
-      // to that platform → the platform name (rows visible only while signed
-      // in); signed out → "guest" (visible always).
+      // Kick account rows must come from sync, not a local click. Until a
+      // Kick-side follow write is confirmed, reject instead of creating a
+      // source="kick" row that would look like a real account follow.
+      if (follow.platform === "kick" && storageService.hasToken("kick")) {
+        throw new Error(
+          "Kick account follows must be confirmed by Kick before they can be shown as followed."
+        );
+      }
       const source = storageService.hasToken(follow.platform) ? follow.platform : "guest";
       return storageService.addLocalFollow(follow, source);
     }

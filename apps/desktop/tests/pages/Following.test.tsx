@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from '../test-utils';
 
+const storeState = vi.hoisted(() => ({
+  twitchConnected: false,
+  kickConnected: false,
+  localFollows: [] as unknown[],
+}));
+
 vi.mock('@tanstack/react-router', () => routerMock());
 
 vi.mock('@/hooks/queries/useChannels', () => ({
@@ -16,11 +22,14 @@ vi.mock('@/hooks/queries/useStreams', () => ({
 }));
 
 vi.mock('@/store/auth-store', () => ({
-  useAuthStore: () => ({ twitchConnected: false, kickConnected: false }),
+  useAuthStore: () => ({
+    twitchConnected: storeState.twitchConnected,
+    kickConnected: storeState.kickConnected,
+  }),
 }));
 
 vi.mock('@/store/follow-store', () => ({
-  useFollowStore: () => ({ localFollows: [] }),
+  useFollowStore: () => ({ localFollows: storeState.localFollows }),
 }));
 
 vi.mock('@/components/stream/stream-grid', () => ({
@@ -45,10 +54,14 @@ const useFollowedStreamsMock = vi.mocked(useFollowedStreams);
 // Guards: loading state — render skeleton cards (StreamGrid skeleton + offline-pills skeleton) while Helix and Kick fan-outs are pending, never blank-on-loading
 // Guards: error state — Helix or Kick fan-out resolves as error (data=undefined, isLoading=false): the empty-state card surfaces with the "Follow channels to see them here" copy + Browse Channels button; users can route forward
 // Guards: empty state — distinct from error; "no follows at all" renders the same empty-state card. Audit punch list flags this triplet as silent-blank-on-Helix-5xx — guarded inline
+// Guards: signed-in Kick account state - local app-only Kick follows are hidden while verified account follows render as live/offline rows
 describe('FollowingPage', () => {
   beforeEach(() => {
     useFollowedChannelsMock.mockReset();
     useFollowedStreamsMock.mockReset();
+    storeState.twitchConnected = false;
+    storeState.kickConnected = false;
+    storeState.localFollows = [];
     useFollowedChannelsMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<typeof useFollowedChannels>);
     useFollowedStreamsMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<typeof useFollowedStreams>);
   });
@@ -95,7 +108,54 @@ describe('FollowingPage', () => {
     expect(screen.getByRole('button', { name: /browse channels/i })).toBeInTheDocument();
   });
 
-  // Offline-channels rendering is covered by the FollowStore unit tests + the
-  // SidebarFollows integration. Here we just verify the offline section's
-  // empty-state path stays correct under the local-follows store mock above.
+  it('signed-in Kick: shows verified account follows as live and offline, and hides local-only Kick follows', () => {
+    storeState.kickConnected = true;
+    storeState.localFollows = [
+      fixtures.channel({
+        id: 'local-only',
+        platform: 'kick',
+        username: 'localonly',
+        displayName: 'LocalOnly',
+      }),
+    ];
+    const liveKickFollow = fixtures.channel({
+      id: 'live-kick',
+      platform: 'kick',
+      username: 'livekick',
+      displayName: 'LiveKick',
+    });
+    const offlineKickFollow = fixtures.channel({
+      id: 'offline-kick',
+      platform: 'kick',
+      username: 'offlinekick',
+      displayName: 'OfflineKick',
+    });
+    useFollowedChannelsMock.mockImplementation((platform) =>
+      ({
+        data: platform === 'kick' ? [liveKickFollow, offlineKickFollow] : [],
+        isLoading: false,
+      }) as unknown as ReturnType<typeof useFollowedChannels>
+    );
+    useFollowedStreamsMock.mockReturnValue({
+      data: [
+        fixtures.stream({
+          id: 'stream-live-kick',
+          platform: 'kick',
+          channelId: 'live-kick',
+          channelName: 'livekick',
+          channelDisplayName: 'LiveKick',
+          viewerCount: 100,
+        }),
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<FollowingPage />);
+
+    expect(screen.getByText(/live now/i)).toBeInTheDocument();
+    expect(screen.getByTestId('stream-grid')).toHaveTextContent('1 streams');
+    expect(screen.getAllByRole('heading', { name: /offline/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByText('OfflineKick').length).toBeGreaterThan(0);
+    expect(screen.queryByText('LocalOnly')).not.toBeInTheDocument();
+  });
 });

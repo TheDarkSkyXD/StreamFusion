@@ -21,6 +21,12 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
+vi.mock("@/backend/services/storage-service", () => ({
+  storageService: {
+    getActiveFollowsByPlatform: vi.fn(),
+  },
+}));
+
 vi.mock("@/backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
@@ -30,6 +36,7 @@ import { ipcMain } from "electron";
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { registerChannelHandlers } from "@/backend/ipc/handlers/channel-handlers";
+import { storageService } from "@/backend/services/storage-service";
 
 type Handler = (event: unknown, params: unknown) => Promise<unknown>;
 
@@ -42,6 +49,7 @@ function getHandler(channel: string): Handler {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
   registerChannelHandlers();
 });
 
@@ -146,11 +154,35 @@ describe("CHANNELS_GET_FOLLOWED", () => {
     expect(twitchClient.getAllFollowedChannels).not.toHaveBeenCalled();
   });
 
-  it("returns empty array for Kick (not supported)", async () => {
+  it("returns verified Kick account follows from storage", async () => {
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "row-1",
+        platform: "kick",
+        channelId: "kick-1",
+        channelName: "summit1g",
+        displayName: "Summit1G",
+        profileImage: "https://example.com/summit.jpg",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "kick",
+      },
+    ]);
+
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
     const result = (await handler({}, { platform: "kick" })) as any;
 
-    expect(result).toEqual({ success: true, data: [] });
+    expect(result).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          id: "kick-1",
+          platform: "kick",
+          username: "summit1g",
+          displayName: "Summit1G",
+          avatarUrl: "https://example.com/summit.jpg",
+        }),
+      ],
+    });
   });
 
   it("returns error envelope on failure", async () => {

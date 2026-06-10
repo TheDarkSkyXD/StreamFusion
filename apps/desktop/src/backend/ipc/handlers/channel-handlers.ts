@@ -3,6 +3,7 @@ import { ipcMain } from "electron";
 import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import { storageService } from "../../services/storage-service";
 
 export function registerChannelHandlers(): void {
   /**
@@ -110,9 +111,16 @@ export function registerChannelHandlers(): void {
             channels = await twitchClient.getAllFollowedChannels();
           }
         } else if (params.platform === "kick") {
-          // Kick API doesn't support followed channels yet
-          // We rely on local follows for Kick
-          channels = [];
+          channels = storageService.getActiveFollowsByPlatform("kick").map((follow) => ({
+            id: follow.channelId,
+            platform: "kick",
+            username: follow.channelName,
+            displayName: follow.displayName || follow.channelName,
+            avatarUrl: follow.profileImage || "",
+            isLive: false,
+            isVerified: false,
+            isPartner: false,
+          }));
         }
 
         return { success: true, data: channels };

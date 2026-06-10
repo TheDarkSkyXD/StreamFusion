@@ -9,7 +9,8 @@ const storeState = vi.hoisted(() => ({
 }));
 
 // Guards: loading state — render skeleton avatars (5 placeholders) when both followed-channels + followed-streams are still resolving, so the sidebar doesn't flash empty before data lands
-// Guards: startup cache state — cached local Kick follows render while followed-streams is still loading, so Kick rows are not blocked by the slower live-status scan
+// Guards: signed-out Kick cache state — cached local Kick follows render while followed-streams is still loading, so guest Kick rows are not blocked by the slower live-status scan
+// Guards: signed-in Kick account state — local app-only Kick follows are hidden from the sidebar; only verified account follows may render
 // Guards: platform split — Twitch and Kick followed-streams load through separate queries so Kick's slower live scan cannot block Twitch/sidebar paint
 // Guards: error state — followed-streams Helix call fails: sidebar degrades to the "follow channels to see them here" empty card rather than blanking. The whole point of a sidebar is to not vanish on a transient API error
 // Guards: empty state — distinct from error; "no follows + no streams" renders the empty card with the heart icon and the "Follow channels…" hint copy
@@ -69,7 +70,6 @@ describe('SidebarFollows', () => {
   });
 
   it('startup cache: renders cached Kick follows while followed streams are still loading', () => {
-    storeState.kickConnected = true;
     storeState.localFollows = [
       fixtures.channel({
         id: 'kick-cached',
@@ -91,6 +91,31 @@ describe('SidebarFollows', () => {
 
     expect(screen.getAllByText('KickCached').length).toBeGreaterThan(0);
     expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
+  });
+
+  it('signed-in Kick: hides local app-only Kick follows from the sidebar', () => {
+    storeState.kickConnected = true;
+    storeState.localFollows = [
+      fixtures.channel({
+        id: 'kick-local-only',
+        platform: 'kick',
+        username: 'kicklocalonly',
+        displayName: 'KickLocalOnly',
+      }),
+    ];
+    useFollowedChannelsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    expect(screen.queryByText('KickLocalOnly')).not.toBeInTheDocument();
+    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
   });
 
   it('startup cache: keeps cached Kick follows visible when Twitch live rows fill the first slice', () => {

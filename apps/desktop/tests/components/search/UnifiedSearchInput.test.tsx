@@ -138,6 +138,13 @@ describe('UnifiedSearchInput — dropdown 100-cap and Show more CTA', () => {
     expect(screen.queryByText('Show more results for "ninja"')).not.toBeInTheDocument();
   });
 
+  it('renders channel suggestions and the results CTA for a one-letter query', () => {
+    searchMockState.channelsData = { pages: [{ data: makeChannels(3, 'a') }] };
+    openDropdown('A');
+    expect(screen.getByText('Channels')).toBeInTheDocument();
+    expect(screen.getByText('See all results for "A"')).toBeInTheDocument();
+  });
+
   it('flips footer to "Show more results for X" when combined results hit the cap AND more remain', () => {
     searchMockState.channelsData = { pages: [{ data: makeChannels(100) }] };
     searchMockState.channelsHasNextPage = true;
@@ -194,7 +201,7 @@ describe('UnifiedSearchInput — dropdown 100-cap and Show more CTA', () => {
     Object.defineProperty(scrollable, 'scrollTop', { value: 1700, configurable: true });
     fireEvent.scroll(scrollable);
 
-    expect(searchMockState.channelsFetchNextPage).toHaveBeenCalledTimes(1);
+    expect(searchMockState.channelsFetchNextPage).toHaveBeenCalledTimes(2);
   });
 
   it('stops auto-fetching after dedup absorbs a page (zero net new unique IDs on a new page)', async () => {

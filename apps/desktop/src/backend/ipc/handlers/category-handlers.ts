@@ -209,39 +209,51 @@ export function registerCategoryHandlers(): void {
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
+        const searchPromises: Promise<{ platform: Platform; data: any[]; cursor?: string }>[] = [];
 
         if (!params.platform || params.platform === "twitch") {
-          try {
-            const result = await twitchClient.searchCategories(params.query, {
-              first: params.limit || 20,
-              after: params.after,
-            });
-            results.push({ platform: "twitch", data: result.data, cursor: result.cursor });
-          } catch (err) {
-            logger.warn("IPC:Category", "Failed to search Twitch categories", {
-              error:
-                err instanceof Error
-                  ? { name: err.name, message: err.message, stack: err.stack }
-                  : String(err),
-            });
-          }
+          searchPromises.push(
+            twitchClient
+              .searchCategories(params.query, {
+                first: params.limit || 20,
+                after: params.after,
+              })
+              .then((result) => ({
+                platform: "twitch" as Platform,
+                data: result.data,
+                cursor: result.cursor,
+              }))
+              .catch((err) => {
+                logger.warn("IPC:Category", "Failed to search Twitch categories", {
+                  error:
+                    err instanceof Error
+                      ? { name: err.name, message: err.message, stack: err.stack }
+                      : String(err),
+                });
+                return { platform: "twitch" as Platform, data: [] };
+              })
+          );
         }
 
         // Kick categories don't support cursor pagination — only fetch on first page
         if ((!params.platform || params.platform === "kick") && !params.after) {
-          try {
-            const result = await kickClient.searchCategories(params.query);
-            results.push({ platform: "kick", data: result.data });
-          } catch (err) {
-            logger.warn("IPC:Category", "Failed to search Kick categories", {
-              error:
-                err instanceof Error
-                  ? { name: err.name, message: err.message, stack: err.stack }
-                  : String(err),
-            });
-          }
+          searchPromises.push(
+            kickClient
+              .searchCategories(params.query)
+              .then((result) => ({ platform: "kick" as Platform, data: result.data }))
+              .catch((err) => {
+                logger.warn("IPC:Category", "Failed to search Kick categories", {
+                  error:
+                    err instanceof Error
+                      ? { name: err.name, message: err.message, stack: err.stack }
+                      : String(err),
+                });
+                return { platform: "kick" as Platform, data: [] };
+              })
+          );
         }
+
+        const results = await Promise.all(searchPromises);
 
         if (!params.platform) {
           const allCategories = results.flatMap((r) => r.data);

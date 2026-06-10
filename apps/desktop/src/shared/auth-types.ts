@@ -55,26 +55,10 @@ export type PlatformUser = TwitchUser | KickUser;
 // ========== Follow Types ==========
 
 /**
- * Origin of a local-follow row.
- *
- * - `account` rows come from the post-login `syncFollowsOnLogin` bulk import
- *   (Twitch `/channels/followed`, Kick equivalent) and are read-only in the
- *   renderer — UI surfaces redirect the user to the source platform to
- *   unfollow there. Owned by sync, which deletes and re-inserts them.
- * - `guest` rows are in-app follows added via the heart button while signed
- *   OUT of that platform.
- * - `local` rows are in-app follows added via the heart button while signed
- *   IN to that platform. They survive the background platform sync (which
- *   rewrites only `account` rows), are locally unfollowable (the heart toggles
- *   them off — no platform redirect), and are surfaced only while a token is
- *   present for that platform (hidden when signed out, reappear on re-login).
- */
-/**
  * Source tag on a follow row (post-2026-05-29 source-collapse).
- *   - "guest": followed while signed OUT of the row's platform; visible always.
- *   - "kick" / "twitch": followed (or sync-imported) while signed in to that
- *     platform; visible only while signed in (hidden on logout, reappear on
- *     re-login). The platform value matches the row's platform column.
+ *   - "guest": local follow, visible when no live token exists for that platform.
+ *   - "kick" / "twitch": account follow confirmed by platform sync; visible
+ *     only while signed in. The platform value matches the row's platform column.
  *
  * Legacy "account" and "local" values are migrated at DB init to the
  * platform name — see `database-service.ts#init()`.
@@ -92,10 +76,7 @@ export interface LocalFollow {
   lastSeen?: string; // ISO date string
   isLive?: boolean;
   notifications?: boolean;
-  /**
-   * Set server-side when added via the FollowButton: "local" when signed in to
-   * this row's platform, otherwise "guest". "account" is written only by sync.
-   */
+  /** Set server-side. Platform values mean the follow was confirmed by account sync. */
   source?: FollowSource;
 }
 

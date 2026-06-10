@@ -224,9 +224,9 @@ export function UnifiedSearchInput({
   const filterButtonRef = React.useRef<HTMLDivElement>(null);
 
   const { history, addSearch, removeSearch } = useSearchHistory();
-  const debouncedQuery = useDebounce(searchQuery, 100);
+  const debouncedQuery = useDebounce(searchQuery, 250);
 
-  const shouldFetch = debouncedQuery.length > 0;
+  const shouldFetch = debouncedQuery.trim().length > 0;
 
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -244,30 +244,75 @@ export function UnifiedSearchInput({
     categories: false,
   });
 
-  // Pass platform to hooks - higher limit to show results from both platforms
-  const {
-    data: channelsInfiniteData,
-    isLoading: channelsLoading,
-    fetchNextPage: fetchMoreChannels,
-    hasNextPage: channelsHasNextPage,
-    isFetchingNextPage: channelsFetchingNextPage,
-  } = useSearchChannels(debouncedQuery, platform, 50);
-  const {
-    data: categoriesInfiniteData,
-    isLoading: categoriesLoading,
-    fetchNextPage: fetchMoreCategories,
-    hasNextPage: categoriesHasNextPage,
-    isFetchingNextPage: categoriesFetchingNextPage,
-  } = useSearchCategories(debouncedQuery, platform, 20);
+  const splitPlatformSearch = !platform;
+  const singleChannelQuery = useSearchChannels(
+    splitPlatformSearch ? "" : debouncedQuery,
+    platform,
+    50
+  );
+  const twitchChannelQuery = useSearchChannels(
+    splitPlatformSearch ? debouncedQuery : "",
+    "twitch",
+    25
+  );
+  const kickChannelQuery = useSearchChannels(splitPlatformSearch ? debouncedQuery : "", "kick", 25);
+  const singleCategoryQuery = useSearchCategories(
+    splitPlatformSearch ? "" : debouncedQuery,
+    platform,
+    20
+  );
+  const twitchCategoryQuery = useSearchCategories(
+    splitPlatformSearch ? debouncedQuery : "",
+    "twitch",
+    10
+  );
+  const kickCategoryQuery = useSearchCategories(
+    splitPlatformSearch ? debouncedQuery : "",
+    "kick",
+    10
+  );
+
+  const channelQueries = splitPlatformSearch
+    ? [twitchChannelQuery, kickChannelQuery]
+    : [singleChannelQuery];
+  const categoryQueries = splitPlatformSearch
+    ? [twitchCategoryQuery, kickCategoryQuery]
+    : [singleCategoryQuery];
+
+  const channelsLoading = channelQueries.some((query) => query.isLoading);
+  const categoriesLoading = categoryQueries.some((query) => query.isLoading);
+  const channelsHasNextPage = channelQueries.some((query) => query.hasNextPage);
+  const categoriesHasNextPage = categoryQueries.some((query) => query.hasNextPage);
+  const channelsFetchingNextPage = channelQueries.some((query) => query.isFetchingNextPage);
+  const categoriesFetchingNextPage = categoryQueries.some((query) => query.isFetchingNextPage);
+
+  const fetchMoreChannels = React.useCallback(
+    () =>
+      Promise.all(
+        channelQueries
+          .filter((query) => query.hasNextPage && !query.isFetchingNextPage)
+          .map((query) => query.fetchNextPage())
+      ),
+    [channelQueries]
+  );
+  const fetchMoreCategories = React.useCallback(
+    () =>
+      Promise.all(
+        categoryQueries
+          .filter((query) => query.hasNextPage && !query.isFetchingNextPage)
+          .map((query) => query.fetchNextPage())
+      ),
+    [categoryQueries]
+  );
 
   // Flatten all pages into single arrays
   const channels = React.useMemo(
-    () => channelsInfiniteData?.pages.flatMap((p) => p.data) ?? [],
-    [channelsInfiniteData]
+    () => channelQueries.flatMap((query) => query.data?.pages.flatMap((p) => p.data) ?? []),
+    [channelQueries]
   );
   const categories = React.useMemo(
-    () => categoriesInfiniteData?.pages.flatMap((p) => p.data) ?? [],
-    [categoriesInfiniteData]
+    () => categoryQueries.flatMap((query) => query.data?.pages.flatMap((p) => p.data) ?? []),
+    [categoryQueries]
   );
 
   // Dedup-absorption detector. Twitch can re-serve the same channels under
