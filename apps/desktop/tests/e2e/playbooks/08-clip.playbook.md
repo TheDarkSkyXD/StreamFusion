@@ -1,36 +1,35 @@
-# Clip page playbook
+# Clip dialog playbook
 
 ## Goal
-Confirm a clip route mounts with the mock clip data, Follow/Share buttons, and that toggling Follow flips state.
+Confirm clip cards open an in-page dialog. There is intentionally no `/clip/...`
+page route.
 
 ## Steps
 
-1. **Navigate**
+1. **Navigate to a channel's Clips tab**
    ```js
-   window.location.hash = "/clip/twitch/clip-0";
+   window.location.hash = "/stream/twitch/ninja?tab=clips";
    ```
 
-2. **Verify clip title text is rendered**
+2. **Click the first clip card**
    ```js
-   /Playing Clip:/i.test(document.body.innerText)
+   const card = Array.from(document.querySelectorAll("[class*='cursor-pointer']"))
+     .find((el) => /views/i.test(el.textContent || ""));
+   card?.click();
    ```
 
-3. **Click "Follow"**
+3. **Verify the dialog opens**
    ```js
-   const btn = Array.from(document.querySelectorAll("button"))
-     .find(b => /^\s*Follow\s*$/i.test(b.textContent));
-   btn?.click();
+   /Viewing clip:|Playing Clip:/i.test(document.body.innerText);
    ```
 
-4. **Verify the button text is no longer exactly "Follow"** (it now shows an icon-only state):
+4. **Verify we did not navigate to a clip page**
    ```js
-   !Array.from(document.querySelectorAll("button"))
-     .some(b => /^\s*Follow\s*$/i.test(b.textContent))
+   !window.location.hash.startsWith("#/clip/");
    ```
 
-5. **Screenshot** → `clip.png`.
+5. **Screenshot** -> `clip-dialog.png`.
 
-## Pass criteria
-- [ ] Clip page mounted with title text.
-- [ ] Share button visible.
-- [ ] Follow toggles into an icon-only state on click.
+## Pass Criteria
+- [ ] Clip dialog opens from a clip card.
+- [ ] URL remains on the stream/search page; it does not become `/clip/...`.

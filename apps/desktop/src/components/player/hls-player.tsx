@@ -7,7 +7,7 @@ import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
-import { resolveHlsBufferConfig } from "./hls-buffer-config";
+import { resolveHlsBufferConfig, resolveHlsVodBufferConfig } from "./hls-buffer-config";
 import { createKickClipPlaylistLoader, isKickClipPlaylistUrl } from "./kick/kick-clip-loader";
 import type { PlayerError, QualityLevel } from "./types";
 
@@ -29,6 +29,9 @@ export interface HlsPlayerProps
    */
   isLive?: boolean;
 }
+
+const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
+const VOD_MEMORY_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 
 export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
   (
@@ -286,7 +289,21 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         hls.startLevel = -1;
 
         const originalBackBuffer = hls.config.backBufferLength;
-        hls.config.backBufferLength = 10;
+        const backBufferLength = resolveHlsBufferConfig(
+          useAuthStore.getState().preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES
+        ).backBufferLength;
+        hls.config.backBufferLength = backBufferLength;
+
+        const video = videoRefForInterval.current;
+        const flushEnd = video ? video.currentTime - backBufferLength : 0;
+        if (flushEnd > 0) {
+          hls.trigger(Hls.Events.BUFFER_FLUSHING, {
+            startOffset: 0,
+            endOffset: flushEnd,
+            endOffsetSubtitles: flushEnd,
+            type: null,
+          });
+        }
 
         // Restore after a tick to let HLS.js process the trim
         // timer-allowlist: HLS.js backBufferLength restore — no awaitable completion signal (SP2 explicitly out-of-scope)
@@ -377,11 +394,13 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     // Store callbacks in refs to prevent re-initialization loop
     const onQualityLevelsRef = useRef(onQualityLevels);
     const onErrorRef = useRef(onError);
+    const currentLevelRef = useRef(currentLevel);
 
     useEffect(() => {
       onQualityLevelsRef.current = onQualityLevels;
       onErrorRef.current = onError;
-    }, [onQualityLevels, onError]);
+      currentLevelRef.current = currentLevel;
+    }, [onQualityLevels, onError, currentLevel]);
 
     useEffect(() => {
       const video = videoRef.current;
@@ -411,6 +430,8 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       let handleLoadedMetadata: (() => void) | null = null;
       let handleError: ((e: Event) => void) | null = null;
       let handlePlayReset: (() => void) | null = null;
+      let handleLivePauseStopLoad: (() => void) | null = null;
+      let handleLivePlayStartLoad: (() => void) | null = null;
 
       // Safe play helper that handles interruption gracefully
       const safePlay = () => {
@@ -498,11 +519,49 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // inert on VOD, and VOD buffer controls are out of scope, U10). Read at
         // construction so the value applies on the next stream load (R18); the
         // periodic cleanup below only mutates backBufferLength, not these.
-        const bufferConfig = resolveHlsBufferConfig(
-          isLive
-            ? (useAuthStore.getState().preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES)
-            : DEFAULT_BUFFER_PREFERENCES
-        );
+        const bufferConfig = isLive
+          ? resolveHlsBufferConfig(
+              useAuthStore.getState().preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES
+            )
+          : resolveHlsVodBufferConfig();
+
+        const loadingConfig = isLive
+          ? {
+              manifestLoadingTimeOut: isProxyUrl
+                ? Math.round(5000 * timeoutMultiplier)
+                : Math.round(8000 * timeoutMultiplier),
+              manifestLoadingMaxRetry: isProxyUrl ? 0 : 1,
+              manifestLoadingRetryDelay: 500,
+              manifestLoadingMaxRetryTimeout: isProxyUrl
+                ? Math.round(5000 * timeoutMultiplier)
+                : Math.round(10000 * timeoutMultiplier),
+              levelLoadingTimeOut: isProxyUrl
+                ? Math.round(5000 * timeoutMultiplier)
+                : Math.round(8000 * timeoutMultiplier),
+              levelLoadingMaxRetry: isProxyUrl ? 0 : 1,
+              levelLoadingRetryDelay: 500,
+              levelLoadingMaxRetryTimeout: isProxyUrl
+                ? Math.round(5000 * timeoutMultiplier)
+                : Math.round(10000 * timeoutMultiplier),
+              fragLoadingTimeOut: Math.round(15000 * timeoutMultiplier),
+              fragLoadingMaxRetry: 4,
+              fragLoadingRetryDelay: 500,
+              fragLoadingMaxRetryTimeout: Math.round(20000 * timeoutMultiplier),
+            }
+          : {
+              manifestLoadingTimeOut: Math.round(15000 * timeoutMultiplier),
+              manifestLoadingMaxRetry: 3,
+              manifestLoadingRetryDelay: 1000,
+              manifestLoadingMaxRetryTimeout: Math.round(30000 * timeoutMultiplier),
+              levelLoadingTimeOut: Math.round(15000 * timeoutMultiplier),
+              levelLoadingMaxRetry: 3,
+              levelLoadingRetryDelay: 1000,
+              levelLoadingMaxRetryTimeout: Math.round(30000 * timeoutMultiplier),
+              fragLoadingTimeOut: Math.round(20000 * timeoutMultiplier),
+              fragLoadingMaxRetry: 6,
+              fragLoadingRetryDelay: 1000,
+              fragLoadingMaxRetryTimeout: Math.round(30000 * timeoutMultiplier),
+            };
 
         // Slice 09 reuse: if an alive HLS instance exists from a prior src on
         // this mount, swap its source via detachMedia()->loadSource()->attachMedia()
@@ -527,7 +586,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             // === AGGRESSIVE MEMORY MANAGEMENT FOR LONG-RUNNING STREAMS ===
             // These settings prevent memory creep during 4-12+ hour sessions
             // HLS.js leaks ~5-15MB/hour from segment accumulation without these limits
-            backBufferLength: 30, // Reduced from 90: Only keep 30s behind (was causing memory buildup)
+            backBufferLength: bufferConfig.backBufferLength, // Live keeps a small tail; VOD/clip keeps a more useful seek-back buffer.
             maxBufferLength: bufferConfig.maxBufferLength, // Forward buffer (user-tunable on live)
             maxMaxBufferLength: bufferConfig.maxMaxBufferLength, // Hard cap (user-tunable on live)
             maxBufferSize: bufferConfig.maxBufferSize, // Scaled with maxMaxBufferLength so it isn't clamped
@@ -544,34 +603,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             // Buffer append error retry settings
             appendErrorMaxRetry: 5, // Retry buffer append up to 5 times (default 3)
 
-            // === ADAPTIVE FAST OFFLINE DETECTION SETTINGS ===
-            // Manifest loading - detect offline quickly (stream ended/unavailable)
-            // Adaptive: longer timeouts on slow connections to prevent false positives
-            manifestLoadingTimeOut: isProxyUrl
-              ? Math.round(5000 * timeoutMultiplier)
-              : Math.round(8000 * timeoutMultiplier),
-            manifestLoadingMaxRetry: isProxyUrl ? 0 : 1, // Minimal retries - if manifest 404s, stream is gone
-            manifestLoadingRetryDelay: 500, // Very short delay between retries (default 1000)
-            manifestLoadingMaxRetryTimeout: isProxyUrl
-              ? Math.round(5000 * timeoutMultiplier)
-              : Math.round(10000 * timeoutMultiplier),
-
-            // Level/playlist loading - also needs fast detection for offline
-            levelLoadingTimeOut: isProxyUrl
-              ? Math.round(5000 * timeoutMultiplier)
-              : Math.round(8000 * timeoutMultiplier),
-            levelLoadingMaxRetry: isProxyUrl ? 0 : 1, // Minimal retries
-            levelLoadingRetryDelay: 500, // Short delay
-            levelLoadingMaxRetryTimeout: isProxyUrl
-              ? Math.round(5000 * timeoutMultiplier)
-              : Math.round(10000 * timeoutMultiplier),
-
-            // Fragment loading - more tolerant since transient errors are common during live playback
-            // Adaptive: significantly longer on slow connections (fragments take longer to download)
-            fragLoadingTimeOut: Math.round(15000 * timeoutMultiplier), // 15s base, up to 30s on 2G
-            fragLoadingMaxRetry: 4, // Reduced from 6, still handles transient errors
-            fragLoadingRetryDelay: 500, // Faster retry (was 1000)
-            fragLoadingMaxRetryTimeout: Math.round(20000 * timeoutMultiplier), // Cap total retry time
+            ...loadingConfig,
 
             xhrSetup: (xhr, _url) => {
               xhr.withCredentials = false; // Important to avoid CORS issues with wildcards
@@ -590,6 +622,22 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           hls.attachMedia(video);
         } // close slice 09 reuse else-branch
 
+        if (isLive) {
+          handleLivePauseStopLoad = () => {
+            const activeHls = hlsRef.current;
+            if (!isEffectActive || !activeHls) return;
+            activeHls.stopLoad();
+          };
+          handleLivePlayStartLoad = () => {
+            const activeHls = hlsRef.current;
+            if (!isEffectActive || !activeHls) return;
+            lastFragLoadedTimeRef.current = Date.now();
+            activeHls.startLoad(-1);
+          };
+          video.addEventListener("pause", handleLivePauseStopLoad);
+          video.addEventListener("play", handleLivePlayStartLoad);
+        }
+
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
           logger.debug("Player:HLS", "manifest parsed", { levels: data.levels.length });
 
@@ -598,11 +646,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
 
           // Restore current level if set (with validation)
-          if (currentLevel !== undefined) {
-            if (currentLevel === "auto") {
+          const initialCurrentLevel = currentLevelRef.current;
+          if (initialCurrentLevel !== undefined) {
+            if (initialCurrentLevel === "auto") {
               hls!.currentLevel = -1;
             } else {
-              const levelIndex = parseInt(currentLevel, 10);
+              const levelIndex = parseInt(initialCurrentLevel, 10);
               if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < data.levels.length) {
                 hls!.currentLevel = levelIndex;
               }
@@ -860,9 +909,11 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // record manifestParsedTime and activate the interval via state.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           manifestParsedTimeRef.current = Date.now();
-          // Activate heartbeat (5 000 ms) and memory cleanup (30 min) via useInterval
+          // Activate heartbeat (5 000 ms) and memory cleanup via useInterval
           setHeartbeatDelay(5000);
-          setMemoryCleanupDelay(30 * 60 * 1000);
+          setMemoryCleanupDelay(
+            isLive ? LIVE_MEMORY_CLEANUP_INTERVAL_MS : VOD_MEMORY_CLEANUP_INTERVAL_MS
+          );
           setStallWatchdogDelay(2000);
         });
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -966,9 +1017,15 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           if (handlePlayReset) {
             currentVideo.removeEventListener("play", handlePlayReset);
           }
+          if (handleLivePauseStopLoad) {
+            currentVideo.removeEventListener("pause", handleLivePauseStopLoad);
+          }
+          if (handleLivePlayStartLoad) {
+            currentVideo.removeEventListener("play", handleLivePlayStartLoad);
+          }
         }
       };
-    }, [src, autoPlay, currentLevel, onHlsInstance, isLive]); // Removed callbacks from dependency array
+    }, [src, autoPlay, onHlsInstance, isLive]); // Removed callbacks from dependency array
     // removed currentLevel (except initial read in manifest parsed) to prevent re-init.
     // Logic for dynamic switching is in the first useEffect.
 

@@ -8,7 +8,7 @@ import {
 } from '@/shared/auth-types';
 import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from '@/shared/chat-types';
 import { useAuthStore } from '@/store/auth-store';
-import { buildChannelKey, useChatStore } from '@/store/chat-store';
+import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from '@/store/chat-store';
 
 // Hysteresis constants mirrored from chat-store.ts (not exported): trimming
 // fires at maxMessages + TRIM_BUFFER and trims back to maxMessages - TRIM_BUFFER.
@@ -41,7 +41,7 @@ function resetStore(opts: { batching?: boolean; interval?: number } = {}): void 
     messagesByChannel: {},
     pausedChannels: new Set<string>(),
     batchingEnabled: opts.batching ?? false,
-    batchingInterval: opts.interval ?? 50,
+    batchingInterval: opts.interval ?? DEFAULT_BATCHING_INTERVAL_MS,
     connectionStatus: {
       twitch: {
         platform: 'twitch',
@@ -221,7 +221,7 @@ describe('chat-store updateConnectionStatus', () => {
 describe('chat-store addMessageBatched', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    resetStore({ batching: true, interval: 50 });
+    resetStore({ batching: true });
   });
 
   afterEach(() => {
@@ -237,7 +237,7 @@ describe('chat-store addMessageBatched', () => {
     // Nothing in the store yet — batched messages wait for the timer.
     expect(messagesFor()).toHaveLength(0);
 
-    vi.advanceTimersByTime(50);
+    vi.advanceTimersByTime(DEFAULT_BATCHING_INTERVAL_MS);
     expect(messageIdsFor()).toEqual(['a', 'b', 'c']);
   });
 
@@ -255,7 +255,7 @@ describe('chat-store addMessageBatched', () => {
     add(msg, defaultChannelKey('kick'));
     add(msg, defaultChannelKey('kick'));
     add(msg, defaultChannelKey('kick'));
-    vi.advanceTimersByTime(50);
+    vi.advanceTimersByTime(DEFAULT_BATCHING_INTERVAL_MS);
     expect(messagesFor(defaultChannelKey('kick'))).toHaveLength(1);
   });
 
@@ -265,7 +265,7 @@ describe('chat-store addMessageBatched', () => {
 
     add(makeMessage('chat-1'), defaultChannelKey());
     add(makeMessage('chat-2'), defaultChannelKey());
-    // System ban marker arrives before the 50ms flush window elapses.
+    // System ban marker arrives before the flush window elapses.
     direct(makeMessage('ban-marker'));
 
     // ban-marker must land AFTER the two chat messages even though those were
@@ -748,5 +748,18 @@ describe('chat-store per-channel fields initial state', () => {
 
     useChatStore.getState().setPaused(keyA, false);
     expect(useChatStore.getState().pausedChannels.has(keyA)).toBe(false);
+  });
+
+  it('setPaused does not replace pausedChannels when the channel state is unchanged', () => {
+    const key = buildChannelKey('kick', 'xqc');
+
+    const initial = useChatStore.getState().pausedChannels;
+    useChatStore.getState().setPaused(key, false);
+    expect(useChatStore.getState().pausedChannels).toBe(initial);
+
+    useChatStore.getState().setPaused(key, true);
+    const paused = useChatStore.getState().pausedChannels;
+    useChatStore.getState().setPaused(key, true);
+    expect(useChatStore.getState().pausedChannels).toBe(paused);
   });
 });

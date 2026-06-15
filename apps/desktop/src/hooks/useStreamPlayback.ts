@@ -12,8 +12,9 @@ const MAX_RELOAD_ATTEMPTS = 3;
 // This prevents all streams from hitting Twitch GQL simultaneously
 const STAGGER_DELAY_MS = 150;
 
-// Track active hook instances for stagger calculation
-let instanceCounter = 0;
+// Track active hook instances for stagger calculation. Hidden/empty instances
+// must not consume an order slot, otherwise the always-mounted mini-player can
+// delay the first visible stream on startup.
 const activeInstances = new Map<string, number>();
 
 // Shared playback cache. When the main stream page and the mini-player both
@@ -41,11 +42,26 @@ type CacheEntry = {
   evictionTimer: ReturnType<typeof setTimeout> | null;
 };
 const playbackCache = new Map<string, CacheEntry>();
+const playbackPrefetchFailures = new Map<string, number>();
 const PLAYBACK_CACHE_TTL_MS = 90_000;
+const PREFETCH_FAILURE_TTL_MS = 30_000;
 const EVICTION_DEFERRAL_MS = 100;
+let playbackRequestCounter = 0;
 
 function getPlaybackCacheKey(platform: Platform, identifier: string): string {
   return `${platform}:${identifier.toLowerCase()}`;
+}
+
+function summarizePlaybackUrl(url: string): { urlHost: string | null; formatHint: string | null } {
+  try {
+    const parsed = new URL(url);
+    return {
+      urlHost: parsed.host,
+      formatHint: parsed.pathname.split(".").pop() ?? null,
+    };
+  } catch {
+    return { urlHost: null, formatHint: null };
+  }
 }
 
 async function fetchPlaybackUrlFromBackend(
@@ -68,11 +84,127 @@ async function fetchPlaybackUrlFromBackend(
   };
 }
 
+function startPlaybackFetch(
+  key: string,
+  entry: CacheEntry,
+  traceId: string,
+  platform: Platform,
+  identifier: string,
+  cacheSource: "network" | "prefetch"
+): Promise<StreamPlayback> {
+  const fetchStartedAt = Date.now();
+  entry.inFlightFetch = (async () => {
+    try {
+      const playback = await fetchPlaybackUrlFromBackend(platform, identifier);
+      const cur = playbackCache.get(key);
+      if (cur) {
+        cur.playback = playback;
+        cur.expiresAt = Date.now() + PLAYBACK_CACHE_TTL_MS;
+        cur.inFlightFetch = null;
+      }
+      playbackPrefetchFailures.delete(key);
+      logger.info("Hook:StreamPlayback", "playback URL ready", {
+        traceId,
+        platform,
+        identifier,
+        cacheSource,
+        durationMs: Date.now() - fetchStartedAt,
+        ...summarizePlaybackUrl(playback.url),
+      });
+      return playback;
+    } catch (err) {
+      const cur = playbackCache.get(key);
+      if (cur) cur.inFlightFetch = null;
+      // Failure isn't cached for active playback — next subscriber retries
+      // fresh so a transient network blip doesn't lock playback out for the
+      // full TTL. Prefetch callers keep their own short failure backoff below.
+      playbackCache.delete(key);
+      logger.info("Hook:StreamPlayback", "playback URL failed", {
+        traceId,
+        platform,
+        identifier,
+        cacheSource,
+        durationMs: Date.now() - fetchStartedAt,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  })();
+  return entry.inFlightFetch;
+}
+
+export function prefetchStreamPlayback(
+  platform: Platform,
+  identifier: string
+): Promise<void> | undefined {
+  if (!identifier || typeof window === "undefined" || !window.electronAPI) return undefined;
+
+  const key = getPlaybackCacheKey(platform, identifier);
+  const now = Date.now();
+  const failureExpiry = playbackPrefetchFailures.get(key);
+  if (failureExpiry !== undefined) {
+    if (now < failureExpiry) return undefined;
+    playbackPrefetchFailures.delete(key);
+  }
+
+  let entry = playbackCache.get(key);
+  if (!entry) {
+    entry = {
+      playback: null,
+      inFlightFetch: null,
+      refCount: 0,
+      expiresAt: 0,
+      evictionTimer: null,
+    };
+    playbackCache.set(key, entry);
+  }
+
+  if (entry.evictionTimer) {
+    clearTimeout(entry.evictionTimer);
+    entry.evictionTimer = null;
+  }
+
+  if (entry.playback && now < entry.expiresAt) return Promise.resolve();
+  if (entry.inFlightFetch) {
+    return entry.inFlightFetch
+      .then(() => undefined)
+      .catch((err) => {
+        playbackPrefetchFailures.set(key, Date.now() + PREFETCH_FAILURE_TTL_MS);
+        logger.debug("Hook:StreamPlayback", "playback prefetch joined request failed", {
+          platform,
+          identifier,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }
+
+  const traceId = `playback-prefetch-${++playbackRequestCounter}`;
+  logger.debug("Hook:StreamPlayback", "prefetching playback URL", {
+    traceId,
+    platform,
+    identifier,
+  });
+
+  return startPlaybackFetch(key, entry, traceId, platform, identifier, "prefetch")
+    .then(() => undefined)
+    .catch((err) => {
+      playbackPrefetchFailures.set(key, Date.now() + PREFETCH_FAILURE_TTL_MS);
+      logger.debug("Hook:StreamPlayback", "playback prefetch failed", {
+        traceId,
+        platform,
+        identifier,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+}
+
 function subscribePlayback(
   platform: Platform,
   identifier: string
 ): { promise: Promise<StreamPlayback>; release: () => void } {
   const key = getPlaybackCacheKey(platform, identifier);
+  const traceId = `playback-${++playbackRequestCounter}`;
+  const subscribedAt = Date.now();
   let entry = playbackCache.get(key);
   if (!entry) {
     entry = {
@@ -91,32 +223,57 @@ function subscribePlayback(
     entry.evictionTimer = null;
   }
   entry.refCount++;
+  logger.debug("Hook:StreamPlayback", "subscribed to playback cache", {
+    traceId,
+    platform,
+    identifier,
+    refCount: entry.refCount,
+  });
 
   let promise: Promise<StreamPlayback>;
   if (entry.playback && Date.now() < entry.expiresAt) {
-    promise = Promise.resolve(entry.playback);
+    const cachedPlayback = entry.playback;
+    logger.debug("Hook:StreamPlayback", "served playback URL from cache", {
+      traceId,
+      platform,
+      identifier,
+      ageRemainingMs: entry.expiresAt - Date.now(),
+      refCount: entry.refCount,
+    });
+    logger.info("Hook:StreamPlayback", "playback URL ready", {
+      traceId,
+      platform,
+      identifier,
+      cacheSource: "memory",
+      durationMs: 0,
+      ...summarizePlaybackUrl(cachedPlayback.url),
+    });
+    promise = Promise.resolve(cachedPlayback);
   } else if (entry.inFlightFetch) {
-    promise = entry.inFlightFetch;
+    logger.debug("Hook:StreamPlayback", "joined in-flight playback request", {
+      traceId,
+      platform,
+      identifier,
+      refCount: entry.refCount,
+    });
+    promise = entry.inFlightFetch.then((playback) => {
+      logger.info("Hook:StreamPlayback", "playback URL ready", {
+        traceId,
+        platform,
+        identifier,
+        cacheSource: "in-flight",
+        durationMs: Date.now() - subscribedAt,
+        ...summarizePlaybackUrl(playback.url),
+      });
+      return playback;
+    });
   } else {
-    entry.inFlightFetch = (async () => {
-      try {
-        const playback = await fetchPlaybackUrlFromBackend(platform, identifier);
-        const cur = playbackCache.get(key);
-        if (cur) {
-          cur.playback = playback;
-          cur.expiresAt = Date.now() + PLAYBACK_CACHE_TTL_MS;
-          cur.inFlightFetch = null;
-        }
-        return playback;
-      } catch (err) {
-        const cur = playbackCache.get(key);
-        if (cur) cur.inFlightFetch = null;
-        // Failure isn't cached — next subscriber retries fresh so a transient
-        // network blip doesn't lock playback out for the full TTL.
-        playbackCache.delete(key);
-        throw err;
-      }
-    })();
+    logger.debug("Hook:StreamPlayback", "started cold playback request", {
+      traceId,
+      platform,
+      identifier,
+    });
+    entry.inFlightFetch = startPlaybackFetch(key, entry, traceId, platform, identifier, "network");
     promise = entry.inFlightFetch;
   }
 
@@ -124,11 +281,25 @@ function subscribePlayback(
     const cur = playbackCache.get(key);
     if (!cur) return;
     cur.refCount--;
+    logger.debug("Hook:StreamPlayback", "released playback cache subscription", {
+      traceId,
+      platform,
+      identifier,
+      refCount: cur.refCount,
+      lifetimeMs: Date.now() - subscribedAt,
+    });
     if (cur.refCount <= 0 && !cur.evictionTimer) {
       // timer-allowlist: TTL eviction in subscribePlayback (module-level, non-React; SP2 out-of-scope)
       cur.evictionTimer = setTimeout(() => {
         const c = playbackCache.get(key);
-        if (c && c.refCount <= 0) playbackCache.delete(key);
+        if (c && c.refCount <= 0) {
+          logger.debug("Hook:StreamPlayback", "evicted idle playback cache entry", {
+            traceId,
+            platform,
+            identifier,
+          });
+          playbackCache.delete(key);
+        }
       }, EVICTION_DEFERRAL_MS);
     }
   };
@@ -165,10 +336,9 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   const reloadAttemptsRef = useRef(0);
   const [reloadAttempts, setReloadAttempts] = useState(0);
 
-  const _currentKey = `${platform}-${identifier}`;
-
+  // biome-ignore lint/correctness/useExhaustiveDependencies: platform is part of stream identity; the same slug can exist on Twitch and Kick.
   useEffect(() => {
-    // Reset all state when stream identifier changes
+    // Reset all state when the platform or stream identifier changes.
     setPlayback(null);
     setIsLoading(!!identifier);
     setError(null);
@@ -176,17 +346,19 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     setForceNoProxy(false);
     reloadAttemptsRef.current = 0; // Sync ref
     setReloadAttempts(0); // Reset attempts when stream changes
-  }, [identifier]);
+  }, [platform, identifier]);
 
-  // Register this instance for stagger calculation
+  // Register this instance for stagger calculation only while it has a real
+  // stream. Empty identifiers are used to keep hidden player surfaces idle.
   useEffect(() => {
+    if (!identifier) return;
     if (!activeInstances.has(instanceId)) {
-      activeInstances.set(instanceId, instanceCounter++);
+      activeInstances.set(instanceId, activeInstances.size);
     }
     return () => {
       activeInstances.delete(instanceId);
     };
-  }, [instanceId]);
+  }, [identifier, instanceId]);
 
   // Ref holds the pending fetchUrl for the current effect run so the stable
   // useManagedTimeout callback can invoke whichever fetchUrl is current.
@@ -222,10 +394,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
             (playbackUrl.includes("cdn-perfprod.com") || playbackUrl.includes("luminous.dev")) &&
             !forceNoProxy;
           logger.debug("Hook:StreamPlayback", "loaded URL", {
-            url:
-              typeof playbackUrl === "string"
-                ? `${playbackUrl.substring(0, 80)}...`
-                : "NOT A STRING!",
+            ...summarizePlaybackUrl(playbackUrl),
             isProxy: usingProxy,
             forceNoProxy,
           });
@@ -251,6 +420,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
                   : String(err),
             });
           }
+          setPlayback(null);
           setError(error);
           setIsLoading(false);
         }
@@ -305,6 +475,9 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     }
     reloadAttemptsRef.current += 1;
     setReloadAttempts(reloadAttemptsRef.current); // Keep state in sync for consumers
+    setPlayback(null);
+    setError(null);
+    setIsLoading(true);
     // Drop the cached URL so the effect's subscribePlayback refetches instead of
     // re-serving the URL that just 404'd (cache TTL is 90 s).
     playbackCache.delete(getPlaybackCacheKey(platform, identifier));

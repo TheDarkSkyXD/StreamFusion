@@ -28,28 +28,113 @@ function pctToPx(pct: number): number {
   return Math.min(CHAT_MAX_PX, Math.max(CHAT_MIN_PX, px));
 }
 
+interface OfflineOverlayProps {
+  channelName: string;
+  displayName?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  categoryName?: string;
+  lastStreamTitle?: string;
+  onCheckAgain: () => void;
+}
+
+function OfflineOverlay({
+  channelName,
+  displayName,
+  avatarUrl,
+  bannerUrl,
+  categoryName,
+  lastStreamTitle,
+  onCheckAgain,
+}: OfflineOverlayProps) {
+  const name = displayName || channelName;
+
+  return (
+    <div className="absolute inset-0 z-20 overflow-hidden">
+      {bannerUrl ? (
+        <ProxiedImage
+          src={bannerUrl}
+          alt="Offline banner"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : avatarUrl ? (
+        <>
+          <img
+            src={avatarUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover blur-3xl scale-150 opacity-40"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/50 via-gray-900 to-black" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/55 to-black/80" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
+        {avatarUrl && !bannerUrl && (
+          <div className="mb-6">
+            <img
+              src={avatarUrl}
+              alt={name}
+              className="w-24 h-24 rounded-full border-4 border-white/20 shadow-2xl"
+            />
+          </div>
+        )}
+        <div className="text-center max-w-xl">
+          <p className="text-white text-3xl font-bold mb-2 drop-shadow-lg">{name}</p>
+          <p className="text-white/70 text-lg mb-4">is currently offline</p>
+          {lastStreamTitle && (
+            <p className="text-white/90 text-base font-medium line-clamp-2 mb-2">
+              {lastStreamTitle}
+            </p>
+          )}
+          {categoryName && (
+            <p className="text-white/70 text-sm mb-8">Last streamed in {categoryName}</p>
+          )}
+          {!categoryName && !lastStreamTitle && <div className="mb-8" />}
+          <Button
+            variant="outline"
+            size="lg"
+            className="bg-white/10 border-white/30 hover:bg-white/20 backdrop-blur-sm"
+            onClick={onCheckAgain}
+          >
+            Check Again
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StreamPage() {
   const { platform, channel: channelName } = useParams({ from: "/_app/stream/$platform/$channel" });
+  const routePlatform = platform as Platform;
+
+  // Real data fetching
+  const { data: channelData, isLoading: isChannelLoading } = useChannelByUsername(
+    channelName,
+    routePlatform
+  );
+  const { data: streamData, isLoading: isStreamLoading } = useStreamByChannel(
+    channelName,
+    routePlatform
+  );
+
+  const isKnownTwitchLive =
+    routePlatform === "twitch" && (channelData?.isLive === true || Boolean(streamData?.startedAt));
+  const playbackIdentifier =
+    routePlatform === "twitch" ? (isKnownTwitchLive ? channelName : "") : channelName;
 
   // Playback URL resolution
   const {
     playback,
     isLoading: isPlaybackLoading,
+    error: playbackError,
     reload: reloadPlayback,
     isUsingProxy,
     retryWithoutProxy,
     reloadAttempts,
-  } = useStreamPlayback(platform as Platform, channelName);
-
-  // Real data fetching
-  const { data: channelData, isLoading: isChannelLoading } = useChannelByUsername(
-    channelName,
-    platform as Platform
-  );
-  const { data: streamData, isLoading: isStreamLoading } = useStreamByChannel(
-    channelName,
-    platform as Platform
-  );
+  } = useStreamPlayback(routePlatform, playbackIdentifier);
 
   // Chat display prefs — chatWidthPct seeds the docked width; updatePreferences
   // persists the new width (as a %) on drag end. Pre-load `preferences` is null,
@@ -98,7 +183,7 @@ export function StreamPage() {
       logger.debug("Page:Stream", "handlePlayerError called", {
         code: error.code,
         isUsingProxy,
-        platform,
+        platform: routePlatform,
         message: error.message,
         shouldRefresh: error.shouldRefresh,
       });
@@ -127,7 +212,7 @@ export function StreamPage() {
       }
 
       // PROXY_ERROR is specific to proxy server failures (500 errors)
-      if (error.code === "PROXY_ERROR" && isUsingProxy && platform === "twitch") {
+      if (error.code === "PROXY_ERROR" && isUsingProxy && routePlatform === "twitch") {
         triggerProxyFallback();
         return; // Don't show error, let fallback attempt
       }
@@ -137,7 +222,7 @@ export function StreamPage() {
         logger.debug("Page:Stream", "stream ended or went offline");
 
         // If we were using proxy and got a network/offline error, try fallback to direct
-        if (isUsingProxy && platform === "twitch") {
+        if (isUsingProxy && routePlatform === "twitch") {
           triggerProxyFallback();
           return; // Don't show error yet, let fallback attempt
         }
@@ -149,7 +234,7 @@ export function StreamPage() {
         });
 
         // Also try fallback for other network errors when using proxy
-        if (isUsingProxy && platform === "twitch") {
+        if (isUsingProxy && routePlatform === "twitch") {
           triggerProxyFallback();
           return;
         }
@@ -160,7 +245,7 @@ export function StreamPage() {
     },
     [
       isUsingProxy,
-      platform,
+      routePlatform,
       triggerProxyFallback,
       setTheaterModeActive,
       reloadPlayback,
@@ -168,16 +253,24 @@ export function StreamPage() {
     ]
   );
 
-  // Reset player error when playback changes
-  useEffect(() => {
-    setPlayerError(null);
-  }, []);
-
   // Determine if stream is truly live - allow playback if URL exists (optimistic) or confirmed live
   // This allows the player to start buffering while metadata is still fetching
-  const isStreamLive = Boolean(streamData?.startedAt);
+  const isStreamLive = Boolean(streamData?.startedAt || channelData?.isLive);
   const hasPlayback = Boolean(playback?.url);
   const effectiveStreamUrl = playback?.url || (isStreamLive && playback?.url ? playback.url : "");
+  const offlineCategoryName = channelData?.categoryName || streamData?.categoryName;
+  const offlineStreamTitle = channelData?.lastStreamTitle || streamData?.title;
+  const shouldShowOfflineOverlay =
+    !isPlaybackLoading &&
+    !hasPlayback &&
+    !playerError &&
+    (Boolean(playbackError) || (!isChannelLoading && !isStreamLoading && !isStreamLive));
+
+  // Reset player error when playback changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the URL is the recovery boundary for stale player errors.
+  useEffect(() => {
+    setPlayerError(null);
+  }, [effectiveStreamUrl]);
 
   // PiP Store Integration - Track when viewing a live stream
   const { setCurrentStream, setIsOnStreamPage } = usePipStore();
@@ -223,17 +316,17 @@ export function StreamPage() {
   // Memoize subscriber badges to prevent KickChat from re-mounting when channelData refetches
   // Arrays are compared by reference in React, so we serialize to detect actual changes
   const memoizedSubscriberBadges = useMemo(() => {
-    const badges = platform === "kick" ? channelData?.subscriberBadges : undefined;
+    const badges = routePlatform === "kick" ? channelData?.subscriberBadges : undefined;
     // Only update reference if badges actually changed
     return badges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [platform, channelData?.subscriberBadges]);
+  }, [routePlatform, channelData?.subscriberBadges]);
 
   // Memoize stream info to prevent effect from running on every streamData update
   // streamData changes every 30s (viewer count), but we only care about title/category changes
   const pipStreamInfo = useMemo(
     () => ({
-      platform: platform as Platform,
+      platform: routePlatform,
       channelName: channelName,
       channelDisplayName: channelData?.displayName || channelName,
       channelAvatar: channelData?.avatarUrl,
@@ -243,7 +336,7 @@ export function StreamPage() {
       viewerCount: streamData?.viewerCount,
     }),
     [
-      platform,
+      routePlatform,
       channelName,
       channelData?.displayName,
       channelData?.avatarUrl,
@@ -255,12 +348,13 @@ export function StreamPage() {
     ]
   );
 
-  // Update PiP store with current stream info when we have a live stream
+  // Update PiP store as soon as playback is ready so leaving the page can
+  // activate mini-player even if metadata is still catching up.
   useEffect(() => {
-    if (isStreamLive && effectiveStreamUrl && channelData) {
+    if (effectiveStreamUrl) {
       setCurrentStream(pipStreamInfo);
     }
-  }, [isStreamLive, effectiveStreamUrl, channelData, pipStreamInfo, setCurrentStream]);
+  }, [effectiveStreamUrl, pipStreamInfo, setCurrentStream]);
 
   const startResizing = useCallback(() => {
     isResizingRef.current = true;
@@ -322,7 +416,7 @@ export function StreamPage() {
             className={`${isTheater ? "h-full aspect-video max-w-full" : "aspect-video shrink-0 w-full"} bg-black relative`}
           >
             {/* Platform-specific live stream players */}
-            {platform === "kick" ? (
+            {routePlatform === "kick" ? (
               <KickLivePlayer
                 streamUrl={effectiveStreamUrl}
                 autoPlay={true}
@@ -351,129 +445,45 @@ export function StreamPage() {
             {/* Show loading only when fetching data */}
             {(isPlaybackLoading || isChannelLoading || isStreamLoading) &&
               !effectiveStreamUrl &&
+              !playbackError &&
               !playerError && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black z-20 pointer-events-none">
                   <div className="flex flex-col items-center gap-2">
-                    {platform === "kick" ? <KickLoadingSpinner /> : <TwitchLoadingSpinner />}
+                    {routePlatform === "kick" ? <KickLoadingSpinner /> : <TwitchLoadingSpinner />}
                   </div>
                 </div>
               )}
 
             {playerError && (
-              <div className="absolute inset-0 z-20 overflow-hidden">
-                {/* Background: Offline banner if available, otherwise blurred avatar or gradient */}
-                {channelData?.bannerUrl ? (
-                  <ProxiedImage
-                    src={channelData.bannerUrl}
-                    alt="Offline banner"
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                ) : channelData?.avatarUrl ? (
-                  <>
-                    {/* Blurred, scaled-up avatar as background */}
-                    <img
-                      src={channelData.avatarUrl}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover blur-3xl scale-150 opacity-40"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
-                  </>
-                ) : (
-                  <div className="absolute inset-0 bg-gradient-to-b from-purple-900/50 via-gray-900 to-black" />
-                )}
-                {/* Content overlay */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  {/* Avatar (if available and no banner) */}
-                  {channelData?.avatarUrl && !channelData?.bannerUrl && (
-                    <div className="mb-6">
-                      <img
-                        src={channelData.avatarUrl}
-                        alt={channelData.displayName || channelName}
-                        className="w-24 h-24 rounded-full border-4 border-white/20 shadow-2xl"
-                      />
-                    </div>
-                  )}
-                  <div className="text-center">
-                    <p className="text-white text-3xl font-bold mb-2 drop-shadow-lg">
-                      {channelData?.displayName || channelName}
-                    </p>
-                    <p className="text-white/70 text-lg mb-8">is currently offline</p>
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="bg-white/10 border-white/30 hover:bg-white/20 backdrop-blur-sm"
-                      onClick={() => {
-                        setPlayerError(null);
-                        reloadPlayback();
-                      }}
-                    >
-                      Check Again
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              <OfflineOverlay
+                channelName={channelName}
+                displayName={channelData?.displayName}
+                avatarUrl={channelData?.avatarUrl}
+                bannerUrl={channelData?.bannerUrl}
+                categoryName={offlineCategoryName}
+                lastStreamTitle={offlineStreamTitle}
+                onCheckAgain={() => {
+                  setPlayerError(null);
+                  reloadPlayback();
+                }}
+              />
             )}
             {/* Show offline screen only when we have NO working playback URL.
                 The metadata fetch (streamData) can time out independently of the
                 playback fetch; if HLS is loaded and playing, trust that signal —
                 the HLS player will surface a `playerError` if the stream actually
                 ends mid-watch, which triggers the dedicated overlay above. */}
-            {!isPlaybackLoading &&
-              !isChannelLoading &&
-              !isStreamLoading &&
-              !isStreamLive &&
-              !hasPlayback &&
-              !playerError && (
-                <div className="absolute inset-0 z-20 overflow-hidden">
-                  {/* Background: Offline banner if available, otherwise blurred avatar or gradient */}
-                  {channelData?.bannerUrl ? (
-                    <ProxiedImage
-                      src={channelData.bannerUrl}
-                      alt="Offline banner"
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                  ) : channelData?.avatarUrl ? (
-                    <>
-                      {/* Blurred, scaled-up avatar as background */}
-                      <img
-                        src={channelData.avatarUrl}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover blur-3xl scale-150 opacity-40"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 bg-gradient-to-b from-purple-900/50 via-gray-900 to-black" />
-                  )}
-                  {/* Content overlay */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    {/* Avatar (if available and no banner) */}
-                    {channelData?.avatarUrl && !channelData?.bannerUrl && (
-                      <div className="mb-6">
-                        <img
-                          src={channelData.avatarUrl}
-                          alt={channelData.displayName || channelName}
-                          className="w-24 h-24 rounded-full border-4 border-white/20 shadow-2xl"
-                        />
-                      </div>
-                    )}
-                    <div className="text-center">
-                      <p className="text-white text-3xl font-bold mb-2 drop-shadow-lg">
-                        {channelData?.displayName || channelName}
-                      </p>
-                      <p className="text-white/70 text-lg mb-8">is currently offline</p>
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        className="bg-white/10 border-white/30 hover:bg-white/20 backdrop-blur-sm"
-                        onClick={reloadPlayback}
-                      >
-                        Check Again
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
+            {shouldShowOfflineOverlay && (
+              <OfflineOverlay
+                channelName={channelName}
+                displayName={channelData?.displayName}
+                avatarUrl={channelData?.avatarUrl}
+                bannerUrl={channelData?.bannerUrl}
+                categoryName={offlineCategoryName}
+                lastStreamTitle={offlineStreamTitle}
+                onCheckAgain={reloadPlayback}
+              />
+            )}
           </div>
 
           <div className={`${isTheater ? "hidden" : "block"} p-6 space-y-6`}>
@@ -484,7 +494,7 @@ export function StreamPage() {
             />
 
             <RelatedContent
-              platform={platform as Platform}
+              platform={routePlatform}
               channelName={channelName}
               channelData={channelData}
               streamStartedAt={streamData?.startedAt}
@@ -513,11 +523,11 @@ export function StreamPage() {
             className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
           >
             <ChatPanel
-              initialPlatform={platform as "twitch" | "kick"}
+              initialPlatform={routePlatform as "twitch" | "kick"}
               initialChannel={channelName}
               channelId={channelData?.id}
-              chatroomId={platform === "kick" ? channelData?.chatroomId : undefined}
-              kickUserId={platform === "kick" ? channelData?.kickUserId : undefined}
+              chatroomId={routePlatform === "kick" ? channelData?.chatroomId : undefined}
+              kickUserId={routePlatform === "kick" ? channelData?.kickUserId : undefined}
               subscriberBadges={memoizedSubscriberBadges}
             />
           </div>

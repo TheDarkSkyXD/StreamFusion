@@ -80,7 +80,7 @@ export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emot
 
   if (!show || !mousePos) return null;
 
-  const displayUrl = emote.urls.url4x || emote.urls.url2x || emote.urls.url1x;
+  const displayUrl = emote.urls.url2x || emote.urls.url1x;
 
   // Determine provider color for badge
   const _providerColor = PROVIDER_COLORS[emote.provider] || "#ffffff";

@@ -58,6 +58,33 @@ class TwitchEmoteProvider implements EmoteProviderService {
     return this.isConfigured && !!this.clientId && !!this.accessToken;
   }
 
+  private async getFreshAccessToken(): Promise<string | null> {
+    if (!this.clientId) return null;
+
+    const authApi = typeof window !== "undefined" ? window.electronAPI?.auth : undefined;
+    if (authApi?.getValidTwitchToken) {
+      try {
+        const freshToken = await authApi.getValidTwitchToken();
+        if (freshToken) {
+          this.accessToken = freshToken;
+          this.isConfigured = true;
+          return freshToken;
+        }
+      } catch (error) {
+        logger.warn("Emote:Twitch", "Failed to refresh token before emote fetch", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return this.accessToken || null;
+  }
+
+  private markUnauthorized(): void {
+    this.accessToken = "";
+    this.isConfigured = false;
+  }
+
   /**
    * Fetch global Twitch emotes
    */
@@ -72,24 +99,30 @@ class TwitchEmoteProvider implements EmoteProviderService {
     }
 
     try {
+      const accessToken = await this.getFreshAccessToken();
+      if (!accessToken) return [];
+
       const data = await api
         .get("https://api.twitch.tv/helix/chat/emotes/global", {
           headers: {
             "Client-ID": this.clientId,
-            Authorization: `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         })
         .json<TwitchApiResponse<TwitchEmoteResponse>>();
 
       return data.data.map((emote) => this.transformEmote(emote, true));
-    } catch (error) {
-      logger.error("Emote:Twitch", "Failed to fetch global emotes", {
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        this.markUnauthorized();
+      }
+      logger.warn("Emote:Twitch", "Failed to fetch global emotes", {
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }
             : String(error),
       });
-      throw error;
+      return [];
     }
   }
 
@@ -108,11 +141,14 @@ class TwitchEmoteProvider implements EmoteProviderService {
     }
 
     try {
+      const accessToken = await this.getFreshAccessToken();
+      if (!accessToken) return [];
+
       const data = await api
         .get(`https://api.twitch.tv/helix/chat/emotes?broadcaster_id=${channelId}`, {
           headers: {
             "Client-ID": this.clientId,
-            Authorization: `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         })
         .json<TwitchApiResponse<TwitchEmoteResponse>>();
@@ -122,14 +158,17 @@ class TwitchEmoteProvider implements EmoteProviderService {
       if (error.response?.status === 404) {
         return []; // Channel has no emotes
       }
-      logger.error("Emote:Twitch", "Failed to fetch channel emotes", {
+      if (error.response?.status === 401) {
+        this.markUnauthorized();
+      }
+      logger.warn("Emote:Twitch", "Failed to fetch channel emotes", {
         channelId,
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }
             : String(error),
       });
-      throw error;
+      return [];
     }
   }
 

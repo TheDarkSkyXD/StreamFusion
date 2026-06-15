@@ -47,8 +47,13 @@ export function renderWithProviders(
 // or with overrides for useParams/useSearch:
 //   vi.mock('@tanstack/react-router', () => routerMock({ params: { foo: 'bar' } }));
 export function routerMock(
-  overrides: { params?: Record<string, string>; search?: Record<string, unknown> } = {}
+  overrides: {
+    params?: Record<string, string>;
+    search?: Record<string, unknown>;
+    pathname?: string;
+  } = {}
 ) {
+  const pathname = overrides.pathname ?? '/';
   return {
     // biome-ignore lint/suspicious/noExplicitAny: test shim.
     Link: ({ to, params, search, children, className, onClick, ...rest }: any) => (
@@ -66,10 +71,11 @@ export function routerMock(
       </a>
     ),
     useNavigate: () => vi.fn(),
+    useLocation: () => ({ pathname }),
     useParams: () => overrides.params ?? {},
     useSearch: () => overrides.search ?? {},
     useRouter: () => ({ navigate: vi.fn(), history: { back: vi.fn() } }),
-    useRouterState: () => ({ location: { pathname: '/' } }),
+    useRouterState: () => ({ location: { pathname } }),
     Outlet: () => null,
   };
 }

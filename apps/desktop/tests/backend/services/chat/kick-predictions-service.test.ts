@@ -29,7 +29,15 @@ interface FakeChannelHandle {
 }
 
 interface FakePusher {
-  connection: { state: string };
+  connection: {
+    state: string;
+    connection?: {
+      transport?: {
+        state?: string;
+        socket?: { readyState?: number };
+      };
+    };
+  };
   channels: Map<string, FakeChannelHandle>;
   subscribe: (channelName: string) => FakeChannelHandle;
   unsubscribe: (channelName: string) => void;
@@ -433,6 +441,10 @@ describe("kickPredictionsService teardown does not race the Pusher socket close"
   // kick-chat teardown race fixed in 22f575f; predictions has its own
   // pusher.unsubscribe call sites at unsubscribe(entry) line and the
   // anonymous-failure cleanup branch.
+  // Guards: KickChat final-view cleanup can explicitly skip prediction
+  // unsubscribe frames because the shared Pusher socket is about to close.
+  // Guards: release() must also skip pusher.unsubscribe() when Pusher's public
+  // state still says connected but the raw WebSocket is already CLOSING/CLOSED.
 
   it("release(channelId) does NOT call pusher.unsubscribe when the socket is already disconnected", async () => {
     // Subscribe while connected so the entry has a pusherChannel.
@@ -445,6 +457,41 @@ describe("kickPredictionsService teardown does not race the Pusher socket close"
     // The chat-service's pusher just got disconnected (e.g. user closed the
     // tab, switched platforms, or main.before-quit fired).
     fakePusher.connection.state = "disconnected";
+
+    const unsubSpy = vi.spyOn(fakePusher, "unsubscribe");
+    kickPredictionsService.release({ channelId: "12345" });
+
+    expect(unsubSpy).not.toHaveBeenCalled();
+  });
+
+  it("release(channelId) does NOT call pusher.unsubscribe when KickChat is about to close the shared socket", async () => {
+    await kickPredictionsService.acquire({
+      channelId: "12345",
+      channelSlug: "ramee",
+    });
+    expect(fakePusher.channels.has("predictions-channel-12345")).toBe(true);
+
+    const unsubSpy = vi.spyOn(fakePusher, "unsubscribe");
+    kickPredictionsService.release({
+      channelId: "12345",
+      skipPusherUnsubscribe: true,
+    });
+
+    expect(unsubSpy).not.toHaveBeenCalled();
+  });
+
+  it("release(channelId) does NOT call pusher.unsubscribe when Pusher still says connected but the raw socket is closing", async () => {
+    await kickPredictionsService.acquire({
+      channelId: "12345",
+      channelSlug: "ramee",
+    });
+    expect(fakePusher.channels.has("predictions-channel-12345")).toBe(true);
+    fakePusher.connection.connection = {
+      transport: {
+        state: "open",
+        socket: { readyState: 2 },
+      },
+    };
 
     const unsubSpy = vi.spyOn(fakePusher, "unsubscribe");
     kickPredictionsService.release({ channelId: "12345" });

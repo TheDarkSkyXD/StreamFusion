@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/backend/logging/logger";
 
+// Guards: successful Kick stream metadata fetch seeds live playback cache so stream opens can resolve from memory.
 // Guards: Kick public-stream-cache + fan-out 4-part contract (regressions cb0b7b6 + 6d3606d, refactored in 640870a).
 // Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
 // Guards: stagger fires AFTER cache check — a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
 // Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
-// Guards: a transient timeout does NOT preempt a fresh positive cache — the timeout-TTL (30s) is intentionally suppressed when a successful fetch from the same slug is still within `PUBLIC_STREAM_POLL_HIT_TTL_MS` (90s). Otherwise a single 5s cold-TLS timeout would flash false "channel offline" UI on the stream-detail page.
+// Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
 
 // The vi.mock factory is hoisted above all top-level declarations and cannot
 // close over variables defined later in this file. `vi.hoisted` runs at the
@@ -85,6 +86,7 @@ const LIVE_BODY = JSON.stringify({
     is_mature: false,
     categories: [{ id: 1, name: "Just Chatting" }],
   },
+  playback_url: "https://playback.example.test/live/ac7ionman.m3u8?token=secret",
 });
 
 describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
@@ -119,6 +121,24 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     expect(mockState.state.netRequestCalls).toHaveLength(1); // Still 1 — no second network hit.
   });
 
+  it("seeds the Kick playback cache from the same channel payload", async () => {
+    mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
+    const { getCachedKickLivePlayback } = await import(
+      "@/backend/api/platforms/kick/kick-playback-cache"
+    );
+
+    await getPublicStreamBySlug("ac7ionman");
+
+    const playback = getCachedKickLivePlayback("ac7ionman");
+    expect(playback).toEqual(
+      expect.objectContaining({
+        url: "https://playback.example.test/live/ac7ionman.m3u8?token=secret",
+        format: "hls",
+        sourceField: "playback_url",
+      })
+    );
+  });
+
   it("contract 2: stagger fires AFTER cache check — cache-hit path is synchronous even with staggerOffsetMs > 0", async () => {
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
 
@@ -149,23 +169,28 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     expect(mockState.state.netRequestCalls).toHaveLength(0);
   });
 
-  // Contract 4 (transient timeout does NOT poison a fresh positive cache)
-  // is documented and shipped in the source (`stream-endpoints.ts` lines
-  // 549-559: the `transient && fresh` early-return that skips the
-  // negative-cache write). It is *not* covered by a unit test at this
-  // integration layer because the guard only matters in an in-flight race —
-  // the positive cache from t=0 must STILL be valid (<90s old) at the
-  // moment a network attempt for the same slug *fails*. The positive
-  // cache check happens BEFORE the network call in the happy path, so
-  // a same-slug call within the window never reaches the network at all
-  // (covered by contract 1). The race that the guard protects against
-  // — positive cache expires mid-flight, the now-failed attempt evicts
-  // a positive entry that another concurrent caller is about to re-prime
-  // — can't be staged from outside the module without exposing
-  // `_doFetchPublicStreamBySlug` or the cache maps as test seams, and
-  // the audit's `no-source-mod` rule precludes that. The guard is
-  // referenced from the file-level `// Guards:` comment instead so a
-  // future maintainer trying to delete it triggers reviewer attention.
+  it("contract 4: transient timeout after poll-cache expiry serves the last-known-good live stream", async () => {
+    mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
+
+    const first = await getPublicStreamBySlug("ac7ionman");
+    expect(first?.id).toBe("999");
+    expect(mockState.state.netRequestCalls).toHaveLength(1);
+
+    // Expire the 90s normal poll-hit cache while staying inside the 5min
+    // last-known-good stale window used for transient failures.
+    await vi.advanceTimersByTimeAsync(91_000);
+
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:timeout" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:timeout" });
+    mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:timeout" });
+
+    const retry = getPublicStreamBySlug("ac7ionman");
+    await vi.advanceTimersByTimeAsync(10_000);
+    const second = await retry;
+
+    expect(second?.id).toBe("999");
+    expect(mockState.state.netRequestCalls).toHaveLength(4);
+  });
 });
 
 describe("getPublicTopStreams", () => {

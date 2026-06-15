@@ -130,7 +130,7 @@ export const StreamCard = React.memo(({ stream, showCategory = true }: StreamCar
     <Link
       to="/stream/$platform/$channel"
       params={{ platform: stream.platform, channel: stream.channelName }}
-      search={{ tab: "videos" }}
+      search={{ tab: "home" }}
       className="block group"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

@@ -93,7 +93,7 @@ export function substituteThirdPartyEmotes(
         type: "emote",
         id: emote.id,
         name: emote.name,
-        url: emote.urls.url4x ?? emote.urls.url2x ?? emote.urls.url1x,
+        url: emote.urls.url2x ?? emote.urls.url1x,
         isAnimated: emote.isAnimated,
         isZeroWidth: emote.isZeroWidth,
       });

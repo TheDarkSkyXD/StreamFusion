@@ -78,11 +78,12 @@ const FROZEN_NOW = new Date("2026-06-06T12:00:00.000Z").getTime();
 const getClipsMock = vi.mocked(kickClient.getClips);
 const getVideosMock = vi.mocked(kickClient.getVideos);
 const twitchGetClipsByChannelMock = vi.mocked(twitchClient.getClipsByChannel);
+type ClipAgeRow = readonly [id: string, ageMs: number];
 
 function clip(
   id: string,
   ageMs: number,
-  extras: { views?: string | number; title?: string } = {}
+  extras: { views?: string | number; title?: string; created_at?: string } = {}
 ): any {
   return {
     id,
@@ -90,7 +91,7 @@ function clip(
     duration: "0:30",
     views: extras.views ?? 1,
     date: new Date(FROZEN_NOW - ageMs).toLocaleDateString(),
-    created_at: new Date(FROZEN_NOW - ageMs).toISOString(),
+    created_at: extras.created_at ?? new Date(FROZEN_NOW - ageMs).toISOString(),
     thumbnailUrl: "",
     vodId: "",
   };
@@ -111,6 +112,15 @@ function twitchClip(
     embedUrl: "",
     clipUrl: "",
   };
+}
+
+function mockTwitchClipBuckets(
+  buckets: Record<string, { data: any[]; cursor?: string }>
+): void {
+  twitchGetClipsByChannelMock.mockImplementation(async (_channelLogin, options) => {
+    const filter = String((options as any)?.filter);
+    return buckets[filter] ?? { data: [], cursor: undefined };
+  });
 }
 
 beforeEach(() => {
@@ -280,6 +290,28 @@ describe("fillPageWithCutoff", () => {
 });
 
 describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
+  it.each([
+    ["day" as const, [["twelve-hours", DAY_MS / 2], ["one-minute", 60_000], ["one-hour", 60 * 60_000]] as const satisfies readonly ClipAgeRow[]],
+    ["week" as const, [["five-days", 5 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
+    ["month" as const, [["twelve-days", 12 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
+  ])("sorts %s Most Recent clips by clip age, newest first", async (timeRange, rows) => {
+    getClipsMock.mockResolvedValueOnce({
+      data: rows.map(([id, ageMs]) => clip(id, ageMs)),
+      cursor: undefined,
+    });
+
+    const res = await handleGetClipsByChannel({
+      platform: "kick",
+      channelName: "somechannel",
+      limit: 20,
+      sort: "date",
+      timeRange,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data?.map((c: any) => c.id)).toEqual([rows[1][0], rows[2][0], rows[0][0]]);
+  });
+
   it("returns all in-range clips and cursor=undefined when upstream is exhausted under limit", async () => {
     getClipsMock.mockResolvedValueOnce({
       data: [clip("a", 1000), clip("b", DAY_MS / 2), clip("c", DAY_MS - 1000)],
@@ -297,6 +329,27 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
     expect(res.success).toBe(true);
     expect(res.data?.map((c: any) => c.id)).toEqual(["a", "b", "c"]);
     expect(res.cursor).toBeUndefined();
+  });
+
+  it("sorts Kick microsecond timestamps as real dates for Most Recent", async () => {
+    getClipsMock.mockResolvedValueOnce({
+      data: [
+        clip("older", 2 * 60_000, { created_at: "2026-06-06T11:58:00.297186Z" }),
+        clip("newer", 60_000, { created_at: "2026-06-06T11:59:00.123456Z" }),
+      ],
+      cursor: undefined,
+    });
+
+    const res = await handleGetClipsByChannel({
+      platform: "kick",
+      channelName: "somechannel",
+      limit: 20,
+      sort: "date",
+      timeRange: "day",
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data?.map((c: any) => c.id)).toEqual(["newer", "older"]);
   });
 
   it("returns only in-range clips and cursor=undefined when a page contains an out-of-range clip", async () => {
@@ -499,6 +552,25 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
 });
 
 describe("handleGetClipsByChannel - Kick - All Time pass-through", () => {
+  it("sorts All Time Most Recent clips by clip age, newest first", async () => {
+    getClipsMock.mockResolvedValueOnce({
+      data: [clip("old", 100 * DAY_MS), clip("one-minute", 60_000), clip("one-day", DAY_MS)],
+      cursor: "upstream-abc",
+    });
+
+    const res = await handleGetClipsByChannel({
+      platform: "kick",
+      channelName: "somechannel",
+      limit: 20,
+      sort: "date",
+      timeRange: "all",
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data?.map((c: any) => c.id)).toEqual(["one-minute", "one-day", "old"]);
+    expect(res.cursor).toBe("upstream-abc");
+  });
+
   it("does not apply a cutoff and forwards the upstream cursor when timeRange='all'", async () => {
     getClipsMock.mockResolvedValueOnce({
       data: [clip("a", 1000), clip("old", 100 * DAY_MS)],
@@ -567,6 +639,34 @@ describe("handleGetClipsByChannel - Kick - views-sort + day/week/month Deep Fetc
 });
 
 describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
+  it.each([
+    ["day" as const, [["twelve-hours", DAY_MS / 2], ["one-minute", 60_000], ["one-hour", 60 * 60_000]] as const satisfies readonly ClipAgeRow[]],
+    ["week" as const, [["five-days", 5 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
+    ["month" as const, [["twelve-days", 12 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
+  ])("sorts %s Most Recent clips by clip age, newest first", async (timeRange, rows) => {
+    const data = rows.map(([id, ageMs]) => twitchClip(id, ageMs));
+    if (timeRange === "day") {
+      twitchGetClipsByChannelMock.mockResolvedValueOnce({ data, cursor: undefined });
+    } else {
+      mockTwitchClipBuckets({
+        LAST_DAY: { data: [] },
+        LAST_WEEK: { data },
+        LAST_MONTH: { data },
+      });
+    }
+
+    const res = await handleGetClipsByChannel({
+      platform: "twitch",
+      channelName: "SomeChannel",
+      limit: 20,
+      sort: "date",
+      timeRange,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data?.map((c: any) => c.id)).toEqual([rows[1][0], rows[2][0], rows[0][0]]);
+  });
+
   it("returns all in-range clips and cursor=undefined when GQL is exhausted under limit", async () => {
     twitchGetClipsByChannelMock.mockResolvedValueOnce({
       data: [twitchClip("a", 1000), twitchClip("b", DAY_MS / 2), twitchClip("c", DAY_MS - 1000)],
@@ -628,14 +728,17 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
   });
 
   it("applies a 7-day cutoff for Twitch timeRange='week' (mixed near the boundary)", async () => {
-    twitchGetClipsByChannelMock.mockResolvedValueOnce({
-      data: [
-        twitchClip("fresh", 1000),
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [twitchClip("fresh", 1000)] },
+      LAST_WEEK: {
+        data: [
+          twitchClip("fresh", 1000),
         twitchClip("just-inside-7d", 7 * DAY_MS - 1000),
         twitchClip("just-outside-7d", 7 * DAY_MS + 1000),
         twitchClip("far-out", 14 * DAY_MS),
-      ],
-      cursor: "gql-next",
+        ],
+        cursor: "gql-next",
+      },
     });
 
     const res = await handleGetClipsByChannel({
@@ -647,13 +750,16 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
     });
 
     expect(res.data?.map((c: any) => c.id)).toEqual(["fresh", "just-inside-7d"]);
-    expect(res.cursor).toBeUndefined();
+    expect(res.cursor).toBe("gql-next");
   });
 
   it("returns all Twitch clips when every clip is inside the 7-day window", async () => {
-    twitchGetClipsByChannelMock.mockResolvedValueOnce({
-      data: [twitchClip("a", 1000), twitchClip("b", 3 * DAY_MS), twitchClip("c", 6 * DAY_MS)],
-      cursor: undefined,
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [twitchClip("a", 1000)] },
+      LAST_WEEK: {
+        data: [twitchClip("a", 1000), twitchClip("b", 3 * DAY_MS), twitchClip("c", 6 * DAY_MS)],
+        cursor: undefined,
+      },
     });
 
     const res = await handleGetClipsByChannel({
@@ -669,9 +775,12 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
   });
 
   it("returns no Twitch clips when everything is older than 7 days", async () => {
-    twitchGetClipsByChannelMock.mockResolvedValueOnce({
-      data: [twitchClip("a", 7 * DAY_MS + 1000), twitchClip("b", 10 * DAY_MS)],
-      cursor: "gql-next",
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [] },
+      LAST_WEEK: {
+        data: [twitchClip("a", 7 * DAY_MS + 1000), twitchClip("b", 10 * DAY_MS)],
+        cursor: "gql-next",
+      },
     });
 
     const res = await handleGetClipsByChannel({
@@ -683,18 +792,22 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
     });
 
     expect(res.data).toEqual([]);
-    expect(res.cursor).toBeUndefined();
+    expect(res.cursor).toBe("gql-next");
   });
 
   it("applies a 30-day cutoff for Twitch timeRange='month' (mixed near the boundary)", async () => {
-    twitchGetClipsByChannelMock.mockResolvedValueOnce({
-      data: [
-        twitchClip("fresh", 1000),
-        twitchClip("just-inside-30d", 30 * DAY_MS - 1000),
-        twitchClip("just-outside-30d", 30 * DAY_MS + 1000),
-        twitchClip("far-out", 60 * DAY_MS),
-      ],
-      cursor: "gql-next",
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [twitchClip("fresh", 1000)] },
+      LAST_WEEK: { data: [] },
+      LAST_MONTH: {
+        data: [
+          twitchClip("fresh", 1000),
+          twitchClip("just-inside-30d", 30 * DAY_MS - 1000),
+          twitchClip("just-outside-30d", 30 * DAY_MS + 1000),
+          twitchClip("far-out", 60 * DAY_MS),
+        ],
+        cursor: "gql-next",
+      },
     });
 
     const res = await handleGetClipsByChannel({
@@ -706,13 +819,17 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
     });
 
     expect(res.data?.map((c: any) => c.id)).toEqual(["fresh", "just-inside-30d"]);
-    expect(res.cursor).toBeUndefined();
+    expect(res.cursor).toBe("gql-next");
   });
 
   it("returns all Twitch clips when every clip is inside the 30-day window", async () => {
-    twitchGetClipsByChannelMock.mockResolvedValueOnce({
-      data: [twitchClip("a", 1000), twitchClip("b", 14 * DAY_MS), twitchClip("c", 29 * DAY_MS)],
-      cursor: undefined,
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [twitchClip("a", 1000)] },
+      LAST_WEEK: { data: [] },
+      LAST_MONTH: {
+        data: [twitchClip("a", 1000), twitchClip("b", 14 * DAY_MS), twitchClip("c", 29 * DAY_MS)],
+        cursor: undefined,
+      },
     });
 
     const res = await handleGetClipsByChannel({
@@ -728,9 +845,13 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
   });
 
   it("returns no Twitch clips when everything is older than 30 days", async () => {
-    twitchGetClipsByChannelMock.mockResolvedValueOnce({
-      data: [twitchClip("a", 30 * DAY_MS + 1000), twitchClip("b", 100 * DAY_MS)],
-      cursor: "gql-next",
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [] },
+      LAST_WEEK: { data: [] },
+      LAST_MONTH: {
+        data: [twitchClip("a", 30 * DAY_MS + 1000), twitchClip("b", 100 * DAY_MS)],
+        cursor: "gql-next",
+      },
     });
 
     const res = await handleGetClipsByChannel({
@@ -742,7 +863,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
     });
 
     expect(res.data).toEqual([]);
-    expect(res.cursor).toBeUndefined();
+    expect(res.cursor).toBe("gql-next");
   });
 
   it("forwards the GQL cursor when the page fills the UI limit (returns all drained in-range items)", async () => {
@@ -806,11 +927,131 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
   });
 });
 
-describe("handleGetClipsByChannel - Twitch - All Time pass-through", () => {
-  it("does not apply a cutoff and forwards the GQL cursor when timeRange='all'", async () => {
-    twitchGetClipsByChannelMock.mockResolvedValueOnce({
-      data: [twitchClip("a", 1000), twitchClip("old", 100 * DAY_MS)],
-      cursor: "gql-abc",
+describe("handleGetClipsByChannel - Twitch - All Time", () => {
+  it("merges day/week/month buckets for All Time + Most Recent so today's clips appear first", async () => {
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [twitchClip("one-minute", 60_000)] },
+      LAST_WEEK: { data: [twitchClip("one-day", DAY_MS)] },
+      LAST_MONTH: {
+        data: [twitchClip("old", 100 * DAY_MS), twitchClip("one-day", DAY_MS)],
+        cursor: "gql-abc",
+      },
+    });
+
+    const res = await handleGetClipsByChannel({
+      platform: "twitch",
+      channelName: "SomeChannel",
+      limit: 20,
+      sort: "date",
+      timeRange: "all",
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data?.map((c: any) => c.id)).toEqual(["one-minute", "one-day", "old"]);
+    expect(res.cursor).toBe("gql-abc");
+    expect(twitchGetClipsByChannelMock).toHaveBeenCalledWith(
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "LAST_DAY" })
+    );
+    expect(twitchGetClipsByChannelMock).toHaveBeenCalledWith(
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "LAST_WEEK" })
+    );
+    expect(twitchGetClipsByChannelMock).toHaveBeenCalledWith(
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "LAST_MONTH" })
+    );
+  });
+
+  it("overfetches before sorting All Time + Most Recent so low-view fresh clips are not hidden behind Twitch's upstream order", async () => {
+    mockTwitchClipBuckets({
+      LAST_DAY: {
+        data: [twitchClip("one-minute-low-view", 60_000, { viewCount: 10 })],
+      },
+      LAST_WEEK: {
+        data: [
+          twitchClip("popular-week-old", 7 * DAY_MS, { viewCount: 100_000 }),
+          twitchClip("popular-day-old", DAY_MS, { viewCount: 50_000 }),
+        ],
+      },
+      LAST_MONTH: {
+        data: [
+          twitchClip("popular-week-old", 7 * DAY_MS, { viewCount: 100_000 }),
+          twitchClip("popular-day-old", DAY_MS, { viewCount: 50_000 }),
+        ],
+        cursor: "gql-abc",
+      },
+    });
+
+    const res = await handleGetClipsByChannel({
+      platform: "twitch",
+      channelName: "SomeChannel",
+      limit: 2,
+      sort: "date",
+      timeRange: "all",
+    });
+
+    expect(res.data?.map((c: any) => c.id)).toEqual([
+      "one-minute-low-view",
+      "popular-day-old",
+      "popular-week-old",
+    ]);
+    expect(twitchGetClipsByChannelMock).toHaveBeenCalledWith(
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "LAST_DAY" })
+    );
+  });
+
+  it("falls back to the all-time GQL pool when All Time + Most Recent has no recent clips", async () => {
+    twitchGetClipsByChannelMock
+      .mockResolvedValueOnce({ data: [], cursor: undefined })
+      .mockResolvedValueOnce({ data: [], cursor: undefined })
+      .mockResolvedValueOnce({ data: [], cursor: undefined })
+      .mockResolvedValueOnce({
+        data: [twitchClip("older", 100 * DAY_MS), twitchClip("less-old", 30 * DAY_MS)],
+        cursor: "gql-abc",
+      });
+
+    const res = await handleGetClipsByChannel({
+      platform: "twitch",
+      channelName: "SomeChannel",
+      limit: 20,
+      sort: "date",
+      timeRange: "all",
+    });
+
+    expect(res.data?.map((c: any) => c.id)).toEqual(["less-old", "older"]);
+    expect(res.cursor).toBe("gql-abc");
+    expect(twitchGetClipsByChannelMock).toHaveBeenNthCalledWith(
+      1,
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "LAST_DAY" })
+    );
+    expect(twitchGetClipsByChannelMock).toHaveBeenNthCalledWith(
+      2,
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "LAST_WEEK" })
+    );
+    expect(twitchGetClipsByChannelMock).toHaveBeenNthCalledWith(
+      3,
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "LAST_MONTH" })
+    );
+    expect(twitchGetClipsByChannelMock).toHaveBeenNthCalledWith(
+      4,
+      "somechannel",
+      expect.objectContaining({ first: 100, filter: "ALL_TIME" })
+    );
+  });
+
+  it("does not apply a cutoff and forwards the recent GQL cursor when timeRange='all'", async () => {
+    mockTwitchClipBuckets({
+      LAST_DAY: { data: [twitchClip("a", 1000)] },
+      LAST_WEEK: { data: [] },
+      LAST_MONTH: {
+        data: [twitchClip("old", 100 * DAY_MS)],
+        cursor: "gql-abc",
+      },
     });
 
     const res = await handleGetClipsByChannel({
@@ -825,14 +1066,14 @@ describe("handleGetClipsByChannel - Twitch - All Time pass-through", () => {
     expect(res.cursor).toBe("gql-abc");
   });
 
-  it("uses the UI limit (not 100) and the ALL_TIME GQL filter on the All Time path", async () => {
+  it("uses the UI limit (not 100) and the ALL_TIME GQL filter for All Time + Views", async () => {
     twitchGetClipsByChannelMock.mockResolvedValueOnce({ data: [], cursor: undefined });
 
     await handleGetClipsByChannel({
       platform: "twitch",
       channelName: "SomeChannel",
       limit: 20,
-      sort: "date",
+      sort: "views",
       timeRange: "all",
     });
 

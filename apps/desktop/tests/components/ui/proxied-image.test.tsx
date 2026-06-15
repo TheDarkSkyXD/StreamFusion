@@ -22,28 +22,26 @@ describe('ProxiedImage', () => {
     expect(img).toHaveAttribute('src', 'data:image/png;base64,iVBORw0K');
   });
 
-  it('tries Kick CDN URLs directly first', async () => {
+  it('routes Kick CDN URLs through the kick-image protocol immediately', async () => {
     render(<ProxiedImage src="https://files.kick.com/foo.png" alt="hello" />);
     const img = await screen.findByRole('img', { name: 'hello' });
-    expect(img).toHaveAttribute('src', 'https://files.kick.com/foo.png');
-  });
-
-  it('falls back to the kick-image:// protocol when direct Kick CDN images fail', async () => {
-    render(<ProxiedImage src="https://files.kick.com/foo.png" alt="hello" />);
-    const img = await screen.findByRole('img', { name: 'hello' });
-
-    fireEvent.error(img);
-
-    await waitFor(() => {
-      const nextSrc = img.getAttribute('src') ?? '';
-      expect(nextSrc.startsWith('kick-image://image?u=')).toBe(true);
-    });
     const src = img.getAttribute('src') ?? '';
     expect(src.startsWith('kick-image://image?u=')).toBe(true);
-    // base64url-decode the u param and verify it round-trips to the original URL
     const u = new URL(src).searchParams.get('u') ?? '';
     const b64 = u.replace(/-/g, '+').replace(/_/g, '/');
     expect(atob(b64)).toBe('https://files.kick.com/foo.png');
+  });
+
+  it('routes Kick video thumbnails through the kick-image protocol without first requesting the raw 720.webp URL', async () => {
+    const upstream =
+      'https://images.kick.com/video_thumbnails/z7oMLoDcD3va/iBP8BzqJxpzh/720.webp';
+    render(<ProxiedImage src={upstream} alt="Kick VOD" />);
+    const img = await screen.findByRole('img', { name: 'Kick VOD' });
+    const src = img.getAttribute('src') ?? '';
+    expect(src.startsWith('kick-image://image?u=')).toBe(true);
+    const u = new URL(src).searchParams.get('u') ?? '';
+    const b64 = u.replace(/-/g, '+').replace(/_/g, '/');
+    expect(atob(b64)).toBe(upstream);
   });
 
   it('tries Twitch profile_image URLs directly first', async () => {
@@ -94,16 +92,14 @@ describe('ProxiedImage', () => {
     });
   });
 
-  it('calls onProxyError when the proxied fallback image also errors', async () => {
+  it('calls onProxyError when the proxied Kick image errors', async () => {
     const onProxyError = vi.fn();
     render(
       <ProxiedImage src="https://files.kick.com/foo.png" alt="x" onProxyError={onProxyError} />
     );
     const img = await screen.findByRole('img', { name: 'x' });
-    fireEvent.error(img);
-    await waitFor(() => {
-      expect(img.getAttribute('src')?.startsWith('kick-image://image?u=')).toBe(true);
-    });
+    expect(img.getAttribute('src')?.startsWith('kick-image://image?u=')).toBe(true);
+
     fireEvent.error(img);
     await waitFor(() => expect(onProxyError).toHaveBeenCalled());
   });
@@ -133,10 +129,7 @@ describe('ProxiedImage', () => {
     const onProxyError = vi.fn();
     render(<ProxiedImage src={upstream} alt="Kick VOD" onProxyError={onProxyError} />);
     const img = await screen.findByRole('img', { name: 'Kick VOD' });
-    fireEvent.error(img);
-    await waitFor(() => {
-      expect(img.getAttribute('src')?.startsWith('kick-image://image?u=')).toBe(true);
-    });
+    expect(img.getAttribute('src')?.startsWith('kick-image://image?u=')).toBe(true);
 
     Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 1 });
     Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 1 });

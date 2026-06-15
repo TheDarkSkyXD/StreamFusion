@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
+import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
@@ -53,7 +53,6 @@ import { useRoomStateStore } from "../../../store/room-state-store";
 import { useRenderCount } from "../../dev/use-render-count";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
-import { ChatQuickSettingsPopover } from "../ChatQuickSettingsPopover";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
@@ -108,6 +107,33 @@ function formatTimeoutLabel(seconds: number): string {
   return `${Math.floor(seconds / 86_400)}d`;
 }
 
+const CONNECTING_TEXT = "Connecting to channel...";
+const CONNECTED_TEXT = "Connected to the channel";
+
+function createConnectionStatusMessage(
+  channel: string,
+  state: "connecting" | "connected"
+): ChatMessage {
+  const rawContent = state === "connecting" ? CONNECTING_TEXT : CONNECTED_TEXT;
+  return {
+    id: `system:twitch:${channel}:connection:${state}`,
+    platform: "twitch",
+    type: "system",
+    channel,
+    userId: "system",
+    username: "System",
+    displayName: "System",
+    color: "#808080",
+    badges: [],
+    content: [{ type: "text", content: rawContent }],
+    rawContent,
+    timestamp: new Date(),
+    isDeleted: false,
+    isHighlighted: true,
+    isAction: false,
+  };
+}
+
 export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) => {
   useRenderCount("TwitchChat");
   // Chat store — subscribe only to fields read in render; actions have stable refs.
@@ -156,7 +182,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     (state) =>
       state.preferences?.chatDisplay?.showPolls ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.showPolls
   );
-  const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
   const [isPinExpanded, setIsPinExpanded] = useState(false);
@@ -226,11 +251,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         // Acquire a reference to the service (for multiview support)
         twitchChatService.acquire(channel);
 
-        // The "Connecting to channel..." / "Connected to the channel" lines
-        // mark the start of the LIVE session — they're injected inside
-        // joinAndSeed below, after the historical-message seed completes,
-        // so the final order reads chronologically:
-        // [history] [Connecting] [Connected] [live...].
+        if (channel) {
+          addMessage(createConnectionStatusMessage(channel, "connecting"));
+        }
+
         const joinAndSeed = async (target: string, userId?: string): Promise<void> => {
           await seedTwitchChatHistory({
             channel: target,
@@ -239,44 +263,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           });
           if (!isMounted) return;
 
-          addMessage({
-            id: crypto.randomUUID(),
-            platform: "twitch",
-            type: "system",
-            channel: channel,
-            userId: "system",
-            username: "System",
-            displayName: "System",
-            color: "#808080",
-            badges: [],
-            content: [{ type: "text", content: "Connecting to channel..." }],
-            rawContent: "Connecting to channel...",
-            timestamp: new Date(),
-            isDeleted: false,
-            isHighlighted: true,
-            isAction: false,
-          });
-
           await twitchChatService.joinChannel(target, userId);
           if (!isMounted) return;
 
-          addMessage({
-            id: crypto.randomUUID(),
-            platform: "twitch",
-            type: "system",
-            channel: channel,
-            userId: "system",
-            username: "System",
-            displayName: "System",
-            color: "#808080",
-            badges: [],
-            content: [{ type: "text", content: "Connected to the channel" }],
-            rawContent: "Connected to the channel",
-            timestamp: new Date(),
-            isDeleted: false,
-            isHighlighted: true,
-            isAction: false,
-          });
+          addMessage(createConnectionStatusMessage(target, "connected"));
         };
 
         // Get a guaranteed-fresh access token (refreshes if expired or within
@@ -908,9 +898,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       </div>
 
       <div className="border-t border-[var(--color-border)]">
-        {/* U7 — the gear + its "Clear local chat" action moved to the panel
-         *  header popover (outside ChatPanelTabs). The footer is now just the
-         *  message composer. */}
+        {/* Footer composer owns message send actions and quick chat settings. */}
         <div className="p-2">
           <ChatInput
             ref={chatInputRef}
@@ -931,28 +919,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           <h2 className="font-semibold flex items-center gap-2">
             <span className="text-white">Chat</span>
           </h2>
-          {/* U7 — gear lives in the header chrome OUTSIDE ChatPanelTabs so the
-           *  single-tab viewer path doesn't strip it (chat-header-banner learning).
-           *  `relative` anchors the popover; the gear gets an accent state while open. */}
-          <div className="relative flex space-x-2">
-            <button
-              type="button"
-              onClick={() => setShowChatSettings((v) => !v)}
-              aria-label="Chat settings"
-              aria-expanded={showChatSettings}
-              title="Chat settings"
-              className={
-                showChatSettings
-                  ? "text-[#dc143c] flex-shrink-0"
-                  : "text-gray-400 hover:text-white flex-shrink-0"
-              }
-            >
-              <BsGear size={16} />
-            </button>
-            {showChatSettings && (
-              <ChatQuickSettingsPopover onClose={() => setShowChatSettings(false)} />
-            )}
-          </div>
         </div>
         <ChatPanelTabs visibleTabs={visibleTabs}>
           {{

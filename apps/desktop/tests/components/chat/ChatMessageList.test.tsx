@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { getRenderCounts, resetRenderCounts } from "@/components/dev/use-render-count";
 import type { ChatMessage } from "@/shared/chat-types";
-import { buildChannelKey, useChatStore } from "@/store/chat-store";
+import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from "@/store/chat-store";
+
+const virtuosoInitialIndexes = vi.hoisted<Array<number | undefined>>(() => []);
+const virtuosoWindowProps = vi.hoisted<
+  Array<{ overscan?: number; increaseViewportBy?: number | { top?: number; bottom?: number } }>
+>(() => []);
 
 vi.mock("@/components/chat/ChatMessage", () => ({
   ChatMessage: ({ message }: { message: { displayName: string } }) => (
@@ -17,12 +22,20 @@ vi.mock("react-virtuoso", () => ({
     itemContent,
     atBottomStateChange,
     scrollerRef,
+    initialTopMostItemIndex,
+    overscan,
+    increaseViewportBy,
   }: {
     data: Array<{ id: string }>;
     itemContent: (i: number, m: unknown) => React.ReactNode;
     atBottomStateChange?: (atBottom: boolean) => void;
     scrollerRef?: (el: HTMLElement | null) => void;
+    initialTopMostItemIndex?: number;
+    overscan?: number;
+    increaseViewportBy?: number | { top?: number; bottom?: number };
   }) => {
+    virtuosoInitialIndexes.push(initialTopMostItemIndex);
+    virtuosoWindowProps.push({ overscan, increaseViewportBy });
     const scroller = document.createElement("div");
     scrollerRef?.(scroller);
     return (
@@ -78,7 +91,7 @@ function resetChatStore() {
     messagesByChannel: {},
     pausedChannels: new Set(),
     batchingEnabled: true,
-    batchingInterval: 50,
+    batchingInterval: DEFAULT_BATCHING_INTERVAL_MS,
   });
 }
 
@@ -86,10 +99,13 @@ function resetChatStore() {
 // Guards: per-channel message reads keep a busy multiview panel from re-rendering sibling ChatMessageList instances
 // Guards: per-channel pause state renders the "Chat paused due to scroll" banner only for the panel the viewer scrolled
 // Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
+// Guards: rapid chat updates must not mutate Virtuoso's initial scroll index and flash/jump the visible list
 describe("ChatMessageList", () => {
   beforeEach(() => {
     resetChatStore();
     resetRenderCounts();
+    virtuosoInitialIndexes.length = 0;
+    virtuosoWindowProps.length = 0;
   });
 
   afterEach(() => {
@@ -99,6 +115,14 @@ describe("ChatMessageList", () => {
   it("empty: renders the virtuoso container even with no messages", () => {
     const { getByTestId } = render(<ChatMessageList channelKey={channelA} />);
     expect(getByTestId("virtuoso")).toBeInTheDocument();
+  });
+
+  it("keeps the virtualized pre-render window narrow for emote-heavy fast chat", () => {
+    render(<ChatMessageList channelKey={channelA} />);
+    expect(virtuosoWindowProps.at(-1)).toEqual({
+      overscan: 16,
+      increaseViewportBy: { top: 96, bottom: 96 },
+    });
   });
 
   it("renders only messages for its channel bucket", () => {
@@ -133,6 +157,22 @@ describe("ChatMessageList", () => {
     expect(nextCounts[`ChatMessageList:${channelB}`]).toBe(
       initialCounts[`ChatMessageList:${channelB}`]
     );
+  });
+
+  it("keeps Virtuoso's initial scroll index stable as messages arrive", () => {
+    act(() => {
+      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
+    });
+
+    render(<ChatMessageList channelKey={channelA} />);
+    expect(virtuosoInitialIndexes.at(-1)).toBe(0);
+
+    act(() => {
+      useChatStore.getState().addMessage(message("a", "alpha", "Alpha"));
+      useChatStore.getState().addMessage(message("b", "alpha", "Bravo"));
+    });
+
+    expect(virtuosoInitialIndexes.at(-1)).toBe(0);
   });
 
   it("keeps pause state scoped to the channel that scrolls away from bottom", async () => {

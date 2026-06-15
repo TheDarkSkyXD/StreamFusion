@@ -71,6 +71,24 @@ const ensureSendWindowReady = (): Promise<void> =>
 
 const disposeSendWindow = (): Promise<void> => window.electronAPI.kickChat.disposeSendWindow();
 
+const WEB_SOCKET_OPEN_READY_STATE = 1;
+
+interface PusherConnectionManagerLike {
+  state?: string;
+  connection?: {
+    transport?: {
+      state?: string;
+      socket?: {
+        readyState?: number;
+      };
+    };
+  };
+}
+
+interface LeaveChannelOptions {
+  skipPusherUnsubscribe?: boolean;
+}
+
 /**
  * Convert a raw Kick pinned-message Pusher payload into the platform-agnostic
  * NormalizedPinnedMessage shape used by the shared PinnedMessageBanner.
@@ -408,7 +426,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     // Leave and evict the specific channel only after its final panel releases.
     if (channel && shouldLeaveChannel) {
-      await this.leaveChannel(channel);
+      await this.leaveChannel(channel, { skipPusherUnsubscribe: this.activeUsers <= 1 });
       useChatStore.getState().dropChannel(buildChannelKey("kick", channel));
     }
 
@@ -567,13 +585,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
       // NOTE: Channel badges should be set by caller via setChannelBadges()
 
-      // Begin send-window warmup in parallel with the Pusher subscription. We
-      // don't await — the chat input remains usable; sendMessage will await this
-      // promise before each send.
-      void ensureSendWindowReady().catch((err) => {
-        this.log(`send-window warmup failed: ${err instanceof Error ? err.message : String(err)}`);
-      });
-
       this.emitConnectionStatus();
       this.log(`Joined channel: ${normalizedChannel} (chatroom: ${chatroomId})`);
     } catch (error) {
@@ -591,7 +602,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   /**
    * Leave a channel's chat
    */
-  async leaveChannel(channel: string): Promise<void> {
+  async leaveChannel(channel: string, options: LeaveChannelOptions = {}): Promise<void> {
     const normalizedChannel = this.normalizeChannel(channel);
     const channelInfo = this.channels.get(normalizedChannel);
 
@@ -610,7 +621,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       // Skip unsubscribe if a concurrent disconnect put the socket in
       // CLOSING / CLOSED — pusher-js would log "WebSocket is already in
       // CLOSING or CLOSED state". Server cleans channels up on close.
-      if (this.pusher.connection.state === "connected") {
+      if (!options.skipPusherUnsubscribe && canSendPusherFrames(this.pusher)) {
         const v2ChannelName = `chatrooms.${channelInfo.chatroomId}.v2`;
         const baseChannelName = `chatrooms.${channelInfo.chatroomId}`;
         this.pusher.unsubscribe(v2ChannelName);
@@ -1150,4 +1161,18 @@ export const kickChatService = new KickChatService();
  */
 export function getKickPusher(): Pusher | null {
   return kickChatService.getPusher();
+}
+
+export function canSendPusherFrames(pusher: Pick<Pusher, "connection"> | null): boolean {
+  if (!pusher) return false;
+
+  const connection = pusher.connection as unknown as PusherConnectionManagerLike;
+  if (connection.state !== "connected") return false;
+
+  const transport = connection.connection?.transport;
+  if (!transport) return true;
+  if (transport.state && transport.state !== "open") return false;
+
+  const readyState = transport.socket?.readyState;
+  return typeof readyState !== "number" || readyState === WEB_SOCKET_OPEN_READY_STATE;
 }

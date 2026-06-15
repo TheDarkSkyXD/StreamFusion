@@ -59,11 +59,60 @@ function getKickVideoLivestreamId(video: any): string | undefined {
   return id ? id.toString() : undefined;
 }
 
+function parseClipCreatedAtMs(raw: unknown): number {
+  if (!raw) return 0;
+  const value = String(raw);
+  const directMs = Date.parse(value);
+  if (Number.isFinite(directMs)) return directMs;
+
+  // Kick can return microsecond timestamps like `.297186Z`; JS Date only
+  // accepts millisecond precision, so trim fractional seconds to 3 digits.
+  const normalized = value.replace(/(\.\d{3})\d+(Z|[+-]\d{2}:?\d{2})$/, "$1$2");
+  const normalizedMs = Date.parse(normalized);
+  return Number.isFinite(normalizedMs) ? normalizedMs : 0;
+}
+
+function getClipCreatedAtMs(clip: any): number {
+  const raw = clip.createdAt || clip.created_at || clip.date;
+  return parseClipCreatedAtMs(raw);
+}
+
+function sortClipsByCreatedAtDesc<T>(clips: T[]): T[] {
+  return [...clips].sort((a, b) => getClipCreatedAtMs(b) - getClipCreatedAtMs(a));
+}
+
+function dedupeClipsById<T extends { id?: string }>(clips: T[]): T[] {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+
+  for (const clip of clips) {
+    if (!clip.id || seen.has(clip.id)) continue;
+    seen.add(clip.id);
+    deduped.push(clip);
+  }
+
+  return deduped;
+}
+
 export type TimeRangeFilter = "day" | "week" | "month" | "all";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STRICT_CUTOFF_INTERNAL_PAGE_SIZE = 100;
 const STRICT_CUTOFF_MAX_INTERNAL_PAGES = 5;
+const TWITCH_RECENT_DATE_CANDIDATE_PAGE_SIZE = 100;
+
+function getTwitchInitialDateCandidateFilters(timeRange: TimeRangeFilter | undefined): string[] {
+  switch (timeRange) {
+    case "week":
+      return ["LAST_DAY", "LAST_WEEK"];
+    case "month":
+      return ["LAST_DAY", "LAST_WEEK", "LAST_MONTH"];
+    case "all":
+      return ["LAST_DAY", "LAST_WEEK", "LAST_MONTH"];
+    default:
+      return [];
+  }
+}
 
 /** Inclusive on the older edge: a clip with createdAt === cutoff is in range. Null for "all". */
 export function getCutoffMs(timeRange: TimeRangeFilter | undefined, nowMs: number): number | null {
@@ -200,26 +249,70 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
       }
 
       const cutoffMs = getCutoffMs(params.timeRange, Date.now());
+      const effectiveGqlFilter =
+        params.sort === "date" && params.timeRange === "all" ? "LAST_MONTH" : gqlFilter;
+      const shouldOverfetchRecentDateCandidates =
+        params.sort === "date" && params.timeRange === "all";
+      const gqlFirst = shouldOverfetchRecentDateCandidates
+        ? Math.max(params.limit ?? 20, TWITCH_RECENT_DATE_CANDIDATE_PAGE_SIZE)
+        : params.limit;
+      const initialDateCandidateFilters =
+        params.sort === "date" && !params.cursor
+          ? getTwitchInitialDateCandidateFilters(params.timeRange)
+          : [];
 
       let twitchClips: UnifiedClip[];
       let outputCursor: string | undefined;
 
       if (cutoffMs === null) {
-        logger.debug("IPC:Video", "Fetching Twitch clips via GQL", {
-          channelLogin,
-          gqlFilter,
-        });
-        const clips = await twitchClient.getClipsByChannel(channelLogin, {
-          first: params.limit,
-          after: params.cursor,
-          filter: gqlFilter,
-        });
+        if (initialDateCandidateFilters.length > 0) {
+          logger.debug("IPC:Video", "Fetching Twitch clips via date candidate buckets", {
+            channelLogin,
+            filters: initialDateCandidateFilters,
+          });
+          const pages = await Promise.all(
+            initialDateCandidateFilters.map((filter) =>
+              twitchClient.getClipsByChannel(channelLogin, {
+                first: TWITCH_RECENT_DATE_CANDIDATE_PAGE_SIZE,
+                filter,
+              })
+            )
+          );
+          twitchClips = dedupeClipsById(pages.flatMap((page) => page.data));
+          outputCursor = pages.at(-1)?.cursor;
+
+          if (twitchClips.length === 0 && effectiveGqlFilter !== gqlFilter) {
+            const fallback = await twitchClient.getClipsByChannel(channelLogin, {
+              first: gqlFirst,
+              filter: gqlFilter,
+            });
+            twitchClips = fallback.data;
+            outputCursor = fallback.cursor;
+          }
+        } else {
+          logger.debug("IPC:Video", "Fetching Twitch clips via GQL", {
+            channelLogin,
+            gqlFilter: effectiveGqlFilter,
+          });
+          let clips = await twitchClient.getClipsByChannel(channelLogin, {
+            first: gqlFirst,
+            after: params.cursor,
+            filter: effectiveGqlFilter,
+          });
+          if (clips.data.length === 0 && effectiveGqlFilter !== gqlFilter) {
+            clips = await twitchClient.getClipsByChannel(channelLogin, {
+              first: gqlFirst,
+              after: params.cursor,
+              filter: gqlFilter,
+            });
+          }
+          twitchClips = clips.data;
+          outputCursor = clips.cursor;
+        }
         logger.debug("IPC:Video", "Fetched Twitch clips (GQL)", {
-          count: clips.data.length,
+          count: twitchClips.length,
           channelLogin,
         });
-        twitchClips = clips.data;
-        outputCursor = clips.cursor;
       } else {
         const uiLimit = params.limit ?? 20;
         logger.debug("IPC:Video", "Twitch clip strict cutoff", {
@@ -230,36 +323,53 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           gqlFilter,
         });
 
-        const result = await fillPageWithCutoff<UnifiedClip>({
-          cutoffMs,
-          limit: uiLimit,
-          initialCursor: params.cursor,
-          maxInternalPages: STRICT_CUTOFF_MAX_INTERNAL_PAGES,
-          fetchPage: async (cursor) => {
-            const clips = await twitchClient.getClipsByChannel(channelLogin, {
-              first: STRICT_CUTOFF_INTERNAL_PAGE_SIZE,
-              after: cursor,
-              filter: gqlFilter,
-            });
-            return { items: clips.data, cursor: clips.cursor };
-          },
-          getCreatedAtMs: (clip) => new Date(clip.createdAt).getTime(),
-        });
+        if (initialDateCandidateFilters.length > 0) {
+          const pages = await Promise.all(
+            initialDateCandidateFilters.map((filter) =>
+              twitchClient.getClipsByChannel(channelLogin, {
+                first: TWITCH_RECENT_DATE_CANDIDATE_PAGE_SIZE,
+                filter,
+              })
+            )
+          );
+          twitchClips = dedupeClipsById(pages.flatMap((page) => page.data)).filter(
+            (clip) => getClipCreatedAtMs(clip) >= cutoffMs
+          );
+          outputCursor = pages.at(-1)?.cursor;
+        } else {
+          const result = await fillPageWithCutoff<UnifiedClip>({
+            cutoffMs,
+            limit: uiLimit,
+            initialCursor: params.cursor,
+            maxInternalPages: STRICT_CUTOFF_MAX_INTERNAL_PAGES,
+            fetchPage: async (cursor) => {
+              const clips = await twitchClient.getClipsByChannel(channelLogin, {
+                first: STRICT_CUTOFF_INTERNAL_PAGE_SIZE,
+                after: cursor,
+                filter: gqlFilter,
+              });
+              return { items: clips.data, cursor: clips.cursor };
+            },
+            getCreatedAtMs: (clip) => new Date(clip.createdAt).getTime(),
+          });
 
-        logger.debug("IPC:Video", "Twitch clip strict cutoff result", {
-          pagesFetched: result.pagesFetched,
-          candidatesSeen: result.candidatesSeen,
-          inRange: result.inRange.length,
-          reason: result.reason,
-          nextCursor: result.nextCursor ?? null,
-        });
-        twitchClips = result.inRange;
-        outputCursor = result.nextCursor;
+          logger.debug("IPC:Video", "Twitch clip strict cutoff result", {
+            pagesFetched: result.pagesFetched,
+            candidatesSeen: result.candidatesSeen,
+            inRange: result.inRange.length,
+            reason: result.reason,
+            nextCursor: result.nextCursor ?? null,
+          });
+          twitchClips = result.inRange;
+          outputCursor = result.nextCursor;
+        }
       }
 
       let sortedClips = twitchClips;
       if (params.sort === "views") {
         sortedClips = [...twitchClips].sort((a, b) => b.viewCount - a.viewCount);
+      } else {
+        sortedClips = sortClipsByCreatedAtDesc(twitchClips);
       }
 
       return {
@@ -443,6 +553,10 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           clipsData = result.inRange;
           outputCursor = result.nextCursor;
         }
+      }
+
+      if (params.sort === "date") {
+        clipsData = sortClipsByCreatedAtDesc(clipsData);
       }
 
       const clipsToCheck = clipsData.slice(0, 50);

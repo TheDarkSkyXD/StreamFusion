@@ -152,7 +152,7 @@ function ChannelItem({
     : {
         to: "/stream/$platform/$channel",
         params: { platform: channel.platform, channel: channel.username },
-        search: { tab: "videos" },
+        search: { tab: "home" },
       };
 
   const avatarFallback = (

@@ -344,7 +344,7 @@ export class DatabaseService {
    *   - SKIPS fetched rows blocked by a `pending_follow_writes` unfollow
    *     tombstone — the user just clicked Unfollow in-app; don't re-adopt.
    *   - Removes existing platform-source rows that are absent from a
-   *     successful fetched list.
+   *     successful fetched list unless `pruneAbsent` is false.
    *   - Cleans up pending_follow_writes rows that reflect a now-confirmed
    *     external state (pending follow + channel IN fetched = push landed;
    *     pending unfollow + channel NOT in fetched = unfollow landed).
@@ -360,7 +360,8 @@ export class DatabaseService {
    *          to refetch the followed-channels query. Metadata-only syncs report
    *          addedCount = 0.
    *          removedCount: count of stale platform-source rows pruned because
-   *          they were absent from the authoritative fetched list.
+   *          they were absent from the authoritative fetched list. Always 0
+   *          when `pruneAbsent` is false.
    */
   upsertSyncedFollows(
     platform: string,
@@ -370,8 +371,10 @@ export class DatabaseService {
       channelName: string;
       displayName?: string;
       profileImage?: string;
-    }>
+    }>,
+    options: { pruneAbsent?: boolean } = {}
   ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number } {
+    const pruneAbsent = options.pruneAbsent ?? true;
     const pendingRows = this.database
       .prepare(
         "SELECT platform, channel_id, slug, action FROM pending_follow_writes WHERE platform = ?"
@@ -433,13 +436,15 @@ export class DatabaseService {
     const pendingFollowsToRemove = pendingFollows.filter((p) =>
       fetchedFollows.some((f) => fetchedMatchesPending(f, p))
     );
-    const pendingUnfollowsToRemove = pendingUnfollows.filter(
-      (p) => !fetchedFollows.some((f) => fetchedMatchesPending(f, p))
-    );
+    const pendingUnfollowsToRemove = pruneAbsent
+      ? pendingUnfollows.filter((p) => !fetchedFollows.some((f) => fetchedMatchesPending(f, p)))
+      : [];
 
-    const stalePlatformRows = existingPlatformRows.filter(
-      (existing) => !toAdopt.some((f) => existingMatchesFetched(existing, f))
-    );
+    const stalePlatformRows = pruneAbsent
+      ? existingPlatformRows.filter(
+          (existing) => !toAdopt.some((f) => existingMatchesFetched(existing, f))
+        )
+      : [];
 
     // addedCount = adopted rows that didn't already exist as platform-source.
     const addedCount = toAdopt.filter(

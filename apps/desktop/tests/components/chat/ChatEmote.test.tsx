@@ -39,6 +39,14 @@ describe('ChatEmote', () => {
     expect(screen.getByAltText('Kappa')).toBeInTheDocument();
   });
 
+  it('keeps inline chat emote fetch and decode work off the critical path', () => {
+    render(<ChatEmote id="e1" name="Kappa" url="https://x.test/kappa.png" platform="twitch" />);
+    const img = screen.getByAltText('Kappa') as HTMLImageElement;
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.getAttribute('decoding')).toBe('async');
+    expect(img.getAttribute('fetchpriority')).toBe('low');
+  });
+
   it('shows tooltip on mouse enter', () => {
     render(<ChatEmote id="e1" name="PogChamp" url="https://x.test/pog.png" platform="twitch" />);
     fireEvent.mouseEnter(screen.getByAltText('PogChamp'));

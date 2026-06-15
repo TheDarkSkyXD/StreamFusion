@@ -13,6 +13,7 @@ import Store from "electron-store";
 import { logger } from "@/lib/cross-logger";
 import {
   type AuthToken,
+  type BufferPreferences,
   DEFAULT_USER_PREFERENCES,
   DEFAULT_WINDOW_BOUNDS,
   type EncryptedToken,
@@ -30,6 +31,33 @@ import { dbService, type PendingFollowAction, type PendingFollowWrite } from "./
 // ========== Default Values ==========
 
 const KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY = "kick-account-follows-verified-v2";
+
+const LEGACY_LATENCY_FIRST_BUFFER_PREFERENCES: BufferPreferences = {
+  lowLatencyMode: true,
+  liveSyncDurationCount: 2,
+  maxBufferLengthSec: 15,
+  maxMaxBufferLengthSec: 30,
+};
+
+function isLegacyLatencyFirstBufferPreferences(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const buffer = value as Partial<BufferPreferences>;
+  return (
+    buffer.lowLatencyMode === LEGACY_LATENCY_FIRST_BUFFER_PREFERENCES.lowLatencyMode &&
+    buffer.liveSyncDurationCount ===
+      LEGACY_LATENCY_FIRST_BUFFER_PREFERENCES.liveSyncDurationCount &&
+    buffer.maxBufferLengthSec === LEGACY_LATENCY_FIRST_BUFFER_PREFERENCES.maxBufferLengthSec &&
+    buffer.maxMaxBufferLengthSec === LEGACY_LATENCY_FIRST_BUFFER_PREFERENCES.maxMaxBufferLengthSec
+  );
+}
+
+function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
+  const hydrated = { ...DEFAULT_USER_PREFERENCES, ...stored };
+  if (isLegacyLatencyFirstBufferPreferences(hydrated.buffer)) {
+    return { ...hydrated, buffer: DEFAULT_USER_PREFERENCES.buffer };
+  }
+  return hydrated;
+}
 
 const defaults: StorageSchema = {
   authTokens: {},
@@ -441,13 +469,14 @@ class StorageService {
    *   - `addedCount`: new rows the sync introduced (drives the renderer's
    *     decision to refetch — metadata-only refreshes report 0)
    *   - `removedCount`: stale platform-source rows pruned because they were
-   *     absent from the authoritative fetched list
+   *     absent from the authoritative fetched list; 0 when pruning is disabled
    */
   upsertSyncedFollows(
     platform: Platform,
-    follows: Array<Omit<LocalFollow, "id" | "followedAt">>
+    follows: Array<Omit<LocalFollow, "id" | "followedAt">>,
+    options?: { pruneAbsent?: boolean }
   ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number } {
-    const result = dbService.upsertSyncedFollows(platform, follows);
+    const result = dbService.upsertSyncedFollows(platform, follows, options);
     if (platform === "kick") {
       dbService.set(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY, true);
     }
@@ -528,7 +557,7 @@ class StorageService {
   getPreferences(): UserPreferences {
     const stored = this.storeInstance.get("preferences");
     if (!stored) return defaults.preferences;
-    return { ...DEFAULT_USER_PREFERENCES, ...stored };
+    return hydratePreferences(stored);
   }
 
   /**

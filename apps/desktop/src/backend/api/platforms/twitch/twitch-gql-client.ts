@@ -1330,6 +1330,8 @@ export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChanne
     isVerified: about?.roles?.isPartner || false,
     isPartner: about?.roles?.isPartner || false,
     followerCount: about?.followers?.totalCount ?? undefined,
+    categoryId: about?.lastBroadcast?.game?.id,
+    categoryName: about?.lastBroadcast?.game?.displayName,
     socialLinks: about?.channel?.socialMedias?.map((s) => ({
       platform: s.name,
       url: s.url,

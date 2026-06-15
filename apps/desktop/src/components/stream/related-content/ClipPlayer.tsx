@@ -15,6 +15,7 @@ import { formatDuration } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
 import { useVolumeStore } from "@/store/volume-store";
 
+import { resolveHlsVodBufferConfig } from "../../player/hls-buffer-config";
 import type { ClipPlayerProps } from "./types";
 
 /**
@@ -56,18 +57,28 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
     logger.debug("Stream:ClipPlayer", "loading source", { src, isHls });
 
     if (isHls && Hls.isSupported()) {
+      const bufferConfig = resolveHlsVodBufferConfig();
       // Use HLS.js for HLS streams
       hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: false, // Clips don't need low latency
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
+        lowLatencyMode: bufferConfig.lowLatencyMode,
+        maxBufferLength: bufferConfig.maxBufferLength,
+        maxMaxBufferLength: bufferConfig.maxMaxBufferLength,
+        maxBufferSize: bufferConfig.maxBufferSize,
+        liveSyncDurationCount: bufferConfig.liveSyncDurationCount,
+        liveMaxLatencyDurationCount: bufferConfig.liveMaxLatencyDurationCount,
+        manifestLoadingTimeOut: 15000,
         manifestLoadingMaxRetry: 3,
-        manifestLoadingRetryDelay: 2000,
+        manifestLoadingRetryDelay: 1000,
+        manifestLoadingMaxRetryTimeout: 30000,
+        levelLoadingTimeOut: 15000,
         levelLoadingMaxRetry: 3,
-        levelLoadingRetryDelay: 2000,
-        fragLoadingMaxRetry: 3,
-        fragLoadingRetryDelay: 2000,
+        levelLoadingRetryDelay: 1000,
+        levelLoadingMaxRetryTimeout: 30000,
+        fragLoadingTimeOut: 20000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        fragLoadingMaxRetryTimeout: 30000,
         xhrSetup: (xhr, _url) => {
           xhr.withCredentials = false;
         },

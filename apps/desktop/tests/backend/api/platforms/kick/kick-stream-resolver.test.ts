@@ -19,7 +19,21 @@ vi.mock("@/lib/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("@/backend/logging/logger", () => ({
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
 import { KickStreamResolver } from "@/backend/api/platforms/kick/kick-stream-resolver";
+import {
+  __clearKickPlaybackCacheForTests,
+  rememberKickLivePlaybackFromChannelPayload,
+} from "@/backend/api/platforms/kick/kick-playback-cache";
+import { logger } from "@/backend/logging/logger";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -32,12 +46,15 @@ function textResponse(body: string, status = 200): Response {
   return new Response(body, { status });
 }
 
+// Guards: Kick live playback must log resolver timing without leaking full signed playback URLs.
+// Guards: warmed Kick playback cache must resolve from memory without touching electron.net.fetch.
 describe("KickStreamResolver", () => {
   let resolver: KickStreamResolver;
 
   beforeEach(() => {
     resolver = new KickStreamResolver();
     mockFetch.mockReset();
+    __clearKickPlaybackCacheForTests();
   });
 
   afterEach(() => {
@@ -46,15 +63,13 @@ describe("KickStreamResolver", () => {
 
   describe("getStreamPlaybackUrl", () => {
     it("returns HLS playback URL for a live channel", async () => {
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            livestream: { is_live: true },
-            playback_url:
-              "https://fa723fc1b171.us-west-2.playback.live-video.net/api/video/v1/us-west-2.123456789.channel.abcdef.m3u8",
-          })
-        )
-        .mockResolvedValueOnce(new Response("", { status: 200 }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          livestream: { is_live: true },
+          playback_url:
+            "https://fa723fc1b171.us-west-2.playback.live-video.net/api/video/v1/us-west-2.123456789.channel.abcdef.m3u8",
+        })
+      );
 
       const result = await resolver.getStreamPlaybackUrl("ac7ionman");
 
@@ -65,14 +80,12 @@ describe("KickStreamResolver", () => {
     });
 
     it("normalizes slug to lowercase", async () => {
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            livestream: { is_live: true },
-            playback_url: "https://example.com/stream.m3u8",
-          })
-        )
-        .mockResolvedValueOnce(new Response("", { status: 200 }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          livestream: { is_live: true },
+          playback_url: "https://example.com/stream.m3u8",
+        })
+      );
 
       await resolver.getStreamPlaybackUrl("Ac7ionMan");
 
@@ -108,44 +121,79 @@ describe("KickStreamResolver", () => {
       );
     });
 
-    it("throws 'Channel is offline' when validatePlaybackUrl returns 404", async () => {
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            livestream: { is_live: true },
-            playback_url: "https://example.com/stream.m3u8",
-          })
-        )
-        .mockResolvedValueOnce(new Response("", { status: 404 }));
+    it("does not preflight the HLS manifest before returning the playback URL", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          livestream: { is_live: true },
+          playback_url: "https://example.com/stream.m3u8",
+        })
+      );
 
-      await expect(resolver.getStreamPlaybackUrl("stale-channel")).rejects.toThrow(
-        "Channel is offline"
+      const result = await resolver.getStreamPlaybackUrl("fast-channel");
+
+      expect(result.url).toBe("https://example.com/stream.m3u8");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns a warmed playback URL from memory without a Kick network request", async () => {
+      rememberKickLivePlaybackFromChannelPayload("fast-channel", {
+        livestream: { is_live: true },
+        playback_url: "https://playback.example.test/live/stream.m3u8?token=secret",
+      });
+
+      const result = await resolver.getStreamPlaybackUrl("fast-channel");
+
+      expect(result).toEqual({
+        url: "https://playback.example.test/live/stream.m3u8?token=secret",
+        format: "hls",
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        "Kick:StreamResolver",
+        "resolved live playback URL",
+        expect.objectContaining({
+          channelSlug: "fast-channel",
+          attempt: 0,
+          cacheSource: "memory",
+          requestDurationMs: 0,
+          urlHost: "playback.example.test",
+        })
       );
     });
 
-    it("throws 'Channel is offline' when validatePlaybackUrl returns 403", async () => {
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            livestream: { is_live: true },
-            playback_url: "https://example.com/stream.m3u8",
-          })
-        )
-        .mockResolvedValueOnce(new Response("", { status: 403 }));
+    it("logs successful live playback timing without the signed URL", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          livestream: { is_live: true },
+          playback_url: "https://playback.example.test/live/stream.m3u8?token=secret",
+        })
+      );
 
-      await expect(resolver.getStreamPlaybackUrl("forbidden-channel")).rejects.toThrow(
-        "Channel is offline"
+      await resolver.getStreamPlaybackUrl("fast-channel");
+
+      expect(logger.info).toHaveBeenCalledWith(
+        "Kick:StreamResolver",
+        "resolved live playback URL",
+        expect.objectContaining({
+          channelSlug: "fast-channel",
+          attempt: 1,
+          urlHost: "playback.example.test",
+          sourceField: "playback_url",
+        })
+      );
+      expect(logger.info).not.toHaveBeenCalledWith(
+        "Kick:StreamResolver",
+        "resolved live playback URL",
+        expect.objectContaining({ url: expect.stringContaining("token=secret") })
       );
     });
 
     it("uses livestream.source as fallback when playback_url is missing", async () => {
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            livestream: { is_live: true, source: "https://example.com/source.m3u8" },
-          })
-        )
-        .mockResolvedValueOnce(new Response("", { status: 200 }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          livestream: { is_live: true, source: "https://example.com/source.m3u8" },
+        })
+      );
 
       const result = await resolver.getStreamPlaybackUrl("source-channel");
 
@@ -167,13 +215,12 @@ describe("KickStreamResolver", () => {
             livestream: { is_live: true },
             playback_url: "https://example.com/stream.m3u8",
           })
-        )
-        .mockResolvedValueOnce(new Response("", { status: 200 }));
+        );
 
       const result = await resolver.getStreamPlaybackUrl("flaky-channel");
 
       expect(result.url).toBe("https://example.com/stream.m3u8");
-      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it("throws after exhausting all retries", async () => {
@@ -186,23 +233,6 @@ describe("KickStreamResolver", () => {
       );
     });
 
-    it("treats validatePlaybackUrl timeout as valid (assumes URL might work)", async () => {
-      const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            livestream: { is_live: true },
-            playback_url: "https://example.com/stream.m3u8",
-          })
-        )
-        .mockRejectedValueOnce(new Error("timeout"));
-
-      const result = await resolver.getStreamPlaybackUrl("slow-validation");
-
-      expect(result.url).toBe("https://example.com/stream.m3u8");
-      expect(timeoutSpy).toHaveBeenNthCalledWith(1, 5000);
-      expect(timeoutSpy).toHaveBeenNthCalledWith(2, 1500);
-    });
   });
 
   describe("getVodPlaybackUrl", () => {

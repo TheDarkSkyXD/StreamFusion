@@ -43,7 +43,11 @@ describe("substituteThirdPartyEmotes", () => {
     const out = substituteThirdPartyEmotes(fragments, map);
     expect(out).toHaveLength(3);
     expect(out[0]).toEqual({ type: "text", content: "hi " });
-    expect(out[1]).toMatchObject({ type: "emote", name: "Clap", url: "https://example.test/Clap/4x" });
+    expect(out[1]).toMatchObject({
+      type: "emote",
+      name: "Clap",
+      url: "https://example.test/Clap/2x",
+    });
     expect(out[2]).toEqual({ type: "text", content: " there" });
   });
 
@@ -52,8 +56,11 @@ describe("substituteThirdPartyEmotes", () => {
     const map = buildMap(emote("Clap", "7tv"), emote("PepoG", "bttv"), emote("Bruh", "ffz"));
     const out = substituteThirdPartyEmotes(fragments, map);
     // Expect: [emote Clap, text "  ", emote PepoG, text "\t", emote Bruh]
-    expect(out.map((f) => (f.type === "emote" ? `e:${f.name}` : `t:${(f as { content: string }).content}`)))
-      .toEqual(["e:Clap", "t:  ", "e:PepoG", "t:\t", "e:Bruh"]);
+    expect(
+      out.map((f) =>
+        f.type === "emote" ? `e:${f.name}` : `t:${(f as { content: string }).content}`
+      )
+    ).toEqual(["e:Clap", "t:  ", "e:PepoG", "t:\t", "e:Bruh"]);
   });
 
   it("does NOT substitute native Twitch / Kick emotes by name (server already encoded those)", () => {
@@ -84,7 +91,11 @@ describe("substituteThirdPartyEmotes", () => {
     const out = substituteThirdPartyEmotes(fragments, map);
     // Non-text fragments pass through by reference (same object identity).
     expect(out[0]).toBe(fragments[0]);
-    expect(out[1]).toMatchObject({ type: "emote", name: "Clap", url: "https://example.test/Clap/4x" });
+    expect(out[1]).toMatchObject({
+      type: "emote",
+      name: "Clap",
+      url: "https://example.test/Clap/2x",
+    });
     expect(out[2]).toBe(fragments[2]);
     expect(out[3]).toBe(fragments[3]);
   });
@@ -96,12 +107,19 @@ describe("substituteThirdPartyEmotes", () => {
     expect(out[0]).toMatchObject({ type: "emote", isAnimated: true, isZeroWidth: true });
   });
 
-  it("falls back to url2x / url1x when url4x is absent", () => {
+  it("uses url2x for chat emotes to avoid heavy 4x CDN requests", () => {
     const fragments: ContentFragment[] = [{ type: "text", content: "Clap" }];
-    const noUrl4x = emote("Clap", "7tv");
-    noUrl4x.urls = { url1x: "https://example.test/Clap/1x", url2x: "https://example.test/Clap/2x" };
-    const out = substituteThirdPartyEmotes(fragments, buildMap(noUrl4x));
+    const out = substituteThirdPartyEmotes(fragments, buildMap(emote("Clap", "7tv")));
     expect(out[0]).toMatchObject({ type: "emote", url: "https://example.test/Clap/2x" });
+  });
+
+  it("falls back to url1x when url2x is absent", () => {
+    const fragments: ContentFragment[] = [{ type: "text", content: "Clap" }];
+    const noUrl2x = emote("Clap", "7tv");
+    // @ts-expect-error - exercising a malformed provider record defensively
+    noUrl2x.urls = { url1x: "https://example.test/Clap/1x" };
+    const out = substituteThirdPartyEmotes(fragments, buildMap(noUrl2x));
+    expect(out[0]).toMatchObject({ type: "emote", url: "https://example.test/Clap/1x" });
   });
 
   it("returns the same fragments array reference when nothing changed (cheap no-op signal)", () => {

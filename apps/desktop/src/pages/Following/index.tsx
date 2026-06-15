@@ -262,7 +262,7 @@ export function FollowingPage() {
                       <Link
                         to="/stream/$platform/$channel"
                         params={{ platform: channel.platform, channel: channel.username }}
-                        search={{ tab: "videos" }}
+                        search={{ tab: "home" }}
                         className="flex flex-col items-center text-center p-3 rounded-xl hover:bg-[var(--color-background-secondary)] transition-all"
                       >
                         <div className="relative mb-2">

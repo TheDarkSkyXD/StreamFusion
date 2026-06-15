@@ -1,62 +1,24 @@
 import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import type { StreamPlayback } from "../../../../components/player/types";
+import {
+  getCachedKickLivePlayback,
+  rememberKickLivePlaybackFromChannelPayload,
+} from "./kick-playback-cache";
 import { KICK_LEGACY_API_V1_BASE } from "./kick-types";
 
 const KICK_API_REQUEST_TIMEOUT_MS = 5000;
-const PLAYBACK_URL_VALIDATION_TIMEOUT_MS = 1500;
+
+function getUrlHost(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+}
 
 export class KickStreamResolver {
-  /**
-   * Validate that a playback URL is actually accessible
-   * Returns true if the URL is valid, false if it returns 404/403
-   * This prevents returning stale URLs from Kick's API cache
-   *
-   * NOTE: We use GET with Range header instead of HEAD because
-   * Amazon IVS (Kick's CDN) doesn't support HEAD requests for HLS manifests
-   */
-  private async validatePlaybackUrl(url: string): Promise<boolean> {
-    const { net } = require("electron");
-
-    try {
-      const res: Response = await net.fetch(url, {
-        method: "GET", // IVS doesn't support HEAD, use GET with Range
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Origin: "https://kick.com",
-          Referer: "https://kick.com/",
-          // Only fetch first 1KB to minimize bandwidth
-          Range: "bytes=0-1024",
-        },
-        signal: AbortSignal.timeout(PLAYBACK_URL_VALIDATION_TIMEOUT_MS),
-      });
-
-      // 200-299 or 206 (Partial Content) = valid; 404/403 = stream gone
-      if (res.status === 404 || res.status === 403) {
-        logger.debug("Kick:StreamResolver", "Playback URL validation failed", {
-          status: res.status,
-        });
-        return false;
-      }
-      if (res.status >= 200 && res.status < 300) {
-        return true;
-      }
-      // Other status codes (e.g., 503) - assume temporary, let player handle
-      logger.debug(
-        "Kick:StreamResolver",
-        "Playback URL returned non-success status, assuming valid",
-        {
-          status: res.status,
-        }
-      );
-      return true;
-    } catch {
-      // Timeout or network error — assume URL might be valid, let player handle
-      return true;
-    }
-  }
-
   /**
    * Make a request using Electron's net module to bypass Cloudflare
    */
@@ -106,6 +68,25 @@ export class KickStreamResolver {
   async getStreamPlaybackUrl(channelSlug: string): Promise<StreamPlayback> {
     // Normalize slug to lowercase - Kick API is case-sensitive
     const normalizedSlug = channelSlug.toLowerCase();
+    const startedAt = Date.now();
+
+    const cachedPlayback = getCachedKickLivePlayback(normalizedSlug);
+    if (cachedPlayback) {
+      logger.info("Kick:StreamResolver", "resolved live playback URL", {
+        channelSlug: normalizedSlug,
+        attempt: 0,
+        requestDurationMs: 0,
+        totalDurationMs: Date.now() - startedAt,
+        cacheSource: "memory",
+        cacheAgeMs: cachedPlayback.ageMs,
+        urlHost: getUrlHost(cachedPlayback.url),
+        sourceField: cachedPlayback.sourceField,
+      });
+      return {
+        url: cachedPlayback.url,
+        format: cachedPlayback.format,
+      };
+    }
 
     // Retry logic for transient failures
     const maxRetries = 2;
@@ -113,10 +94,12 @@ export class KickStreamResolver {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        const attemptStartedAt = Date.now();
         const data = await this.netRequest<any>(
           `${KICK_LEGACY_API_V1_BASE}/channels/${normalizedSlug}`,
           normalizedSlug
         );
+        const requestDurationMs = Date.now() - attemptStartedAt;
 
         // Verify the stream is actually live
         const isLive = data.livestream?.is_live === true;
@@ -132,17 +115,17 @@ export class KickStreamResolver {
           throw new Error("No playback URL found in response");
         }
 
-        // CRITICAL: Validate that the playback URL is actually accessible
-        // Kick's API often returns stale playback_url for streams that just went offline
-        // This preflight check prevents the "404 → refresh → same 404" loop
-        const isUrlValid = await this.validatePlaybackUrl(playbackUrl);
-        if (!isUrlValid) {
-          logger.debug(
-            "Kick:StreamResolver",
-            "Playback URL returned 404 - stream likely just went offline"
-          );
-          throw new Error("Channel is offline");
-        }
+        rememberKickLivePlaybackFromChannelPayload(normalizedSlug, data);
+
+        logger.info("Kick:StreamResolver", "resolved live playback URL", {
+          channelSlug: normalizedSlug,
+          attempt,
+          requestDurationMs,
+          totalDurationMs: Date.now() - startedAt,
+          cacheSource: "network",
+          urlHost: getUrlHost(playbackUrl),
+          sourceField: data.playback_url ? "playback_url" : "livestream.source",
+        });
 
         return {
           url: playbackUrl,
@@ -150,23 +133,42 @@ export class KickStreamResolver {
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        const totalDurationMs = Date.now() - startedAt;
 
         // Don't retry for expected errors
         if (
           lastError.message.toLowerCase().includes("offline") ||
           lastError.message.toLowerCase().includes("not found")
         ) {
+          logger.info("Kick:StreamResolver", "live playback unavailable", {
+            channelSlug: normalizedSlug,
+            attempt,
+            totalDurationMs,
+            reason: lastError.message,
+          });
           throw lastError;
         }
 
         // Wait before retrying (exponential backoff)
         if (attempt < maxRetries) {
+          logger.debug("Kick:StreamResolver", "live playback attempt failed; retrying", {
+            channelSlug: normalizedSlug,
+            attempt,
+            totalDurationMs,
+            error: lastError.message,
+          });
           await sleep(500 * attempt);
         }
       }
     }
 
     // All retries exhausted
+    logger.warn("Kick:StreamResolver", "failed to resolve live playback URL", {
+      channelSlug: normalizedSlug,
+      attempts: maxRetries,
+      totalDurationMs: Date.now() - startedAt,
+      error: lastError?.message ?? "Unknown error",
+    });
     throw lastError || new Error("Failed to get stream playback URL");
   }
 

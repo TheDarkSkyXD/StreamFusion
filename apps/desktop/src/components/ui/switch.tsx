@@ -9,15 +9,18 @@ const Switch = React.forwardRef<
 >(({ className, thumbClassName, ...props }, ref) => (
   <SwitchPrimitive.Root
     className={cn(
-      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-white data-[state=unchecked]:bg-zinc-600",
+      "sf-switch peer relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-[12px] border-2 p-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#efeff1] focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
       className
     )}
     {...props}
     ref={ref}
   >
+    <svg aria-hidden className="sf-switch-check" viewBox="0 0 16 16">
+      <path d="m13 6-6 6-4-4 1.5-1.5L7 9l4.5-4.5L13 6Z" />
+    </svg>
     <SwitchPrimitive.Thumb
       className={cn(
-        "pointer-events-none block h-5 w-5 rounded-full shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0 data-[state=checked]:bg-zinc-950 data-[state=unchecked]:bg-white",
+        "sf-switch-thumb pointer-events-none block h-[14px] w-[14px] translate-x-[2px] rounded-full bg-white ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-[2px]",
         thumbClassName
       )}
     />

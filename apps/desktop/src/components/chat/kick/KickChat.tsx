@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BsChevronDown, BsGear, BsX } from "react-icons/bs";
+import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
@@ -42,7 +42,6 @@ import { useRoomStateStore } from "../../../store/room-state-store";
 import { useRenderCount } from "../../dev/use-render-count";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
-import { ChatQuickSettingsPopover } from "../ChatQuickSettingsPopover";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
@@ -89,6 +88,33 @@ function formatTimeoutLabel(seconds: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
   return `${Math.floor(seconds / 86_400)}d`;
+}
+
+const CONNECTING_TEXT = "Connecting to channel...";
+const CONNECTED_TEXT = "Connected to the channel";
+
+function createConnectionStatusMessage(
+  channel: string,
+  state: "connecting" | "connected"
+): ChatMessage {
+  const rawContent = state === "connecting" ? CONNECTING_TEXT : CONNECTED_TEXT;
+  return {
+    id: `system:kick:${channel}:connection:${state}`,
+    platform: "kick",
+    type: "system",
+    channel,
+    userId: "system",
+    username: "System",
+    displayName: "System",
+    color: "#808080",
+    badges: [],
+    content: [{ type: "text", content: rawContent }],
+    rawContent,
+    timestamp: new Date(),
+    isDeleted: false,
+    isHighlighted: true,
+    isAction: false,
+  };
 }
 
 export const KickChat: React.FC<KickChatProps> = ({
@@ -141,7 +167,6 @@ export const KickChat: React.FC<KickChatProps> = ({
       state.preferences?.chatDisplay?.showPredictions ??
       DEFAULT_CHAT_DISPLAY_PREFERENCES.showPredictions
   );
-  const [showChatSettings, setShowChatSettings] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
   const [isPinExpanded, setIsPinExpanded] = useState(false);
@@ -211,11 +236,9 @@ export const KickChat: React.FC<KickChatProps> = ({
         // Acquire a reference to the service (for multiview support)
         kickChatService.acquire(channel);
 
-        // The "Connecting to channel..." / "Connected to the channel" lines
-        // mark the start of the LIVE session — they're injected below, after
-        // the historical-message seed completes, so the final order in the
-        // chat reads chronologically: [history] [Connecting] [Connected]
-        // [live...].
+        if (channel && chatroomId) {
+          addMessage(createConnectionStatusMessage(channel, "connecting"));
+        }
 
         const kickToken = await window.electronAPI.auth.getToken("kick");
 
@@ -296,26 +319,7 @@ export const KickChat: React.FC<KickChatProps> = ({
             if (!isMounted) return;
           }
 
-          // 2. Mark the start of the live session.
-          addMessage({
-            id: crypto.randomUUID(),
-            platform: "kick",
-            type: "system",
-            channel: channel,
-            userId: "system",
-            username: "System",
-            displayName: "System",
-            color: "#808080",
-            badges: [],
-            content: [{ type: "text", content: "Connecting to channel..." }],
-            rawContent: "Connecting to channel...",
-            timestamp: new Date(),
-            isDeleted: false,
-            isHighlighted: true,
-            isAction: false,
-          });
-
-          // 3. Subscribe to Pusher; live messages start flowing after this.
+          // 2. Subscribe to Pusher; live messages start flowing after this.
           //    `channelId` here is the broadcaster's user_id (v2 channel
           //    `data.id`) — passed to `joinChannel` so the optimistic-echo
           //    broadcaster-badge synthesis in `sendMessage` can identify the
@@ -344,24 +348,8 @@ export const KickChat: React.FC<KickChatProps> = ({
             });
           }
 
-          // 4. Confirm the live session is up.
-          addMessage({
-            id: crypto.randomUUID(),
-            platform: "kick",
-            type: "system",
-            channel: channel,
-            userId: "system",
-            username: "System",
-            displayName: "System",
-            color: "#808080",
-            badges: [],
-            content: [{ type: "text", content: "Connected to the channel" }],
-            rawContent: "Connected to the channel",
-            timestamp: new Date(),
-            isDeleted: false,
-            isHighlighted: true,
-            isAction: false,
-          });
+          // 3. Confirm the live session is up.
+          addMessage(createConnectionStatusMessage(channel, "connected"));
         }
       } catch (error) {
         if (isMounted) {
@@ -385,7 +373,10 @@ export const KickChat: React.FC<KickChatProps> = ({
         // Pairs with the acquire() above. Safe to call even if acquire never
         // ran (no-op when the channelId is unknown).
         if (channelId) {
-          kickPredictionsService.release({ channelId });
+          kickPredictionsService.release({
+            channelId,
+            skipPusherUnsubscribe: kickChatService.getActiveUserCount() <= 1,
+          });
         }
 
         kickChatService.release(currentChannelRef.current.channel);
@@ -875,9 +866,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       </div>
 
       <div className="border-t border-[var(--color-border)]">
-        {/* U7 — the gear + its "Clear local chat" action moved to the panel
-         *  header popover (outside ChatPanelTabs). The footer is now just the
-         *  message composer. */}
+        {/* Footer composer owns message send actions and quick chat settings. */}
         <div className="p-2">
           <ChatInput
             ref={chatInputRef}
@@ -899,28 +888,6 @@ export const KickChat: React.FC<KickChatProps> = ({
           <h2 className="font-semibold flex items-center gap-2">
             <span className="text-white">Chat</span>
           </h2>
-          {/* U7 — gear lives in the header chrome OUTSIDE ChatPanelTabs so the
-           *  single-tab viewer path doesn't strip it (chat-header-banner learning).
-           *  `relative` anchors the popover; the gear gets an accent state while open. */}
-          <div className="relative flex space-x-2">
-            <button
-              type="button"
-              onClick={() => setShowChatSettings((v) => !v)}
-              aria-label="Chat settings"
-              aria-expanded={showChatSettings}
-              title="Chat settings"
-              className={
-                showChatSettings
-                  ? "text-[#dc143c] flex-shrink-0"
-                  : "text-gray-400 hover:text-white flex-shrink-0"
-              }
-            >
-              <BsGear size={16} />
-            </button>
-            {showChatSettings && (
-              <ChatQuickSettingsPopover onClose={() => setShowChatSettings(false)} />
-            )}
-          </div>
         </div>
         <ChatPanelTabs visibleTabs={visibleTabs}>
           {{

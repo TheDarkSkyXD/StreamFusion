@@ -310,6 +310,56 @@ describe("STREAMS_GET_FOLLOWED", () => {
     );
   });
 
+  it("does not let a concurrent Kick followed-stream scan abort an already visible scan", async () => {
+    vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
+      platform === "kick" ? ([{ channelName: "kick-one" }, { channelName: "kick-two" }] as any) : []
+    );
+
+    const pending: Array<{
+      slug: string;
+      signal: AbortSignal;
+      resolve: (stream: unknown) => void;
+    }> = [];
+    vi.mocked(kickClient.getPublicStreamBySlug).mockImplementation((slug, _stagger, signal) => {
+      return new Promise((resolve, reject) => {
+        const abortSignal = signal as AbortSignal;
+        abortSignal.addEventListener("abort", () => reject(new Error("AbortError")), {
+          once: true,
+        });
+        pending.push({ slug, signal: abortSignal, resolve });
+      }) as any;
+    });
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const first = handler({}, { platform: "kick" });
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+
+    const second = handler({}, { platform: "kick" });
+    await vi.waitFor(() => expect(pending).toHaveLength(4));
+
+    expect(pending[0].signal.aborted).toBe(false);
+    expect(pending[1].signal.aborted).toBe(false);
+
+    for (const item of pending) {
+      item.resolve({ id: `${item.slug}-stream`, viewerCount: item.slug === "kick-one" ? 20 : 10 });
+    }
+
+    const [firstResult, secondResult] = (await Promise.all([first, second])) as any[];
+
+    expect(firstResult.success).toBe(true);
+    expect(secondResult.success).toBe(true);
+    expect(firstResult.data.map((stream: any) => stream.id).sort()).toEqual([
+      "kick-one-stream",
+      "kick-two-stream",
+    ]);
+    expect(secondResult.data.map((stream: any) => stream.id).sort()).toEqual([
+      "kick-one-stream",
+      "kick-two-stream",
+    ]);
+  });
+
   it("merges and sorts by viewerCount when both platforms requested", async () => {
     vi.mocked(twitchClient.isAuthenticated).mockReturnValue(true);
     vi.mocked(twitchClient.getFollowedStreams).mockResolvedValue({

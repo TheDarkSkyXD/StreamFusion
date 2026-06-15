@@ -8,8 +8,7 @@
  * `role="dialog"`; `aria-label` is retained so screen readers can still
  * identify the picker. Translates KickTalk's emote picker pattern: search
  * bar, sub-section icon row, pinned Recent/Favorites, collapsible provider
- * sections with IntersectionObserver infinite scroll, and Kick
- * subscriber-only lock overlay.
+ * sections with windowed emote grids, and Kick subscriber-only lock overlay.
  */
 
 import type React from "react";
@@ -260,17 +259,60 @@ function getKickEmoteSection(emote: Emote): "channel" | "global" | "emoji" {
   return emote.isGlobal ? "global" : "channel";
 }
 
-const PAGE_SIZE = 20;
+const ITEM_SIZE_PX = 40;
+const ITEM_GAP_PX = 8;
+const ITEM_PITCH_PX = ITEM_SIZE_PX + ITEM_GAP_PX;
+const DEFAULT_GRID_WIDTH_PX = 336;
+const DEFAULT_PICKER_VIEWPORT_PX = 360;
+const OVERSCAN_ROWS = 3;
+const SCROLL_IDLE_DEFER_MS = 800;
 
-/**
- * Maximum number of `new Image()` instances the prefetch pump() loop may
- * construct per tick. Capped low (4) so the burst stops triggering
- * `net::ERR_CONNECTION_RESET 200 (OK)` from cdn.7tv.app — the CDN was
- * dropping a chunk of the prior 16-per-tick burst before the connection
- * fully settled. Failed URLs are retried exactly once with jitter (see
- * `img.onerror` below).
- */
-const PREFETCH_BATCH_SIZE = 4;
+function getColumnCount(width: number): number {
+  return Math.max(1, Math.floor((width + ITEM_GAP_PX) / ITEM_PITCH_PX));
+}
+
+function getVisibleWindow({
+  itemCount,
+  columns,
+  scrollTop,
+  viewportHeight,
+  gridOffsetTop,
+}: {
+  itemCount: number;
+  columns: number;
+  scrollTop: number;
+  viewportHeight: number;
+  gridOffsetTop: number;
+}): { startIndex: number; endIndex: number; topSpacer: number; bottomSpacer: number } {
+  const totalRows = Math.ceil(itemCount / columns);
+  const totalHeight = totalRows * ITEM_PITCH_PX;
+  const relativeTop = scrollTop - gridOffsetTop;
+  const relativeBottom = relativeTop + viewportHeight;
+
+  let startRow = 0;
+  let endRow = totalRows;
+
+  if (relativeBottom < 0) {
+    startRow = 0;
+    endRow = 0;
+  } else if (relativeTop > totalHeight) {
+    startRow = totalRows;
+    endRow = totalRows;
+  } else {
+    startRow = Math.max(0, Math.floor(Math.max(0, relativeTop) / ITEM_PITCH_PX) - OVERSCAN_ROWS);
+    endRow = Math.min(
+      totalRows,
+      Math.ceil((Math.max(0, relativeTop) + viewportHeight) / ITEM_PITCH_PX) + OVERSCAN_ROWS
+    );
+  }
+
+  return {
+    startIndex: startRow * columns,
+    endIndex: Math.min(itemCount, endRow * columns),
+    topSpacer: startRow * ITEM_PITCH_PX,
+    bottomSpacer: Math.max(0, (totalRows - endRow) * ITEM_PITCH_PX),
+  };
+}
 
 /* ------------------------------------------------------------------------ */
 /* Section                                                                  */
@@ -285,13 +327,9 @@ interface EmoteSectionProps {
   onEmoteClick: (emote: Emote) => void;
   onFavoriteClick: (emote: Emote) => void;
   isFavorite: (emoteId: string) => boolean;
-  /**
-   * The dialog's scrollable body. Used as the IntersectionObserver root so the
-   * infinite-scroll sentinel is measured against the picker's own viewport
-   * (not the browser window). Without it the observer can't tell the sentinel
-   * has scrolled out of the dialog and snowballs the whole list on open.
-   */
-  scrollRoot?: React.RefObject<HTMLElement | null>;
+  deferImages?: boolean;
+  scrollTop?: number;
+  viewportHeight?: number;
   sectionRef?: (node: HTMLDivElement | null) => void;
 }
 
@@ -304,40 +342,88 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
   onEmoteClick,
   onFavoriteClick,
   isFavorite,
-  scrollRoot,
+  deferImages = false,
+  scrollTop = 0,
+  viewportHeight = DEFAULT_PICKER_VIEWPORT_PX,
   sectionRef,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // Reset visible count when emotes array shrinks.
-  useEffect(() => {
-    if (visibleCount > emotes.length) {
-      setVisibleCount(Math.max(PAGE_SIZE, Math.min(visibleCount, emotes.length)));
-    }
-  }, [emotes.length, visibleCount]);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [columns, setColumns] = useState(() => getColumnCount(DEFAULT_GRID_WIDTH_PX));
+  const [windowRange, setWindowRange] = useState(() =>
+    getVisibleWindow({
+      itemCount: emotes.length,
+      columns: getColumnCount(DEFAULT_GRID_WIDTH_PX),
+      scrollTop: 0,
+      viewportHeight: DEFAULT_PICKER_VIEWPORT_PX,
+      gridOffsetTop: 0,
+    })
+  );
 
   useEffect(() => {
     if (!isOpen) return;
     if (collapsedHeaderOnly) return;
-    if (visibleCount >= emotes.length) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    const grid = gridRef.current;
+    if (!grid || typeof ResizeObserver === "undefined") return;
 
-    if (typeof IntersectionObserver === "undefined") return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, emotes.length));
-        }
-      },
-      { root: scrollRoot?.current ?? null, threshold: 0.5, rootMargin: "20px" }
-    );
-    observer.observe(sentinel);
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width || DEFAULT_GRID_WIDTH_PX;
+      setColumns(getColumnCount(width));
+    });
+    observer.observe(grid);
     return () => observer.disconnect();
-  }, [isOpen, collapsedHeaderOnly, emotes.length, visibleCount, scrollRoot]);
+  }, [isOpen, collapsedHeaderOnly]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || collapsedHeaderOnly) return;
+
+    let raf: number | null = null;
+
+    const updateWindow = () => {
+      raf = null;
+      setWindowRange(
+        getVisibleWindow({
+          itemCount: emotes.length,
+          columns,
+          scrollTop,
+          viewportHeight,
+          gridOffsetTop: bodyRef.current?.offsetTop ?? 0,
+        })
+      );
+    };
+
+    const scheduleUpdate = () => {
+      if (raf != null) return;
+      raf = window.requestAnimationFrame(updateWindow);
+    };
+
+    updateWindow();
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      window.removeEventListener("resize", scheduleUpdate);
+      if (raf != null) window.cancelAnimationFrame(raf);
+    };
+  }, [isOpen, collapsedHeaderOnly, emotes.length, columns, scrollTop, viewportHeight]);
+
+  const visibleEmotes = useMemo(
+    () => emotes.slice(windowRange.startIndex, windowRange.endIndex),
+    [emotes, windowRange.startIndex, windowRange.endIndex]
+  );
+
+  const gridStyle = useMemo<React.CSSProperties>(
+    () => ({
+      display: "grid",
+      gridTemplateColumns: `repeat(${columns}, ${ITEM_SIZE_PX}px)`,
+      gap: ITEM_GAP_PX,
+      alignItems: "center",
+      justifyContent: "start",
+    }),
+    [columns]
+  );
+
+  const needsWindowing = visibleEmotes.length < emotes.length;
 
   return (
     <div
@@ -362,32 +448,33 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
         <CaretIcon open={isOpen && !collapsedHeaderOnly} />
       </button>
       {isOpen && !collapsedHeaderOnly && (
-        <div className="p-3">
+        <div ref={bodyRef} className="p-3">
           {emotes.length === 0 ? (
             <div className="text-center py-4 text-xs text-[var(--color-foreground-muted)]">
               No emotes
             </div>
           ) : (
             <>
-              <div className="flex flex-row flex-wrap gap-2">
-                {emotes.slice(0, visibleCount).map((emote) => (
+              {needsWindowing && <div style={{ height: windowRange.topSpacer }} />}
+              <div
+                ref={gridRef}
+                data-testid="emote-section-grid"
+                className="emote-picker-grid"
+                style={gridStyle}
+              >
+                {visibleEmotes.map((emote) => (
                   <EmotePickerItem
                     key={`${emote.provider}-${emote.id}`}
                     emote={emote}
                     locked={showLock(emote)}
                     favorited={isFavorite(emote.id)}
+                    deferImage={deferImages}
                     onSelect={onEmoteClick}
                     onFavoriteClick={onFavoriteClick}
                   />
                 ))}
               </div>
-              {visibleCount < emotes.length && (
-                <div
-                  ref={sentinelRef}
-                  data-testid="emote-section-sentinel"
-                  className="h-2 w-full"
-                />
-              )}
+              {needsWindowing && <div style={{ height: windowRange.bottomSpacer }} />}
             </>
           )}
         </div>
@@ -404,6 +491,7 @@ interface EmotePickerItemProps {
   emote: Emote;
   locked: boolean;
   favorited: boolean;
+  deferImage?: boolean;
   onSelect: (emote: Emote) => void;
   onFavoriteClick: (emote: Emote) => void;
 }
@@ -412,6 +500,7 @@ const EmotePickerItem = memo(function EmotePickerItem({
   emote,
   locked,
   favorited,
+  deferImage = false,
   onSelect,
   onFavoriteClick,
 }: EmotePickerItemProps) {
@@ -455,7 +544,14 @@ const EmotePickerItem = memo(function EmotePickerItem({
           locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
         }`}
       >
-        <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
+        <EmoteImage
+          emote={emote}
+          size="medium"
+          showTooltip={false}
+          lazyLoad={true}
+          deferLoad={deferImage}
+          deferredPlaceholder={deferImage ? "static" : "pulse"}
+        />
         {locked && (
           <span
             data-testid="emote-lock-overlay"
@@ -508,9 +604,15 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSubSection, setActiveSubSection] = useState<SubSection | null>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [scrollSnapshot, setScrollSnapshot] = useState({
+    top: 0,
+    height: DEFAULT_PICKER_VIEWPORT_PX,
+  });
+  const [isPickerScrolling, setIsPickerScrolling] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollIdleTimerRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -689,90 +791,6 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     });
   }, [providers, emotesByProvider, matchesSearch, platform, channelLabel]);
 
-  /* --------------------- prefetch images on open --------------------- */
-  // Warm the browser image cache for the whole in-scope set when the picker
-  // opens, so scrolling down reveals already-loaded emotes instead of fetching
-  // each new row just-in-time (the "loads slow while scrolling" feel). Keyed
-  // off the unfiltered per-provider lists (not search/scroll state), so it runs
-  // once per open / emote-load — never on keystroke or scroll. Requests are
-  // low-priority and idle-paced so they don't compete with the visible page or
-  // the live stream; the loop cancels on close.
-  useEffect(() => {
-    if (!isOpen) return;
-    const urls: string[] = [];
-    for (const provider of providers) {
-      const list = emotesByProvider.get(provider);
-      if (list) {
-        for (const e of list) urls.push(e.urls.url2x);
-      }
-    }
-    if (urls.length === 0) return;
-
-    const ric =
-      typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : null;
-    let idx = 0;
-    let handle: number | null = null;
-    // URLs whose first load failed and have been re-scheduled once. Cleared
-    // by onload when the URL eventually arrives, so long sessions don't grow
-    // this set unboundedly.
-    const retriedUrls = new Set<string>();
-    // setTimeout handles for the jittered retry attempts so the cleanup can
-    // cancel any still-pending ones.
-    const retryTimeouts = new Set<number>();
-
-    const loadOne = (url: string) => {
-      const img = new Image();
-      img.decoding = "async";
-      img.setAttribute("fetchpriority", "low");
-      img.onload = () => {
-        retriedUrls.delete(url);
-      };
-      img.onerror = () => {
-        if (retriedUrls.has(url)) return; // already retried once — give up silently
-        retriedUrls.add(url);
-        // Jittered ~200ms retry. Spread retries out so a 7TV CDN hiccup that
-        // dropped the original batch doesn't get hit by N synchronous retries.
-        const delay = 200 + Math.floor((url.length * 13) % 200); // deterministic 200-400ms jitter
-        // timer-allowlist: one-shot retry for a single failed prefetch Image (SP2 out-of-scope)
-        const handle = window.setTimeout(() => {
-          retryTimeouts.delete(handle);
-          const retry = new Image();
-          retry.decoding = "async";
-          retry.setAttribute("fetchpriority", "low");
-          retry.onload = () => {
-            retriedUrls.delete(url);
-          };
-          // No onerror on the retry — second failure is silent.
-          retry.src = url;
-        }, delay);
-        retryTimeouts.add(handle);
-      };
-      img.src = url;
-    };
-
-    const pump = () => {
-      const end = Math.min(idx + PREFETCH_BATCH_SIZE, urls.length);
-      for (; idx < end; idx++) {
-        loadOne(urls[idx]);
-      }
-      handle = idx < urls.length ? (ric ? ric(pump) : window.setTimeout(pump, 32)) : null; // timer-allowlist: self-rescheduling pump() prefetch loop (rIC fallback; SP2 out-of-scope)
-    };
-
-    // Let the visible page claim the connection first, then drip the rest.
-    // timer-allowlist: self-rescheduling pump() prefetch loop (rIC fallback; SP2 out-of-scope)
-    const start = window.setTimeout(pump, 150);
-    return () => {
-      window.clearTimeout(start);
-      if (handle != null) {
-        if (ric) window.cancelIdleCallback(handle);
-        else window.clearTimeout(handle);
-      }
-      for (const h of retryTimeouts) window.clearTimeout(h);
-      retryTimeouts.clear();
-      retriedUrls.clear();
-    };
-  }, [isOpen, providers, emotesByProvider]);
-
   /* ----------------------------- handlers ---------------------------- */
   const handleEmoteClick = useCallback(
     (emote: Emote) => {
@@ -796,6 +814,32 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       block: "start",
     });
   }, []);
+
+  const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    setScrollSnapshot({
+      top: el.scrollTop,
+      height: el.clientHeight || DEFAULT_PICKER_VIEWPORT_PX,
+    });
+    setIsPickerScrolling(true);
+    if (scrollIdleTimerRef.current != null) {
+      window.clearTimeout(scrollIdleTimerRef.current);
+    }
+    // timer-allowlist: scroll idle debounce for deferred emote image loading
+    scrollIdleTimerRef.current = window.setTimeout(() => {
+      scrollIdleTimerRef.current = null;
+      setIsPickerScrolling(false);
+    }, SCROLL_IDLE_DEFER_MS);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (scrollIdleTimerRef.current != null) {
+        window.clearTimeout(scrollIdleTimerRef.current);
+      }
+    },
+    []
+  );
 
   /* --------------------------- lock predicate --------------------------- */
   const showLock = useCallback(
@@ -876,7 +920,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       )}
 
       {/* Body */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleBodyScroll}>
         <EmoteSection
           sectionId="frequent"
           title="Frequently Used"
@@ -886,7 +930,9 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           onEmoteClick={handleEmoteClick}
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
-          scrollRoot={scrollRef}
+          deferImages={isPickerScrolling}
+          scrollTop={scrollSnapshot.top}
+          viewportHeight={scrollSnapshot.height}
           sectionRef={setSectionRef("frequent")}
         />
         <EmoteSection
@@ -898,7 +944,9 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           onEmoteClick={handleEmoteClick}
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
-          scrollRoot={scrollRef}
+          deferImages={isPickerScrolling}
+          scrollTop={scrollSnapshot.top}
+          viewportHeight={scrollSnapshot.height}
           sectionRef={setSectionRef("favorites")}
         />
         {providerSections.map(({ id, title, emotes }) => (
@@ -911,7 +959,9 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
             onEmoteClick={handleEmoteClick}
             onFavoriteClick={toggleFavorite}
             isFavorite={isFavorite}
-            scrollRoot={scrollRef}
+            deferImages={isPickerScrolling}
+            scrollTop={scrollSnapshot.top}
+            viewportHeight={scrollSnapshot.height}
             sectionRef={setSectionRef(id)}
           />
         ))}

@@ -22,7 +22,9 @@ vi.mock("@/backend/api/platforms/twitch/twitch-gql-client", () => ({
 }));
 
 import { TwitchStreamResolver } from "@/backend/api/platforms/twitch/twitch-stream-resolver";
+import { logger } from "@/backend/logging/logger";
 
+// Guards: Twitch live playback must log one-token-request timing without restoring the live-status preflight.
 describe("TwitchStreamResolver", () => {
   let resolver: TwitchStreamResolver;
 
@@ -33,7 +35,6 @@ describe("TwitchStreamResolver", () => {
 
   describe("getStreamPlaybackUrl", () => {
     it("returns HLS URL when channel is live", async () => {
-      mockGqlIsChannelLive.mockResolvedValueOnce(true);
       mockGqlGetPlaybackAccessToken.mockResolvedValueOnce({
         value: "token-value",
         signature: "sig123",
@@ -47,17 +48,40 @@ describe("TwitchStreamResolver", () => {
       expect(result.url).toContain("sig=sig123");
       expect(result.url).toContain("allow_source=true");
       expect(result.url).toContain("allow_audio_only=true");
+      expect(mockGqlIsChannelLive).not.toHaveBeenCalled();
     });
 
-    it("throws when channel is offline", async () => {
-      mockGqlIsChannelLive.mockResolvedValueOnce(false);
+    it("logs successful live playback timing without the signed URL", async () => {
+      mockGqlGetPlaybackAccessToken.mockResolvedValueOnce({
+        value: "token-value",
+        signature: "sig123",
+      });
+
+      await resolver.getStreamPlaybackUrl("TestChannel");
+
+      expect(logger.info).toHaveBeenCalledWith(
+        "Twitch:StreamResolver",
+        "resolved live playback URL",
+        expect.objectContaining({
+          channelLogin: "testchannel",
+          urlHost: "usher.ttvnw.net",
+        })
+      );
+      expect(logger.info).not.toHaveBeenCalledWith(
+        "Twitch:StreamResolver",
+        "resolved live playback URL",
+        expect.objectContaining({ url: expect.stringContaining("token-value") })
+      );
+    });
+
+    it("re-throws playback token errors", async () => {
+      mockGqlGetPlaybackAccessToken.mockRejectedValueOnce(new Error("Channel is offline"));
 
       await expect(resolver.getStreamPlaybackUrl("offline")).rejects.toThrow("Channel is offline");
-      expect(mockGqlGetPlaybackAccessToken).not.toHaveBeenCalled();
     });
 
     it("re-throws GQL errors", async () => {
-      mockGqlIsChannelLive.mockRejectedValueOnce(new Error("GQL network error"));
+      mockGqlGetPlaybackAccessToken.mockRejectedValueOnce(new Error("GQL network error"));
 
       await expect(resolver.getStreamPlaybackUrl("broken")).rejects.toThrow("GQL network error");
     });

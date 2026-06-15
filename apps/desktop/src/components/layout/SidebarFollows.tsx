@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LuHeart } from "react-icons/lu";
 
 import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
@@ -7,6 +7,7 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFollowedChannels } from "@/hooks/queries/useChannels";
 import { useFollowedStreams } from "@/hooks/queries/useStreams";
+import { prefetchStreamPlayback } from "@/hooks/useStreamPlayback";
 import { getChannelKey, getChannelNameKey, getStreamKey } from "@/lib/id-utils";
 import { cn, formatViewerCount } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
@@ -18,11 +19,14 @@ interface SidebarFollowsProps {
   collapsed: boolean;
 }
 
+const KICK_PLAYBACK_PREFETCH_LIMIT = 6;
+
 export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   // Use individual selectors to prevent re-renders when unrelated state changes
   const twitchConnected = useAuthStore((state) => state.twitchConnected);
   const kickConnected = useAuthStore((state) => state.kickConnected);
   const localFollows = useFollowStore((state) => state.localFollows);
+  const getFollowSource = useFollowStore((state) => state.getFollowSource);
   const hasLocalTwitchFollows = localFollows.some((follow) => follow.platform === "twitch");
   const hasLocalKickFollows = localFollows.some((follow) => follow.platform === "kick");
 
@@ -52,9 +56,10 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     const channelMap = new Map<string, UnifiedChannel>();
 
     // 1. Add Local Follows (using centralized key generation). When Kick is
-    // connected, Kick rows must come from the verified account-follow sync.
+    // connected, show cached account-confirmed Kick rows immediately, but keep
+    // hiding app-only Kick rows until the account sync verifies them.
     localFollows
-      .filter((c) => !(kickConnected && c.platform === "kick"))
+      .filter((c) => !(kickConnected && c.platform === "kick" && getFollowSource(c) !== "kick"))
       .forEach((c) => channelMap.set(getChannelKey(c), c));
 
     // 2. Add Remote Follows (overwrite local if dupes to get fresh data)
@@ -127,7 +132,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     offline.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
     return { liveChannels: live, offlineChannels: offline };
-  }, [localFollows, twitchFollows, kickFollows, liveStreams, kickConnected]);
+  }, [localFollows, twitchFollows, kickFollows, liveStreams, kickConnected, getFollowSource]);
 
   const allItems = useMemo(
     () => [
@@ -162,6 +167,18 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     if (kickFill.length === 0) return visible;
     return [...visible.slice(0, visibleCount - kickFill.length), ...kickFill];
   }, [allItems, visibleCount, collapsed]);
+
+  useEffect(() => {
+    const kickSlugs = visibleItems
+      .filter((item) => item.data.platform === "kick")
+      .map((item) => (item.type === "live" ? item.data.channelName : item.data.username))
+      .filter((slug): slug is string => Boolean(slug))
+      .slice(0, KICK_PLAYBACK_PREFETCH_LIMIT);
+
+    for (const slug of kickSlugs) {
+      void prefetchStreamPlayback("kick", slug);
+    }
+  }, [visibleItems]);
 
   // Handlers for Show More/Less
   const handleShowMore = () => setVisibleCount((prev) => prev + 5);
@@ -219,7 +236,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   key={`${stream.platform}-${stream.channelId}`}
                   to="/stream/$platform/$channel"
                   params={{ platform: stream.platform, channel: stream.channelName }}
-                  search={{ tab: "videos" }}
+                  search={{ tab: "home" }}
                   className={cn(
                     "flex items-center gap-3 p-1.5 rounded-md hover:bg-[var(--color-background-tertiary)] transition-colors group relative",
                     collapsed ? "justify-center" : ""
@@ -287,7 +304,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   key={`${channel.platform}-${channel.id}`}
                   to="/stream/$platform/$channel"
                   params={{ platform: channel.platform, channel: channel.username }}
-                  search={{ tab: "videos" }}
+                  search={{ tab: "home" }}
                   className={cn(
                     "flex items-center gap-3 p-1.5 rounded-md hover:bg-[var(--color-background-tertiary)] transition-colors group opacity-70 hover:opacity-100",
                     collapsed ? "justify-center" : ""

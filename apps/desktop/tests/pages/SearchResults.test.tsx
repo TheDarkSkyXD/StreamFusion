@@ -25,6 +25,14 @@ vi.mock('@/components/ui/platform-avatar', () => ({
   PlatformAvatar: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
+vi.mock('@/components/ui/proxied-image', () => ({
+  ProxiedImage: ({ src, alt }: { src: string; alt: string }) => (
+    <div data-testid="proxied-image" data-src={src}>
+      {alt}
+    </div>
+  ),
+}));
+
 import { useSearchAll, useSearchChannels } from '@/hooks/queries/useSearch';
 import { SearchPage } from '@/pages/SearchResults';
 
@@ -52,6 +60,7 @@ function channelQuery(
 // Guards: loading state — useSearchAll isLoading=true forwards through to StreamGrid+CategoryGrid via the isLoading prop so the user sees skeletons, not "0 results"
 // Guards: error state — useSearchAll returns data=undefined (GQL failed) → the page falls through to the empty results header. We pass this distinct from "0 hits" via the consumer's empty copy
 // Guards: empty state — useSearchAll returns empty arrays for every category → "Found 0 results" header surfaces, distinct from the no-query "type to search" empty state above
+// Guards: Kick video/clip thumbnails render through ProxiedImage so images.kick.com 720.webp URLs do not produce direct browser 403s
 describe('SearchPage', () => {
   beforeEach(() => {
     useSearchAllMock.mockReset();
@@ -123,6 +132,35 @@ describe('SearchPage', () => {
     } as unknown as ReturnType<typeof useSearchAll>);
     renderWithProviders(<SearchPage />);
     expect(screen.getByTestId('category-grid')).toHaveTextContent('1 categories');
+  });
+
+  it('renders video thumbnails through ProxiedImage instead of raw img tags', () => {
+    const kickThumbnail =
+      'https://images.kick.com/video_thumbnails/IUNVIedvenl6/uY2FgPJlfoS2/720.webp';
+    useSearchAllMock.mockReturnValue({
+      data: {
+        ...emptyResults(),
+        videos: [
+          {
+            id: 'kick-vod-1',
+            platform: 'kick',
+            title: 'Kick VOD',
+            thumbnailUrl: kickThumbnail,
+            duration: 120,
+            channelAvatar: 'https://images.kick.com/profile.webp',
+            channelName: 'kickchannel',
+            channelDisplayName: 'Kick Channel',
+            viewCount: 10,
+            publishedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+
+    renderWithProviders(<SearchPage />);
+
+    expect(screen.getByTestId('proxied-image')).toHaveAttribute('data-src', kickThumbnail);
   });
 
   it('loading: forwards isLoading=true to the grids so skeletons render instead of "0 streams"', () => {

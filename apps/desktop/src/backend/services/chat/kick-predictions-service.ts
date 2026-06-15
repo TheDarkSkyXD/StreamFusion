@@ -39,7 +39,7 @@ import { logger } from "@/lib/cross-logger";
 import type { ChatConnectionStatus, UnifiedPrediction } from "../../../shared/chat-types";
 import { getLatestPrediction } from "../../api/platforms/kick/kick-predictions";
 import type { KickPredictionEventPayload } from "../../api/platforms/kick/kick-types";
-import { getKickPusher, kickChatService } from "./kick-chat";
+import { canSendPusherFrames, getKickPusher, kickChatService } from "./kick-chat";
 import { normalizeKickPrediction } from "./kick-prediction-normalizer";
 
 export interface KickPredictionsChannelInfo {
@@ -133,7 +133,7 @@ class KickPredictionsService {
    * Release one reference for a channel. When the last reference drops, the
    * Pusher subscription is torn down.
    */
-  release(info: { channelId: string }): void {
+  release(info: { channelId: string; skipPusherUnsubscribe?: boolean }): void {
     const channelId = info.channelId;
     if (!channelId) return;
     const entry = this.channels.get(channelId);
@@ -141,7 +141,7 @@ class KickPredictionsService {
     entry.refCount = Math.max(0, entry.refCount - 1);
     if (entry.refCount > 0) return;
 
-    this.unsubscribe(entry);
+    this.unsubscribe(entry, { skipPusherUnsubscribe: info.skipPusherUnsubscribe === true });
     this.channels.delete(channelId);
     this.pendingSubscriptions.delete(channelId);
   }
@@ -278,7 +278,7 @@ class KickPredictionsService {
       // open — see the matching guard in the unsubscribe(entry) method.
       try {
         channel.unbind_all();
-        if (pusher.connection.state === "connected") {
+        if (canSendPusherFrames(pusher)) {
           pusher.unsubscribe(channelName);
         }
       } catch {
@@ -288,7 +288,10 @@ class KickPredictionsService {
     });
   }
 
-  private unsubscribe(entry: PredictionsChannelEntry): void {
+  private unsubscribe(
+    entry: PredictionsChannelEntry,
+    options: { skipPusherUnsubscribe?: boolean } = {}
+  ): void {
     const pusher = getKickPusher();
     if (entry.pusherChannel) {
       try {
@@ -300,7 +303,7 @@ class KickPredictionsService {
       // already closed — pusher-js logs "WebSocket is already in CLOSING or
       // CLOSED state" once per attempted send. The server cleans up
       // channel subscriptions when the socket closes.
-      if (pusher && pusher.connection.state === "connected") {
+      if (pusher && !options.skipPusherUnsubscribe && canSendPusherFrames(pusher)) {
         try {
           pusher.unsubscribe(`predictions-channel-${entry.channelId}`);
         } catch {

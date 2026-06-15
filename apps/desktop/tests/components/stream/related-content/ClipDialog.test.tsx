@@ -14,6 +14,11 @@ vi.mock('@/components/ui/follow-button', () => ({
     FollowButton: () => <button data-testid="follow-button">Follow</button>
 }));
 
+vi.mock('@/components/ui/loading-spinner', () => ({
+    KickLoadingSpinner: () => <div data-testid="kick-loading-spinner">Kick Loading</div>,
+    TwitchLoadingSpinner: () => <div data-testid="twitch-loading-spinner">Twitch Loading</div>
+}));
+
 vi.mock('@/components/player/twitch', () => ({
     TwitchVodPlayer: () => <div data-testid="twitch-vod-player">Twitch Player</div>
 }));
@@ -110,6 +115,31 @@ describe('[Unit] ClipDialog', () => {
         );
 
         expect(screen.getByText('Loading clip...')).toBeInTheDocument();
+        expect(screen.getByTestId('twitch-loading-spinner')).toBeInTheDocument();
+        expect(screen.queryByTestId('kick-loading-spinner')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('twitch-vod-player')).not.toBeInTheDocument();
+    });
+
+    it('should show Kick loading spinner, not Twitch loading, while a Kick clip loads', () => {
+        const kickClip = { ...mockClip, platform: 'kick' as Platform };
+
+        render(
+            <ClipDialog
+                selectedClip={kickClip}
+                onClose={mockOnClose}
+                clipLoading={true}
+                clipError={null}
+                clipPlaybackUrl={null}
+                platform="kick"
+                channelName="coolstreamer"
+                channelData={{ ...mockChannelData, platform: 'kick' }}
+                onPlaybackError={mockOnPlaybackError}
+            />
+        );
+
+        expect(screen.getByText('Loading clip...')).toBeInTheDocument();
+        expect(screen.getByTestId('kick-loading-spinner')).toBeInTheDocument();
+        expect(screen.queryByTestId('twitch-loading-spinner')).not.toBeInTheDocument();
         expect(screen.queryByTestId('twitch-vod-player')).not.toBeInTheDocument();
     });
 
@@ -169,6 +199,27 @@ describe('[Unit] ClipDialog', () => {
         );
 
         expect(screen.getByTestId('kick-vod-player')).toBeInTheDocument();
+    });
+
+    it('should prefer the selected clip platform over a stale parent platform', () => {
+        const kickClip = { ...mockClip, platform: 'kick' as Platform };
+
+        render(
+            <ClipDialog
+                selectedClip={kickClip}
+                onClose={mockOnClose}
+                clipLoading={false}
+                clipError={null}
+                clipPlaybackUrl="http://video.url"
+                platform="twitch"
+                channelName="coolstreamer"
+                channelData={{ ...mockChannelData, platform: 'kick' }}
+                onPlaybackError={mockOnPlaybackError}
+            />
+        );
+
+        expect(screen.getByTestId('kick-vod-player')).toBeInTheDocument();
+        expect(screen.queryByTestId('twitch-vod-player')).not.toBeInTheDocument();
     });
 
     it('should handle VOD lookup for Kick when Watch Full Video is clicked', async () => {

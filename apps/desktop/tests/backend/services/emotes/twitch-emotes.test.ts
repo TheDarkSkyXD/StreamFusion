@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getMock = vi.fn();
 
@@ -37,6 +37,10 @@ function makeTwitchEmote(overrides: Record<string, unknown> = {}) {
 describe("TwitchEmoteProvider", () => {
   beforeEach(() => {
     getMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe("configure", () => {
@@ -87,11 +91,11 @@ describe("TwitchEmoteProvider", () => {
       expect(result[0].urls.url1x).toContain("animated");
     });
 
-    it("throws on API error", async () => {
+    it("returns empty array on API error", async () => {
       twitchEmoteProvider.configure("cid", "token");
       mockRejectOnce(new Error("API error"));
 
-      await expect(twitchEmoteProvider.fetchGlobalEmotes()).rejects.toThrow("API error");
+      await expect(twitchEmoteProvider.fetchGlobalEmotes()).resolves.toEqual([]);
     });
   });
 
@@ -119,11 +123,32 @@ describe("TwitchEmoteProvider", () => {
       expect(result).toEqual([]);
     });
 
-    it("throws on non-404 error", async () => {
+    it("returns empty array on non-404 error", async () => {
       twitchEmoteProvider.configure("cid", "token");
       mockRejectOnce(new Error("server error"));
 
-      await expect(twitchEmoteProvider.fetchChannelEmotes("999")).rejects.toThrow("server error");
+      await expect(twitchEmoteProvider.fetchChannelEmotes("999")).resolves.toEqual([]);
+    });
+
+    it("refreshes the Twitch token before fetching channel emotes when the bridge is available", async () => {
+      twitchEmoteProvider.configure("cid", "stale-token");
+      const getValidTwitchToken = vi.fn().mockResolvedValue("fresh-token");
+      vi.stubGlobal("window", {
+        electronAPI: {
+          auth: { getValidTwitchToken },
+        },
+      });
+      mockJsonOnce({ data: [] });
+
+      await twitchEmoteProvider.fetchChannelEmotes("999");
+
+      expect(getValidTwitchToken).toHaveBeenCalledTimes(1);
+      expect(getMock.mock.calls[0][1]).toMatchObject({
+        headers: {
+          "Client-ID": "cid",
+          Authorization: "Bearer fresh-token",
+        },
+      });
     });
   });
 

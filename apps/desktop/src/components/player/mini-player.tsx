@@ -2,7 +2,7 @@
  * MiniPlayer Component
  * A draggable, persistent mini-player for live streams that appears when navigating away from a stream
  */
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize2, LuPause, LuPlay, LuVolume2, LuVolumeX, LuX } from "react-icons/lu";
@@ -29,6 +29,7 @@ const MAX_REFRESH_ATTEMPTS = 2;
 
 export function MiniPlayer() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentStream, isPipActive, closePip, isOnStreamPage } = usePipStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,6 +40,8 @@ export function MiniPlayer() {
 
   // Determine if this is a Twitch stream that needs ad-blocking
   const isTwitchStream = currentStream?.platform === "twitch";
+  const isViewingStreamRoute = location.pathname.startsWith("/stream/");
+  const shouldHideForStreamPage = isOnStreamPage || isViewingStreamRoute;
 
   // Fetch a fresh playback URL for the mini player. The URL stored in the pip
   // store is a snapshot from when the user was on the stream page; its JWT
@@ -47,7 +50,7 @@ export function MiniPlayer() {
   // currentStream, or user is on the stream page) we pass an empty channel
   // name which short-circuits the fetch.
   const platform = (currentStream?.platform ?? "kick") as Platform;
-  const channelName = !isOnStreamPage && currentStream ? currentStream.channelName : "";
+  const channelName = !shouldHideForStreamPage && currentStream ? currentStream.channelName : "";
   const { playback, reload, reloadAttempts } = useStreamPlayback(platform, channelName);
 
   // Prefer the freshly-fetched URL; fall back to the snapshot until the first
@@ -186,7 +189,7 @@ export function MiniPlayer() {
         platform: currentStream.platform,
         channel: currentStream.channelName,
       },
-      search: { tab: "videos" },
+      search: { tab: "home" },
     });
   }, [currentStream, navigate]);
 
@@ -221,7 +224,7 @@ export function MiniPlayer() {
   );
 
   // Don't render if not active or no stream
-  if (!isPipActive || !currentStream || isOnStreamPage) {
+  if (!isPipActive || !currentStream || shouldHideForStreamPage) {
     return null;
   }
 

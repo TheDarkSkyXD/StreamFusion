@@ -7,7 +7,7 @@ import { TwitchVodPlayer } from "@/components/player/twitch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FollowButton } from "@/components/ui/follow-button";
-import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
+import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { logger } from "@/renderer/logging/logger";
@@ -43,6 +43,7 @@ export function ClipDialog({
   const navigate = useNavigate();
   const [vodLookupLoading, setVodLookupLoading] = useState(false);
   const [vodLookupError, setVodLookupError] = useState<string | null>(null);
+  const clipPlatform = selectedClip?.platform ?? platform;
 
   // Handle Kick VOD lookup and navigation
   const handleKickWatchFullVideo = useCallback(async () => {
@@ -112,7 +113,7 @@ export function ClipDialog({
                 {clipLoading ? (
                   <div className="text-center text-white">
                     <div className="mb-3 flex justify-center">
-                      <TwitchLoadingSpinner />
+                      {clipPlatform === "kick" ? <KickLoadingSpinner /> : <TwitchLoadingSpinner />}
                     </div>
                     <p>Loading clip...</p>
                   </div>
@@ -123,7 +124,7 @@ export function ClipDialog({
                   </div>
                 ) : clipPlaybackUrl ? (
                   // Platform-specific VOD player for clips
-                  platform === "twitch" ? (
+                  clipPlatform === "twitch" ? (
                     <TwitchVodPlayer
                       streamUrl={clipPlaybackUrl}
                       autoPlay
@@ -142,7 +143,7 @@ export function ClipDialog({
                       // Kick clips are handled differently or might not have manual qualities exposed the same way yet
                     />
                   )
-                ) : platform === "twitch" ? (
+                ) : clipPlatform === "twitch" ? (
                   // Twitch iframe fallback when direct MP4 fails
                   <iframe
                     src={`https://clips.twitch.tv/embed?clip=${selectedClip.id}&parent=localhost`}
@@ -179,7 +180,7 @@ export function ClipDialog({
                   <PlatformAvatar
                     src={channelData?.avatarUrl || ""}
                     alt={channelData?.displayName || channelName || ""}
-                    platform={(platform as Platform) || "twitch"}
+                    platform={(clipPlatform as Platform) || "twitch"}
                     size="w-12 h-12"
                     className="bg-neutral-800"
                   />
@@ -219,11 +220,11 @@ export function ClipDialog({
                 {/* Watch Full Video button - show if VOD is available */}
                 {/* vodId is empty string when VOD is deleted/unavailable */}
                 {selectedClip.vodId &&
-                  (platform === "twitch" ? (
+                  (clipPlatform === "twitch" ? (
                     // Twitch: Direct link using vodId
                     <Link
                       to="/video/$platform/$videoId"
-                      params={{ platform: platform, videoId: selectedClip.vodId }}
+                      params={{ platform: clipPlatform, videoId: selectedClip.vodId }}
                       className="w-full"
                     >
                       <Button

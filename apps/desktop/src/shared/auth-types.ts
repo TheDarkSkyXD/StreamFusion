@@ -186,9 +186,9 @@ export interface PlayerControlsPreferences {
  * runs its own ad-block-aware player; Kick live + both VOD paths share one).
  *
  * Its own top-level group so older installs hydrate the whole group with
- * defaults under the shallow top-level preferences merge. Defaults equal the
- * values that were previously hardcoded in both player files, so an untouched
- * install sees no behavior change (R17).
+ * defaults under the shallow top-level preferences merge. Defaults favor
+ * stability over minimum latency; users who want lower delay can still reduce
+ * these in Settings.
  *
  * The latency knob maps to `liveSyncDurationCount` (segment count) rather than
  * `liveSyncDuration` (seconds): the count is what both players already used, the
@@ -496,13 +496,14 @@ export const DEFAULT_PLAYER_CONTROLS_PREFERENCES: PlayerControlsPreferences = {
 };
 
 /**
- * Defaults equal the values previously hardcoded in both player files
- * (twitch-hls-player.tsx / hls-player.tsx), so an untouched install builds an
- * identical HLS config (R17). See plan U10.
+ * Stability-first HLS defaults with a bounded live buffer. The previous
+ * latency-first defaults (`lowLatencyMode:true`, liveSync 2) were prone to
+ * random buffering on noisy Twitch/Kick CDN moments; the later 30/60s buffer
+ * was stable but pushed 1080p live RSS too high for long sessions.
  */
 export const DEFAULT_BUFFER_PREFERENCES: BufferPreferences = {
-  lowLatencyMode: true,
-  liveSyncDurationCount: 2,
+  lowLatencyMode: false,
+  liveSyncDurationCount: 4,
   maxBufferLengthSec: 15,
   maxMaxBufferLengthSec: 30,
 };
@@ -526,7 +527,7 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   themeAdaptUsernameColor: true,
   timestamps: false,
   timestampFormat: "HH:mm",
-  fontSizePx: 13,
+  fontSizePx: 16,
   emoteSizePx: 28,
   density: "cozy",
   chatWidthPct: 30,

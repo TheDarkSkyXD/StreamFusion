@@ -241,11 +241,18 @@ class EmoteManager extends EventEmitter {
             this.channelEmoteInFlight.set(cacheKey, pending);
             // Always clear in-flight slot — success or failure — so a transient
             // error doesn't poison subsequent attempts.
-            pending.finally(() => {
-              if (this.channelEmoteInFlight.get(cacheKey) === pending) {
-                this.channelEmoteInFlight.delete(cacheKey);
+            pending.then(
+              () => {
+                if (this.channelEmoteInFlight.get(cacheKey) === pending) {
+                  this.channelEmoteInFlight.delete(cacheKey);
+                }
+              },
+              () => {
+                if (this.channelEmoteInFlight.get(cacheKey) === pending) {
+                  this.channelEmoteInFlight.delete(cacheKey);
+                }
               }
-            });
+            );
           }
 
           const emotes = await pending;

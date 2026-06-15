@@ -5,8 +5,8 @@
  * Interaction model:
  * - Drag the header (expanded) or the whole circle (collapsed) to reposition.
  * - Click × to collapse the panel into a 48px circle. Click the circle to
- *   expand back. Ctrl+Shift+D fully hides/shows the widget.
- * - Position + collapsed state persist in localStorage across reloads.
+ *   expand back. Ctrl+Shift+D hides to a restore chip instead of disappearing.
+ * - Position, collapsed state, and hidden state persist across reloads.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -284,7 +284,45 @@ function DebugPanelImpl() {
     e.preventDefault();
   }, []);
 
-  if (hidden) return null;
+  if (hidden) {
+    return (
+      <button
+        type="button"
+        onMouseDown={(e) =>
+          startDrag(e, () => {
+            setHidden(false);
+            setCollapsed(false);
+          })
+        }
+        title="Show Debug Console"
+        aria-label="Show Debug Console"
+        style={{
+          position: "fixed",
+          left: position.x,
+          top: position.y,
+          width: CIRCLE_SIZE,
+          height: CIRCLE_SIZE,
+          borderRadius: "50%",
+          background: DEBUG_TOKENS.surface,
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          color: DEBUG_TOKENS.accent,
+          border: `1px solid ${DEBUG_TOKENS.borderStrong}`,
+          font: `18px/1 ${DEBUG_TOKENS.fontUi}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "grab",
+          zIndex: 99999,
+          padding: 0,
+          boxShadow: DEBUG_TOKENS.shadow,
+          userSelect: "none",
+        }}
+      >
+        <BugIcon size={20} />
+      </button>
+    );
+  }
 
   if (collapsed) {
     return (

@@ -10,7 +10,7 @@
  * - Two anchored emote dialogs (native + third-party, U8) with parent-local
  *   mutual exclusion
  * - Character counter and error display
- * - Platform-aware sending; **no send button** — Enter sends.
+ * - Platform-aware sending from Enter or the footer Chat button
  */
 
 import type React from "react";
@@ -24,7 +24,7 @@ import {
   useState,
 } from "react";
 import { flushSync } from "react-dom";
-import { BsReplyFill, BsXLg } from "react-icons/bs";
+import { BsGear, BsReplyFill, BsXLg } from "react-icons/bs";
 import { logger } from "@/renderer/logging/logger";
 import { kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
@@ -32,6 +32,7 @@ import type { Emote } from "../../backend/services/emotes/emote-types";
 import type { ChatMessage, ChatPlatform, ContentFragment } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { useEmoteStore } from "../../store/emote-store";
+import { ChatQuickSettingsPopover } from "./ChatQuickSettingsPopover";
 import { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
 import { InfoBanner } from "./InfoBanner";
 import { NativeEmoteButton } from "./input/NativeEmoteButton";
@@ -194,7 +195,7 @@ function serializeFragments(message: string, slots: Emote[]): ContentFragment[] 
           type: "emote",
           id: slot.id,
           name: slot.name,
-          url: slot.urls.url4x ?? slot.urls.url2x ?? slot.urls.url1x,
+          url: slot.urls.url2x ?? slot.urls.url1x,
           isAnimated: slot.isAnimated,
           isZeroWidth: slot.isZeroWidth,
         });
@@ -274,6 +275,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     // Single dialog-tracking state; opening one closes the other. Parent-local
     // concern, so no event bus or shared store.
     const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+    const [showChatSettings, setShowChatSettings] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -281,6 +283,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const thirdPartyPopoverAnchorRef = useRef<HTMLElement | null>(null);
+    const settingsButtonRef = useRef<HTMLButtonElement>(null);
 
     // Signed-in Kick user — needed to attach a sender identity to the optimistic
     // local echo of outbound messages. Kick's web v2 send path delivers the
@@ -522,7 +525,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       // plain text). The chat server has no awareness of our textarea placeholder.
       const serialized = serializeMessage(message, emoteSlots, platform);
       const trimmedMessage = serialized.trim();
-      if (!trimmedMessage || !canSend || isSending) return;
+      if (!trimmedMessage || !canSend || isSending || serialized.length > maxLength) return;
 
       // Pre-rendered fragments for the Kick optimistic local echo so the
       // user's own message shows emote IMAGES (not raw text) until the Pusher
@@ -625,7 +628,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       } finally {
         setIsSending(false);
       }
-    }, [message, emoteSlots, canSend, isSending, platform, channel, reply, kickUser]);
+    }, [message, emoteSlots, canSend, isSending, platform, channel, reply, kickUser, maxLength]);
 
     // Handle key press — Enter sends; Shift+Enter inserts newline (default
     // textarea behavior, just don't preventDefault).
@@ -693,6 +696,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const charactersRemaining = maxLength - serializedLength;
 
     const buttonsDisabled = disabled || !canSend;
+    const canSubmit =
+      !buttonsDisabled &&
+      !isSending &&
+      !isOverLimit &&
+      serializeMessage(message, emoteSlots, platform).trim().length > 0;
+    const shouldDimSubmit = buttonsDisabled || isSending || isOverLimit;
 
     return (
       <div ref={containerRef} className={`relative flex flex-col ${className}`}>
@@ -722,123 +731,163 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         <InfoBanner platform={platform} channelId={channelId} />
 
         {/* Main Input Area */}
-        <div
-          className={`relative flex items-end gap-2 ${reply ? "rounded-b-md" : "rounded-md"} border border-[var(--color-border)] bg-[#191919] px-3 py-2`}
-        >
-          {/* Text Input — the overlay above the textarea renders emote tokens
+        <div className={`relative flex flex-col gap-2 ${reply ? "rounded-b-md" : ""}`}>
+          <div
+            data-testid="chat-input-text-row"
+            className="flex items-end gap-2 rounded-md border border-[var(--color-border)] bg-[#191919] px-3 py-2"
+          >
+            {/* Text Input — the overlay above the textarea renders emote tokens
             (e.g. `KEKW`) as images so the user can see live previews inline.
             The textarea itself is made transparent (`text-transparent`) but
             keeps `caret-white` so the cursor stays visible. The overlay is
             absolutely positioned, `pointer-events-none`, and uses the SAME
             font metrics + width as the textarea so its line wrapping matches
             character-for-character. */}
-          <div className="flex-1 relative">
-            {overlayContent && (
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-sm text-white leading-[1.5]"
-                style={{ minHeight: "24px", maxHeight: "120px", overflow: "hidden" }}
-              >
-                {overlayContent}
-              </div>
-            )}
-            <textarea
-              ref={inputRef}
-              value={message}
-              onChange={handleInputChange}
-              onSelect={handleSelect}
-              onKeyDown={handleKeyDown}
-              placeholder={canSend ? placeholder : "Log in to chat"}
-              disabled={disabled || !canSend}
-              rows={1}
-              className="relative w-full resize-none bg-transparent text-sm text-transparent caret-white placeholder:text-gray-300 placeholder:font-bold focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed leading-[1.5]"
-              style={{
-                minHeight: "24px",
-                maxHeight: "120px",
-              }}
-            />
+            <div className="relative flex-1">
+              {overlayContent && (
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-sm text-white leading-[1.5]"
+                  style={{ minHeight: "24px", maxHeight: "120px", overflow: "hidden" }}
+                >
+                  {overlayContent}
+                </div>
+              )}
+              <textarea
+                ref={inputRef}
+                value={message}
+                onChange={handleInputChange}
+                onSelect={handleSelect}
+                onKeyDown={handleKeyDown}
+                placeholder={canSend ? placeholder : "Log in to chat"}
+                disabled={disabled || !canSend}
+                rows={1}
+                className="relative w-full resize-none bg-transparent text-sm text-transparent caret-white placeholder:text-gray-300 placeholder:font-bold focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed leading-[1.5]"
+                style={{
+                  minHeight: "24px",
+                  maxHeight: "120px",
+                }}
+              />
 
-            <EmoteAutocomplete
-              inputValue={message}
-              cursorPosition={cursorPosition}
-              onSelect={(emote, start, end) => handleEmoteSelect(emote, start, end)}
-              onClose={emoteAutocomplete.deactivate}
-              isActive={emoteAutocomplete.isActive}
-            />
+              <EmoteAutocomplete
+                inputValue={message}
+                cursorPosition={cursorPosition}
+                onSelect={(emote, start, end) => handleEmoteSelect(emote, start, end)}
+                onClose={emoteAutocomplete.deactivate}
+                isActive={emoteAutocomplete.isActive}
+              />
 
-            <MentionAutocomplete
-              inputValue={message}
-              cursorPosition={cursorPosition}
-              onSelect={handleMentionSelect}
-              onClose={mentionAutocomplete.deactivate}
-              isActive={mentionAutocomplete.isActive}
-              platform={platform}
-              channel={channel}
-            />
-          </div>
-
-          {/* Character Counter */}
-          {message.length > 0 && (
-            <span
-              className={`flex-shrink-0 text-xs ${
-                isOverLimit
-                  ? "text-red-500"
-                  : charactersRemaining <= 50
-                    ? "text-yellow-500"
-                    : "text-gray-500"
-              }`}
-            >
-              {charactersRemaining}
-            </span>
-          )}
-
-          {/* Emote buttons (native + third-party). Send button is intentionally
-            gone — Enter sends. Outer wrapper mirrors KickTalk's `.chatInputActions`
-            (border-left + slideAndFadeIn keyframe); inner pill mirrors
-            `.chatEmoteBtns` (bg-white/5, border lifts to white/30 when open). */}
-          <div
-            className="flex items-center pl-3 ml-1 -mr-1 border-l animate-slide-and-fade-in"
-            style={{ borderLeftColor: "rgba(255,255,255,0.16)" }}
-          >
-            {/* Inline `borderColor` overrides the unlayered `* { border-color: var(--color-border) }`
-              in index.css, which beats Tailwind's layered border-color utilities at the
-              cascade level. `bg-white/5` matches KickTalk's `.chatEmoteBtns`
-              surface; the surrounding input box stays on KickTalk's darker
-              --bg-input. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
-            <div
-              className="flex items-center h-[38px] rounded-[4px] overflow-hidden border bg-white/5 transition-colors duration-150"
-              style={{
-                borderColor:
-                  activeDialog !== null ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.05)",
-              }}
-            >
-              <NativeEmoteButton
+              <MentionAutocomplete
+                inputValue={message}
+                cursorPosition={cursorPosition}
+                onSelect={handleMentionSelect}
+                onClose={mentionAutocomplete.deactivate}
+                isActive={mentionAutocomplete.isActive}
                 platform={platform}
                 channel={channel}
-                channelId={channelId}
-                isOpen={activeDialog === "native"}
-                onOpenRequest={handleNativeOpenRequest}
-                onEmoteSelect={handleEmoteSelect}
-                disabled={buttonsDisabled}
-                viewerIsSubscribed={viewerIsSubscribed}
-                popoverAnchorRef={thirdPartyPopoverAnchorRef}
-              />
-              <span
-                className={`h-full w-px transition-colors duration-150 ${
-                  activeDialog !== null ? "bg-white/30" : "bg-white/5"
-                }`}
-              />
-              <ThirdPartyEmoteButton
-                platform={platform}
-                channel={channel}
-                channelId={channelId}
-                isOpen={activeDialog === "thirdParty"}
-                onOpenRequest={handleThirdPartyOpenRequest}
-                onEmoteSelect={handleEmoteSelect}
-                disabled={buttonsDisabled}
-                popoverAnchorRef={thirdPartyPopoverAnchorRef}
               />
             </div>
+
+            {/* Character Counter */}
+            {message.length > 0 && (
+              <span
+                className={`flex-shrink-0 text-xs ${
+                  isOverLimit
+                    ? "text-red-500"
+                    : charactersRemaining <= 50
+                      ? "text-yellow-500"
+                      : "text-gray-500"
+                }`}
+              >
+                {charactersRemaining}
+              </span>
+            )}
+
+            {/* Emote buttons (native + third-party). The wrapper keeps them in
+              the input row while preserving the KickTalk action divider. */}
+            <div
+              className="flex items-center gap-2 pl-3 ml-1 -mr-1 border-l animate-slide-and-fade-in"
+              style={{ borderLeftColor: "rgba(255,255,255,0.16)" }}
+            >
+              {/* Inline `borderColor` overrides the unlayered `* { border-color: var(--color-border) }`
+                in index.css, which beats Tailwind's layered border-color utilities at the
+                cascade level. `bg-white/5` matches KickTalk's `.chatEmoteBtns`
+                surface; the surrounding input box stays on KickTalk's darker
+                --bg-input. `rounded-[4px]` mirrors KickTalk's exact 4px corner. */}
+              <div
+                className="flex items-center h-[38px] rounded-[4px] overflow-hidden border bg-white/5 transition-colors duration-150"
+                style={{
+                  borderColor:
+                    activeDialog !== null ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.05)",
+                }}
+              >
+                <NativeEmoteButton
+                  platform={platform}
+                  channel={channel}
+                  channelId={channelId}
+                  isOpen={activeDialog === "native"}
+                  onOpenRequest={handleNativeOpenRequest}
+                  onEmoteSelect={handleEmoteSelect}
+                  disabled={buttonsDisabled}
+                  viewerIsSubscribed={viewerIsSubscribed}
+                  popoverAnchorRef={thirdPartyPopoverAnchorRef}
+                />
+                <span
+                  className={`h-full w-px transition-colors duration-150 ${
+                    activeDialog !== null ? "bg-white/30" : "bg-white/5"
+                  }`}
+                />
+                <ThirdPartyEmoteButton
+                  platform={platform}
+                  channel={channel}
+                  channelId={channelId}
+                  isOpen={activeDialog === "thirdParty"}
+                  onOpenRequest={handleThirdPartyOpenRequest}
+                  onEmoteSelect={handleEmoteSelect}
+                  disabled={buttonsDisabled}
+                  popoverAnchorRef={thirdPartyPopoverAnchorRef}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Footer actions. The second row is only chat settings + submit. */}
+          <div
+            data-testid="chat-input-action-row"
+            className="relative flex items-center justify-end gap-2 animate-slide-and-fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <button
+                ref={settingsButtonRef}
+                type="button"
+                onClick={() => setShowChatSettings((v) => !v)}
+                aria-label="Chat settings"
+                aria-expanded={showChatSettings}
+                title="Chat settings"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors duration-150 hover:bg-[#232629] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919]"
+              >
+                <BsGear size={18} style={{ stroke: "currentColor", strokeWidth: 0.45 }} />
+              </button>
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={shouldDimSubmit}
+                aria-disabled={!canSubmit}
+                className={`h-[38px] flex-shrink-0 cursor-pointer rounded-[4px] bg-white px-4 text-sm font-bold text-[#0f0f0f] transition-opacity duration-150 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#191919] disabled:cursor-not-allowed ${
+                  shouldDimSubmit ? "opacity-40" : ""
+                }`}
+              >
+                Chat
+              </button>
+            </div>
+            {showChatSettings && (
+              <ChatQuickSettingsPopover
+                platform={platform}
+                placement="top"
+                triggerRef={settingsButtonRef}
+                onClose={() => setShowChatSettings(false)}
+              />
+            )}
           </div>
         </div>
 

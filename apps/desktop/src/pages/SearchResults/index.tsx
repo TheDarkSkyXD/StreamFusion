@@ -12,6 +12,7 @@ import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { StreamGrid } from "@/components/stream/stream-grid";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
+import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchAll, useSearchChannels } from "@/hooks/queries/useSearch";
 import { cn, formatDuration } from "@/lib/utils";
@@ -310,7 +311,7 @@ export function SearchPage() {
                 key={`${channel.platform}-${channel.id}`}
                 to="/stream/$platform/$channel"
                 params={{ platform: channel.platform, channel: channel.username }}
-                search={{ tab: "videos" }}
+                search={{ tab: "home" }}
                 className="flex flex-col items-center text-center p-4 rounded-xl transition-all group"
               >
                 <div className="relative mb-3">
@@ -358,7 +359,7 @@ export function SearchPage() {
                 key={`${channel.platform}-${channel.id}`}
                 to="/stream/$platform/$channel"
                 params={{ platform: channel.platform, channel: channel.username }}
-                search={{ tab: "videos" }}
+                search={{ tab: "home" }}
                 className="flex flex-col items-center text-center p-4 rounded-xl transition-all group"
               >
                 <div className="relative mb-3">
@@ -457,7 +458,7 @@ export function SearchPage() {
                 className="group block rounded-xl overflow-hidden bg-[var(--color-background-secondary)] transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
               >
                 <div className="relative aspect-video">
-                  <img
+                  <ProxiedImage
                     src={video.thumbnailUrl}
                     alt={video.title}
                     className="w-full h-full object-cover"
@@ -468,10 +469,11 @@ export function SearchPage() {
                 </div>
                 <div className="p-3">
                   <div className="flex gap-3">
-                    <img
+                    <PlatformAvatar
                       src={video.channelAvatar}
                       alt={video.channelName}
-                      className="w-10 h-10 rounded-full"
+                      platform={video.platform}
+                      size="w-10 h-10"
                     />
                     <div className="min-w-0">
                       <h3 className="font-bold text-white truncate group-hover:text-[var(--color-storm-primary)] transition-colors">
@@ -507,7 +509,7 @@ export function SearchPage() {
                 className="group cursor-pointer rounded-xl overflow-hidden bg-[var(--color-background-secondary)] transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
               >
                 <div className="relative aspect-video">
-                  <img
+                  <ProxiedImage
                     src={clip.thumbnailUrl}
                     alt={clip.title}
                     className="w-full h-full object-cover"
@@ -524,10 +526,11 @@ export function SearchPage() {
                 </div>
                 <div className="p-3">
                   <div className="flex gap-2.5">
-                    <img
+                    <PlatformAvatar
                       src={clip.channelAvatar}
                       alt={clip.channelName}
-                      className="w-8 h-8 rounded-full"
+                      platform={clip.platform}
+                      size="w-8 h-8"
                     />
                     <div className="min-w-0">
                       <h3 className="font-bold text-sm text-white truncate group-hover:text-[var(--color-storm-primary)] transition-colors">
@@ -590,7 +593,12 @@ export function SearchPage() {
                   {selectedClip.title}
                 </h2>
                 <div className="flex items-center gap-2 mt-2">
-                  <img src={selectedClip.channelAvatar} alt="" className="w-6 h-6 rounded-full" />
+                  <PlatformAvatar
+                    src={selectedClip.channelAvatar}
+                    alt={selectedClip.channelName}
+                    platform={selectedClip.platform}
+                    size="w-6 h-6"
+                  />
                   <span className="text-sm text-[var(--color-foreground-secondary)]">
                     Clipped by {selectedClip.channelDisplayName}
                   </span>

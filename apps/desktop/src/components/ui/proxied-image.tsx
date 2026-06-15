@@ -85,6 +85,9 @@ function resolveSrc(src: string | undefined | null, forceProxy: boolean = false)
   if (!src.startsWith("http")) return null;
   const scheme = chooseProxy(src);
   if (scheme) {
+    if (scheme === KICK_IMAGE_SCHEME) {
+      return resolveProxiedSrc(src, scheme);
+    }
     if (!forceProxy && !directProxyFailedUrls.has(src)) {
       return src;
     }

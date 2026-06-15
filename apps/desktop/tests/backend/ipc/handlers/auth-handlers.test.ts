@@ -45,7 +45,7 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
     expect(upsertSyncedFollows).not.toHaveBeenCalled();
   });
 
-  it("on ok with channels: atomically replaces account follows respecting pending writes; surfaces pendingCount", async () => {
+  it("on ok with channels: upserts Kick follows without pruning absent rows; surfaces pendingCount", async () => {
     const upsertSyncedFollows = vi
       .fn()
       .mockReturnValue({ accountCount: 2, pendingCount: 0, addedCount: 2, removedCount: 0 });
@@ -91,28 +91,32 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       removedCount: 0,
     });
     expect(upsertSyncedFollows).toHaveBeenCalledTimes(1);
-    expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", [
-      expect.objectContaining({
-        platform: "kick",
-        channelId: "411439",
-        channelName: "summit1g",
-        displayName: "Summit1G",
-        profileImage: "https://example.com/summit.jpg",
-      }),
-      expect.objectContaining({
-        platform: "kick",
-        channelId: "",
-        channelName: "chickenandy",
-        displayName: "ChickenAndy",
-        profileImage: "https://example.com/chicken.jpg",
-      }),
-    ]);
+    expect(upsertSyncedFollows).toHaveBeenCalledWith(
+      "kick",
+      [
+        expect.objectContaining({
+          platform: "kick",
+          channelId: "411439",
+          channelName: "summit1g",
+          displayName: "Summit1G",
+          profileImage: "https://example.com/summit.jpg",
+        }),
+        expect.objectContaining({
+          platform: "kick",
+          channelId: "",
+          channelName: "chickenandy",
+          displayName: "ChickenAndy",
+          profileImage: "https://example.com/chicken.jpg",
+        }),
+      ],
+      { pruneAbsent: false }
+    );
   });
 
-  it("on ok with empty channels: still calls replace so the prior rows are atomically cleared (respecting tombstones)", async () => {
-    // The Twitch-parity semantic: a successful sync that returns zero
-    // follows IS authoritative — the user unfollowed everything. Distinct
-    // from the error path where prior state is preserved.
+  it("on ok with empty channels: still uses the additive Kick sync policy", async () => {
+    // Kick's DOM scrape can be partial, so even an empty ok payload must not
+    // request pruning. The scraper normally returns an error for zero channels;
+    // this pins the lower-level sync policy.
     const upsertSyncedFollows = vi
       .fn()
       .mockReturnValue({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 0 });
@@ -132,7 +136,7 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       addedCount: 0,
       removedCount: 0,
     });
-    expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", []);
+    expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", [], { pruneAbsent: false });
   });
 
   it("surfaces pendingCount from the storage call so the AUTH_FOLLOWS_SYNCED IPC can drive the U8 banner", async () => {

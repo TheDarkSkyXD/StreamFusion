@@ -15,6 +15,8 @@ import type { UsernameChannelContext } from "./Username";
 
 const MemoizedChatMessage = memo(ChatMessage);
 const EMPTY_MESSAGES: ChatMessageType[] = [];
+const CHAT_LIST_OVERSCAN_PX = 16;
+const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 96, bottom: 96 };
 
 interface ChatMessageListProps {
   channelKey: string;
@@ -117,6 +119,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     // Length-delta is approximate when the store trims, but display caps at "20+".
     const [pausedCount, setPausedCount] = useState(0);
     const lastSeenLengthRef = useRef(messages.length);
+    const initialTopMostItemIndexRef = useRef(messages.length > 0 ? messages.length - 1 : 0);
 
     useEffect(() => {
       if (!isPaused) {
@@ -236,10 +239,10 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           itemContent={itemContent}
           computeItemKey={computeItemKey}
           followOutput={followOutput}
-          initialTopMostItemIndex={messages.length > 0 ? messages.length - 1 : 0}
+          initialTopMostItemIndex={initialTopMostItemIndexRef.current}
           atBottomThreshold={20}
-          overscan={50}
-          increaseViewportBy={400}
+          overscan={CHAT_LIST_OVERSCAN_PX}
+          increaseViewportBy={CHAT_LIST_INCREASE_VIEWPORT_BY}
           defaultItemHeight={32}
           atBottomStateChange={handleAtBottomStateChange}
           scrollerRef={scrollerCallbackRef}

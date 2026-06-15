@@ -423,6 +423,30 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     expect(rows.map((r) => r.channelId)).toEqual(["999"]);
   });
 
+  it("preserves absent platform rows when sync is explicitly additive", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "411439",
+        channelName: "summit1g",
+        displayName: "Summit1G",
+        profileImage: "",
+      },
+      "kick"
+    );
+
+    const result = svc.upsertSyncedFollows("kick", [fetched("999", "other")], {
+      pruneAbsent: false,
+    });
+
+    expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 1, removedCount: 0 });
+    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    expect(rows.map((r) => r.channelId).sort()).toEqual(["411439", "999"]);
+  });
+
   it("external unfollow is auto-detected when the authoritative fetched list is empty", () => {
     // A successful empty fetched list means the account follows no channels
     // for this platform, so old platform-source rows must be pruned.

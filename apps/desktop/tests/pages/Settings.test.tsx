@@ -67,8 +67,8 @@ const updatePreferences = vi.fn();
 // playerControls carries a non-default sibling (showQuality:false) so the spread-
 // preservation assertion below has something to prove: toggling one field must keep it.
 const playerControls = { ...DEFAULT_PLAYER_CONTROLS_PREFERENCES, showQuality: false };
-// buffer carries a non-default sibling (liveSyncDurationCount:5) for the same reason.
-const buffer = { ...DEFAULT_BUFFER_PREFERENCES, liveSyncDurationCount: 5 };
+// buffer carries non-default siblings for the same reason.
+const buffer = { ...DEFAULT_BUFFER_PREFERENCES, liveSyncDurationCount: 5, lowLatencyMode: true };
 // proxy carries the main-owned `hasCredentials:true` advisory — it is NOT part of
 // the apply config, so a save's `{...proxyPrefs, ...config}` write must preserve it.
 const proxy = { ...DEFAULT_PROXY_PREFERENCES, hasCredentials: true };

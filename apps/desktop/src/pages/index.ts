@@ -29,8 +29,6 @@ export const SettingsPage = lazy(() =>
 
 export const VideoPage = lazy(() => import("./Video").then((m) => ({ default: m.VideoPage })));
 
-export const ClipPage = lazy(() => import("./Clip").then((m) => ({ default: m.ClipPage })));
-
 export const MultiStreamPage = lazy(() =>
   import("./MultiStream").then((m) => ({ default: m.MultiStreamPage }))
 );

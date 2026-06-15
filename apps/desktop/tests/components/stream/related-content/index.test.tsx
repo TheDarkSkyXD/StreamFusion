@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RelatedContent } from '@/components/stream/related-content/index';
 import type { VideoOrClip } from '@/components/stream/related-content/types';
@@ -38,10 +38,12 @@ const mockGetByChannelVideos = vi.fn();
 const mockGetByChannelClips = vi.fn();
 const mockGetClipPlaybackUrl = vi.fn();
 
+// Guards: stream pages without an explicit tab always default to Home, even if a previous stream saved another tab.
 describe('RelatedContent', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockUseSearch.mockReturnValue({ tab: 'videos' });
+        localStorage.clear();
 
         (window as any).electronAPI = {
             videos: { getByChannel: mockGetByChannelVideos },
@@ -152,6 +154,36 @@ describe('RelatedContent', () => {
         });
     });
 
+    it('should use the selected clip platform when fetching playback URL', async () => {
+        mockUseSearch.mockReturnValue({ tab: 'clips' });
+        mockGetByChannelClips.mockResolvedValue({
+            success: true,
+            data: [{ id: 'kick-clip-1', title: 'Kick Clip', platform: 'kick', embedUrl: 'kick-url' }]
+        });
+        mockGetClipPlaybackUrl.mockResolvedValue({ success: true, data: { url: 'http://kick-video-url' } });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="testUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        await waitFor(() => expect(screen.getByText('Kick Clip')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Kick Clip'));
+
+        await waitFor(() => {
+            expect(mockGetClipPlaybackUrl).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    platform: 'kick',
+                    clipId: 'kick-clip-1',
+                    clipUrl: 'kick-url'
+                })
+            );
+        });
+    });
+
     it('should request limit=20 on the Videos tab initial fetch', async () => {
         mockUseSearch.mockReturnValue({ tab: 'videos' });
         mockGetByChannelVideos.mockResolvedValue({ success: true, data: [] });
@@ -170,6 +202,71 @@ describe('RelatedContent', () => {
             );
         });
         expect(mockGetByChannelClips).not.toHaveBeenCalled();
+    });
+
+    it('renders only the first batch of full-tab video cards before offscreen cards intersect', async () => {
+        mockUseSearch.mockReturnValue({ tab: 'videos' });
+        mockGetByChannelVideos.mockResolvedValue({
+            success: true,
+            data: Array.from({ length: 12 }, (_, index) => ({
+                id: `v${index}`,
+                title: `Video ${index}`
+            }))
+        });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="testUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getAllByTestId('video-card')).toHaveLength(9);
+        });
+        expect(screen.getAllByTestId('deferred-related-card')).toHaveLength(3);
+    });
+
+    it('unmounts full-tab video cards when they leave the viewport margin', async () => {
+        const callbacks: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
+        window.IntersectionObserver = class {
+            constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+                callbacks.push(callback);
+            }
+            observe = vi.fn();
+            unobserve = vi.fn();
+            disconnect = vi.fn();
+        } as any;
+        mockUseSearch.mockReturnValue({ tab: 'videos' });
+        mockGetByChannelVideos.mockResolvedValue({
+            success: true,
+            data: Array.from({ length: 10 }, (_, index) => ({
+                id: `v${index}`,
+                title: `Video ${index}`
+            }))
+        });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="testUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getAllByTestId('video-card')).toHaveLength(9);
+        });
+
+        act(() => {
+            callbacks.forEach((callback) => callback([{ isIntersecting: false }]));
+        });
+
+        await waitFor(() => {
+            expect(screen.queryAllByTestId('video-card')).toHaveLength(0);
+        });
+        expect(screen.getAllByTestId('deferred-related-card')).toHaveLength(10);
     });
 
     it('should request limit=20 on the Clips tab initial fetch', async () => {
@@ -192,9 +289,32 @@ describe('RelatedContent', () => {
         expect(mockGetByChannelVideos).not.toHaveBeenCalled();
     });
 
+    it('renders only the first batch of full-tab clip cards before offscreen cards intersect', async () => {
+        mockUseSearch.mockReturnValue({ tab: 'clips' });
+        mockGetByChannelClips.mockResolvedValue({
+            success: true,
+            data: Array.from({ length: 12 }, (_, index) => ({
+                id: `c${index}`,
+                title: `Clip ${index}`
+            }))
+        });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="testUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getAllByTestId('clip-card')).toHaveLength(9);
+        });
+        expect(screen.getAllByTestId('deferred-related-card')).toHaveLength(3);
+    });
+
     it('should request limit=5 for both videos and clips on the home view', async () => {
         mockUseSearch.mockReturnValue({ tab: undefined });
-        localStorage.removeItem('stream-tab-preference');
         mockGetByChannelVideos.mockResolvedValue({ success: true, data: [] });
         mockGetByChannelClips.mockResolvedValue({ success: true, data: [] });
 
@@ -206,6 +326,31 @@ describe('RelatedContent', () => {
             />
         );
 
+        await waitFor(() => {
+            expect(mockGetByChannelVideos).toHaveBeenCalledWith(
+                expect.objectContaining({ limit: 5 })
+            );
+            expect(mockGetByChannelClips).toHaveBeenCalledWith(
+                expect.objectContaining({ limit: 5 })
+            );
+        });
+    });
+
+    it('defaults to the Home tab when the stream URL has no tab, ignoring any saved tab preference', async () => {
+        mockUseSearch.mockReturnValue({ tab: undefined });
+        localStorage.setItem('stream-tab-preference', 'clips');
+        mockGetByChannelVideos.mockResolvedValue({ success: true, data: [] });
+        mockGetByChannelClips.mockResolvedValue({ success: true, data: [] });
+
+        render(
+            <RelatedContent
+                platform="twitch"
+                channelName="offlineUser"
+                channelData={{ id: '123' } as any}
+            />
+        );
+
+        expect(screen.getByTestId('content-tabs')).toHaveTextContent('home');
         await waitFor(() => {
             expect(mockGetByChannelVideos).toHaveBeenCalledWith(
                 expect.objectContaining({ limit: 5 })

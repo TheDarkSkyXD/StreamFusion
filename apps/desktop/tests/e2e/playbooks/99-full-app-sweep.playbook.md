@@ -21,12 +21,11 @@ For each of the routes below:
 | 5 | `/search?q=ninja` | `sweep-05-search.png` |
 | 6 | `/stream/twitch/ninja` | `sweep-06-stream.png` |
 | 7 | `/video/twitch/vod-sweep?title=Sweep%20VOD&channelName=ninja` | `sweep-07-video.png` |
-| 8 | `/clip/twitch/clip-0` | `sweep-08-clip.png` |
-| 9 | `/multistream` | `sweep-09-multistream.png` |
-| 10 | `/history` | `sweep-10-history.png` |
-| 11 | `/downloads` | `sweep-11-downloads.png` |
-| 12 | `/settings` | `sweep-12-settings.png` |
+| 8 | `/multistream` | `sweep-08-multistream.png` |
+| 9 | `/history` | `sweep-09-history.png` |
+| 10 | `/downloads` | `sweep-10-downloads.png` |
+| 11 | `/settings` | `sweep-11-settings.png` |
 
 ## Pass criteria
-- [ ] All 12 routes mount with no JS exceptions in renderer logs.
-- [ ] 12 screenshots saved.
+- [ ] All 11 routes mount with no JS exceptions in renderer logs.
+- [ ] 11 screenshots saved.

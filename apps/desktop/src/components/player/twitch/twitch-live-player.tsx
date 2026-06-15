@@ -281,8 +281,7 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
             const isRefreshableError =
               error.shouldRefresh === true ||
               error.code === "NO_FRAGMENTS" ||
-              error.code === "TOKEN_EXPIRED" ||
-              error.code === "STREAM_OFFLINE"; // Sometimes stream "offline" is just stale URL
+              error.code === "TOKEN_EXPIRED";
 
             // Check if we should auto-retry
             const canRetry =

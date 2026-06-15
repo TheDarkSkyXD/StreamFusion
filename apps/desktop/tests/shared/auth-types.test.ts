@@ -59,7 +59,8 @@ describe("ChatDisplayPreferences defaults (U1)", () => {
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.timestamps).toBe(false);
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.timestampFormat).toBe("HH:mm");
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.density).toBe("cozy");
-    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.fontSizePx).toBe(13);
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.fontSizePx).toBe(16);
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx).toBe(28);
     // Emote providers + event surfaces are on by default.
     for (const on of [
       DEFAULT_CHAT_DISPLAY_PREFERENCES.enable7tv,
@@ -125,12 +126,10 @@ describe("PlayerControlsPreferences defaults (U8)", () => {
 });
 
 describe("BufferPreferences defaults (U10)", () => {
-  it("defaults equal the values previously hardcoded in both player files (no behavior change)", () => {
-    // R17: untouched install must build an identical HLS config. These four are
-    // exactly the constants that lived in twitch-hls-player.tsx / hls-player.tsx.
+  it("defaults favor playback stability with a bounded live buffer", () => {
     expect(DEFAULT_BUFFER_PREFERENCES).toEqual({
-      lowLatencyMode: true,
-      liveSyncDurationCount: 2,
+      lowLatencyMode: false,
+      liveSyncDurationCount: 4,
       maxBufferLengthSec: 15,
       maxMaxBufferLengthSec: 30,
     });
@@ -155,7 +154,7 @@ describe("BufferPreferences defaults (U10)", () => {
     };
     const hydrated = { ...DEFAULT_USER_PREFERENCES, ...legacyStored };
     expect(hydrated.buffer).toEqual(DEFAULT_BUFFER_PREFERENCES);
-    expect(hydrated.buffer.liveSyncDurationCount).toBe(2);
+    expect(hydrated.buffer.liveSyncDurationCount).toBe(4);
   });
 });
 

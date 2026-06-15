@@ -81,6 +81,7 @@ vi.mock('@/backend/services/chat/kick-chat', () => ({
     subscribe: vi.fn(() => () => {}),
     acquire: vi.fn(() => undefined),
     release: vi.fn(() => undefined),
+    getActiveUserCount: vi.fn(() => 1),
     isConnected: vi.fn(() => false),
     sendMessage: vi.fn(async () => true),
     joinChannel: vi.fn(async () => true),
@@ -179,7 +180,14 @@ const chatInputProps: { canSend?: boolean } = {};
 vi.mock('@/components/chat/ChatInput', () => ({
   ChatInput: (props: { canSend?: boolean }) => {
     chatInputProps.canSend = props.canSend;
-    return <div data-testid="chat-input">input</div>;
+    return (
+      <div data-testid="chat-input">
+        input
+        <button type="button" aria-label="Chat settings">
+          settings
+        </button>
+      </div>
+    );
   },
 }));
 
@@ -188,11 +196,12 @@ import { kickChatService } from '@/backend/services/chat/kick-chat';
 import { kickPredictionsService } from '@/backend/services/chat/kick-predictions-service';
 
 // Guards: loading state — canSend stays false while the Pusher connection is in 'disconnected' state and the kick token is still resolving, so the chat input doesn't accept input bound for the void
+// Guards: connecting state appears immediately before Kick token/network setup finishes, so the chat panel never looks blank on slow joins
 // Guards: error/reconnect path — canSend remains false even after the connection flips to 'connected' until isAuthenticated catches up, so the input gates correctly on Pusher drop / reconnect cycles
 // Guards: empty messages — message list still renders the virtuoso shell (see ChatMessageList tests); chat input still renders, gear chrome still visible in viewer single-tab path (U7)
 // Guards: U5 prefs — sub notices / polls / prediction banner each suppress when their visibility pref is false, surface when true. Silent drops here look like "Kick subs aren't firing" — a high-blast UX failure
 // Guards: U11 mod actions — Timeout uses seconds→minutes conversion with Math.max(1, …) clamp so a 10s preset doesn't round to 0 minutes and silently no-op against Kick's API
-// Guards: cleanup releases Kick prediction subscriptions before the shared chat Pusher socket can close, preventing pusher-js "WebSocket is already in CLOSING or CLOSED state" console errors on unmount
+// Guards: final-view cleanup skips prediction unsubscribe frames before closing the shared chat Pusher socket, preventing pusher-js "WebSocket is already in CLOSING or CLOSED state" console errors on unmount
 describe('KickChat', () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
@@ -210,8 +219,11 @@ describe('KickChat', () => {
     timeoutKickUserMock.mockReset();
     unbanKickUserMock.mockReset();
     deleteKickMessageMock.mockReset();
+    vi.mocked(kickChatService.connect).mockClear();
     vi.mocked(kickChatService.acquire).mockClear();
     vi.mocked(kickChatService.release).mockClear();
+    vi.mocked(kickChatService.getActiveUserCount).mockClear();
+    vi.mocked(kickChatService.getActiveUserCount).mockReturnValue(1);
     vi.mocked(kickPredictionsService.acquire).mockClear();
     vi.mocked(kickPredictionsService.release).mockClear();
     loadGlobalEmotesMock.mockReset();
@@ -232,13 +244,34 @@ describe('KickChat', () => {
     expect(lastListProps.channelKey).toBe('kick:xqc');
   });
 
-  it('releases predictions before releasing the shared Kick chat socket on unmount', () => {
+  it('shows the connecting row before Kick token/network setup resolves', async () => {
+    const api = installElectronAPIMock();
+    api.auth.getToken = vi.fn(() => new Promise<never>(() => {}));
+
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+
+    await waitFor(() => {
+      const addedTexts = (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (call: unknown[]) => {
+          const msg = call[0] as { rawContent?: string } | undefined;
+          return msg?.rawContent;
+        },
+      );
+      expect(addedTexts).toContain('Connecting to channel...');
+    });
+    expect(kickChatService.connect).not.toHaveBeenCalled();
+  });
+
+  it('releases predictions without socket frames before releasing the final shared Kick chat socket', () => {
     mockIsKickMod.value = false;
     const { unmount } = render(<KickChat channel="xqc" channelId="12345" chatroomId={12345} />);
 
     unmount();
 
-    expect(kickPredictionsService.release).toHaveBeenCalledWith({ channelId: '12345' });
+    expect(kickPredictionsService.release).toHaveBeenCalledWith({
+      channelId: '12345',
+      skipPusherUnsubscribe: true,
+    });
     expect(kickChatService.release).toHaveBeenCalledWith('xqc');
     expect(
       vi.mocked(kickPredictionsService.release).mock.invocationCallOrder[0],

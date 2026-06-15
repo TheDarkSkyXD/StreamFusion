@@ -44,7 +44,7 @@ Both are empty placeholder index files. Platform-specific stream embed/chat comp
 - **`UnifiedStream`** props are required (never nullable) in `StreamCard` and `FeaturedStream`. Callers must guard before passing.
 - **`StreamGrid`** accepts an undefined `streams` array; it renders skeletons when `isLoading` and empty state otherwise — callers do not need to branch.
 - **`RelatedContent`** requires `channelData?.id` to be truthy before it will fire any IPC fetch. During loading, it renders skeletons silently.
-- **Tab state** is URL-first (`?tab=home|videos|clips`), falls back to `localStorage` key `stream-tab-preference`. Changing the tab always writes back to localStorage.
+- **Tab state** is URL-first (`?tab=home|videos|clips`) and defaults to `home` when the URL has no tab. Do not use saved tab preference as a stream-page fallback; every stream should open on Home unless deep-linked otherwise.
 - **Clip playback** fetches a URL via `electronAPI.clips.getPlaybackUrl` after selection. Twitch silently falls back to iframe on any error; Kick shows an error state.
 - **`VideoCard` self-hides** (`return null`) when `onProxyError` fires — no parent intervention needed.
 - **Prefetch delay** on `StreamCard` is 150 ms. The `useManagedTimeout` hook clears the timer on `mouseLeave`, so fast scroll-past does not cause spurious queries.

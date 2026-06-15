@@ -157,6 +157,7 @@ interface MessageBatch {
 
 // Global batching state (outside React lifecycle for persistence)
 const messageBatches: Record<string, MessageBatch> = {};
+export const DEFAULT_BATCHING_INTERVAL_MS = 100;
 
 interface ChatState {
   /** Per-channel message buckets, keyed by `buildChannelKey(platform, channel)`. */
@@ -173,7 +174,7 @@ interface ChatState {
   addMessage: (message: ChatMessage) => void;
   /**
    * ChannelKey is per channel, not per platform, so each chat panel's batch
-   * fires on its own 50ms cadence.
+   * fires on its own cadence.
    */
   addMessageBatched: (message: ChatMessage, channelKey: string) => void;
   flushBatch: (channelKey: string) => void;
@@ -230,12 +231,13 @@ export const useChatStore = create<ChatState>()(
       messagesByChannel: {},
       pausedChannels: new Set<string>(),
       // Batching enabled by default. On busy streams (Kick xQc-tier or Twitch
-      // raid bursts at 30+ msg/sec), grouping store updates into 50ms windows
+      // raid bursts at 30+ msg/sec), grouping store updates into a short window
       // collapses 30 Zustand notifies → ~20 ChatMessageList commits, which is
-      // the dominant per-message React work. Latency added is imperceptible.
+      // the dominant per-message React work. A 100ms window leaves connection,
+      // system, and moderation events immediate.
       // System/ban/clear messages bypass batching via direct addMessage().
       batchingEnabled: true,
-      batchingInterval: 50, // 50ms = 20Hz flush. Imperceptible.
+      batchingInterval: DEFAULT_BATCHING_INTERVAL_MS,
       connectionStatus: {
         twitch: {
           platform: "twitch",
@@ -548,6 +550,10 @@ export const useChatStore = create<ChatState>()(
       setPaused: (channelKey, paused) => {
         __debug.setPaused++;
         set((state) => {
+          const isPaused = state.pausedChannels.has(channelKey);
+          if (isPaused === paused) {
+            return state;
+          }
           const pausedChannels = new Set(state.pausedChannels);
           if (paused) {
             pausedChannels.add(channelKey);

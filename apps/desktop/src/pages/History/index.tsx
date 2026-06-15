@@ -28,8 +28,9 @@ const HistoryItemLink = ({
   if (item.type === "clip") {
     return (
       <Link
-        to="/clip/$platform/$clipId"
-        params={{ platform: item.platform, clipId: item.originalId }}
+        to="/stream/$platform/$channel"
+        params={{ platform: item.platform, channel: item.channelName }}
+        search={{ tab: "clips" }}
         className={className}
       >
         {children}
@@ -40,7 +41,7 @@ const HistoryItemLink = ({
     <Link
       to="/stream/$platform/$channel"
       params={{ platform: item.platform, channel: item.channelName }}
-      search={{ tab: "videos" }}
+      search={{ tab: "home" }}
       className={className}
     >
       {children}

@@ -69,7 +69,8 @@ export async function syncKickFollowsAfterLogin(
   );
   const { accountCount, pendingCount, addedCount, removedCount } = storage.upsertSyncedFollows(
     "kick",
-    kickFollows
+    kickFollows,
+    { pruneAbsent: false }
   );
   return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
@@ -84,6 +85,10 @@ export function shouldDeferKickStartupFollowRefresh(
   graceMs: number = KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS
 ): boolean {
   return platform === "kick" && trigger === "focus" && now - startedAt < graceMs;
+}
+
+interface SyncFollowsOptions {
+  allowKickBrowserWindowFallback?: boolean;
 }
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
@@ -114,7 +119,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
    * channels, honoring `pending_follow_writes` tombstones from push-sync.
    * Runs in the background — does not block the login flow.
    */
-  async function syncFollowsOnLogin(platform: Platform): Promise<void> {
+  async function syncFollowsOnLogin(
+    platform: Platform,
+    options: SyncFollowsOptions = {}
+  ): Promise<void> {
     try {
       logger.debug("IPC:Auth", "Syncing follows", { platform });
 
@@ -157,7 +165,11 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         const { getAllFollowedChannels } = await import(
           "../../api/platforms/kick/endpoints/follow-endpoints"
         );
-        const outcome = await syncKickFollowsAfterLogin(getAllFollowedChannels);
+        const outcome = await syncKickFollowsAfterLogin(() =>
+          getAllFollowedChannels({
+            allowBrowserWindowFallback: options.allowKickBrowserWindowFallback === true,
+          })
+        );
         if (outcome.status === "error") {
           logger.warn(
             "IPC:Auth",
@@ -460,7 +472,9 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
 
       // Sync local follows with account follows (background, non-blocking)
-      syncFollowsOnLogin(platform).catch(() => {});
+      syncFollowsOnLogin(platform, {
+        allowKickBrowserWindowFallback: platform === "kick",
+      }).catch(() => {});
 
       // Notify renderer of successful auth
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {

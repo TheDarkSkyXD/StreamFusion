@@ -12,6 +12,7 @@ import { logger } from "@/backend/logging/logger";
 // convention in channel-endpoints.ts.
 // Guards: single-flight Promise — two concurrent callers within the same tick
 // share the same fetch() call.
+// Guards: getAllFollowedChannels must try the cheap Bearer endpoint before opening a hidden BrowserWindow.
 // Guards: AbortController scope — timeout cancels in-flight fetch via abort
 // signal so the BrowserWindow mutex elsewhere is never starved by a hanging
 // request.
@@ -239,7 +240,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
 
     const [resA, resB] = await Promise.all([a, b]);
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledOnce();
     expect(resA).toEqual(resB);
   });
 

@@ -18,7 +18,6 @@ route which provides the `AppLayout` (sidebar, navbar).
 | `SearchResults/`| `/search?q=`                               | Unified cross-platform search (channels, streams, videos, clips, categories). Tabs + platform filter + live-only toggle; clip playback via in-page Dialog. |
 | `Stream/`       | `/stream/$platform/$channel`               | Primary live-stream viewer. Resolves HLS URL via `useStreamPlayback`, renders `KickLivePlayer` or `TwitchLivePlayer`, chat panel (draggable width, hideable), theater mode, PiP integration, offline screen. |
 | `Video/`        | `/video/$platform/$videoId`                | VOD viewer. Fetches HLS URL via IPC (`videos.getPlaybackUrl`); accepts metadata via search params for fast load. Shows `KickVodPlayer`/`TwitchVodPlayer`, follow button, related-videos grid. |
-| `Clip/`         | `/clip/$platform/$clipId`                  | Clip viewer. Currently uses mock data. Shows player placeholder, channel identity, follow/share actions, optional "Watch Livestream" link. Writes to `useHistoryStore`. |
 | `MultiStream/`  | `/multistream`                             | Simultaneous multi-stream layout. Toolbar with grid/focus layout toggle and add-stream dialog; docked resizable chat panel (tied to one active stream). Uses `useMultiStreamStore`. |
 | `Downloads/`    | `/downloads`                               | Download manager UI. Currently mock-only (no real IPC). Active and completed download sections with progress bars. |
 | `History/`      | `/history`                                 | Watch history from `useHistoryStore`. Card grid with type-aware links (stream/video/clip). Clear-all and per-item remove. |
@@ -68,7 +67,8 @@ resolution, proxy, token status). All other pages go through React Query hooks.
 - Do not import `better-sqlite3` or access IPC for mod-log from any page outside `Mod/`.
 - Do not add global event listeners in a page without cleaning them up in the effect's return.
 - Do not assume a page mounts only once — router cache may keep it mounted across navigations; reset derived state in the appropriate `useEffect`.
-- `ClipPage` and `DownloadsPage` are currently mock-only; do not build real features on top of their mock data shapes without replacing them first.
+- Clips are dialog-only surfaces owned by `SearchResults/` and `components/stream/related-content`; do not add a standalone clip route/page.
+- `DownloadsPage` is currently mock-only; do not build real features on top of its mock data shapes without replacing them first.
 
 ## Related Context
 

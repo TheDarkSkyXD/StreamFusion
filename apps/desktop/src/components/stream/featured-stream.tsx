@@ -78,7 +78,7 @@ export function FeaturedStream({ stream, isLoading }: FeaturedStreamProps) {
               <Link
                 to="/stream/$platform/$channel"
                 params={{ platform: stream.platform, channel: stream.channelName }}
-                search={{ tab: "videos" }}
+                search={{ tab: "home" }}
                 className="text-xl font-bold text-[var(--color-foreground-secondary)] hover:text-[var(--color-primary)] transition-colors"
               >
                 {stream.channelDisplayName}
@@ -98,7 +98,7 @@ export function FeaturedStream({ stream, isLoading }: FeaturedStreamProps) {
             <Link
               to="/stream/$platform/$channel"
               params={{ platform: stream.platform, channel: stream.channelName }}
-              search={{ tab: "videos" }}
+              search={{ tab: "home" }}
             >
               <Button variant={buttonVariant} size="lg" className="font-bold">
                 Watch Live
@@ -112,7 +112,7 @@ export function FeaturedStream({ stream, isLoading }: FeaturedStreamProps) {
           <Link
             to="/stream/$platform/$channel"
             params={{ platform: stream.platform, channel: stream.channelName }}
-            search={{ tab: "videos" }}
+            search={{ tab: "home" }}
             className="relative rounded-xl overflow-hidden shadow-2xl border border-[var(--color-border)] transform transition-transform duration-300 hover:scale-[1.02] hover:ring-2 ring-[var(--color-primary)] w-full aspect-video"
           >
             <ProxiedImage

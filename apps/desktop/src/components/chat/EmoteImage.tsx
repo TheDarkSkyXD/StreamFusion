@@ -31,6 +31,10 @@ interface EmoteImageProps {
   onClick?: (emote: Emote) => void;
   /** Whether to lazy load the image */
   lazyLoad?: boolean;
+  /** Keep layout reserved without attaching the image URL yet */
+  deferLoad?: boolean;
+  /** Placeholder style while the image URL is intentionally deferred */
+  deferredPlaceholder?: "pulse" | "static" | "none";
 }
 
 /** Size configurations in pixels */
@@ -41,11 +45,27 @@ const SIZE_CONFIG: Record<EmoteSize, { height: number; urlSize: "1x" | "2x" | "4
   xlarge: { height: 64, urlSize: "4x" },
 };
 
-export const EmoteImage: React.FC<EmoteImageProps> = memo(
-  ({ emote, size = "medium", className = "", showTooltip = true, onClick, lazyLoad = true }) => {
-    const [isLoaded, setIsLoaded] = useState(false);
-    const [hasError, setHasError] = useState(false);
+const LOADED_URL_CACHE_LIMIT = 500;
+const loadedUrlCache = new Set<string>();
 
+function rememberLoadedUrl(url: string): void {
+  loadedUrlCache.add(url);
+  if (loadedUrlCache.size <= LOADED_URL_CACHE_LIMIT) return;
+  const first = loadedUrlCache.values().next().value;
+  if (typeof first === "string") loadedUrlCache.delete(first);
+}
+
+export const EmoteImage: React.FC<EmoteImageProps> = memo(
+  ({
+    emote,
+    size = "medium",
+    className = "",
+    showTooltip = true,
+    onClick,
+    lazyLoad = true,
+    deferLoad = false,
+    deferredPlaceholder = "pulse",
+  }) => {
     // Tooltip state
     const [showTooltipState, setShowTooltipState] = useState(false);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
@@ -68,10 +88,14 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
       }
     }, [config.urlSize, emote.urls.url1x, emote.urls.url2x, emote.urls.url4x]);
 
+    const [isLoaded, setIsLoaded] = useState(() => loadedUrlCache.has(url));
+    const [hasError, setHasError] = useState(false);
+
     const handleLoad = useCallback(() => {
+      rememberLoadedUrl(url);
       setIsLoaded(true);
       setHasError(false);
-    }, []);
+    }, [url]);
 
     const handleError = useCallback(() => {
       setHasError(true);
@@ -107,6 +131,12 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
           marginLeft: `-${config.height}px`,
         }
       : {};
+    const shouldRenderImage = !deferLoad;
+    const shouldRenderPlaceholder = !isLoaded && deferredPlaceholder !== "none";
+    const placeholderClass =
+      deferredPlaceholder === "pulse"
+        ? "inline-block bg-gray-700 rounded animate-pulse"
+        : "inline-block bg-gray-700 rounded opacity-60";
 
     if (hasError) {
       // Fallback for broken images - show emote code
@@ -131,32 +161,34 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
           onClick={handleClick}
         >
           {/* Loading skeleton */}
-          {!isLoaded && (
+          {shouldRenderPlaceholder && (
             <span
-              className="inline-block bg-gray-700 rounded animate-pulse"
+              className={placeholderClass}
               style={{ width: config.height, height: config.height }}
             />
           )}
 
           {/* Actual emote image */}
-          <img
-            ref={imgRef}
-            src={url}
-            alt={emote.name}
-            loading={lazyLoad ? "lazy" : "eager"}
-            decoding="async"
-            onLoad={handleLoad}
-            onError={handleError}
-            className={`inline-block align-middle transition-opacity duration-200 ${
-              isLoaded ? "opacity-100" : "opacity-0"
-            }`}
-            style={{
-              height: config.height,
-              width: "auto",
-              position: isLoaded ? "relative" : "absolute",
-            }}
-            draggable={false}
-          />
+          {shouldRenderImage && (
+            <img
+              ref={imgRef}
+              src={url}
+              alt={emote.name}
+              loading={lazyLoad ? "lazy" : "eager"}
+              decoding="async"
+              onLoad={handleLoad}
+              onError={handleError}
+              className={`inline-block align-middle transition-opacity duration-200 ${
+                isLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              style={{
+                height: config.height,
+                width: "auto",
+                position: isLoaded ? "relative" : "absolute",
+              }}
+              draggable={false}
+            />
+          )}
         </span>
 
         <EmoteTooltip show={showTooltipState} mousePos={mousePos} emote={emote} />

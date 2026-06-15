@@ -19,6 +19,9 @@ interface MemorySnapshot {
 
 const STRESS_TOTAL = 1000;
 const STRESS_DURATION_MS = 30_000;
+const DASHBOARD_REFRESH_MS = 1000;
+const FRAME_SAMPLE_INTERVAL_MS = 2000;
+const FRAME_SAMPLE_COUNT = 12;
 
 function readMemory(): MemorySnapshot | null {
   const perf = performance as unknown as {
@@ -243,26 +246,45 @@ export function PerfTool() {
       }
     };
     tick();
-    const id = window.setInterval(tick, 500);
+    const id = window.setInterval(tick, DASHBOARD_REFRESH_MS);
     return () => window.clearInterval(id);
   }, []);
 
   useEffect(() => {
-    const samples: number[] = [];
-    let prev = performance.now();
     let raf = 0;
-    const loop = (now: number) => {
-      samples.push(now - prev);
-      if (samples.length > 60) samples.shift();
-      prev = now;
-      if (samples.length % 12 === 0) {
-        const sum = samples.reduce((a, b) => a + b, 0);
-        setAvgFrameMs(sum / samples.length);
-      }
-      raf = requestAnimationFrame(loop);
+    let interval = 0;
+    let isSampling = false;
+
+    const sample = () => {
+      if (isSampling) return;
+      isSampling = true;
+      const samples: number[] = [];
+      let prev = performance.now();
+
+      const collect = (now: number) => {
+        samples.push(now - prev);
+        prev = now;
+
+        if (samples.length >= FRAME_SAMPLE_COUNT) {
+          const sum = samples.reduce((a, b) => a + b, 0);
+          setAvgFrameMs(sum / samples.length);
+          isSampling = false;
+          return;
+        }
+
+        raf = requestAnimationFrame(collect);
+      };
+
+      raf = requestAnimationFrame(collect);
     };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+
+    sample();
+    interval = window.setInterval(sample, FRAME_SAMPLE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(interval);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   useEffect(() => {

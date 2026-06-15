@@ -10,30 +10,45 @@ import * as GqlClient from "./twitch-gql-client";
 
 export class TwitchStreamResolver {
   /**
-   * Get playback URL for a live stream
-   * First checks if the channel is actually live to avoid 404 errors
+   * Get playback URL for a live stream.
+   *
+   * Keep this path to one GQL round trip. The player watchdogs already handle
+   * stale/offline manifests, and an extra live-status preflight directly slows
+   * every successful stream open.
    */
   async getStreamPlaybackUrl(
     channelLogin: string
   ): Promise<{ url: string; format: string; qualities?: any[] }> {
+    const normalizedLogin = channelLogin.toLowerCase();
+    const startedAt = Date.now();
     try {
-      // Check if the channel is live using GQL (no API key needed)
-      const isLive = await GqlClient.gqlIsChannelLive(channelLogin);
-      if (!isLive) {
-        throw new Error("Channel is offline");
-      }
-
-      const token = await GqlClient.gqlGetPlaybackAccessToken(channelLogin);
-      const url = this.constructHlsUrl(channelLogin, token.value, token.signature);
+      const tokenStartedAt = Date.now();
+      const token = await GqlClient.gqlGetPlaybackAccessToken(normalizedLogin);
+      const tokenDurationMs = Date.now() - tokenStartedAt;
+      const url = this.constructHlsUrl(normalizedLogin, token.value, token.signature);
+      logger.info("Twitch:StreamResolver", "resolved live playback URL", {
+        channelLogin: normalizedLogin,
+        tokenDurationMs,
+        totalDurationMs: Date.now() - startedAt,
+        urlHost: "usher.ttvnw.net",
+      });
       return {
         url,
         format: "hls",
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.toLowerCase().includes("offline")) {
+        logger.info("Twitch:StreamResolver", "live playback unavailable", {
+          channelLogin: normalizedLogin,
+          totalDurationMs: Date.now() - startedAt,
+          reason: errorMessage,
+        });
+      }
       if (!errorMessage.toLowerCase().includes("offline")) {
         logger.error("Twitch:StreamResolver", "Failed to resolve Twitch stream URL", {
-          channelLogin,
+          channelLogin: normalizedLogin,
+          totalDurationMs: Date.now() - startedAt,
           error:
             error instanceof Error
               ? { name: error.name, message: error.message, stack: error.stack }

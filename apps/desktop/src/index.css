@@ -162,6 +162,55 @@
   border-color: var(--color-border);
 }
 
+.sf-switch {
+  box-sizing: border-box;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  background-color: #18181b;
+  border-color: rgb(212, 212, 216);
+  border-radius: 12px;
+}
+
+.sf-switch:hover {
+  border-color: rgb(212, 212, 216);
+}
+
+.sf-switch[data-state="unchecked"] {
+  background-color: #18181b;
+  border-color: rgb(212, 212, 216);
+}
+
+.sf-switch[data-state="checked"] {
+  background-color: #000000;
+  border-color: rgb(180, 112, 247);
+}
+
+.sf-switch-thumb {
+  box-sizing: border-box;
+  background-color: #ffffff;
+  border-radius: 9999px;
+}
+
+.sf-switch[data-state="checked"] .sf-switch-thumb {
+  background-color: rgb(180, 112, 247);
+}
+
+.sf-switch-check {
+  position: absolute;
+  top: 0;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  color: rgba(0, 0, 0, 0);
+  fill: rgba(0, 0, 0, 0);
+}
+
+.sf-switch[data-state="checked"] .sf-switch-check {
+  color: rgb(180, 112, 247);
+  fill: rgb(180, 112, 247);
+}
+
 html {
   height: 100%;
   overflow: hidden; /* Prevent body scroll, handle in app layout */

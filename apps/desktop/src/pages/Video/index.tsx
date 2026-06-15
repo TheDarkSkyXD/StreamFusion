@@ -381,7 +381,7 @@ export function VideoPage() {
             <Link
               to="/stream/$platform/$channel"
               params={{ platform: platform || "twitch", channel: channelName }}
-              search={{ tab: "videos" }}
+              search={{ tab: "home" }}
               className="shrink-0"
             >
               {channelAvatar ? (
@@ -404,7 +404,7 @@ export function VideoPage() {
                 <Link
                   to="/stream/$platform/$channel"
                   params={{ platform: platform || "twitch", channel: channelName }}
-                  search={{ tab: "videos" }}
+                  search={{ tab: "home" }}
                   className={`font-bold text-white hover:underline ${platform === "twitch" ? "decoration-[#9146FF]" : "decoration-[#53FC18]"} decoration-2 underline-offset-4`}
                 >
                   {channelDisplayName}
@@ -465,7 +465,7 @@ export function VideoPage() {
               <Link
                 to="/stream/$platform/$channel"
                 params={{ platform: platform || "twitch", channel: channelName }}
-                search={{ tab: "videos" }}
+                search={{ tab: "home" }}
               >
                 <Button
                   className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"

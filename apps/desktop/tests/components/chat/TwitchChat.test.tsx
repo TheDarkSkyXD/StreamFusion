@@ -192,7 +192,14 @@ const chatInputProps: { canSend?: boolean } = {};
 vi.mock('@/components/chat/ChatInput', () => ({
   ChatInput: (props: { canSend?: boolean }) => {
     chatInputProps.canSend = props.canSend;
-    return <div data-testid="chat-input">input</div>;
+    return (
+      <div data-testid="chat-input">
+        input
+        <button type="button" aria-label="Chat settings">
+          settings
+        </button>
+      </div>
+    );
   },
 }));
 
@@ -202,6 +209,7 @@ vi.mock('@/components/chat/PredictionBanner', () => ({
   PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
 }));
 
+import { twitchChatService } from '@/backend/services/chat/twitch-chat';
 import { TwitchChat } from '@/components/chat/twitch/TwitchChat';
 
 // Minimal active prediction matching the channelId the multiview gate compares.
@@ -221,6 +229,7 @@ const fakePrediction = {
 } as const;
 
 // Guards: loading state — canSend stays false while Hermes is connecting and the IRC token is resolving (selector returns boolean primitive, not undefined)
+// Guards: connecting state appears immediately before Twitch token/network setup finishes, so the chat panel never looks blank on slow joins
 // Guards: error path — a missing-scopes Helix response triggers promptReconnect with the listed scopes, surfacing the ReconnectForModDialog rather than silently no-opping
 // Guards: empty messages — message list still renders (see ChatMessageList tests); chat input + chat-settings gear render in viewer single-tab path (U7) so the chrome doesn't disappear under the tab-shell refactor
 // Guards: U5 prefs — sub/raid notice + chat-cleared notice + prediction banner each suppress when their visibility pref is false. clearMessages('twitch:ninja') still runs even when its notice is suppressed (moderation action is real, only the notice text is hidden)
@@ -244,6 +253,7 @@ describe('TwitchChat', () => {
     unbanUserMock.mockReset();
     deleteChatMessageMock.mockReset();
     promptReconnectMock.mockReset();
+    vi.mocked(twitchChatService.connect).mockClear();
     loadGlobalEmotesMock.mockReset();
     storeState.addMessage = vi.fn();
     storeState.clearMessages = vi.fn();
@@ -261,6 +271,24 @@ describe('TwitchChat', () => {
   it('passes the per-channel key to ChatMessageList', () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(lastListProps.channelKey).toBe('twitch:ninja');
+  });
+
+  it('shows the connecting row before Twitch token/network setup resolves', async () => {
+    const api = installElectronAPIMock();
+    api.auth.getValidTwitchToken = vi.fn(() => new Promise<never>(() => {}));
+
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() => {
+      const addedTexts = (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (call: unknown[]) => {
+          const msg = call[0] as { rawContent?: string } | undefined;
+          return msg?.rawContent;
+        },
+      );
+      expect(addedTexts).toContain('Connecting to channel...');
+    });
+    expect(twitchChatService.connect).not.toHaveBeenCalled();
   });
 
   // U7 — the chat-settings gear lives in the panel header chrome OUTSIDE

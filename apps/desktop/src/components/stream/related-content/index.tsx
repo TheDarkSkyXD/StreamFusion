@@ -21,6 +21,52 @@ import { VideoCard } from "./VideoCard";
 
 export type TimeRange = "day" | "week" | "month" | "all";
 
+const EAGER_RELATED_CARD_COUNT = 9;
+const RELATED_CARD_ROOT_MARGIN = "320px 0px";
+
+function LazyRelatedCard({ eager, children }: { eager: boolean; children: React.ReactNode }) {
+  const [shouldRender, setShouldRender] = useState(eager);
+  const ref = React.useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const target = ref.current;
+    if (!target || typeof IntersectionObserver === "undefined") {
+      setShouldRender(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry) {
+          setShouldRender(entry.isIntersecting);
+        }
+      },
+      { rootMargin: RELATED_CARD_ROOT_MARGIN }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="min-h-[220px]"
+      data-related-card-mounted={shouldRender ? "true" : "false"}
+    >
+      {shouldRender ? (
+        children
+      ) : (
+        <div
+          aria-hidden="true"
+          data-testid="deferred-related-card"
+          className="h-full min-h-[220px] rounded-md bg-[var(--color-background-secondary)]/40"
+        />
+      )}
+    </div>
+  );
+}
+
 export function RelatedContent({
   platform,
   channelName,
@@ -29,27 +75,7 @@ export function RelatedContent({
   onClipSelectionChange,
 }: RelatedContentProps) {
   const { tab: urlTab } = useSearch({ from: "/_app/stream/$platform/$channel" });
-  const [savedTab, setSavedTab] = useState<"home" | "videos" | "clips">(() => {
-    try {
-      const s = localStorage.getItem("stream-tab-preference");
-      return s === "home" || s === "videos" || s === "clips" ? s : "home";
-    } catch {
-      return "home";
-    }
-  });
-  const activeTab = urlTab ?? savedTab;
-
-  useEffect(() => {
-    if (!urlTab) return;
-    setSavedTab(urlTab);
-    try {
-      localStorage.setItem("stream-tab-preference", urlTab);
-    } catch (error) {
-      logger.warn("Stream:Related", "failed to save stream tab preference", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [urlTab]);
+  const activeTab = urlTab ?? "home";
 
   const [isLoading, setIsLoading] = useState(true);
   const [videos, setVideos] = useState<VideoOrClip[]>([]);
@@ -443,8 +469,9 @@ export function RelatedContent({
 
         const clipUrlToUse = selectedClip.embedUrl || selectedClip.url;
 
+        const clipPlatform = selectedClip.platform ?? platform;
         const result = await api.clips.getPlaybackUrl({
-          platform,
+          platform: clipPlatform,
           clipId: selectedClip.id,
           clipUrl: clipUrlToUse,
         });
@@ -455,7 +482,7 @@ export function RelatedContent({
         } else {
           logger.error("Stream:Related", "failed to get clip URL", { error: result.error });
           // For Twitch, we'll fall back to iframe embed
-          if (platform === "twitch") {
+          if (clipPlatform === "twitch") {
             setClipPlaybackUrl(null); // Signal to use iframe
           } else {
             setClipError(result.error || "Failed to load clip");
@@ -466,7 +493,7 @@ export function RelatedContent({
           error: err instanceof Error ? err.message : String(err),
         });
         // For Twitch, we'll fall back to iframe embed
-        if (platform === "twitch") {
+        if ((selectedClip.platform ?? platform) === "twitch") {
           setClipPlaybackUrl(null);
         } else {
           setClipError("Failed to load clip");
@@ -480,7 +507,7 @@ export function RelatedContent({
   }, [selectedClip, platform]);
 
   const handleClipPlaybackError = () => {
-    if (platform === "twitch") {
+    if ((selectedClip?.platform ?? platform) === "twitch") {
       setClipPlaybackUrl(null);
     } else {
       setClipError("Failed to play clip");
@@ -648,14 +675,15 @@ export function RelatedContent({
               </div>
             ) : activeTab === "videos" ? (
               videos.length > 0 ? (
-                videos.map((video) => (
-                  <VideoCard
-                    key={video.id}
-                    video={video}
-                    platform={platform}
-                    channelName={channelName}
-                    channelData={channelData}
-                  />
+                videos.map((video, index) => (
+                  <LazyRelatedCard key={video.id} eager={index < EAGER_RELATED_CARD_COUNT}>
+                    <VideoCard
+                      video={video}
+                      platform={platform}
+                      channelName={channelName}
+                      channelData={channelData}
+                    />
+                  </LazyRelatedCard>
                 ))
               ) : (
                 <div className="col-span-full py-12 text-center text-[var(--color-foreground-muted)]">
@@ -664,15 +692,16 @@ export function RelatedContent({
                 </div>
               )
             ) : clips.length > 0 ? (
-              clips.map((clip) => (
-                <ClipCard
-                  key={clip.id}
-                  clip={clip}
-                  onClick={() => setSelectedClip(clip)}
-                  platform={platform}
-                  channelName={channelName}
-                  channelData={channelData}
-                />
+              clips.map((clip, index) => (
+                <LazyRelatedCard key={clip.id} eager={index < EAGER_RELATED_CARD_COUNT}>
+                  <ClipCard
+                    clip={clip}
+                    onClick={() => setSelectedClip(clip)}
+                    platform={platform}
+                    channelName={channelName}
+                    channelData={channelData}
+                  />
+                </LazyRelatedCard>
               ))
             ) : (
               <div className="col-span-full py-12 text-center text-[var(--color-foreground-muted)]">

@@ -1156,6 +1156,7 @@ describe("gqlGetCategoryById", () => {
 
 // ---------------------------------------------------------------------------
 
+// Guards: direct Twitch channel lookup preserves the AboutPanel last-broadcast game so offline channel pages can show category context.
 describe("gqlGetChannelByLogin", () => {
   let fetchMock: FetchMock;
 
@@ -1190,6 +1191,11 @@ describe("gqlGetChannelByLogin", () => {
             description: "Pro gamer",
             roles: { isPartner: true, __typename: "UserRoles" },
             followers: { totalCount: 18000000, __typename: "FollowerConnection" },
+            lastBroadcast: {
+              id: "broadcast-1",
+              game: { id: "game-1", displayName: "Fortnite", __typename: "Game" },
+              __typename: "Broadcast",
+            },
             channel: {
               socialMedias: [
                 { name: "Twitter", url: "https://twitter.com/ninja" },
@@ -1216,6 +1222,8 @@ describe("gqlGetChannelByLogin", () => {
     expect(result!.isVerified).toBe(true);
     expect(result!.isPartner).toBe(true);
     expect(result!.followerCount).toBe(18000000);
+    expect(result!.categoryId).toBe("game-1");
+    expect(result!.categoryName).toBe("Fortnite");
     expect(result!.socialLinks).toEqual([
       { platform: "Twitter", url: "https://twitter.com/ninja" },
       { platform: "YouTube", url: "https://youtube.com/ninja" },

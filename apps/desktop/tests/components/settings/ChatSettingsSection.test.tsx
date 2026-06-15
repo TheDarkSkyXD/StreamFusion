@@ -3,33 +3,30 @@
 // spread preserved — a partial write that drops sibling fields would reset
 // unrelated chat preferences. Also guards the no-stored-prefs path falling
 // back to DEFAULT_CHAT_DISPLAY_PREFERENCES (older installs).
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UserPreferences } from '@/shared/auth-types';
+import type { UserPreferences } from "@/shared/auth-types";
 
-import { fireEvent, renderWithProviders, screen, waitFor } from '../../test-utils';
+import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
 
 const updatePreferences = vi.fn(async (_updates: Partial<UserPreferences>) => {});
 let storeState: { preferences: unknown; updatePreferences: typeof updatePreferences };
 
-vi.mock('@/store/auth-store', () => ({
+vi.mock("@/store/auth-store", () => ({
   useAuthStore: Object.assign(
     (selector?: (s: unknown) => unknown) => (selector ? selector(storeState) : storeState),
     { getState: () => storeState }
   ),
 }));
 
-import {
-  DEFAULT_CHAT_DISPLAY_PREFERENCES,
-  DEFAULT_CHAT_PREFERENCES,
-} from '@/shared/auth-types';
-import { ChatSettingsSection } from '@/components/settings/ChatSettingsSection';
+import { ChatSettingsSection } from "@/components/settings/ChatSettingsSection";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@/shared/auth-types";
 
 function setStore(preferences: unknown) {
   storeState = { preferences, updatePreferences };
 }
 
-describe('ChatSettingsSection', () => {
+describe("ChatSettingsSection", () => {
   beforeEach(() => {
     updatePreferences.mockClear();
     setStore({
@@ -38,13 +35,13 @@ describe('ChatSettingsSection', () => {
     });
   });
 
-  it('toggling a switch writes chatDisplay with the spread preserved', async () => {
-    renderWithProviders(<ChatSettingsSection only={['appearance']} />);
+  it("toggling a switch writes chatDisplay with the spread preserved", async () => {
+    renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
 
     // Traverse to the outer SettingRow div (label <p> → inner text div → left
-     // container → outer flex row), where the Switch lives in the right slot.
-     const row = screen.getByText('Bold usernames').closest('div')!.parentElement!.parentElement!;
-     fireEvent.click(row.querySelector('[role="switch"]')!);
+    // container → outer flex row), where the Switch lives in the right slot.
+    const row = screen.getByText("Bold usernames").closest("div")!.parentElement!.parentElement!;
+    fireEvent.click(row.querySelector('[role="switch"]')!);
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
     const arg = updatePreferences.mock.calls[0][0] as {
@@ -58,10 +55,10 @@ describe('ChatSettingsSection', () => {
     expect(arg.chatDisplay.messageLimit).toBe(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit);
   });
 
-  it('changing a range writes the numeric value with siblings intact', async () => {
-    renderWithProviders(<ChatSettingsSection only={['appearance']} />);
+  it("changing a range writes the numeric value with siblings intact", async () => {
+    renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
 
-    fireEvent.change(screen.getByLabelText('Font size'), { target: { value: '18' } });
+    fireEvent.change(screen.getByLabelText("Font size"), { target: { value: "18" } });
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalled());
     const arg = updatePreferences.mock.calls[0][0] as {
@@ -71,34 +68,34 @@ describe('ChatSettingsSection', () => {
     expect(arg.chatDisplay.boldUsernames).toBe(false);
   });
 
-  it('falls back to defaults when no chatDisplay is stored', () => {
+  it("falls back to defaults when no chatDisplay is stored", () => {
     setStore(null);
-    renderWithProviders(<ChatSettingsSection only={['appearance']} />);
-    // Default fontSizePx (13) shows in the range value readout.
-    expect(screen.getByLabelText('Font size')).toHaveValue(
+    renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
+    // Default fontSizePx shows in the range value readout.
+    expect(screen.getByLabelText("Font size")).toHaveValue(
       String(DEFAULT_CHAT_DISPLAY_PREFERENCES.fontSizePx)
     );
   });
 
-  it('hides the recent-messages-limit range until recentMessagesOnJoin is on', () => {
+  it("hides the recent-messages-limit range until recentMessagesOnJoin is on", () => {
     setStore({
       chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, recentMessagesOnJoin: false },
       chat: { ...DEFAULT_CHAT_PREFERENCES },
     });
-    renderWithProviders(<ChatSettingsSection only={['events']} />);
-    expect(screen.queryByLabelText('Recent messages to load')).toBeNull();
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+    expect(screen.queryByLabelText("Recent messages to load")).toBeNull();
   });
 
   it('"Hide chat panel" writes chat.position (not chatDisplay)', async () => {
-    renderWithProviders(<ChatSettingsSection only={['behavior']} />);
+    renderWithProviders(<ChatSettingsSection only={["behavior"]} />);
 
-    fireEvent.click(screen.getByRole('switch'));
+    fireEvent.click(screen.getByRole("switch"));
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
     const arg = updatePreferences.mock.calls[0][0] as {
       chat: typeof DEFAULT_CHAT_PREFERENCES;
     };
-    expect(arg.chat.position).toBe('hidden');
+    expect(arg.chat.position).toBe("hidden");
     // Sibling chat fields preserved.
     expect(arg.chat.size).toBe(DEFAULT_CHAT_PREFERENCES.size);
   });

@@ -11,6 +11,7 @@ import {
 } from "../../../unified/platform-health";
 import type { UnifiedStream } from "../../../unified/platform-types";
 import { acquireKickRequestSlot } from "../kick-network-health";
+import { rememberKickLivePlaybackFromChannelPayload } from "../kick-playback-cache";
 import type { KickRequestor } from "../kick-requestor";
 import { normalizeKickDate, transformKickLivestream } from "../kick-transformers";
 import {
@@ -20,7 +21,6 @@ import {
   type PaginatedResult,
   type PaginationOptions,
 } from "../kick-types";
-
 import { getChannel } from "./channel-endpoints";
 import { getUsersById } from "./user-endpoints";
 
@@ -439,6 +439,7 @@ async function _doFetchPublicStreamBySlug(
         categoryId: livestream.categories?.[0]?.id?.toString() || "",
         categoryName: livestream.categories?.[0]?.name || "",
       };
+      rememberKickLivePlaybackFromChannelPayload(key, data);
       _publicStreamSuccessCache.set(key, { data: result, timestamp: Date.now() });
       return result;
     } catch (error: any) {
@@ -529,15 +530,15 @@ async function _doFetchPublicStreamBySlug(
     const isTimeout = lastError.message === "TRANSIENT:timeout";
     const isNetCrash = /TRANSIENT:net::ERR_/.test(lastError.message || "");
     const transient = isTimeout || isNetCrash || !isPlatformHealthy("kick");
-    // Don't blacklist a slug whose positive cache is still fresh — a single
-    // 5s cold-TLS timeout is exactly what the poll-hit cache was designed to
-    // absorb, and letting the 30s timeout-TTL preempt a recent success would
-    // flash false "channel offline" UI on the stream-detail page. Genuine API
-    // trouble (DNS / 5xx / parse — the non-transient branch) still locks out.
+    // Transient failures are not proof that a followed stream went offline.
+    // Serve the last successful state (live or offline) inside the outage stale
+    // window so a flaky refresh does not replace a visible Kick follow with
+    // null. Genuine offline transitions still come from successful responses
+    // above (`livestream === null`), which update this cache to null.
     if (transient) {
-      const fresh = _publicStreamSuccessCache.get(key);
-      if (fresh && Date.now() - fresh.timestamp < PUBLIC_STREAM_POLL_HIT_TTL_MS) {
-        return null;
+      const stale = _publicStreamSuccessCache.get(key);
+      if (stale && Date.now() - stale.timestamp < PUBLIC_STREAM_OUTAGE_STALE_TTL_MS) {
+        return stale.data;
       }
     }
     const ttl = transient ? PUBLIC_STREAM_TIMEOUT_TTL_MS : PUBLIC_STREAM_FAILURE_TTL_MS;

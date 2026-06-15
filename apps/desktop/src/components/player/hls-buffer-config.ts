@@ -25,6 +25,7 @@ export interface HlsBufferConfig {
   lowLatencyMode: boolean;
   liveSyncDurationCount: number;
   liveMaxLatencyDurationCount: number;
+  backBufferLength: number;
   maxBufferLength: number;
   maxMaxBufferLength: number;
   maxBufferSize: number;
@@ -32,6 +33,19 @@ export interface HlsBufferConfig {
 
 /** Original hardcoded soft cap; the floor for the scaled value. */
 const DEFAULT_MAX_BUFFER_SIZE_BYTES = 20 * 1000 * 1000;
+const DEFAULT_MAX_BUFFER_SIZE_REFERENCE_SECONDS = 30;
+
+const VOD_BUFFER_PREFERENCES: BufferPreferences = {
+  lowLatencyMode: false,
+  liveSyncDurationCount: DEFAULT_BUFFER_PREFERENCES.liveSyncDurationCount,
+  maxBufferLengthSec: 30,
+  maxMaxBufferLengthSec: 60,
+};
+
+const LIVE_BACK_BUFFER_LENGTH_SECONDS = 5;
+const VOD_BACK_BUFFER_LENGTH_SECONDS = 30;
+const LIVE_MAX_BUFFER_LENGTH_SECONDS = 10;
+const LIVE_MAX_MAX_BUFFER_LENGTH_SECONDS = 20;
 
 /**
  * Original hardcoded `liveMaxLatencyDurationCount`. HLS.js requires
@@ -49,12 +63,20 @@ function positiveOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+interface ResolveHlsBufferConfigOptions {
+  capLiveBuffer?: boolean;
+}
+
 /**
  * Resolve the persisted (possibly partial / legacy) buffer prefs into a complete
  * HLS.js config object. Each field falls back to its documented default when
  * missing or invalid, so no NaN can reach the HLS config.
  */
-export function resolveHlsBufferConfig(prefs?: Partial<BufferPreferences>): HlsBufferConfig {
+export function resolveHlsBufferConfig(
+  prefs?: Partial<BufferPreferences>,
+  options: ResolveHlsBufferConfigOptions = {}
+): HlsBufferConfig {
+  const capLiveBuffer = options.capLiveBuffer ?? true;
   const liveSyncDurationCount = positiveOr(
     prefs?.liveSyncDurationCount,
     DEFAULT_BUFFER_PREFERENCES.liveSyncDurationCount
@@ -66,17 +88,25 @@ export function resolveHlsBufferConfig(prefs?: Partial<BufferPreferences>): HlsB
     DEFAULT_LIVE_MAX_LATENCY_COUNT,
     liveSyncDurationCount + LIVE_LATENCY_COUNT_MARGIN
   );
-  const maxMaxBufferLength = positiveOr(
+  const preferredMaxMaxBufferLength = positiveOr(
     prefs?.maxMaxBufferLengthSec,
     DEFAULT_BUFFER_PREFERENCES.maxMaxBufferLengthSec
   );
+  const maxMaxBufferLength = capLiveBuffer
+    ? Math.min(preferredMaxMaxBufferLength, LIVE_MAX_MAX_BUFFER_LENGTH_SECONDS)
+    : preferredMaxMaxBufferLength;
   // Forward buffer must not exceed the hard cap — HLS.js treats
   // maxMaxBufferLength as the ceiling and would silently clamp a larger forward
   // value, so a user setting forward=60s / max=10s wouldn't get the 60s they
   // asked for. Clamp here so the effective value is honest.
+  const preferredMaxBufferLength = positiveOr(
+    prefs?.maxBufferLengthSec,
+    DEFAULT_BUFFER_PREFERENCES.maxBufferLengthSec
+  );
   const maxBufferLength = Math.min(
-    positiveOr(prefs?.maxBufferLengthSec, DEFAULT_BUFFER_PREFERENCES.maxBufferLengthSec),
-    maxMaxBufferLength
+    preferredMaxBufferLength,
+    maxMaxBufferLength,
+    capLiveBuffer ? LIVE_MAX_BUFFER_LENGTH_SECONDS : Number.POSITIVE_INFINITY
   );
   const lowLatencyMode =
     typeof prefs?.lowLatencyMode === "boolean"
@@ -88,7 +118,7 @@ export function resolveHlsBufferConfig(prefs?: Partial<BufferPreferences>): HlsB
   const maxBufferSize = Math.max(
     DEFAULT_MAX_BUFFER_SIZE_BYTES,
     Math.round(
-      (maxMaxBufferLength / DEFAULT_BUFFER_PREFERENCES.maxMaxBufferLengthSec) *
+      (maxMaxBufferLength / DEFAULT_MAX_BUFFER_SIZE_REFERENCE_SECONDS) *
         DEFAULT_MAX_BUFFER_SIZE_BYTES
     )
   );
@@ -97,8 +127,15 @@ export function resolveHlsBufferConfig(prefs?: Partial<BufferPreferences>): HlsB
     lowLatencyMode,
     liveSyncDurationCount,
     liveMaxLatencyDurationCount,
+    backBufferLength: capLiveBuffer
+      ? LIVE_BACK_BUFFER_LENGTH_SECONDS
+      : VOD_BACK_BUFFER_LENGTH_SECONDS,
     maxBufferLength,
     maxMaxBufferLength,
     maxBufferSize,
   };
+}
+
+export function resolveHlsVodBufferConfig(): HlsBufferConfig {
+  return resolveHlsBufferConfig(VOD_BUFFER_PREFERENCES, { capLiveBuffer: false });
 }

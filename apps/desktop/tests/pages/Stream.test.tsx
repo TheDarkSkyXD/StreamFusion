@@ -20,21 +20,32 @@ vi.mock('@/hooks/queries/useStreams', () => ({
 const mockPlaybackState: {
   playback: { url: string } | null;
   isLoading: boolean;
-} = { playback: null, isLoading: false };
+  error: Error | null;
+} = { playback: null, isLoading: false, error: null };
+
+const mockSetCurrentStream = vi.fn();
+const mockSetIsOnStreamPage = vi.fn();
+const mockUseStreamPlayback = vi.fn();
 
 vi.mock('@/hooks/useStreamPlayback', () => ({
-  useStreamPlayback: () => ({
-    get playback() {
-      return mockPlaybackState.playback;
-    },
-    get isLoading() {
-      return mockPlaybackState.isLoading;
-    },
-    reload: vi.fn(),
-    isUsingProxy: false,
-    retryWithoutProxy: vi.fn(),
-    reloadAttempts: 0,
-  }),
+  useStreamPlayback: (platform: string, identifier: string) => {
+    mockUseStreamPlayback(platform, identifier);
+    return {
+      get playback() {
+        return mockPlaybackState.playback;
+      },
+      get isLoading() {
+        return mockPlaybackState.isLoading;
+      },
+      get error() {
+        return mockPlaybackState.error;
+      },
+      reload: vi.fn(),
+      isUsingProxy: false,
+      retryWithoutProxy: vi.fn(),
+      reloadAttempts: 0,
+    };
+  },
 }));
 
 vi.mock('@/store/app-store', () => ({
@@ -46,8 +57,8 @@ vi.mock('@/store/pip-store', () => ({
     isPip: false,
     openPip: vi.fn(),
     closePip: vi.fn(),
-    setCurrentStream: vi.fn(),
-    setIsOnStreamPage: vi.fn(),
+    setCurrentStream: mockSetCurrentStream,
+    setIsOnStreamPage: mockSetIsOnStreamPage,
     isOnStreamPage: false,
     currentStream: null,
   }),
@@ -99,14 +110,21 @@ function setChatPosition(position: 'right' | 'left' | 'hidden') {
 // Guards: loading state — while channel meta + HLS playback are pending, the player area mounts the platform loading spinner (Twitch purple / Kick green) so users see "loading", not "broken"
 // Guards: offline state — channel exists but streamData.startedAt is null AND no playback URL → "is currently offline" panel with a Check Again button so the page is recoverable. Distinct from "error" (which uses the same panel but is gated by playerError) — both surfaces resolve to the same UI because users can't tell the cases apart
 // Guards: error path — handlePlayerError absorbs PROXY_ERROR / NO_FRAGMENTS / TOKEN_EXPIRED via auto-refresh under 3 attempts; STREAM_OFFLINE surfaces the offline overlay when proxy fallback isn't available. The non-fatal paths must NOT show the offline overlay (verified by absence of "is currently offline" while still loading)
+// Guards: stream-ended reloads clear stale playback; if playback refresh now reports offline while metadata still says live, the page shows the offline overlay instead of keeping a dead player mounted.
 // Guards: empty channelData (loading) doesn't blank the page — even before channelData resolves the player layout reserves space so the layout doesn't shift after data lands
+// Guards: Twitch offline routes keep playback idle until metadata confirms live, avoiding repeated Usher 404s from the HLS loader
+// Guards: Twitch offline overlay includes the channel's last known category/title metadata when the channel query has it
 describe('StreamPage', () => {
   beforeEach(() => {
     useChannelMock.mockReset();
     useStreamMock.mockReset();
+    mockUseStreamPlayback.mockClear();
     setChatPosition('right');
     mockPlaybackState.playback = null;
     mockPlaybackState.isLoading = false;
+    mockPlaybackState.error = null;
+    mockSetCurrentStream.mockClear();
+    mockSetIsOnStreamPage.mockClear();
   });
 
   afterEach(() => {
@@ -152,7 +170,11 @@ describe('StreamPage', () => {
 
   it('offline: channel exists but stream is not live and no playback url → "is currently offline" panel with Check Again', () => {
     useChannelMock.mockReturnValue({
-      data: fixtures.channel({ displayName: 'OfflineGuy' }),
+      data: fixtures.channel({
+        displayName: 'OfflineGuy',
+        categoryName: 'Fortnite',
+        lastStreamTitle: 'Zero Build with chat',
+      }),
       isLoading: false,
     } as ReturnType<typeof useChannelByUsername>);
     // streamData with no startedAt → isStreamLive=false.
@@ -164,8 +186,26 @@ describe('StreamPage', () => {
     mockPlaybackState.isLoading = false;
     mockPlaybackState.playback = null;
     renderWithProviders(<StreamPage />);
+    expect(mockUseStreamPlayback).toHaveBeenCalledWith('twitch', '');
     expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
+    expect(screen.getByText('Zero Build with chat')).toBeInTheDocument();
+    expect(screen.getByText('Last streamed in Fortnite')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /check again/i })).toBeInTheDocument();
+  });
+
+  it('live: requests Twitch playback only after live metadata is present', () => {
+    useChannelMock.mockReturnValue({
+      data: fixtures.channel({ displayName: 'Ninja', isLive: true }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    } as ReturnType<typeof useStreamByChannel>);
+
+    renderWithProviders(<StreamPage />);
+
+    expect(mockUseStreamPlayback).toHaveBeenCalledWith('twitch', 'ninja');
   });
 
   it('error path (no playback url, no channel data) still surfaces the offline panel — same shape as offline so users see one consistent recovery affordance', () => {
@@ -178,5 +218,47 @@ describe('StreamPage', () => {
     mockPlaybackState.playback = null;
     renderWithProviders(<StreamPage />);
     expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
+  });
+
+  it('stream-ended refresh failure: playback error shows the offline panel even while live metadata is stale', () => {
+    useChannelMock.mockReturnValue({
+      data: fixtures.channel({ displayName: 'Ninja', isLive: true }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({ title: 'Just ended', startedAt: '2026-06-15T14:00:00.000Z' }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.isLoading = false;
+    mockPlaybackState.playback = null;
+    mockPlaybackState.error = new Error('Channel is offline');
+
+    renderWithProviders(<StreamPage />);
+
+    expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /check again/i })).toBeInTheDocument();
+  });
+
+  it('primes PiP as soon as playback URL exists even while stream metadata is loading', () => {
+    useChannelMock.mockReturnValue({
+      data: fixtures.channel({ displayName: 'Ninja', isLive: true }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.isLoading = false;
+    mockPlaybackState.playback = { url: 'https://example.com/live.m3u8' };
+
+    renderWithProviders(<StreamPage />);
+
+    expect(mockSetCurrentStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'twitch',
+        channelName: 'ninja',
+        streamUrl: 'https://example.com/live.m3u8',
+      })
+    );
   });
 });

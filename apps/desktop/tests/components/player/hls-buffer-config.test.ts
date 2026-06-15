@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveHlsBufferConfig } from "@/components/player/hls-buffer-config";
+import {
+  resolveHlsBufferConfig,
+  resolveHlsVodBufferConfig,
+} from "@/components/player/hls-buffer-config";
 import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 
 // AE9 / U10: the buffer prefs that a player reads at `new Hls({...})` construction
@@ -10,13 +13,14 @@ import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 const DEFAULT_MAX_BUFFER_SIZE_BYTES = 20 * 1000 * 1000;
 
 describe("resolveHlsBufferConfig (U10)", () => {
-  it("maps the documented defaults to the previously-hardcoded HLS config (no behavior change)", () => {
+  it("maps the documented live defaults to a stability-first HLS config", () => {
     expect(resolveHlsBufferConfig(DEFAULT_BUFFER_PREFERENCES)).toEqual({
-      lowLatencyMode: true,
-      liveSyncDurationCount: 2,
-      liveMaxLatencyDurationCount: 6,
-      maxBufferLength: 15,
-      maxMaxBufferLength: 30,
+      lowLatencyMode: false,
+      liveSyncDurationCount: 4,
+      liveMaxLatencyDurationCount: 8,
+      backBufferLength: 5,
+      maxBufferLength: 10,
+      maxMaxBufferLength: 20,
       maxBufferSize: DEFAULT_MAX_BUFFER_SIZE_BYTES,
     });
   });
@@ -31,17 +35,24 @@ describe("resolveHlsBufferConfig (U10)", () => {
 
     expect(config.lowLatencyMode).toBe(false);
     expect(config.liveSyncDurationCount).toBe(4);
-    expect(config.maxBufferLength).toBe(30);
-    expect(config.maxMaxBufferLength).toBe(60);
+    expect(config.backBufferLength).toBe(5);
+    expect(config.maxBufferLength).toBe(10);
+    expect(config.maxMaxBufferLength).toBe(20);
   });
 
-  it("scales maxBufferSize with the configured max buffer so a raised value isn't clamped", () => {
-    // 60s is 2x the 30s default, so the byte budget doubles to 40 MB.
-    const raised = resolveHlsBufferConfig({ ...DEFAULT_BUFFER_PREFERENCES, maxMaxBufferLengthSec: 60 });
-    expect(raised.maxBufferSize).toBe(2 * DEFAULT_MAX_BUFFER_SIZE_BYTES);
+  it("caps live maxBufferSize with the configured live memory budget", () => {
+    const raised = resolveHlsBufferConfig({
+      ...DEFAULT_BUFFER_PREFERENCES,
+      maxMaxBufferLengthSec: 60,
+    });
+    expect(raised.maxMaxBufferLength).toBe(20);
+    expect(raised.maxBufferSize).toBe(DEFAULT_MAX_BUFFER_SIZE_BYTES);
 
     // Lowering the cap never drops below the original 20 MB floor.
-    const lowered = resolveHlsBufferConfig({ ...DEFAULT_BUFFER_PREFERENCES, maxMaxBufferLengthSec: 10 });
+    const lowered = resolveHlsBufferConfig({
+      ...DEFAULT_BUFFER_PREFERENCES,
+      maxMaxBufferLengthSec: 10,
+    });
     expect(lowered.maxBufferSize).toBe(DEFAULT_MAX_BUFFER_SIZE_BYTES);
   });
 
@@ -75,18 +86,21 @@ describe("resolveHlsBufferConfig (U10)", () => {
     });
 
     expect(config.liveSyncDurationCount).toBe(DEFAULT_BUFFER_PREFERENCES.liveSyncDurationCount);
-    expect(config.maxBufferLength).toBe(DEFAULT_BUFFER_PREFERENCES.maxBufferLengthSec);
-    expect(config.maxMaxBufferLength).toBe(DEFAULT_BUFFER_PREFERENCES.maxMaxBufferLengthSec);
+    expect(config.backBufferLength).toBe(5);
+    expect(config.maxBufferLength).toBe(10);
+    expect(config.maxMaxBufferLength).toBe(20);
     expect(config.lowLatencyMode).toBe(DEFAULT_BUFFER_PREFERENCES.lowLatencyMode);
     // And crucially, no NaN leaked into the byte budget.
     expect(Number.isNaN(config.maxBufferSize)).toBe(false);
   });
 
   it("derives liveMaxLatencyDurationCount above liveSyncDurationCount so the config stays valid", () => {
-    // Default (liveSync 2) reproduces the old hardcoded 6.
-    expect(resolveHlsBufferConfig(DEFAULT_BUFFER_PREFERENCES).liveMaxLatencyDurationCount).toBe(6);
+    expect(resolveHlsBufferConfig(DEFAULT_BUFFER_PREFERENCES).liveMaxLatencyDurationCount).toBe(8);
     // Slider at its max (10) must not produce sync >= max (HLS.js requires sync < max).
-    const high = resolveHlsBufferConfig({ ...DEFAULT_BUFFER_PREFERENCES, liveSyncDurationCount: 10 });
+    const high = resolveHlsBufferConfig({
+      ...DEFAULT_BUFFER_PREFERENCES,
+      liveSyncDurationCount: 10,
+    });
     expect(high.liveMaxLatencyDurationCount).toBeGreaterThan(high.liveSyncDurationCount);
     expect(high.liveMaxLatencyDurationCount).toBe(14);
   });
@@ -100,5 +114,17 @@ describe("resolveHlsBufferConfig (U10)", () => {
     });
     expect(inverted.maxBufferLength).toBeLessThanOrEqual(inverted.maxMaxBufferLength);
     expect(inverted.maxBufferLength).toBe(10);
+  });
+
+  it("uses a stable VOD/clip preset regardless of live latency preferences", () => {
+    expect(resolveHlsVodBufferConfig()).toEqual({
+      lowLatencyMode: false,
+      liveSyncDurationCount: 4,
+      liveMaxLatencyDurationCount: 8,
+      backBufferLength: 30,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      maxBufferSize: 2 * DEFAULT_MAX_BUFFER_SIZE_BYTES,
+    });
   });
 });

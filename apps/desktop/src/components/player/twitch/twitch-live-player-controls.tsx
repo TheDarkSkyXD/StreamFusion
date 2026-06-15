@@ -253,9 +253,10 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label={adBlockStatus.isShowingAd ? "Blocking ads" : "Ad-block active"}
                     className={`
                                             ${adBlockStatus.isShowingAd ? "text-green-500 animate-pulse hover:text-green-400 hover:bg-green-500/10" : "text-white/70 hover:text-white hover:bg-white/20"}
-                                            cursor-help ml-1
+                                            ml-1
                                         `}
                   >
                     <LuShieldCheck className="w-6 h-6" />

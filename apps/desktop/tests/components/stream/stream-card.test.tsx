@@ -57,6 +57,20 @@ describe('StreamCard', () => {
     expect(screen.getByText(/1\.2K/i)).toBeInTheDocument();
   });
 
+  it('opens stream pages on the Home tab by default', () => {
+    const { container } = renderWithProviders(
+      <StreamCard stream={fixtures.stream({ platform: 'twitch', channelName: 'ninja' })} />
+    );
+
+    const link = container.querySelector('[data-testid="stream-card"]')?.closest('a');
+    expect(link).toHaveAttribute('data-to', '/stream/$platform/$channel');
+    expect(link).toHaveAttribute(
+      'data-params',
+      JSON.stringify({ platform: 'twitch', channel: 'ninja' })
+    );
+    expect(link).toHaveAttribute('data-search', JSON.stringify({ tab: 'home' }));
+  });
+
   describe('staleness overlay', () => {
     it('does not apply staleness styles when platform is healthy', () => {
       const { container } = renderWithProviders(

@@ -12,7 +12,6 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import {
   CategoriesPage,
   CategoryDetailPage,
-  ClipPage,
   DownloadsPage,
   FollowingPage,
   HistoryPage,
@@ -152,13 +151,6 @@ const videoRoute = createRoute({
   component: withSuspense(VideoPage),
 });
 
-// Clip viewing page
-const clipRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: "/clip/$platform/$clipId",
-  component: withSuspense(ClipPage),
-});
-
 // Settings page
 const settingsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
@@ -224,7 +216,6 @@ const routeTree = rootRoute.addChildren([
     searchRoute,
     streamRoute,
     videoRoute,
-    clipRoute,
     settingsRoute,
     multiStreamRoute,
     historyRoute,

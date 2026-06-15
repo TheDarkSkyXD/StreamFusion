@@ -20,7 +20,6 @@
 
 import { BrowserWindow, session } from "electron";
 import { logger } from "@/backend/logging/logger";
-import { sleep } from "@/lib/sleep";
 import { storageService } from "../../../../services/storage-service";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
 import type { UnifiedChannel } from "../../../unified/platform-types";
@@ -62,6 +61,10 @@ export type ErrorReason =
   | "network-error"
   | "cloudflare-challenge";
 
+interface FollowedChannelsOptions {
+  allowBrowserWindowFallback?: boolean;
+}
+
 // Single-flight guard. A second caller arriving while a fetch is in flight
 // shares the same Promise rather than firing a duplicate request.
 let _inFlight: Promise<FollowedChannelsResult> | null = null;
@@ -81,15 +84,17 @@ const _warned = new Set<ErrorReason>();
  * the local DB" — preserving the user's last-known account-source rows under
  * transient failure is more important than freshness.
  */
-export async function getAllFollowedChannels(): Promise<FollowedChannelsResult> {
+export async function getAllFollowedChannels(
+  options: FollowedChannelsOptions = {}
+): Promise<FollowedChannelsResult> {
   if (_inFlight) return _inFlight;
-  _inFlight = _doFetch().finally(() => {
+  _inFlight = _doFetch(options).finally(() => {
     _inFlight = null;
   });
   return _inFlight;
 }
 
-async function _doFetch(): Promise<FollowedChannelsResult> {
+async function _doFetch(options: FollowedChannelsOptions): Promise<FollowedChannelsResult> {
   const token = storageService.getToken("kick")?.accessToken;
   if (!token) {
     // No token = user not signed in. syncFollowsOnLogin guards this upstream,
@@ -97,12 +102,16 @@ async function _doFetch(): Promise<FollowedChannelsResult> {
     return { status: "error", reason: "no-token" };
   }
 
-  // Live testing on 2026-05-21 confirmed the v2 followed-channels endpoint
-  // rejects Kick OAuth Bearer tokens with 403. Do not perform a known-failing
-  // request on every sync; go directly to the cookie-auth BrowserWindow path.
+  const bearerResult = await _tryBearerFetch(token);
+  if (bearerResult.status === "ok") return bearerResult;
+  if (!options.allowBrowserWindowFallback) return bearerResult;
+
+  // The Bearer path is cheap and does not spin up Chromium. If Kick rejects it
+  // for this account/session, fall back to the cookie-auth BrowserWindow path.
   logger.debug(
     "Kick:Endpoints:Follow",
-    "Using BrowserWindow cookie-auth fallback for followed channels"
+    "Using BrowserWindow cookie-auth fallback for followed channels",
+    { reason: bearerResult.reason }
   );
   return _fetchViaBrowserWindow();
 }
@@ -214,8 +223,6 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
   return { status: "ok", channels };
 }
 
-const WARM_VISIT_URL = "https://kick.com/";
-const WARM_VISIT_TIMEOUT_MS = 6000;
 const PAGE_LOAD_TIMEOUT_MS = 10000;
 // Outer cap on the scroll-and-scrape phase (wall clock). Bounds the worst
 // case where a hung renderer / GPU stall / unending lazy-loader would hold
@@ -343,9 +350,8 @@ const SCROLL_AND_SCRAPE = `(async () => {
 /**
  * Cookie-auth fallback path: open a hidden BrowserWindow in the DEFAULT
  * Electron session (where the Kick OAuth window's id.kick.com cookies live),
- * warm-visit kick.com apex to let Kick's cross-subdomain SSO set the
- * `kick_session` cookie, then load the v2 followed-channels endpoint and
- * extract the response body via executeJavaScript.
+ * navigate straight to the dedicated following page, and scrape channel info
+ * from the rendered DOM.
  *
  * The default session is intentional — `persist:kick_public` doesn't carry
  * the user's authentication state (OAuth ran in default), and forcing a
@@ -374,50 +380,16 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       },
     });
 
-    // Warm visit to kick.com apex. If Kick's SSO sets a .kick.com session
-    // cookie in response to id.kick.com authentication, this navigation
-    // deposits it. Failures here aren't fatal — we proceed to the v2 visit
-    // and let the response classification decide.
-    logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: warm visit", {
-      url: WARM_VISIT_URL,
-    });
-    try {
-      const warmLoad = win.loadURL(WARM_VISIT_URL);
-      const warmTimeout = new Promise<never>((_, reject) =>
-        // timer-allowlist: Promise.race warm-visit nav-timeout (SP3 out-of-scope)
-        setTimeout(() => reject(new Error("warm-timeout")), WARM_VISIT_TIMEOUT_MS)
-      );
-      await Promise.race([warmLoad, warmTimeout]);
-      logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: warm visit completed");
-
-      // Give Kick's SPA a moment to bootstrap and make its auth-bridge API
-      // calls (the homepage typically fetches /api/v2/user on load to set the
-      // apex session cookie if the user is authed on id.kick.com).
-      await sleep(2500);
-
-      // Diagnostic: log what cookies actually landed for kick.com.
-      const defaultSession = session.defaultSession;
-      const cookies = await defaultSession.cookies.get({ domain: "kick.com" });
-      const cookieSummary = cookies.map((c) => `${c.name}@${c.domain}`).join(", ") || "(none)";
-      logger.debug(
-        "Kick:Endpoints:Follow",
-        "BrowserWindow fallback: kick.com cookies after warm visit",
-        { cookieSummary }
-      );
-    } catch (err) {
-      // Warm visit failure is non-fatal — log at debug, the real failure
-      // (if any) will surface on the /following navigation below.
-      logger.debug(
-        "Kick:Endpoints:Follow",
-        "BrowserWindow fallback: warm visit failed (non-fatal)",
-        {
-          error:
-            err instanceof Error
-              ? { name: err.name, message: err.message, stack: err.stack }
-              : String(err),
-        }
-      );
-    }
+    const defaultSession = session.defaultSession;
+    const cookies = await defaultSession.cookies.get({ domain: "kick.com" });
+    const cookieSummary = cookies.map((c) => `${c.name}@${c.domain}`).join(", ") || "(none)";
+    logger.debug(
+      "Kick:Endpoints:Follow",
+      "BrowserWindow fallback: kick.com cookies before scrape",
+      {
+        cookieSummary,
+      }
+    );
 
     // Fetch the v2 endpoint FROM INSIDE the kick.com page context, NOT via
     // a direct loadURL. Laravel's session middleware requires a matching

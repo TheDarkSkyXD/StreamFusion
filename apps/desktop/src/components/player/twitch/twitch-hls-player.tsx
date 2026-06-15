@@ -24,6 +24,7 @@ import { getAdBlockHlsConfig } from "./twitch-adblock-loader";
 import {
   clearStreamInfo,
   getAdBlockConfig,
+  getAdBlockStatus,
   initAdBlockService,
   isAdBlockEnabled,
   setAuthHeaders,
@@ -45,6 +46,8 @@ export interface TwitchHlsPlayerProps
   enableAdBlock?: boolean;
   volume?: number;
 }
+
+const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
 
 export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps>(
   (
@@ -127,7 +130,21 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         hls.startLevel = -1;
 
         const originalBackBuffer = hls.config.backBufferLength;
-        hls.config.backBufferLength = 10;
+        const backBufferLength = resolveHlsBufferConfig(
+          useAuthStore.getState().preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES
+        ).backBufferLength;
+        hls.config.backBufferLength = backBufferLength;
+
+        const video = videoRef.current;
+        const flushEnd = video ? video.currentTime - backBufferLength : 0;
+        if (flushEnd > 0) {
+          hls.trigger(Hls.Events.BUFFER_FLUSHING, {
+            startOffset: 0,
+            endOffset: flushEnd,
+            endOffsetSubtitles: flushEnd,
+            type: null,
+          });
+        }
 
         // Restore after a tick to let HLS.js process the trim
         // timer-allowlist: HLS.js backBufferLength restore — no awaitable completion signal (SP2 explicitly out-of-scope)
@@ -198,7 +215,26 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           localStorage.setItem("twitch_adblock_device_id", deviceId);
         }
         setAuthHeaders(deviceId);
+
+        const initialStatus = getAdBlockStatus(channelName);
+        setAdBlockStatus(initialStatus);
+        onAdBlockStatusChangeRef.current?.(initialStatus);
+
         logger.debug("Player:Twitch:HLS", "ad-block initialized with device ID");
+      } else {
+        const inactiveStatus: AdBlockStatus = {
+          isActive: false,
+          isShowingAd: false,
+          isMidroll: false,
+          isStrippingSegments: false,
+          numStrippedSegments: 0,
+          activePlayerType: null,
+          channelName,
+          isUsingFallbackMode: false,
+          adStartTime: null,
+        };
+        setAdBlockStatus(inactiveStatus);
+        onAdBlockStatusChangeRef.current?.(inactiveStatus);
       }
 
       return () => {
@@ -299,6 +335,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       let hls: Hls | null = null;
       let handleLoadedMetadata: (() => void) | null = null;
       let handleError: ((e: Event) => void) | null = null;
+      let handleLivePauseStopLoad: (() => void) | null = null;
+      let handleLivePlayStartLoad: (() => void) | null = null;
 
       const safePlay = () => {
         if (!isEffectActive || !video) return;
@@ -360,7 +398,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
           // === AGGRESSIVE MEMORY MANAGEMENT FOR LONG-RUNNING STREAMS ===
           // These settings prevent memory creep during 4-12+ hour Twitch sessions
-          backBufferLength: 30, // Reduced from 90: Only keep 30s behind
+          backBufferLength: bufferConfig.backBufferLength, // Live keeps a small tail to lower long-running media/GPU memory.
           maxBufferLength: bufferConfig.maxBufferLength, // Forward buffer (user-tunable)
           maxMaxBufferLength: bufferConfig.maxMaxBufferLength, // Hard cap (user-tunable)
           maxBufferSize: bufferConfig.maxBufferSize, // Scaled with maxMaxBufferLength so it isn't clamped
@@ -409,6 +447,18 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         } catch (e) {
           logger.error("Player:Twitch:HLS", "error setting up HLS", { error: e });
         }
+
+        handleLivePauseStopLoad = () => {
+          if (!isEffectActive || !hlsRef.current) return;
+          hlsRef.current.stopLoad();
+        };
+        handleLivePlayStartLoad = () => {
+          if (!isEffectActive || !hlsRef.current) return;
+          lastFragLoadedTimeRef.current = Date.now();
+          hlsRef.current.startLoad(-1);
+        };
+        video.addEventListener("pause", handleLivePauseStopLoad);
+        video.addEventListener("play", handleLivePlayStartLoad);
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
           // console.debug("[TwitchHLS] Manifest parsed, levels:", data.levels.length);
@@ -603,11 +653,11 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           lastFragLoadedTimeRef.current = Date.now();
         });
 
-        // Activate heartbeat (10 000 ms) and memory cleanup (10 min) via useInterval.
+        // Activate heartbeat (10 000 ms) and memory cleanup via useInterval.
         // The actual interval logic lives in the useInterval hooks above.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setHeartbeatDelay(10000);
-          setMemoryCleanupDelay(10 * 60 * 1000);
+          setMemoryCleanupDelay(LIVE_MEMORY_CLEANUP_INTERVAL_MS);
         });
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
@@ -683,6 +733,12 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           }
           if (handleError) {
             currentVideo.removeEventListener("error", handleError);
+          }
+          if (handleLivePauseStopLoad) {
+            currentVideo.removeEventListener("pause", handleLivePauseStopLoad);
+          }
+          if (handleLivePlayStartLoad) {
+            currentVideo.removeEventListener("play", handleLivePlayStartLoad);
           }
         }
 

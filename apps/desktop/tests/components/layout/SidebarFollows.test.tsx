@@ -6,6 +6,7 @@ const storeState = vi.hoisted(() => ({
   twitchConnected: true,
   kickConnected: false,
   localFollows: [] as unknown[],
+  followSources: {} as Record<string, 'guest' | 'twitch' | 'kick' | undefined>,
 }));
 
 // Guards: loading state — render skeleton avatars (5 placeholders) when both followed-channels + followed-streams are still resolving, so the sidebar doesn't flash empty before data lands
@@ -15,6 +16,8 @@ const storeState = vi.hoisted(() => ({
 // Guards: error state — followed-streams Helix call fails: sidebar degrades to the "follow channels to see them here" empty card rather than blanking. The whole point of a sidebar is to not vanish on a transient API error
 // Guards: empty state — distinct from error; "no follows + no streams" renders the empty card with the heart icon and the "Follow channels…" hint copy
 
+// Guards: signed-in Kick startup cache state - cached account-confirmed Kick follows render before the slow Kick account/live scan resolves
+
 vi.mock('@tanstack/react-router', () => routerMock());
 
 vi.mock('@/hooks/queries/useChannels', () => ({
@@ -23,6 +26,10 @@ vi.mock('@/hooks/queries/useChannels', () => ({
 
 vi.mock('@/hooks/queries/useStreams', () => ({
   useFollowedStreams: vi.fn(),
+}));
+
+vi.mock('@/hooks/useStreamPlayback', () => ({
+  prefetchStreamPlayback: vi.fn(),
 }));
 
 vi.mock('@/store/auth-store', () => ({
@@ -35,7 +42,15 @@ vi.mock('@/store/auth-store', () => ({
 
 vi.mock('@/store/follow-store', () => ({
   useFollowStore: (selector: (s: unknown) => unknown) =>
-    selector({ localFollows: storeState.localFollows }),
+    selector({
+      localFollows: storeState.localFollows,
+      getFollowSource: (channel: { platform: string; id?: string; username?: string }) =>
+        storeState.followSources[`${channel.platform}:${channel.id ?? ''}`] ??
+        (channel.username
+          ? storeState.followSources[`${channel.platform}:${channel.username.toLowerCase()}`]
+          : undefined) ??
+        'guest',
+    }),
 }));
 
 vi.mock('@/components/ui/platform-avatar', () => ({
@@ -44,18 +59,22 @@ vi.mock('@/components/ui/platform-avatar', () => ({
 
 import { useFollowedChannels } from '@/hooks/queries/useChannels';
 import { useFollowedStreams } from '@/hooks/queries/useStreams';
+import { prefetchStreamPlayback } from '@/hooks/useStreamPlayback';
 import { SidebarFollows } from '@/components/layout/SidebarFollows';
 
 const useFollowedChannelsMock = vi.mocked(useFollowedChannels);
 const useFollowedStreamsMock = vi.mocked(useFollowedStreams);
+const prefetchStreamPlaybackMock = vi.mocked(prefetchStreamPlayback);
 
 describe('SidebarFollows', () => {
   beforeEach(() => {
     useFollowedChannelsMock.mockReset();
     useFollowedStreamsMock.mockReset();
+    prefetchStreamPlaybackMock.mockReset();
     storeState.twitchConnected = true;
     storeState.kickConnected = false;
     storeState.localFollows = [];
+    storeState.followSources = {};
   });
 
   it('loading: renders skeleton placeholders while both queries resolve', () => {
@@ -91,6 +110,7 @@ describe('SidebarFollows', () => {
 
     expect(screen.getAllByText('KickCached').length).toBeGreaterThan(0);
     expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
+    expect(prefetchStreamPlaybackMock).toHaveBeenCalledWith('kick', 'kickcached');
   });
 
   it('signed-in Kick: hides local app-only Kick follows from the sidebar', () => {
@@ -116,6 +136,35 @@ describe('SidebarFollows', () => {
 
     expect(screen.queryByText('KickLocalOnly')).not.toBeInTheDocument();
     expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
+  });
+
+  it('signed-in Kick startup cache: renders cached account follows before Kick queries resolve', () => {
+    storeState.kickConnected = true;
+    storeState.localFollows = [
+      fixtures.channel({
+        id: 'kick-account-cached',
+        platform: 'kick',
+        username: 'kickaccountcached',
+        displayName: 'KickAccountCached',
+      }),
+    ];
+    storeState.followSources = {
+      'kick:kick-account-cached': 'kick',
+    };
+    useFollowedChannelsMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    } as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    expect(screen.getAllByText('KickAccountCached').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
+    expect(prefetchStreamPlaybackMock).toHaveBeenCalledWith('kick', 'kickaccountcached');
   });
 
   it('startup cache: keeps cached Kick follows visible when Twitch live rows fill the first slice', () => {
@@ -216,5 +265,54 @@ describe('SidebarFollows', () => {
     } as unknown as ReturnType<typeof useFollowedStreams>);
     renderWithProviders(<SidebarFollows collapsed={false} />);
     expect(screen.getAllByTestId('avatar').length).toBeGreaterThan(0);
+  });
+
+  it('prefetches visible live Kick follows without prefetching Twitch rows', () => {
+    storeState.localFollows = [
+      fixtures.channel({
+        id: 'kick-live-channel',
+        platform: 'kick',
+        username: 'kicklive',
+        displayName: 'KickLive',
+      }),
+      fixtures.channel({
+        id: 'twitch-live-channel',
+        username: 'twitchlive',
+        displayName: 'TwitchLive',
+      }),
+    ];
+    useFollowedChannelsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockImplementation((platform) =>
+      ({
+        data:
+          platform === 'kick'
+            ? [
+                fixtures.stream({
+                  id: 'kick-live',
+                  platform: 'kick',
+                  channelId: 'kick-live-channel',
+                  channelName: 'kicklive',
+                  channelDisplayName: 'KickLive',
+                }),
+              ]
+            : [
+                fixtures.stream({
+                  id: 'twitch-live',
+                  channelId: 'twitch-live-channel',
+                  channelName: 'twitchlive',
+                  channelDisplayName: 'TwitchLive',
+                }),
+              ],
+        isLoading: false,
+      }) as unknown as ReturnType<typeof useFollowedStreams>
+    );
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    expect(prefetchStreamPlaybackMock).toHaveBeenCalledWith('kick', 'kicklive');
+    expect(prefetchStreamPlaybackMock).not.toHaveBeenCalledWith('twitch', 'twitchlive');
   });
 });

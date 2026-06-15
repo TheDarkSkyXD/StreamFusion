@@ -34,8 +34,9 @@ vi.mock("@/backend/services/database-service", () => ({
   },
 }));
 
-import { storageService } from "@/backend/services/storage-service";
 import { dbService } from "@/backend/services/database-service";
+import { storageService } from "@/backend/services/storage-service";
+import { DEFAULT_BUFFER_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
 
 const kickPlatformRows = [
   { id: "r1", platform: "kick", channelId: "411439", channelName: "summit1g", source: "kick" },
@@ -144,5 +145,36 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
     storageService.upsertSyncedFollows("kick", []);
 
     expect(dbService.set).toHaveBeenCalledWith("kick-account-follows-verified-v2", true);
+  });
+});
+
+describe("storageService.getPreferences - buffer defaults migration", () => {
+  it("migrates the exact legacy latency-first buffer defaults to the stable defaults", () => {
+    storageService.set("preferences", {
+      ...DEFAULT_USER_PREFERENCES,
+      buffer: {
+        lowLatencyMode: true,
+        liveSyncDurationCount: 2,
+        maxBufferLengthSec: 15,
+        maxMaxBufferLengthSec: 30,
+      },
+    });
+
+    expect(storageService.getPreferences().buffer).toEqual(DEFAULT_BUFFER_PREFERENCES);
+  });
+
+  it("preserves custom user buffer settings", () => {
+    const customBuffer = {
+      lowLatencyMode: true,
+      liveSyncDurationCount: 3,
+      maxBufferLengthSec: 20,
+      maxMaxBufferLengthSec: 45,
+    };
+    storageService.set("preferences", {
+      ...DEFAULT_USER_PREFERENCES,
+      buffer: customBuffer,
+    });
+
+    expect(storageService.getPreferences().buffer).toEqual(customBuffer);
   });
 });

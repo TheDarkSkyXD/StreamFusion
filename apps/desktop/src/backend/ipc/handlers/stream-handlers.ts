@@ -20,12 +20,6 @@ export function shouldDeferKickStartupFollowedStreamScan(
 
 export function registerStreamHandlers(): void {
   const streamHandlersStartedAt = Date.now();
-  // Tracks the active followed-streams dispatch. A new poll aborts the prior
-  // one so orphan stagger timers from a stale dispatch (e.g. focus + manual
-  // refresh firing back-to-back) reject cleanly instead of holding semaphore
-  // slots behind the live request.
-  let _kickFollowsAbort: AbortController | null = null;
-
   /**
    * Get top streams from one or both platforms.
    *
@@ -341,11 +335,10 @@ export function registerStreamHandlers(): void {
             // fan-out on the same JS tick. The actual sleep lives inside
             // getPublicStreamBySlug, after its cache check — so warm-cache
             // polls return synchronously and only cache-miss work pays the
-            // dispatch spread. The AbortController cancels orphan timers if
-            // a new poll fires before the prior one settles.
-            if (_kickFollowsAbort) _kickFollowsAbort.abort();
+            // dispatch spread. Use one AbortController per scan; the sidebar
+            // and /following page can query at the same time, and one visible
+            // query must not cancel the other into a partial/empty result.
             const abort = new AbortController();
-            _kickFollowsAbort = abort;
 
             const fanOutStaggerMs = 60;
             const settled = await Promise.allSettled(

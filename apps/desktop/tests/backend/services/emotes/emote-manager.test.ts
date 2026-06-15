@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EmoteManager } from "@/backend/services/emotes/emote-manager";
-import type { Emote, EmoteProvider, EmoteProviderService } from "@/backend/services/emotes/emote-types";
+import type {
+  Emote,
+  EmoteProvider,
+  EmoteProviderService,
+} from "@/backend/services/emotes/emote-types";
 
 // Guards: cross-platform global-emote scoping (regression `cfb0033`) — Kick's no-op global loader must NOT fire when the player is on Twitch, and Twitch-only providers (BTTV/FFZ) must NOT fire when on Kick. The "actual bug" comment at line 78 names this explicitly; renaming or removing the platform-allowlist branching loses the test.
 // Guards: legacy no-platform call path — calling `loadGlobalEmotes()` with no argument must fan out to every registered provider. This is the back-compat surface; refactors that move the platform map shouldn't silently drop it.
@@ -98,5 +102,31 @@ describe("EmoteManager.loadGlobalEmotes platform filter", () => {
 
     expect(twitch.fetchGlobalEmotes).toHaveBeenCalledTimes(1);
     expect(kick.fetchGlobalEmotes).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("EmoteManager.loadChannelEmotes failure handling", () => {
+  // Guards: rejected channel-provider fetches stay non-fatal and do not leak as unhandled promise rejections in DevTools.
+  it("does not create an unhandled rejection when a provider channel fetch fails", async () => {
+    const manager = createManager();
+    const twitch = makeProvider("twitch");
+    twitch.fetchChannelEmotes.mockRejectedValueOnce(new Error("401 unauthorized"));
+    manager.registerProvider(twitch);
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+
+    try {
+      await expect(manager.loadChannelEmotes("26301881", "sodapoppin", "twitch")).resolves.toBe(
+        undefined
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
   });
 });

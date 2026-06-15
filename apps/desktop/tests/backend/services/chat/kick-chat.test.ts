@@ -250,8 +250,10 @@ describe("KickChatService.sendMessage", () => {
   });
 });
 
-describe("KickChatService.joinChannel triggers warmup", () => {
-  it("calls ensureSendWindowReady without awaiting", async () => {
+describe("KickChatService.joinChannel send-window warmup", () => {
+  // Guards: joining Kick chat must not warm the hidden kick.com send window during stream startup.
+  // Chat send still initializes it on demand via sendMessage, avoiding hidden player/network churn.
+  it("does not warm the send window until a message is sent", async () => {
     const { service, internals } = makeService();
     // Fake Pusher state so joinChannel doesn't blow up on the WebSocket path.
     (service as any).pusher = {
@@ -260,7 +262,7 @@ describe("KickChatService.joinChannel triggers warmup", () => {
     };
     (service as any).connectionState = "connected";
     await service.joinChannel("ac7ionman", 999_111, 42);
-    expect(kickChatApi.ensureSendWindowReady).toHaveBeenCalledOnce();
+    expect(kickChatApi.ensureSendWindowReady).not.toHaveBeenCalled();
     expect(internals.channels.has("ac7ionman")).toBe(true);
   });
 });
@@ -304,12 +306,23 @@ describe("send-window disposal", () => {
 
 describe("KickChatService teardown does not race the Pusher socket close", () => {
   // Guards: leaveChannel must skip pusher.unsubscribe when connection.state is not 'connected' — pusher-js otherwise tries to flush the unsubscribe frame on a closing/closed socket and logs "WebSocket is already in CLOSING or CLOSED state"
+  // Guards: leaveChannel must also skip pusher.unsubscribe when the raw WebSocket is already CLOSING/CLOSED even if Pusher's public state still says connected
+  // Guards: final-user release must not enqueue channel unsubscribe frames immediately before shutdown closes the shared Pusher socket
   // Guards: disconnect() must not call pusher.unsubscribe per channel — closing the socket implicitly unsubscribes server-side, and the explicit frame races the close
   // Guards: forceShutdown() must keep per-channel unbind_all() (local closure cleanup) but drop pusher.unsubscribe (socket-touching frame that races the disconnect)
-  function makePusherStub(state: "connected" | "disconnected" | "connecting" | "unavailable" | "failed") {
+  function makePusherStub(
+    state: "connected" | "disconnected" | "connecting" | "unavailable" | "failed",
+    socketReadyState: number = 1,
+  ) {
     return {
       connection: {
         state,
+        connection: {
+          transport: {
+            state: "open",
+            socket: { readyState: socketReadyState },
+          },
+        },
         unbind_all: vi.fn(),
       },
       unsubscribe: vi.fn(),
@@ -341,6 +354,36 @@ describe("KickChatService teardown does not race the Pusher socket close", () =>
     await service.leaveChannel("ac7ionman");
 
     expect(pusher.unsubscribe).not.toHaveBeenCalled();
+    expect(internals.channels.has("ac7ionman")).toBe(false);
+    expect(pusherChannel.unbind_all).toHaveBeenCalledOnce();
+  });
+
+  it("leaveChannel does not call pusher.unsubscribe when Pusher still says connected but the raw socket is closing", async () => {
+    const { service, internals } = makeService();
+    const pusher = makePusherStub("connected", 2);
+    (service as unknown as { pusher: typeof pusher }).pusher = pusher;
+    const pusherChannel = { unbind_all: vi.fn() };
+    joinFakeChannel(internals, "ac7ionman", 999_111, pusherChannel);
+
+    await service.leaveChannel("ac7ionman");
+
+    expect(pusher.unsubscribe).not.toHaveBeenCalled();
+    expect(internals.channels.has("ac7ionman")).toBe(false);
+    expect(pusherChannel.unbind_all).toHaveBeenCalledOnce();
+  });
+
+  it("release does not enqueue unsubscribe frames when the final user is about to disconnect the socket", async () => {
+    const { service, internals } = makeService();
+    const pusher = makePusherStub("connected");
+    (service as unknown as { pusher: typeof pusher }).pusher = pusher;
+    const pusherChannel = { unbind_all: vi.fn() };
+    joinFakeChannel(internals, "ac7ionman", 999_111, pusherChannel);
+    service.acquire("ac7ionman");
+
+    await service.release("ac7ionman");
+
+    expect(pusher.unsubscribe).not.toHaveBeenCalled();
+    expect(pusher.disconnect).toHaveBeenCalledOnce();
     expect(internals.channels.has("ac7ionman")).toBe(false);
     expect(pusherChannel.unbind_all).toHaveBeenCalledOnce();
   });
