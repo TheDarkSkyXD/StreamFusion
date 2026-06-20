@@ -124,10 +124,11 @@ describe('ChatEmote overlay / zero-width (U3)', () => {
       />
     );
     const img = screen.getByAltText('OverlayEmote') as HTMLImageElement;
+    const trigger = img.closest('button') as HTMLButtonElement;
     // Overlay: absolutely positioned and pulled back over the previous emote.
-    expect(img.dataset.zeroWidth).toBe('true');
-    expect(img.style.position).toBe('absolute');
-    expect(img.style.marginLeft).toBe('-28px');
+    expect(trigger.dataset.zeroWidth).toBe('true');
+    expect(trigger.style.position).toBe('absolute');
+    expect(trigger.style.marginLeft).toBe('-28px');
   });
 
   it('renders a zero-width emote inline (no overlay) when overlayEmotes is false', () => {
@@ -142,9 +143,10 @@ describe('ChatEmote overlay / zero-width (U3)', () => {
       />
     );
     const img = screen.getByAltText('OverlayEmote') as HTMLImageElement;
-    expect(img.dataset.zeroWidth).toBeUndefined();
-    expect(img.style.position).toBe('');
-    expect(img.style.marginLeft).toBe('');
+    const trigger = img.closest('button') as HTMLButtonElement;
+    expect(trigger.dataset.zeroWidth).toBeUndefined();
+    expect(trigger.style.position).toBe('');
+    expect(trigger.style.marginLeft).toBe('');
   });
 
   it('never treats a non-zero-width emote as an overlay even with overlayEmotes on', () => {
@@ -153,8 +155,9 @@ describe('ChatEmote overlay / zero-width (U3)', () => {
       <ChatEmote id="e1" name="Kappa" url="https://x.test/kappa.png" platform="twitch" />
     );
     const img = screen.getByAltText('Kappa') as HTMLImageElement;
-    expect(img.dataset.zeroWidth).toBeUndefined();
-    expect(img.style.position).toBe('');
+    const trigger = img.closest('button') as HTMLButtonElement;
+    expect(trigger.dataset.zeroWidth).toBeUndefined();
+    expect(trigger.style.position).toBe('');
   });
 });
 

@@ -174,12 +174,14 @@ describe('ChatMessage chatDisplay appearance (U2)', () => {
     const img = screen.getByAltText('Kappa') as HTMLImageElement;
     expect(img.style.height).toBe('40px');
     expect(img.style.width).toBe('40px');
-    expect(img.getAttribute('loading')).toBe('eager');
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.getAttribute('decoding')).toBe('async');
+    expect(img.getAttribute('fetchpriority')).toBe('low');
     expect(img.className).not.toContain('transition-transform');
     expect(img.className).not.toContain('hover:scale');
   });
 
-  it('renders chat badges eagerly with reserved dimensions to avoid row remeasurement flicker', () => {
+  it('renders chat badges with reserved dimensions and async decode to avoid row remeasurement flicker', () => {
     render(
       <ChatMessage
         message={baseMessage({
@@ -196,8 +198,9 @@ describe('ChatMessage chatDisplay appearance (U2)', () => {
     );
 
     const img = screen.getByAltText('Badge') as HTMLImageElement;
-    expect(img.getAttribute('loading')).toBe('eager');
-    expect(img.getAttribute('decoding')).toBe('auto');
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.getAttribute('decoding')).toBe('async');
+    expect(img.getAttribute('fetchpriority')).toBe('low');
     expect(img.className).toContain('w-4');
     expect(img.className).toContain('h-4');
   });

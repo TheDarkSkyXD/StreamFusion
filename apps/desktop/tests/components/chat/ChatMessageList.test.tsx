@@ -2,12 +2,21 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { getRenderCounts, resetRenderCounts } from "@/components/dev/use-render-count";
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+} from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
+import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from "@/store/chat-store";
 
 const virtuosoInitialIndexes = vi.hoisted<Array<number | undefined>>(() => []);
 const virtuosoWindowProps = vi.hoisted<
-  Array<{ overscan?: number; increaseViewportBy?: number | { top?: number; bottom?: number } }>
+  Array<{
+    overscan?: number;
+    increaseViewportBy?: number | { top?: number; bottom?: number };
+    defaultItemHeight?: number;
+  }>
 >(() => []);
 const virtuosoItemContentRefs = vi.hoisted<Array<(i: number, m: unknown) => React.ReactNode>>(
   () => []
@@ -31,6 +40,7 @@ vi.mock("react-virtuoso", () => ({
     initialTopMostItemIndex,
     overscan,
     increaseViewportBy,
+    defaultItemHeight,
     className,
     style,
   }: {
@@ -41,11 +51,12 @@ vi.mock("react-virtuoso", () => ({
     initialTopMostItemIndex?: number;
     overscan?: number;
     increaseViewportBy?: number | { top?: number; bottom?: number };
+    defaultItemHeight?: number;
     className?: string;
     style?: React.CSSProperties;
   }) => {
     virtuosoInitialIndexes.push(initialTopMostItemIndex);
-    virtuosoWindowProps.push({ overscan, increaseViewportBy });
+    virtuosoWindowProps.push({ overscan, increaseViewportBy, defaultItemHeight });
     virtuosoItemContentRefs.push(itemContent);
     virtuosoLayoutProps.push({ className, style });
     const scroller = document.createElement("div");
@@ -107,6 +118,16 @@ function resetChatStore() {
   });
 }
 
+function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
+  useAuthStore.setState((s) => ({
+    ...s,
+    preferences: {
+      ...(s.preferences ?? {}),
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...overrides },
+    } as typeof s.preferences,
+  }));
+}
+
 // Guards: empty state (no messages yet) must still render the virtuoso container so the layout doesn't collapse and the next message has somewhere to mount
 // Guards: per-channel message reads keep a busy multiview panel from re-rendering sibling ChatMessageList instances
 // Guards: per-channel pause state renders the "Chat paused due to scroll" banner only for the panel the viewer scrolled
@@ -115,6 +136,7 @@ function resetChatStore() {
 describe("ChatMessageList", () => {
   beforeEach(() => {
     resetChatStore();
+    setChatDisplay({});
     resetRenderCounts();
     virtuosoInitialIndexes.length = 0;
     virtuosoWindowProps.length = 0;
@@ -136,7 +158,16 @@ describe("ChatMessageList", () => {
     expect(virtuosoWindowProps.at(-1)).toEqual({
       overscan: 150,
       increaseViewportBy: { top: 240, bottom: 480 },
+      defaultItemHeight: 36,
     });
+  });
+
+  it("estimates compact chat rows from the current chat display preferences", () => {
+    setChatDisplay({ density: "compact", fontSizePx: 16, emoteSizePx: 28 });
+
+    render(<ChatMessageList channelKey={channelA} />);
+
+    expect(virtuosoWindowProps.at(-1)?.defaultItemHeight).toBe(32);
   });
 
   it("keeps Virtuoso row rendering stable when parent action callbacks are recreated", () => {
@@ -167,6 +198,7 @@ describe("ChatMessageList", () => {
     expect(container.firstElementChild?.className).toContain("overflow-x-hidden");
     expect(virtuosoLayoutProps.at(-1)?.className).toContain("overflow-x-hidden");
     expect(virtuosoLayoutProps.at(-1)?.style?.overflowX).toBe("hidden");
+    expect(virtuosoLayoutProps.at(-1)?.style?.overflowAnchor).toBe("none");
   });
 
   it("renders only messages for its channel bucket", () => {

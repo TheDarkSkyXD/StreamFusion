@@ -2,7 +2,9 @@ import type React from "react";
 import { memo, useCallback, useEffect, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useManagedTimeout } from "../../hooks/useManagedTimeout";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
 import type { ChatMessage as ChatMessageType } from "../../shared/chat-types";
+import { useAuthStore } from "../../store/auth-store";
 import { useChatStore } from "../../store/chat-store";
 import { useRenderCount } from "../dev/use-render-count";
 import { ChatMessage } from "./ChatMessage";
@@ -17,6 +19,14 @@ const MemoizedChatMessage = memo(ChatMessage);
 const EMPTY_MESSAGES: ChatMessageType[] = [];
 const CHAT_LIST_OVERSCAN_PX = 150;
 const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 240, bottom: 480 };
+
+function estimateDefaultItemHeight(chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES): number {
+  const lineHeight = chatDisplay.density === "compact" ? 1.2 : 1.4;
+  const verticalPadding = chatDisplay.density === "compact" ? 4 : 8;
+  return Math.ceil(
+    Math.max(chatDisplay.emoteSizePx, chatDisplay.fontSizePx * lineHeight) + verticalPadding
+  );
+}
 
 interface ChatMessageListProps {
   channelKey: string;
@@ -54,6 +64,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const messages = useChatStore((state) => state.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
     const isPaused = useChatStore((state) => state.pausedChannels.has(channelKey));
     const setPaused = useChatStore((state) => state.setPaused);
+    const chatDisplay =
+      useAuthStore((state) => state.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const defaultItemHeight = estimateDefaultItemHeight(chatDisplay);
 
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const scrollerRef = useRef<HTMLElement | null>(null);
@@ -249,10 +262,16 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           atBottomThreshold={20}
           overscan={CHAT_LIST_OVERSCAN_PX}
           increaseViewportBy={CHAT_LIST_INCREASE_VIEWPORT_BY}
-          defaultItemHeight={32}
           atBottomStateChange={handleAtBottomStateChange}
           scrollerRef={scrollerCallbackRef}
-          style={{ height: "100%", width: "100%", flex: 1, overflowX: "hidden" }}
+          defaultItemHeight={defaultItemHeight}
+          style={{
+            height: "100%",
+            width: "100%",
+            flex: 1,
+            overflowX: "hidden",
+            overflowAnchor: "none",
+          }}
           className="chat-scrollbar overflow-x-hidden"
         />
 

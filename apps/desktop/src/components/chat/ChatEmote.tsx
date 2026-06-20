@@ -64,7 +64,7 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     // emote name on screen without holding the cursor over the image.
     const [sticky, setSticky] = useState(false);
     const [stickyPos, setStickyPos] = useState<{ x: number; y: number } | null>(null);
-    const imgRef = useRef<HTMLImageElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
 
     const handleMouseEnter = useCallback((e: React.MouseEvent) => {
       setMousePos({ x: e.clientX, y: e.clientY });
@@ -83,11 +83,18 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
       setStickyPos({ x: e.clientX, y: e.clientY });
       setSticky((s) => !s);
     }, []);
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      const rect = triggerRef.current?.getBoundingClientRect();
+      setStickyPos(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null);
+      setSticky((s) => !s);
+    }, []);
 
     useEffect(() => {
       if (!sticky) return;
       const onDocClick = (e: MouseEvent) => {
-        if (imgRef.current?.contains(e.target as Node)) return;
+        if (triggerRef.current?.contains(e.target as Node)) return;
         setSticky(false);
       };
       const onKey = (e: KeyboardEvent) => {
@@ -138,33 +145,47 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     // Zero-width overlay positioning mirrors EmoteImage.tsx: pull the emote back
     // over the preceding one with a negative margin equal to the emote width and
     // take it out of flow so it doesn't consume horizontal space.
-    const overlayStyle: React.CSSProperties = renderAsOverlay
+    const triggerStyle: React.CSSProperties = renderAsOverlay
       ? {
           height: emoteSizePx,
           width: emoteSizePx,
           maxWidth: "100%",
-          objectFit: "contain",
           position: "absolute",
           marginLeft: `-${emoteSizePx}px`,
         }
-      : { height: emoteSizePx, width: emoteSizePx, maxWidth: "100%", objectFit: "contain" };
+      : { height: emoteSizePx, width: emoteSizePx, maxWidth: "100%" };
+    const imageStyle: React.CSSProperties = {
+      height: emoteSizePx,
+      width: emoteSizePx,
+      maxWidth: "100%",
+      objectFit: "contain",
+    };
 
     return (
       <>
-        <img
-          ref={imgRef}
-          src={renderUrl}
-          alt={name}
-          loading="eager"
-          decoding="auto"
+        <button
+          ref={triggerRef}
+          type="button"
           data-zero-width={renderAsOverlay ? "true" : undefined}
-          style={overlayStyle}
-          className="inline-block mx-0.5 align-middle cursor-pointer"
+          style={triggerStyle}
+          aria-label={`Show ${name} emote details`}
+          className="inline-block mx-0.5 cursor-pointer border-0 bg-transparent p-0 align-middle leading-none"
           onMouseEnter={handleMouseEnter}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
-        />
+          onKeyDown={handleKeyDown}
+        >
+          <img
+            src={renderUrl}
+            alt={name}
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+            style={imageStyle}
+            className="block"
+          />
+        </button>
 
         <EmoteTooltip
           show={showTooltip || sticky}

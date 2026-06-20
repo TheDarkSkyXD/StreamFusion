@@ -54,8 +54,9 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
       <img
         src={badge.imageUrl}
         alt={badge.title || "Badge"}
-        loading="eager"
-        decoding="auto"
+        loading="lazy"
+        decoding="async"
+        fetchPriority="low"
         className={badgeClassName}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
