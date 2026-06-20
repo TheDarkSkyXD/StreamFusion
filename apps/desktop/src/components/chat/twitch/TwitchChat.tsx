@@ -207,6 +207,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const [modActionBusy, setModActionBusy] = useState(false);
   // Optimistic local copy of the channel's chat-room state (U14). Reads + writes
   // flow through useRoomStateStore; the hook auto-fills DEFAULT_ROOM_STATE.
+  const currentChannelContext = useMemo(
+    () => (channelId ? { channelId, channelSlug: channel } : undefined),
+    [channel, channelId]
+  );
   const roomState = useChatRoomState("twitch", channelId ?? null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
 
@@ -311,7 +315,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
             );
             // Reload global emotes now that we have credentials
-            if (isMounted) await loadGlobalEmotes("twitch");
+            if (isMounted) await loadGlobalEmotes("twitch", { force: true });
           }
 
           if (!isMounted) return;
@@ -383,19 +387,47 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // This is intentionally separate from the connection effect to prevent channelId changes
   // (e.g., during React Query refetches) from causing the chat to disconnect and reconnect
   useEffect(() => {
-    if (channel && channelId) {
-      currentChannelIdRef.current = channelId; // Track for cleanup
-      // Re-sync provider enablement to prefs before the channel load so a
-      // toggle flipped on the Settings/gear surface takes effect on this load
-      // (R10). applyProviderPrefs is a no-op when the set already matches.
-      applyProviderPrefs(
-        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
-      );
-      setActiveChannel(channelId);
-      loadChannelEmotes(channelId, channel, "twitch");
-    } else {
+    if (!channel || !channelId) {
       setActiveChannel(null);
+      return;
     }
+
+    let cancelled = false;
+    currentChannelIdRef.current = channelId; // Track for cleanup
+    // Re-sync provider enablement to prefs before the channel load so a
+    // toggle flipped on the Settings/gear surface takes effect on this load
+    // (R10). applyProviderPrefs is a no-op when the set already matches.
+    applyProviderPrefs(
+      useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
+    );
+    setActiveChannel(channelId);
+
+    void (async () => {
+      const twitchClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      let accessToken: string | null = null;
+
+      if (twitchClientId) {
+        try {
+          accessToken = await window.electronAPI.auth.getValidTwitchToken();
+        } catch (error) {
+          logger.warn("UI:Chat:Twitch", "failed to initialize Twitch emotes before channel load", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (cancelled) return;
+
+      if (twitchClientId && accessToken) {
+        await initializeTwitchEmotes(twitchClientId, accessToken);
+      }
+      if (!cancelled) {
+        loadChannelEmotes(channelId, channel, "twitch");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [channel, channelId, setActiveChannel, loadChannelEmotes, applyProviderPrefs]);
 
   // Mid-session auth-identity swap. The primary connect effect above runs
@@ -489,12 +521,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         // emote text isn't present in any text fragment for the helper to
         // double-render. Third-party 7TV / BTTV / FFZ always ride along as
         // plain text either way and are resolved here too.
-        const map = new Map(
-          useEmoteStore
-            .getState()
-            .getAllEmotes()
-            .map((e) => [e.name, e])
-        );
+        const map = useEmoteStore.getState().getEmoteNameMap();
         const enrichedContent = substituteThirdPartyEmotes(message.content, map, {
           includeNative: true,
         });
@@ -893,7 +920,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               : undefined
           }
           selfUserId={twitchUser?.id}
-          currentChannelContext={channelId ? { channelId, channelSlug: channel } : undefined}
+          currentChannelContext={currentChannelContext}
         />
       </div>
 
@@ -906,6 +933,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             channel={channel}
             channelId={channelId ?? null}
             canSend={isAuthenticated && isTwitchConnected}
+            showModViewLink={isAuthenticated && isMod}
           />
         </div>
       </div>

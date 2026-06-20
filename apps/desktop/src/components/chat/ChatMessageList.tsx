@@ -1,5 +1,5 @@
 import type React from "react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useManagedTimeout } from "../../hooks/useManagedTimeout";
 import type { ChatMessage as ChatMessageType } from "../../shared/chat-types";
@@ -15,8 +15,8 @@ import type { UsernameChannelContext } from "./Username";
 
 const MemoizedChatMessage = memo(ChatMessage);
 const EMPTY_MESSAGES: ChatMessageType[] = [];
-const CHAT_LIST_OVERSCAN_PX = 16;
-const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 96, bottom: 96 };
+const CHAT_LIST_OVERSCAN_PX = 150;
+const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 240, bottom: 480 };
 
 interface ChatMessageListProps {
   channelKey: string;
@@ -114,23 +114,29 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const handleDelete = useCallback((message: ChatMessageType) => {
       onDeleteRef.current?.(message);
     }, []);
+    const hasPin = Boolean(onPin);
+    const hasTimeout = Boolean(onTimeout);
+    const hasBan = Boolean(onBan);
+    const hasUnban = Boolean(onUnban);
+    const hasDelete = Boolean(onDelete);
 
     // Count of messages added while paused — shown in the banner's hover state.
     // Length-delta is approximate when the store trims, but display caps at "20+".
-    const [pausedCount, setPausedCount] = useState(0);
-    const lastSeenLengthRef = useRef(messages.length);
+    const pausedBaselineLengthRef = useRef(messages.length);
+    const previousMessageLengthRef = useRef(messages.length);
+    const wasPausedRef = useRef(isPaused);
     const initialTopMostItemIndexRef = useRef(messages.length > 0 ? messages.length - 1 : 0);
 
-    useEffect(() => {
-      if (!isPaused) {
-        setPausedCount(0);
-        lastSeenLengthRef.current = messages.length;
-        return;
-      }
-      const delta = messages.length - lastSeenLengthRef.current;
-      if (delta > 0) setPausedCount((c) => c + delta);
-      lastSeenLengthRef.current = messages.length;
-    }, [messages.length, isPaused]);
+    if (!isPaused) {
+      pausedBaselineLengthRef.current = messages.length;
+    } else if (!wasPausedRef.current) {
+      pausedBaselineLengthRef.current = previousMessageLengthRef.current;
+    }
+    const pausedCount = isPaused
+      ? Math.max(0, messages.length - pausedBaselineLengthRef.current)
+      : 0;
+    wasPausedRef.current = isPaused;
+    previousMessageLengthRef.current = messages.length;
 
     useEffect(() => {
       userScrolledUpRef.current = false;
@@ -165,11 +171,11 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           key={message.id}
           message={message}
           onReply={handleReply}
-          onPin={onPin ? handlePin : undefined}
-          onTimeout={onTimeout ? handleTimeout : undefined}
-          onBan={onBan ? handleBan : undefined}
-          onUnban={onUnban ? handleUnban : undefined}
-          onDelete={onDelete ? handleDelete : undefined}
+          onPin={hasPin ? handlePin : undefined}
+          onTimeout={hasTimeout ? handleTimeout : undefined}
+          onBan={hasBan ? handleBan : undefined}
+          onUnban={hasUnban ? handleUnban : undefined}
+          onDelete={hasDelete ? handleDelete : undefined}
           selfUserId={selfUserId}
           currentChannelContext={currentChannelContext}
         />
@@ -177,15 +183,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       [
         handleReply,
         handlePin,
-        onPin,
+        hasPin,
         handleTimeout,
-        onTimeout,
+        hasTimeout,
         handleBan,
-        onBan,
+        hasBan,
         handleUnban,
-        onUnban,
+        hasUnban,
         handleDelete,
-        onDelete,
+        hasDelete,
         selfUserId,
         currentChannelContext,
       ]
@@ -232,7 +238,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     );
 
     return (
-      <div className="relative flex-1 h-full min-h-0">
+      <div className="relative flex-1 h-full min-h-0 min-w-0 overflow-x-hidden">
         <Virtuoso
           ref={virtuosoRef}
           data={messages}
@@ -246,8 +252,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           defaultItemHeight={32}
           atBottomStateChange={handleAtBottomStateChange}
           scrollerRef={scrollerCallbackRef}
-          style={{ height: "100%", width: "100%", flex: 1 }}
-          className="chat-scrollbar"
+          style={{ height: "100%", width: "100%", flex: 1, overflowX: "hidden" }}
+          className="chat-scrollbar overflow-x-hidden"
         />
 
         {isPaused && (

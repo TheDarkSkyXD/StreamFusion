@@ -54,6 +54,7 @@ function baseMessage(overrides: Partial<ChatMessageType> = {}): ChatMessageType 
   } as ChatMessageType;
 }
 
+// Guards: inline chat images reserve dimensions and load eagerly so virtualized fast chat does not flicker from row remeasurement
 describe('ChatMessage', () => {
   it('renders username and text fragment', () => {
     render(<ChatMessage message={baseMessage()} />);
@@ -82,6 +83,37 @@ describe('ChatMessage', () => {
     );
     expect(screen.getByText('spammer')).toBeInTheDocument();
     expect(screen.getByText(/timed out for 10m/)).toBeInTheDocument();
+  });
+
+  it('renders Kick gifted badge before subscriber badge with Kick-style spacing', () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          platform: 'kick',
+          badges: [
+            {
+              setId: 'subscriber',
+              version: '17',
+              imageUrl: 'https://example.com/sub.png',
+              title: '17-Month Subscriber',
+            },
+            {
+              setId: 'sub_gifter',
+              version: '63',
+              imageUrl: 'https://example.com/gift.png',
+              title: 'Gifted 63 subs',
+            },
+          ],
+        })}
+      />
+    );
+
+    const badgeImages = screen.getAllByRole('img');
+    expect(badgeImages.map((img) => img.getAttribute('alt'))).toEqual([
+      'Gifted 63 subs',
+      '17-Month Subscriber',
+    ]);
+    expect(badgeImages[0].parentElement?.className).toContain('gap-1');
   });
 });
 
@@ -141,6 +173,33 @@ describe('ChatMessage chatDisplay appearance (U2)', () => {
     render(<ChatMessage message={msg} />);
     const img = screen.getByAltText('Kappa') as HTMLImageElement;
     expect(img.style.height).toBe('40px');
+    expect(img.style.width).toBe('40px');
+    expect(img.getAttribute('loading')).toBe('eager');
+    expect(img.className).not.toContain('transition-transform');
+    expect(img.className).not.toContain('hover:scale');
+  });
+
+  it('renders chat badges eagerly with reserved dimensions to avoid row remeasurement flicker', () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          badges: [
+            {
+              setId: 'moderator',
+              version: '1',
+              imageUrl: 'https://example.com/mod.png',
+              title: 'Badge',
+            },
+          ],
+        })}
+      />
+    );
+
+    const img = screen.getByAltText('Badge') as HTMLImageElement;
+    expect(img.getAttribute('loading')).toBe('eager');
+    expect(img.getAttribute('decoding')).toBe('auto');
+    expect(img.className).toContain('w-4');
+    expect(img.className).toContain('h-4');
   });
 
   it('preserves truncation-safe wrapping at min font size with a long username + message', () => {
@@ -161,6 +220,40 @@ describe('ChatMessage chatDisplay appearance (U2)', () => {
     // The content wrapper keeps break-words so long tokens wrap instead of overflow.
     expect(container.querySelector('.break-words')).not.toBeNull();
     expect(screen.getByText(longName)).toBeInTheDocument();
+  });
+
+  it('clamps hostile message content so it cannot create horizontal chat scroll', () => {
+    const longToken = 'x'.repeat(180);
+    const { container } = render(
+      <ChatMessage
+        message={baseMessage({
+          content: [
+            { type: 'text', content: longToken },
+            {
+              type: 'emote',
+              id: 'wide',
+              name: 'WideEmote',
+              url: 'https://example.com/wide.png',
+            },
+            {
+              type: 'link',
+              text: `https://example.com/${longToken}`,
+              url: `https://example.com/${longToken}`,
+            },
+          ],
+        })}
+      />
+    );
+
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.className).toContain('overflow-x-hidden');
+
+    const content = row.querySelector('[data-testid="chat-message-content"]') as HTMLElement;
+    expect(content.className).toContain('max-w-full');
+    expect(content.className).toContain('[overflow-wrap:anywhere]');
+
+    const emote = screen.getByAltText('WideEmote') as HTMLImageElement;
+    expect(emote.style.maxWidth).toBe('100%');
   });
 });
 

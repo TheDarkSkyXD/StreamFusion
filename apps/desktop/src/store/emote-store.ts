@@ -20,6 +20,11 @@ import type { ChatDisplayPreferences, Platform } from "../shared/auth-types";
  * suppressed by the other's shared `isLoading` flag.
  */
 const inFlightGlobalLoads = new Map<Platform | "legacy", Promise<void>>();
+let emoteNameMapCache: {
+  activeChannelId: string | null;
+  emoteRevision: number;
+  map: Map<string, Emote>;
+} | null = null;
 
 interface EmoteState {
   /** Whether emotes are currently loading (UI hint only; not used as a gate) */
@@ -32,6 +37,8 @@ interface EmoteState {
   loadedGlobalPlatforms: Set<Platform>;
   /** Current error message if any */
   error: string | null;
+  /** Bumps whenever manager-backed emote data changes without necessarily changing Set sizes. */
+  emoteRevision: number;
   /** Channels that have had their emotes loaded */
   loadedChannels: Set<string>;
   /** Recently used emotes (for quick access) */
@@ -57,12 +64,13 @@ interface EmoteState {
   applyProviderPrefs: (
     prefs: Pick<ChatDisplayPreferences, "enable7tv" | "enableBttv" | "enableFfz">
   ) => void;
-  loadGlobalEmotes: (platform?: Platform) => Promise<void>;
+  loadGlobalEmotes: (platform?: Platform, options?: { force?: boolean }) => Promise<void>;
   loadChannelEmotes: (
     channelId: string,
     channelName?: string,
     platform?: Platform,
-    kickUserId?: string
+    kickUserId?: string,
+    options?: { force?: boolean }
   ) => Promise<void>;
   unloadChannelEmotes: (channelId: string) => void;
   setActiveChannel: (channelId: string | null) => void;
@@ -73,12 +81,14 @@ interface EmoteState {
   searchEmotes: (query: string, limit?: number) => Emote[];
   getEmotesByProvider: () => Map<EmoteProvider, Emote[]>;
   getAllEmotes: () => Emote[];
+  getEmoteNameMap: () => Map<string, Emote>;
 }
 
 export const useEmoteStore = create<EmoteState>((set, get) => ({
   isLoading: false,
   loadedGlobalPlatforms: new Set(),
   error: null,
+  emoteRevision: 0,
   loadedChannels: new Set(),
   recentEmotes: [],
   maxRecentEmotes: 20,
@@ -114,15 +124,22 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
     // separate reset is needed. We do NOT re-parse already-buffered messages —
     // next-load semantics only (R10).
     emoteManager.clearAll();
-    set({ loadedGlobalPlatforms: new Set(), loadedChannels: new Set() });
+    set((state) => ({
+      loadedGlobalPlatforms: new Set(),
+      loadedChannels: new Set(),
+      emoteRevision: state.emoteRevision + 1,
+    }));
   },
 
-  loadGlobalEmotes: async (platform) => {
+  loadGlobalEmotes: async (platform, options) => {
     const state = get();
     // Per-platform gate when platform is given (so opening Twitch then Kick
     // still loads each platform's providers once). Falls back to the legacy
     // "loaded anything" gate when called without a platform.
-    if (platform ? state.loadedGlobalPlatforms.has(platform) : state.loadedGlobalPlatforms.size > 0)
+    if (
+      !options?.force &&
+      (platform ? state.loadedGlobalPlatforms.has(platform) : state.loadedGlobalPlatforms.size > 0)
+    )
       return;
 
     // Single-flight per-platform key. Critically, "twitch" and "kick" are
@@ -144,6 +161,7 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
           loadedGlobalPlatforms: platform
             ? new Set([...s.loadedGlobalPlatforms, platform])
             : s.loadedGlobalPlatforms,
+          emoteRevision: s.emoteRevision + 1,
           isLoading: false,
         }));
       } catch (error) {
@@ -170,9 +188,9 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
     }
   },
 
-  loadChannelEmotes: async (channelId, channelName, platform = "twitch", kickUserId) => {
+  loadChannelEmotes: async (channelId, channelName, platform = "twitch", kickUserId, options) => {
     const state = get();
-    if (state.loadedChannels.has(channelId)) return;
+    if (!options?.force && state.loadedChannels.has(channelId)) return;
 
     set({ isLoading: true, error: null });
 
@@ -181,6 +199,7 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
 
       set((state) => ({
         loadedChannels: new Set([...state.loadedChannels, channelId]),
+        emoteRevision: state.emoteRevision + 1,
         isLoading: false,
       }));
     } catch (error) {
@@ -204,7 +223,7 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
     set((state) => {
       const newLoadedChannels = new Set(state.loadedChannels);
       newLoadedChannels.delete(channelId);
-      return { loadedChannels: newLoadedChannels };
+      return { loadedChannels: newLoadedChannels, emoteRevision: state.emoteRevision + 1 };
     });
   },
 
@@ -253,6 +272,29 @@ export const useEmoteStore = create<EmoteState>((set, get) => ({
   getAllEmotes: () => {
     const state = get();
     return emoteManager.getAllEmotes(state.activeChannelId || undefined);
+  },
+
+  getEmoteNameMap: () => {
+    const state = get();
+    if (
+      emoteNameMapCache &&
+      emoteNameMapCache.activeChannelId === state.activeChannelId &&
+      emoteNameMapCache.emoteRevision === state.emoteRevision
+    ) {
+      return emoteNameMapCache.map;
+    }
+
+    const map = new Map(
+      emoteManager
+        .getAllEmotes(state.activeChannelId || undefined)
+        .map((emote) => [emote.name, emote])
+    );
+    emoteNameMapCache = {
+      activeChannelId: state.activeChannelId,
+      emoteRevision: state.emoteRevision,
+      map,
+    };
+    return map;
   },
 }));
 

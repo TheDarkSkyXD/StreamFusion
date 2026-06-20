@@ -25,6 +25,7 @@ const loadGlobalEmotesMock = vi.fn();
 const loadChannelEmotesMock = vi.fn();
 const clearChannelEmotesMock = vi.fn();
 const clearAllMock = vi.fn();
+const getAllEmotesMock = vi.fn();
 
 // Mutable enabled-provider set so applyProviderPrefs's get/set/clear flow can be
 // exercised against a realistic manager surface. Reset in beforeEach.
@@ -43,7 +44,7 @@ vi.mock("@/backend/services/emotes", () => ({
     },
     searchEmotes: () => [],
     getEmotesByProvider: () => new Map(),
-    getAllEmotes: () => [],
+    getAllEmotes: (...args: unknown[]) => getAllEmotesMock(...args),
   },
 }));
 
@@ -70,6 +71,7 @@ function resetStore(): void {
     isLoading: false,
     loadedGlobalPlatforms: new Set(),
     error: null,
+    emoteRevision: 0,
     loadedChannels: new Set(),
     recentEmotes: [],
     favoriteEmotes: [],
@@ -84,6 +86,8 @@ beforeEach(() => {
   loadChannelEmotesMock.mockResolvedValue(undefined);
   clearChannelEmotesMock.mockReset();
   clearAllMock.mockReset();
+  getAllEmotesMock.mockReset();
+  getAllEmotesMock.mockReturnValue([]);
   enabledProviders = new Set(["twitch", "kick", "bttv", "ffz", "7tv"]);
   resetStore();
 });
@@ -163,6 +167,49 @@ describe("emote-store loadGlobalEmotes", () => {
     expect(useEmoteStore.getState().loadedGlobalPlatforms.size).toBe(0);
     await useEmoteStore.getState().loadGlobalEmotes("twitch");
     expect(useEmoteStore.getState().loadedGlobalPlatforms.size).toBeGreaterThan(0);
+  });
+
+  it("force reloads a platform so authed account emotes are not skipped after globals loaded", async () => {
+    const { loadGlobalEmotes } = useEmoteStore.getState();
+    await loadGlobalEmotes("twitch");
+    await loadGlobalEmotes("twitch", { force: true });
+
+    expect(loadGlobalEmotesMock).toHaveBeenCalledTimes(2);
+    expect(loadGlobalEmotesMock).toHaveBeenNthCalledWith(1, "twitch");
+    expect(loadGlobalEmotesMock).toHaveBeenNthCalledWith(2, "twitch");
+  });
+});
+
+describe("emote-store getEmoteNameMap", () => {
+  it("reuses the emote name lookup until the active channel or emote revision changes", () => {
+    getAllEmotesMock.mockReturnValue([
+      {
+        id: "clap",
+        name: "Clap",
+        provider: "7tv",
+        isGlobal: false,
+        urls: { url1x: "https://cdn.example/clap.webp", url2x: "https://cdn.example/clap.webp" },
+      },
+    ]);
+
+    const first = useEmoteStore.getState().getEmoteNameMap();
+    const second = useEmoteStore.getState().getEmoteNameMap();
+
+    expect(second).toBe(first);
+    expect(first.get("Clap")?.id).toBe("clap");
+    expect(getAllEmotesMock).toHaveBeenCalledTimes(1);
+
+    useEmoteStore.setState({ emoteRevision: 1 });
+    const afterRevision = useEmoteStore.getState().getEmoteNameMap();
+
+    expect(afterRevision).not.toBe(first);
+    expect(getAllEmotesMock).toHaveBeenCalledTimes(2);
+
+    useEmoteStore.setState({ activeChannelId: "chan-1" });
+    useEmoteStore.getState().getEmoteNameMap();
+
+    expect(getAllEmotesMock).toHaveBeenCalledTimes(3);
+    expect(getAllEmotesMock).toHaveBeenLastCalledWith("chan-1");
   });
 });
 

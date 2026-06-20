@@ -51,6 +51,34 @@ const PROTECTED_BADGE_SET_IDS = new Set([
 const TOOLBAR_BUTTON_CLASS =
   "opacity-0 group-hover:opacity-100 p-1 rounded text-foreground-secondary hover:text-foreground hover:bg-white/10 transition-opacity";
 
+const KICK_GIFT_BADGE_SET_IDS = new Set([
+  "sub_gifter",
+  "subgifter",
+  "subgifter5",
+  "subgifter25",
+  "subgifter50",
+  "subgifter100",
+  "subgifter200",
+]);
+
+function isKickGiftBadge(setId: string | undefined): boolean {
+  return setId ? KICK_GIFT_BADGE_SET_IDS.has(setId) : false;
+}
+
+function orderRenderableBadges(
+  badges: ChatMessageType["badges"],
+  platform: ChatMessageType["platform"]
+): ChatMessageType["badges"] {
+  const renderableBadges = badges.filter((badge) => badge.imageUrl);
+  if (platform !== "kick") return renderableBadges;
+
+  return renderableBadges.toSorted((a, b) => {
+    if (isKickGiftBadge(a.setId) && b.setId === "subscriber") return -1;
+    if (a.setId === "subscriber" && isKickGiftBadge(b.setId)) return 1;
+    return 0;
+  });
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
@@ -99,6 +127,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       cd.density === "compact" ? "px-4 py-0.5 leading-[1.2]" : "px-4 py-1 leading-[1.4]";
     const fontSizeStyle = { fontSize: cd.fontSizePx };
     const isDeleted = message.isDeleted;
+    const renderableBadges = useMemo(
+      () => orderRenderableBadges(message.badges, message.platform),
+      [message.badges, message.platform]
+    );
 
     if (message.type === "ban" && message.banInfo) {
       // U5 — the timeout/ban notice belongs to the clear-chat event family
@@ -159,25 +191,26 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
 
     return (
       <div
-        className={`group relative ${densityClass} hover:bg-white/5 ${showHighlight ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
+        className={`group relative min-w-0 max-w-full overflow-x-hidden ${densityClass} hover:bg-white/5 ${showHighlight ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
         style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}
       >
-        <div className="break-words">
+        <div
+          className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]"
+          data-testid="chat-message-content"
+        >
           {/* Timestamp - gated + format-driven by chat display prefs */}
           {cd.timestamps && <Timestamp timestamp={message.timestamp} format={cd.timestampFormat} />}
 
           {/* Badges */}
-          {message.badges.length > 0 && (
-            <span className="align-middle inline-block mr-1">
-              {message.badges
-                .filter((badge) => badge.imageUrl)
-                .map((badge, index) => (
-                  <ChatBadge
-                    key={`${badge.setId}-${index}`}
-                    badge={badge}
-                    platform={message.platform}
-                  />
-                ))}
+          {renderableBadges.length > 0 && (
+            <span className="align-middle inline-flex items-center gap-1 mr-1">
+              {renderableBadges.map((badge, index) => (
+                <ChatBadge
+                  key={`${badge.setId}-${badge.version}-${index}`}
+                  badge={badge}
+                  platform={message.platform}
+                />
+              ))}
             </span>
           )}
 
@@ -199,7 +232,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
 
           {/* Content */}
           <span
-            className={`align-middle ${message.isAction ? "italic" : ""}`}
+            className={`align-middle min-w-0 max-w-full break-words [overflow-wrap:anywhere] ${message.isAction ? "italic" : ""}`}
             style={message.isAction ? { color: message.color } : undefined}
           >
             {message.content.map((fragment, index) => (
@@ -334,7 +367,7 @@ const MessageFragment: React.FC<{
 }> = memo(({ fragment, platform, renderEmotesAsText }) => {
   switch (fragment.type) {
     case "text":
-      return <span>{fragment.content}</span>;
+      return <span className="break-words [overflow-wrap:anywhere]">{fragment.content}</span>;
 
     case "emote":
       if (renderEmotesAsText) {
@@ -353,7 +386,7 @@ const MessageFragment: React.FC<{
 
     case "mention":
       return (
-        <span className="bg-white/10 font-bold px-1 rounded mx-0.5 text-foreground">
+        <span className="max-w-full break-words [overflow-wrap:anywhere] bg-white/10 font-bold px-1 rounded mx-0.5 text-foreground">
           {fragment.username}
         </span>
       );
@@ -366,7 +399,7 @@ const MessageFragment: React.FC<{
             e.preventDefault();
             window.electronAPI.openExternal(fragment.url);
           }}
-          className="text-blue-400 hover:underline break-all cursor-pointer"
+          className="max-w-full text-blue-400 hover:underline break-all [overflow-wrap:anywhere] cursor-pointer"
         >
           {fragment.text}
         </a>
@@ -374,8 +407,8 @@ const MessageFragment: React.FC<{
 
     case "cheermote":
       return (
-        <span className="inline-flex items-center mx-1 text-purple-400 font-bold">
-          <img src={fragment.url} alt={fragment.name} className="h-6 w-6 mr-1" />
+        <span className="inline-flex max-w-full items-center mx-1 text-purple-400 font-bold">
+          <img src={fragment.url} alt={fragment.name} className="h-6 w-6 max-w-full mr-1" />
           {fragment.bits}
         </span>
       );

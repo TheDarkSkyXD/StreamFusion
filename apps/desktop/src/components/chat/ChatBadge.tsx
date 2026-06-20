@@ -21,6 +21,10 @@ interface ChatBadgeProps {
 export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "kick" }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  const badgeClassName =
+    platform === "kick"
+      ? "inline-block h-[calc(1em*(18/13))] w-[calc(1em*(18/13))] object-contain align-middle cursor-pointer"
+      : "h-4 w-4 object-contain inline-block align-middle cursor-pointer";
 
   // Capture position once on hover-enter — tooltip is anchored, doesn't follow the cursor.
   // Previously onMouseMove fired ~60 Hz allocating a fresh {x,y} object per frame.
@@ -50,8 +54,9 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
       <img
         src={badge.imageUrl}
         alt={badge.title || "Badge"}
-        loading="lazy"
-        className="h-4 w-auto inline-block align-middle mr-1 cursor-pointer"
+        loading="eager"
+        decoding="auto"
+        className={badgeClassName}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       />

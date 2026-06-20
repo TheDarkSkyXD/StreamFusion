@@ -139,8 +139,15 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     // over the preceding one with a negative margin equal to the emote width and
     // take it out of flow so it doesn't consume horizontal space.
     const overlayStyle: React.CSSProperties = renderAsOverlay
-      ? { height: emoteSizePx, position: "absolute", marginLeft: `-${emoteSizePx}px` }
-      : { height: emoteSizePx };
+      ? {
+          height: emoteSizePx,
+          width: emoteSizePx,
+          maxWidth: "100%",
+          objectFit: "contain",
+          position: "absolute",
+          marginLeft: `-${emoteSizePx}px`,
+        }
+      : { height: emoteSizePx, width: emoteSizePx, maxWidth: "100%", objectFit: "contain" };
 
     return (
       <>
@@ -148,12 +155,11 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           ref={imgRef}
           src={renderUrl}
           alt={name}
-          loading="lazy"
-          decoding="async"
-          fetchPriority="low"
+          loading="eager"
+          decoding="auto"
           data-zero-width={renderAsOverlay ? "true" : undefined}
           style={overlayStyle}
-          className="inline-block w-auto mx-0.5 align-middle cursor-pointer transition-transform hover:scale-110"
+          className="inline-block mx-0.5 align-middle cursor-pointer"
           onMouseEnter={handleMouseEnter}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}

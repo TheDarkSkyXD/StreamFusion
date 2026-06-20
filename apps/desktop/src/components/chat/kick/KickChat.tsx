@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -182,6 +182,17 @@ export const KickChat: React.FC<KickChatProps> = ({
   const isMod = useIsKickMod(channel);
   // Optimistic per-channel chat-room state (U14).
   const kickRoomKey = channelId ?? (chatroomId ? String(chatroomId) : "");
+  const currentChannelContext = useMemo(
+    () =>
+      kickRoomKey
+        ? {
+            channelId: kickRoomKey,
+            channelSlug: channel,
+            kickChatroomId: chatroomId,
+          }
+        : undefined,
+    [channel, chatroomId, kickRoomKey]
+  );
   const roomState = useChatRoomState("kick", kickRoomKey || null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
 
@@ -263,7 +274,7 @@ export const KickChat: React.FC<KickChatProps> = ({
 
           // Initialize Kick Emotes
           initializeKickEmotes(kickToken.accessToken);
-          if (isMounted) await loadGlobalEmotes("kick");
+          if (isMounted) await loadGlobalEmotes("kick", { force: true });
         } else {
           // Anonymous
           await kickChatService.connect({
@@ -498,12 +509,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         // emote fragment with a 7TV name in a sibling text fragment. The
         // helper is a cheap no-op (returns the same array ref) when nothing
         // matches.
-        const map = new Map(
-          useEmoteStore
-            .getState()
-            .getAllEmotes()
-            .map((e) => [e.name, e])
-        );
+        const map = useEmoteStore.getState().getEmoteNameMap();
         const enrichedContent = substituteThirdPartyEmotes(message.content, map);
         const enriched =
           enrichedContent === message.content ? message : { ...message, content: enrichedContent };
@@ -853,15 +859,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               : undefined
           }
           selfUserId={kickUser ? String(kickUser.id) : undefined}
-          currentChannelContext={
-            kickRoomKey
-              ? {
-                  channelId: kickRoomKey,
-                  channelSlug: channel,
-                  kickChatroomId: chatroomId,
-                }
-              : undefined
-          }
+          currentChannelContext={currentChannelContext}
         />
       </div>
 
@@ -874,7 +872,9 @@ export const KickChat: React.FC<KickChatProps> = ({
             channel={channel}
             channelId={kickRoomKey || null}
             chatroomId={chatroomId}
+            kickUserId={kickUserId}
             canSend={isAuthenticated && isKickConnected}
+            showModViewLink={isAuthenticated && isMod}
           />
         </div>
       </div>

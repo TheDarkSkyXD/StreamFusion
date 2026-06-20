@@ -9,6 +9,12 @@ const virtuosoInitialIndexes = vi.hoisted<Array<number | undefined>>(() => []);
 const virtuosoWindowProps = vi.hoisted<
   Array<{ overscan?: number; increaseViewportBy?: number | { top?: number; bottom?: number } }>
 >(() => []);
+const virtuosoItemContentRefs = vi.hoisted<Array<(i: number, m: unknown) => React.ReactNode>>(
+  () => []
+);
+const virtuosoLayoutProps = vi.hoisted<Array<{ className?: string; style?: React.CSSProperties }>>(
+  () => []
+);
 
 vi.mock("@/components/chat/ChatMessage", () => ({
   ChatMessage: ({ message }: { message: { displayName: string } }) => (
@@ -25,6 +31,8 @@ vi.mock("react-virtuoso", () => ({
     initialTopMostItemIndex,
     overscan,
     increaseViewportBy,
+    className,
+    style,
   }: {
     data: Array<{ id: string }>;
     itemContent: (i: number, m: unknown) => React.ReactNode;
@@ -33,9 +41,13 @@ vi.mock("react-virtuoso", () => ({
     initialTopMostItemIndex?: number;
     overscan?: number;
     increaseViewportBy?: number | { top?: number; bottom?: number };
+    className?: string;
+    style?: React.CSSProperties;
   }) => {
     virtuosoInitialIndexes.push(initialTopMostItemIndex);
     virtuosoWindowProps.push({ overscan, increaseViewportBy });
+    virtuosoItemContentRefs.push(itemContent);
+    virtuosoLayoutProps.push({ className, style });
     const scroller = document.createElement("div");
     scrollerRef?.(scroller);
     return (
@@ -106,6 +118,8 @@ describe("ChatMessageList", () => {
     resetRenderCounts();
     virtuosoInitialIndexes.length = 0;
     virtuosoWindowProps.length = 0;
+    virtuosoItemContentRefs.length = 0;
+    virtuosoLayoutProps.length = 0;
   });
 
   afterEach(() => {
@@ -120,9 +134,39 @@ describe("ChatMessageList", () => {
   it("keeps the virtualized pre-render window narrow for emote-heavy fast chat", () => {
     render(<ChatMessageList channelKey={channelA} />);
     expect(virtuosoWindowProps.at(-1)).toEqual({
-      overscan: 16,
-      increaseViewportBy: { top: 96, bottom: 96 },
+      overscan: 150,
+      increaseViewportBy: { top: 240, bottom: 480 },
     });
+  });
+
+  it("keeps Virtuoso row rendering stable when parent action callbacks are recreated", () => {
+    const channelContext = { channelId: "alpha", channelSlug: "alpha" };
+    const { rerender } = render(
+      <ChatMessageList
+        channelKey={channelA}
+        onPin={() => undefined}
+        currentChannelContext={channelContext}
+      />
+    );
+    const initialItemContent = virtuosoItemContentRefs.at(-1);
+
+    rerender(
+      <ChatMessageList
+        channelKey={channelA}
+        onPin={() => undefined}
+        currentChannelContext={channelContext}
+      />
+    );
+
+    expect(virtuosoItemContentRefs.at(-1)).toBe(initialItemContent);
+  });
+
+  it("prevents the virtualized chat scroller from exposing horizontal overflow", () => {
+    const { container } = render(<ChatMessageList channelKey={channelA} />);
+
+    expect(container.firstElementChild?.className).toContain("overflow-x-hidden");
+    expect(virtuosoLayoutProps.at(-1)?.className).toContain("overflow-x-hidden");
+    expect(virtuosoLayoutProps.at(-1)?.style?.overflowX).toBe("hidden");
   });
 
   it("renders only messages for its channel bucket", () => {
