@@ -20,7 +20,7 @@ src/
 ├── main.ts                          # Electron main process entry
 ├── renderer.tsx                     # React renderer entry
 ├── App.tsx                          # Root React component
-├── index.css                        # Global styles
+├── global.css                       # Global styles
 │
 ├── backend/                         # Main Process (Electron)
 │   ├── api/                         # Platform API Layer

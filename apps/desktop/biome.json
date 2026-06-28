@@ -14,7 +14,7 @@
       "!**/node_modules",
       "!**/out",
       "!**/coverage",
-      "!src/index.css"
+      "!src/global.css"
     ]
   },
   "formatter": {

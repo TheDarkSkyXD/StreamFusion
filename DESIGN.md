@@ -3,7 +3,7 @@ name: StreamFusion
 description: Unified Twitch + Kick desktop viewer with premium tool-grade UI
 colors:
   storm-white: "#ffffff"
-  storm-gray: "#a3a3a3"
+  storm-neutral: "#a3a3a3"
   storm-crimson: "#dc143c"
   twitch-purple: "#9146ff"
   twitch-deep: "#772ce8"
@@ -118,7 +118,7 @@ components:
     rounded: "{rounded.md}"
     padding: "8px 12px"
   nav-item-active:
-    backgroundColor: "#3f3f46"
+    backgroundColor: "#404040"
     textColor: "{colors.storm-white}"
 ---
 
@@ -247,7 +247,7 @@ The sidebar is a vertical rail: icon + label pairs, 56px wide when collapsed (ic
 
 - **Default:** Transparent background, white text, 8px radius.
 - **Hover:** Background shifts to Mid Surface (#252525).
-- **Active:** Zinc-700 (#3f3f46) background, white text. The active state is a filled container, not a colored accent.
+- **Active:** Neutral-700 (#404040) background, white text. The active state is a filled container, not a colored accent.
 - **Divider:** A 1px horizontal line (Divider #333333, 50% opacity) separates navigation from followed channels.
 
 ### Title Bar

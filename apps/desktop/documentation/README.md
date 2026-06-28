@@ -20,6 +20,10 @@ documentation/
 
 ## Documentation Standards
 
+## Reference Docs
+
+- [Twitch OAuth Scopes](./twitch-oauth-scopes.md) - canonical Twitch app-scope policy for connect and reconnect flows.
+
 ### For Active Features
 
 Each active feature should have two files:

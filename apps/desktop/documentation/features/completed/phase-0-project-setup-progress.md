@@ -130,7 +130,7 @@ StreamFusion/
 │   │   └── app-store.ts       # Zustand store
 │   ├── App.tsx
 │   ├── main.ts                # Electron main process
-│   ├── index.css              # TailwindCSS styles
+│   ├── global.css             # TailwindCSS styles
 │   └── renderer.tsx           # React entry point
 ├── .eslintrc.json
 ├── .prettierrc

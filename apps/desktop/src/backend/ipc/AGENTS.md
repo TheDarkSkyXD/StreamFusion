@@ -23,6 +23,7 @@ This directory is the IPC bridge layer. Every `ipcMain.handle` (and the few `ipc
 | `category-handlers.ts` | `CATEGORIES_GET_TOP`, `CATEGORIES_GET_BY_ID`, `CATEGORIES_GET_METADATA`, `CATEGORIES_SEARCH` | `twitchClient`, `kickClient`, `gqlGetGameMetadata` |
 | `channel-handlers.ts` | `CHANNELS_GET_BY_ID`, `CHANNELS_GET_BY_USERNAME`, `CHANNELS_GET_FOLLOWED` | `twitchClient`, `kickClient` |
 | `chat-handlers.ts` | `CHAT_GET_KICK_HISTORY`, `CHAT_GET_TWITCH_HISTORY` | `getKickChannelHistory`, `getTwitchChannelHistory` |
+| `emote-handlers.ts` | `EMOTES_*` | third-party emote services, Kick user-subscriptions service |
 | `kick-chat-handlers.ts` | `KICK_CHAT_ENSURE_SEND_WINDOW_READY`, `KICK_CHAT_SEND_MESSAGE`, `KICK_CHAT_DISPOSE_SEND_WINDOW` | `kick-send-window` (main-only module) |
 | `modlog-handlers.ts` | `MODLOG_INSERT`, `MODLOG_QUERY`, `MODLOG_SWEEP_RETENTION`, `RETENTION_GET`, `RETENTION_SET` | `dbService` (SQLite) |
 | `proxy-handlers.ts` | `PROXY_APPLY`, `PROXY_SET_CREDENTIALS`, `PROXY_HAS_CREDENTIALS` | `stream-proxy-service`, `storageService`, `isAllowedSender` |

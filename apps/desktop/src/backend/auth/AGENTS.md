@@ -100,7 +100,8 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 - **One `AuthSession` per platform at a time.** `openAuthWindow` calls `closeAuthWindow` first — stale sessions cannot accumulate.
 - **Kick sandbox: false.** Kick's BrowserWindow runs without Chromium sandbox to allow Kasada bot-detection challenges to execute. Twitch stays sandboxed.
 - **Cloudflare cookies are preserved on Kick logout.** `clearKickSessionCookies` skips `cf_clearance` and `__cf_bm` so the next visit doesn't re-trigger a WAF challenge.
-- **`getAppAccessToken` is intentionally broken** — it throws immediately. App-level client-credentials tokens require a secret; they must come from a worker endpoint if ever needed.
+- **Kick app tokens stay inside the Worker.** Desktop code must never fetch or store a Kick app token; official Kick public reads go through the Worker `/kick/*` proxy, which mints/caches the app token server-side and injects `Authorization`.
+- **Twitch app tokens are minted through the Worker.** Desktop code must never hold client secrets; Twitch can use `tokenExchangeService.getAppAccessToken("twitch")` when a Worker app-token route exists.
 
 ## Patterns
 
@@ -114,7 +115,7 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 
 ## Anti-Patterns
 
-- **Do not call `tokenExchangeService.getAppAccessToken`** — it always throws. Use user tokens.
+- **Do not mint app tokens in Electron.** For Kick, do not fetch app tokens into desktop at all; use the Worker-backed official API proxy. Never add client secrets to desktop config.
 - **Do not start a second `oauthCallbackServer` while one is already waiting** — the server is a singleton and will conflict on the port.
 - **Do not call `kickAuthService.refreshToken` from multiple concurrent code paths** — the single-flight guard handles it, but the design relies on callers using the service methods rather than calling `tokenExchangeService.refreshToken` directly.
 - **Do not cache the access token string outside `storageService`** — proactive refresh rotates it at any time; always read from the service (`getAccessToken()` / `getValidAccessToken()`).

@@ -71,6 +71,7 @@ Every `on` registration returns a cleanup function (`() => ipcRenderer.removeLis
 | `clips` | Clip listing and playback URLs |
 | `chat` | Kick and Twitch chat history snapshots |
 | `kickChat` | Kick send-window IPC (ensure-ready / send / dispose) |
+| `emotes` | 7TV / BTTV / FFZ REST bridges and Kick user subscriptions |
 | `adblock` | Status, toggle, stats, cosmetic injection, VAFT patterns |
 | `updater` | Check/download/install, settings, push progress events |
 | `env` | Runtime-environment snapshot (`isDev`, platform, app/electron/node versions) |
