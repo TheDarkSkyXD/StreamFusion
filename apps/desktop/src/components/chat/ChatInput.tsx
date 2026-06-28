@@ -655,6 +655,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [activeRoomBlocker, setActiveRoomBlocker] = useState<RoomSendBlockerKind | null>(null);
     const [activeBlockerCopy, setActiveBlockerCopy] = useState<SendBlockerCopy | null>(null);
     const [slowCooldownUntilMs, setSlowCooldownUntilMs] = useState(0);
+    const [slowCooldownDurationMs, setSlowCooldownDurationMs] = useState(0);
     const [nowMs, setNowMs] = useState(() => Date.now());
     const [error, setError] = useState<string | null>(null);
 
@@ -713,7 +714,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       platform === "twitch"
         ? { message: "Log in to chat", action: "Log in" }
         : { message: "Sign in to chat", action: "Sign in" };
-    const slowModeRemainingSeconds = Math.max(0, Math.ceil((slowCooldownUntilMs - nowMs) / 1000));
+    const slowModeRemainingMs = Math.max(0, slowCooldownUntilMs - nowMs);
+    const slowModeRemainingSeconds = Math.max(0, Math.ceil(slowModeRemainingMs / 1000));
+    const showSlowModeCountdown = slowModeRemainingMs > 0 && slowCooldownDurationMs > 0;
+    const slowModeProgressValue = showSlowModeCountdown
+      ? Math.min(100, Math.max(0, (slowModeRemainingMs / slowCooldownDurationMs) * 100))
+      : 0;
     const roomBlockerCopy: SendBlockerCopy | null =
       activeBlockerCopy ??
       (activeRoomBlocker === "followersOnly"
@@ -787,6 +793,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       ) {
         setActiveRoomBlocker(null);
         setActiveBlockerCopy(null);
+      }
+      if (slowCooldownUntilMs > 0 && slowCooldownUntilMs <= nowMs) {
+        setSlowCooldownDurationMs(0);
       }
     }, [activeRoomBlocker, nowMs, slowCooldownUntilMs]);
 
@@ -894,14 +903,15 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const getSlowModeSendBlocker = useCallback((): RoomSendBlockerKind | null => {
       if (viewerCanBypassRoomModes) return null;
-      if (roomState.slowMode === null || roomState.slowMode <= 0) return null;
       return slowCooldownUntilMs > Date.now() ? "slowMode" : null;
-    }, [roomState.slowMode, slowCooldownUntilMs, viewerCanBypassRoomModes]);
+    }, [slowCooldownUntilMs, viewerCanBypassRoomModes]);
 
     const startSlowModeCooldown = useCallback(
       (seconds = roomState.slowMode ?? 0) => {
         if (viewerCanBypassRoomModes || seconds <= 0) return;
-        const nextUntilMs = Date.now() + seconds * 1000;
+        const durationMs = seconds * 1000;
+        const nextUntilMs = Date.now() + durationMs;
+        setSlowCooldownDurationMs(durationMs);
         setSlowCooldownUntilMs(nextUntilMs);
         setNowMs(Date.now());
       },
@@ -1565,13 +1575,16 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const buttonsDisabled = disabled;
     const composerDisabled = disabled;
     const sendUnavailable = viewerIsAuthenticated && !canSend;
+    const slowModeSendLocked = showSlowModeCountdown && !viewerCanBypassRoomModes;
     const canSubmit =
       !composerDisabled &&
       !sendUnavailable &&
       !isSending &&
       !isOverLimit &&
+      !slowModeSendLocked &&
       serializeMessage(message, emoteSlots, platform).trim().length > 0;
-    const shouldDimSubmit = composerDisabled || sendUnavailable || isSending || isOverLimit;
+    const shouldDimSubmit =
+      composerDisabled || sendUnavailable || isSending || isOverLimit || slowModeSendLocked;
     const handlePaste = useCallback(
       (e: React.ClipboardEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -1661,7 +1674,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         <div className={`relative flex flex-col gap-2 ${reply ? "rounded-b-md" : ""}`}>
           <div
             data-testid="chat-input-text-row"
-            className="relative flex items-end gap-2 rounded-md border-2 bg-[#191919] px-3 py-2 transition-colors duration-150"
+            className="relative flex items-end gap-2 overflow-hidden rounded-md border-2 bg-[#191919] px-3 py-2 transition-colors duration-150"
             style={{ borderColor: isEditorFocused ? "#ffffff" : "var(--color-border)" }}
           >
             {/* Rich editor: inserted emotes are real inline nodes, so Chromium
@@ -1774,13 +1787,41 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               platform={platform}
               channel={channel}
             />
+            {showSlowModeCountdown && (
+              <div
+                aria-label="Slow mode cooldown"
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={Math.round(slowModeProgressValue)}
+                className="absolute inset-x-0 bottom-0 h-1.5 bg-[rgba(83,83,95,0.55)]"
+                data-testid="chat-slow-mode-progress"
+                role="progressbar"
+              >
+                <div
+                  className={`h-full transition-[width] duration-200 ease-linear ${
+                    platform === "twitch" ? "bg-[#a970ff]" : "bg-[#53FC18]"
+                  }`}
+                  style={{ width: `${slowModeProgressValue}%` }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Footer actions. The second row is only chat settings + submit. */}
           <div
             data-testid="chat-input-action-row"
-            className="relative flex items-center justify-end gap-2 animate-slide-and-fade-in"
+            className={`relative flex items-center gap-2 animate-slide-and-fade-in ${
+              showSlowModeCountdown ? "justify-between" : "justify-end"
+            }`}
           >
+            {showSlowModeCountdown && (
+              <p
+                className="min-w-0 flex-1 truncate text-base font-bold leading-6 text-[#efeff1]"
+                data-testid="chat-slow-mode-countdown"
+              >
+                You can chat in {formatSlowModeWait(slowModeRemainingSeconds)}
+              </p>
+            )}
             <div className="flex items-center gap-2">
               {showModViewLink ? (
                 <Link

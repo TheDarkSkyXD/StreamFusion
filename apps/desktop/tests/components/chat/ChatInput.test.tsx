@@ -10,7 +10,7 @@
 
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createRef } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -271,6 +271,10 @@ beforeEach(() => {
   mentionAutocompleteCtl.closeAutocomplete.mockClear();
   mentionAutocompleteCtl.deactivate.mockClear();
   mentionAutocompleteCtl.checkTrigger.mockClear();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function renderInput(overrides: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
@@ -872,6 +876,69 @@ describe("ChatInput — slow-mode cooldown", () => {
     expect(screen.getByTestId("info-banner-stub")).toHaveTextContent("Slow Mode [5s]");
     expect(screen.queryByTestId("chat-send-blocker")).toBeNull();
     expect(editor).toHaveTextContent("second");
+  });
+
+  it("renders a countdown progress bar while slow mode blocks the next send", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-28T12:00:00.000Z"));
+
+    infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Slow Mode [5s]</div>);
+    useRoomStateStore.getState().updateRoomState("twitch", "12345", { slowMode: 5 });
+    renderInput({ isAuthenticated: true, canSend: true });
+    const editor = getEditor();
+    typeInEditor(editor, "first");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    const progress = screen.getByRole("progressbar", {
+      name: /slow mode cooldown/i,
+    });
+    expect(progress).toHaveAttribute("aria-valuenow", "100");
+    const countdown = screen.getByTestId("chat-slow-mode-countdown");
+    expect(countdown).toHaveTextContent("You can chat in 5s");
+    expect(countdown).toHaveClass("text-base", "font-bold", "leading-6");
+    expect(screen.getByTestId("chat-input-action-row")).toContainElement(countdown);
+
+    typeInEditor(editor, "second");
+    expect(screen.getByRole("button", { name: "Chat" })).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+
+    expect(progress).toHaveAttribute("aria-valuenow", "50");
+    expect(countdown).toHaveTextContent("You can chat in 3s");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+
+    expect(screen.queryByTestId("chat-slow-mode-progress")).toBeNull();
+    expect(screen.queryByTestId("chat-slow-mode-countdown")).toBeNull();
+  });
+
+  it("places countdown text before the mod shortcut when the mod icon is visible", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-28T12:00:00.000Z"));
+
+    infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Slow Mode [5s]</div>);
+    useRoomStateStore.getState().updateRoomState("twitch", "12345", { slowMode: 5 });
+    renderInput({ isAuthenticated: true, canSend: true, showModViewLink: true });
+    const editor = getEditor();
+    typeInEditor(editor, "first");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    const countdown = screen.getByTestId("chat-slow-mode-countdown");
+    const modLink = screen.getByTestId("chat-mod-view-link");
+    expect(screen.getByTestId("chat-input-action-row")).toContainElement(countdown);
+    expect(countdown.compareDocumentPosition(modLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
   it("keeps emote-only ahead of slow mode in blocker priority", async () => {
