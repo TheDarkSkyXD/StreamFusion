@@ -6,14 +6,15 @@ interface ChatHighlightCardProps {
   icon: React.ReactNode;
   label: string;
   testId: string;
+  borderClassName?: string;
   style?: React.CSSProperties;
 }
 
 export const ChatHighlightCard: React.FC<ChatHighlightCardProps> = memo(
-  ({ children, icon, label, testId, style }) => {
+  ({ children, icon, label, testId, borderClassName = "border-white", style }) => {
     return (
       <div
-        className="mx-2 my-2 min-w-0 max-w-full overflow-x-clip rounded-[6px] border border-white text-[#efeff1]"
+        className={`mx-2 my-2 min-w-0 max-w-full overflow-x-clip rounded-[6px] border ${borderClassName} text-[#efeff1]`}
         data-testid={testId}
         style={style}
       >

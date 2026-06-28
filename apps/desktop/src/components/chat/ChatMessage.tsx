@@ -10,6 +10,7 @@ import { ChatEmote } from "./ChatEmote";
 import { ChatMessageReplyPreview, ChatPinButton, ChatReplyButton } from "./ChatReply";
 import { FirstTimeChatHighlight } from "./FirstTimeChatHighlight";
 import { MentionHighlight } from "./MentionHighlight";
+import { ModeratorHighlight } from "./ModeratorHighlight";
 import { formatMentionLabel } from "./mention-label";
 import { Username, type UsernameChannelContext } from "./Username";
 
@@ -224,8 +225,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     // highlight and ignore the first-message preference.
     const showFirstTimeChatHighlight =
       message.isHighlighted && message.type === "message" && cd.firstMsgHighlight;
+    const showModeratorHighlight =
+      message.type === "message" && message.badges.some((badge) => badge.setId === "moderator");
     const showHighlight = message.isHighlighted && message.type !== "message";
-    const isFramedHighlight = mentionsViewer || showFirstTimeChatHighlight;
+    const isFramedHighlight =
+      mentionsViewer || showFirstTimeChatHighlight || showModeratorHighlight;
 
     // U5 — when `systemMessageEmotes` is off, emotes inside system / notice
     // lines render as their literal name instead of an image. Regular chat
@@ -392,6 +396,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
         <MentionHighlight style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}>
           {messageRow}
         </MentionHighlight>
+      );
+    }
+
+    if (showModeratorHighlight) {
+      return (
+        <ModeratorHighlight
+          platform={message.platform}
+          style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}
+        >
+          {messageRow}
+        </ModeratorHighlight>
       );
     }
 

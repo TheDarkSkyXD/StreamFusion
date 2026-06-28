@@ -84,6 +84,7 @@ function setTwitchViewer(login = "darkskyfullofstars", displayName = "DarkSkyFul
 // Guards: mention fragments render as @username in chat rows without duplicating an existing @ prefix
 // Guards: signed-in viewer mentions render as Twitch-style mention cards, while guest and other-user mentions stay ordinary rows
 // Guards: first-time chat messages render as white-bordered Twitch-style cards instead of inline purple rows
+// Guards: moderator-badged chat messages render as green moderator cards with platform-specific icons instead of ordinary rows
 // Guards: click-to-reply uses Twitch's circular reply affordance and exact SVG path on every opted-in chat platform
 // Guards: pin-message uses Twitch's circular hover affordance and exact SVG path instead of a generic icon
 // Guards: parsed Twitch reply metadata renders the inline "Replying to @user" context above the child message
@@ -168,6 +169,32 @@ describe("ChatMessage", () => {
 
     expect(screen.queryByTestId("viewer-mention-highlight")).toBeNull();
     expect(screen.getByText("@AnotherViewer").className).not.toContain("bg-[#f7f7f8]");
+  });
+
+  it("wraps Twitch moderator-badged messages in the moderator card with the sword icon", () => {
+    render(<ChatMessage message={baseMessage({ badges: [badge("moderator")] })} />);
+
+    const card = screen.getByTestId("moderator-chat-highlight");
+    expect(screen.getByText("Moderator")).toBeInTheDocument();
+    expect(card.className).toContain("border-[#00a865]");
+    expect(card.querySelector("path")?.getAttribute("d")).toBe(
+      "M15.504 2H22v6.496L10.35 17.35 12 19l-1.5 1.5-2.785-2.785L3.5 22 2 20.5l4.285-4.215L3.5 13.5 5 12l1.65 1.65L15.504 2ZM20 7.504 8.923 15.923l-.846-.846L16.496 4H20v3.504Z"
+    );
+    expect(screen.getByText("Ninja")).toBeInTheDocument();
+    expect(screen.getByText(/hello world/)).toBeInTheDocument();
+  });
+
+  it("wraps Kick moderator-badged messages in the moderator card with the hammer icon", () => {
+    render(
+      <ChatMessage message={baseMessage({ platform: "kick", badges: [badge("moderator")] })} />
+    );
+
+    const card = screen.getByTestId("moderator-chat-highlight");
+    expect(screen.getByText("Moderator")).toBeInTheDocument();
+    expect(card.className).toContain("border-[#00a865]");
+    expect(card.querySelector("path")?.getAttribute("d")).toBe("m14 9 4.5 4.5");
+    expect(screen.getByText("Ninja")).toBeInTheDocument();
+    expect(screen.getByText(/hello world/)).toBeInTheDocument();
   });
 
   it("renders deleted-message placeholder when isDeleted", () => {
@@ -494,6 +521,15 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     expect(screen.getByText("First Time Chat")).toBeInTheDocument();
     expect(card.className).toContain("border-white");
     expect(row.className).not.toContain("border-purple-500");
+  });
+
+  it("keeps first-time chat precedence over moderator badge cards", () => {
+    render(
+      <ChatMessage message={baseMessage({ badges: [badge("moderator")], isHighlighted: true })} />
+    );
+
+    expect(screen.getByTestId("first-time-chat-highlight")).toBeInTheDocument();
+    expect(screen.queryByTestId("moderator-chat-highlight")).toBeNull();
   });
 
   it("removes the highlight on a chat message when firstMsgHighlight is false", () => {
