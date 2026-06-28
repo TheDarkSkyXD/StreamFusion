@@ -4,6 +4,7 @@
     "private": true,
     "scripts": {
         "deploy": "wrangler deploy",
+        "smoke": "node scripts/smoke.mjs",
         "dev": "wrangler dev",
         "start": "wrangler dev",
         "types": "wrangler types"
