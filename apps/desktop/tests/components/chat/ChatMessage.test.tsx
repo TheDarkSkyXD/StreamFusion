@@ -192,7 +192,10 @@ describe("ChatMessage", () => {
     const card = screen.getByTestId("moderator-chat-highlight");
     expect(screen.getByText("Moderator")).toBeInTheDocument();
     expect(card.className).toContain("border-[#00a865]");
-    expect(card.querySelector("path")?.getAttribute("d")).toBe("m14 9 4.5 4.5");
+    expect(card.querySelector("svg")?.getAttribute("class")).toContain("-scale-x-100");
+    expect(card.querySelector("path")?.getAttribute("d")).toContain(
+      "M15.784 14.309l-8.572-7.804"
+    );
     expect(screen.getByText("Ninja")).toBeInTheDocument();
     expect(screen.getByText(/hello world/)).toBeInTheDocument();
   });

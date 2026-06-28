@@ -1,5 +1,6 @@
 import type React from "react";
 import { memo } from "react";
+import { ImHammer2 } from "react-icons/im";
 import type { ChatPlatform } from "../../shared/chat-types";
 import { ChatHighlightCard } from "./ChatHighlightCard";
 
@@ -26,22 +27,7 @@ const TwitchModeratorIcon: React.FC = () => (
 );
 
 const KickModeratorIcon: React.FC = () => (
-  <svg
-    aria-hidden="true"
-    className="h-5 w-5"
-    fill="none"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="2.5"
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="m14 9 4.5 4.5" />
-    <path d="m12.25 10.75-8.5 8.5a2.12 2.12 0 0 0 3 3l8.5-8.5" />
-    <path d="m8.5 6.5 3-3 8 8-3 3" />
-    <path d="m12.5 2.5 9 9" />
-  </svg>
+  <ImHammer2 aria-hidden="true" className="h-5 w-5 -scale-x-100" />
 );
 
 export const ModeratorHighlight: React.FC<ModeratorHighlightProps> = memo(
