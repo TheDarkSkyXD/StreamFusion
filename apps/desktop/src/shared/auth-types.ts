@@ -45,6 +45,7 @@ export const TWITCH_APP_SCOPES = [
   "moderator:manage:chat_messages",
   // Channel-management console actions.
   "moderator:manage:banned_users",
+  "moderator:manage:warnings",
   "moderator:manage:shield_mode",
   "channel:manage:raids",
   "channel:manage:moderators",

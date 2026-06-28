@@ -25,6 +25,12 @@ const ACTION_COPY: Array<{
     descriptionFragment: "Silence this user",
   },
   {
+    actionType: "warn",
+    title: "Warn user",
+    confirmLabel: "Warn user",
+    descriptionFragment: "official Twitch warning",
+  },
+  {
     actionType: "unban",
     title: "Unban user",
     confirmLabel: "Unban user",
@@ -259,6 +265,21 @@ describe("ModActionConfirmDialog", () => {
     const primary = screen.getByRole("button", { name: /^Banning…$/ });
     expect(cancel).toBeDisabled();
     expect(primary).toBeDisabled();
+  });
+
+  it("disables only the primary CTA when confirmDisabled=true", () => {
+    render(
+      <ModActionConfirmDialog
+        open={true}
+        onOpenChange={() => {}}
+        actionType="warn"
+        targetPreview={<span>x</span>}
+        onConfirm={() => {}}
+        confirmDisabled={true}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /^Cancel$/ })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Warn user$/ })).toBeDisabled();
   });
 
   it("does not close itself after a successful onConfirm — parent controls open state", () => {

@@ -1,3 +1,4 @@
+// Guards: Twitch warning mutations keep the documented /moderation/warnings URL, query params, and required reason envelope.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Guards: Helix moderation-mutation wire envelopes — ban/unban/timeout/clear-chat/delete-message/raid/shield-mode/commercial/add+remove-moderator/add+remove-vip. Each asserts URL, method, query params, and request body so a casual rename to a Helix field doesn't silently 404 the moderator UI in production.
@@ -16,6 +17,7 @@ import {
   timeoutUser,
   unbanUser,
   updateChatSettings,
+  warnUser,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 
 // Per-call capture for body / URL / method / headers inspection.
@@ -74,6 +76,28 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("URL + method + body construction", () => {
+  it("warnUser -> POST /moderation/warnings with { data: { user_id, reason } }", async () => {
+    nextResponse = {
+      status: 200,
+      body: {
+        data: [
+          {
+            broadcaster_id: "111",
+            moderator_id: "222",
+            user_id: "333",
+            reason: "Please stop",
+          },
+        ],
+      },
+    };
+    await warnUser({ ...CTX, userId: "333", reason: " Please stop " });
+    expect(lastMethod).toBe("POST");
+    expect(lastUrl).toBe(
+      "https://api.twitch.tv/helix/moderation/warnings?broadcaster_id=111&moderator_id=222",
+    );
+    expect(lastBody).toEqual({ data: { user_id: "333", reason: "Please stop" } });
+  });
+
   it("banUser → POST /moderation/bans with { data: { user_id, reason } }", async () => {
     nextResponse = {
       status: 200,

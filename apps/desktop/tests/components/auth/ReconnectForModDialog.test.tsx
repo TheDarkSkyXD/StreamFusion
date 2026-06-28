@@ -7,12 +7,13 @@ import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
 // Every Twitch scope the dialog covers — the two pin-path scopes (U7), the
-// nine channel-management console scopes (U4), and the two unban-requests
+// ten channel-management console scopes (U4), and the two unban-requests
 // scopes (this batch).
-const ALL_THIRTEEN_SCOPES = [
+const ALL_FOURTEEN_SCOPES = [
   "user:read:moderated_channels",
   "moderator:manage:chat_messages",
   "moderator:manage:banned_users",
+  "moderator:manage:warnings",
   "moderator:manage:shield_mode",
   "channel:manage:raids",
   "channel:manage:moderators",
@@ -29,6 +30,7 @@ const EXPECTED_DESCRIPTIONS: Record<string, string> = {
   "user:read:moderated_channels": "See which channels you moderate",
   "moderator:manage:chat_messages": "Pin, unpin, and delete chat messages",
   "moderator:manage:banned_users": "Time out, ban, and unban users",
+  "moderator:manage:warnings": "Warn users in chat",
   "moderator:manage:shield_mode": "Toggle Shield Mode",
   "channel:manage:raids": "Start and cancel raids",
   "channel:manage:moderators": "Add and remove moderators",
@@ -94,13 +96,13 @@ describe("ReconnectForModDialog", () => {
     expect(screen.queryByText(/reconnect for mod features/i)).not.toBeInTheDocument();
   });
 
-  it("renders every U4 scope plus the two pin scopes and the two unban-requests scopes when opened with all 13", () => {
+  it("renders every U4 scope plus the two pin scopes and the two unban-requests scopes when opened with all 14", () => {
     render(<ReconnectForModDialog />);
     act(() => {
-      useReconnectDialogStore.getState().open({ missingScopes: ALL_THIRTEEN_SCOPES });
+      useReconnectDialogStore.getState().open({ missingScopes: ALL_FOURTEEN_SCOPES });
     });
 
-    for (const scope of ALL_THIRTEEN_SCOPES) {
+    for (const scope of ALL_FOURTEEN_SCOPES) {
       const desc = EXPECTED_DESCRIPTIONS[scope];
       expect(screen.getByText(desc)).toBeInTheDocument();
     }

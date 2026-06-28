@@ -14,18 +14,28 @@ const lastListProps: {
   onTimeout?: (m: unknown) => void;
   onUnban?: (m: unknown) => void;
   onDelete?: (m: unknown) => void;
+  onPin?: (m: unknown) => void;
   selfUserId?: string;
 } = {};
 const banKickUserMock = vi.fn();
 const timeoutKickUserMock = vi.fn();
 const unbanKickUserMock = vi.fn();
 const deleteKickMessageMock = vi.fn();
+const toastSuccessMock = vi.fn();
+const toastErrorMock = vi.fn();
 
 vi.mock('@/backend/api/platforms/kick/kick-mod-mutations', () => ({
   banKickUser: (...args: unknown[]) => banKickUserMock(...args),
   timeoutKickUser: (...args: unknown[]) => timeoutKickUserMock(...args),
   unbanKickUser: (...args: unknown[]) => unbanKickUserMock(...args),
   deleteKickMessage: (...args: unknown[]) => deleteKickMessageMock(...args),
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccessMock(...args),
+    error: (...args: unknown[]) => toastErrorMock(...args),
+  },
 }));
 
 // Mutable mod flag. Defaults to mod (most existing tests exercise the
@@ -171,6 +181,7 @@ vi.mock('@/components/chat/ChatMessageList', () => ({
     lastListProps.onTimeout = props.onTimeout;
     lastListProps.onUnban = props.onUnban;
     lastListProps.onDelete = props.onDelete;
+    lastListProps.onPin = props.onPin;
     lastListProps.selfUserId = props.selfUserId;
     return <div data-testid="message-list">messages</div>;
   },
@@ -201,11 +212,14 @@ import { kickPredictionsService } from '@/backend/services/chat/kick-predictions
 // Guards: empty messages — message list still renders the virtuoso shell (see ChatMessageList tests); chat input still renders, gear chrome still visible in viewer single-tab path (U7)
 // Guards: U5 prefs — sub notices / polls / prediction banner each suppress when their visibility pref is false, surface when true. Silent drops here look like "Kick subs aren't firing" — a high-blast UX failure
 // Guards: U11 mod actions — Timeout uses seconds→minutes conversion with Math.max(1, …) clamp so a 10s preset doesn't round to 0 minutes and silently no-op against Kick's API
+// Guards: Kick pin actions use the original chat message sender, surface auth/API failures, and keep retryable failures visible instead of silently leaving the dialog stuck
 // Guards: final-view cleanup skips prediction unsubscribe frames before closing the shared chat Pusher socket, preventing pusher-js "WebSocket is already in CLOSING or CLOSED state" console errors on unmount
 describe('KickChat', () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
     api.auth.getToken = vi.fn(async () => ({ accessToken: 'kick-tok' }));
+    api.kickChat.pinMessage = vi.fn(async () => ({ ok: true }));
+    api.kickChat.unpinMessage = vi.fn(async () => ({ ok: true }));
     storeState.connectionStatus.kick.state = 'disconnected';
     storeState.connectionStatus.twitch.state = 'disconnected';
     chatInputProps.canSend = undefined;
@@ -213,12 +227,15 @@ describe('KickChat', () => {
     lastListProps.onTimeout = undefined;
     lastListProps.onUnban = undefined;
     lastListProps.onDelete = undefined;
+    lastListProps.onPin = undefined;
     lastListProps.selfUserId = undefined;
     lastListProps.channelKey = undefined;
     banKickUserMock.mockReset();
     timeoutKickUserMock.mockReset();
     unbanKickUserMock.mockReset();
     deleteKickMessageMock.mockReset();
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
     vi.mocked(kickChatService.connect).mockClear();
     vi.mocked(kickChatService.acquire).mockClear();
     vi.mocked(kickChatService.release).mockClear();
@@ -324,6 +341,14 @@ describe('KickChat', () => {
     rawContent: 'kspam',
   } as const;
 
+  const fakePinMessage = {
+    id: 'k-pin-1',
+    username: 'viewer-slug',
+    displayName: 'Viewer Display',
+    userId: '77',
+    rawContent: 'pin this',
+  } as const;
+
   it('Confirming a Timeout dialog calls timeoutKickUser with duration in minutes', async () => {
     timeoutKickUserMock.mockResolvedValue({ ok: true });
     render(<KickChat channel="xqc" chatroomId={12345} />);
@@ -356,6 +381,70 @@ describe('KickChat', () => {
     await waitFor(() => expect(timeoutKickUserMock).toHaveBeenCalledTimes(1));
     // 10 seconds / 60 → 0 minutes; Math.max(1, …) clamps to 1.
     expect(timeoutKickUserMock.mock.calls[0][0]).toMatchObject({ duration: 1 });
+  });
+
+  it('pinning a Kick message uses the original message sender and closes on success', async () => {
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+
+    act(() => {
+      lastListProps.onPin?.(fakePinMessage);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Pin message$/ }));
+
+    await waitFor(() => expect(window.electronAPI.kickChat.pinMessage).toHaveBeenCalledTimes(1));
+    expect(window.electronAPI.kickChat.pinMessage).toHaveBeenCalledWith({
+      channelSlug: 'xqc',
+      messageId: 'k-pin-1',
+      chatroomId: 12345,
+      content: 'pin this',
+      sender: {
+        id: 77,
+        username: 'Viewer Display',
+        slug: 'viewer-slug',
+      },
+      durationSeconds: 20 * 60,
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith('Pinned message');
+    await waitFor(() => expect(screen.queryByText('Duration')).toBeNull());
+  });
+
+  it('surfaces Kick pin API failures and leaves the dialog open for retry', async () => {
+    window.electronAPI.kickChat.pinMessage = vi.fn(async () => ({
+      ok: false as const,
+      kind: 'forbidden' as const,
+      message: '403',
+    }));
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+
+    act(() => {
+      lastListProps.onPin?.(fakePinMessage);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Pin message$/ }));
+
+    await waitFor(() => expect(window.electronAPI.kickChat.pinMessage).toHaveBeenCalledTimes(1));
+    expect(toastErrorMock).toHaveBeenCalledWith("Couldn't pin message", {
+      description: '403',
+    });
+    expect(screen.getByText('Duration')).toBeInTheDocument();
+  });
+
+  it('surfaces expired Kick web auth instead of silently returning', async () => {
+    window.electronAPI.kickChat.pinMessage = vi.fn(async () => ({
+      ok: false as const,
+      kind: 'unauthenticated' as const,
+      message: '401',
+    }));
+    render(<KickChat channel="xqc" chatroomId={12345} />);
+
+    act(() => {
+      lastListProps.onPin?.(fakePinMessage);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Pin message$/ }));
+
+    await waitFor(() => expect(window.electronAPI.kickChat.pinMessage).toHaveBeenCalledTimes(1));
+    expect(toastErrorMock).toHaveBeenCalledWith("Couldn't pin message", {
+      description: '401',
+    });
   });
 
   // ---------- U5 — event/notice visibility + poll/prediction widgets ----------

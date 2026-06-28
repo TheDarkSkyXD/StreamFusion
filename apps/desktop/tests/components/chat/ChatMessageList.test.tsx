@@ -2,10 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { getRenderCounts, resetRenderCounts } from "@/components/dev/use-render-count";
-import {
-  type ChatDisplayPreferences,
-  DEFAULT_CHAT_DISPLAY_PREFERENCES,
-} from "@/shared/auth-types";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from "@/store/chat-store";
@@ -26,8 +23,22 @@ const virtuosoLayoutProps = vi.hoisted<Array<{ className?: string; style?: React
 );
 
 vi.mock("@/components/chat/ChatMessage", () => ({
-  ChatMessage: ({ message }: { message: { displayName: string } }) => (
-    <div data-testid="chat-message">{message.displayName}</div>
+  ChatMessage: ({
+    message,
+    onReply,
+    onUnban,
+  }: {
+    message: { displayName: string };
+    onReply?: () => void;
+    onUnban?: () => void;
+  }) => (
+    <div
+      data-testid="chat-message"
+      data-can-reply={onReply ? "true" : "false"}
+      data-can-unban={onUnban ? "true" : "false"}
+    >
+      {message.displayName}
+    </div>
   ),
 }));
 
@@ -140,6 +151,8 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 // Guards: Twitch-style Pause Chat preferences add mouseover and Alt-key pause triggers without breaking scroll pause.
 // Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
 // Guards: rapid chat updates must not mutate Virtuoso's initial scroll index and flash/jump the visible list
+// Guards: click-to-reply is only exposed when the platform orchestrator opts the list into reply behavior
+// Guards: inline Unban is exposed only for senders known to be banned or timed out; missing unban state must not show it for ordinary users
 describe("ChatMessageList", () => {
   beforeEach(() => {
     resetChatStore();
@@ -218,6 +231,48 @@ describe("ChatMessageList", () => {
 
     expect(getAllByTestId("chat-message")).toHaveLength(1);
     expect(getAllByTestId("chat-message")[0]).toHaveTextContent("Alpha");
+  });
+
+  it("passes reply only when onReply is provided", () => {
+    act(() => {
+      useChatStore.getState().addMessage(message("a", "alpha", "Alpha"));
+    });
+
+    const { getByTestId, rerender } = render(<ChatMessageList channelKey={channelA} />);
+    expect(getByTestId("chat-message")).toHaveAttribute("data-can-reply", "false");
+
+    rerender(<ChatMessageList channelKey={channelA} onReply={() => undefined} />);
+    expect(getByTestId("chat-message")).toHaveAttribute("data-can-reply", "true");
+  });
+
+  it("passes unban only to rows whose sender is currently unbannable", () => {
+    act(() => {
+      useChatStore.getState().addMessage(message("a", "alpha", "Alpha"));
+      useChatStore.getState().addMessage(message("b", "alpha", "Bravo"));
+    });
+
+    const { getAllByTestId } = render(
+      <ChatMessageList
+        channelKey={channelA}
+        onUnban={() => undefined}
+        unbanUserIds={new Set(["user-b"])}
+      />
+    );
+
+    expect(getAllByTestId("chat-message")[0]).toHaveAttribute("data-can-unban", "false");
+    expect(getAllByTestId("chat-message")[1]).toHaveAttribute("data-can-unban", "true");
+  });
+
+  it("does not pass unban when the unbannable set is missing", () => {
+    act(() => {
+      useChatStore.getState().addMessage(message("a", "alpha", "Alpha"));
+    });
+
+    const { getByTestId } = render(
+      <ChatMessageList channelKey={channelA} onUnban={() => undefined} />
+    );
+
+    expect(getByTestId("chat-message")).toHaveAttribute("data-can-unban", "false");
   });
 
   it("re-renders only the ChatMessageList whose channel receives a message", () => {

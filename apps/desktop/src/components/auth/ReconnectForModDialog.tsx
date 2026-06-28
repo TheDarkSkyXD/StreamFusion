@@ -53,6 +53,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   "moderator:manage:chat_messages": "Pin, unpin, and delete chat messages",
   // Channel-management console scopes (U4).
   "moderator:manage:banned_users": "Time out, ban, and unban users",
+  "moderator:manage:warnings": "Warn users in chat",
   "moderator:manage:shield_mode": "Toggle Shield Mode",
   "channel:manage:raids": "Start and cancel raids",
   "channel:manage:moderators": "Add and remove moderators",

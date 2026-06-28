@@ -14,10 +14,6 @@ import {
   timeoutKickUser,
   unbanKickUser,
 } from "../../../backend/api/platforms/kick/kick-mod-mutations";
-import {
-  pinKickMessage,
-  unpinKickMessage,
-} from "../../../backend/api/platforms/kick/kick-pin-mutations";
 import { kickChatService } from "../../../backend/services/chat/kick-chat";
 import { kickPredictionsService } from "../../../backend/services/chat/kick-predictions-service";
 import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
@@ -180,6 +176,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   // strip's chat-mode toggles + local clear.
   const [pendingModAction, setPendingModAction] = useState<PendingKickModAction | null>(null);
   const [modActionBusy, setModActionBusy] = useState(false);
+  const [unbanUserIds, setUnbanUserIds] = useState<Set<string>>(() => new Set());
   const isMod = useIsKickMod(channel);
   // Optimistic per-channel chat-room state (U14).
   const kickRoomKey = channelId ?? (chatroomId ? String(chatroomId) : "");
@@ -196,6 +193,22 @@ export const KickChat: React.FC<KickChatProps> = ({
   );
   const roomState = useChatRoomState("kick", kickRoomKey || null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
+  const markUserUnbannable = useCallback((userId: string) => {
+    setUnbanUserIds((current) => {
+      if (current.has(userId)) return current;
+      const next = new Set(current);
+      next.add(userId);
+      return next;
+    });
+  }, []);
+  const markUserUnbanned = useCallback((userId: string) => {
+    setUnbanUserIds((current) => {
+      if (!current.has(userId)) return current;
+      const next = new Set(current);
+      next.delete(userId);
+      return next;
+    });
+  }, []);
 
   // U6 — merge seam. Initial v2 channel-resolve `chatroomSettings` block +
   // ChatroomUpdatedEvent Pusher events + reconnect re-seed all converge
@@ -495,6 +508,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     setActivePoll(null);
     setShowPoll(true);
     setIsPollExpanded(false);
+    setUnbanUserIds(new Set());
     pollTimer.clear();
   }, [channel, pollTimer]);
 
@@ -583,6 +597,7 @@ export const KickChat: React.FC<KickChatProps> = ({
           isAction: false,
         });
       } else if (clear.targetUserId) {
+        markUserUnbannable(clear.targetUserId);
         const messages = useChatStore.getState().messagesByChannel[clearChannelKey] ?? [];
         const lastMsg = [...messages]
           .reverse()
@@ -704,6 +719,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     channelKey,
     kickRoomKey,
     channel,
+    markUserUnbannable,
     predictionDismissGate,
     pollTimer,
   ]);
@@ -743,46 +759,6 @@ export const KickChat: React.FC<KickChatProps> = ({
           prediction={activePrediction}
           onAutoDismiss={handlePredictionAutoDismiss}
           onDismiss={handlePredictionDismiss}
-        />
-      )}
-      {/* Pinned Message Banner */}
-      {pinnedMessage && showPinned && (
-        <PinnedMessageBanner
-          pin={pinnedMessage}
-          viewerRole={isMod ? "mod" : "viewer"}
-          isExpanded={isPinExpanded}
-          onExpandToggle={() => setIsPinExpanded((v) => !v)}
-          onDismiss={() => setShowPinned(false)}
-          onUnpin={
-            isMod
-              ? async () => {
-                  try {
-                    const token = await window.electronAPI.auth.getToken("kick");
-                    if (!token?.accessToken) return;
-                    const result = await unpinKickMessage(channel, token.accessToken);
-                    if (result.ok) {
-                      // Optimistic clear. The PinnedMessageDeletedEvent
-                      // from Pusher will fire shortly after Kick processes
-                      // the unpin and confirms the local state.
-                      setPinnedMessage(null);
-                    }
-                  } catch (error) {
-                    if (process.env.NODE_ENV !== "production") {
-                      logger.error("UI:Chat:Kick", "kick unpin failed", {
-                        error: error instanceof Error ? error.message : String(error),
-                      });
-                    }
-                  }
-                }
-              : undefined
-          }
-          // Hide Reply for guests — same logic as TwitchChat: the action
-          // drafts an @mention into the chat input, which guests can't send.
-          onReply={
-            isAuthenticated
-              ? () => chatInputRef.current?.mentionUser(pinnedMessage.author.username)
-              : undefined
-          }
         />
       )}
 
@@ -830,10 +806,48 @@ export const KickChat: React.FC<KickChatProps> = ({
       ) : null}
 
       <div className="flex-1 min-h-0 relative">
+        {pinnedMessage && showPinned && (
+          <PinnedMessageBanner
+            pin={pinnedMessage}
+            viewerRole={isMod ? "mod" : "viewer"}
+            isExpanded={isPinExpanded}
+            onExpandToggle={() => setIsPinExpanded((v) => !v)}
+            onDismiss={() => setShowPinned(false)}
+            onUnpin={
+              isMod
+                ? async () => {
+                    try {
+                      const result = await window.electronAPI.kickChat.unpinMessage(channel);
+                      if (result.ok) {
+                        // Optimistic clear. The PinnedMessageDeletedEvent
+                        // from Pusher will fire shortly after Kick processes
+                        // the unpin and confirms the local state.
+                        setPinnedMessage(null);
+                      }
+                    } catch (error) {
+                      if (process.env.NODE_ENV !== "production") {
+                        logger.error("UI:Chat:Kick", "kick unpin failed", {
+                          error: error instanceof Error ? error.message : String(error),
+                        });
+                      }
+                    }
+                  }
+                : undefined
+            }
+            // Hide Reply for guests, same logic as TwitchChat: the action
+            // drafts an @mention into the chat input, which guests can't send.
+            onReply={
+              isAuthenticated
+                ? () => chatInputRef.current?.mentionUser(pinnedMessage.author.username)
+                : undefined
+            }
+            currentChannelContext={currentChannelContext}
+          />
+        )}
         <ChatMessageList
           key={`kick-${channel}-${chatroomId}`}
           channelKey={channelKey}
-          onReply={handleReply}
+          onReply={isAuthenticated ? handleReply : undefined}
           onPin={isMod ? (message) => setPinDialogMessage(message) : undefined}
           onTimeout={
             isMod
@@ -853,6 +867,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                   setPendingModAction({ kind: "messageScoped", message, actionType: "unban" })
               : undefined
           }
+          unbanUserIds={unbanUserIds}
           onDelete={
             isMod
               ? (message) =>
@@ -1118,11 +1133,16 @@ export const KickChat: React.FC<KickChatProps> = ({
                         result = messageResult;
                         if (result.ok) {
                           setPendingModAction(null);
-                          if (action.actionType === "ban") toast.success(`Banned ${username}`);
-                          else if (action.actionType === "unban")
+                          if (action.actionType === "ban") {
+                            markUserUnbannable(action.message.userId);
+                            toast.success(`Banned ${username}`);
+                          } else if (action.actionType === "unban") {
+                            markUserUnbanned(action.message.userId);
                             toast.success(`Unbanned ${username}`);
-                          else if (action.actionType === "delete") toast.success("Deleted message");
-                          else {
+                          } else if (action.actionType === "delete") {
+                            toast.success("Deleted message");
+                          } else {
+                            markUserUnbannable(action.message.userId);
                             const seconds =
                               (extraData as { durationSeconds?: number } | undefined)
                                 ?.durationSeconds ?? 600;
@@ -1177,26 +1197,33 @@ export const KickChat: React.FC<KickChatProps> = ({
             onConfirm={async (durationSeconds) => {
               setPinDialogBusy(true);
               try {
-                const token = await window.electronAPI.auth.getToken("kick");
-                if (!token?.accessToken || !kickUser) return;
-                const result = await pinKickMessage({
+                const senderId = Number(pinDialogMessage.userId);
+                if (!Number.isFinite(senderId)) {
+                  toast.error("Couldn't pin message", {
+                    description: "Message sender unavailable",
+                  });
+                  return;
+                }
+                const result = await window.electronAPI.kickChat.pinMessage({
                   channelSlug: channel,
                   messageId: pinDialogMessage.id,
                   chatroomId,
                   content: pinDialogMessage.rawContent,
                   sender: {
-                    id: kickUser.id,
-                    username: kickUser.username,
-                    slug: kickUser.slug,
+                    id: senderId,
+                    username: pinDialogMessage.displayName || pinDialogMessage.username,
+                    slug: pinDialogMessage.username,
                   },
                   durationSeconds,
-                  accessToken: token.accessToken,
                 });
                 if (result.ok) {
                   setPinDialogMessage(null);
+                  toast.success("Pinned message");
+                  return;
                 }
-                // Failures leave the dialog open so the user can retry; a
-                // toast/error surface is a future follow-up.
+                toast.error("Couldn't pin message", {
+                  description: result.message || result.kind,
+                });
               } finally {
                 setPinDialogBusy(false);
               }

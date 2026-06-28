@@ -255,6 +255,7 @@ export interface KickPinnedMessage {
     content: string;
     created_at: string;
     sender: {
+      id?: string | number;
       username: string;
       identity: {
         color: string;
@@ -263,6 +264,7 @@ export interface KickPinnedMessage {
     };
   };
   pinned_by: {
+    id?: string | number;
     username: string;
     identity: {
       color: string;
@@ -289,6 +291,7 @@ export interface NormalizedPinnedMessage {
    *  Null when not known (e.g. Kick payloads, dev simulator). */
   pinRecordId: string | null;
   author: {
+    userId?: string;
     username: string;
     displayName: string;
     color: string;
@@ -299,6 +302,7 @@ export interface NormalizedPinnedMessage {
   content: ContentFragment[];
   /** Moderator/broadcaster who created the pin. Null when unknown. */
   pinnedBy: {
+    userId?: string;
     username: string;
     color: string;
     /** Inline badges to render before the username (e.g. Broadcaster).

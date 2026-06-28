@@ -32,6 +32,7 @@ import {
   LuSquare,
   LuStar,
   LuTrash2,
+  LuTriangleAlert,
   LuTrophy,
 } from "react-icons/lu";
 
@@ -48,6 +49,7 @@ import {
 export type ModActionType =
   | "ban"
   | "timeout"
+  | "warn"
   | "unban"
   | "delete"
   | "raid"
@@ -100,6 +102,15 @@ const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
       "Silence this user for a set duration. They rejoin chat automatically when the timer ends.",
     confirmLabel: "Time out",
     busyLabel: "Timing out…",
+    confirmClass: WARNING_AMBER,
+  },
+  warn: {
+    icon: <LuTriangleAlert className="w-5 h-5 text-amber-500" />,
+    title: "Warn user",
+    description:
+      "Send this user an official Twitch warning. They'll see the reason and must acknowledge it before chatting again.",
+    confirmLabel: "Warn user",
+    busyLabel: "Warning...",
     confirmClass: WARNING_AMBER,
   },
   unban: {
@@ -274,6 +285,7 @@ export interface ModActionConfirmDialogProps {
    * current `disabled` (true when busy).
    */
   extraSlot?: (props: { onDataChange: (data: unknown) => void; disabled: boolean }) => ReactNode;
+  confirmDisabled?: boolean;
 }
 
 export function ModActionConfirmDialog({
@@ -284,6 +296,7 @@ export function ModActionConfirmDialog({
   onConfirm,
   busy = false,
   extraSlot,
+  confirmDisabled = false,
 }: ModActionConfirmDialogProps) {
   const copy = MOD_ACTION_COPY[actionType];
   const [extraData, setExtraData] = useState<unknown>(undefined);
@@ -325,7 +338,11 @@ export function ModActionConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm} disabled={busy} className={copy.confirmClass}>
+          <Button
+            onClick={handleConfirm}
+            disabled={busy || confirmDisabled}
+            className={copy.confirmClass}
+          >
             {busy ? copy.busyLabel : copy.confirmLabel}
           </Button>
         </DialogFooter>

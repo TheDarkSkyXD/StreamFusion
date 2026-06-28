@@ -22,6 +22,7 @@ import {
   timeoutUser,
   unbanUser,
   updateChatSettings,
+  warnUser,
 } from "../../../backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
@@ -81,7 +82,7 @@ type PendingTwitchModAction =
   | {
       kind: "messageScoped";
       message: ChatMessage;
-      actionType: Extract<ModActionType, "timeout" | "ban" | "unban" | "delete">;
+      actionType: Extract<ModActionType, "timeout" | "ban" | "warn" | "unban" | "delete">;
     }
   | {
       kind: "stripChatMode";
@@ -109,6 +110,8 @@ function formatTimeoutLabel(seconds: number): string {
 
 const CONNECTING_TEXT = "Connecting to channel...";
 const CONNECTED_TEXT = "Connected to the channel";
+const TWITCH_WARN_SCOPE = "moderator:manage:warnings";
+const MAX_TWITCH_WARN_REASON_LENGTH = 500;
 
 function createConnectionStatusMessage(
   channel: string,
@@ -206,6 +209,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // and slot.
   const [pendingModAction, setPendingModAction] = useState<PendingTwitchModAction | null>(null);
   const [modActionBusy, setModActionBusy] = useState(false);
+  const [warnReason, setWarnReason] = useState("");
+  const [unbanUserIds, setUnbanUserIds] = useState<Set<string>>(() => new Set());
   // Optimistic local copy of the channel's chat-room state (U14). Reads + writes
   // flow through useRoomStateStore; the hook auto-fills DEFAULT_ROOM_STATE.
   const currentChannelContext = useMemo(
@@ -214,6 +219,22 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   );
   const roomState = useChatRoomState("twitch", channelId ?? null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
+  const markUserUnbannable = useCallback((userId: string) => {
+    setUnbanUserIds((current) => {
+      if (current.has(userId)) return current;
+      const next = new Set(current);
+      next.add(userId);
+      return next;
+    });
+  }, []);
+  const markUserUnbanned = useCallback((userId: string) => {
+    setUnbanUserIds((current) => {
+      if (!current.has(userId)) return current;
+      const next = new Set(current);
+      next.delete(userId);
+      return next;
+    });
+  }, []);
 
   // U6 — merge seam. Initial Helix /chat/settings fetch + tmi.js roomstate
   // events + reconnect re-seed all converge through this hook into
@@ -502,6 +523,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     setActivePoll(null);
     setShowPoll(true);
     setIsPollExpanded(false);
+    setUnbanUserIds(new Set());
     pollTimer.clear();
     startTwitchPinPolling(channel);
     return () => {
@@ -597,6 +619,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           isAction: false,
         });
       } else if (clear.targetUserId) {
+        markUserUnbannable(clear.targetUserId);
         const messages = useChatStore.getState().messagesByChannel[clearChannelKey] ?? [];
         const lastMsg = [...messages]
           .reverse()
@@ -704,6 +727,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     channelKey,
     channel,
     channelId,
+    markUserUnbannable,
     predictionDismissGate,
     pollTimer,
   ]);
@@ -754,6 +778,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       return null;
     });
   }, [predictionDismissGate]);
+  const handleReply = useCallback((message: ChatMessage) => {
+    chatInputRef.current?.replyTo(message);
+  }, []);
 
   // U19 — Chat-tab body. Keeps the existing pinned banner / mod strip /
   // message list / input footer wiring intact. The mod-action and pin
@@ -775,84 +802,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           onDismiss={() => setShowPoll(false)}
         />
       )}
-      {pinnedMessage && showPinned && (
-        <PinnedMessageBanner
-          pin={pinnedMessage}
-          // Mods see the Unpin button in place of the viewer's hide-eye.
-          viewerRole={isMod ? "mod" : "viewer"}
-          isExpanded={isPinExpanded}
-          onExpandToggle={() => setIsPinExpanded((v) => !v)}
-          // Viewer-only local hide (only rendered when role === "viewer").
-          onDismiss={() => setShowPinned(false)}
-          // Mod-only server-side unpin. Gated by the same scope-check as Pin.
-          onUnpin={
-            isMod && pinnedMessage.messageId && twitchUser?.id && channelId
-              ? async () => {
-                  const runUnpin = async (accessToken: string) => {
-                    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                    if (!clientId || !twitchUser?.id || !channelId) return null;
-                    return unpinChatMessage(
-                      channelId,
-                      twitchUser.id,
-                      pinnedMessage.messageId,
-                      accessToken,
-                      clientId
-                    );
-                  };
-                  if (!hasModScopes) {
-                    promptReconnect({
-                      missingScopes: ["moderator:manage:chat_messages"],
-                      onReconnected: async () => {
-                        const fresh = await window.electronAPI.auth.getToken("twitch");
-                        if (!fresh?.accessToken) return;
-                        const retry = await runUnpin(fresh.accessToken);
-                        if (retry?.ok) setPinnedMessage(null);
-                      },
-                    });
-                    return;
-                  }
-                  try {
-                    const token = await window.electronAPI.auth.getToken("twitch");
-                    if (!token?.accessToken) return;
-                    const result = await runUnpin(token.accessToken);
-                    if (!result) return;
-                    if (result.ok) {
-                      // Optimistic local clear — poller will reconcile on
-                      // the next tick when Twitch confirms.
-                      setPinnedMessage(null);
-                    } else if (
-                      result.kind === "unauthenticated" ||
-                      result.kind === "missing-scopes"
-                    ) {
-                      promptReconnect({
-                        missingScopes:
-                          result.kind === "missing-scopes"
-                            ? result.missingScopes
-                            : ["moderator:manage:chat_messages"],
-                      });
-                    }
-                  } catch (error) {
-                    if (process.env.NODE_ENV !== "production") {
-                      logger.error("UI:Chat:Twitch", "unpin failed", {
-                        error: error instanceof Error ? error.message : String(error),
-                      });
-                    }
-                  }
-                }
-              : undefined
-          }
-          // Hide Reply for guests — the action drafts an @mention into the
-          // chat input, but guests can't send messages anyway.
-          onReply={
-            isAuthenticated
-              ? () => chatInputRef.current?.mentionUser(pinnedMessage.author.username)
-              : undefined
-          }
-        />
-      )}
 
-      {/* U13 — Inline mod strip. Rendered between the pinned banner and the
-       *  message list. Twitch-broadcaster sees raid + commercial too. */}
+      {/* U13 - Inline mod strip. Twitch-broadcaster sees raid +
+       *  commercial too. The pinned banner floats over the message list below. */}
       {isMod && hasModScopes && channelId && twitchUser ? (
         <InlineModStrip
           platform="twitch"
@@ -901,9 +853,86 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       ) : null}
 
       <div className="flex-1 min-h-0 relative">
+        {pinnedMessage && showPinned && (
+          <PinnedMessageBanner
+            pin={pinnedMessage}
+            // Mods see the Unpin button in place of the viewer's hide-eye.
+            viewerRole={isMod ? "mod" : "viewer"}
+            isExpanded={isPinExpanded}
+            onExpandToggle={() => setIsPinExpanded((v) => !v)}
+            // Viewer-only local hide (only rendered when role === "viewer").
+            onDismiss={() => setShowPinned(false)}
+            // Mod-only server-side unpin. Gated by the same scope-check as Pin.
+            onUnpin={
+              isMod && pinnedMessage.messageId && twitchUser?.id && channelId
+                ? async () => {
+                    const runUnpin = async (accessToken: string) => {
+                      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                      if (!clientId || !twitchUser?.id || !channelId) return null;
+                      return unpinChatMessage(
+                        channelId,
+                        twitchUser.id,
+                        pinnedMessage.messageId,
+                        accessToken,
+                        clientId
+                      );
+                    };
+                    if (!hasModScopes) {
+                      promptReconnect({
+                        missingScopes: ["moderator:manage:chat_messages"],
+                        onReconnected: async () => {
+                          const fresh = await window.electronAPI.auth.getToken("twitch");
+                          if (!fresh?.accessToken) return;
+                          const retry = await runUnpin(fresh.accessToken);
+                          if (retry?.ok) setPinnedMessage(null);
+                        },
+                      });
+                      return;
+                    }
+                    try {
+                      const token = await window.electronAPI.auth.getToken("twitch");
+                      if (!token?.accessToken) return;
+                      const result = await runUnpin(token.accessToken);
+                      if (!result) return;
+                      if (result.ok) {
+                        // Optimistic local clear, poller will reconcile on
+                        // the next tick when Twitch confirms.
+                        setPinnedMessage(null);
+                      } else if (
+                        result.kind === "unauthenticated" ||
+                        result.kind === "missing-scopes"
+                      ) {
+                        promptReconnect({
+                          missingScopes:
+                            result.kind === "missing-scopes"
+                              ? result.missingScopes
+                              : ["moderator:manage:chat_messages"],
+                        });
+                      }
+                    } catch (error) {
+                      if (process.env.NODE_ENV !== "production") {
+                        logger.error("UI:Chat:Twitch", "unpin failed", {
+                          error: error instanceof Error ? error.message : String(error),
+                        });
+                      }
+                    }
+                  }
+                : undefined
+            }
+            // Hide Reply for guests, the action drafts an @mention into the
+            // chat input, but guests can't send messages anyway.
+            onReply={
+              isAuthenticated
+                ? () => chatInputRef.current?.mentionUser(pinnedMessage.author.username)
+                : undefined
+            }
+            currentChannelContext={currentChannelContext}
+          />
+        )}
         <ChatMessageList
           key={`twitch-${channel}`}
           channelKey={channelKey}
+          onReply={isAuthenticated ? handleReply : undefined}
           onPin={
             isMod
               ? (message) => {
@@ -930,6 +959,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                   setPendingModAction({ kind: "messageScoped", message, actionType: "timeout" })
               : undefined
           }
+          onWarn={
+            isMod
+              ? (message) => {
+                  setWarnReason("");
+                  setPendingModAction({ kind: "messageScoped", message, actionType: "warn" });
+                }
+              : undefined
+          }
           onBan={
             isMod
               ? (message) =>
@@ -942,6 +979,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                   setPendingModAction({ kind: "messageScoped", message, actionType: "unban" })
               : undefined
           }
+          unbanUserIds={unbanUserIds}
           onDelete={
             isMod
               ? (message) =>
@@ -1087,6 +1125,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
               const needsTimeoutSlot =
                 action.kind === "messageScoped" && action.actionType === "timeout";
+              const needsWarnSlot = action.kind === "messageScoped" && action.actionType === "warn";
               const needsSlowModeSlot =
                 action.kind === "stripChatMode" &&
                 action.modeKind === "slow-mode" &&
@@ -1101,11 +1140,19 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                 <ModActionConfirmDialog
                   open={!!pendingModAction}
                   onOpenChange={(open) => {
-                    if (!open) setPendingModAction(null);
+                    if (!open) {
+                      setPendingModAction(null);
+                      setWarnReason("");
+                    }
                   }}
                   actionType={actionType}
                   targetPreview={targetPreview}
                   busy={modActionBusy}
+                  confirmDisabled={
+                    needsWarnSlot &&
+                    (warnReason.trim().length === 0 ||
+                      warnReason.trim().length > MAX_TWITCH_WARN_REASON_LENGTH)
+                  }
                   extraSlot={
                     needsTimeoutSlot
                       ? ({ onDataChange, disabled }) => (
@@ -1114,29 +1161,56 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                             onChange={(s) => onDataChange({ durationSeconds: s })}
                           />
                         )
-                      : needsSlowModeSlot
+                      : needsWarnSlot
                         ? ({ onDataChange, disabled }) => (
-                            <TimeoutDurationPicker
-                              disabled={disabled}
-                              onChange={(s) => onDataChange({ durationSeconds: s })}
-                            />
+                            <div className="space-y-2">
+                              <label
+                                htmlFor="twitch-warn-reason"
+                                className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
+                              >
+                                Warning reason
+                              </label>
+                              <textarea
+                                id="twitch-warn-reason"
+                                value={warnReason}
+                                maxLength={MAX_TWITCH_WARN_REASON_LENGTH}
+                                disabled={disabled}
+                                onChange={(event) => {
+                                  const next = event.currentTarget.value;
+                                  setWarnReason(next);
+                                  onDataChange({ reason: next });
+                                }}
+                                className="min-h-24 w-full resize-none rounded-md border border-[var(--color-border)] bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-[var(--color-foreground-muted)] focus:border-[#9146FF] focus:ring-1 focus:ring-[#9146FF]"
+                                placeholder="Reason shown to the user"
+                              />
+                              <div className="text-right text-xs text-[var(--color-foreground-muted)]">
+                                {warnReason.trim().length}/{MAX_TWITCH_WARN_REASON_LENGTH}
+                              </div>
+                            </div>
                           )
-                        : needsFollowersSlot
+                        : needsSlowModeSlot
                           ? ({ onDataChange, disabled }) => (
                               <TimeoutDurationPicker
                                 disabled={disabled}
                                 onChange={(s) => onDataChange({ durationSeconds: s })}
                               />
                             )
-                          : needsRaidSlot
+                          : needsFollowersSlot
                             ? ({ onDataChange, disabled }) => (
-                                <RaidTargetPicker
-                                  selfBroadcasterId={twitchUser.id}
+                                <TimeoutDurationPicker
                                   disabled={disabled}
-                                  onChange={(target) => onDataChange(target)}
+                                  onChange={(s) => onDataChange({ durationSeconds: s })}
                                 />
                               )
-                            : undefined
+                            : needsRaidSlot
+                              ? ({ onDataChange, disabled }) => (
+                                  <RaidTargetPicker
+                                    selfBroadcasterId={twitchUser.id}
+                                    disabled={disabled}
+                                    onChange={(target) => onDataChange(target)}
+                                  />
+                                )
+                              : undefined
                   }
                   onConfirm={async (extraData) => {
                     if (!pendingModAction) return;
@@ -1164,6 +1238,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                             ...ctx,
                             userId: action.message.userId,
                             durationSeconds: seconds,
+                          });
+                        }
+                        case "warn": {
+                          const reason =
+                            (extraData as { reason?: string } | undefined)?.reason ?? warnReason;
+                          return warnUser({
+                            ...ctx,
+                            userId: action.message.userId,
+                            reason,
                           });
                         }
                         case "unban":
@@ -1336,11 +1419,19 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                         setPendingModAction(null);
                         if (action.kind === "messageScoped") {
                           const username = action.message.username;
-                          if (action.actionType === "ban") toast.success(`Banned ${username}`);
-                          else if (action.actionType === "unban")
+                          if (action.actionType === "ban") {
+                            markUserUnbannable(action.message.userId);
+                            toast.success(`Banned ${username}`);
+                          } else if (action.actionType === "warn") {
+                            setWarnReason("");
+                            toast.success(`Warned ${username}`);
+                          } else if (action.actionType === "unban") {
+                            markUserUnbanned(action.message.userId);
                             toast.success(`Unbanned ${username}`);
-                          else if (action.actionType === "delete") toast.success("Deleted message");
-                          else {
+                          } else if (action.actionType === "delete") {
+                            toast.success("Deleted message");
+                          } else {
+                            markUserUnbannable(action.message.userId);
                             const seconds =
                               (extraData as { durationSeconds?: number } | undefined)
                                 ?.durationSeconds ?? 600;
@@ -1358,8 +1449,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
                       if (result.kind === "missing-scopes") {
                         setPendingModAction(null);
+                        setWarnReason("");
                         promptReconnect({
-                          missingScopes: result.missingScopes,
+                          missingScopes:
+                            result.missingScopes.length > 0
+                              ? result.missingScopes
+                              : action.kind === "messageScoped" && action.actionType === "warn"
+                                ? [TWITCH_WARN_SCOPE]
+                                : result.missingScopes,
                           onReconnected: async () => {
                             const fresh = await window.electronAPI.auth.getToken("twitch");
                             const freshClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;

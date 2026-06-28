@@ -72,6 +72,13 @@ export interface CommercialPayload {
   retry_after: number;
 }
 
+export interface WarningPayload {
+  broadcaster_id: string;
+  user_id: string;
+  moderator_id: string;
+  reason: string;
+}
+
 // Twitch returns the resolved settings object — we mirror the request shape.
 export interface ChatSettingsPayload {
   broadcaster_id: string;
@@ -360,7 +367,44 @@ export function deleteChatMessage(args: DeleteChatMessageArgs): Promise<HelixMod
 }
 
 // ---------------------------------------------------------------------------
-// 5. clearChat
+// 5. warnUser
+// ---------------------------------------------------------------------------
+
+export interface WarnUserArgs extends RequestContext {
+  userId: string;
+  reason: string;
+}
+
+interface WarningResponseEnvelope {
+  data: WarningPayload[];
+}
+
+export async function warnUser(args: WarnUserArgs): Promise<HelixModResult<WarningPayload>> {
+  const reason = args.reason.trim();
+  if (reason.length === 0 || reason.length > 500) {
+    throw new Error("warnUser: reason must be between 1 and 500 characters");
+  }
+
+  const result = await helixRequest<WarningResponseEnvelope>({
+    accessToken: args.accessToken,
+    clientId: args.clientId,
+    method: "POST",
+    path: "/moderation/warnings",
+    query: { broadcaster_id: args.broadcasterId, moderator_id: args.moderatorId },
+    body: {
+      data: {
+        user_id: args.userId,
+        reason,
+      },
+    },
+  });
+  if (!result.ok) return result;
+  const first = result.payload?.data?.[0];
+  return { ok: true, payload: first as WarningPayload };
+}
+
+// ---------------------------------------------------------------------------
+// 6. clearChat
 // ---------------------------------------------------------------------------
 
 export function clearChat(args: RequestContext): Promise<HelixModResult<void>> {

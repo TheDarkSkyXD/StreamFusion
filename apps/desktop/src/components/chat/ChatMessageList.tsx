@@ -38,8 +38,10 @@ interface ChatMessageListProps {
    *  per-message (see ChatMessage.tsx). Same latest-ref pattern as onPin so
    *  Virtuoso's itemContent identity stays stable. */
   onTimeout?: (message: ChatMessageType) => void;
+  onWarn?: (message: ChatMessageType) => void;
   onBan?: (message: ChatMessageType) => void;
   onUnban?: (message: ChatMessageType) => void;
+  unbanUserIds?: ReadonlySet<string>;
   onDelete?: (message: ChatMessageType) => void;
   /** Signed-in user's platform user id; used to hide self-mod buttons. */
   selfUserId?: string;
@@ -54,8 +56,10 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     onReply,
     onPin,
     onTimeout,
+    onWarn,
     onBan,
     onUnban,
+    unbanUserIds,
     onDelete,
     selfUserId,
     currentChannelContext,
@@ -111,6 +115,13 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const handleTimeout = useCallback((message: ChatMessageType) => {
       onTimeoutRef.current?.(message);
     }, []);
+    const onWarnRef = useRef(onWarn);
+    useEffect(() => {
+      onWarnRef.current = onWarn;
+    }, [onWarn]);
+    const handleWarn = useCallback((message: ChatMessageType) => {
+      onWarnRef.current?.(message);
+    }, []);
     const onBanRef = useRef(onBan);
     useEffect(() => {
       onBanRef.current = onBan;
@@ -133,7 +144,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       onDeleteRef.current?.(message);
     }, []);
     const hasPin = Boolean(onPin);
+    const hasReply = Boolean(onReply);
     const hasTimeout = Boolean(onTimeout);
+    const hasWarn = Boolean(onWarn);
     const hasBan = Boolean(onBan);
     const hasUnban = Boolean(onUnban);
     const hasDelete = Boolean(onDelete);
@@ -255,11 +268,12 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
         <MemoizedChatMessage
           key={message.id}
           message={message}
-          onReply={handleReply}
+          onReply={hasReply ? handleReply : undefined}
           onPin={hasPin ? handlePin : undefined}
           onTimeout={hasTimeout ? handleTimeout : undefined}
+          onWarn={hasWarn ? handleWarn : undefined}
           onBan={hasBan ? handleBan : undefined}
-          onUnban={hasUnban ? handleUnban : undefined}
+          onUnban={hasUnban && unbanUserIds?.has(message.userId) ? handleUnban : undefined}
           onDelete={hasDelete ? handleDelete : undefined}
           selfUserId={selfUserId}
           currentChannelContext={currentChannelContext}
@@ -267,14 +281,18 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       ),
       [
         handleReply,
+        hasReply,
         handlePin,
         hasPin,
         handleTimeout,
         hasTimeout,
+        handleWarn,
+        hasWarn,
         handleBan,
         hasBan,
         handleUnban,
         hasUnban,
+        unbanUserIds,
         handleDelete,
         hasDelete,
         selfUserId,
