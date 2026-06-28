@@ -26,6 +26,7 @@ vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
     getActiveFollowsByPlatform: vi.fn(),
     getLocalFollowsByPlatform: vi.fn(),
+    getKickUser: vi.fn(),
     updateLocalFollow: vi.fn(),
   },
 }));
@@ -38,6 +39,7 @@ import { ipcMain } from "electron";
 
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
+import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { registerChannelHandlers } from "@/backend/ipc/handlers/channel-handlers";
 import { storageService } from "@/backend/services/storage-service";
 
@@ -54,6 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
+  vi.mocked(storageService.getKickUser).mockReturnValue(null);
   registerChannelHandlers();
 });
 
@@ -123,6 +126,44 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
 
     expect(result).toEqual({ success: true, data: channel });
     expect(kickClient.getChannel).toHaveBeenCalledWith("kickuser");
+  });
+
+  it("enriches the authenticated Kick user's own channel with auth profile data", async () => {
+    const channel = {
+      id: "14362387",
+      platform: "kick",
+      username: "anonsociety",
+      displayName: "anonsociety",
+      avatarUrl: "",
+      bio: "",
+      isLive: false,
+      isVerified: false,
+      isPartner: false,
+      kickUserId: "15132726",
+    } satisfies UnifiedChannel;
+    vi.mocked(kickClient.getChannel).mockResolvedValue(channel);
+    vi.mocked(storageService.getKickUser).mockReturnValue({
+      id: 15132726,
+      username: "AnonSociety",
+      slug: "anonsociety",
+      profilePic: "https://kick.com/img/anon-avatar.webp",
+      bio: "real bio",
+      verified: true,
+    });
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
+    const result = await handler({}, { platform: "kick", username: "anonsociety" });
+
+    expect(result).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        username: "anonsociety",
+        displayName: "AnonSociety",
+        avatarUrl: "https://kick.com/img/anon-avatar.webp",
+        bio: "real bio",
+        isVerified: true,
+      }),
+    });
   });
 
   it("returns error envelope on failure", async () => {

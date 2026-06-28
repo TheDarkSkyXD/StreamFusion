@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import { User, X } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Tv, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 
@@ -123,6 +123,7 @@ function SingleAvatar({
 export function ProfileDropdown() {
   const { displayName, hasAnyUser, twitchUser, kickUser } = useUserInfo();
   const { twitch, kick } = useAuthStatus();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -153,6 +154,27 @@ export function ProfileDropdown() {
 
   const handleLogoutAll = async () => {
     await Promise.all([logoutTwitch(), logoutKick()]);
+    setIsOpen(false);
+  };
+
+  const handleOpenTwitchChannel = () => {
+    if (!twitchUser?.login) return;
+    navigate({
+      to: "/stream/$platform/$channel",
+      params: { platform: "twitch", channel: twitchUser.login },
+      search: { tab: "home" },
+    });
+    setIsOpen(false);
+  };
+
+  const handleOpenKickChannel = () => {
+    const channelSlug = kickUser?.slug || kickUser?.username;
+    if (!channelSlug) return;
+    navigate({
+      to: "/stream/$platform/$channel",
+      params: { platform: "kick", channel: channelSlug },
+      search: { tab: "home" },
+    });
     setIsOpen(false);
   };
 
@@ -422,6 +444,20 @@ export function ProfileDropdown() {
                 </button>
                 <div className="my-1 border-t border-[var(--color-border)]" />
               </>
+            )}
+
+            {twitch.connected && twitchUser?.login && (
+              <button onClick={handleOpenTwitchChannel} className={kickMenuItemClass}>
+                <Tv className={settingsMenuIconClass} size={18} />
+                {bothConnected ? "Twitch Channel" : "Channel"}
+              </button>
+            )}
+
+            {kick.connected && (kickUser?.slug || kickUser?.username) && (
+              <button onClick={handleOpenKickChannel} className={kickMenuItemClass}>
+                <Tv className={settingsMenuIconClass} size={18} />
+                {bothConnected ? "Kick Channel" : "Channel"}
+              </button>
             )}
 
             <Link to="/settings" className={kickMenuItemClass} onClick={() => setIsOpen(false)}>

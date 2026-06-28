@@ -1,10 +1,41 @@
 import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
-import type { Platform } from "../../../shared/auth-types";
+import type { KickUser, Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import type { UnifiedChannel } from "../../api/unified/platform-types";
 import { storageService } from "../../services/storage-service";
 import { repairKickFollowSlugs } from "./kick-follow-repair";
+
+function enrichOwnKickChannel(
+  channel: UnifiedChannel | null,
+  requestedUsername: string,
+  kickUser: KickUser | null
+): UnifiedChannel | null {
+  if (!channel || !kickUser) return channel;
+
+  const requested = requestedUsername.toLowerCase();
+  const channelUsername = channel.username.toLowerCase();
+  const authSlug = kickUser.slug.toLowerCase();
+  const authUsername = kickUser.username.toLowerCase();
+  const isOwnChannel =
+    requested === authSlug ||
+    requested === authUsername ||
+    channelUsername === authSlug ||
+    channelUsername === authUsername ||
+    channel.kickUserId === kickUser.id.toString();
+
+  if (!isOwnChannel) return channel;
+
+  return {
+    ...channel,
+    username: kickUser.slug || channel.username,
+    displayName: kickUser.username || channel.displayName,
+    avatarUrl: kickUser.profilePic || channel.avatarUrl,
+    bio: channel.bio || kickUser.bio,
+    isVerified: channel.isVerified || kickUser.verified,
+  };
+}
 
 export function registerChannelHandlers(): void {
   /**
@@ -72,6 +103,7 @@ export function registerChannelHandlers(): void {
           channel = await twitchClient.getChannelByLogin(params.username);
         } else if (params.platform === "kick") {
           channel = await kickClient.getChannel(params.username);
+          channel = enrichOwnKickChannel(channel, params.username, storageService.getKickUser());
         }
 
         return { success: true, data: channel };

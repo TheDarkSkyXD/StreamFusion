@@ -56,6 +56,65 @@ export function mapKickChatroomToSettings(raw: unknown): KickChatroomSettings | 
 const _channelCache = new Map<string, { channel: UnifiedChannel; timestamp: number }>();
 const CHANNEL_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
+function pickString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+  return "";
+}
+
+function pickPublicChannelAvatar(
+  data: Record<string, unknown>,
+  user: Record<string, unknown>
+): string {
+  return pickString(
+    user.profile_pic,
+    user.profile_picture,
+    user.profileImage,
+    data.profile_pic,
+    data.profile_picture,
+    data.profileImage
+  );
+}
+
+async function enrichChannelWithKickUser(
+  client: KickRequestor,
+  channel: UnifiedChannel,
+  userId: string | undefined,
+  slug: string
+): Promise<UnifiedChannel> {
+  const userIdNum = userId ? parseInt(userId, 10) : Number.NaN;
+  if (Number.isNaN(userIdNum)) {
+    return channel;
+  }
+
+  try {
+    const users = await getUsersById(client, [userIdNum]);
+    const user = users.find((candidate) => candidate.user_id.toString() === userId);
+    if (!user) {
+      return channel;
+    }
+
+    return {
+      ...channel,
+      avatarUrl: user.profile_picture || channel.avatarUrl,
+      displayName: user.name || channel.displayName,
+    };
+  } catch (error) {
+    logger.debug("Kick:Endpoints:Channel", "Failed to enrich channel from Kick user", {
+      slug,
+      userId,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
+    return channel;
+  }
+}
+
 // Periodically clean expired channel cache entries
 createManagedInterval(
   () => {
@@ -128,58 +187,15 @@ export async function getChannel(
         return null;
       }
 
-      // Fetch user info to get avatar and display name
-      // Use defensive approach to handle user ID mismatches
-      try {
-        const channelIdNum = parseInt(channel.id, 10);
-        if (Number.isNaN(channelIdNum)) {
-          logger.warn("Kick:Endpoints:Channel", "Invalid channel ID", {
-            channelId: channel.id,
-            slug,
-          });
-        } else {
-          const users = await getUsersById(client, [channelIdNum]);
-          if (users.length > 0) {
-            const user = users[0];
-
-            // CRITICAL: Triple-check that the user ID matches the channel ID
-            // This prevents propagating incorrect user data
-            if (user.user_id.toString() === channel.id) {
-              if (user.profile_picture) {
-                channel.avatarUrl = user.profile_picture;
-              }
-              if (user.name) {
-                channel.displayName = user.name;
-              }
-            } else {
-              logger.warn(
-                "Kick:Endpoints:Channel",
-                "User ID mismatch for channel; skipping user data enrichment",
-                {
-                  slug,
-                  fetchedUserId: user.user_id,
-                  expectedChannelId: channel.id,
-                }
-              );
-            }
-          }
-        }
-      } catch (e) {
-        logger.debug("Kick:Endpoints:Channel", "Failed to enrich user info for channel", {
-          slug,
-          error:
-            e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
-        });
-        // Not critical - channel data is still valid without user enrichment
-      }
+      const enrichedChannel = await enrichChannelWithKickUser(client, channel, channel.id, slug);
 
       // Cache successful result
       _channelCache.set(normalizedSlug, {
-        channel,
+        channel: enrichedChannel,
         timestamp: Date.now(),
       });
 
-      return channel;
+      return enrichedChannel;
     }
   } catch (error) {
     logger.warn("Kick:Endpoints:Channel", "Official channel API failed", {
@@ -194,11 +210,17 @@ export async function getChannel(
   try {
     const publicChannel = await getPublicChannel(slug);
     if (publicChannel) {
+      const enrichedChannel = await enrichChannelWithKickUser(
+        client,
+        publicChannel,
+        publicChannel.kickUserId || publicChannel.id,
+        slug
+      );
       _channelCache.set(normalizedSlug, {
-        channel: publicChannel,
+        channel: enrichedChannel,
         timestamp: Date.now(),
       });
-      return publicChannel;
+      return enrichedChannel;
     }
   } catch (error) {
     logger.warn("Kick:Endpoints:Channel", "Legacy channel lookup failed", {
@@ -469,7 +491,7 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       return null;
     }
 
-    let data;
+    let data: Record<string, any>;
     try {
       data = JSON.parse(pageContent);
     } catch (_e) {
@@ -554,7 +576,7 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       platform: "kick",
       username: data.slug || slug,
       displayName: user.username || data.slug,
-      avatarUrl: user.profile_pic || "",
+      avatarUrl: pickPublicChannelAvatar(data, user),
       // Try to extract a responsive WebP image from srcset as they may bypass CDN restrictions
       // The srcset contains URLs like: "url1 1200w, url2 1003w, ..."
       // We pick the largest one (first in the list)

@@ -8,8 +8,10 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
+import { useUserInfo } from "@/hooks/useAuth";
 import { useInterval } from "@/hooks/useInterval";
 import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
+import type { KickUser, TwitchUser } from "@/shared/auth-types";
 import { StreamVerifiedBadge } from "./stream-verified-badge";
 
 /**
@@ -38,7 +40,46 @@ interface StreamInfoProps {
   isLoading: boolean;
 }
 
+function normalizeAccountValue(value: string | number | null | undefined): string {
+  return value?.toString().trim().toLowerCase() ?? "";
+}
+
+function isAuthenticatedChannel(
+  channel: UnifiedChannel | null | undefined,
+  twitchUser: TwitchUser | null,
+  kickUser: KickUser | null
+): boolean {
+  if (!channel) return false;
+
+  if (channel.platform === "twitch" && twitchUser) {
+    const channelUsername = normalizeAccountValue(channel.username);
+    return (
+      channel.id === twitchUser.id ||
+      channelUsername === normalizeAccountValue(twitchUser.login) ||
+      channelUsername === normalizeAccountValue(twitchUser.displayName)
+    );
+  }
+
+  if (channel.platform === "kick" && kickUser) {
+    const channelUsername = normalizeAccountValue(channel.username);
+    return (
+      channel.kickUserId === kickUser.id.toString() ||
+      channelUsername === normalizeAccountValue(kickUser.slug) ||
+      channelUsername === normalizeAccountValue(kickUser.username)
+    );
+  }
+
+  return false;
+}
+
+function formatFollowerLabel(followerCount: number | undefined): string | null {
+  if (typeof followerCount !== "number") return null;
+  const suffix = followerCount === 1 ? "follower" : "followers";
+  return `${formatViewerCount(followerCount)} ${suffix}`;
+}
+
 export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
+  const { twitchUser, kickUser } = useUserInfo();
   // Resolve canonical cross-platform link target so clicking the badge lands on
   // the same merged Categories page as clicking the same category in the grid
   // (e.g. Kick IRL → /categories/twitch/<twitch-id>?otherId=<kick-id>).
@@ -51,6 +92,10 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
     sourceCategoryId,
     sourceCategoryName
   );
+  const displayTitle = stream?.title || channel?.lastStreamTitle || channel?.bio || "Offline";
+  const displayCategory = stream?.categoryName || channel?.categoryName || "";
+  const isOwnerView = isAuthenticatedChannel(channel, twitchUser, kickUser);
+  const followerLabel = formatFollowerLabel(channel?.followerCount);
 
   if (isLoading || !channel) {
     return (
@@ -90,106 +135,121 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
             <StreamVerifiedBadge platform={channel.platform} className="h-5 w-5" />
           )}
         </h1>
-        {/* Use stream title if live, otherwise fall back to channel's last stream title */}
-        <p className="text-white font-bold truncate pr-4">
-          {stream?.title || channel.lastStreamTitle || channel.bio || "No title set"}
-        </p>
-        <div className="text-[var(--color-foreground-muted)] text-sm capitalize flex flex-wrap items-center gap-2 mt-1">
-          {/* Use stream category if live, otherwise fall back to channel's last known category */}
-          {linkCategoryId ? (
-            <Link
-              to="/categories/$platform/$categoryId"
-              params={{ platform: linkPlatform, categoryId: linkCategoryId }}
-              search={otherId ? { otherId } : {}}
-              className={`${channel.platform === "twitch" ? "text-[#9146FF] hover:text-[#9146FF]/80" : "text-[#53FC18] hover:text-[#53FC18]/80"} font-semibold hover:underline cursor-pointer transition-colors`}
-            >
-              {stream?.categoryName || channel.categoryName || "Variety"}
-            </Link>
-          ) : (
-            <span className={channel.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]"}>
-              {stream?.categoryName || channel.categoryName || "Variety"}
-            </span>
-          )}
+        {isOwnerView && followerLabel && (
+          <div className="mt-1 flex items-center gap-1.5 text-sm text-[var(--color-foreground-muted)]">
+            <LuUsers className="w-4 h-4" />
+            <span className="font-semibold text-white">{followerLabel}</span>
+          </div>
+        )}
+        {!isOwnerView && (
+          <>
+            {/* Use stream title if live, otherwise fall back to channel's last stream title */}
+            <p className="text-white font-bold truncate pr-4">{displayTitle}</p>
+            <div className="text-[var(--color-foreground-muted)] text-sm capitalize flex flex-wrap items-center gap-2 mt-1">
+              {/* Use stream category if live, otherwise fall back to channel's last known category */}
+              {displayCategory &&
+                (linkCategoryId ? (
+                  <Link
+                    to="/categories/$platform/$categoryId"
+                    params={{ platform: linkPlatform, categoryId: linkCategoryId }}
+                    search={otherId ? { otherId } : {}}
+                    className={`${channel.platform === "twitch" ? "text-[#9146FF] hover:text-[#9146FF]/80" : "text-[#53FC18] hover:text-[#53FC18]/80"} font-semibold hover:underline cursor-pointer transition-colors`}
+                  >
+                    {displayCategory}
+                  </Link>
+                ) : (
+                  <span
+                    className={channel.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]"}
+                  >
+                    {displayCategory}
+                  </span>
+                ))}
 
-          {/* Stream Tags - Language, Mature, and Custom Tags - Moved next to category */}
-          {stream?.isLive && (
-            <>
-              {/* Language Tag */}
-              {stream.language && (
-                <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
-                  {formatLanguageLabel(stream.language)}
-                </span>
-              )}
-              {/* Mature Content Tag */}
-              {stream.isMature && (
-                <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
-                  18+
-                </span>
-              )}
-              {/* Custom Tags from API - filter out language duplicates */}
-              {stream.tags &&
-                stream.tags.length > 0 &&
-                (() => {
-                  // Get the display name of the stream's language to filter duplicates
-                  const languageDisplayName = stream.language
-                    ? formatLanguageLabel(stream.language).toLowerCase()
-                    : null;
+              {/* Stream Tags - Language, Mature, and Custom Tags - Moved next to category */}
+              {stream?.isLive && (
+                <>
+                  {/* Language Tag */}
+                  {stream.language && (
+                    <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
+                      {formatLanguageLabel(stream.language)}
+                    </span>
+                  )}
+                  {/* Mature Content Tag */}
+                  {stream.isMature && (
+                    <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
+                      18+
+                    </span>
+                  )}
+                  {/* Custom Tags from API - filter out language duplicates */}
+                  {stream.tags &&
+                    stream.tags.length > 0 &&
+                    (() => {
+                      // Get the display name of the stream's language to filter duplicates
+                      const languageDisplayName = stream.language
+                        ? formatLanguageLabel(stream.language).toLowerCase()
+                        : null;
 
-                  return stream.tags
-                    .filter((tag) => {
-                      // Filter out tags that match the language display name (case insensitive)
-                      const tagLower = tag.toLowerCase();
-                      return tagLower !== languageDisplayName;
-                    })
-                    .map((tag, index) => (
-                      <span
-                        key={`${tag}-${index}`}
-                        className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default"
-                      >
-                        {tag}
-                      </span>
-                    ));
-                })()}
-            </>
-          )}
-        </div>
+                      return stream.tags
+                        .filter((tag) => {
+                          // Filter out tags that match the language display name (case insensitive)
+                          const tagLower = tag.toLowerCase();
+                          return tagLower !== languageDisplayName;
+                        })
+                        .map((tag, index) => (
+                          <span
+                            key={`${tag}-${index}`}
+                            className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default"
+                          >
+                            {tag}
+                          </span>
+                        ));
+                    })()}
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right side: Follow button and live stats */}
       <div className="flex flex-col items-end gap-3">
-        <div className="flex items-center gap-2">
-          <FollowButton channel={channel} size="default" />
-        </div>
+        {!isOwnerView && (
+          <>
+            <div className="flex items-center gap-2">
+              <FollowButton channel={channel} size="default" />
+            </div>
 
-        {/* Live stats: Viewer count and Uptime */}
-        {stream?.isLive && (
-          <div className="flex items-center gap-4 text-sm">
-            {/* Viewer count */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 cursor-default">
-                  <LuUsers className="w-4 h-4 text-white" />
-                  <span className="font-semibold text-white">
-                    {formatViewerCount(stream.viewerCount)}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {stream.viewerCount.toLocaleString()} Viewers
-              </TooltipContent>
-            </Tooltip>
+            {/* Live stats: Viewer count and Uptime */}
+            {stream?.isLive && (
+              <div className="flex items-center gap-4 text-sm">
+                {/* Viewer count */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 cursor-default">
+                      <LuUsers className="w-4 h-4 text-white" />
+                      <span className="font-semibold text-white">
+                        {formatViewerCount(stream.viewerCount)}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {stream.viewerCount.toLocaleString()} Viewers
+                  </TooltipContent>
+                </Tooltip>
 
-            {/* Uptime */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 cursor-default">
-                  <LuClock className="w-4 h-4 text-white" />
-                  {stream.startedAt && <UptimeCounter startedAt={stream.startedAt} />}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Stream Uptime</TooltipContent>
-            </Tooltip>
-          </div>
+                {/* Uptime */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 cursor-default">
+                      <LuClock className="w-4 h-4 text-white" />
+                      {stream.startedAt && <UptimeCounter startedAt={stream.startedAt} />}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Stream Uptime</TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

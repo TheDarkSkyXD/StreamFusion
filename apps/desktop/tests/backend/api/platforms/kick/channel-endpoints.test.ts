@@ -9,6 +9,20 @@ vi.mock("@/lib/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
+const { getUsersByIdMock } = vi.hoisted(() => ({
+  getUsersByIdMock: vi.fn(),
+}));
+
+vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/backend/api/platforms/kick/endpoints/user-endpoints")
+  >("@/backend/api/platforms/kick/endpoints/user-endpoints");
+  return {
+    ...actual,
+    getUsersById: getUsersByIdMock,
+  };
+});
+
 const mockLoadURL = vi.fn();
 const mockExecuteJavaScript = vi.fn();
 const mockDestroy = vi.fn();
@@ -21,21 +35,23 @@ vi.mock("electron", () => ({
       webContents: { executeJavaScript: (...args: unknown[]) => mockExecuteJavaScript(...args) },
       destroy: () => mockDestroy(),
       isDestroyed: () => false,
-      get title() { return mockTitle; },
+      get title() {
+        return mockTitle;
+      },
     };
   },
 }));
 
-import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
-import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 import {
-  mapKickChatroomToSettings,
+  acquireBrowserWindowSlot,
   getChannel,
   getChannelsByBroadcasterIds,
   getChannelsBySlugs,
   getPublicChannel,
-  acquireBrowserWindowSlot,
+  mapKickChatroomToSettings,
 } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
+import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
+import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
@@ -54,6 +70,7 @@ describe("channel-endpoints", () => {
     mockTitle = "";
     vi.mocked(getPlatformHealth).mockReturnValue("healthy");
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
+    getUsersByIdMock.mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -153,6 +170,25 @@ describe("channel-endpoints", () => {
       expect(result!.chatroomId).toBe(999);
     });
 
+    it("reads avatar from profile_picture when the v2 user block uses official-style naming", async () => {
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 12345,
+          user_id: 67890,
+          slug: "profile-picture",
+          user: {
+            username: "ProfilePicture",
+            profile_picture: "https://kick.com/img/avatar.webp",
+          },
+          livestream: null,
+        })
+      );
+
+      const result = await getPublicChannel("profile-picture");
+
+      expect(result!.avatarUrl).toBe("https://kick.com/img/avatar.webp");
+    });
+
     it("uses data.id (channel id) not data.user_id for UnifiedChannel.id", async () => {
       mockExecuteJavaScript.mockResolvedValueOnce(
         JSON.stringify({ id: 111, user_id: 222, slug: "dual-id", user: { username: "DualId" } })
@@ -244,7 +280,8 @@ describe("channel-endpoints", () => {
           slug: "banner-test",
           user: { username: "BannerTest" },
           offline_banner_image: {
-            srcset: "https://files.kick.com/banner-1200w.webp 1200w, https://files.kick.com/banner-600w.webp 600w",
+            srcset:
+              "https://files.kick.com/banner-1200w.webp 1200w, https://files.kick.com/banner-600w.webp 600w",
           },
         })
       );
@@ -337,8 +374,24 @@ describe("channel-endpoints", () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({
           data: [
-            { broadcaster_user_id: 1, slug: "a", channel_description: "", stream: null, stream_title: "", banner_picture: null, category: null },
-            { broadcaster_user_id: 2, slug: "b", channel_description: "", stream: null, stream_title: "", banner_picture: null, category: null },
+            {
+              broadcaster_user_id: 1,
+              slug: "a",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+            {
+              broadcaster_user_id: 2,
+              slug: "b",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
           ],
         }),
       });
@@ -520,24 +573,18 @@ describe("channel-endpoints", () => {
       const client = createMockClient({
         isAuthenticated: vi.fn(() => false),
         request: vi.fn().mockResolvedValueOnce({
-          data: [{
-            broadcaster_user_id: 200,
-            slug: "app-token-read",
-            channel_description: "desc",
-            stream_title: "title",
-            banner_picture: null,
-            category: null,
-            stream: null,
-          }],
+          data: [
+            {
+              broadcaster_user_id: 200,
+              slug: "app-token-read",
+              channel_description: "desc",
+              stream_title: "title",
+              banner_picture: null,
+              category: null,
+              stream: null,
+            },
+          ],
         }),
-      });
-
-      vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", async () => {
-        const actual = await vi.importActual<typeof import("@/backend/api/platforms/kick/endpoints/user-endpoints")>("@/backend/api/platforms/kick/endpoints/user-endpoints");
-        return {
-          ...actual,
-          getUsersById: vi.fn().mockResolvedValue([]),
-        };
       });
 
       const result = await getChannel(client, "app-token-read");
@@ -555,6 +602,37 @@ describe("channel-endpoints", () => {
       const result = await getChannel(client, "both-fail");
 
       expect(result).toBeNull();
+    });
+
+    it("enriches public channel data with the real Kick user avatar by user_id", async () => {
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 14362387,
+          user_id: 15132726,
+          slug: "public-user-avatar",
+          user: { username: "public-user-avatar" },
+          livestream: null,
+        })
+      );
+
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(new Error("Kick API error: 401")),
+      });
+      getUsersByIdMock.mockResolvedValueOnce([
+        {
+          user_id: 15132726,
+          name: "PublicUserAvatar",
+          profile_picture: "https://kick.com/img/public-user-avatar.webp",
+        },
+      ]);
+
+      const result = await getChannel(client, "public-user-avatar");
+
+      expect(getUsersByIdMock).toHaveBeenCalledWith(client, [15132726]);
+      expect(result!.id).toBe("14362387");
+      expect(result!.kickUserId).toBe("15132726");
+      expect(result!.displayName).toBe("PublicUserAvatar");
+      expect(result!.avatarUrl).toBe("https://kick.com/img/public-user-avatar.webp");
     });
 
     it("keeps authenticated API identity mismatches out of warning logs", async () => {
