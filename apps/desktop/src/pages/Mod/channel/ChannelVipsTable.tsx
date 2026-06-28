@@ -184,13 +184,13 @@ export function ChannelVipsTable({ broadcasterId, refreshCounter }: ChannelVipsT
         </button>
       </div>
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-neutral-400">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-300" data-testid="channel-vips-error">
           {error}
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-gray-400">No VIPs yet.</p>
+        <p className="text-sm text-neutral-400">No VIPs yet.</p>
       ) : (
         <ul className="space-y-1" data-testid="channel-vips-results">
           {entries.map((row) => {

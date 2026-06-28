@@ -294,7 +294,7 @@ describe('KickChat', () => {
     // The connect effect is async — wait until the platform-scoped call lands
     // before asserting the argument so we don't race the resolve.
     await waitFor(() => expect(loadGlobalEmotesMock).toHaveBeenCalled());
-    expect(loadGlobalEmotesMock).toHaveBeenCalledWith('kick');
+    expect(loadGlobalEmotesMock).toHaveBeenCalledWith('kick', { force: true });
   });
 
   it('canSend reflects the narrowed connection-state selector', () => {
@@ -337,6 +337,8 @@ describe('KickChat', () => {
     expect(timeoutKickUserMock).toHaveBeenCalledWith({
       channelSlug: 'xqc',
       username: 'baduser',
+      userId: 'kuser-9',
+      broadcasterUserId: undefined,
       duration: 10,
       accessToken: 'kick-tok',
     });

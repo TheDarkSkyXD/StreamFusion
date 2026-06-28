@@ -160,6 +160,23 @@ describe('MultiStreamPage', () => {
     expect(screen.queryByText(/chat for xqc/i)).not.toBeInTheDocument();
   });
 
+  it('keeps the chat content fixed at 340px without a resize handle', () => {
+    mockState.streams = [
+      { id: 's1', platform: 'twitch', channelName: 'ninja', isMuted: false, volume: 0.5 },
+    ];
+    mockState.isChatOpen = true;
+    mockState.chatStreamId = 's1';
+
+    const { container } = renderWithProviders(<MultiStreamPage />);
+
+    expect(screen.getByTestId('multistream-chat-rail')).toHaveStyle({
+      width: '341px',
+      minWidth: '341px',
+      maxWidth: '341px',
+    });
+    expect(container.querySelector('.cursor-ew-resize')).toBeNull();
+  });
+
   it('destroys every multiview slot when leaving the page without clearing the saved layout', () => {
     mockState.streams = [
       { id: 'twitch-xqc', platform: 'twitch', channelName: 'xqc', isMuted: false, volume: 0.5 },

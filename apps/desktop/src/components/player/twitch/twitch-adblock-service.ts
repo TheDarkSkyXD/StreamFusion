@@ -462,7 +462,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
         streamInfo.isUsingModifiedM3U8 = true;
         streamInfo.lastPlayerReload = Date.now();
         // Signal player reload needed
-        notifyPlayerReload();
+        notifyPlayerReload("ad-started");
       }
     }
 
@@ -511,7 +511,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     if (streamInfo.isUsingModifiedM3U8 || config.reloadPlayerAfterAd) {
       streamInfo.isUsingModifiedM3U8 = false;
       streamInfo.lastPlayerReload = Date.now();
-      notifyPlayerReload();
+      notifyPlayerReload("ad-ended");
     } else {
       notifyPauseResume();
     }
@@ -1070,20 +1070,22 @@ function notifyStatusChange(streamInfo: StreamInfo): void {
 }
 
 // Callbacks for player control (to be set by HLS player)
-let onPlayerReload: (() => void) | null = null;
+export type PlayerReloadReason = "ad-started" | "ad-ended";
+
+let onPlayerReload: ((reason: PlayerReloadReason) => void) | null = null;
 let onPauseResume: (() => void) | null = null;
 
 export function setPlayerCallbacks(
-  reloadCallback: () => void,
+  reloadCallback: (reason: PlayerReloadReason) => void,
   pauseResumeCallback: () => void
 ): void {
   onPlayerReload = reloadCallback;
   onPauseResume = pauseResumeCallback;
 }
 
-function notifyPlayerReload(): void {
+function notifyPlayerReload(reason: PlayerReloadReason): void {
   if (onPlayerReload) {
-    onPlayerReload();
+    onPlayerReload(reason);
   }
 }
 

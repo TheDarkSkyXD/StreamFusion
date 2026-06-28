@@ -8,10 +8,10 @@
  * + StreamFusion's Radix `Tooltip` primitive (no SCSS).
  *
  * Precedence for the visible label (R14):
- *   followersOnly → subscribersOnly → accountAge → emoteOnly → slowMode
+ *   followersOnly → twitchVerification → subscribersOnly → accountAge → emoteOnly → slowMode
  *
  * The Twitch-only modes `uniqueChat` and `shieldMode` never displace any of
- * the five above. They contribute to the tooltip list when active and only
+ * the strict modes above. They contribute to the tooltip list when active and only
  * surface as the visible label if every higher-precedence mode is inactive.
  *
  * Platform asymmetry is encoded explicitly: `accountAge` is read only on
@@ -61,12 +61,23 @@ interface ActiveMode {
   tooltipLabel: string;
 }
 
+function getTwitchVerificationLabel(requirement: "phone" | "email" | "account"): string {
+  if (requirement === "phone") return "Phone Verification Required";
+  if (requirement === "email") return "Email Verification Required";
+  return "Verified Accounts Only Chat";
+}
+
 export interface InfoBannerProps {
   platform: ChatPlatform;
   channelId: string | null;
+  viewerSatisfiesFollowerOnly?: boolean;
 }
 
-export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) => {
+export const InfoBanner: React.FC<InfoBannerProps> = ({
+  platform,
+  channelId,
+  viewerSatisfiesFollowerOnly = false,
+}) => {
   const state = useChatRoomState(platform, channelId);
 
   // Build the precedence-ordered list of active modes. Platform asymmetry
@@ -76,12 +87,21 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
   // platform rule visible at the call-site.
   const active: ActiveMode[] = [];
 
-  if (state.followersOnly !== null && state.followersOnly >= 0) {
+  if (!viewerSatisfiesFollowerOnly && state.followersOnly !== null && state.followersOnly >= 0) {
     const n = state.followersOnly;
     active.push({
       key: "followers",
       label: n > 0 ? `Followers Only Mode [${n}m]` : "Followers Only Mode",
       tooltipLabel: n > 0 ? `Followers Only Mode Enabled [${n}m]` : "Followers Only Mode Enabled",
+    });
+  }
+
+  if (platform === "twitch" && state.twitchVerification !== null) {
+    const label = getTwitchVerificationLabel(state.twitchVerification);
+    active.push({
+      key: "twitchVerification",
+      label,
+      tooltipLabel: label,
     });
   }
 
@@ -148,7 +168,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({ platform, channelId }) =
     <div
       data-testid="info-banner"
       data-platform={platform}
-      className="flex items-center gap-1 px-2 py-0.5 text-sm font-semibold text-[var(--color-foreground,#EFEFF1)] bg-[#262626] border border-b-0 border-[var(--color-border,rgba(83,83,95,0.48))] rounded-t-md"
+      className="mb-1 flex items-center gap-1 rounded-md border border-[var(--color-border,rgba(83,83,95,0.48))] bg-[#262626] px-2 py-0.5 text-sm font-semibold text-[var(--color-foreground,#EFEFF1)]"
     >
       <Tooltip>
         <TooltipTrigger asChild>

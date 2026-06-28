@@ -2,7 +2,7 @@ import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Guards: HlsPlayer reuses the same HLS instance across `src` prop changes
+ * Guards: HlsPlayer reuses the same live HLS instance across `src` prop changes
  * within a single mount lifetime. Channel-hopping inside a slot should not
  * destroy + re-create the decoder. Hls.destroy() runs ONLY on unmount.
  *
@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * the HLS.js docs for live source swaps.
  * Guards: Quality selection changes must not reload the same HLS source during startup.
  * Guards: VOD/clip playback uses a stability-first HLS config instead of the low-latency live config.
+ * Guards: HLS listeners are registered before source loading starts so cached VOD manifests cannot fire readiness events before the player hears them.
  */
 
 const fakeHlsModule = vi.hoisted(() => {
@@ -66,7 +67,13 @@ type FakeHlsInstance = InstanceType<typeof fakeHlsModule.FakeHls>;
 
 vi.mock("hls.js", () => ({ default: fakeHlsModule.FakeHls }));
 
+vi.mock("@/components/player/kick/kick-clip-loader", () => ({
+  createKickClipPlaylistLoader: () => function TestKickClipPlaylistLoader() {},
+  isKickClipPlaylistUrl: (url: string) => url.includes("/clips/"),
+}));
+
 import { HlsPlayer } from "@/components/player/hls-player";
+import { KickHlsPlayer } from "@/components/player/kick/kick-hls-player";
 
 beforeEach(() => {
   fakeHlsModule.reset();
@@ -82,11 +89,24 @@ describe("HlsPlayer source reuse (slice 09)", () => {
     expect(hls.attachMedia).toHaveBeenCalledTimes(1);
   });
 
-  it("reuses the same HLS instance when src changes (detach -> loadSource -> attach), no destroy", () => {
-    const { rerender } = render(<HlsPlayer src="https://x.test/a.m3u8" />);
+  it("registers HLS listeners before starting the source load", () => {
+    render(<HlsPlayer src="https://x.test/a.m3u8" />);
+    const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
+    const manifestRegistration = hls.on.mock.calls.find(
+      ([event]) => event === fakeHlsModule.FakeHls.Events.MANIFEST_PARSED
+    );
+
+    expect(manifestRegistration).toBeDefined();
+    expect(hls.on.mock.invocationCallOrder[0]).toBeLessThan(
+      hls.loadSource.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("reuses the same live HLS instance when src changes (detach -> loadSource -> attach), no destroy", () => {
+    const { rerender } = render(<HlsPlayer src="https://x.test/a.m3u8" isLive />);
     const initial = fakeHlsModule.instances[0] as FakeHlsInstance;
 
-    rerender(<HlsPlayer src="https://x.test/b.m3u8" />);
+    rerender(<HlsPlayer src="https://x.test/b.m3u8" isLive />);
 
     // Same instance — no new construction.
     expect(fakeHlsModule.instances).toHaveLength(1);
@@ -139,6 +159,31 @@ describe("HlsPlayer source reuse (slice 09)", () => {
         fragLoadingMaxRetry: 6,
       })
     );
+  });
+
+  it("merges adapter-provided HLS config into the root engine config", () => {
+    const TestPlaylistLoader = function TestPlaylistLoader() {};
+
+    render(
+      <HlsPlayer
+        src="https://x.test/clip.m3u8"
+        hlsConfig={{ pLoader: TestPlaylistLoader as never }}
+      />
+    );
+    const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
+
+    expect(hls.constructorConfig).toEqual(
+      expect.objectContaining({
+        pLoader: TestPlaylistLoader,
+      })
+    );
+  });
+
+  it("keeps Kick clip playlist loader wiring in the Kick HLS adapter", () => {
+    render(<KickHlsPlayer src="https://stream.kick.com/clips/example/playlist.m3u8" />);
+    const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
+
+    expect(hls.constructorConfig?.pLoader).toEqual(expect.any(Function));
   });
 
   it("uses the stability-first live buffering defaults for live HLS sources", () => {

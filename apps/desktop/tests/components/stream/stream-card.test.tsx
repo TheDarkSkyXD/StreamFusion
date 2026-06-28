@@ -1,15 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PlatformHealth } from '@/backend/api/unified/platform-health';
-import { fixtures, installElectronAPIMock, renderWithProviders, routerMock, screen } from '../../test-utils';
+import type { PlatformHealth } from "@/backend/api/unified/platform-health";
+import {
+  fixtures,
+  installElectronAPIMock,
+  renderWithProviders,
+  routerMock,
+  screen,
+} from "../../test-utils";
 
-vi.mock('@tanstack/react-router', () => routerMock());
+vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock('@/components/ui/proxied-image', () => ({
+vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div data-testid="thumb">{alt}</div>,
 }));
 
-vi.mock('@/components/ui/platform-avatar', () => ({
+vi.mock("@/components/ui/platform-avatar", () => ({
   PlatformAvatar: ({ alt }: { alt: string }) => <div data-testid="avatar">{alt}</div>,
 }));
 
@@ -19,15 +25,19 @@ interface PlatformHealthState {
   anyDegraded: boolean;
 }
 
-const healthyState: PlatformHealthState = { kick: 'healthy', twitch: 'healthy', anyDegraded: false };
+const healthyState: PlatformHealthState = {
+  kick: "healthy",
+  twitch: "healthy",
+  anyDegraded: false,
+};
 
 let mockHealthState: PlatformHealthState = healthyState;
 
-vi.mock('@/hooks/usePlatformHealth', () => ({
+vi.mock("@/hooks/usePlatformHealth", () => ({
   usePlatformHealth: () => mockHealthState,
 }));
 
-import { StreamCard } from '@/components/stream/stream-card';
+import { StreamCard } from "@/components/stream/stream-card";
 
 // Guards: title/viewer-count must surface — the card is the primary way users see what's live; missing data here makes the grid look like a placeholder maze
 // Guards: live badge gating — only `isLive` streams render the "Live" badge; degrading this would let offline thumbnails look live
@@ -35,123 +45,167 @@ import { StreamCard } from '@/components/stream/stream-card';
 // Guards: empty paths — startedAt=null suppresses the timestamp badge and still avoids dimming the card. Guards against null-deref on the date math
 // Guards: recovery — flipping the platform health back to healthy removes the overlay; the badge disappears with it (rerender path verified)
 // Note: image-onError fallback path is delegated to ProxiedImage (the leaf with the actual onError handler). ProxiedImage is mocked here to keep the test fast; its fallback contract is covered in proxied-image's own tests.
-describe('StreamCard', () => {
+// Guards: verified streams render the platform-specific verified badge beside the channel username.
+// Guards: watched-state cards render a distinct selected state so a live followed stream remains visibly selected while playback continues in the mini player.
+describe("StreamCard", () => {
   beforeEach(() => {
     installElectronAPIMock();
     mockHealthState = healthyState;
   });
 
-  it('renders the stream title and channel display name', () => {
-    renderWithProviders(<StreamCard stream={fixtures.stream({ title: 'My title', channelDisplayName: 'NinjaX' })} />);
-    expect(screen.getByTestId('thumb')).toHaveTextContent('My title');
-    expect(screen.getAllByText('NinjaX').length).toBeGreaterThan(0);
+  it("renders the stream title and channel display name", () => {
+    renderWithProviders(
+      <StreamCard stream={fixtures.stream({ title: "My title", channelDisplayName: "NinjaX" })} />
+    );
+    expect(screen.getByTestId("thumb")).toHaveTextContent("My title");
+    expect(screen.getAllByText("NinjaX").length).toBeGreaterThan(0);
   });
 
-  it('renders a live badge for live streams', () => {
+  it("renders a live badge for live streams", () => {
     renderWithProviders(<StreamCard stream={fixtures.stream({ isLive: true })} />);
-    expect(screen.getByText('Live')).toBeInTheDocument();
+    expect(screen.getByText("Live")).toBeInTheDocument();
   });
 
-  it('renders viewer count', () => {
+  it("renders viewer count", () => {
     renderWithProviders(<StreamCard stream={fixtures.stream({ viewerCount: 1234 })} />);
     expect(screen.getByText(/1\.2K/i)).toBeInTheDocument();
   });
 
-  it('opens stream pages on the Home tab by default', () => {
-    const { container } = renderWithProviders(
-      <StreamCard stream={fixtures.stream({ platform: 'twitch', channelName: 'ninja' })} />
+  it("renders the Twitch verified badge beside a verified Twitch stream username", () => {
+    renderWithProviders(
+      <StreamCard
+        stream={fixtures.stream({
+          platform: "twitch",
+          channelDisplayName: "PartnerStreamer",
+          channelIsVerified: true,
+        })}
+      />
     );
 
-    const link = container.querySelector('[data-testid="stream-card"]')?.closest('a');
-    expect(link).toHaveAttribute('data-to', '/stream/$platform/$channel');
-    expect(link).toHaveAttribute(
-      'data-params',
-      JSON.stringify({ platform: 'twitch', channel: 'ninja' })
-    );
-    expect(link).toHaveAttribute('data-search', JSON.stringify({ tab: 'home' }));
+    expect(screen.getByLabelText("Twitch verified")).toBeInTheDocument();
   });
 
-  describe('staleness overlay', () => {
-    it('does not apply staleness styles when platform is healthy', () => {
+  it("renders the Kick verified badge beside a verified Kick stream username", () => {
+    renderWithProviders(
+      <StreamCard
+        stream={fixtures.stream({
+          platform: "kick",
+          channelDisplayName: "KickPartner",
+          channelIsVerified: true,
+        })}
+      />
+    );
+
+    expect(screen.getByAltText("Kick verified")).toBeInTheDocument();
+  });
+
+  it("opens stream pages on the Home tab by default", () => {
+    const { container } = renderWithProviders(
+      <StreamCard stream={fixtures.stream({ platform: "twitch", channelName: "ninja" })} />
+    );
+
+    const link = container.querySelector('[data-testid="stream-card"]')?.closest("a");
+    expect(link).toHaveAttribute("data-to", "/stream/$platform/$channel");
+    expect(link).toHaveAttribute(
+      "data-params",
+      JSON.stringify({ platform: "twitch", channel: "ninja" })
+    );
+    expect(link).toHaveAttribute("data-search", JSON.stringify({ tab: "home" }));
+  });
+
+  it("renders a selected watching state when it is the current mini-player stream", () => {
+    const { container } = renderWithProviders(
+      <StreamCard stream={fixtures.stream({ title: "Selected stream" })} isWatching={true} />
+    );
+
+    const link = container.querySelector('[data-testid="stream-card"]')?.closest("a");
+    expect(link).toHaveAttribute("aria-current", "true");
+    expect(screen.getByTestId("watching-badge")).toHaveTextContent("Watching");
+  });
+
+  describe("staleness overlay", () => {
+    it("does not apply staleness styles when platform is healthy", () => {
       const { container } = renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'kick' })} />
+        <StreamCard stream={fixtures.stream({ platform: "kick" })} />
       );
       const card = container.querySelector('[data-testid="stream-card"]')!;
-      expect(card).not.toHaveClass('opacity-75');
-      expect(screen.queryByTestId('staleness-badge')).toBeNull();
+      expect(card).not.toHaveClass("opacity-75");
+      expect(screen.queryByTestId("staleness-badge")).toBeNull();
     });
 
-    it('does not dim the card when platform is degraded', () => {
-      mockHealthState = { kick: 'degraded', twitch: 'healthy', anyDegraded: true };
+    it("does not dim the card when platform is degraded", () => {
+      mockHealthState = { kick: "degraded", twitch: "healthy", anyDegraded: true };
       const { container } = renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'kick' })} />
+        <StreamCard stream={fixtures.stream({ platform: "kick" })} />
       );
       const card = container.querySelector('[data-testid="stream-card"]')!;
-      expect(card).not.toHaveClass('opacity-75');
+      expect(card).not.toHaveClass("opacity-75");
     });
 
-    it('shows staleness badge with time ago when platform is degraded and startedAt is set', () => {
-      mockHealthState = { kick: 'degraded', twitch: 'healthy', anyDegraded: true };
+    it("shows staleness badge with time ago when platform is degraded and startedAt is set", () => {
+      mockHealthState = { kick: "degraded", twitch: "healthy", anyDegraded: true };
       const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
       renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'kick', startedAt: fiveMinAgo })} />
+        <StreamCard stream={fixtures.stream({ platform: "kick", startedAt: fiveMinAgo })} />
       );
-      const badge = screen.getByTestId('staleness-badge');
+      const badge = screen.getByTestId("staleness-badge");
       expect(badge).toBeInTheDocument();
       expect(badge).toHaveTextContent(/\d+m ago/);
     });
 
-    it('does not dim the card when platform is down', () => {
-      mockHealthState = { kick: 'healthy', twitch: 'down', anyDegraded: false };
+    it("does not dim the card when platform is down", () => {
+      mockHealthState = { kick: "healthy", twitch: "down", anyDegraded: false };
       const { container } = renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'twitch' })} />
+        <StreamCard stream={fixtures.stream({ platform: "twitch" })} />
       );
       const card = container.querySelector('[data-testid="stream-card"]')!;
-      expect(card).not.toHaveClass('opacity-75');
+      expect(card).not.toHaveClass("opacity-75");
     });
 
-    it('shows staleness badge when platform is down', () => {
-      mockHealthState = { kick: 'healthy', twitch: 'down', anyDegraded: false };
+    it("shows staleness badge when platform is down", () => {
+      mockHealthState = { kick: "healthy", twitch: "down", anyDegraded: false };
       const tenMinAgo = new Date(Date.now() - 10 * 60_000).toISOString();
       renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'twitch', startedAt: tenMinAgo })} />
+        <StreamCard stream={fixtures.stream({ platform: "twitch", startedAt: tenMinAgo })} />
       );
-      const badge = screen.getByTestId('staleness-badge');
+      const badge = screen.getByTestId("staleness-badge");
       expect(badge).toHaveTextContent(/\d+m ago/);
     });
 
-    it('does not render staleness badge when startedAt is null', () => {
-      mockHealthState = { kick: 'degraded', twitch: 'healthy', anyDegraded: true };
+    it("does not render staleness badge when startedAt is null", () => {
+      mockHealthState = { kick: "degraded", twitch: "healthy", anyDegraded: true };
       const { container } = renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'kick', startedAt: null })} />
+        <StreamCard stream={fixtures.stream({ platform: "kick", startedAt: null })} />
       );
       const card = container.querySelector('[data-testid="stream-card"]')!;
-      expect(card).not.toHaveClass('opacity-75');
-      expect(screen.queryByTestId('staleness-badge')).toBeNull();
+      expect(card).not.toHaveClass("opacity-75");
+      expect(screen.queryByTestId("staleness-badge")).toBeNull();
     });
 
-    it('removes staleness badge when platform recovers to healthy without changing card opacity', () => {
-      mockHealthState = { kick: 'degraded', twitch: 'healthy', anyDegraded: true };
+    it("removes staleness badge when platform recovers to healthy without changing card opacity", () => {
+      mockHealthState = { kick: "degraded", twitch: "healthy", anyDegraded: true };
       const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
       const { container, rerender } = renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'kick', startedAt: fiveMinAgo })} />
+        <StreamCard stream={fixtures.stream({ platform: "kick", startedAt: fiveMinAgo })} />
       );
-      expect(container.querySelector('[data-testid="stream-card"]')).not.toHaveClass('opacity-75');
-      expect(screen.getByTestId('staleness-badge')).toBeInTheDocument();
+      expect(container.querySelector('[data-testid="stream-card"]')).not.toHaveClass("opacity-75");
+      expect(screen.getByTestId("staleness-badge")).toBeInTheDocument();
 
-      mockHealthState = { kick: 'healthy', twitch: 'healthy', anyDegraded: false };
-      rerender(<StreamCard stream={fixtures.stream({ platform: 'kick', startedAt: fiveMinAgo })} />);
-      expect(container.querySelector('[data-testid="stream-card"]')).not.toHaveClass('opacity-75');
-      expect(screen.queryByTestId('staleness-badge')).toBeNull();
+      mockHealthState = { kick: "healthy", twitch: "healthy", anyDegraded: false };
+      rerender(
+        <StreamCard stream={fixtures.stream({ platform: "kick", startedAt: fiveMinAgo })} />
+      );
+      expect(container.querySelector('[data-testid="stream-card"]')).not.toHaveClass("opacity-75");
+      expect(screen.queryByTestId("staleness-badge")).toBeNull();
     });
 
-    it('formats hours when startedAt is more than 60 minutes ago', () => {
-      mockHealthState = { kick: 'degraded', twitch: 'healthy', anyDegraded: true };
+    it("formats hours when startedAt is more than 60 minutes ago", () => {
+      mockHealthState = { kick: "degraded", twitch: "healthy", anyDegraded: true };
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
       renderWithProviders(
-        <StreamCard stream={fixtures.stream({ platform: 'kick', startedAt: twoHoursAgo })} />
+        <StreamCard stream={fixtures.stream({ platform: "kick", startedAt: twoHoursAgo })} />
       );
-      const badge = screen.getByTestId('staleness-badge');
+      const badge = screen.getByTestId("staleness-badge");
       expect(badge).toHaveTextContent(/\d+h ago/);
     });
   });

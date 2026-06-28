@@ -100,9 +100,9 @@ export function ModLogTab({ channelId }: ModLogTabProps) {
 
       <div className="flex-1 min-h-0 overflow-y-auto p-2">
         {loading ? (
-          <div className="text-sm text-gray-400 p-2">Loading…</div>
+          <div className="text-sm text-neutral-400 p-2">Loading…</div>
         ) : entries.length === 0 ? (
-          <div className="text-sm text-gray-400 p-2">No mod-log entries.</div>
+          <div className="text-sm text-neutral-400 p-2">No mod-log entries.</div>
         ) : (
           <ul className="space-y-1">
             {entries.map((entry) => (
@@ -110,9 +110,9 @@ export function ModLogTab({ channelId }: ModLogTabProps) {
                 key={entry.id}
                 data-testid="modlog-row"
                 data-action={entry.action}
-                className="text-xs text-gray-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
+                className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
               >
-                <span className="text-gray-500">{formatTimestamp(entry.createdAt)}</span>
+                <span className="text-neutral-500">{formatTimestamp(entry.createdAt)}</span>
                 <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
                 <span className="text-yellow-200">{entry.action}</span>
                 <button
@@ -134,10 +134,12 @@ export function ModLogTab({ channelId }: ModLogTabProps) {
                   {entry.targetUsername}
                 </button>
                 {entry.durationSeconds ? (
-                  <span className="text-gray-400">({formatDuration(entry.durationSeconds)})</span>
+                  <span className="text-neutral-400">
+                    ({formatDuration(entry.durationSeconds)})
+                  </span>
                 ) : null}
                 {entry.reason ? (
-                  <span className="text-gray-400 italic">— {entry.reason}</span>
+                  <span className="text-neutral-400 italic">— {entry.reason}</span>
                 ) : null}
               </li>
             ))}

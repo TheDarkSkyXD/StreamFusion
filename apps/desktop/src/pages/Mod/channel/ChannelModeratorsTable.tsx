@@ -195,13 +195,13 @@ export function ChannelModeratorsTable({
         </button>
       </div>
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-neutral-400">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-300" data-testid="channel-moderators-error">
           {error}
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-gray-400">No moderators yet.</p>
+        <p className="text-sm text-neutral-400">No moderators yet.</p>
       ) : (
         <ul className="space-y-1" data-testid="channel-moderators-results">
           {entries.map((row) => {

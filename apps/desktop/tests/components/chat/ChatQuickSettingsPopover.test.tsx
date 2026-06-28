@@ -50,9 +50,10 @@ import { ChatQuickSettingsPopover } from "@/components/chat/ChatQuickSettingsPop
 // Guards: quick settings popup title, close button, back button, and chevrons stay sized like Kick's chat settings popup.
 // Guards: row chevrons use a bold solid glyph like Kick, not a thin outline/light chevron.
 // Guards: quick settings popup fits within its chat-column anchor instead of overflowing at a fixed width.
-// Guards: quick settings popup uses a lighter solid gray popup surface instead of translucent backgrounds.
-// Guards: quick settings popup icons stay white instead of regressing to muted gray.
+// Guards: quick settings popup uses a lighter solid neutral popup surface instead of translucent backgrounds.
+// Guards: quick settings popup icons stay white instead of regressing to muted neutral.
 // Guards: Chat appearance keeps a Twitch-style preview and Kick-style font/emote size sliders instead of reverting to generic range rows.
+// Guards: quick settings exposes Twitch-style Pause Chat radio options and persists the selected pause trigger.
 describe("ChatQuickSettingsPopover", () => {
   beforeEach(() => {
     installElectronAPIMock();
@@ -65,8 +66,37 @@ describe("ChatQuickSettingsPopover", () => {
 
   it("renders the root menu (Chat appearance entry + More settings)", () => {
     render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /pause chat/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /chat appearance/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /more settings/i })).toBeInTheDocument();
+  });
+
+  it("drills into the Twitch-style Pause Chat sub-view and persists the selected radio", () => {
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /pause chat/i }));
+
+    expect(screen.getByText(/Manage your Pause Chat options/i)).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Pause Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Scroll Only" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Mouseover" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "Hold Alt Key" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "Mouseover/Alt Key" })).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Mouseover" }));
+
+    expect(updatePreferencesMock).toHaveBeenCalledWith({
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, pauseMode: "mouseover" },
+    });
+  });
+
+  it("shows the selected Pause Chat mode in the root row", () => {
+    mockChatDisplay.value = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, pauseMode: "mouseover-alt" };
+
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+
+    expect(
+      screen.getByRole("button", { name: /pause chat mouseover\/alt key/i })
+    ).toBeInTheDocument();
   });
 
   it("uses Kick-sized title text and navigation controls", () => {
@@ -79,14 +109,14 @@ describe("ChatQuickSettingsPopover", () => {
     const chevronIcon = Array.from(appearanceButton.querySelectorAll("span")).at(-1);
     const chevronSvg = chevronIcon?.querySelector("svg");
 
-    expect(dialog).toHaveClass("bg-[#232629]");
+    expect(dialog).toHaveClass("bg-neutral-800");
     expect(dialog).toHaveClass("w-[320px]", "max-w-full", "min-w-0");
-    expect(appearanceButton).toHaveClass("hover:bg-[#2F3438]");
+    expect(appearanceButton).toHaveClass("hover:bg-neutral-700");
     expect(title).toHaveClass("text-base", "leading-6");
     expect(closeButton).toHaveClass("text-white");
     expect(closeButton).toHaveClass("h-8", "w-8");
     expect(closeButton).toHaveClass("rounded-full");
-    expect(closeButton).toHaveClass("hover:bg-[#2F3438]");
+    expect(closeButton).toHaveClass("hover:bg-neutral-700");
     expect(closeButton.querySelector("svg")).toHaveAttribute("height", "20");
     expect(closeButton.querySelector("svg")).toHaveAttribute("stroke-width", "3");
     expect(appearanceIcon).toHaveClass("text-white");
@@ -145,21 +175,20 @@ describe("ChatQuickSettingsPopover", () => {
     expect(maxEmoteLabel.style.left).toBe(emoteStopDots[3]!.style.left);
     for (const dot of fontStopDots) {
       expect(dot).toHaveClass("z-[2]");
-      expect(dot).toHaveClass("bg-[#232629]", "border-[#5b6068]");
+      expect(dot).toHaveClass("bg-neutral-800", "border-neutral-700");
       expect(dot).not.toHaveClass("bg-[#fb5f7a]");
     }
     for (const dot of emoteStopDots) {
       expect(dot).toHaveClass("z-[2]");
-      expect(dot).toHaveClass("bg-[#232629]", "border-[#5b6068]");
+      expect(dot).toHaveClass("bg-neutral-800", "border-neutral-700");
       expect(dot).not.toHaveClass("bg-[#fb5f7a]");
     }
     expect(fontStopDots[1]!).toHaveClass(
       "h-[18px]",
       "w-[18px]",
       "border-[3px]",
-      "border-[#5b6068]"
+      "border-neutral-700"
     );
-    expect(fontStopDots[1]!).toHaveStyle({ borderColor: "#5b6068" });
   });
 
   it("turns the selected font-size label white instead of keeping Default white", () => {
@@ -177,8 +206,13 @@ describe("ChatQuickSettingsPopover", () => {
     const fontSizeRange = screen.getByLabelText("Font size");
     expect(screen.getByText("Chat Appearance")).toBeInTheDocument();
     expect(screen.getByTestId("chat-appearance-preview")).toHaveClass(
+      "mx-[2px]",
+      "mt-3",
+      "mb-2",
       "overflow-hidden",
-      "bg-[#2F3438]"
+      "rounded-md",
+      "border",
+      "bg-neutral-700"
     );
     expect(screen.getByText("guest:")).toBeInTheDocument();
     expect(screen.getByText("Hi there!")).toBeInTheDocument();
@@ -234,7 +268,7 @@ describe("ChatQuickSettingsPopover", () => {
       "compact"
     );
     expect(screen.getByTestId("chat-preview-row-primary")).toHaveClass("py-0", "leading-4");
-    expect(screen.getByRole("button", { name: "Compact" })).toHaveClass("bg-[#dc143c]");
+    expect(screen.getByRole("button", { name: "Compact" })).toHaveClass("bg-[#3f3f46]");
   });
 
   it("uses the authenticated Twitch display name in the preview on Twitch streams", () => {
@@ -348,7 +382,9 @@ describe("ChatQuickSettingsPopover", () => {
     render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
     expect(screen.getByLabelText("Font size")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /back to chat settings/i }));
+    const backButton = screen.getByRole("button", { name: /back to chat settings/i });
+    expect(backButton).toHaveClass("rounded-full", "hover:bg-neutral-700");
+    fireEvent.click(backButton);
     expect(screen.queryByLabelText("Font size")).toBeNull();
     expect(screen.getByRole("button", { name: /more settings/i })).toBeInTheDocument();
   });

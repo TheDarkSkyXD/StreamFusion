@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatSimTool } from "./ChatSimTool";
 import { PerfTool } from "./PerfTool";
 import { DEBUG_TOKENS } from "./tokens";
+import { UiDebugTool } from "./UiDebugTool";
 
 function BugIcon({ size = 16 }: { size?: number }) {
   return (
@@ -118,6 +119,7 @@ interface DebugTool {
 const TOOLS: DebugTool[] = [
   { id: "perf", label: "Perf", Component: PerfTool },
   { id: "chat-sim", label: "Chat Sim", Component: ChatSimTool },
+  { id: "ui", label: "UI", Component: UiDebugTool },
 ];
 
 const STORAGE_KEY = "streamfusion-debug-panel";

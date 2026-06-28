@@ -42,7 +42,7 @@ describe("Switch", () => {
   });
 
   it("keeps the checked icon centered in Twitch's left switch lane", () => {
-    const css = readFileSync("src/index.css", "utf8");
+    const css = readFileSync("src/global.css", "utf8");
 
     expect(css).toContain(".sf-switch-check");
     expect(css).toContain("top: 0;");

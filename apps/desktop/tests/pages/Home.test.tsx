@@ -12,9 +12,18 @@ vi.mock('@/hooks/queries/useStreams', () => ({
 }));
 
 vi.mock('@/components/stream/featured-stream', () => ({
-  FeaturedStream: ({ stream, isLoading }: { stream?: { title: string }; isLoading?: boolean }) => (
+  FeaturedStream: ({
+    stream,
+    streams,
+    isLoading,
+  }: {
+    stream?: { title: string };
+    streams?: unknown[];
+    isLoading?: boolean;
+  }) => (
     <div data-testid="featured-stream">
       {isLoading ? 'loading-featured' : stream?.title ?? 'no-featured'}
+      <span data-testid="featured-stream-count">{streams?.length ?? 0}</span>
     </div>
   ),
 }));
@@ -51,6 +60,7 @@ describe('HomePage', () => {
     useTopStreamsMock.mockReturnValue({ data: streams, isLoading: false, error: null } as unknown as ReturnType<typeof useTopStreams>);
     renderWithProviders(<HomePage />);
     expect(screen.getByTestId('featured-stream')).toHaveTextContent('Featured!');
+    expect(screen.getByTestId('featured-stream-count')).toHaveTextContent('3');
     expect(screen.getByTestId('live-now')).toHaveTextContent('streams: 2');
   });
 

@@ -22,14 +22,10 @@
 
 import { useEffect, useState } from "react";
 
+import { TWITCH_MOD_ACTION_SCOPES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
-
-const REQUIRED_MOD_SCOPES = [
-  "user:read:moderated_channels",
-  "moderator:manage:chat_messages",
-] as const;
 
 export interface PromptReconnectOptions {
   missingScopes?: string[];
@@ -71,7 +67,7 @@ export function useRequireModScopes(): UseRequireModScopesResult {
         const token = await window.electronAPI.auth.getToken("twitch");
         if (cancelled) return;
         const scopes = new Set(token?.scope ?? []);
-        const ok = REQUIRED_MOD_SCOPES.every((s) => scopes.has(s));
+        const ok = TWITCH_MOD_ACTION_SCOPES.every((s) => scopes.has(s));
         setHasModScopes(ok);
       } catch {
         if (!cancelled) setHasModScopes(false);
@@ -86,7 +82,7 @@ export function useRequireModScopes(): UseRequireModScopesResult {
 
   const promptReconnect = (options?: PromptReconnectOptions) => {
     useReconnectDialogStore.getState().open({
-      missingScopes: options?.missingScopes ?? [...REQUIRED_MOD_SCOPES],
+      missingScopes: options?.missingScopes ?? [...TWITCH_MOD_ACTION_SCOPES],
       onReconnected: options?.onReconnected,
     });
   };

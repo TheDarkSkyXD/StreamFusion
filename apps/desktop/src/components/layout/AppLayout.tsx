@@ -8,18 +8,25 @@ import {
   LayoutDashboard as LuLayoutDashboard,
 } from "lucide-react";
 import type React from "react";
+import { lazy, Suspense } from "react";
 import { IoMdSettings } from "react-icons/io";
 
-import { MiniPlayer } from "@/components/player/mini-player";
 import { useAuthInitialize } from "@/hooks/useAuth";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
+import { usePipStore } from "@/store/pip-store";
 
 import { TopNavBar } from "../TopNavBar";
 
+import { NetworkStatusBanner } from "./NetworkStatusBanner";
 import { PlatformHealthBanner } from "./PlatformHealthBanner";
 import { SidebarFollows } from "./SidebarFollows";
 import { TitleBar } from "./TitleBar";
+
+const MiniPlayer = lazy(() =>
+  import("@/components/player/mini-player").then((module) => ({ default: module.MiniPlayer }))
+);
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -40,7 +47,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const _setSidebarCollapsed = useAppStore((state) => state.setSidebarCollapsed);
   const isTheaterModeActive = useAppStore((state) => state.isTheaterModeActive);
+  const currentPipStream = usePipStore((state) => state.currentStream);
+  const isPipActive = usePipStore((state) => state.isPipActive);
+  const isOnStreamPage = usePipStore((state) => state.isOnStreamPage);
+  const { isOnline } = useNetworkStatus();
   const location = useLocation();
+  const shouldRenderMiniPlayer =
+    isPipActive && currentPipStream && !isOnStreamPage && !location.pathname.startsWith("/stream/");
 
   // Initialize auth state once at the app root
   useAuthInitialize();
@@ -53,8 +66,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Top Navigation Bar (search, user info) */}
       {!isTheaterModeActive && <TopNavBar />}
 
-      {/* Visible only while a Platform is degraded. */}
-      {!isTheaterModeActive && <PlatformHealthBanner />}
+      {!isTheaterModeActive && <NetworkStatusBanner isOnline={isOnline} />}
+
+      {/* Visible only while a Platform is degraded and the app has network. */}
+      {!isTheaterModeActive && isOnline && <PlatformHealthBanner />}
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
@@ -107,7 +122,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       </div>
 
       {/* Picture-in-Picture Mini Player - persists across route changes */}
-      <MiniPlayer />
+      {shouldRenderMiniPlayer && (
+        <Suspense fallback={null}>
+          <MiniPlayer />
+        </Suspense>
+      )}
     </div>
   );
 }

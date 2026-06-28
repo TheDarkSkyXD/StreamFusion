@@ -13,6 +13,7 @@ interface StreamGridProps {
   emptyMessage?: string;
   className?: string;
   skeletons?: number;
+  activeStream?: Pick<UnifiedStream, "platform" | "channelName"> | null;
 }
 
 export function StreamGrid({
@@ -21,6 +22,7 @@ export function StreamGrid({
   emptyMessage = "No streams found",
   className,
   skeletons = 8,
+  activeStream = null,
 }: StreamGridProps) {
   // Only stagger-animate the first batch of cards. New cards added via infinite
   // scroll mount without animation — the slide-up on 30 cards at once reads as
@@ -63,7 +65,14 @@ export function StreamGrid({
       )}
     >
       {streams.map((stream) => (
-        <StreamCard key={getStreamElementKey(stream)} stream={stream} />
+        <StreamCard
+          key={getStreamElementKey(stream)}
+          stream={stream}
+          isWatching={
+            activeStream?.platform === stream.platform &&
+            activeStream.channelName.toLowerCase() === stream.channelName.toLowerCase()
+          }
+        />
       ))}
     </div>
   );

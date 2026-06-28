@@ -9,6 +9,8 @@
 
 import { LuBadgeCheck, LuCrown, LuShieldCheck, LuStar } from "react-icons/lu";
 
+import { ProxiedImage } from "@/components/ui/proxied-image";
+
 import type { UserProfile } from "./useUserProfile";
 
 interface UserProfileHeaderProps {
@@ -42,11 +44,11 @@ export function UserProfileHeader({ profile, platform }: UserProfileHeaderProps)
         aria-hidden
       >
         {profile.avatarUrl ? (
-          <img
+          <ProxiedImage
             src={profile.avatarUrl}
             alt=""
             className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
+            fallback={<div className="w-full h-full" style={{ backgroundColor: fallbackColor }} />}
           />
         ) : (
           <div className="w-full h-full" style={{ backgroundColor: fallbackColor }} />

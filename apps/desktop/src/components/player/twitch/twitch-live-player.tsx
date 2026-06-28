@@ -276,6 +276,7 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
             setAdBlockStatus(status);
             onAdBlockStatusChange?.(status);
           }}
+          onAdBlockRecoveryRefresh={onRefresh}
           onError={(error: PlayerError) => {
             // Determine if this error is recoverable via URL refresh
             const isRefreshableError =

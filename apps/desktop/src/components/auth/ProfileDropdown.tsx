@@ -1,11 +1,31 @@
 import { Link } from "@tanstack/react-router";
+import { User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
-import { LuLogOut, LuUser, LuX } from "react-icons/lu";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useAuthStatus, useUserInfo } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/auth-store";
+
+const kickMenuItemClass =
+  "flex h-12 w-full items-center gap-4 px-4 py-1 text-left text-base font-normal leading-6 text-white transition-colors hover:bg-[var(--color-background-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]";
+const kickMenuIconClass = "h-4 w-4 shrink-0 text-white";
+const settingsMenuIconClass = "h-[18px] w-[18px] shrink-0 text-white";
+
+function KickLogoutIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className={className}
+      aria-hidden="true"
+      focusable="false"
+      fill="currentColor"
+    >
+      <path d="M16 7H12.38L14.19 5.19L12.78 3.78L8.55 8L12.78 12.22L14.19 10.81L12.38 9H16V7Z" />
+      <path d="M7 14H4V2H7V4H9V0H0V16H9V12H7V14Z" />
+    </svg>
+  );
+}
 
 // Stacked Avatar Component for multi-platform
 function StackedAvatars({
@@ -174,7 +194,7 @@ export function ProfileDropdown() {
 
     return (
       <div className="w-8 h-8 rounded-full bg-[var(--color-background-tertiary)] flex items-center justify-center">
-        <LuUser size={16} className="text-[var(--color-foreground-secondary)]" />
+        <User size={16} className="text-[var(--color-foreground-secondary)]" />
       </div>
     );
   };
@@ -217,7 +237,7 @@ export function ProfileDropdown() {
 
     return (
       <div className="w-10 h-10 rounded-full bg-[var(--color-background-tertiary)] flex items-center justify-center">
-        <LuUser size={20} className="text-[var(--color-foreground-secondary)]" />
+        <User size={20} className="text-[var(--color-foreground-secondary)]" />
       </div>
     );
   };
@@ -232,9 +252,9 @@ export function ProfileDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 top-full mt-2 w-[318px] rounded-md border border-[var(--color-border)] bg-[var(--color-background-elevated)] p-2 shadow-[0_4px_16px_rgba(0,0,0,0.4),0_1px_4px_rgba(0,0,0,0.3)] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Header */}
-          <div className="px-3 py-3 border-b border-[var(--color-border)] mb-1 flex items-center gap-3">
+          <div className="px-4 py-3 border-b border-[var(--color-border)] mb-1 flex items-center gap-4">
             {renderDropdownAvatar()}
             <div className="flex flex-col overflow-hidden">
               <div className="flex items-center gap-2">
@@ -253,11 +273,11 @@ export function ProfileDropdown() {
             </div>
           </div>
 
-          <div className="p-1 space-y-0.5">
+          <div className="space-y-0.5">
             {/* Connected Accounts Section */}
             {hasAnyUser && (
               <>
-                <div className="px-3 py-1.5">
+                <div className="px-4 py-1.5">
                   <p className="text-xs font-medium text-[var(--color-foreground-muted)] uppercase tracking-wider">
                     Connected Accounts
                   </p>
@@ -265,7 +285,7 @@ export function ProfileDropdown() {
 
                 {/* Twitch Account */}
                 {twitch.connected && twitchUser ? (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-md bg-[var(--color-background-secondary)]/50 group">
+                  <div className="flex h-12 items-center justify-between px-4 py-1 bg-[var(--color-background-secondary)]/50 group">
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <ProxiedImage
@@ -291,7 +311,7 @@ export function ProfileDropdown() {
                       className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
                       title="Disconnect Twitch"
                     >
-                      <LuX size={14} className="text-red-400" />
+                      <X size={18} strokeWidth={3} className="text-red-400" />
                     </button>
                   </div>
                 ) : (
@@ -300,9 +320,13 @@ export function ProfileDropdown() {
                       loginTwitch();
                       setIsOpen(false);
                     }}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-white hover:bg-[#9146FF]/20 w-full text-left text-sm"
+                    className={`${kickMenuItemClass} hover:bg-[#9146FF]/20`}
                   >
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#9146FF]" fill="currentColor">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 shrink-0 text-[#9146FF]"
+                      fill="currentColor"
+                    >
                       <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                     </svg>
                     <span>Connect Twitch</span>
@@ -311,7 +335,7 @@ export function ProfileDropdown() {
 
                 {/* Kick Account */}
                 {kick.connected && kickUser ? (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-md bg-[var(--color-background-secondary)]/50 group">
+                  <div className="flex h-12 items-center justify-between px-4 py-1 bg-[var(--color-background-secondary)]/50 group">
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <ProxiedImage
@@ -335,7 +359,7 @@ export function ProfileDropdown() {
                       className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
                       title="Disconnect Kick"
                     >
-                      <LuX size={14} className="text-red-400" />
+                      <X size={18} strokeWidth={3} className="text-red-400" />
                     </button>
                   </div>
                 ) : (
@@ -344,9 +368,13 @@ export function ProfileDropdown() {
                       loginKick();
                       setIsOpen(false);
                     }}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-white hover:bg-[#53FC18]/20 w-full text-left text-sm"
+                    className={`${kickMenuItemClass} hover:bg-[#53FC18]/20`}
                   >
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#53FC18]" fill="currentColor">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 shrink-0 text-[#53FC18]"
+                      fill="currentColor"
+                    >
                       <path d="M9 3a1 1 0 0 1 1 1v3h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h6a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-1v1a1 1 0 0 1 -.883 .993l-.117 .007h-1v2h1a1 1 0 0 1 .993 .883l.007 .117v1h1a1 1 0 0 1 .993 .883l.007 .117v4a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-1h-1a1 1 0 0 1 -.993 -.883l-.007 -.117v-1h-1v3a1 1 0 0 1 -.883 .993l-.117 .007h-5a1 1 0 0 1 -1 -1v-16a1 1 0 0 1 1 -1z" />
                     </svg>
                     <span>Connect Kick</span>
@@ -365,9 +393,13 @@ export function ProfileDropdown() {
                     loginTwitch();
                     setIsOpen(false);
                   }}
-                  className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-white hover:bg-[#9146FF]/20 w-full text-left text-sm"
+                  className={`${kickMenuItemClass} hover:bg-[#9146FF]/20`}
                 >
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 text-[#9146FF]" fill="currentColor">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4 shrink-0 text-[#9146FF]"
+                    fill="currentColor"
+                  >
                     <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                   </svg>
                   Connect Twitch
@@ -377,9 +409,13 @@ export function ProfileDropdown() {
                     loginKick();
                     setIsOpen(false);
                   }}
-                  className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-white hover:bg-[#53FC18]/20 w-full text-left text-sm"
+                  className={`${kickMenuItemClass} hover:bg-[#53FC18]/20`}
                 >
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 text-[#53FC18]" fill="currentColor">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4 shrink-0 text-[#53FC18]"
+                    fill="currentColor"
+                  >
                     <path d="M9 3a1 1 0 0 1 1 1v3h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h6a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-1v1a1 1 0 0 1 -.883 .993l-.117 .007h-1v2h1a1 1 0 0 1 .993 .883l.007 .117v1h1a1 1 0 0 1 .993 .883l.007 .117v4a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-1h-1a1 1 0 0 1 -.993 -.883l-.007 -.117v-1h-1v3a1 1 0 0 1 -.883 .993l-.117 .007h-5a1 1 0 0 1 -1 -1v-16a1 1 0 0 1 1 -1z" />
                   </svg>
                   Connect Kick
@@ -388,22 +424,15 @@ export function ProfileDropdown() {
               </>
             )}
 
-            <Link
-              to="/settings"
-              className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-white hover:bg-[var(--color-background-tertiary)] hover:text-white w-full text-left text-sm"
-              onClick={() => setIsOpen(false)}
-            >
-              <IoMdSettings size={16} />
+            <Link to="/settings" className={kickMenuItemClass} onClick={() => setIsOpen(false)}>
+              <IoMdSettings className={settingsMenuIconClass} size={18} />
               Settings
             </Link>
 
             {hasAnyUser && (
-              <button
-                onClick={handleLogoutAll}
-                className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-red-500 hover:bg-red-500/10 w-full text-left text-sm"
-              >
-                <LuLogOut size={16} />
-                Sign Out of All
+              <button onClick={handleLogoutAll} className={kickMenuItemClass}>
+                <KickLogoutIcon className={kickMenuIconClass} />
+                Log out
               </button>
             )}
           </div>

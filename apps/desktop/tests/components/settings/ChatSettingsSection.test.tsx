@@ -68,6 +68,13 @@ describe("ChatSettingsSection", () => {
     expect(arg.chatDisplay.boldUsernames).toBe(false);
   });
 
+  it("does not show a docked chat width control because the rail is fixed", () => {
+    renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
+
+    expect(screen.queryByLabelText("Docked chat width")).toBeNull();
+    expect(screen.queryByText("Docked chat width")).toBeNull();
+  });
+
   it("falls back to defaults when no chatDisplay is stored", () => {
     setStore(null);
     renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
@@ -84,6 +91,132 @@ describe("ChatSettingsSection", () => {
     });
     renderWithProviders(<ChatSettingsSection only={["events"]} />);
     expect(screen.queryByLabelText("Recent messages to load")).toBeNull();
+  });
+
+  it("uses the requested message limit slider range", () => {
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+
+    const messageLimit = screen.getByLabelText("Message limit");
+    expect(messageLimit).toHaveAttribute("min", "100");
+    expect(messageLimit).toHaveAttribute("max", "1000");
+    expect(messageLimit).toHaveAttribute("step", "100");
+  });
+
+  it("uses the requested recent messages slider range", () => {
+    setStore({
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, recentMessagesOnJoin: true },
+      chat: { ...DEFAULT_CHAT_PREFERENCES },
+    });
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+
+    const recentMessagesLimit = screen.getByLabelText("Recent messages to load");
+    expect(recentMessagesLimit).toHaveAttribute("min", "100");
+    expect(recentMessagesLimit).toHaveAttribute("max", "800");
+    expect(recentMessagesLimit).toHaveAttribute("step", "100");
+  });
+
+  it("shows defaults and resets message sliders to their defaults", async () => {
+    setStore({
+      chatDisplay: {
+        ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+        messageLimit: 800,
+        recentMessagesLimit: 300,
+        recentMessagesOnJoin: true,
+      },
+      chat: { ...DEFAULT_CHAT_PREFERENCES },
+    });
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+
+    expect(screen.getByText("Default: 600")).toBeInTheDocument();
+    expect(screen.getByText("Default: 200")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset Message limit to default" }));
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
+    expect(updatePreferences.mock.calls[0][0]).toMatchObject({
+      chatDisplay: { messageLimit: DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit },
+    });
+
+    updatePreferences.mockClear();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reset Recent messages to load to default" })
+    );
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
+    expect(updatePreferences.mock.calls[0][0]).toMatchObject({
+      chatDisplay: { recentMessagesLimit: DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit },
+    });
+  });
+
+  it("renders visible tick dots for large message sliders", () => {
+    setStore({
+      chatDisplay: {
+        ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+        messageLimit: 600,
+        recentMessagesLimit: 220,
+        recentMessagesOnJoin: true,
+      },
+      chat: { ...DEFAULT_CHAT_PREFERENCES },
+    });
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+
+    const messageSlider = screen.getByLabelText("Message limit");
+    const recentSlider = screen.getByLabelText("Recent messages to load");
+    const messageTicks = messageSlider.closest(".relative")?.querySelectorAll("[data-slider-tick]");
+    const recentTicks = recentSlider.closest(".relative")?.querySelectorAll("[data-slider-tick]");
+    const tickValues = (ticks?: NodeListOf<Element>) =>
+      Array.from(ticks ?? []).map((tick) => tick.getAttribute("data-slider-tick-value"));
+
+    expect(tickValues(messageTicks)).toEqual([
+      "100",
+      "200",
+      "300",
+      "400",
+      "500",
+      "600",
+      "700",
+      "800",
+      "900",
+      "1000",
+    ]);
+    expect(messageTicks?.[0]).toHaveAttribute("data-slider-tick-percent", "0");
+    expect(messageTicks?.[0]).toHaveAttribute("data-slider-tick-active", "true");
+    expect(messageTicks?.[9]).toHaveAttribute("data-slider-tick-percent", "100");
+    expect(messageTicks?.[9]).toHaveAttribute("data-slider-tick-active", "false");
+    expect(tickValues(recentTicks)).toEqual([
+      "100",
+      "200",
+      "300",
+      "400",
+      "500",
+      "600",
+      "700",
+      "800",
+    ]);
+    expect(recentTicks?.[0]).toHaveAttribute("data-slider-tick-percent", "0");
+    expect(recentTicks?.[0]).toHaveAttribute("data-slider-tick-active", "true");
+    expect(recentTicks?.[7]).toHaveAttribute("data-slider-tick-percent", "100");
+    expect(recentTicks?.[7]).toHaveAttribute("data-slider-tick-active", "false");
+
+    fireEvent.change(messageSlider, { target: { value: "800" } });
+
+    expect(
+      messageSlider.closest(".relative")?.querySelectorAll('[data-slider-tick-active="true"]')
+    ).toHaveLength(8);
+  });
+
+  it("snaps old recent-message values onto the slider step grid", () => {
+    setStore({
+      chatDisplay: {
+        ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+        recentMessagesOnJoin: true,
+        recentMessagesLimit: 101,
+      },
+      chat: { ...DEFAULT_CHAT_PREFERENCES },
+    });
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+
+    expect(screen.getByLabelText("Recent messages to load")).toHaveValue("100");
   });
 
   it('"Hide chat panel" writes chat.position (not chatDisplay)', async () => {

@@ -7,17 +7,20 @@
  * escape-to-close-modal semantics. The container therefore carries no
  * `role="dialog"`; `aria-label` is retained so screen readers can still
  * identify the picker. Translates KickTalk's emote picker pattern: search
- * bar, sub-section icon row, pinned Recent/Favorites, collapsible provider
+ * bar, sub-section icon row, pinned Recent/Favorites, provider
  * sections with windowed emote grids, and Kick subscriber-only lock overlay.
  */
 
 import type React from "react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-types";
+import { useManagedTimeout } from "../../hooks/useManagedTimeout";
 import { useEmoteStore } from "../../store/emote-store";
 import { KickIcon } from "../icons/PlatformIcons";
+import { ProxiedImage } from "../ui/proxied-image";
 import { EmoteImage } from "./EmoteImage";
 
 export type EmotePickerScope = "native" | "thirdParty";
@@ -31,6 +34,8 @@ interface EmotePickerPopoverProps {
   scope: EmotePickerScope;
   platform: EmotePickerPlatform;
   channelId?: string | null;
+  channelName?: string | null;
+  kickUserId?: string | null;
   /**
    * Only consulted by Kick-native. `undefined` = unknown → no lock overlay.
    * `false` + emote.subscribersOnly === true → lock overlay.
@@ -54,13 +59,48 @@ interface EmotePickerPopoverProps {
  *   - thirdParty twitch: "7tv" | "bttv" | "ffz"
  *   - thirdParty kick:   "channel" | "global"
  */
-type SubSection = "recent" | "channel" | "global" | "emoji" | "7tv" | "bttv" | "ffz";
+type UserEmoteSubSection = `user:${string}`;
+type SubSection =
+  | "recent"
+  | "channel"
+  | "global"
+  | "emoji"
+  | "7tv"
+  | "bttv"
+  | "ffz"
+  | UserEmoteSubSection;
 
 interface SubSectionConfig {
   id: SubSection;
   label: string;
   icon: React.ReactNode;
   targetSectionId: string;
+}
+
+type ProviderSourceTab = "channel" | "global";
+
+interface EmoteSectionTab {
+  id: ProviderSourceTab;
+  label: string;
+  ariaLabel: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+interface EmoteSectionModel {
+  id: string;
+  title: string;
+  emotes: Emote[];
+  tabs?: EmoteSectionTab[];
+}
+
+interface UserEmoteGroup {
+  key: string;
+  subSectionId: UserEmoteSubSection;
+  sectionId: string;
+  title: string;
+  avatarUrl?: string;
+  emotes: Emote[];
 }
 
 /** Compute the providers covered by a given scope+platform. */
@@ -133,36 +173,19 @@ const ClockIcon: React.FC<{ className?: string }> = ({ className }) => (
 // reference/KickTalk-main `Input.scss`). Object-cover so non-square source
 // images crop centered rather than squashing.
 const ChannelAvatarIcon: React.FC<{ src: string }> = ({ src }) => (
-  <img
+  <ProxiedImage
     src={src}
     alt=""
+    className="w-6 h-6 rounded-[3px] object-cover"
     width={24}
     height={24}
-    loading="lazy"
-    decoding="async"
-    className="w-6 h-6 rounded-[3px] object-cover"
+    fallback={<div className="w-6 h-6 rounded-[3px] bg-white/10" />}
   />
 );
 
 const LockIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" width={14} height={14}>
     <path d="M12 2a5 5 0 00-5 5v3H6a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2v-8a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm-3 8V7a3 3 0 016 0v3H9z" />
-  </svg>
-);
-
-const CaretIcon: React.FC<{ className?: string; open: boolean }> = ({ className, open }) => (
-  <svg
-    className={`${className ?? ""} opacity-50 transition-[transform,opacity] duration-200 ease-in-out group-hover:opacity-100 ${open ? "rotate-180" : "rotate-0"}`}
-    fill="none"
-    viewBox="0 0 32 32"
-    width={20}
-    height={20}
-    aria-hidden="true"
-  >
-    <path
-      d="M27.0612 13.0615L17.0612 23.0615C16.9218 23.2013 16.7563 23.3123 16.5739 23.388C16.3916 23.4637 16.1961 23.5027 15.9987 23.5027C15.8013 23.5027 15.6058 23.4637 15.4235 23.388C15.2411 23.3123 15.0756 23.2013 14.9362 23.0615L4.9362 13.0615C4.6544 12.7797 4.49609 12.3975 4.49609 11.999C4.49609 11.6005 4.6544 11.2183 4.9362 10.9365C5.21799 10.6547 5.60018 10.4964 5.9987 10.4964C6.39721 10.4964 6.7794 10.6547 7.0612 10.9365L15.9999 19.8752L24.9387 10.9352C25.2205 10.6534 25.6027 10.4951 26.0012 10.4951C26.3997 10.4951 26.7819 10.6534 27.0637 10.9352C27.3455 11.217 27.5038 11.5992 27.5038 11.9977C27.5038 12.3962 27.3455 12.7784 27.0637 13.0602L27.0612 13.0615Z"
-      fill="currentColor"
-    />
   </svg>
 );
 
@@ -186,7 +209,9 @@ const StarIcon: React.FC<{ filled: boolean }> = ({ filled }) => (
 function getSubSectionsForScope(
   scope: EmotePickerScope,
   platform: EmotePickerPlatform,
-  channelAvatarUrl?: string | null
+  channelAvatarUrl?: string | null,
+  showNativeChannelSection = true,
+  userEmoteGroups: UserEmoteGroup[] = []
 ): SubSectionConfig[] {
   const frequent: SubSectionConfig = {
     id: "recent",
@@ -203,15 +228,53 @@ function getSubSectionsForScope(
   if (scope === "native" && platform === "twitch") {
     return [
       frequent,
-      { id: "channel", label: "Channel", icon: channelIcon, targetSectionId: "channel" },
       { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
+      ...(showNativeChannelSection
+        ? [
+            {
+              id: "channel" as const,
+              label: "Channel",
+              icon: channelIcon,
+              targetSectionId: "channel",
+            },
+          ]
+        : []),
+      ...userEmoteGroups.map((group) => ({
+        id: group.subSectionId,
+        label: `${group.title}'s Emotes`,
+        icon: group.avatarUrl ? (
+          <ChannelAvatarIcon src={group.avatarUrl} />
+        ) : (
+          <StarIcon filled={false} />
+        ),
+        targetSectionId: group.sectionId,
+      })),
     ];
   }
   if (scope === "native" && platform === "kick") {
     return [
       frequent,
-      { id: "channel", label: "Channel", icon: channelIcon, targetSectionId: "channel" },
       { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
+      ...(showNativeChannelSection
+        ? [
+            {
+              id: "channel" as const,
+              label: "Channel",
+              icon: channelIcon,
+              targetSectionId: "channel",
+            },
+          ]
+        : []),
+      ...userEmoteGroups.map((group) => ({
+        id: group.subSectionId,
+        label: `${group.title}'s Emotes`,
+        icon: group.avatarUrl ? (
+          <ChannelAvatarIcon src={group.avatarUrl} />
+        ) : (
+          <StarIcon filled={false} />
+        ),
+        targetSectionId: group.sectionId,
+      })),
       { id: "emoji", label: "Emojis", icon: <KickIcon size={18} />, targetSectionId: "emoji" },
     ];
   }
@@ -241,8 +304,12 @@ function getSubSectionsForScope(
   // thirdParty kick
   return [
     frequent,
-    { id: "channel", label: "Channel", icon: channelIcon, targetSectionId: "channel" },
-    { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
+    {
+      id: "7tv",
+      label: "7TV",
+      icon: <span className="font-bold text-xs">7TV</span>,
+      targetSectionId: "7tv",
+    },
   ];
 }
 
@@ -254,9 +321,39 @@ const PROVIDER_LABELS: Record<EmoteProvider, string> = {
   ffz: "FrankerFaceZ",
 };
 
-function getKickEmoteSection(emote: Emote): "channel" | "global" | "emoji" {
+function getKickEmoteSection(emote: Emote): "channel" | "subscribed" | "global" | "emoji" {
   if (emote.kickSection) return emote.kickSection;
   return emote.isGlobal ? "global" : "channel";
+}
+
+function makeSectionIdPart(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9_-]+/g, "-") || "unknown";
+}
+
+function getUserEmoteGroupKey(emote: Emote): string {
+  return emote.owner?.id || emote.owner?.username || emote.channelId || emote.id;
+}
+
+function getUserEmoteGroupTitle(emote: Emote): string {
+  return (
+    emote.owner?.displayName?.trim() ||
+    emote.owner?.username?.trim() ||
+    emote.channelId?.trim() ||
+    "Subscribed"
+  );
+}
+
+function hasProviderGlobalOrUserEmotes(provider: EmoteProvider, emotes: Emote[]): boolean {
+  if (provider === "kick") {
+    return emotes.some((emote) => {
+      const section = getKickEmoteSection(emote);
+      return section !== "channel" || emote.availability === "user";
+    });
+  }
+  if (provider === "twitch") {
+    return emotes.some((emote) => emote.isGlobal || emote.availability === "user");
+  }
+  return emotes.some((emote) => emote.isGlobal);
 }
 
 const ITEM_SIZE_PX = 40;
@@ -265,7 +362,15 @@ const ITEM_PITCH_PX = ITEM_SIZE_PX + ITEM_GAP_PX;
 const DEFAULT_GRID_WIDTH_PX = 336;
 const DEFAULT_PICKER_VIEWPORT_PX = 360;
 const OVERSCAN_ROWS = 3;
-const SCROLL_IDLE_DEFER_MS = 800;
+const WINDOW_PRELOAD_PX = DEFAULT_PICKER_VIEWPORT_PX;
+const SCROLL_ACTIVE_VIEWPORT_RATIO = 0.35;
+const SCROLL_ACTIVE_MAX_OFFSET_PX = 160;
+const TWITCH_USER_EMOTE_SCOPE = "user:read:emotes";
+type TwitchUserEmoteScopeStatus = "granted" | "missing" | "unknown";
+
+function hasTwitchUserEmoteScope(scopes?: string[]): boolean {
+  return (scopes ?? []).includes(TWITCH_USER_EMOTE_SCOPE);
+}
 
 function getColumnCount(width: number): number {
   return Math.max(1, Math.floor((width + ITEM_GAP_PX) / ITEM_PITCH_PX));
@@ -288,22 +393,21 @@ function getVisibleWindow({
   const totalHeight = totalRows * ITEM_PITCH_PX;
   const relativeTop = scrollTop - gridOffsetTop;
   const relativeBottom = relativeTop + viewportHeight;
+  const preloadTop = relativeTop - WINDOW_PRELOAD_PX;
+  const preloadBottom = relativeBottom + WINDOW_PRELOAD_PX;
 
   let startRow = 0;
   let endRow = totalRows;
 
-  if (relativeBottom < 0) {
+  if (preloadBottom < 0) {
     startRow = 0;
     endRow = 0;
-  } else if (relativeTop > totalHeight) {
+  } else if (preloadTop > totalHeight) {
     startRow = totalRows;
     endRow = totalRows;
   } else {
-    startRow = Math.max(0, Math.floor(Math.max(0, relativeTop) / ITEM_PITCH_PX) - OVERSCAN_ROWS);
-    endRow = Math.min(
-      totalRows,
-      Math.ceil((Math.max(0, relativeTop) + viewportHeight) / ITEM_PITCH_PX) + OVERSCAN_ROWS
-    );
+    startRow = Math.max(0, Math.floor(Math.max(0, preloadTop) / ITEM_PITCH_PX));
+    endRow = Math.min(totalRows, Math.ceil(Math.max(0, preloadBottom) / ITEM_PITCH_PX));
   }
 
   return {
@@ -314,6 +418,30 @@ function getVisibleWindow({
   };
 }
 
+function getActiveSubSectionForScroll(
+  subSections: SubSectionConfig[],
+  sectionRefs: Record<string, HTMLDivElement | null>,
+  scrollTop: number,
+  scrollRootOffsetTop: number,
+  viewportHeight: number
+): SubSection | null {
+  const activationOffset = Math.min(
+    viewportHeight * SCROLL_ACTIVE_VIEWPORT_RATIO,
+    SCROLL_ACTIVE_MAX_OFFSET_PX
+  );
+  const activationLine = scrollTop + activationOffset;
+  let activeSubSection: SubSection | null = null;
+
+  for (const subSection of subSections) {
+    const section = sectionRefs[subSection.targetSectionId];
+    if (!section) continue;
+    if (section.offsetTop - scrollRootOffsetTop > activationLine) break;
+    activeSubSection = subSection.id;
+  }
+
+  return activeSubSection;
+}
+
 /* ------------------------------------------------------------------------ */
 /* Section                                                                  */
 /* ------------------------------------------------------------------------ */
@@ -322,12 +450,14 @@ interface EmoteSectionProps {
   sectionId: string;
   title: string;
   emotes: Emote[];
+  tabs?: EmoteSectionTab[];
   collapsedHeaderOnly?: boolean;
+  showCollapsedCount?: boolean;
   showLock: (emote: Emote) => boolean;
   onEmoteClick: (emote: Emote) => void;
+  onLockedEmoteClick: (emote: Emote) => void;
   onFavoriteClick: (emote: Emote) => void;
   isFavorite: (emoteId: string) => boolean;
-  deferImages?: boolean;
   scrollTop?: number;
   viewportHeight?: number;
   sectionRef?: (node: HTMLDivElement | null) => void;
@@ -337,76 +467,32 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
   sectionId,
   title,
   emotes,
+  tabs,
   collapsedHeaderOnly = false,
+  showCollapsedCount = true,
   showLock,
   onEmoteClick,
+  onLockedEmoteClick,
   onFavoriteClick,
   isFavorite,
-  deferImages = false,
   scrollTop = 0,
   viewportHeight = DEFAULT_PICKER_VIEWPORT_PX,
   sectionRef,
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const [columns, setColumns] = useState(() => getColumnCount(DEFAULT_GRID_WIDTH_PX));
-  const [windowRange, setWindowRange] = useState(() =>
-    getVisibleWindow({
-      itemCount: emotes.length,
-      columns: getColumnCount(DEFAULT_GRID_WIDTH_PX),
-      scrollTop: 0,
-      viewportHeight: DEFAULT_PICKER_VIEWPORT_PX,
-      gridOffsetTop: 0,
-    })
+  const columns = getColumnCount(DEFAULT_GRID_WIDTH_PX);
+  const windowRange = useMemo(
+    () =>
+      getVisibleWindow({
+        itemCount: emotes.length,
+        columns,
+        scrollTop,
+        viewportHeight,
+        gridOffsetTop: bodyRef.current?.offsetTop ?? 0,
+      }),
+    [emotes.length, columns, scrollTop, viewportHeight]
   );
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (collapsedHeaderOnly) return;
-    const grid = gridRef.current;
-    if (!grid || typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width || DEFAULT_GRID_WIDTH_PX;
-      setColumns(getColumnCount(width));
-    });
-    observer.observe(grid);
-    return () => observer.disconnect();
-  }, [isOpen, collapsedHeaderOnly]);
-
-  useLayoutEffect(() => {
-    if (!isOpen || collapsedHeaderOnly) return;
-
-    let raf: number | null = null;
-
-    const updateWindow = () => {
-      raf = null;
-      setWindowRange(
-        getVisibleWindow({
-          itemCount: emotes.length,
-          columns,
-          scrollTop,
-          viewportHeight,
-          gridOffsetTop: bodyRef.current?.offsetTop ?? 0,
-        })
-      );
-    };
-
-    const scheduleUpdate = () => {
-      if (raf != null) return;
-      raf = window.requestAnimationFrame(updateWindow);
-    };
-
-    updateWindow();
-    window.addEventListener("resize", scheduleUpdate);
-
-    return () => {
-      window.removeEventListener("resize", scheduleUpdate);
-      if (raf != null) window.cancelAnimationFrame(raf);
-    };
-  }, [isOpen, collapsedHeaderOnly, emotes.length, columns, scrollTop, viewportHeight]);
-
   const visibleEmotes = useMemo(
     () => emotes.slice(windowRange.startIndex, windowRange.endIndex),
     [emotes, windowRange.startIndex, windowRange.endIndex]
@@ -431,24 +517,41 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
       data-emote-section-id={sectionId}
       className="border-b border-[var(--color-border)] last:border-b-0 scroll-mt-2"
     >
-      <button
-        type="button"
-        className="group w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)] hover:bg-white/5"
-        onClick={() => setIsOpen((v) => !v)}
-        aria-expanded={isOpen}
-      >
+      <div className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]">
         <span className="text-[#777777]">
           {title}
-          {collapsedHeaderOnly && (
+          {collapsedHeaderOnly && showCollapsedCount && (
             <span className="ml-2 normal-case font-normal text-[#777777]">
               ({emotes.length} match{emotes.length === 1 ? "" : "es"})
             </span>
           )}
         </span>
-        <CaretIcon open={isOpen && !collapsedHeaderOnly} />
-      </button>
-      {isOpen && !collapsedHeaderOnly && (
+      </div>
+      {!collapsedHeaderOnly && (
         <div ref={bodyRef} className="p-3">
+          {tabs && tabs.length > 0 && (
+            <div
+              data-testid={`${sectionId}-source-tabs`}
+              className="mb-3 flex w-full items-center gap-1 rounded-[4px] bg-[var(--color-background-tertiary)] p-1"
+            >
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  aria-label={tab.ariaLabel}
+                  aria-pressed={tab.active}
+                  onClick={tab.onClick}
+                  className={`h-7 flex-1 rounded-[3px] px-2 text-xs font-semibold transition-colors ${
+                    tab.active
+                      ? "bg-[var(--color-background-secondary)] text-white"
+                      : "text-[var(--color-foreground-muted)] hover:bg-white/[0.08] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
           {emotes.length === 0 ? (
             <div className="text-center py-4 text-xs text-[var(--color-foreground-muted)]">
               No emotes
@@ -468,8 +571,8 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
                     emote={emote}
                     locked={showLock(emote)}
                     favorited={isFavorite(emote.id)}
-                    deferImage={deferImages}
                     onSelect={onEmoteClick}
+                    onLockedSelect={onLockedEmoteClick}
                     onFavoriteClick={onFavoriteClick}
                   />
                 ))}
@@ -491,8 +594,8 @@ interface EmotePickerItemProps {
   emote: Emote;
   locked: boolean;
   favorited: boolean;
-  deferImage?: boolean;
   onSelect: (emote: Emote) => void;
+  onLockedSelect: (emote: Emote) => void;
   onFavoriteClick: (emote: Emote) => void;
 }
 
@@ -500,16 +603,19 @@ const EmotePickerItem = memo(function EmotePickerItem({
   emote,
   locked,
   favorited,
-  deferImage = false,
   onSelect,
+  onLockedSelect,
   onFavoriteClick,
 }: EmotePickerItemProps) {
   const [hovered, setHovered] = useState(false);
 
   const handleClick = useCallback(() => {
-    if (locked) return; // R9: locked emote click is a no-op
+    if (locked) {
+      onLockedSelect(emote);
+      return;
+    }
     onSelect(emote);
-  }, [locked, onSelect, emote]);
+  }, [locked, onLockedSelect, onSelect, emote]);
 
   const handleFavorite = useCallback(
     (e: React.MouseEvent) => {
@@ -544,18 +650,11 @@ const EmotePickerItem = memo(function EmotePickerItem({
           locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
         }`}
       >
-        <EmoteImage
-          emote={emote}
-          size="medium"
-          showTooltip={false}
-          lazyLoad={true}
-          deferLoad={deferImage}
-          deferredPlaceholder={deferImage ? "static" : "pulse"}
-        />
+        <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
         {locked && (
           <span
             data-testid="emote-lock-overlay"
-            className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-md text-white pointer-events-none"
+            className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-[3px] bg-black/75 text-white shadow-sm ring-1 ring-white/20 pointer-events-none"
           >
             <LockIcon />
           </span>
@@ -567,7 +666,9 @@ const EmotePickerItem = memo(function EmotePickerItem({
           onClick={handleFavorite}
           aria-label={favorited ? `Unfavorite ${emote.name}` : `Favorite ${emote.name}`}
           className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ${
-            favorited ? "bg-yellow-500 text-black" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+            favorited
+              ? "bg-yellow-500 text-black"
+              : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
           }`}
         >
           <StarIcon filled={favorited} />
@@ -590,56 +691,259 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   anchorRef,
   scope,
   platform,
-  channelId: _channelId,
+  channelId,
+  channelName,
+  kickUserId,
   viewerIsSubscribed,
   channelAvatarUrl,
   channelLabel,
 }) => {
   const providers = useMemo(() => getProvidersForScope(scope, platform), [scope, platform]);
-  const subSections = useMemo(
-    () => getSubSectionsForScope(scope, platform, channelAvatarUrl),
-    [scope, platform, channelAvatarUrl]
-  );
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeSubSection, setActiveSubSection] = useState<SubSection | null>(null);
+  const [requestedSubSection, setRequestedSubSection] = useState<SubSection>("recent");
+  const [scrollActiveSubSection, setScrollActiveSubSection] = useState<SubSection | null>(null);
+  const [providerSourceTabs, setProviderSourceTabs] = useState<
+    Partial<Record<EmoteProvider, ProviderSourceTab>>
+  >({});
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [scrollSnapshot, setScrollSnapshot] = useState({
     top: 0,
     height: DEFAULT_PICKER_VIEWPORT_PX,
   });
-  const [isPickerScrolling, setIsPickerScrolling] = useState(false);
+  const [missingTwitchUserEmoteScope, setMissingTwitchUserEmoteScope] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollIdleTimerRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const programmaticScrollTargetRef = useRef<SubSection | null>(null);
+  const programmaticScrollReleaseTimer = useManagedTimeout(
+    useCallback(() => {
+      programmaticScrollTargetRef.current = null;
+    }, [])
+  );
 
-  const { recentEmotes, favoriteEmotes, activeChannelId, loadedChannels, loadedGlobalPlatforms } =
-    useEmoteStore(
-      useShallow((state) => ({
-        recentEmotes: state.recentEmotes,
-        favoriteEmotes: state.favoriteEmotes,
-        activeChannelId: state.activeChannelId,
-        loadedChannels: state.loadedChannels,
-        loadedGlobalPlatforms: state.loadedGlobalPlatforms,
-      }))
-    );
+  const {
+    recentEmotes,
+    favoriteEmotes,
+    activeChannelId,
+    loadedChannels,
+    loadedGlobalPlatforms,
+    emoteRevision,
+  } = useEmoteStore(
+    useShallow((state) => ({
+      recentEmotes: state.recentEmotes,
+      favoriteEmotes: state.favoriteEmotes,
+      activeChannelId: state.activeChannelId,
+      loadedChannels: state.loadedChannels,
+      loadedGlobalPlatforms: state.loadedGlobalPlatforms,
+      emoteRevision: state.emoteRevision,
+    }))
+  );
   const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
   const toggleFavorite = useEmoteStore((state) => state.toggleFavorite);
   const isFavorite = useEmoteStore((state) => state.isFavorite);
   const getEmotesByProvider = useEmoteStore((state) => state.getEmotesByProvider);
+  const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
+  const loadChannelEmotes = useEmoteStore((state) => state.loadChannelEmotes);
+  const openLoadAttemptRef = useRef<string | null>(null);
+  const openChannelLoadAttemptRef = useRef<string | null>(null);
 
-  // Provider → emotes map. Recompute when underlying load state shifts.
-  // `loadedGlobalPlatforms.size` is a stable primitive across renders (Sets
-  // get rebuilt on each per-platform completion), so it tracks the actual
-  // signal the memo cares about — globals coming online for any platform.
+  // Provider → emotes map. Recompute when manager-backed emote data changes.
+  // `emoteRevision` covers force reloads whose Set sizes don't change (for
+  // example: a failed empty global load followed by a successful retry).
   // biome-ignore lint/correctness/useExhaustiveDependencies: getEmotesByProvider is a stable zustand selector; including it would not change behavior but would add noise
   const emotesByProvider = useMemo(
     () => getEmotesByProvider(),
-    [activeChannelId, loadedChannels, loadedGlobalPlatforms.size]
+    [activeChannelId, loadedChannels, loadedGlobalPlatforms.size, emoteRevision]
   );
+
+  const refreshTwitchUserEmoteScopeStatus =
+    useCallback(async (): Promise<TwitchUserEmoteScopeStatus> => {
+      const tokenStatus = window.electronAPI?.auth?.tokenStatus;
+      if (!tokenStatus) {
+        setMissingTwitchUserEmoteScope(false);
+        return "unknown";
+      }
+
+      try {
+        const status = await tokenStatus("twitch");
+        const hasScope =
+          status?.connected === true &&
+          status.valid === true &&
+          hasTwitchUserEmoteScope(status.scopes);
+        const isMissing = status?.connected === true && status.valid === true && !hasScope;
+        setMissingTwitchUserEmoteScope(isMissing);
+        if (hasScope) return "granted";
+        return isMissing ? "missing" : "unknown";
+      } catch {
+        setMissingTwitchUserEmoteScope(false);
+        return "unknown";
+      }
+    }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      openLoadAttemptRef.current = null;
+      openChannelLoadAttemptRef.current = null;
+      return;
+    }
+
+    const attemptKey = `${scope}:${platform}`;
+    if (openLoadAttemptRef.current === attemptKey) return;
+
+    const hasGlobalOrUserEmotes = providers.some((provider) =>
+      hasProviderGlobalOrUserEmotes(provider, emotesByProvider.get(provider) ?? [])
+    );
+    if (hasGlobalOrUserEmotes) return;
+
+    openLoadAttemptRef.current = attemptKey;
+
+    if (scope === "native" && platform === "twitch") {
+      void refreshTwitchUserEmoteScopeStatus().then((status) => {
+        if (openLoadAttemptRef.current !== attemptKey) return;
+        if (status === "missing") return;
+        void loadGlobalEmotes(platform, { force: true });
+      });
+      return;
+    }
+
+    void loadGlobalEmotes(platform, { force: true });
+  }, [
+    isOpen,
+    scope,
+    platform,
+    providers,
+    emotesByProvider,
+    loadGlobalEmotes,
+    refreshTwitchUserEmoteScopeStatus,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen || !channelId) return;
+
+    const attemptKey = `${scope}:${platform}:${channelId}`;
+    if (openChannelLoadAttemptRef.current === attemptKey) return;
+
+    const hasScopedChannelEmotes = providers.some((provider) => {
+      const emotes = emotesByProvider.get(provider) ?? [];
+      if (provider === "kick") {
+        return emotes.some((emote) => getKickEmoteSection(emote) === "channel");
+      }
+      if (provider === "twitch") {
+        return emotes.some((emote) => !emote.isGlobal && emote.availability !== "user");
+      }
+      return emotes.some((emote) => !emote.isGlobal);
+    });
+    if (hasScopedChannelEmotes) return;
+
+    openChannelLoadAttemptRef.current = attemptKey;
+    void loadChannelEmotes(
+      channelId,
+      channelName ?? channelLabel ?? undefined,
+      platform,
+      kickUserId ?? undefined,
+      { force: true }
+    );
+  }, [
+    isOpen,
+    scope,
+    platform,
+    providers,
+    emotesByProvider,
+    channelId,
+    channelName,
+    channelLabel,
+    kickUserId,
+    loadChannelEmotes,
+  ]);
+
+  const showNativeChannelSection = useMemo(() => {
+    if (scope !== "native") return true;
+    const nativeProvider = platform === "twitch" ? "twitch" : "kick";
+    const nativeEmotes = emotesByProvider.get(nativeProvider) ?? [];
+    if (platform === "kick") {
+      return nativeEmotes.some((emote) => getKickEmoteSection(emote) === "channel");
+    }
+    return nativeEmotes.some((emote) => !emote.isGlobal && emote.availability !== "user");
+  }, [scope, platform, emotesByProvider]);
+
+  const nativeUserEmoteGroups = useMemo<UserEmoteGroup[]>(() => {
+    if (scope !== "native") return [];
+    const nativeProvider = platform === "twitch" ? "twitch" : "kick";
+    const nativeEmotes = emotesByProvider.get(nativeProvider) ?? [];
+    const groups = new Map<string, UserEmoteGroup>();
+
+    for (const emote of nativeEmotes) {
+      if (emote.availability !== "user") continue;
+      const key = `${nativeProvider}:${getUserEmoteGroupKey(emote)}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.emotes.push(emote);
+        continue;
+      }
+
+      const sectionKey = makeSectionIdPart(key);
+      groups.set(key, {
+        key,
+        subSectionId: `user:${sectionKey}`,
+        sectionId: `subscribed-${sectionKey}`,
+        title: getUserEmoteGroupTitle(emote),
+        avatarUrl: emote.owner?.avatarUrl,
+        emotes: [emote],
+      });
+    }
+
+    return [...groups.values()].sort((a, b) => a.title.localeCompare(b.title));
+  }, [scope, platform, emotesByProvider]);
+
+  const subSections = useMemo(
+    () =>
+      getSubSectionsForScope(
+        scope,
+        platform,
+        channelAvatarUrl,
+        showNativeChannelSection,
+        nativeUserEmoteGroups
+      ),
+    [scope, platform, channelAvatarUrl, showNativeChannelSection, nativeUserEmoteGroups]
+  );
+
+  useEffect(() => {
+    if (isOpen && scope === "native" && platform === "twitch") {
+      void refreshTwitchUserEmoteScopeStatus().then(() => {});
+    }
+  }, [isOpen, scope, platform, refreshTwitchUserEmoteScopeStatus]);
+
+  const clearProgrammaticScrollTarget = useCallback(() => {
+    programmaticScrollTargetRef.current = null;
+    programmaticScrollReleaseTimer.clear();
+  }, [programmaticScrollReleaseTimer]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      clearProgrammaticScrollTarget();
+    }
+    return clearProgrammaticScrollTarget;
+  }, [isOpen, clearProgrammaticScrollTarget]);
+
+  useEffect(() => {
+    const pendingTarget = programmaticScrollTargetRef.current;
+    if (pendingTarget && !subSections.some((sub) => sub.id === pendingTarget)) {
+      clearProgrammaticScrollTarget();
+    }
+  }, [subSections, clearProgrammaticScrollTarget]);
+
+  const activeSubSection = useMemo(() => {
+    if (subSections.some((sub) => sub.id === scrollActiveSubSection)) {
+      return scrollActiveSubSection;
+    }
+    if (subSections.some((sub) => sub.id === requestedSubSection)) {
+      return requestedSubSection;
+    }
+    return subSections[0]?.id ?? "recent";
+  }, [subSections, requestedSubSection, scrollActiveSubSection]);
 
   /* --------------------------- focus on open --------------------------- */
   // The dialog paints at top/left:-9999 until the positioning layout effect
@@ -747,24 +1051,36 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     [favoriteEmotes, inScope, matchesSearch]
   );
 
+  const handleProviderSourceTabClick = useCallback(
+    (provider: EmoteProvider, tab: ProviderSourceTab) => {
+      setProviderSourceTabs((current) => ({ ...current, [provider]: tab }));
+    },
+    []
+  );
+
   /* ----------------------- per-provider lists ---------------------- */
-  const providerSections = useMemo(() => {
+  const providerSections = useMemo<EmoteSectionModel[]>(() => {
     const channelTitle = channelLabel?.trim() || "Channel";
     return providers.flatMap((provider) => {
-      const all = (emotesByProvider.get(provider) ?? []).filter((e) => matchesSearch(e));
+      const raw = emotesByProvider.get(provider) ?? [];
+      const all = raw.filter((e) => matchesSearch(e));
 
       if (provider === "kick" && platform === "kick") {
+        const channelEmotes = all.filter((e) => getKickEmoteSection(e) === "channel");
         return [
-          {
-            id: "channel",
-            title: channelTitle,
-            emotes: all.filter((e) => getKickEmoteSection(e) === "channel"),
-          },
           {
             id: "global",
             title: "Global",
             emotes: all.filter((e) => getKickEmoteSection(e) === "global"),
           },
+          ...(showNativeChannelSection
+            ? [{ id: "channel", title: channelTitle, emotes: channelEmotes }]
+            : []),
+          ...nativeUserEmoteGroups.map((group) => ({
+            id: group.sectionId,
+            title: group.title,
+            emotes: group.emotes.filter((emote) => matchesSearch(emote)),
+          })),
           {
             id: "emoji",
             title: "Emojis",
@@ -773,23 +1089,80 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         ];
       }
 
-      if (provider === "7tv" && platform === "kick") {
+      if (scope === "thirdParty" && ["7tv", "bttv", "ffz"].includes(provider)) {
+        const providerTitle = PROVIDER_LABELS[provider];
+        const hasChannelEmotes = raw.some((e) => !e.isGlobal);
+        const sourceTabs = [
+          ...(hasChannelEmotes
+            ? [
+                {
+                  id: "channel" as const,
+                  label: "Channel",
+                  emotes: all.filter((e) => !e.isGlobal),
+                },
+              ]
+            : []),
+          {
+            id: "global" as const,
+            label: "Global",
+            emotes: all.filter((e) => e.isGlobal),
+          },
+        ];
+        const requestedTab = providerSourceTabs[provider];
+        const activeTabId = sourceTabs.some((tab) => tab.id === requestedTab)
+          ? requestedTab
+          : sourceTabs[0]?.id;
+        const activeTab = sourceTabs.find((tab) => tab.id === activeTabId) ?? sourceTabs[0];
+
         return [
-          { id: "channel", title: channelTitle, emotes: all.filter((e) => !e.isGlobal) },
-          { id: "global", title: "Global", emotes: all.filter((e) => e.isGlobal) },
+          {
+            id: provider,
+            title: providerTitle,
+            emotes: activeTab?.emotes ?? [],
+            tabs: sourceTabs.map((tab) => ({
+              id: tab.id,
+              label: tab.label,
+              ariaLabel: `${providerTitle} ${tab.label}`,
+              active: tab.id === activeTabId,
+              onClick: () => handleProviderSourceTabClick(provider, tab.id),
+            })),
+          },
         ];
       }
 
       if (provider === "twitch" && platform === "twitch") {
+        const channelEmotes = all.filter((e) => !e.isGlobal && e.availability !== "user");
         return [
-          { id: "channel", title: channelTitle, emotes: all.filter((e) => !e.isGlobal) },
-          { id: "global", title: "Global", emotes: all.filter((e) => e.isGlobal) },
+          {
+            id: "global",
+            title: "Global",
+            emotes: all.filter((e) => e.isGlobal && e.availability !== "user"),
+          },
+          ...(showNativeChannelSection
+            ? [{ id: "channel", title: channelTitle, emotes: channelEmotes }]
+            : []),
+          ...nativeUserEmoteGroups.map((group) => ({
+            id: group.sectionId,
+            title: group.title,
+            emotes: group.emotes.filter((emote) => matchesSearch(emote)),
+          })),
         ];
       }
 
       return [{ id: provider, title: PROVIDER_LABELS[provider], emotes: all }];
     });
-  }, [providers, emotesByProvider, matchesSearch, platform, channelLabel]);
+  }, [
+    providers,
+    emotesByProvider,
+    matchesSearch,
+    scope,
+    platform,
+    channelLabel,
+    showNativeChannelSection,
+    nativeUserEmoteGroups,
+    providerSourceTabs,
+    handleProviderSourceTabClick,
+  ]);
 
   /* ----------------------------- handlers ---------------------------- */
   const handleEmoteClick = useCallback(
@@ -800,6 +1173,38 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     [addRecentEmote, onSelect]
   );
 
+  const handleLockedEmoteClick = useCallback((emote: Emote) => {
+    toast.warning("You must subscribe to this channel to use this emote.", {
+      description: emote.name,
+    });
+  }, []);
+
+  const handleReconnectTwitch = useCallback(() => {
+    void window.electronAPI.auth
+      .logoutTwitch()
+      .then((logoutResult) => {
+        if (!logoutResult.success) {
+          throw new Error(logoutResult.error || "Could not clear the old Twitch grant.");
+        }
+        return window.electronAPI.auth.openTwitchLogin();
+      })
+      .then(async () => {
+        const scopeStatus = await refreshTwitchUserEmoteScopeStatus();
+        if (scopeStatus !== "granted") {
+          toast.warning("Twitch did not grant subscribed-channel emote access.", {
+            description: `Authorize the ${TWITCH_USER_EMOTE_SCOPE} scope to load those emotes.`,
+          });
+          return;
+        }
+        openLoadAttemptRef.current = null;
+        void loadGlobalEmotes("twitch", { force: true });
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Try again from Settings.";
+        toast.warning("Could not reconnect Twitch.", { description: message });
+      });
+  }, [loadGlobalEmotes, refreshTwitchUserEmoteScopeStatus]);
+
   const setSectionRef = useCallback(
     (id: string) => (node: HTMLDivElement | null) => {
       sectionRefs.current[id] = node;
@@ -807,45 +1212,52 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     []
   );
 
-  const handleSubSectionClick = useCallback((sub: SubSectionConfig) => {
-    setActiveSubSection(sub.id);
-    sectionRefs.current[sub.targetSectionId]?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }, []);
+  const handleSubSectionClick = useCallback(
+    (sub: SubSectionConfig) => {
+      programmaticScrollTargetRef.current = sub.id;
+      programmaticScrollReleaseTimer.start(700);
+      setRequestedSubSection(sub.id);
+      setScrollActiveSubSection(sub.id);
+      sectionRefs.current[sub.targetSectionId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    },
+    [programmaticScrollReleaseTimer]
+  );
 
-  const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    setScrollSnapshot({
-      top: el.scrollTop,
-      height: el.clientHeight || DEFAULT_PICKER_VIEWPORT_PX,
-    });
-    setIsPickerScrolling(true);
-    if (scrollIdleTimerRef.current != null) {
-      window.clearTimeout(scrollIdleTimerRef.current);
-    }
-    // timer-allowlist: scroll idle debounce for deferred emote image loading
-    scrollIdleTimerRef.current = window.setTimeout(() => {
-      scrollIdleTimerRef.current = null;
-      setIsPickerScrolling(false);
-    }, SCROLL_IDLE_DEFER_MS);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (scrollIdleTimerRef.current != null) {
-        window.clearTimeout(scrollIdleTimerRef.current);
+  const handleBodyScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      setScrollSnapshot({
+        top: el.scrollTop,
+        height: el.clientHeight || DEFAULT_PICKER_VIEWPORT_PX,
+      });
+      const nextActiveSubSection = getActiveSubSectionForScroll(
+        subSections,
+        sectionRefs.current,
+        el.scrollTop,
+        el.offsetTop,
+        el.clientHeight || DEFAULT_PICKER_VIEWPORT_PX
+      );
+      if (nextActiveSubSection) {
+        const pendingTarget = programmaticScrollTargetRef.current;
+        if (pendingTarget && nextActiveSubSection !== pendingTarget) return;
+        if (pendingTarget === nextActiveSubSection) {
+          clearProgrammaticScrollTarget();
+        }
+        setScrollActiveSubSection(nextActiveSubSection);
       }
     },
-    []
+    [subSections, clearProgrammaticScrollTarget]
   );
 
   /* --------------------------- lock predicate --------------------------- */
   const showLock = useCallback(
     (emote: Emote): boolean => {
-      if (!(scope === "native" && platform === "kick")) return false;
-      if (viewerIsSubscribed === undefined) return false;
+      if (scope !== "native") return false;
+      if (!(platform === "kick" || platform === "twitch")) return false;
+      if (emote.availability === "user") return false;
       if (viewerIsSubscribed === true) return false;
       return emote.subscribersOnly === true;
     },
@@ -855,6 +1267,12 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   if (!isOpen) return null;
 
   const searching = searchQuery.trim().length > 0;
+  const collapseEmptyPinnedSections = !searching;
+  const showTwitchUserEmoteScopeNotice =
+    scope === "native" &&
+    platform === "twitch" &&
+    missingTwitchUserEmoteScope &&
+    nativeUserEmoteGroups.length === 0;
 
   // Portal to <body> so position:fixed anchors to the viewport rather than to
   // a transformed ancestor (chat panel uses CSS transforms internally; without
@@ -882,40 +1300,76 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         />
       </div>
 
-      {/* Sub-section icon row — KickTalk `.dialogHeadMenuItem` spec:
-       *    32×32, 4px radius, 1px border #ffffff33, hover bg #ffffff21 /
-       *    border #ffffff37, icon opacity 0.5 → 1. The avatar tab keeps full
-       *    opacity at rest (it's a photo, not a glyph; dimming it makes the
-       *    channel feel "off"). */}
+      {/* Sub-section icon row — Kick uses 40px tabs with a 2px rail at
+       * bottom-1.5: inactive rail rgba(240,241,242,.16), active rail white. */}
       {subSections.length > 0 && (
-        <div className="flex items-center gap-1 px-2 py-2 border-b border-[var(--color-border)]">
-          {subSections.map((sub) => {
-            const active = activeSubSection === sub.id;
-            const isAvatar = sub.id === "channel" && !!channelAvatarUrl;
-            return (
-              <button
-                key={sub.id}
-                type="button"
-                onClick={() => handleSubSectionClick(sub)}
-                aria-pressed={active}
-                aria-label={sub.label}
-                title={sub.label}
-                className={`group/tab flex items-center justify-center w-8 h-8 rounded-[4px] border transition-[background-color,border-color] duration-200 ease-in-out text-white ${
-                  active
-                    ? "bg-white/[0.13] border-white/[0.22]"
-                    : "bg-transparent border-white/20 hover:bg-white/[0.13] hover:border-white/[0.22]"
-                }`}
-              >
-                <span
-                  className={`flex items-center justify-center transition-opacity duration-200 ease-in-out ${
-                    isAvatar || active ? "opacity-100" : "opacity-50 group-hover/tab:opacity-100"
-                  }`}
-                >
-                  {sub.icon}
-                </span>
-              </button>
-            );
-          })}
+        <div className="px-2 py-2 border-b border-[var(--color-border)]">
+          <div className="relative w-full max-w-full overflow-x-auto pr-3 pb-1.5">
+            <span
+              aria-hidden="true"
+              data-testid="emote-subsection-rail"
+              className="pointer-events-none absolute bottom-0 left-0 right-3 z-0 h-0.5 bg-[rgba(240,241,242,0.16)]"
+            />
+            <div className="relative z-10 flex items-center gap-2">
+              {subSections.map((sub) => {
+                const active = activeSubSection === sub.id;
+                const isAvatar =
+                  (sub.id === "channel" && !!channelAvatarUrl) || sub.id.startsWith("user:");
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => handleSubSectionClick(sub)}
+                    aria-pressed={active}
+                    aria-label={sub.label}
+                    title={sub.label}
+                    className={`group/tab relative flex h-10 w-10 shrink-0 grow-0 items-center justify-center rounded-[4px] border transition-[background-color,border-color] duration-200 ease-in-out text-white ${
+                      active
+                        ? "bg-white/[0.13] border-white/[0.22]"
+                        : "bg-transparent border-white/20 hover:bg-white/[0.13] hover:border-white/[0.22]"
+                    }`}
+                  >
+                    <span
+                      className={`flex items-center justify-center transition-opacity duration-200 ease-in-out ${
+                        isAvatar || active
+                          ? "opacity-100"
+                          : "opacity-50 group-hover/tab:opacity-100"
+                      }`}
+                    >
+                      {sub.icon}
+                    </span>
+                    {active && (
+                      <span
+                        aria-hidden="true"
+                        data-testid="emote-subsection-active-indicator"
+                        className="absolute -bottom-1.5 left-0 z-20 h-0.5 w-full bg-white"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTwitchUserEmoteScopeNotice && (
+        <div
+          data-testid="twitch-user-emote-scope-notice"
+          className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 py-2"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 text-xs leading-4 text-[var(--color-foreground-secondary)]">
+              Reconnect Twitch to show subscribed-channel emotes.
+            </p>
+            <button
+              type="button"
+              onClick={handleReconnectTwitch}
+              className="h-7 shrink-0 rounded-[4px] bg-white px-2 text-xs font-semibold text-[#0f0f0f] transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[var(--color-background-tertiary)]"
+            >
+              Reconnect
+            </button>
+          </div>
         </div>
       )}
 
@@ -925,12 +1379,15 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           sectionId="frequent"
           title="Frequently Used"
           emotes={recentInScope}
-          collapsedHeaderOnly={searching}
+          collapsedHeaderOnly={
+            searching || (collapseEmptyPinnedSections && recentInScope.length === 0)
+          }
+          showCollapsedCount={searching}
           showLock={showLock}
           onEmoteClick={handleEmoteClick}
+          onLockedEmoteClick={handleLockedEmoteClick}
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
-          deferImages={isPickerScrolling}
           scrollTop={scrollSnapshot.top}
           viewportHeight={scrollSnapshot.height}
           sectionRef={setSectionRef("frequent")}
@@ -939,27 +1396,31 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           sectionId="favorites"
           title="Favorites"
           emotes={favoritesInScope}
-          collapsedHeaderOnly={searching}
+          collapsedHeaderOnly={
+            searching || (collapseEmptyPinnedSections && favoritesInScope.length === 0)
+          }
+          showCollapsedCount={searching}
           showLock={showLock}
           onEmoteClick={handleEmoteClick}
+          onLockedEmoteClick={handleLockedEmoteClick}
           onFavoriteClick={toggleFavorite}
           isFavorite={isFavorite}
-          deferImages={isPickerScrolling}
           scrollTop={scrollSnapshot.top}
           viewportHeight={scrollSnapshot.height}
           sectionRef={setSectionRef("favorites")}
         />
-        {providerSections.map(({ id, title, emotes }) => (
+        {providerSections.map(({ id, title, emotes, tabs }) => (
           <EmoteSection
             key={id}
             sectionId={id}
             title={title}
             emotes={emotes}
+            tabs={tabs}
             showLock={showLock}
             onEmoteClick={handleEmoteClick}
+            onLockedEmoteClick={handleLockedEmoteClick}
             onFavoriteClick={toggleFavorite}
             isFavorite={isFavorite}
-            deferImages={isPickerScrolling}
             scrollTop={scrollSnapshot.top}
             viewportHeight={scrollSnapshot.height}
             sectionRef={setSectionRef(id)}

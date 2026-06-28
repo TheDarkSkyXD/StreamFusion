@@ -17,6 +17,27 @@ function followKey(channel: Pick<UnifiedChannel, "platform" | "id" | "username">
   return `${channel.platform}:${channel.id || channel.username?.toLowerCase() || ""}`;
 }
 
+function canonicalFollowChannelId(channel: UnifiedChannel): string {
+  return channel.platform === "kick" && channel.kickUserId ? channel.kickUserId : channel.id;
+}
+
+function kickAvatarMatchesUserId(avatarUrl: string | undefined, kickUserId: string | undefined) {
+  return Boolean(kickUserId && avatarUrl?.includes(`/images/user/${kickUserId}/`));
+}
+
+function sameResolvedChannel(candidate: UnifiedChannel, resolved: UnifiedChannel): boolean {
+  if (candidate.platform !== resolved.platform) return false;
+  const resolvedIds = new Set(
+    [resolved.id, resolved.platform === "kick" ? resolved.kickUserId : undefined].filter(Boolean)
+  );
+
+  return (
+    resolvedIds.has(candidate.id) ||
+    (resolved.platform === "kick" &&
+      kickAvatarMatchesUserId(candidate.avatarUrl, resolved.kickUserId))
+  );
+}
+
 interface FollowState {
   localFollows: UnifiedChannel[];
   /**
@@ -32,6 +53,7 @@ interface FollowState {
   isFollowing: (channel: UnifiedChannel) => boolean;
   /** Returns null when the channel isn't followed (anywhere). */
   getFollowSource: (channel: UnifiedChannel) => FollowSource | null;
+  repairFollowMetadataFromChannel: (channel: UnifiedChannel) => Promise<boolean>;
   toggleFollow: (channel: UnifiedChannel) => void;
   upgradeFollowIfNeeded: (channel: UnifiedChannel) => Promise<void>;
   hydrate: () => Promise<void>;
@@ -65,7 +87,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
       try {
         const added = await window.electronAPI.follows.add({
           platform: channel.platform as "twitch" | "kick",
-          channelId: channel.id,
+          channelId: canonicalFollowChannelId(channel),
           channelName: channel.username,
           displayName: channel.displayName,
           profileImage: channel.avatarUrl,
@@ -167,6 +189,59 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
         : undefined) ??
       "guest"
     );
+  },
+  repairFollowMetadataFromChannel: async (channel) => {
+    if (!channel.id || !channel.username) return false;
+
+    const currentFollows = get().localFollows;
+    const existing = currentFollows.find((follow) => sameResolvedChannel(follow, channel));
+    const canonicalChannelId = canonicalFollowChannelId(channel);
+
+    if (
+      !existing ||
+      (existing.id === canonicalChannelId &&
+        existing.username.toLowerCase() === channel.username.toLowerCase())
+    ) {
+      return false;
+    }
+
+    const key = followKey(channel);
+    if (inFlight.has(key)) return false;
+    inFlight.add(key);
+
+    try {
+      const backendFollows = await window.electronAPI.follows.getAll();
+      const row = backendFollows.find(
+        (follow) =>
+          follow.platform === channel.platform &&
+          (follow.channelId === channel.id ||
+            follow.channelId === canonicalChannelId ||
+            kickAvatarMatchesUserId(follow.profileImage, channel.kickUserId))
+      );
+      if (!row) return false;
+
+      await window.electronAPI.follows.update(row.id, {
+        channelId: canonicalChannelId,
+        channelName: channel.username,
+        displayName: channel.displayName,
+        profileImage: channel.avatarUrl,
+      });
+      await get().hydrate();
+      return true;
+    } catch (err) {
+      logger.error("Store:Follow", "failed to repair stale follow metadata", {
+        channelId: channel.id,
+        platform: channel.platform,
+        username: channel.username,
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : String(err),
+      });
+      return false;
+    } finally {
+      inFlight.delete(key);
+    }
   },
   toggleFollow: (channel) => {
     const { isFollowing, followChannel, unfollowChannel } = get();

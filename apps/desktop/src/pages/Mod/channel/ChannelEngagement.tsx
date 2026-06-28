@@ -68,7 +68,7 @@ export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEnga
     <section data-testid="channel-engagement">
       <h2 className="text-xl font-semibold mb-3 text-white">Active engagement</h2>
       <div className="rounded border border-[var(--color-border)] bg-white/5 p-3">
-        {loading && !hasActivity ? <p className="text-sm text-gray-400">Loading…</p> : null}
+        {loading && !hasActivity ? <p className="text-sm text-neutral-400">Loading…</p> : null}
         {prediction ? (
           <div className="mb-2" data-testid="channel-engagement-prediction">
             <div className="text-xs uppercase tracking-wide text-[var(--color-foreground-muted)]">
@@ -102,7 +102,7 @@ export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEnga
         ) : null}
 
         {!hasActivity && !loading ? (
-          <p className="text-sm text-gray-400" data-testid="channel-engagement-empty">
+          <p className="text-sm text-neutral-400" data-testid="channel-engagement-empty">
             No active prediction or poll.
           </p>
         ) : null}

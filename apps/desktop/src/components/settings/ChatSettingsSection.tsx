@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import {
   Select,
@@ -124,49 +124,157 @@ export function RangeRow({
   description,
   note,
   value,
+  defaultValue,
   min,
   max,
   step = 1,
   unit,
   onChange,
+  onReset,
   icon,
 }: {
   label: string;
   description?: ReactNode;
   note?: ReactNode;
   value: number;
+  defaultValue?: number;
   min: number;
   max: number;
   step?: number;
   unit?: string;
   onChange: (next: number) => void;
+  onReset?: () => void;
   icon?: ReactNode;
 }) {
+  const [draftValue, setDraftValue] = useState(value);
+
+  useEffect(() => {
+    setDraftValue(value);
+  }, [value]);
+
+  const formatValue = (nextValue: number) => `${nextValue}${unit ? unit : ""}`;
+  const clampedValue = Math.min(max, Math.max(min, draftValue));
+  const steppedValue =
+    step > 0
+      ? Math.min(max, Math.max(min, min + Math.round((clampedValue - min) / step) * step))
+      : clampedValue;
+  const formattedValue = formatValue(steppedValue);
+  const defaultDisplayValue = defaultValue === undefined ? undefined : formatValue(defaultValue);
+  const canReset = defaultValue !== undefined && steppedValue !== defaultValue;
+  const range = max - min;
+  const filledPercent =
+    range > 0 ? Math.min(100, Math.max(0, ((steppedValue - min) / range) * 100)) : 0;
+  const intervalCount = step > 0 ? Math.round((max - min) / step) : 0;
+  const tickStepIndexes =
+    intervalCount >= 2
+      ? intervalCount <= 40
+        ? Array.from({ length: intervalCount + 1 }, (_, index) => index)
+        : Array.from({ length: 11 }, (_, index) => Math.round((index / 10) * intervalCount))
+      : [];
+  const ticks = [...new Set(tickStepIndexes)].map((index) => {
+    const tickValue = min + index * step;
+    const tickPercent =
+      range > 0 ? Math.min(100, Math.max(0, ((tickValue - min) / range) * 100)) : 0;
+
+    return { percent: tickPercent, value: tickValue };
+  });
+
   return (
-    <SettingRow
-      label={label}
-      description={description}
-      note={note}
-      icon={icon}
-      control={
-        <div className="flex items-center gap-3 w-[180px]">
-          <input
-            type="range"
-            aria-label={label}
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className="flex-1 min-w-0 h-1.5 cursor-pointer appearance-none rounded-full bg-[#27272a] accent-[#dc143c]"
-          />
-          <span className="flex-shrink-0 w-12 text-right text-sm tabular-nums text-zinc-300">
-            {value}
-            {unit ? unit : ""}
+    <div className="py-3">
+      <div className="min-w-0 flex items-start gap-3">
+        {icon && (
+          <span className="mt-0.5 flex-shrink-0 text-zinc-500" aria-hidden>
+            {icon}
           </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-3">
+            <p className="min-w-0 flex-1 font-medium text-zinc-200 break-words">{label}</p>
+            <span className="flex-shrink-0 text-right text-sm tabular-nums text-zinc-300">
+              {formattedValue}
+            </span>
+          </div>
+          <div className="relative mt-2 h-5">
+            <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-[#27272a]">
+              <div
+                className="h-full rounded-full bg-zinc-200"
+                style={{ width: `${filledPercent}%` }}
+              />
+            </div>
+            <input
+              type="range"
+              aria-label={label}
+              min={min}
+              max={max}
+              step={step}
+              value={steppedValue}
+              onChange={(e) => {
+                const nextValue = Number(e.target.value);
+                setDraftValue(nextValue);
+                onChange(nextValue);
+              }}
+              className={cn(
+                "absolute inset-0 z-30 block h-full w-full cursor-pointer appearance-none bg-transparent",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214]",
+                "[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:appearance-none [&::-webkit-slider-runnable-track]:bg-transparent",
+                "[&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full",
+                "[&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-zinc-300 [&::-webkit-slider-thumb]:bg-zinc-100",
+                "[&::-webkit-slider-thumb]:mt-[-5px] [&::-webkit-slider-thumb]:transition-colors [&::-webkit-slider-thumb]:hover:bg-white",
+                "[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:bg-transparent",
+                "[&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border",
+                "[&::-moz-range-thumb]:border-zinc-300 [&::-moz-range-thumb]:bg-zinc-100 [&::-moz-range-thumb]:transition-colors [&::-moz-range-thumb]:hover:bg-white"
+              )}
+            />
+            {ticks.length > 0 && (
+              <div
+                className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2"
+                aria-hidden
+              >
+                {ticks.map((tick) => (
+                  <span
+                    key={tick.value}
+                    data-slider-tick=""
+                    data-slider-tick-value={tick.value}
+                    data-slider-tick-percent={tick.percent}
+                    data-slider-tick-active={tick.percent <= filledPercent}
+                    style={{ left: `${tick.percent}%` }}
+                    className={cn(
+                      "absolute top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full ring-1 ring-[#121214]",
+                      tick.percent <= filledPercent ? "bg-[#121214] ring-zinc-200" : "bg-zinc-500"
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          {description && <p className="text-sm text-zinc-500 mt-1.5">{description}</p>}
+          {(defaultDisplayValue || onReset) && (
+            <div className="mt-1.5 flex min-h-6 items-center justify-between gap-3">
+              {defaultDisplayValue && (
+                <p className="text-xs text-zinc-600">Default: {defaultDisplayValue}</p>
+              )}
+              {onReset && (
+                <button
+                  type="button"
+                  aria-label={`Reset ${label} to default`}
+                  disabled={!canReset}
+                  onClick={() => {
+                    if (defaultValue !== undefined) {
+                      setDraftValue(defaultValue);
+                    }
+                    onReset();
+                  }}
+                  className="ml-auto rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-[#27272a] hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
+          {note && <p className="text-xs text-zinc-600 mt-1 italic">{note}</p>}
         </div>
-      }
-    />
+      </div>
+    </div>
   );
 }
 
@@ -303,15 +411,6 @@ function AppearanceGroup() {
         ]}
         onChange={(v) => set("density", v)}
       />
-      <RangeRow
-        label="Docked chat width"
-        description="Width of the chat panel as a percentage of the stream area."
-        value={cd.chatWidthPct}
-        min={10}
-        max={60}
-        unit="%"
-        onChange={(v) => set("chatWidthPct", v)}
-      />
     </GroupCard>
   );
 }
@@ -374,10 +473,12 @@ function EventsGroup() {
         description="Messages kept in the buffer before the oldest are removed."
         note="Higher values use more memory."
         value={cd.messageLimit}
-        min={10}
-        max={1200}
-        step={10}
+        defaultValue={DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit}
+        min={100}
+        max={1000}
+        step={100}
         onChange={(v) => set("messageLimit", v)}
+        onReset={() => set("messageLimit", DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit)}
       />
       <SwitchRow
         label="Load recent messages on join"
@@ -387,10 +488,15 @@ function EventsGroup() {
       {cd.recentMessagesOnJoin && (
         <RangeRow
           label="Recent messages to load"
-          value={cd.recentMessagesLimit}
-          min={1}
-          max={200}
+          value={Math.min(800, Math.max(100, cd.recentMessagesLimit))}
+          defaultValue={DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit}
+          min={100}
+          max={800}
+          step={100}
           onChange={(v) => set("recentMessagesLimit", v)}
+          onReset={() =>
+            set("recentMessagesLimit", DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit)
+          }
         />
       )}
       <SwitchRow

@@ -9,7 +9,7 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 
 const streamPlaybackMock = vi.hoisted(() => ({
   useStreamPlayback: vi.fn(() => ({
-    playback: null,
+    playback: null as null | { url: string; format: "hls" | "dash" | "mp4" },
     reload: vi.fn(),
     reloadAttempts: 0,
   })),
@@ -23,11 +23,13 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/hooks/useStreamPlayback", () => streamPlaybackMock);
 
 vi.mock("@/components/player/hls-player", () => ({
-  HlsPlayer: () => <div data-testid="hls-player" />,
+  HlsPlayer: ({ src }: { src: string }) => <div data-testid="hls-player">{src}</div>,
 }));
 
 vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
-  TwitchHlsPlayer: () => <div data-testid="twitch-hls-player" />,
+  TwitchHlsPlayer: ({ src }: { src: string }) => (
+    <div data-testid="twitch-hls-player">{src}</div>
+  ),
 }));
 
 vi.mock("@/components/player/hooks/use-volume", () => ({
@@ -57,6 +59,7 @@ function primePipStore() {
 }
 
 // Guards: mini-player must synchronously idle on /stream routes so the main player does not share startup with a duplicate playback subscriber.
+// Guards: mini-player must not mount HLS from the persisted stream snapshot while a fresh playback URL is still resolving; stale Kick live-video tokens 403 when Following activates PiP.
 describe("MiniPlayer playback routing", () => {
   beforeEach(() => {
     routerState.pathname = "/";
@@ -79,14 +82,32 @@ describe("MiniPlayer playback routing", () => {
     expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
   });
 
-  it("fetches playback and renders when the user leaves the stream route", () => {
+  it("fetches playback but idles until a fresh URL resolves when the user leaves the stream route", () => {
     routerState.pathname = "/following";
     primePipStore();
 
     renderWithProviders(<MiniPlayer />);
 
     expect(streamPlaybackMock.useStreamPlayback).toHaveBeenCalledWith("kick", "xqc");
+    expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
+  });
+
+  it("renders with the fresh playback URL instead of the persisted stream snapshot", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    primePipStore();
+
+    renderWithProviders(<MiniPlayer />);
+
     expect(screen.getByTestId("hls-player")).toBeInTheDocument();
+    expect(screen.getByTestId("hls-player")).toHaveTextContent(
+      "https://fresh.example.test/live.m3u8"
+    );
+    expect(screen.getByTestId("hls-player")).not.toHaveTextContent("https://example.test/live.m3u8");
   });
 
   it("expands back to the stream Home tab", () => {

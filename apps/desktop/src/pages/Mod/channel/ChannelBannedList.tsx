@@ -153,7 +153,7 @@ export function ChannelBannedList({
     return (
       <section data-testid="channel-banned-list-kick">
         <h2 className="text-xl font-semibold mb-3 text-white">Banned users</h2>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-neutral-400">
           Kick doesn't expose a public banned-users list endpoint.
         </p>
       </section>
@@ -164,13 +164,13 @@ export function ChannelBannedList({
     <section data-testid="channel-banned-list">
       <h2 className="text-xl font-semibold mb-3 text-white">Banned users</h2>
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-neutral-400">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-300" data-testid="channel-banned-list-error">
           {error}
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-gray-400">No banned users.</p>
+        <p className="text-sm text-neutral-400">No banned users.</p>
       ) : (
         <ul className="space-y-1" data-testid="channel-banned-list-results">
           {entries.map((row) => {

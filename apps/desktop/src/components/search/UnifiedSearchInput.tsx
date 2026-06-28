@@ -1,13 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import React from "react";
-import { LuClock, LuFilter, LuLayoutGrid, LuSearch, LuSparkles, LuUser, LuX } from "react-icons/lu";
+import { LuHistory, LuLayoutGrid, LuSearch, LuSparkles, LuUser, LuX } from "react-icons/lu";
 
 import type { UnifiedCategory, UnifiedChannel } from "@/backend/api/unified/platform-types";
+import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
 import { useSearchCategories, useSearchChannels } from "@/hooks/queries/useSearch";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useSearchHistory } from "@/hooks/useSearchHistory";
+import { type SearchHistoryScope, useSearchHistory } from "@/hooks/useSearchHistory";
 import { cn, normalizeCategoryName, pickWinner } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
 
@@ -35,6 +36,11 @@ interface UnifiedSearchInputProps {
    * @default true
    */
   showCategories?: boolean;
+  /**
+   * Whether to show search type tabs in the dropdown.
+   * Defaults to the same value as showCategories so channel-only pickers stay compact.
+   */
+  showSearchTabs?: boolean;
   /**
    * Placeholder text for the input.
    */
@@ -64,7 +70,13 @@ interface UnifiedSearchInputProps {
   autoFocus?: boolean;
 }
 
-type SearchFilter = "all" | "channels" | "streams" | "categories";
+type SearchTab = SearchHistoryScope;
+
+const SEARCH_TABS: { id: SearchTab; label: string }[] = [
+  { id: "channels", label: "Channels" },
+  { id: "categories", label: "Categories" },
+  { id: "streams", label: "Streams" },
+];
 
 // Hard cap on how many combined channel + category rows the dropdown will
 // auto-fetch via infinite scroll. Past this, the bottom CTA routes to the
@@ -164,6 +176,7 @@ function ChannelItem({
   );
 
   const followerText = formatFollowerCount(channel.followerCount);
+  const showPartnerBadge = channel.isPartner || channel.isVerified;
 
   return (
     // @ts-expect-error - Link props vs div props complexity
@@ -188,9 +201,12 @@ function ChannelItem({
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
-          {channel.displayName}
-        </p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="min-w-0 truncate font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)]">
+            {channel.displayName}
+          </p>
+          {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
+        </div>
         <div className="flex items-center gap-2 text-xs text-zinc-400">
           {!platform && <span className="capitalize">{channel.platform}</span>}
           {followerText && <span>{followerText}</span>}
@@ -207,6 +223,7 @@ export function UnifiedSearchInput({
   onSelectCategory,
   onSearch,
   showCategories = true,
+  showSearchTabs = showCategories,
   placeholder = "Search streams, channels, categories...",
   className,
   inputClassName,
@@ -216,14 +233,19 @@ export function UnifiedSearchInput({
 }: UnifiedSearchInputProps) {
   const [searchQuery, setSearchQuery] = React.useState(initialValue);
   const [isFocused, setIsFocused] = React.useState(false);
-  const [searchFilter, setSearchFilter] = React.useState<SearchFilter>("all");
-  const [isFilterOpen, setIsFilterOpen] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<SearchTab>("channels");
   const internalInputRef = React.useRef<HTMLInputElement>(null);
   const inputRef = propInputRef || internalInputRef;
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const filterButtonRef = React.useRef<HTMLDivElement>(null);
 
-  const { history, addSearch, removeSearch } = useSearchHistory();
+  const visibleSearchTabs = React.useMemo(
+    () =>
+      showSearchTabs
+        ? SEARCH_TABS.filter((tab) => showCategories || tab.id !== "categories")
+        : SEARCH_TABS.filter((tab) => tab.id === "channels"),
+    [showCategories, showSearchTabs]
+  );
+  const { history, addSearch, removeSearch } = useSearchHistory(activeTab);
   const debouncedQuery = useDebounce(searchQuery, 250);
 
   const shouldFetch = debouncedQuery.trim().length > 0;
@@ -481,15 +503,14 @@ export function UnifiedSearchInput({
     return { topMatches: top, otherMatches: others };
   }, [channels, searchQuery]);
 
-  // Apply filter to derived results
+  // Apply the active tab to derived results. Streams are represented by live
+  // channel matches in the existing search API.
   const filteredTopMatches =
-    searchFilter === "streams" ? topMatches.filter((c) => c.isLive) : topMatches;
+    showSearchTabs && activeTab === "streams" ? topMatches.filter((c) => c.isLive) : topMatches;
   const filteredOtherMatches =
-    searchFilter === "streams" ? otherMatches.filter((c) => c.isLive) : otherMatches;
-  const showChannelResults =
-    searchFilter === "all" || searchFilter === "channels" || searchFilter === "streams";
-  const showCategoryResults =
-    showCategories && (searchFilter === "all" || searchFilter === "categories");
+    showSearchTabs && activeTab === "streams" ? otherMatches.filter((c) => c.isLive) : otherMatches;
+  const showChannelResults = !showSearchTabs || activeTab === "channels" || activeTab === "streams";
+  const showCategoryResults = showCategories && (!showSearchTabs || activeTab === "categories");
 
   // Hide suggestions when clicking outside
   React.useEffect(() => {
@@ -505,21 +526,15 @@ export function UnifiedSearchInput({
     };
   }, []);
 
-  // Close filter popover when clicking outside the filter button
   React.useEffect(() => {
-    if (!isFilterOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (filterButtonRef.current && !filterButtonRef.current.contains(event.target as Node)) {
-        setIsFilterOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isFilterOpen]);
+    if ((!showCategories && activeTab === "categories") || !showSearchTabs) {
+      setActiveTab("channels");
+    }
+  }, [activeTab, showCategories, showSearchTabs]);
 
   const executeSearch = (term: string) => {
     if (!term.trim()) return;
-    addSearch(term);
+    addSearch(term, activeTab);
     if (onSearch) {
       onSearch(term);
     }
@@ -536,12 +551,11 @@ export function UnifiedSearchInput({
 
   const handleClear = () => {
     setSearchQuery("");
-    setSearchFilter("all");
     inputRef.current?.focus();
   };
 
   const handleChannelClick = (channel: UnifiedChannel, e?: React.MouseEvent) => {
-    addSearch(channel.displayName);
+    addSearch(channel.displayName, activeTab === "streams" ? "streams" : "channels");
     setIsFocused(false);
     setSearchQuery(channel.displayName); // Update input with selected name
 
@@ -552,7 +566,7 @@ export function UnifiedSearchInput({
   };
 
   const handleCategoryClick = (category: UnifiedCategory, e?: React.MouseEvent) => {
-    addSearch(category.name);
+    addSearch(category.name, "categories");
     setIsFocused(false);
     setSearchQuery("");
 
@@ -562,11 +576,17 @@ export function UnifiedSearchInput({
     }
   };
 
-  const hasResults = shouldFetch && (channels.length > 0 || categories.length > 0);
+  const activeResultsCount = showChannelResults
+    ? filteredTopMatches.length + filteredOtherMatches.length
+    : dedupedCategories.length;
+  const activeLoading = showChannelResults ? channelsLoading : categoriesLoading;
+  const hasResults = shouldFetch && activeResultsCount > 0;
   const showHistory = isFocused && !searchQuery && history.length > 0;
   const showSuggestions =
-    isFocused && searchQuery.length > 0 && (hasResults || channelsLoading || categoriesLoading);
-  const showDropdown = showHistory || showSuggestions;
+    isFocused && searchQuery.length > 0 && (hasResults || activeLoading || Boolean(onSearch));
+  const showDropdown =
+    isFocused &&
+    (showHistory || searchQuery.length > 0 || (showSearchTabs && visibleSearchTabs.length > 1));
 
   // capReached uses the raw pre-filter row count (channels.length +
   // categories.length), not the post-filter visible count. Flipping the
@@ -575,7 +595,7 @@ export function UnifiedSearchInput({
   // the intended ceiling on every filter change. Infinite-query data only
   // grows within a single query, so the current render's raw count is also
   // the peak.
-  const rawRowCount = channels.length + categories.length;
+  const rawRowCount = showChannelResults ? channels.length : dedupedCategories.length;
   const capReached = rawRowCount >= DROPDOWN_RESULT_CAP;
   const hasMoreResults =
     (showChannelResults && channelsHasNextPage) || (showCategoryResults && categoriesHasNextPage);
@@ -597,7 +617,7 @@ export function UnifiedSearchInput({
           type="text"
           placeholder={placeholder}
           className={cn(
-            "w-full h-9 pl-10 pr-14 rounded-full bg-[var(--color-background-secondary)] border border-[var(--color-border)] text-sm font-bold text-[var(--color-foreground)] placeholder:text-[var(--color-foreground-muted)] placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white transition-all",
+            "w-full h-9 pl-10 pr-9 rounded-full bg-neutral-800 border border-neutral-700 text-sm font-bold text-white placeholder:text-neutral-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white transition-all",
             inputClassName
           )}
           value={searchQuery}
@@ -608,49 +628,8 @@ export function UnifiedSearchInput({
           autoComplete="off"
         />
 
-        {/* Right-side icons: filter + clear */}
+        {/* Right-side clear action */}
         <div className="absolute right-2 top-0 bottom-0 flex items-center gap-0.5">
-          <div ref={filterButtonRef} className="relative">
-            <button
-              type="button"
-              title={searchFilter === "all" ? "Filter results" : `Filter: ${searchFilter}`}
-              onClick={() => setIsFilterOpen((v) => !v)}
-              className={cn(
-                "p-1.5 rounded-full transition-colors",
-                searchFilter !== "all"
-                  ? "text-[var(--color-storm-primary)]"
-                  : isFocused
-                    ? "text-white/70 hover:text-white"
-                    : "text-[var(--color-foreground-muted)] hover:text-white"
-              )}
-            >
-              <LuFilter size={14} />
-            </button>
-
-            {isFilterOpen && (
-              <div className="absolute right-0 top-[calc(100%+6px)] bg-[#0F0F12] border border-[var(--color-border)] rounded-xl shadow-2xl py-1.5 min-w-[130px] z-[100]">
-                {(["all", "channels", "streams", "categories"] as SearchFilter[]).map((filter) => (
-                  <button
-                    key={filter}
-                    type="button"
-                    onClick={() => {
-                      setSearchFilter(filter);
-                      setIsFilterOpen(false);
-                    }}
-                    className={cn(
-                      "w-full px-3 py-1.5 text-left text-xs font-semibold capitalize transition-colors",
-                      searchFilter === filter
-                        ? "text-[var(--color-storm-primary)]"
-                        : "text-[var(--color-foreground-muted)] hover:text-white hover:bg-[var(--color-background-secondary)]"
-                    )}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           {searchQuery && (
             <button
               onClick={handleClear}
@@ -723,34 +702,62 @@ export function UnifiedSearchInput({
           }}
           className="absolute top-full left-0 right-0 mt-2 bg-[#0F0F12] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col max-h-[60vh] overflow-y-auto"
         >
+          {showSearchTabs && (
+            <div
+              className="sticky top-0 z-10 grid gap-1 border-b border-[var(--color-border)] bg-[#0F0F12] p-1.5"
+              style={{
+                gridTemplateColumns: `repeat(${visibleSearchTabs.length}, minmax(0, 1fr))`,
+              }}
+              role="tablist"
+              aria-label="Search type"
+            >
+              {visibleSearchTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "h-8 rounded-lg px-2 text-xs font-bold transition-colors",
+                    activeTab === tab.id
+                      ? "bg-[var(--color-background-tertiary)] text-white"
+                      : "text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-secondary)] hover:text-white"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* SEARCH HISTORY */}
           {showHistory && (
             <div className="py-2">
               {filteredHistory.map((term) => (
                 <div
                   key={term}
-                  className="flex items-center justify-between px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
+                  className="group flex h-14 cursor-pointer items-center justify-between gap-4 px-4 py-2 text-left transition-colors hover:bg-[var(--color-background-secondary)] lg:px-6"
                   onClick={() => executeSearch(term)}
                 >
-                  <div className="flex items-center gap-3 text-white/50 group-hover:text-white transition-colors">
-                    <LuClock size={16} />
-                    <span className="font-medium text-sm text-white/70 group-hover:text-white">
+                  <div className="flex min-w-0 flex-1 items-center gap-4 text-white/70 transition-colors group-hover:text-white">
+                    <LuHistory size={20} strokeWidth={2.5} className="shrink-0" />
+                    <span className="truncate text-base font-semibold text-white group-hover:text-white">
                       {term}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeSearch(term);
-                      }}
-                      className="p-1 text-white/50 hover:text-red-500 transition-colors"
-                      title="Remove from history"
-                      type="button"
-                    >
-                      <LuX size={14} />
-                    </button>
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeSearch(term);
+                    }}
+                    className="flex size-8 shrink-0 items-center justify-center rounded text-white/70 transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
+                    title="Remove from history"
+                    aria-label={`Remove "${term}" from history`}
+                    type="button"
+                  >
+                    <LuX size={20} strokeWidth={2.5} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -784,7 +791,7 @@ export function UnifiedSearchInput({
               )}
             >
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
-                <LuUser size={12} /> Channels
+                <LuUser size={12} /> {activeTab === "streams" ? "Streams" : "Channels"}
               </h3>
               {filteredOtherMatches.map((channel) => (
                 <ChannelItem

@@ -26,6 +26,7 @@ interface ThirdPartyEmoteButtonProps {
    *  third-party tab row is 7TV/BTTV/FFZ and has no channel sub-section). */
   channel: string;
   channelId: string | null;
+  kickUserId?: string | null;
   isOpen: boolean;
   onOpenRequest: () => void;
   onEmoteSelect: (emote: Emote) => void;
@@ -41,6 +42,7 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
   platform,
   channel,
   channelId,
+  kickUserId,
   isOpen,
   onOpenRequest,
   onEmoteSelect,
@@ -93,6 +95,8 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
         scope="thirdParty"
         platform={platform}
         channelId={channelId}
+        channelName={channel}
+        kickUserId={kickUserId}
         channelAvatarUrl={channelAvatarUrl}
         channelLabel={channelLabel}
       />

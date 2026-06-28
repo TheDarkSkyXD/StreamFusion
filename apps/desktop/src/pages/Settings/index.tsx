@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
+import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useAuthError } from "@/hooks/useAuth";
 import { notifySettingsSaved } from "@/lib/settings-toast";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,11 @@ import {
 } from "@/shared/auth-types";
 import type { CheckFrequency, TokenStatusResult } from "@/shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
+import {
+  HOME_CAROUSEL_INTERVAL_MAX_MS,
+  HOME_CAROUSEL_INTERVAL_MIN_MS,
+  useAppStore,
+} from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
 import {
   type BackgroundQuality,
@@ -97,6 +103,7 @@ const SETTINGS_TABS = [
 // suppressed entirely, and a deep-link `?tab=<dev-only>` is redirected to the
 // default tab.
 const DEV_ONLY_TABS = new Set<(typeof SETTINGS_TABS)[number]>(["logs", "report-bug"]);
+const HOME_CAROUSEL_INTERVAL_STEP_SECONDS = 5;
 
 // Numeric buffer controls surfaced in Settings → Buffer (U10). Each maps to one
 // BufferPreferences number field; ranges keep values in HLS.js-sane bounds.
@@ -231,7 +238,13 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
     tab: "playback",
     label: "Default Quality",
     description: "Preferred stream quality when available",
-    keywords: ["1080p", "720p", "480p", "360p", "160p", "auto", "resolution"],
+    keywords: ["1440p", "2k", "1080p", "720p", "480p", "360p", "160p", "auto", "resolution"],
+  },
+  {
+    tab: "playback",
+    label: "Featured carousel timing",
+    description: "How long each home page featured stream stays active",
+    keywords: ["home", "featured", "banner", "carousel", "rotate", "seconds", "minutes"],
   },
   {
     tab: "playback",
@@ -377,6 +390,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
 ];
 
 export function SettingsPage() {
+  const canRenderSettingsPanel = useAfterFirstPaint();
   const appVersion = useAppVersion();
   const versionInfo = useAppVersionInfo();
   // Dev gate. While the env probe is in flight we conservatively treat the
@@ -482,6 +496,16 @@ export function SettingsPage() {
   // Ad-block state
   const enableAdBlock = useAdBlockStore((state) => state.enableAdBlock);
   const setEnableAdBlock = useAdBlockStore((state) => state.setEnableAdBlock);
+
+  const homeCarouselIntervalMs = useAppStore((state) => state.homeCarouselIntervalMs);
+  const setHomeCarouselIntervalMs = useAppStore((state) => state.setHomeCarouselIntervalMs);
+  const homeCarouselIntervalSeconds = Math.round(homeCarouselIntervalMs / 1000);
+  const homeCarouselIntervalMinSeconds = HOME_CAROUSEL_INTERVAL_MIN_MS / 1000;
+  const homeCarouselIntervalMaxSeconds = HOME_CAROUSEL_INTERVAL_MAX_MS / 1000;
+  const handleHomeCarouselIntervalChange = (seconds: number) => {
+    setHomeCarouselIntervalMs(seconds * 1000);
+    notifySettingsSaved();
+  };
 
   // Multiview state (slice 03 + slice 08). MultiviewCap is the user-
   // configurable upper bound on simultaneous StreamSlots; BackgroundQuality
@@ -808,7 +832,22 @@ export function SettingsPage() {
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto bg-[#09090b]">
         <div className="max-w-4xl p-8 py-10">
-          {searchMatches.active && !activeTabHasMatches ? (
+          {!canRenderSettingsPanel ? (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="h-8 w-44 rounded bg-[#18181b] animate-pulse" />
+                <div className="h-4 w-80 rounded bg-[#18181b] animate-pulse" />
+              </div>
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-24 rounded-xl border border-[#27272a] bg-[#121214] animate-pulse"
+                  />
+                ))}
+              </div>
+            </div>
+          ) : searchMatches.active && !activeTabHasMatches ? (
             /* Empty state: the query matched no tabs (or the auto-jump hasn't
                landed on a matching tab yet). The sidebar shows the same kind
                of empty state in its own column. */
@@ -848,7 +887,11 @@ export function SettingsPage() {
                           </div>
                           <div className="flex items-center gap-3">
                             <Select
-                              value={preferences?.playback?.defaultQuality || "auto"}
+                              value={
+                                preferences?.playback?.defaultQuality === "2k"
+                                  ? "1440p"
+                                  : preferences?.playback?.defaultQuality || "auto"
+                              }
                               onValueChange={handleQualityChange}
                             >
                               <SelectTrigger className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
@@ -856,6 +899,7 @@ export function SettingsPage() {
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                 <SelectItem value="auto">Auto</SelectItem>
+                                <SelectItem value="1440p">1440p / 2K</SelectItem>
                                 <SelectItem value="1080p">1080p60</SelectItem>
                                 <SelectItem value="720p">720p60</SelectItem>
                                 <SelectItem value="480p">480p</SelectItem>
@@ -871,6 +915,52 @@ export function SettingsPage() {
 
                   {/* Advanced (stream token) — U13. Overrides apply ONLY via the
                   ad-block token pipeline; the resolver path keeps its defaults. */}
+                  {isRowVisible("Featured carousel timing") && (
+                    <div className="p-1 rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                      <div className="p-6">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="font-medium text-zinc-200">Featured carousel timing</p>
+                            <p className="text-sm text-zinc-500 mt-1">
+                              How long each home page featured stream stays active before rotating.
+                              Current: {formatCarouselIntervalLabel(homeCarouselIntervalSeconds)}.
+                            </p>
+                          </div>
+
+                          <div className="flex w-full items-center gap-3 sm:w-[360px]">
+                            <input
+                              type="range"
+                              aria-label="Featured carousel timing"
+                              min={homeCarouselIntervalMinSeconds}
+                              max={homeCarouselIntervalMaxSeconds}
+                              step={HOME_CAROUSEL_INTERVAL_STEP_SECONDS}
+                              value={homeCarouselIntervalSeconds}
+                              onChange={(e) =>
+                                handleHomeCarouselIntervalChange(Number(e.target.value))
+                              }
+                              className="h-2 min-w-0 flex-1 cursor-pointer accent-zinc-200"
+                            />
+                            <div className="flex shrink-0 items-center rounded-lg border border-[#27272a] bg-[#18181b] pr-2 text-sm text-zinc-500">
+                              <input
+                                type="number"
+                                aria-label="Featured carousel timing seconds"
+                                min={homeCarouselIntervalMinSeconds}
+                                max={homeCarouselIntervalMaxSeconds}
+                                step={HOME_CAROUSEL_INTERVAL_STEP_SECONDS}
+                                value={homeCarouselIntervalSeconds}
+                                onChange={(e) =>
+                                  handleHomeCarouselIntervalChange(Number(e.target.value))
+                                }
+                                className="h-9 w-16 rounded-l-lg bg-transparent px-2 text-right text-zinc-200 outline-none"
+                              />
+                              sec
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {anyRowVisible(
                     "Access-token player type",
                     "Allow HEVC (H.265)",
@@ -1957,6 +2047,14 @@ function SidebarItem({
       </div>
     </button>
   );
+}
+
+function formatCarouselIntervalLabel(seconds: number): string {
+  if (seconds >= 60 && seconds % 60 === 0) {
+    const minutes = seconds / 60;
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  }
+  return `${seconds} seconds`;
 }
 
 // Format a token expiry (Unix ms) for the API/Tokens panel. `null`/`undefined`

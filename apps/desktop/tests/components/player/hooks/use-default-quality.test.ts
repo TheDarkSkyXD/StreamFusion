@@ -31,6 +31,7 @@ function makeQuality(id: string, height: number, opts?: Partial<QualityLevel>): 
 }
 
 const STANDARD_QUALITIES: QualityLevel[] = [
+  makeQuality("1440p60", 1440, { name: "1440p60" }),
   makeQuality("1080p60", 1080, { name: "1080p60" }),
   makeQuality("720p60", 720, { name: "720p60" }),
   makeQuality("480p", 480, { name: "480p" }),
@@ -69,6 +70,24 @@ describe("useDefaultQuality", () => {
     renderHook(() => useDefaultQuality(STANDARD_QUALITIES, "auto", onQualityChange));
 
     expect(onQualityChange).toHaveBeenCalledWith("1080p60");
+  });
+
+  it("selects exact height match for 1440p", () => {
+    mockDefaultQuality = "1440p";
+    const onQualityChange = vi.fn();
+
+    renderHook(() => useDefaultQuality(STANDARD_QUALITIES, "auto", onQualityChange));
+
+    expect(onQualityChange).toHaveBeenCalledWith("1440p60");
+  });
+
+  it("treats 2k as a 1440p quality preference", () => {
+    mockDefaultQuality = "2k";
+    const onQualityChange = vi.fn();
+
+    renderHook(() => useDefaultQuality(STANDARD_QUALITIES, "auto", onQualityChange));
+
+    expect(onQualityChange).toHaveBeenCalledWith("1440p60");
   });
 
   it("selects 360p when preference is 360p", () => {

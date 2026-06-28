@@ -102,7 +102,7 @@ export const BadgeTooltip: React.FC<BadgeTooltipProps> = ({ show, mousePos, badg
       </div>
 
       {badgeInfo.owner && (
-        <span className="mt-3 text-xs text-gray-500">
+        <span className="mt-3 text-xs text-neutral-500">
           Created by{" "}
           <span className="text-white hover:underline cursor-pointer">
             {badgeInfo.owner.username}

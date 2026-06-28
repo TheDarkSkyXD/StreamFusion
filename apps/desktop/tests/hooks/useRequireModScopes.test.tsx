@@ -2,6 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useRequireModScopes } from "@/hooks/useRequireModScopes";
+import { TWITCH_MOD_ACTION_SCOPES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
@@ -146,11 +147,8 @@ describe("useRequireModScopes", () => {
     result.current.promptReconnect();
     const state = useReconnectDialogStore.getState();
     expect(state.isOpen).toBe(true);
-    // No-arg call defaults to the prior two-scope pin-path list.
-    expect(state.missingScopes).toEqual([
-      "user:read:moderated_channels",
-      "moderator:manage:chat_messages",
-    ]);
+    // No-arg call defaults to the shared pin-path list.
+    expect(state.missingScopes).toEqual([...TWITCH_MOD_ACTION_SCOPES]);
   });
 
   it("promptReconnect forwards explicit missingScopes + onReconnected callback", async () => {

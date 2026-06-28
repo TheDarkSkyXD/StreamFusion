@@ -337,10 +337,11 @@ export function StreamSlot({
             <div className="absolute inset-0 animate-pulse bg-[var(--color-background-elevated)]/20" />
             <div className="relative z-10 flex flex-col items-center text-center px-4">
               {channelData?.avatarUrl && (
-                <img
+                <ProxiedImage
                   src={channelData.avatarUrl}
                   alt=""
                   className="w-12 h-12 rounded-full mb-3 opacity-60"
+                  fallback={<div className="w-12 h-12 rounded-full mb-3 bg-white/10" />}
                 />
               )}
               <p className="text-white/60 text-xs">
@@ -397,10 +398,13 @@ export function StreamSlot({
                 ) : channelData?.avatarUrl ? (
                   <>
                     {/* Blurred, scaled-up avatar as background */}
-                    <img
+                    <ProxiedImage
                       src={channelData.avatarUrl}
                       alt=""
                       className="absolute inset-0 w-full h-full object-cover blur-3xl scale-150 opacity-40"
+                      fallback={
+                        <div className="absolute inset-0 bg-[var(--color-background-secondary)]" />
+                      }
                     />
                     <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
                   </>
@@ -421,10 +425,11 @@ export function StreamSlot({
                   {/* Avatar (if available and no banner) */}
                   {channelData?.avatarUrl && !channelData?.bannerUrl && (
                     <div className="mb-4">
-                      <img
+                      <ProxiedImage
                         src={channelData.avatarUrl}
                         alt={channelData.displayName || channelName}
                         className="w-16 h-16 rounded-full border-2 border-white/20 shadow-xl"
+                        fallback={<div className="w-16 h-16 rounded-full bg-white/10 shadow-xl" />}
                       />
                     </div>
                   )}

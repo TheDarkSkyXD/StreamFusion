@@ -6,6 +6,7 @@ import {
   LuClock,
   LuLayoutList,
   LuPalette,
+  LuPause,
   LuSettings,
   LuSlidersHorizontal,
   LuX,
@@ -13,7 +14,11 @@ import {
 
 import { SettingRow, SwitchRow, useChatDisplay } from "@/components/settings/ChatSettingsSection";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import { type ChatDensity, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import {
+  type ChatDensity,
+  type ChatPauseMode,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+} from "@/shared/auth-types";
 import type { ChatPlatform } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -34,6 +39,12 @@ import { useAuthStore } from "@/store/auth-store";
 const DENSITY_OPTIONS: { value: ChatDensity; label: string }[] = [
   { value: "cozy", label: "Cozy" },
   { value: "compact", label: "Compact" },
+];
+const PAUSE_OPTIONS: { value: ChatPauseMode; label: string }[] = [
+  { value: "scroll", label: "Scroll Only" },
+  { value: "mouseover", label: "Mouseover" },
+  { value: "alt", label: "Hold Alt Key" },
+  { value: "mouseover-alt", label: "Mouseover/Alt Key" },
 ];
 
 const ICON_SIZE = 16;
@@ -64,7 +75,7 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
-type PopoverView = "root" | "appearance";
+type PopoverView = "root" | "pause" | "appearance";
 
 export function ChatQuickSettingsPopover({
   onClose,
@@ -126,25 +137,32 @@ export function ChatQuickSettingsPopover({
       aria-label="Quick chat settings"
       // Right-aligned inside the chat input's action row; Kick-sized, but
       // capped to the chat column so it cannot spill past narrow panels.
-      className={`absolute right-0 z-50 w-[320px] max-w-full min-w-0 rounded-xl border border-[#27272a] bg-[#232629] shadow-xl animate-in fade-in duration-200 ${
+      className={`absolute right-0 z-50 w-[320px] max-w-full min-w-0 rounded-xl border border-neutral-700 bg-neutral-800 shadow-xl animate-in fade-in duration-200 ${
         placement === "top"
           ? "bottom-full mb-2 slide-in-from-bottom-2"
           : "top-full mt-2 slide-in-from-top-2"
       }`}
     >
       <PopoverHeader
-        title={view === "root" ? "Chat settings" : "Chat appearance"}
+        title={view === "appearance" ? "Chat appearance" : "Chat settings"}
         onBack={view === "root" ? undefined : () => setView("root")}
         onClose={onClose}
       />
 
       {view === "root" ? (
         <RootView
+          pauseMode={cd.pauseMode ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.pauseMode}
+          onOpenPause={() => setView("pause")}
           onOpenAppearance={() => setView("appearance")}
           onMoreSettings={() => {
             navigate({ to: "/settings", search: { tab: "chat" } });
             onClose();
           }}
+        />
+      ) : view === "pause" ? (
+        <PauseChatView
+          value={cd.pauseMode ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.pauseMode}
+          onChange={(v) => set("pauseMode", v)}
         />
       ) : (
         <AppearanceView cd={cd} platform={platform} previewUsername={previewUsername} set={set} />
@@ -163,14 +181,14 @@ function PopoverHeader({
   onClose: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#27272a]">
+    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--color-border)]">
       <div className="flex items-center gap-2">
         {onBack ? (
           <button
             type="button"
             onClick={onBack}
             aria-label="Back to chat settings"
-            className="flex h-8 w-8 items-center justify-center rounded-sm text-white hover:bg-[#2F3438] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:bg-neutral-700 transition-colors"
           >
             <LuArrowLeft size={16} />
           </button>
@@ -183,7 +201,7 @@ function PopoverHeader({
         type="button"
         onClick={onClose}
         aria-label="Close chat settings"
-        className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:bg-[#2F3438] transition-colors"
+        className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:bg-neutral-700 transition-colors"
       >
         <LuX size={20} strokeWidth={3} />
       </button>
@@ -195,14 +213,24 @@ type ChatDisplay = ReturnType<typeof useChatDisplay>["cd"];
 type ChatDisplaySet = ReturnType<typeof useChatDisplay>["set"];
 
 function RootView({
+  pauseMode,
+  onOpenPause,
   onOpenAppearance,
   onMoreSettings,
 }: {
+  pauseMode: ChatPauseMode;
+  onOpenPause: () => void;
   onOpenAppearance: () => void;
   onMoreSettings: () => void;
 }) {
   return (
     <div className="px-2 py-2 space-y-1">
+      <NavRow
+        icon={<LuPause size={ICON_SIZE} />}
+        label="Pause Chat"
+        description={getPauseModeLabel(pauseMode)}
+        onClick={onOpenPause}
+      />
       <NavRow
         icon={<LuPalette size={ICON_SIZE} />}
         label="Chat appearance"
@@ -212,13 +240,62 @@ function RootView({
       <button
         type="button"
         onClick={onMoreSettings}
-        className="flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm font-medium leading-5 text-zinc-300 hover:bg-[#2F3438] hover:text-white transition-colors"
+        className="flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm font-medium leading-5 text-zinc-100 hover:bg-neutral-700 hover:text-white transition-colors"
       >
         <span className="flex-shrink-0 text-white" aria-hidden>
           <LuSettings size={ICON_SIZE} />
         </span>
         More settings
       </button>
+    </div>
+  );
+}
+
+function PauseChatView({
+  value,
+  onChange,
+}: {
+  value: ChatPauseMode;
+  onChange: (value: ChatPauseMode) => void;
+}) {
+  return (
+    <div className="px-4 pt-3 pb-4">
+      <div className="pb-3">
+        <h4 className="text-sm font-bold leading-5 text-white">Pause Chat</h4>
+        <p className="mt-1 text-sm leading-5 text-zinc-400">
+          Manage your Pause Chat options. Chat will always pause when scrolling the Chat pane.
+        </p>
+      </div>
+      <div role="radiogroup" aria-label="Pause Chat" className="space-y-1">
+        {PAUSE_OPTIONS.map((option) => (
+          <label
+            key={option.value}
+            className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-neutral-700 hover:text-white"
+          >
+            <input
+              type="radio"
+              name="quick-chat-pause-mode"
+              value={option.value}
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+              className="sr-only"
+            />
+            <span
+              className={`flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                value === option.value ? "border-white" : "border-[#8a8f98]"
+              }`}
+              aria-hidden
+            >
+              <span
+                className={`h-2 w-2 rounded-full transition-colors ${
+                  value === option.value ? "bg-white" : "bg-transparent"
+                }`}
+              />
+            </span>
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
@@ -243,17 +320,17 @@ function AppearanceView({
         platform={platform}
         username={previewUsername}
       />
-      <div className="px-4 py-3 border-b border-[#2F3438]">
+      <div className="px-4 py-3 border-b border-[var(--color-border)]">
         <KickFontSizeSlider value={cd.fontSizePx} onChange={(v) => set("fontSizePx", v)} />
       </div>
-      <div className="px-4 py-3 border-b border-[#2F3438]">
+      <div className="px-4 py-3 border-b border-[var(--color-border)]">
         <KickEmoteSizeSlider
           platform={platform}
           value={cd.emoteSizePx}
           onChange={(v) => set("emoteSizePx", v)}
         />
       </div>
-      <div className="px-4 py-1 divide-y divide-[#2F3438]">
+      <div className="px-4 py-1 divide-y divide-[var(--color-border)]">
         <SettingRow
           label="Density"
           icon={
@@ -262,7 +339,7 @@ function AppearanceView({
             </span>
           }
           control={
-            <div className="flex rounded-md border border-[#27272a] overflow-hidden">
+            <div className="flex rounded-md border border-[var(--color-border)] overflow-hidden">
               {DENSITY_OPTIONS.map((o) => (
                 <button
                   key={o.value}
@@ -271,8 +348,8 @@ function AppearanceView({
                   aria-pressed={cd.density === o.value}
                   className={
                     cd.density === o.value
-                      ? "px-3 py-1 text-xs font-medium bg-[#dc143c] text-white"
-                      : "px-3 py-1 text-xs font-medium text-zinc-400 hover:text-zinc-200"
+                      ? "px-3 py-1 text-xs font-medium bg-[#3f3f46] text-white transition-colors"
+                      : "px-3 py-1 text-xs font-medium text-zinc-100 hover:bg-neutral-700 hover:text-white transition-colors"
                   }
                 >
                   {o.label}
@@ -294,6 +371,10 @@ function AppearanceView({
       </div>
     </div>
   );
+}
+
+function getPauseModeLabel(value: ChatPauseMode) {
+  return PAUSE_OPTIONS.find((option) => option.value === value)?.label ?? "Scroll Only";
 }
 
 function ChatAppearancePreview({
@@ -343,7 +424,7 @@ function ChatAppearancePreview({
   return (
     <div
       data-testid="chat-appearance-preview"
-      className="overflow-hidden px-3 pt-2 pb-3 border-b border-[#3a3f44] bg-[#2F3438]"
+      className="mx-[2px] mt-3 mb-2 overflow-hidden rounded-md border border-neutral-600 bg-neutral-700 px-3 pt-2 pb-3"
     >
       <h4 className="text-sm font-semibold leading-5 text-zinc-300">Chat Appearance</h4>
       <div
@@ -487,10 +568,9 @@ function KickFontSizeSlider({
             <span
               key={mark}
               data-testid="font-size-stop-dot"
-              className="absolute top-1/2 z-[2] h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[#5b6068] bg-[#232629] shadow-[0_0_0_2px_#232629]"
+              className="absolute top-1/2 z-[2] h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-neutral-700 bg-neutral-800 shadow-[0_0_0_2px_var(--tw-shadow-color)] shadow-neutral-800"
               style={{
                 left: `${getStopPercent(mark, FONT_SIZE_STOPS)}%`,
-                borderColor: "#5b6068",
               }}
               aria-hidden
             />
@@ -567,10 +647,9 @@ function KickEmoteSizeSlider({
             <span
               key={mark}
               data-testid="emote-size-stop-dot"
-              className="absolute top-1/2 z-[2] h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[#5b6068] bg-[#232629] shadow-[0_0_0_2px_#232629]"
+              className="absolute top-1/2 z-[2] h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-neutral-700 bg-neutral-800 shadow-[0_0_0_2px_var(--tw-shadow-color)] shadow-neutral-800"
               style={{
                 left: `${getStopPercent(mark, EMOTE_SIZE_STOPS)}%`,
-                borderColor: "#5b6068",
               }}
               aria-hidden
             />
@@ -704,7 +783,7 @@ function NavRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-3 w-full px-2 py-2 rounded-md text-left text-zinc-200 hover:bg-[#2F3438] transition-colors"
+      className="flex items-center gap-3 w-full px-2 py-2 rounded-md text-left text-zinc-100 hover:bg-neutral-700 transition-colors"
     >
       <span className="flex-shrink-0 text-white" aria-hidden>
         {icon}

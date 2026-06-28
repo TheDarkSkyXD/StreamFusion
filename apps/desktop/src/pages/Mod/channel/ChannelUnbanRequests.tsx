@@ -144,13 +144,13 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
       </header>
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-neutral-400">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-300" data-testid="channel-unban-requests-error">
           {error}
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-gray-400">No pending unban requests.</p>
+        <p className="text-sm text-neutral-400">No pending unban requests.</p>
       ) : (
         <ul className="space-y-2" data-testid="channel-unban-requests-results">
           {entries.map((row) => (

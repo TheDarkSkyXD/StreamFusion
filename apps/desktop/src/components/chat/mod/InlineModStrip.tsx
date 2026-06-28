@@ -57,7 +57,8 @@ export interface InlineModStripProps {
 }
 
 const ACTIVE_CLASS = "bg-[#9146FF]/20 text-purple-300 border border-purple-400/60";
-const INACTIVE_CLASS = "text-gray-400 hover:text-white hover:bg-white/10 border border-transparent";
+const INACTIVE_CLASS =
+  "text-neutral-400 hover:text-white hover:bg-white/10 border border-transparent";
 
 interface StripButtonProps {
   label: string;

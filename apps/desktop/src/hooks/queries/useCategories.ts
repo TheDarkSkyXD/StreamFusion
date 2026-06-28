@@ -55,7 +55,7 @@ export function useCategoryMetadata(category: UnifiedCategory) {
   });
 }
 
-export function useTopCategories(platform?: Platform) {
+export function useTopCategories(platform?: Platform, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: CATEGORY_KEYS.top(platform),
     queryFn: async () => {
@@ -171,6 +171,7 @@ export function useTopCategories(platform?: Platform) {
     refetchIntervalInBackground: false, // pause polling when window is hidden
     // Refetch when window regains focus (user may have been away)
     refetchOnWindowFocus: true,
+    enabled: options.enabled,
   });
 }
 

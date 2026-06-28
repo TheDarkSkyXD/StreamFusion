@@ -5,7 +5,6 @@ import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
 
-import { HlsPlayer } from "../hls-player";
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useFullscreen } from "../hooks/use-fullscreen";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
@@ -14,6 +13,7 @@ import { useResumePlayback } from "../hooks/use-resume-playback";
 import { useVolume } from "../hooks/use-volume";
 import type { Platform, PlayerError, QualityLevel } from "../types";
 
+import { TwitchVodHlsPlayer } from "./twitch-vod-hls-player";
 import { TwitchVodPlayerControls } from "./twitch-vod-player-controls";
 
 export interface TwitchVodPlayerProps {
@@ -215,7 +215,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
       className={`relative w-full h-full bg-black overflow-hidden group ${className || ""}`}
     >
       {streamUrl ? (
-        <HlsPlayer
+        <TwitchVodHlsPlayer
           ref={videoRef}
           src={streamUrl}
           poster={poster}
@@ -230,6 +230,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
           }}
           className="size-full object-contain cursor-pointer"
           controls={false}
+          onClick={togglePlay}
           onDoubleClick={toggleFullscreen}
         />
       ) : (

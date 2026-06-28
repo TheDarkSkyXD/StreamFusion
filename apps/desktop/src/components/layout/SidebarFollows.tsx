@@ -1,8 +1,9 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { LuHeart } from "react-icons/lu";
 
 import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
+import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFollowedChannels } from "@/hooks/queries/useChannels";
@@ -12,6 +13,7 @@ import { getChannelKey, getChannelNameKey, getStreamKey } from "@/lib/id-utils";
 import { cn, formatViewerCount } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
+import { usePipStore } from "@/store/pip-store";
 
 import { ScrollArea } from "../ui/scroll-area";
 
@@ -21,12 +23,33 @@ interface SidebarFollowsProps {
 
 const KICK_PLAYBACK_PREFETCH_LIMIT = 6;
 
+function getActiveStreamRoute(pathname: string): { platform: string; channel: string } | null {
+  const match = pathname.match(/^\/stream\/([^/]+)\/([^/?#]+)/);
+  if (!match) return null;
+
+  return {
+    platform: decodeURIComponent(match[1]).toLowerCase(),
+    channel: decodeURIComponent(match[2]).toLowerCase(),
+  };
+}
+
 export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   // Use individual selectors to prevent re-renders when unrelated state changes
   const twitchConnected = useAuthStore((state) => state.twitchConnected);
   const kickConnected = useAuthStore((state) => state.kickConnected);
   const localFollows = useFollowStore((state) => state.localFollows);
   const getFollowSource = useFollowStore((state) => state.getFollowSource);
+  const currentPipStream = usePipStore((state) => state.currentStream);
+  const isPipActive = usePipStore((state) => state.isPipActive);
+  const location = useLocation();
+  const activeStreamRoute = getActiveStreamRoute(location.pathname);
+  const activePipStream =
+    isPipActive && currentPipStream
+      ? {
+          platform: currentPipStream.platform,
+          channel: currentPipStream.channelName.toLowerCase(),
+        }
+      : null;
   const hasLocalTwitchFollows = localFollows.some((follow) => follow.platform === "twitch");
   const hasLocalKickFollows = localFollows.some((follow) => follow.platform === "kick");
 
@@ -106,17 +129,19 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
         // Create a new object to avoid mutating React Query cache
         let streamToAdd = stream;
         const needsAvatar = !stream.channelAvatar && c.avatarUrl;
+        const needsVerifiedBadge = !stream.channelIsVerified && (c.isVerified || c.isPartner);
         // Prefer channel displayName if stream's is just the lowercase slug
         const needsDisplayName =
           c.displayName &&
           stream.channelDisplayName === stream.channelName &&
           c.displayName !== stream.channelName;
 
-        if (needsAvatar || needsDisplayName) {
+        if (needsAvatar || needsDisplayName || needsVerifiedBadge) {
           streamToAdd = {
             ...stream,
             ...(needsAvatar && { channelAvatar: c.avatarUrl }),
             ...(needsDisplayName && { channelDisplayName: c.displayName }),
+            ...(needsVerifiedBadge && { channelIsVerified: true }),
           };
         }
         live.push(streamToAdd);
@@ -134,13 +159,14 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     return { liveChannels: live, offlineChannels: offline };
   }, [localFollows, twitchFollows, kickFollows, liveStreams, kickConnected, getFollowSource]);
 
-  const allItems = useMemo(
+  const currentItems = useMemo(
     () => [
       ...liveChannels.map((c) => ({ type: "live" as const, data: c })),
       ...offlineChannels.map((c) => ({ type: "offline" as const, data: c })),
     ],
     [liveChannels, offlineChannels]
   );
+  const allItems = currentItems;
 
   const visibleItems = useMemo(() => {
     if (collapsed) return allItems;
@@ -175,16 +201,34 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
       .filter((slug): slug is string => Boolean(slug))
       .slice(0, KICK_PLAYBACK_PREFETCH_LIMIT);
 
-    for (const slug of kickSlugs) {
-      void prefetchStreamPlayback("kick", slug);
+    if (kickSlugs.length === 0) return;
+
+    const prefetchVisibleKickStreams = () => {
+      for (const slug of kickSlugs) {
+        void prefetchStreamPlayback("kick", slug);
+      }
+    };
+
+    if (import.meta.env.MODE === "test") {
+      prefetchVisibleKickStreams();
+      return;
     }
+
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(prefetchVisibleKickStreams, { timeout: 2000 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    // timer-allowlist: idle fallback for non-Chromium-compatible environments
+    const timeoutId = globalThis.setTimeout(prefetchVisibleKickStreams, 1000);
+    return () => globalThis.clearTimeout(timeoutId);
   }, [visibleItems]);
 
   // Handlers for Show More/Less
   const handleShowMore = () => setVisibleCount((prev) => prev + 5);
   const handleShowLess = () => setVisibleCount((prev) => Math.max(10, prev - 5));
 
-  if (isLoading && !liveChannels.length && !offlineChannels.length) {
+  if (isLoading && allItems.length === 0) {
     return (
       <div className="flex flex-col gap-2 p-2">
         {!collapsed && <Skeleton className="h-4 w-20 mb-2" />}
@@ -203,7 +247,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     );
   }
 
-  if (liveChannels.length === 0 && offlineChannels.length === 0) {
+  if (allItems.length === 0) {
     if (collapsed) return null;
 
     return (
@@ -215,12 +259,12 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden" data-testid="sidebar-follows">
       {!collapsed && (
         <div className="px-3 py-2 font-bold text-white tracking-wider flex justify-between items-center">
           <span className="text-base">Following</span>
           <span className="bg-[var(--color-background-tertiary)] text-[var(--color-foreground)] px-1.5 py-0.5 rounded text-xs">
-            {liveChannels.length + offlineChannels.length}
+            {allItems.length}
           </span>
         </div>
       )}
@@ -231,6 +275,15 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
           {visibleItems.map((item) => {
             if (item.type === "live") {
               const stream = item.data;
+              const showPartnerBadge = !!stream.channelIsVerified;
+              const isRouteActive =
+                activeStreamRoute?.platform === stream.platform &&
+                activeStreamRoute.channel === stream.channelName.toLowerCase();
+              const isPipStreamActive =
+                activePipStream?.platform === stream.platform &&
+                activePipStream.channel === stream.channelName.toLowerCase();
+              const isActive = isRouteActive || isPipStreamActive;
+
               return (
                 <Link
                   key={`${stream.platform}-${stream.channelId}`}
@@ -238,9 +291,16 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   params={{ platform: stream.platform, channel: stream.channelName }}
                   search={{ tab: "home" }}
                   className={cn(
-                    "flex items-center gap-3 p-1.5 rounded-md hover:bg-[var(--color-background-tertiary)] transition-colors group relative",
+                    "flex items-center gap-3 p-1.5 rounded-md border-l-2 transition-colors group relative",
+                    isActive
+                      ? cn(
+                          "bg-neutral-700/80 text-white ring-1 ring-white/10",
+                          stream.platform === "kick" ? "border-l-[#53FC18]" : "border-l-[#9146FF]"
+                        )
+                      : "border-l-transparent hover:bg-[var(--color-background-tertiary)]",
                     collapsed ? "justify-center" : ""
                   )}
+                  aria-current={isRouteActive ? "page" : isPipStreamActive ? "true" : undefined}
                   title={
                     collapsed
                       ? `${stream.channelDisplayName} (Live: ${formatViewerCount(stream.viewerCount)})`
@@ -270,35 +330,49 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
 
                   {!collapsed && (
                     <div className="flex flex-col min-w-0 flex-1">
-                      <div className="flex justify-between items-center gap-1">
-                        <span className="truncate font-bold text-sm text-white group-hover:text-[var(--color-primary)] transition-colors flex-1">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="min-w-0 truncate font-bold text-sm text-white group-hover:text-[var(--color-primary)] transition-colors">
                           {stream.channelDisplayName}
                         </span>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        {showPartnerBadge && <StreamVerifiedBadge platform={stream.platform} />}
+                      </div>
+                      <div className="mt-0.5 flex min-w-0 items-center text-xs font-bold">
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[11px] font-extrabold leading-none tabular-nums text-white ring-1 ring-white/10"
+                          title={`${stream.viewerCount.toLocaleString()} viewers`}
+                        >
                           <span
                             className={cn(
-                              "flex h-2 w-2 rounded-full shrink-0",
+                              "h-1.5 w-1.5 rounded-full shrink-0",
                               stream.platform === "kick" ? "bg-[#53FC18]" : "bg-red-500"
                             )}
                           />
-                          <span className="text-sm font-bold text-white">
-                            {formatViewerCount(stream.viewerCount)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center text-xs text-[#b2b2b2] font-bold">
-                        <span className="truncate" title={stream.categoryName}>
-                          {stream.categoryName && stream.categoryName.length > 24
-                            ? `${stream.categoryName.slice(0, 15)}...`
-                            : stream.categoryName}
+                          {formatViewerCount(stream.viewerCount)}
                         </span>
                       </div>
+                      {stream.categoryName && (
+                        <span
+                          className="mt-0.5 block min-w-0 truncate text-xs font-bold text-[#b2b2b2]"
+                          title={stream.categoryName}
+                        >
+                          {stream.categoryName}
+                        </span>
+                      )}
                     </div>
                   )}
                 </Link>
               );
             } else {
               const channel = item.data;
+              const showPartnerBadge = channel.isPartner || channel.isVerified;
+              const isRouteActive =
+                activeStreamRoute?.platform === channel.platform &&
+                activeStreamRoute.channel === channel.username.toLowerCase();
+              const isPipStreamActive =
+                activePipStream?.platform === channel.platform &&
+                activePipStream.channel === channel.username.toLowerCase();
+              const isActive = isRouteActive || isPipStreamActive;
+
               return (
                 <Link
                   key={`${channel.platform}-${channel.id}`}
@@ -306,9 +380,16 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   params={{ platform: channel.platform, channel: channel.username }}
                   search={{ tab: "home" }}
                   className={cn(
-                    "flex items-center gap-3 p-1.5 rounded-md hover:bg-[var(--color-background-tertiary)] transition-colors group opacity-70 hover:opacity-100",
+                    "flex items-center gap-3 p-1.5 rounded-md border-l-2 transition-colors group",
+                    isActive
+                      ? cn(
+                          "bg-neutral-700/80 text-white opacity-100 ring-1 ring-white/10",
+                          channel.platform === "kick" ? "border-l-[#53FC18]" : "border-l-[#9146FF]"
+                        )
+                      : "border-l-transparent opacity-70 hover:bg-[var(--color-background-tertiary)] hover:opacity-100",
                     collapsed ? "justify-center" : ""
                   )}
+                  aria-current={isRouteActive ? "page" : isPipStreamActive ? "true" : undefined}
                   title={collapsed ? channel.displayName : undefined}
                 >
                   <PlatformAvatar
@@ -321,9 +402,12 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
 
                   {!collapsed && (
                     <div className="min-w-0 flex-1">
-                      <span className="truncate font-bold text-sm text-white group-hover:text-[var(--color-foreground)] transition-colors block">
-                        {channel.displayName}
-                      </span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="min-w-0 truncate font-bold text-sm text-white group-hover:text-[var(--color-foreground)] transition-colors">
+                          {channel.displayName}
+                        </span>
+                        {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
+                      </div>
                       <span className="text-xs text-[var(--color-foreground-muted)] truncate block">
                         Offline
                       </span>

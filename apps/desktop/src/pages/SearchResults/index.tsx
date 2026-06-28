@@ -9,8 +9,10 @@ import type {
 } from "@/backend/api/unified/platform-types";
 import { CategoryGrid } from "@/components/discovery/category-grid";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
+import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
+import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { StreamGrid } from "@/components/stream/stream-grid";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +23,23 @@ import { cn, formatDuration } from "@/lib/utils";
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";
 const SEARCH_RESULTS_CHANNEL_PAGE_SIZE = 50;
 
+function ChannelDisplayName({
+  channel,
+  className,
+}: {
+  channel: UnifiedChannel;
+  className: string;
+}) {
+  const showPartnerBadge = channel.isPartner || channel.isVerified;
+
+  return (
+    <div className="flex w-full min-w-0 items-center justify-center gap-1.5">
+      <h3 className={cn("min-w-0 truncate transition-colors", className)}>{channel.displayName}</h3>
+      {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
+    </div>
+  );
+}
+
 // Platform-agnostic unified search
 export function SearchPage() {
   const search: any = useSearch({ from: "/_app/search" });
@@ -29,6 +48,9 @@ export function SearchPage() {
   const [platformFilter, setPlatformFilter] = React.useState<"all" | "twitch" | "kick">("all");
   const [liveOnly, setLiveOnly] = React.useState(false);
   const [selectedClip, setSelectedClip] = React.useState<UnifiedClip | null>(null);
+  const [clipPlaybackUrl, setClipPlaybackUrl] = React.useState<string | null>(null);
+  const [clipLoading, setClipLoading] = React.useState(false);
+  const [clipError, setClipError] = React.useState<string | null>(null);
   const [channelsExhaustedByRepeat, setChannelsExhaustedByRepeat] = React.useState(false);
   const channelSearchPlatform = platformFilter === "all" ? undefined : platformFilter;
   const channelSearchKey = `${q.trim().toLowerCase()}|${channelSearchPlatform ?? "all"}`;
@@ -138,6 +160,67 @@ export function SearchPage() {
     if (liveOnly) return []; // Hide clips when looking for live content
     return clips;
   }, [results?.clips, liveOnly]);
+
+  const selectedClipForDialog: VideoOrClip | null = React.useMemo(() => {
+    if (!selectedClip) return null;
+
+    return {
+      id: selectedClip.id,
+      title: selectedClip.title,
+      duration: formatDuration(selectedClip.duration),
+      views: (selectedClip.viewCount || 0).toString(),
+      date: selectedClip.createdAt,
+      created_at: selectedClip.createdAt,
+      thumbnailUrl: selectedClip.thumbnailUrl,
+      embedUrl: selectedClip.embedUrl || selectedClip.clipUrl,
+      url: selectedClip.clipUrl,
+      gameName: selectedClip.gameName,
+      channelSlug: selectedClip.channelName,
+      channelName: selectedClip.channelDisplayName || selectedClip.channelName,
+      channelAvatar: selectedClip.channelAvatar,
+      platform: selectedClip.platform,
+    };
+  }, [selectedClip]);
+
+  React.useEffect(() => {
+    if (!selectedClip) {
+      setClipPlaybackUrl(null);
+      setClipError(null);
+      return;
+    }
+
+    const fetchClipPlayback = async () => {
+      setClipLoading(true);
+      setClipError(null);
+
+      try {
+        const result = await (window as any).electronAPI?.clips?.getPlaybackUrl?.({
+          platform: selectedClip.platform,
+          clipId: selectedClip.id,
+          clipUrl: selectedClip.embedUrl || selectedClip.clipUrl,
+          thumbnailUrl: selectedClip.thumbnailUrl,
+        });
+
+        if (result?.success && result?.data?.url) {
+          setClipPlaybackUrl(result.data.url);
+        } else if (selectedClip.platform === "twitch") {
+          setClipPlaybackUrl(null);
+        } else {
+          setClipError(result?.error || "Failed to load clip");
+        }
+      } catch (_error) {
+        if (selectedClip.platform === "twitch") {
+          setClipPlaybackUrl(null);
+        } else {
+          setClipError("Failed to load clip");
+        }
+      } finally {
+        setClipLoading(false);
+      }
+    };
+
+    void fetchClipPlayback();
+  }, [selectedClip]);
 
   // Identify Best Matches from Filtered Results
   const { topMatches, otherMatches } = React.useMemo(() => {
@@ -335,9 +418,10 @@ export function SearchPage() {
                     )}
                   </div>
                 </div>
-                <h3 className="font-bold text-lg truncate w-full group-hover:text-[var(--color-primary)] transition-colors">
-                  {channel.displayName}
-                </h3>
+                <ChannelDisplayName
+                  channel={channel}
+                  className="font-bold text-lg group-hover:text-[var(--color-primary)]"
+                />
                 {channel.isLive && (
                   <span className="mt-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-wider border border-red-500/20">
                     Live
@@ -383,9 +467,10 @@ export function SearchPage() {
                     )}
                   </div>
                 </div>
-                <h3 className="font-bold text-base truncate w-full group-hover:text-[var(--color-primary)] transition-colors">
-                  {channel.displayName}
-                </h3>
+                <ChannelDisplayName
+                  channel={channel}
+                  className="font-bold text-base group-hover:text-[var(--color-primary)]"
+                />
                 {channel.isLive && (
                   <span className="mt-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-wider border border-red-500/20">
                     Live
@@ -514,9 +599,9 @@ export function SearchPage() {
                     alt={clip.title}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                      <LuPlay className="w-5 h-5 text-white fill-white" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    <div className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all group-hover:scale-100 group-hover:bg-white group-hover:text-black">
+                      <LuPlay className="h-5 w-5 fill-current" />
                     </div>
                   </div>
 
@@ -570,44 +655,17 @@ export function SearchPage() {
             </p>
           </div>
         )}
-      <Dialog open={!!selectedClip} onOpenChange={(open) => !open && setSelectedClip(null)}>
-        <DialogContent className="max-w-4xl bg-black border-[var(--color-border)] p-0 overflow-hidden">
-          {selectedClip && (
-            <>
-              <div className="aspect-video bg-black relative flex items-center justify-center">
-                {/* Placeholder for clip player */}
-                <div className="text-center">
-                  <p className="text-white font-bold text-lg mb-2">
-                    Playing Clip: {selectedClip.title}
-                  </p>
-                  <p className="text-[var(--color-foreground-muted)]">
-                    Source: {selectedClip.embedUrl}
-                  </p>
-                </div>
-              </div>
-              <DialogHeader className="hidden">
-                <DialogTitle>{selectedClip.title}</DialogTitle>
-              </DialogHeader>
-              <div className="p-4 bg-[var(--color-background-secondary)]">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  {selectedClip.title}
-                </h2>
-                <div className="flex items-center gap-2 mt-2">
-                  <PlatformAvatar
-                    src={selectedClip.channelAvatar}
-                    alt={selectedClip.channelName}
-                    platform={selectedClip.platform}
-                    size="w-6 h-6"
-                  />
-                  <span className="text-sm text-[var(--color-foreground-secondary)]">
-                    Clipped by {selectedClip.channelDisplayName}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ClipDialog
+        selectedClip={selectedClipForDialog}
+        onClose={() => setSelectedClip(null)}
+        clipLoading={clipLoading}
+        clipError={clipError}
+        clipPlaybackUrl={clipPlaybackUrl}
+        platform={selectedClip?.platform || "twitch"}
+        channelName={selectedClip?.channelName || ""}
+        channelData={null}
+        onPlaybackError={() => setClipError("Failed to play clip")}
+      />
     </div>
   );
 }

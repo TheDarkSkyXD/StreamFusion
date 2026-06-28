@@ -3,14 +3,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { logger } from "@/renderer/logging/logger";
 
-import { createKickClipPlaylistLoader, isKickClipPlaylistUrl } from "../kick/kick-clip-loader";
+type SeekPreviewHlsConfig = Partial<NonNullable<ConstructorParameters<typeof Hls>[0]>>;
 
 export interface UseSeekPreviewProps {
   streamUrl: string | null;
   thumbnail?: string;
+  hlsConfig?: SeekPreviewHlsConfig;
 }
 
-export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
+export function useSeekPreview({ streamUrl, thumbnail, hlsConfig }: UseSeekPreviewProps) {
   const [previewImage, setPreviewImage] = useState<string | undefined>(thumbnail);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -96,8 +97,7 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
         maxBufferLength: 5, // Keep buffer small
         maxMaxBufferLength: 10,
         maxBufferHole: 0.5,
-        // See kick-clip-loader.ts for why Kick clips need playlist rewriting.
-        ...(isKickClipPlaylistUrl(streamUrl) ? { pLoader: createKickClipPlaylistLoader() } : {}),
+        ...hlsConfig,
       });
 
       hls.loadSource(streamUrl);
@@ -151,7 +151,7 @@ export function useSeekPreview({ streamUrl, thumbnail }: UseSeekPreviewProps) {
         hlsRef.current = null;
       }
     };
-  }, [streamUrl, thumbnail]);
+  }, [streamUrl, thumbnail, hlsConfig]);
 
   const seekTimer = useManagedTimeout(
     useCallback(() => {

@@ -11,6 +11,10 @@ vi.mock("@/components/dev/ChatSimTool", () => ({
   ChatSimTool: () => <div>Chat sim tool</div>,
 }));
 
+vi.mock("@/components/dev/UiDebugTool", () => ({
+  UiDebugTool: () => <div>UI debug tool</div>,
+}));
+
 const STORAGE_KEY = "streamfusion-debug-panel";
 
 // Guards: the dev debug console must always leave a visible restore control when hidden,
@@ -59,5 +63,13 @@ describe("DebugPanel", () => {
 
     expect(screen.getByText("Debug Console")).toBeInTheDocument();
     expect(screen.getByText("Perf tool")).toBeInTheDocument();
+  });
+
+  it("opens the UI debug tab", () => {
+    render(<DebugPanel />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "UI" }));
+
+    expect(screen.getByText("UI debug tool")).toBeInTheDocument();
   });
 });

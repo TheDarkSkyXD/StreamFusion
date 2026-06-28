@@ -171,6 +171,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const isAuthenticated = useAuthStore(
     (state) => state.twitchConnected && !state.twitchReconnectRequired
   );
+  const loginTwitch = useAuthStore((state) => state.loginTwitch);
   // U5 — gate the in-chat prediction widget on the viewer pref. Reactive
   // selector so toggling it live shows/hides the banner without remounting.
   const showPredictions = useAuthStore(
@@ -785,25 +786,50 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           onDismiss={() => setShowPinned(false)}
           // Mod-only server-side unpin. Gated by the same scope-check as Pin.
           onUnpin={
-            isMod && pinnedMessage.pinRecordId
+            isMod && pinnedMessage.messageId && twitchUser?.id && channelId
               ? async () => {
+                  const runUnpin = async (accessToken: string) => {
+                    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                    if (!clientId || !twitchUser?.id || !channelId) return null;
+                    return unpinChatMessage(
+                      channelId,
+                      twitchUser.id,
+                      pinnedMessage.messageId,
+                      accessToken,
+                      clientId
+                    );
+                  };
                   if (!hasModScopes) {
-                    promptReconnect();
+                    promptReconnect({
+                      missingScopes: ["moderator:manage:chat_messages"],
+                      onReconnected: async () => {
+                        const fresh = await window.electronAPI.auth.getToken("twitch");
+                        if (!fresh?.accessToken) return;
+                        const retry = await runUnpin(fresh.accessToken);
+                        if (retry?.ok) setPinnedMessage(null);
+                      },
+                    });
                     return;
                   }
                   try {
                     const token = await window.electronAPI.auth.getToken("twitch");
                     if (!token?.accessToken) return;
-                    const result = await unpinChatMessage(
-                      pinnedMessage.pinRecordId as string,
-                      token.accessToken
-                    );
+                    const result = await runUnpin(token.accessToken);
+                    if (!result) return;
                     if (result.ok) {
                       // Optimistic local clear — poller will reconcile on
                       // the next tick when Twitch confirms.
                       setPinnedMessage(null);
-                    } else if (result.kind === "unauthenticated") {
-                      promptReconnect();
+                    } else if (
+                      result.kind === "unauthenticated" ||
+                      result.kind === "missing-scopes"
+                    ) {
+                      promptReconnect({
+                        missingScopes:
+                          result.kind === "missing-scopes"
+                            ? result.missingScopes
+                            : ["moderator:manage:chat_messages"],
+                      });
                     }
                   } catch (error) {
                     if (process.env.NODE_ENV !== "production") {
@@ -884,7 +910,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                   // Lazy scope-check: if the token lacks the new scopes, surface
                   // the reconnect dialog instead of opening the pin dialog.
                   if (!hasModScopes) {
-                    promptReconnect();
+                    promptReconnect({
+                      missingScopes: ["moderator:manage:chat_messages"],
+                      onReconnected: () => setPinDialogMessage(message),
+                    });
                     return;
                   }
                   setPinDialogMessage(message);
@@ -933,6 +962,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             channel={channel}
             channelId={channelId ?? null}
             canSend={isAuthenticated && isTwitchConnected}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={() => loginTwitch()}
+            viewerCanBypassRoomModes={isMod}
+            checkSubscriberEligibility={(request) =>
+              window.electronAPI.chat.checkSubscriberEligibility(request)
+            }
             showModViewLink={isAuthenticated && isMod}
           />
         </div>
@@ -954,12 +989,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             modlog: channelId ? (
               <ModLogTab channelId={channelId} />
             ) : (
-              <div className="p-4 text-gray-400">No channel selected.</div>
+              <div className="p-4 text-neutral-400">No channel selected.</div>
             ),
             engagement: channelId ? (
               <EngagementTab channelId={channelId} />
             ) : (
-              <div className="p-4 text-gray-400">No channel selected.</div>
+              <div className="p-4 text-neutral-400">No channel selected.</div>
             ),
           }}
         </ChatPanelTabs>
@@ -1378,21 +1413,45 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             busy={pinDialogBusy}
             onConfirm={async (durationSeconds) => {
               setPinDialogBusy(true);
+              const messageId = pinDialogMessage.id;
+              const runPin = async (accessToken: string) => {
+                const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                if (!clientId || !twitchUser?.id) return null;
+                return pinChatMessage(
+                  channelId,
+                  twitchUser.id,
+                  messageId,
+                  durationSeconds,
+                  accessToken,
+                  clientId
+                );
+              };
               try {
                 const token = await window.electronAPI.auth.getToken("twitch");
                 if (!token?.accessToken) return;
-                const result = await pinChatMessage(
-                  channelId,
-                  pinDialogMessage.id,
-                  durationSeconds,
-                  token.accessToken
-                );
+                const result = await runPin(token.accessToken);
+                if (!result) return;
                 if (result.ok) {
                   setPinDialogMessage(null);
                   toast.success("Pinned message");
-                } else if (result.kind === "unauthenticated") {
+                } else if (result.kind === "unauthenticated" || result.kind === "missing-scopes") {
                   setPinDialogMessage(null);
-                  promptReconnect();
+                  promptReconnect({
+                    missingScopes:
+                      result.kind === "missing-scopes"
+                        ? result.missingScopes
+                        : ["moderator:manage:chat_messages"],
+                    onReconnected: async () => {
+                      const fresh = await window.electronAPI.auth.getToken("twitch");
+                      if (!fresh?.accessToken) return;
+                      const retry = await runPin(fresh.accessToken);
+                      if (retry?.ok) toast.success("Pinned message");
+                      else if (retry)
+                        toast.error("Couldn't pin message", {
+                          description: retry.message ?? retry.kind,
+                        });
+                    },
+                  });
                 } else {
                   // Forbidden / network / other failures: surface a toast and
                   // close the dialog. The toast carries the action name + the
@@ -1451,15 +1510,15 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
     <div className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] text-sm">
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-gray-400 text-xs font-medium">Poll:</span>
+          <span className="text-neutral-400 text-xs font-medium">Poll:</span>
           <span className="text-white text-xs font-semibold truncate">{poll.title}</span>
-          {isPollEnded && <span className="text-xs text-gray-500 flex-shrink-0">Ended</span>}
+          {isPollEnded && <span className="text-xs text-neutral-500 flex-shrink-0">Ended</span>}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             type="button"
             onClick={onToggleExpand}
-            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
             title={isExpanded ? "Collapse" : "Expand"}
           >
             <BsChevronDown
@@ -1473,7 +1532,7 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
           <button
             type="button"
             onClick={onDismiss}
-            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
             title="Dismiss"
           >
             <BsX size={14} />
@@ -1493,7 +1552,7 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
                     {option.label}
                     {isWinner && " 🏆"}
                   </span>
-                  <span className="text-gray-400">
+                  <span className="text-neutral-400">
                     {option.votes} ({pct.toFixed(1)}%)
                   </span>
                 </div>

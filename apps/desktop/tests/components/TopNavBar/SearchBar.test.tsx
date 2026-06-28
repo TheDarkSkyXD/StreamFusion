@@ -30,29 +30,29 @@ import { SearchBar } from '@/components/TopNavBar/SearchBar';
 describe('SearchBar', () => {
   it('wires onSearch to navigate to /search', () => {
     renderWithProviders(<SearchBar />);
-    const btn = screen.getByText(/enter streamer name/i);
+    const btn = screen.getByText(/search streamfusion/i);
     btn.click();
     expect(navigate).toHaveBeenCalledWith({ to: '/search', search: { q: 'foo' } });
   });
 
   it('uses the KickTalk input background color', () => {
     renderWithProviders(<SearchBar />);
-    expect(screen.getByText(/enter streamer name/i)).toHaveAttribute(
+    expect(screen.getByText(/search streamfusion/i)).toHaveAttribute(
       'data-input-class',
       expect.stringContaining('!bg-[#191919]')
     );
   });
 
-  it('uses the KickTalk placeholder gray', () => {
+  it('uses the KickTalk placeholder neutral', () => {
     renderWithProviders(<SearchBar />);
-    expect(screen.getByText(/enter streamer name/i)).toHaveAttribute(
+    expect(screen.getByText(/search streamfusion/i)).toHaveAttribute(
       'data-input-class',
       expect.stringContaining('placeholder:!text-white/30')
     );
   });
 
-  it('uses the KickTalk navbar search placeholder', () => {
+  it('uses the StreamFusion navbar search placeholder', () => {
     renderWithProviders(<SearchBar />);
-    expect(screen.getByText('Enter streamer name...')).toBeInTheDocument();
+    expect(screen.getByText('Search StreamFusion...')).toBeInTheDocument();
   });
 });

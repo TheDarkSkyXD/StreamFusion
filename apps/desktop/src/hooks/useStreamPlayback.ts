@@ -318,6 +318,8 @@ interface UseStreamPlaybackResult {
   retryWithoutProxy: () => void;
   /** Number of consecutive reload attempts (resets on successful playback) */
   reloadAttempts: number;
+  /** Monotonic revision for remounting players after a successful refresh, even if the URL is unchanged. */
+  playbackRevision: number;
 }
 
 export function useStreamPlayback(platform: Platform, identifier: string): UseStreamPlaybackResult {
@@ -335,6 +337,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   // Use ref for synchronous access in callbacks, state for consumers
   const reloadAttemptsRef = useRef(0);
   const [reloadAttempts, setReloadAttempts] = useState(0);
+  const [playbackRevision, setPlaybackRevision] = useState(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: platform is part of stream identity; the same slug can exist on Twitch and Kick.
   useEffect(() => {
@@ -346,6 +349,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     setForceNoProxy(false);
     reloadAttemptsRef.current = 0; // Sync ref
     setReloadAttempts(0); // Reset attempts when stream changes
+    setPlaybackRevision(0);
   }, [platform, identifier]);
 
   // Register this instance for stagger calculation only while it has a real
@@ -387,6 +391,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
 
         if (isMounted) {
           setPlayback(newPlayback);
+          setPlaybackRevision((prev) => prev + 1);
 
           // Detect if this is a proxy URL (check for known proxy domains)
           const playbackUrl = newPlayback.url;
@@ -492,5 +497,6 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     reload,
     retryWithoutProxy,
     reloadAttempts,
+    playbackRevision,
   };
 }

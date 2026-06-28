@@ -8,8 +8,9 @@ import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { resolveHlsBufferConfig, resolveHlsVodBufferConfig } from "./hls-buffer-config";
-import { createKickClipPlaylistLoader, isKickClipPlaylistUrl } from "./kick/kick-clip-loader";
 import type { PlayerError, QualityLevel } from "./types";
+
+export type HlsConfigOverrides = Partial<NonNullable<ConstructorParameters<typeof Hls>[0]>>;
 
 export interface HlsPlayerProps
   extends Omit<React.VideoHTMLAttributes<HTMLVideoElement>, "onError"> {
@@ -21,6 +22,7 @@ export interface HlsPlayerProps
   currentLevel?: string; // 'auto' or level index as string
   volume?: number;
   sources?: { quality: string; url: string }[];
+  hlsConfig?: HlsConfigOverrides;
   /**
    * Whether this is a LIVE stream. The user's buffer/latency prefs are applied
    * only when live — the live-tuning keys are inert on VOD, and VOD buffer
@@ -32,6 +34,18 @@ export interface HlsPlayerProps
 
 const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
 const VOD_MEMORY_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
+const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
+const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 3000;
+
+function isKickLiveCdnUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).host;
+    return host.endsWith(".playback.live-video.net") || host.endsWith(".playlist.live-video.net");
+  } catch {
+    return false;
+  }
+}
 
 export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
   (
@@ -43,6 +57,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       autoPlay = false,
       currentLevel,
       sources,
+      hlsConfig,
       volume,
       isLive = false,
       ...props
@@ -53,6 +68,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     const hlsRef = useRef<Hls | null>(null);
     const isMountedRef = useRef(true);
     const sourcesRef = useRef(sources);
+    const hlsConfigRef = useRef(hlsConfig);
 
     // Mutable heartbeat state lifted into refs so useInterval callbacks can read them
     const isEffectActiveRef = useRef(false);
@@ -76,6 +92,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     useEffect(() => {
       sourcesRef.current = sources;
     }, [sources]);
+
+    useEffect(() => {
+      hlsConfigRef.current = hlsConfig;
+    }, [hlsConfig]);
 
     // Apple volume on mount and change
     useEffect(() => {
@@ -129,7 +149,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       };
     }, []);
 
-    // Heartbeat: check every 5s that fragments are still arriving (fast offline detection).
+    // Heartbeat: check every 1s that fragments are still arriving (fast offline detection).
     // Active only while heartbeatDelay is a number (set by MANIFEST_PARSED, cleared on teardown).
     useInterval(() => {
       const hls = hlsRef.current;
@@ -151,7 +171,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       const timeSinceManifest = manifestParsedTime ? now - manifestParsedTime : 0;
 
       // CASE 1: No fragment ever received after manifest parsed
-      if (!hasReceivedFirstFragmentRef.current && timeSinceManifest > 30000) {
+      if (
+        !hasReceivedFirstFragmentRef.current &&
+        timeSinceManifest >= LIVE_FRAGMENT_OFFLINE_GRACE_MS
+      ) {
         logger.debug("Player:HLS", "no fragments received after manifest - stream unavailable", {
           secondsSinceManifest: Math.round(timeSinceManifest / 1000),
         });
@@ -169,7 +192,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       }
 
       // CASE 2: Was receiving fragments but they stopped
-      if (hasReceivedFirstFragmentRef.current && timeSinceLastFrag > 45000) {
+      if (
+        hasReceivedFirstFragmentRef.current &&
+        timeSinceLastFrag >= LIVE_FRAGMENT_OFFLINE_GRACE_MS
+      ) {
         logger.debug("Player:HLS", "no fragments - stream appears to have ended", {
           secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
         });
@@ -183,18 +209,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           originalError: null,
         });
         return;
-      }
-
-      // CASE 3: Mild delay - try to recover by reloading
-      if (timeSinceLastFrag > 15000) {
-        logger.debug("Player:HLS", "heartbeat: no fragments, attempting reload", {
-          secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
-        });
-        try {
-          hls.startLoad(-1);
-        } catch (_e) {
-          // HLS may be in an invalid state, ignore
-        }
       }
     }, heartbeatDelay);
 
@@ -394,13 +408,15 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     // Store callbacks in refs to prevent re-initialization loop
     const onQualityLevelsRef = useRef(onQualityLevels);
     const onErrorRef = useRef(onError);
+    const onHlsInstanceRef = useRef(onHlsInstance);
     const currentLevelRef = useRef(currentLevel);
 
     useEffect(() => {
       onQualityLevelsRef.current = onQualityLevels;
       onErrorRef.current = onError;
+      onHlsInstanceRef.current = onHlsInstance;
       currentLevelRef.current = currentLevel;
-    }, [onQualityLevels, onError, currentLevel]);
+    }, [onQualityLevels, onError, onHlsInstance, currentLevel]);
 
     useEffect(() => {
       const video = videoRef.current;
@@ -475,10 +491,16 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                   "play request interrupted (expected during source change)"
                 );
               } else if (e.name === "NotAllowedError") {
-                logger.warn(
-                  "Player:HLS",
-                  "autoplay blocked by browser policy - user interaction required"
-                );
+                if (!video.muted) {
+                  logger.warn("Player:HLS", "autoplay blocked, retrying muted playback");
+                  video.muted = true;
+                  safePlay();
+                } else {
+                  logger.warn(
+                    "Player:HLS",
+                    "autoplay blocked by browser policy - user interaction required"
+                  );
+                }
               } else {
                 logger.error("Player:HLS", "playback failed with unexpected error", { error: e });
               }
@@ -568,6 +590,8 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // instead of constructing a new instance + new decoder. Stale handlers
         // capture old prop closures (autoPlay/currentLevel/onHlsInstance), so
         // off-all and re-register below.
+        const isReusingExistingHls = Boolean(hlsRef.current);
+
         if (hlsRef.current) {
           hls = hlsRef.current;
           hls.off(Hls.Events.MANIFEST_PARSED);
@@ -575,8 +599,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           hls.off(Hls.Events.FRAG_LOADED);
           logger.debug("Player:HLS", "reusing HLS instance for new source", { src });
           hls.detachMedia();
-          hls.loadSource(src);
-          hls.attachMedia(video);
         } else {
           hls = new Hls({
             enableWorker: true,
@@ -609,17 +631,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               xhr.withCredentials = false; // Important to avoid CORS issues with wildcards
             },
 
-            // Kick clips are cut mid-GOP, so seg 0 has no keyframe and hls.js
-            // opens an audio-only MediaSource that can't accept the video that
-            // shows up in seg 1. See kick-clip-loader.ts.
-            ...(isKickClipPlaylistUrl(src) ? { pLoader: createKickClipPlaylistLoader() } : {}),
+            ...hlsConfigRef.current,
           });
           hlsRef.current = hls;
-          if (onHlsInstance) onHlsInstance(hls);
-
-          logger.debug("Player:HLS", "initializing HLS", { src });
-          hls.loadSource(src);
-          hls.attachMedia(video);
+          onHlsInstanceRef.current?.(hls);
         } // close slice 09 reuse else-branch
 
         if (isLive) {
@@ -706,19 +721,27 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             (data.response as any)?.code ||
             (data.response as any)?.status ||
             (data.networkDetails as any)?.status;
+          const errorUrl =
+            (data as any)?.url || (data.context as any)?.url || (data.frag as any)?.url || src;
+          const isRefreshableKickLiveCdnError =
+            isLive && (isKickLiveCdnUrl(src) || isKickLiveCdnUrl(errorUrl));
 
           // Handle critical manifest errors early - no point retrying these
-          // With preflight URL validation in the resolver, 404 means the stream just went offline
-          // Refreshing won't help - the resolver will now immediately detect offline state
+          // Generic 404/403 remains a confirmed-offline signal. Kick live CDN
+          // URLs are signed and can go stale while metadata still says live, so
+          // ask the caller to fetch a fresh playback URL before surfacing offline.
           if (data.details === "manifestLoadError" && (statusCode === 404 || statusCode === 403)) {
-            logger.debug("Player:HLS", "stream unavailable, stopping retries", { statusCode });
+            logger.debug("Player:HLS", "stream unavailable, stopping retries", {
+              statusCode,
+              shouldRefresh: isRefreshableKickLiveCdnError,
+            });
             hls?.destroy();
             hlsRef.current = null;
             onErrorRef.current?.({
               code: "STREAM_OFFLINE",
               message: "Stream offline or unavailable",
               fatal: true,
-              shouldRefresh: false, // Don't refresh - preflight validation means offline is confirmed
+              shouldRefresh: isRefreshableKickLiveCdnError,
               originalError: data,
             });
             return;
@@ -784,6 +807,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                   code: "STREAM_OFFLINE",
                   message: "Stream offline or unavailable",
                   fatal: true,
+                  shouldRefresh:
+                    isStreamEndingError &&
+                    (statusCode === 404 || statusCode === 403) &&
+                    isRefreshableKickLiveCdnError,
                   originalError: data,
                 });
                 hls?.destroy();
@@ -862,8 +889,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         });
 
         // === FAST OFFLINE DETECTION & FRAGMENT TIMEOUT ===
-        // For live streams, aggressively detect when fragments stop arriving
-        // This catches: token expiration, stream offline, CDN issues, CORS problems
+        // For live streams, aggressively detect when fragments stop arriving.
+        // VOD/clip HLS can legitimately pause fragment flow while buffering,
+        // seeking, or retrying archived segments, so leave that path to HLS.js.
         const MAX_FRAG_ERRORS_BEFORE_REFRESH = 3;
 
         // Track successful fragment loads
@@ -881,7 +909,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
         // Track fragment load errors (may indicate token expiration)
         hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.details === "fragLoadError" && !data.fatal) {
+          if (isLive && data.details === "fragLoadError" && !data.fatal) {
             fragErrorCountRef.current++;
             logger.debug("Player:HLS", "fragment load error", {
               errorCount: fragErrorCountRef.current,
@@ -909,13 +937,19 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // record manifestParsedTime and activate the interval via state.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           manifestParsedTimeRef.current = Date.now();
-          // Activate heartbeat (5 000 ms) and memory cleanup via useInterval
-          setHeartbeatDelay(5000);
+          // Activate heartbeat and memory cleanup via useInterval.
+          setHeartbeatDelay(isLive ? LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS : null);
           setMemoryCleanupDelay(
             isLive ? LIVE_MEMORY_CLEANUP_INTERVAL_MS : VOD_MEMORY_CLEANUP_INTERVAL_MS
           );
           setStallWatchdogDelay(2000);
         });
+
+        if (!isReusingExistingHls) {
+          logger.debug("Player:HLS", "initializing HLS", { src });
+        }
+        hls.loadSource(src);
+        hls.attachMedia(video);
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
         logger.debug("Player:HLS", "using native HLS");
@@ -1000,9 +1034,17 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         setMemoryCleanupDelay(null);
         setStallWatchdogDelay(null);
 
-        // Slice 09: HLS destruction + video element src-teardown moved to the
-        // mount-only effect above so the instance survives across src changes
-        // (channel-hop within a slot reuses the decoder).
+        // Live streams keep the slice-09 reuse path for channel-hop perf. VOD
+        // startup is more sensitive to StrictMode/effect cleanup races, so archived
+        // playback gets a fresh HLS instance on the next setup.
+        if (!isLive && hls && hlsRef.current === hls) {
+          try {
+            hls.destroy();
+          } catch (_e) {
+            // Already destroyed by an in-handler error path; ignore.
+          }
+          hlsRef.current = null;
+        }
 
         // Remove event listeners from video element to prevent memory leaks.
         // These are scope-local to each effect run, so they DO need replacing
@@ -1025,7 +1067,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
         }
       };
-    }, [src, autoPlay, onHlsInstance, isLive]); // Removed callbacks from dependency array
+    }, [src, autoPlay, isLive]); // Removed callbacks from dependency array
     // removed currentLevel (except initial read in manifest parsed) to prevent re-init.
     // Logic for dynamic switching is in the first useEffect.
 

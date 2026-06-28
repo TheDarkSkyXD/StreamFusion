@@ -1,5 +1,5 @@
 import type React from "react";
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useEffectEvent, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useManagedTimeout } from "../../hooks/useManagedTimeout";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
@@ -21,8 +21,8 @@ const CHAT_LIST_OVERSCAN_PX = 150;
 const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 240, bottom: 480 };
 
 function estimateDefaultItemHeight(chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES): number {
-  const lineHeight = chatDisplay.density === "compact" ? 1.2 : 1.4;
-  const verticalPadding = chatDisplay.density === "compact" ? 4 : 8;
+  const lineHeight = chatDisplay.density === "compact" ? 1.2 : 1.35;
+  const verticalPadding = chatDisplay.density === "compact" ? 0 : 4;
   return Math.ceil(
     Math.max(chatDisplay.emoteSizePx, chatDisplay.fontSizePx * lineHeight) + verticalPadding
   );
@@ -66,12 +66,17 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const setPaused = useChatStore((state) => state.setPaused);
     const chatDisplay =
       useAuthStore((state) => state.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const pauseMode = chatDisplay.pauseMode ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.pauseMode;
+    const pauseOnMouseover = pauseMode === "mouseover" || pauseMode === "mouseover-alt";
+    const pauseOnAlt = pauseMode === "alt" || pauseMode === "mouseover-alt";
     const defaultItemHeight = estimateDefaultItemHeight(chatDisplay);
 
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const scrollerRef = useRef<HTMLElement | null>(null);
     const userScrolledUpRef = useRef(false);
     const pendingPauseRef = useRef(false);
+    const mouseoverPauseRef = useRef(false);
+    const altPauseRef = useRef(false);
     const pauseTimer = useManagedTimeout(
       useCallback(() => setPaused(channelKey, true), [channelKey, setPaused])
     );
@@ -154,8 +159,24 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     useEffect(() => {
       userScrolledUpRef.current = false;
       pendingPauseRef.current = false;
+      mouseoverPauseRef.current = false;
+      altPauseRef.current = false;
       setPaused(channelKey, false);
     }, [channelKey, setPaused]);
+
+    const hasActiveInputPause = useCallback(
+      () => (pauseOnMouseover && mouseoverPauseRef.current) || (pauseOnAlt && altPauseRef.current),
+      [pauseOnAlt, pauseOnMouseover]
+    );
+
+    const resumeIfNoPauseTrigger = useCallback(() => {
+      if (userScrolledUpRef.current || pendingPauseRef.current || hasActiveInputPause()) return;
+      setPaused(channelKey, false);
+    }, [channelKey, hasActiveInputPause, setPaused]);
+    const clearAltPause = useEffectEvent(() => {
+      altPauseRef.current = false;
+      resumeIfNoPauseTrigger();
+    });
 
     const onWheelScroll = useCallback((e: Event) => {
       if ((e as WheelEvent).deltaY < 0) {
@@ -163,20 +184,71 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       }
     }, []);
 
+    const onMouseEnterChat = useCallback(() => {
+      if (!pauseOnMouseover) return;
+      mouseoverPauseRef.current = true;
+      setPaused(channelKey, true);
+    }, [channelKey, pauseOnMouseover, setPaused]);
+
+    const onMouseLeaveChat = useCallback(() => {
+      mouseoverPauseRef.current = false;
+      resumeIfNoPauseTrigger();
+    }, [resumeIfNoPauseTrigger]);
+
     const scrollerCallbackRef = useCallback(
       (el: HTMLElement | Window | null) => {
         if (scrollerRef.current instanceof HTMLElement) {
           scrollerRef.current.removeEventListener("wheel", onWheelScroll);
+          scrollerRef.current.removeEventListener("mouseenter", onMouseEnterChat);
+          scrollerRef.current.removeEventListener("mouseleave", onMouseLeaveChat);
         }
         if (el instanceof HTMLElement) {
           scrollerRef.current = el;
           el.addEventListener("wheel", onWheelScroll, { passive: true });
+          el.addEventListener("mouseenter", onMouseEnterChat);
+          el.addEventListener("mouseleave", onMouseLeaveChat);
         } else {
           scrollerRef.current = null;
         }
       },
-      [onWheelScroll]
+      [onMouseEnterChat, onMouseLeaveChat, onWheelScroll]
     );
+
+    useEffect(() => {
+      if (!pauseOnMouseover) {
+        mouseoverPauseRef.current = false;
+      }
+      if (!pauseOnAlt) {
+        altPauseRef.current = false;
+      }
+      resumeIfNoPauseTrigger();
+    }, [pauseOnAlt, pauseOnMouseover, resumeIfNoPauseTrigger]);
+
+    useEffect(() => {
+      if (!pauseOnAlt) return;
+
+      function onKeyDown(event: KeyboardEvent) {
+        if (event.key !== "Alt" || event.repeat) return;
+        altPauseRef.current = true;
+        setPaused(channelKey, true);
+      }
+
+      function onKeyUp(event: KeyboardEvent) {
+        if (event.key !== "Alt") return;
+        clearAltPause();
+      }
+
+      window.addEventListener("keydown", onKeyDown);
+      window.addEventListener("keyup", onKeyUp);
+      window.addEventListener("blur", clearAltPause);
+
+      return () => {
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("keyup", onKeyUp);
+        window.removeEventListener("blur", clearAltPause);
+        altPauseRef.current = false;
+      };
+    }, [channelKey, pauseOnAlt, setPaused]);
 
     const itemContent = useCallback(
       (_index: number, message: ChatMessageType) => (
@@ -221,14 +293,14 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           userScrolledUpRef.current = false;
           pendingPauseRef.current = false;
           pauseTimer.clear();
-          setPaused(channelKey, false);
+          setPaused(channelKey, hasActiveInputPause());
         } else {
           if (!userScrolledUpRef.current) return;
           pendingPauseRef.current = true;
           pauseTimer.start(200);
         }
       },
-      [channelKey, setPaused, pauseTimer]
+      [channelKey, hasActiveInputPause, setPaused, pauseTimer]
     );
 
     const scrollToBottom = useCallback(() => {

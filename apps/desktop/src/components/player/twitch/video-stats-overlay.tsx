@@ -112,7 +112,7 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
     <div className="absolute top-4 left-4 z-50 bg-[#0e0e10]/95 text-white p-4 rounded-md font-mono text-xs select-text pointer-events-auto border border-white/10 shadow-xl w-[400px]">
       <div className="absolute top-2 right-2">
         <button
-          className="text-white hover:text-gray-300"
+          className="text-white hover:text-neutral-300"
           onClick={(e) => {
             e.stopPropagation();
             onClose?.();

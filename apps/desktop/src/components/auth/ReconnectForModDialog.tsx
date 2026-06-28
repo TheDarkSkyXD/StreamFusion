@@ -6,10 +6,9 @@
  * mod action surface is clicked by a user whose token lacks the new mod
  * scopes (added in U7).
  *
- * On confirm: logs out the current Twitch session and immediately re-runs
- * the OAuth login flow with the expanded scope set from `oauth-config.ts`.
- * Twitch's `force_verify=true` is already set on the auth URL, so the
- * consent screen always renders.
+ * On confirm: re-runs the Twitch OAuth flow with the canonical full app scope
+ * set, then verifies the stored token actually contains every current app
+ * scope before retrying the original action.
  *
  * U5 — the dialog now reads the `missingScopes` payload off the store and
  * renders one human-readable row per scope so the user sees exactly what
@@ -32,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { logger } from "@/renderer/logging/logger";
+import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
@@ -41,6 +41,13 @@ import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
  * time — kept here (not in the store) so the store stays dumb.
  */
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  // Base account, follow, emote, and chat scopes.
+  "user:read:email": "Read your Twitch account email",
+  "user:read:follows": "Read the channels you follow",
+  "user:read:subscriptions": "Read your channel subscriptions",
+  "user:read:emotes": "Load your subscribed-channel emotes",
+  "chat:read": "Read Twitch chat while signed in",
+  "chat:edit": "Send Twitch chat messages",
   // Pin-path scopes (U7).
   "user:read:moderated_channels": "See which channels you moderate",
   "moderator:manage:chat_messages": "Pin, unpin, and delete chat messages",
@@ -63,14 +70,22 @@ export function ReconnectForModDialog() {
   const missingScopes = useReconnectDialogStore((state) => state.missingScopes);
   const close = useReconnectDialogStore((state) => state.close);
   const fireReconnected = useReconnectDialogStore((state) => state.fireReconnected);
-  const logoutTwitch = useAuthStore((state) => state.logoutTwitch);
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loading = useAuthStore((state) => state.twitchLoading);
 
   const handleReconnect = async () => {
     try {
-      await logoutTwitch();
       await loginTwitch();
+      const token = await window.electronAPI.auth.getToken("twitch");
+      const grantedScopes = new Set(token?.scope ?? []);
+      const requiredScopes = Array.from(new Set([...TWITCH_APP_SCOPES, ...missingScopes]));
+      const stillMissingScopes = requiredScopes.filter((scope) => !grantedScopes.has(scope));
+      if (stillMissingScopes.length > 0) {
+        logger.warn("UI:Auth:Reconnect", "reconnect completed but scopes are still missing", {
+          missingScopes: stillMissingScopes,
+        });
+        return;
+      }
       // Success: fire the retry callback exactly once, then close.
       fireReconnected();
       close();

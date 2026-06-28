@@ -7,6 +7,7 @@
  */
 
 // Live Stream Player (no progress bar)
+export { KickHlsPlayer } from "./kick-hls-player";
 export { KickLivePlayer } from "./kick-live-player";
 // Progress Bar (for VODs)
 // Legacy exports (for backward compatibility)

@@ -60,9 +60,9 @@ export const ClipCard = memo(function ClipCard({
         </div>
 
         {/* Hover overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center scale-90 group-hover:scale-100 transition-transform">
-            <LuPlay className="w-5 h-5 text-white fill-white" />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all group-hover:scale-100 group-hover:bg-white group-hover:text-black">
+            <LuPlay className="h-5 w-5 fill-current" />
           </div>
         </div>
       </div>

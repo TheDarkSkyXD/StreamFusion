@@ -79,7 +79,7 @@ describe("EmoteImage", () => {
     );
 
     expect(container.querySelector(".animate-pulse")).not.toBeInTheDocument();
-    expect(container.querySelector(".bg-gray-700")).toBeInTheDocument();
+    expect(container.querySelector(".bg-neutral-700")).toBeInTheDocument();
     expect(screen.queryByAltText("Kappa")).not.toBeInTheDocument();
   });
 

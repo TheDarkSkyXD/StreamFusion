@@ -13,6 +13,7 @@ import type { ChatMessage as ChatMessageType, ContentFragment } from "../../shar
 import { useAuthStore } from "../../store/auth-store";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
+import { formatMentionLabel } from "./mention-label";
 import { Username, type UsernameChannelContext } from "./Username";
 
 interface ChatMessageProps {
@@ -124,7 +125,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     // Density drives row padding + line-height; font size is applied inline so it
     // can be any px value from prefs (replacing the hardcoded `text-sm`).
     const densityClass =
-      cd.density === "compact" ? "px-4 py-0.5 leading-[1.2]" : "px-4 py-1 leading-[1.4]";
+      cd.density === "compact" ? "px-4 py-0 leading-[1.2]" : "px-4 py-0.5 leading-[1.35]";
     const fontSizeStyle = { fontSize: cd.fontSizePx };
     const isDeleted = message.isDeleted;
     const renderableBadges = useMemo(
@@ -191,7 +192,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
 
     return (
       <div
-        className={`group relative min-w-0 max-w-full overflow-x-hidden ${densityClass} hover:bg-white/5 ${showHighlight ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
+        className={`group relative min-w-0 max-w-full overflow-x-clip ${densityClass} hover:bg-white/5 ${showHighlight ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
         style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}
       >
         <div
@@ -387,7 +388,7 @@ const MessageFragment: React.FC<{
     case "mention":
       return (
         <span className="max-w-full break-words [overflow-wrap:anywhere] bg-white/10 font-bold px-1 rounded mx-0.5 text-foreground">
-          {fragment.username}
+          {formatMentionLabel(fragment.username)}
         </span>
       );
 

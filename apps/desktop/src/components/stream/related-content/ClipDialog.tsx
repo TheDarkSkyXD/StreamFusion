@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickVodPlayer } from "@/components/player/kick";
@@ -12,6 +12,7 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
+import { useHistoryStore } from "@/store/history-store";
 
 import type { VideoOrClip } from "./types";
 
@@ -41,9 +42,37 @@ export function ClipDialog({
   onPlaybackError,
 }: ClipDialogProps) {
   const navigate = useNavigate();
+  const addToHistory = useHistoryStore((state) => state.addToHistory);
   const [vodLookupLoading, setVodLookupLoading] = useState(false);
   const [vodLookupError, setVodLookupError] = useState<string | null>(null);
   const clipPlatform = selectedClip?.platform ?? platform;
+
+  useEffect(() => {
+    if (!selectedClip || clipLoading) return;
+    if (clipError || !clipPlaybackUrl) return;
+
+    addToHistory({
+      id: `${clipPlatform}-clip-${selectedClip.id}`,
+      originalId: selectedClip.id,
+      title: selectedClip.title,
+      thumbnail: selectedClip.thumbnailUrl || "",
+      playbackUrl: clipPlaybackUrl,
+      platform: clipPlatform,
+      type: "clip",
+      channelName: selectedClip.channelSlug || channelName,
+      channelDisplayName: channelData?.displayName || selectedClip.channelName || channelName,
+      channelAvatar: selectedClip.channelAvatar || channelData?.avatarUrl || null,
+    });
+  }, [
+    selectedClip,
+    clipLoading,
+    clipError,
+    clipPlaybackUrl,
+    clipPlatform,
+    channelName,
+    channelData,
+    addToHistory,
+  ]);
 
   // Handle Kick VOD lookup and navigation
   const handleKickWatchFullVideo = useCallback(async () => {
@@ -132,6 +161,7 @@ export function ClipDialog({
                       videoId={selectedClip.id}
                       title={selectedClip.title}
                       qualities={clipQualities}
+                      onError={onPlaybackError}
                     />
                   ) : (
                     <KickVodPlayer
@@ -140,18 +170,10 @@ export function ClipDialog({
                       className="w-full h-full"
                       videoId={selectedClip.id}
                       title={selectedClip.title}
+                      onError={onPlaybackError}
                       // Kick clips are handled differently or might not have manual qualities exposed the same way yet
                     />
                   )
-                ) : clipPlatform === "twitch" ? (
-                  // Twitch iframe fallback when direct MP4 fails
-                  <iframe
-                    src={`https://clips.twitch.tv/embed?clip=${selectedClip.id}&parent=localhost`}
-                    width="100%"
-                    height="100%"
-                    allowFullScreen
-                    className="w-full h-full"
-                  />
                 ) : (
                   <div className="text-center text-white/50">
                     <p>No playback URL available</p>

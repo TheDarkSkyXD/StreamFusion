@@ -34,11 +34,18 @@ afterEach(() => {
   useChatRoomStateMock.mockReset();
 });
 
+// Guards: active chat-room banners stay separated from the compose input by the design-system 4px gap.
 describe("InfoBanner", () => {
   it("returns null when no mode is active", () => {
     mockRoomState({});
     const { container } = render(<InfoBanner platform="twitch" channelId="123" />);
     expect(container.firstChild).toBeNull();
+  });
+
+  it("keeps the active banner 4px above the input row", () => {
+    mockRoomState({ slowMode: 30 });
+    render(<InfoBanner platform="twitch" channelId="123" />);
+    expect(screen.getByTestId("info-banner")).toHaveClass("mb-1");
   });
 
   it("renders Followers Only Mode [5m] when only followersOnly: 5", () => {
@@ -78,6 +85,52 @@ describe("InfoBanner", () => {
     expect(tooltipRow("slow")).toHaveTextContent("Slow Mode Enabled [30s]");
   });
 
+  it("skips follower-only and shows subscribers-only when the authenticated viewer follows", () => {
+    mockRoomState({ followersOnly: 5, subscribersOnly: true });
+    render(
+      <InfoBanner
+        platform="twitch"
+        channelId="123"
+        viewerSatisfiesFollowerOnly={true}
+      />,
+    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
+      "Subscribers Only Mode",
+    );
+    fireEvent.focus(screen.getByTestId("info-banner-icon"));
+    expect(screen.queryByTestId("info-banner-tooltip-row-followers")).toBeNull();
+    expect(tooltipRow("subscribers")).toBeInTheDocument();
+  });
+
+  it("skips follower-only and shows slow mode when the authenticated viewer follows", () => {
+    mockRoomState({ followersOnly: 5, slowMode: 30 });
+    render(
+      <InfoBanner
+        platform="twitch"
+        channelId="123"
+        viewerSatisfiesFollowerOnly={true}
+      />,
+    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
+      "Slow Mode [30s]",
+    );
+    fireEvent.focus(screen.getByTestId("info-banner-icon"));
+    expect(screen.queryByTestId("info-banner-tooltip-row-followers")).toBeNull();
+    expect(tooltipRow("slow")).toBeInTheDocument();
+  });
+
+  it("renders no banner when followed-account follower-only is the only active mode", () => {
+    mockRoomState({ followersOnly: 5 });
+    const { container } = render(
+      <InfoBanner
+        platform="twitch"
+        channelId="123"
+        viewerSatisfiesFollowerOnly={true}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
   it("subscribers precedence wins over emoteOnly; tooltip lists both", () => {
     mockRoomState({ subscribersOnly: true, emoteOnly: true });
     render(<InfoBanner platform="twitch" channelId="123" />);
@@ -87,6 +140,25 @@ describe("InfoBanner", () => {
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(tooltipRow("subscribers")).toBeInTheDocument();
     expect(tooltipRow("emoteOnly")).toBeInTheDocument();
+  });
+
+  it("renders Twitch phone verification as a strict chat blocker", () => {
+    mockRoomState({ twitchVerification: "phone", slowMode: 30 });
+    render(<InfoBanner platform="twitch" channelId="123" />);
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
+      "Phone Verification Required"
+    );
+    fireEvent.focus(screen.getByTestId("info-banner-icon"));
+    expect(tooltipRow("twitchVerification")).toHaveTextContent(
+      "Phone Verification Required"
+    );
+    expect(tooltipRow("slow")).toBeInTheDocument();
+  });
+
+  it("ignores Twitch verification mode on Kick", () => {
+    mockRoomState({ twitchVerification: "phone" });
+    const { container } = render(<InfoBanner platform="kick" channelId="42" />);
+    expect(container.firstChild).toBeNull();
   });
 
   it("renders Account Age Mode [3m] on Kick when accountAge: 3", () => {

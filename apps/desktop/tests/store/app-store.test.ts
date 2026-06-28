@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useAppStore } from "@/store/app-store";
+import {
+  HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
+  HOME_CAROUSEL_INTERVAL_MAX_MS,
+  HOME_CAROUSEL_INTERVAL_MIN_MS,
+  useAppStore,
+} from "@/store/app-store";
 
 function resetStore() {
   useAppStore.setState({
@@ -10,6 +15,7 @@ function resetStore() {
     isTheaterModeActive: false,
     activeStreams: [],
     showDebugOverlay: false,
+    homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
   });
 }
 
@@ -99,5 +105,18 @@ describe("app-store debug overlay", () => {
     expect(useAppStore.getState().showDebugOverlay).toBe(true);
     useAppStore.getState().setShowDebugOverlay(false);
     expect(useAppStore.getState().showDebugOverlay).toBe(false);
+  });
+});
+
+describe("app-store home carousel", () => {
+  it("setHomeCarouselIntervalMs clamps to the supported range", () => {
+    useAppStore.getState().setHomeCarouselIntervalMs(5_000);
+    expect(useAppStore.getState().homeCarouselIntervalMs).toBe(HOME_CAROUSEL_INTERVAL_MIN_MS);
+
+    useAppStore.getState().setHomeCarouselIntervalMs(60_000);
+    expect(useAppStore.getState().homeCarouselIntervalMs).toBe(60_000);
+
+    useAppStore.getState().setHomeCarouselIntervalMs(180_000);
+    expect(useAppStore.getState().homeCarouselIntervalMs).toBe(HOME_CAROUSEL_INTERVAL_MAX_MS);
   });
 });

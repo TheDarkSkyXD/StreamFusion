@@ -1,6 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export const HOME_CAROUSEL_INTERVAL_MIN_MS = 15_000;
+export const HOME_CAROUSEL_INTERVAL_MAX_MS = 120_000;
+export const HOME_CAROUSEL_INTERVAL_DEFAULT_MS = HOME_CAROUSEL_INTERVAL_MIN_MS;
+
+export function clampHomeCarouselIntervalMs(value: number): number {
+  if (!Number.isFinite(value)) return HOME_CAROUSEL_INTERVAL_DEFAULT_MS;
+  return Math.min(
+    HOME_CAROUSEL_INTERVAL_MAX_MS,
+    Math.max(HOME_CAROUSEL_INTERVAL_MIN_MS, Math.round(value))
+  );
+}
+
 /**
  * Application-wide UI state
  */
@@ -17,6 +29,10 @@ interface AppState {
   setSidebarCollapsed: (collapsed: boolean, isUserAction?: boolean) => void;
   /** Set theater mode active state. Auto-collapses sidebar when entering theater mode. */
   setTheaterModeActive: (active: boolean) => void;
+
+  // Home
+  homeCarouselIntervalMs: number;
+  setHomeCarouselIntervalMs: (intervalMs: number) => void;
 
   // Multi-stream
   activeStreams: string[];
@@ -51,6 +67,11 @@ export const useAppStore = create<AppState>()(
           sidebarCollapsed: active ? true : state.userPrefersSidebarCollapsed,
         })),
 
+      // Home
+      homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
+      setHomeCarouselIntervalMs: (intervalMs) =>
+        set({ homeCarouselIntervalMs: clampHomeCarouselIntervalMs(intervalMs) }),
+
       // Multi-stream
       activeStreams: [],
       showDebugOverlay: false,
@@ -73,6 +94,7 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         userPrefersSidebarCollapsed: state.userPrefersSidebarCollapsed,
         showDebugOverlay: state.showDebugOverlay,
+        homeCarouselIntervalMs: state.homeCarouselIntervalMs,
       }),
     }
   )

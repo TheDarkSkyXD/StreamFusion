@@ -4,12 +4,14 @@ import { LuSearch } from "react-icons/lu";
 
 import { VirtualizedCategoryGrid } from "@/components/discovery/virtualized-category-grid";
 import { useTopCategories } from "@/hooks/queries/useCategories";
+import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 
 export function CategoriesPage() {
   // Fetch ALL categories (cached, deduped with Twitch priority).
   // The list comes back fully — the grid is virtualized, so we hand the entire
   // filtered list straight to it and let windowing handle render perf.
   const { data: categories, isLoading } = useTopCategories();
+  const canRenderGrid = useAfterFirstPaint();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredCategories = useMemo(() => {
@@ -52,7 +54,7 @@ export function CategoriesPage() {
       <div className="mt-2 flex-1 min-h-0">
         <VirtualizedCategoryGrid
           categories={filteredCategories}
-          isLoading={isLoading}
+          isLoading={isLoading || !canRenderGrid}
           skeletonCount={7}
           scrollKey="categories-page"
           emptyMessage={

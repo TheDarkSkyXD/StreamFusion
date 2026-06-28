@@ -13,6 +13,7 @@
  */
 
 import { create } from "zustand";
+import type { TwitchVerificationRequirement } from "../shared/chat-types";
 
 export interface RoomState {
   /** Slow-mode message interval in seconds. `null` = off. */
@@ -29,6 +30,8 @@ export interface RoomState {
   uniqueChat: boolean;
   /** Twitch only — Kick has no equivalent. */
   shieldMode: boolean;
+  /** Twitch verified-chat requirement learned from IRC NOTICE msg-id values. */
+  twitchVerification: TwitchVerificationRequirement | null;
   /**
    * Kick-only account-age mode. Minimum account age in minutes. `null` = off.
    * Twitch has no equivalent; the value stays `null` on Twitch keys.
@@ -43,6 +46,7 @@ export const DEFAULT_ROOM_STATE: RoomState = {
   emoteOnly: false,
   uniqueChat: false,
   shieldMode: false,
+  twitchVerification: null,
   accountAge: null,
 };
 

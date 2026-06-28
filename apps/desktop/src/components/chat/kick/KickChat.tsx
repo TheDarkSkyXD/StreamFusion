@@ -156,6 +156,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   // instant the user signs in or out via the ProfileDropdown — no page
   // refresh required.
   const isAuthenticated = useAuthStore((state) => state.kickConnected);
+  const loginKick = useAuthStore((state) => state.loginKick);
   // U5 — gate the in-chat poll + prediction widgets on viewer prefs. Reactive
   // selectors so toggling them live shows/hides the widget without remounting.
   const showPolls = useAuthStore(
@@ -874,6 +875,12 @@ export const KickChat: React.FC<KickChatProps> = ({
             chatroomId={chatroomId}
             kickUserId={kickUserId}
             canSend={isAuthenticated && isKickConnected}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={() => loginKick()}
+            viewerCanBypassRoomModes={isMod}
+            checkSubscriberEligibility={(request) =>
+              window.electronAPI.chat.checkSubscriberEligibility(request)
+            }
             showModViewLink={isAuthenticated && isMod}
           />
         </div>
@@ -895,7 +902,7 @@ export const KickChat: React.FC<KickChatProps> = ({
             modlog: channelId ? (
               <ModLogTab channelId={channelId} />
             ) : (
-              <div className="p-4 text-gray-400">No channel selected.</div>
+              <div className="p-4 text-neutral-400">No channel selected.</div>
             ),
           }}
         </ChatPanelTabs>
@@ -1060,6 +1067,8 @@ export const KickChat: React.FC<KickChatProps> = ({
                             messageResult = await banKickUser({
                               channelSlug: channel,
                               username,
+                              broadcasterUserId: channelId,
+                              userId: action.message.userId,
                               accessToken: token.accessToken,
                             });
                             break;
@@ -1075,6 +1084,8 @@ export const KickChat: React.FC<KickChatProps> = ({
                             messageResult = await timeoutKickUser({
                               channelSlug: channel,
                               username,
+                              broadcasterUserId: channelId,
+                              userId: action.message.userId,
                               duration: minutes,
                               accessToken: token.accessToken,
                             });
@@ -1084,6 +1095,8 @@ export const KickChat: React.FC<KickChatProps> = ({
                             messageResult = await unbanKickUser({
                               channelSlug: channel,
                               username,
+                              broadcasterUserId: channelId,
+                              userId: action.message.userId,
                               accessToken: token.accessToken,
                             });
                             break;
@@ -1218,15 +1231,15 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
     <div className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] text-sm">
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-gray-400 text-xs font-medium">Poll:</span>
+          <span className="text-neutral-400 text-xs font-medium">Poll:</span>
           <span className="text-white text-xs font-semibold truncate">{poll.title}</span>
-          {isPollEnded && <span className="text-xs text-gray-500 flex-shrink-0">Ended</span>}
+          {isPollEnded && <span className="text-xs text-neutral-500 flex-shrink-0">Ended</span>}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             type="button"
             onClick={onToggleExpand}
-            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
             title={isExpanded ? "Collapse" : "Expand"}
           >
             <BsChevronDown
@@ -1240,7 +1253,7 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
           <button
             type="button"
             onClick={onDismiss}
-            className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
             title="Dismiss"
           >
             <BsX size={14} />
@@ -1260,7 +1273,7 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
                     {option.label}
                     {isWinner && " 🏆"}
                   </span>
-                  <span className="text-gray-400">
+                  <span className="text-neutral-400">
                     {option.votes} ({pct.toFixed(1)}%)
                   </span>
                 </div>

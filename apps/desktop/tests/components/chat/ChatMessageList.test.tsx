@@ -74,6 +74,12 @@ vi.mock("react-virtuoso", () => ({
         >
           leave bottom
         </button>
+        <button type="button" onClick={() => scroller.dispatchEvent(new Event("mouseenter"))}>
+          enter chat
+        </button>
+        <button type="button" onClick={() => scroller.dispatchEvent(new Event("mouseleave"))}>
+          leave chat
+        </button>
         <button type="button" onClick={() => atBottomStateChange?.(true)}>
           return bottom
         </button>
@@ -131,6 +137,7 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 // Guards: empty state (no messages yet) must still render the virtuoso container so the layout doesn't collapse and the next message has somewhere to mount
 // Guards: per-channel message reads keep a busy multiview panel from re-rendering sibling ChatMessageList instances
 // Guards: per-channel pause state renders the "Chat paused due to scroll" banner only for the panel the viewer scrolled
+// Guards: Twitch-style Pause Chat preferences add mouseover and Alt-key pause triggers without breaking scroll pause.
 // Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
 // Guards: rapid chat updates must not mutate Virtuoso's initial scroll index and flash/jump the visible list
 describe("ChatMessageList", () => {
@@ -158,7 +165,7 @@ describe("ChatMessageList", () => {
     expect(virtuosoWindowProps.at(-1)).toEqual({
       overscan: 150,
       increaseViewportBy: { top: 240, bottom: 480 },
-      defaultItemHeight: 36,
+      defaultItemHeight: 32,
     });
   });
 
@@ -167,7 +174,7 @@ describe("ChatMessageList", () => {
 
     render(<ChatMessageList channelKey={channelA} />);
 
-    expect(virtuosoWindowProps.at(-1)?.defaultItemHeight).toBe(32);
+    expect(virtuosoWindowProps.at(-1)?.defaultItemHeight).toBe(28);
   });
 
   it("keeps Virtuoso row rendering stable when parent action callbacks are recreated", () => {
@@ -268,5 +275,27 @@ describe("ChatMessageList", () => {
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
     expect(useChatStore.getState().pausedChannels.has(channelB)).toBe(false);
     expect(queryByText(/chat paused due to scroll/i)).toBeInTheDocument();
+  });
+
+  it("pauses while the chat pane is hovered when Mouseover pause is selected", () => {
+    setChatDisplay({ pauseMode: "mouseover" });
+    const { getByText } = render(<ChatMessageList channelKey={channelA} />);
+
+    fireEvent.click(getByText("enter chat"));
+    expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
+
+    fireEvent.click(getByText("leave chat"));
+    expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
+  });
+
+  it("pauses while Alt is held when Hold Alt Key pause is selected", () => {
+    setChatDisplay({ pauseMode: "alt" });
+    render(<ChatMessageList channelKey={channelA} />);
+
+    fireEvent.keyDown(window, { key: "Alt" });
+    expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
+
+    fireEvent.keyUp(window, { key: "Alt" });
+    expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
   });
 });

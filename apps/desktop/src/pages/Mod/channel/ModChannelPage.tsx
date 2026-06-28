@@ -112,7 +112,7 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
       </header>
 
       {isTwitchResolving ? (
-        <p className="text-sm text-gray-400" data-testid="mod-channel-resolving">
+        <p className="text-sm text-neutral-400" data-testid="mod-channel-resolving">
           Resolving channel…
         </p>
       ) : twitchResolveFailed ? (

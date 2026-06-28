@@ -248,7 +248,7 @@ export function VirtualizedCategoryGrid({
   return (
     <div
       ref={containerRef}
-      className="h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent"
+      className="h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent"
       style={{ contain: "strict" }}
     >
       {/* Spacer to maintain scroll height */}

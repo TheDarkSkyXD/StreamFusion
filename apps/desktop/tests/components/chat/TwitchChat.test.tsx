@@ -161,11 +161,12 @@ vi.mock('@/store/chat-store', () => {
 });
 
 const loadGlobalEmotesMock = vi.fn();
+const loadChannelEmotesMock = vi.fn();
 vi.mock('@/store/emote-store', () => {
   const state = {
     loadedChannels: new Set(),
     setActiveChannel: vi.fn(),
-    loadChannelEmotes: vi.fn(),
+    loadChannelEmotes: (...args: unknown[]) => loadChannelEmotesMock(...args),
     loadGlobalEmotes: (...args: unknown[]) => loadGlobalEmotesMock(...args),
     unloadChannelEmotes: vi.fn(),
     applyProviderPrefs: vi.fn(),
@@ -210,6 +211,7 @@ vi.mock('@/components/chat/PredictionBanner', () => ({
 }));
 
 import { twitchChatService } from '@/backend/services/chat/twitch-chat';
+import { initializeTwitchEmotes } from '@/backend/services/emotes';
 import { TwitchChat } from '@/components/chat/twitch/TwitchChat';
 
 // Minimal active prediction matching the channelId the multiview gate compares.
@@ -255,6 +257,8 @@ describe('TwitchChat', () => {
     promptReconnectMock.mockReset();
     vi.mocked(twitchChatService.connect).mockClear();
     loadGlobalEmotesMock.mockReset();
+    loadChannelEmotesMock.mockReset();
+    vi.mocked(initializeTwitchEmotes).mockReset();
     storeState.addMessage = vi.fn();
     storeState.clearMessages = vi.fn();
     setMockChatDisplay({});
@@ -313,7 +317,26 @@ describe('TwitchChat', () => {
       // The connect effect is async — wait until the platform-scoped call lands
       // before asserting the argument so we don't race the resolve.
       await waitFor(() => expect(loadGlobalEmotesMock).toHaveBeenCalled());
-      expect(loadGlobalEmotesMock).toHaveBeenCalledWith('twitch');
+      expect(loadGlobalEmotesMock).toHaveBeenCalledWith('twitch', { force: true });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('initializes Twitch native emotes before loading channel emotes', async () => {
+    vi.stubEnv('VITE_TWITCH_CLIENT_ID', 'test-client-id');
+    const api = installElectronAPIMock();
+    api.auth.getValidTwitchToken = vi.fn(async () => 'fresh-token');
+    try {
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+      await waitFor(() => expect(loadChannelEmotesMock).toHaveBeenCalled());
+      expect(initializeTwitchEmotes).toHaveBeenCalledWith('test-client-id', 'fresh-token');
+      expect(loadChannelEmotesMock).toHaveBeenCalledWith('ninja-id', 'ninja', 'twitch');
+
+      const initializeOrder = vi.mocked(initializeTwitchEmotes).mock.invocationCallOrder[0];
+      const channelLoadOrder = loadChannelEmotesMock.mock.invocationCallOrder[0];
+      expect(initializeOrder).toBeLessThan(channelLoadOrder);
     } finally {
       vi.unstubAllEnvs();
     }

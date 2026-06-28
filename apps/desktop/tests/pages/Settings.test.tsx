@@ -7,6 +7,10 @@ import {
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
 } from '@/shared/auth-types';
+import {
+  HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
+  useAppStore,
+} from '@/store/app-store';
 
 import {
   installElectronAPIMock,
@@ -112,6 +116,7 @@ import { SettingsPage } from '@/pages/Settings';
 describe('SettingsPage', () => {
   beforeEach(() => {
     updatePreferences.mockReset();
+    useAppStore.setState({ homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS });
   });
 
   it('renders the page heading', () => {
@@ -125,6 +130,35 @@ describe('SettingsPage', () => {
     renderWithProviders(<SettingsPage />);
     expect(screen.getAllByText(/playback/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/accounts/i).length).toBeGreaterThan(0);
+  });
+});
+
+describe('SettingsPage — Playback featured carousel', () => {
+  beforeEach(() => {
+    updatePreferences.mockReset();
+    useAppStore.setState({ homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS });
+  });
+
+  it('changing the timing slider updates the persisted home carousel interval', () => {
+    renderWithProviders(<SettingsPage />);
+
+    const slider = screen.getByLabelText('Featured carousel timing') as HTMLInputElement;
+    expect(slider).toHaveValue('15');
+
+    fireEvent.change(slider, { target: { value: '45' } });
+
+    expect(useAppStore.getState().homeCarouselIntervalMs).toBe(45_000);
+  });
+
+  it('clamps the timing number input to the supported range', () => {
+    renderWithProviders(<SettingsPage />);
+
+    const input = screen.getByLabelText('Featured carousel timing seconds') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '5' } });
+    expect(useAppStore.getState().homeCarouselIntervalMs).toBe(15_000);
+
+    fireEvent.change(input, { target: { value: '180' } });
+    expect(useAppStore.getState().homeCarouselIntervalMs).toBe(120_000);
   });
 });
 

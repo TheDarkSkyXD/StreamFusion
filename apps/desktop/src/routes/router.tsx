@@ -28,7 +28,7 @@ import {
 
 // Loading fallback for lazy-loaded pages
 const PageLoader = () => (
-  <div className="flex items-center justify-center h-full">
+  <div data-route-page-loader="true" className="flex items-center justify-center h-full">
     <div className="w-8 h-8 border-2 border-storm-accent border-t-transparent rounded-full animate-spin" />
   </div>
 );
@@ -125,6 +125,7 @@ const videoRoute = createRoute({
     channelName?: string;
     channelDisplayName?: string;
     channelAvatar?: string;
+    thumbnail?: string;
     views?: string;
     date?: string;
     category?: string;
@@ -139,6 +140,7 @@ const videoRoute = createRoute({
     channelName: (search.channelName as string) || undefined,
     channelDisplayName: (search.channelDisplayName as string) || undefined,
     channelAvatar: (search.channelAvatar as string) || undefined,
+    thumbnail: (search.thumbnail as string) || undefined,
     views: (search.views as string) || undefined,
     date: (search.date as string) || undefined,
     category: (search.category as string) || undefined,

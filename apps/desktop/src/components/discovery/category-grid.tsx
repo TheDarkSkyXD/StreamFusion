@@ -10,6 +10,7 @@ interface CategoryGridProps {
   emptyMessage?: string;
   className?: string;
   skeletons?: number;
+  imageLoading?: "lazy" | "eager";
 }
 
 export function CategoryGrid({
@@ -18,6 +19,7 @@ export function CategoryGrid({
   emptyMessage = "No categories found",
   className,
   skeletons = 12,
+  imageLoading = "lazy",
 }: CategoryGridProps) {
   if (isLoading) {
     return (
@@ -47,7 +49,11 @@ export function CategoryGrid({
       )}
     >
       {categories.map((category) => (
-        <CategoryCard key={`${category.platform}-${category.id}`} category={category} />
+        <CategoryCard
+          key={`${category.platform}-${category.id}`}
+          category={category}
+          imageLoading={imageLoading}
+        />
       ))}
     </div>
   );

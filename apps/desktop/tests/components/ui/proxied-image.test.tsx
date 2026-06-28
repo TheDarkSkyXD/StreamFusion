@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installElectronAPIMock } from '../../test-utils';
 import { ProxiedImage, _resetProxiedImageBrokenUrls } from '@/components/ui/proxied-image';
 
+// Guards: Twitch profile avatars must use the custom protocol immediately so upstream CDN 403s do not hit the renderer console.
+// Guards: proxied image placeholders and errors must render the fallback initial instead of a broken image.
 describe('ProxiedImage', () => {
   beforeEach(() => {
     installElectronAPIMock();
@@ -44,30 +46,28 @@ describe('ProxiedImage', () => {
     expect(atob(b64)).toBe(upstream);
   });
 
-  it('tries Twitch profile_image URLs directly first', async () => {
+  it('routes Twitch profile_image URLs through the twitch-image protocol immediately', async () => {
     const upstream =
       'https://static-cdn.jtvnw.net/jtv_user_pictures/rescueqt-profile_image-971ff387d62d4a54-300x300.jpeg';
     render(<ProxiedImage src={upstream} alt="rescueqt" />);
     const img = await screen.findByRole('img', { name: 'rescueqt' });
-    expect(img).toHaveAttribute('src', upstream);
-  });
-
-  it('falls back to the twitch-image:// protocol when direct Twitch profile images fail', async () => {
-    const upstream =
-      'https://static-cdn.jtvnw.net/jtv_user_pictures/rescueqt-profile_image-971ff387d62d4a54-300x300.jpeg';
-    render(<ProxiedImage src={upstream} alt="rescueqt" />);
-    const img = await screen.findByRole('img', { name: 'rescueqt' });
-
-    fireEvent.error(img);
-
-    await waitFor(() => {
-      const nextSrc = img.getAttribute('src') ?? '';
-      expect(nextSrc.startsWith('twitch-image://image?u=')).toBe(true);
-    });
     const src = img.getAttribute('src') ?? '';
+    expect(src.startsWith('twitch-image://image?u=')).toBe(true);
     const u = new URL(src).searchParams.get('u') ?? '';
     const b64 = u.replace(/-/g, '+').replace(/_/g, '/');
     expect(atob(b64)).toBe(upstream);
+  });
+
+  it('renders the fallback initial when a proxied Twitch profile image errors', async () => {
+    const upstream =
+      'https://static-cdn.jtvnw.net/jtv_user_pictures/rescueqt-profile_image-971ff387d62d4a54-300x300.jpeg';
+    render(<ProxiedImage src={upstream} alt="Rescueqt" />);
+    const img = await screen.findByRole('img', { name: 'Rescueqt' });
+
+    fireEvent.error(img);
+
+    await waitFor(() => expect(screen.getByText('R')).toBeInTheDocument());
+    expect(screen.queryByRole('img', { name: 'Rescueqt' })).toBeNull();
   });
 
   it('leaves non-profile Twitch CDN URLs (emotes, thumbnails) alone', async () => {
@@ -109,10 +109,7 @@ describe('ProxiedImage', () => {
       'https://static-cdn.jtvnw.net/jtv_user_pictures/broken-profile_image-abcdef0123456789-300x300.jpeg';
     render(<ProxiedImage src={upstream} alt="Dana" />);
     const img = await screen.findByRole('img', { name: 'Dana' });
-    fireEvent.error(img);
-    await waitFor(() => {
-      expect((img.getAttribute('src') ?? '').startsWith('twitch-image://image?u=')).toBe(true);
-    });
+    expect((img.getAttribute('src') ?? '').startsWith('twitch-image://image?u=')).toBe(true);
     // Simulate the protocol handler's 1×1 placeholder by stamping the natural
     // dimensions before firing onLoad. The component uses these to detect
     // "upstream failed, paint the fallback initial."

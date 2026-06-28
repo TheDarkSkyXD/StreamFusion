@@ -78,10 +78,7 @@ describe("useStreamPlayback", () => {
 
   it("reuses one backend request across subscribers and logs reuse timing", async () => {
     vi.resetModules();
-    let resolvePlayback!: (value: {
-      success: true;
-      data: { url: string; format: "hls" };
-    }) => void;
+    let resolvePlayback!: (value: { success: true; data: { url: string; format: "hls" } }) => void;
     window.electronAPI!.streams.getPlaybackUrl = vi.fn(
       () =>
         new Promise<{ success: true; data: { url: string; format: "hls" } }>((resolve) => {
@@ -113,19 +110,23 @@ describe("useStreamPlayback", () => {
         urlHost: "media.example.test",
       })
     );
-    const readyCalls = vi.mocked(logger.info).mock.calls.filter(
-      ([tag, message, meta]) =>
-        tag === "Hook:StreamPlayback" &&
-        message === "playback URL ready" &&
-        (meta as { identifier?: string } | undefined)?.identifier === "shared-channel"
-    );
+    const readyCalls = vi
+      .mocked(logger.info)
+      .mock.calls.filter(
+        ([tag, message, meta]) =>
+          tag === "Hook:StreamPlayback" &&
+          message === "playback URL ready" &&
+          (meta as { identifier?: string } | undefined)?.identifier === "shared-channel"
+      );
     expect(readyCalls.map(([, , meta]) => (meta as { cacheSource?: string }).cacheSource)).toEqual(
       expect.arrayContaining(["network"])
     );
-    expect(readyCalls.some(([, , meta]) => {
-      const cacheSource = (meta as { cacheSource?: string }).cacheSource;
-      return cacheSource === "memory" || cacheSource === "in-flight";
-    })).toBe(true);
+    expect(
+      readyCalls.some(([, , meta]) => {
+        const cacheSource = (meta as { cacheSource?: string }).cacheSource;
+        return cacheSource === "memory" || cacheSource === "in-flight";
+      })
+    ).toBe(true);
     expect(logger.info).not.toHaveBeenCalledWith(
       "Hook:StreamPlayback",
       "playback URL ready",
@@ -153,10 +154,9 @@ describe("useStreamPlayback", () => {
   it("resets state when identifier changes", async () => {
     vi.resetModules();
     const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
-    const { result, rerender } = renderHook(
-      ({ id }) => useStreamPlayback("kick", id),
-      { initialProps: { id: "xqc" } }
-    );
+    const { result, rerender } = renderHook(({ id }) => useStreamPlayback("kick", id), {
+      initialProps: { id: "xqc" },
+    });
     await waitFor(() => expect(result.current.playback).not.toBeNull(), WAIT_OPTS);
     rerender({ id: "adin" });
     expect(result.current.playback).toBeNull();
@@ -183,12 +183,33 @@ describe("useStreamPlayback", () => {
     const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
     const { result } = renderHook(() => useStreamPlayback("kick", "reload-test"));
     await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
-    const callsBefore = (window.electronAPI!.streams.getPlaybackUrl as ReturnType<typeof vi.fn>).mock.calls.length;
+    const callsBefore = (window.electronAPI!.streams.getPlaybackUrl as ReturnType<typeof vi.fn>)
+      .mock.calls.length;
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
     expect(
       (window.electronAPI!.streams.getPlaybackUrl as ReturnType<typeof vi.fn>).mock.calls.length
     ).toBeGreaterThan(callsBefore);
+  });
+
+  it("bumps playbackRevision when reload succeeds with the same URL", async () => {
+    vi.resetModules();
+    window.electronAPI!.streams.getPlaybackUrl = vi.fn().mockResolvedValue({
+      success: true,
+      data: { url: "https://example.com/same-url.m3u8", format: "hls" },
+    });
+    const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
+    const { result } = renderHook(() => useStreamPlayback("kick", "same-url-reload"));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
+    expect(result.current.playback?.url).toBe("https://example.com/same-url.m3u8");
+    expect(result.current.playbackRevision).toBe(1);
+
+    act(() => result.current.reload());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
+    expect(result.current.playback?.url).toBe("https://example.com/same-url.m3u8");
+    expect(result.current.playbackRevision).toBe(2);
   });
 
   it("reload failure clears the stale playback URL", async () => {

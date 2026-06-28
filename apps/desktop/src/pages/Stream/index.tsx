@@ -1,34 +1,43 @@
 import { useParams } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChatPanel } from "@/components/chat";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
-import { KickLivePlayer } from "@/components/player/kick";
-import { TwitchLivePlayer } from "@/components/player/twitch";
 import type { PlayerError } from "@/components/player/types";
-import { RelatedContent } from "@/components/stream/related-content";
 import { StreamInfo } from "@/components/stream/stream-info";
 import { Button } from "@/components/ui/button";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
+import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useStreamByChannel } from "@/hooks/queries/useStreams";
+import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, type Platform } from "@/shared/auth-types";
+import type { Platform } from "@/shared/auth-types";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
 import { usePipStore } from "@/store/pip-store";
 
-// Docked chat width is dragged in px but persisted as a % of the window so it
-// scales across displays. Clamp matches the drag handler's 200–600px bounds.
-const CHAT_MIN_PX = 200;
-const CHAT_MAX_PX = 600;
-function pctToPx(pct: number): number {
-  const px = Math.round((pct / 100) * window.innerWidth);
-  return Math.min(CHAT_MAX_PX, Math.max(CHAT_MIN_PX, px));
-}
+const CHAT_CONTENT_WIDTH_PX = 340;
+const CHAT_BORDER_WIDTH_PX = 1;
+const CHAT_RAIL_WIDTH_PX = CHAT_CONTENT_WIDTH_PX + CHAT_BORDER_WIDTH_PX;
+
+const ChatPanel = lazy(() =>
+  import("@/components/chat").then((module) => ({ default: module.ChatPanel }))
+);
+const KickLivePlayer = lazy(() =>
+  import("@/components/player/kick").then((module) => ({ default: module.KickLivePlayer }))
+);
+const TwitchLivePlayer = lazy(() =>
+  import("@/components/player/twitch").then((module) => ({ default: module.TwitchLivePlayer }))
+);
+const RelatedContent = lazy(() =>
+  import("@/components/stream/related-content").then((module) => ({
+    default: module.RelatedContent,
+  }))
+);
 
 interface OfflineOverlayProps {
+  platform: Platform;
   channelName: string;
   displayName?: string;
   avatarUrl?: string;
@@ -39,6 +48,7 @@ interface OfflineOverlayProps {
 }
 
 function OfflineOverlay({
+  platform,
   channelName,
   displayName,
   avatarUrl,
@@ -59,24 +69,28 @@ function OfflineOverlay({
         />
       ) : avatarUrl ? (
         <>
-          <img
+          <ProxiedImage
             src={avatarUrl}
             alt=""
             className="absolute inset-0 w-full h-full object-cover blur-3xl scale-150 opacity-40"
+            fallback={<div className="absolute inset-0 bg-[var(--color-background-secondary)]" />}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
         </>
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/50 via-gray-900 to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/50 via-neutral-900 to-black" />
       )}
       <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/55 to-black/80" />
       <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
         {avatarUrl && !bannerUrl && (
           <div className="mb-6">
-            <img
+            <PlatformAvatar
               src={avatarUrl}
               alt={name}
-              className="w-24 h-24 rounded-full border-4 border-white/20 shadow-2xl"
+              platform={platform}
+              size="w-24 h-24"
+              className="border-4 border-white/20 shadow-2xl"
+              disablePlatformBorder
             />
           </div>
         )}
@@ -107,6 +121,7 @@ function OfflineOverlay({
 }
 
 export function StreamPage() {
+  const canMountHeavyContent = useAfterFirstPaint();
   const { platform, channel: channelName } = useParams({ from: "/_app/stream/$platform/$channel" });
   const routePlatform = platform as Platform;
 
@@ -134,34 +149,16 @@ export function StreamPage() {
     isUsingProxy,
     retryWithoutProxy,
     reloadAttempts,
+    playbackRevision,
   } = useStreamPlayback(routePlatform, playbackIdentifier);
 
-  // Chat display prefs — chatWidthPct seeds the docked width; updatePreferences
-  // persists the new width (as a %) on drag end. Pre-load `preferences` is null,
-  // so the raw pct is undefined until prefs hydrate (see seed effect below).
-  const persistedChatWidthPct = useAuthStore((s) => s.preferences?.chatDisplay?.chatWidthPct);
-  const updatePreferences = useAuthStore((s) => s.updatePreferences);
   // U5 — hide-chat-panel reuses the existing ChatPreferences.position field.
   // When "hidden" the panel (and the chat service it mounts) is never
   // rendered, so there's no socket to tear down — the safe path per the
   // websocket-connecting-state learning. The toggle that SETS this lives in U6.
   const isChatHidden = useAuthStore((s) => s.preferences?.chat?.position === "hidden");
-
-  // Chat Resizing Logic. Seed from the persisted chatWidthPct (lazy init reads
-  // window.innerWidth once); if prefs aren't loaded yet, start at the default %.
-  const [chatWidth, setChatWidth] = useState(() =>
-    pctToPx(persistedChatWidthPct ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.chatWidthPct)
-  );
-  const [isResizing, setIsResizing] = useState(false);
-  // Prefs load asynchronously after mount, so the lazy seed above may have used
-  // the default. Apply the persisted width once it arrives, but only before the
-  // user has dragged or toggled theater (those own the width afterward).
-  const widthSeededRef = useRef(false);
-  // Mirror isResizing into a ref so the global mousemove/mouseup handlers
-  // can read the current value without becoming new function identities on
-  // each toggle. Lets the listener-attach effect run once per drag start
-  // instead of every render.
-  const isResizingRef = useRef(false);
+  const canMountChatPanel =
+    routePlatform !== "kick" || Boolean(channelData?.id && channelData?.chatroomId);
 
   // Theater Mode Logic - synced with app store for sidebar auto-collapse
   const { isTheaterModeActive: isTheater, setTheaterModeActive } = useAppStore();
@@ -171,6 +168,10 @@ export function StreamPage() {
 
   // Track clip dialog state to mute main player
   const [isClipDialogOpen, setIsClipDialogOpen] = useState(false);
+
+  // Determine if stream is truly live - allow playback if URL exists (optimistic) or confirmed live
+  // This allows the player to start buffering while metadata is still fetching
+  const isStreamLive = Boolean(streamData?.startedAt || channelData?.isLive);
 
   // Helper to trigger proxy fallback
   const triggerProxyFallback = useCallback(() => {
@@ -221,6 +222,19 @@ export function StreamPage() {
       if (error.code === "STREAM_OFFLINE") {
         logger.debug("Page:Stream", "stream ended or went offline");
 
+        if (isStreamLive && reloadAttempts < 3) {
+          logger.debug(
+            "Page:Stream",
+            "refreshing playback after offline signal while metadata is live",
+            {
+              attempt: reloadAttempts + 1,
+              maxAttempts: 3,
+            }
+          );
+          reloadPlayback();
+          return;
+        }
+
         // If we were using proxy and got a network/offline error, try fallback to direct
         if (isUsingProxy && routePlatform === "twitch") {
           triggerProxyFallback();
@@ -245,6 +259,7 @@ export function StreamPage() {
     },
     [
       isUsingProxy,
+      isStreamLive,
       routePlatform,
       triggerProxyFallback,
       setTheaterModeActive,
@@ -253,9 +268,6 @@ export function StreamPage() {
     ]
   );
 
-  // Determine if stream is truly live - allow playback if URL exists (optimistic) or confirmed live
-  // This allows the player to start buffering while metadata is still fetching
-  const isStreamLive = Boolean(streamData?.startedAt || channelData?.isLive);
   const hasPlayback = Boolean(playback?.url);
   const effectiveStreamUrl = playback?.url || (isStreamLive && playback?.url ? playback.url : "");
   const offlineCategoryName = channelData?.categoryName || streamData?.categoryName;
@@ -270,7 +282,7 @@ export function StreamPage() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: the URL is the recovery boundary for stale player errors.
   useEffect(() => {
     setPlayerError(null);
-  }, [effectiveStreamUrl]);
+  }, [effectiveStreamUrl, playbackRevision]);
 
   // PiP Store Integration - Track when viewing a live stream
   const { setCurrentStream, setIsOnStreamPage } = usePipStore();
@@ -286,32 +298,6 @@ export function StreamPage() {
       setTheaterModeActive(false);
     };
   }, [setIsOnStreamPage, setTheaterModeActive]);
-
-  // Apply the persisted chat width once prefs hydrate (the lazy useState seed
-  // above ran before they loaded). One-shot: skips if the user already dragged
-  // or toggled theater, so we never stomp an in-session width.
-  useEffect(() => {
-    if (widthSeededRef.current || persistedChatWidthPct === undefined) return;
-    widthSeededRef.current = true;
-    setChatWidth(pctToPx(persistedChatWidthPct));
-  }, [persistedChatWidthPct]);
-
-  // Match Twitch's exact theater mode chat width (measured at 1920x1080).
-  // Skip the initial mount so the persisted chatWidthPct seed isn't clobbered;
-  // only snap to 340 on an actual theater toggle.
-  const theaterSnapMountedRef = useRef(false);
-  useEffect(() => {
-    if (!theaterSnapMountedRef.current) {
-      theaterSnapMountedRef.current = true;
-      return;
-    }
-    widthSeededRef.current = true; // theater now owns the width; stop seeding
-    if (isTheater) {
-      setChatWidth(340); // Twitch theater mode: exactly 340px chat width
-    } else {
-      setChatWidth(340); // Match Twitch's standard chat width
-    }
-  }, [isTheater]);
 
   // Memoize subscriber badges to prevent KickChat from re-mounting when channelData refetches
   // Arrays are compared by reference in React, so we serialize to detect actual changes
@@ -356,54 +342,6 @@ export function StreamPage() {
     }
   }, [effectiveStreamUrl, pipStreamInfo, setCurrentStream]);
 
-  const startResizing = useCallback(() => {
-    isResizingRef.current = true;
-    widthSeededRef.current = true; // user owns the width now; stop seeding from prefs
-    setIsResizing(true);
-    // Disable iframe pointer events globally to prevent capturing mouse events during drag
-    document.body.style.userSelect = "none";
-  }, []);
-
-  // Latest dragged width, mirrored so stopResizing can persist it without
-  // becoming a new identity on every width change.
-  const chatWidthRef = useRef(chatWidth);
-
-  // Stable callbacks: read isResizing via ref so identity never changes.
-  const resize = useCallback((mouseMoveEvent: MouseEvent) => {
-    if (!isResizingRef.current) return;
-    const newWidth = window.innerWidth - mouseMoveEvent.clientX;
-    if (newWidth > CHAT_MIN_PX && newWidth < CHAT_MAX_PX) {
-      chatWidthRef.current = newWidth;
-      setChatWidth(newWidth);
-    }
-  }, []);
-
-  const stopResizing = useCallback(() => {
-    isResizingRef.current = false;
-    setIsResizing(false);
-    document.body.style.userSelect = "";
-    // Persist the final width as a % of the window. Read the freshest prefs from
-    // the store so this callback needs no `cd` dependency (stays stable).
-    const current =
-      useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
-    const chatWidthPct = Math.round((chatWidthRef.current / window.innerWidth) * 100);
-    if (chatWidthPct !== current.chatWidthPct) {
-      void updatePreferences({ chatDisplay: { ...current, chatWidthPct } });
-    }
-  }, [updatePreferences]);
-
-  useEffect(() => {
-    if (!isResizing) return;
-    window.addEventListener("mousemove", resize);
-    window.addEventListener("mouseup", stopResizing);
-    return () => {
-      window.removeEventListener("mousemove", resize);
-      window.removeEventListener("mouseup", stopResizing);
-    };
-    // resize/stopResizing are stable (useCallback deps: []) so the effect
-    // only re-runs when isResizing actually toggles.
-  }, [isResizing, resize, stopResizing]);
-
   return (
     <div className="h-full flex overflow-hidden">
       {/* Main Content Area */}
@@ -416,31 +354,37 @@ export function StreamPage() {
             className={`${isTheater ? "h-full aspect-video max-w-full" : "aspect-video shrink-0 w-full"} bg-black relative`}
           >
             {/* Platform-specific live stream players */}
-            {routePlatform === "kick" ? (
-              <KickLivePlayer
-                streamUrl={effectiveStreamUrl}
-                autoPlay={true}
-                muted={isClipDialogOpen}
-                onReady={() => logger.debug("Page:Stream", "kick live player ready")}
-                onError={handlePlayerError}
-                isTheater={isTheater}
-                onToggleTheater={() => setTheaterModeActive(!isTheater)}
-                startedAt={streamData?.startedAt}
-                channelName={channelName}
-                onRefresh={reloadPlayback}
-              />
-            ) : (
-              <TwitchLivePlayer
-                streamUrl={effectiveStreamUrl}
-                channelName={channelName}
-                autoPlay={true}
-                muted={isClipDialogOpen}
-                onReady={() => logger.debug("Page:Stream", "twitch live player ready")}
-                onError={handlePlayerError}
-                isTheater={isTheater}
-                onToggleTheater={() => setTheaterModeActive(!isTheater)}
-                onRefresh={reloadPlayback}
-              />
+            {canMountHeavyContent && (
+              <Suspense fallback={null}>
+                {routePlatform === "kick" ? (
+                  <KickLivePlayer
+                    key={`kick:${channelName}:${playbackRevision}`}
+                    streamUrl={effectiveStreamUrl}
+                    autoPlay={true}
+                    muted={isClipDialogOpen}
+                    onReady={() => logger.debug("Page:Stream", "kick live player ready")}
+                    onError={handlePlayerError}
+                    isTheater={isTheater}
+                    onToggleTheater={() => setTheaterModeActive(!isTheater)}
+                    startedAt={streamData?.startedAt}
+                    channelName={channelName}
+                    onRefresh={reloadPlayback}
+                  />
+                ) : (
+                  <TwitchLivePlayer
+                    key={`twitch:${channelName}:${playbackRevision}`}
+                    streamUrl={effectiveStreamUrl}
+                    channelName={channelName}
+                    autoPlay={true}
+                    muted={isClipDialogOpen}
+                    onReady={() => logger.debug("Page:Stream", "twitch live player ready")}
+                    onError={handlePlayerError}
+                    isTheater={isTheater}
+                    onToggleTheater={() => setTheaterModeActive(!isTheater)}
+                    onRefresh={reloadPlayback}
+                  />
+                )}
+              </Suspense>
             )}
             {/* Show loading only when fetching data */}
             {(isPlaybackLoading || isChannelLoading || isStreamLoading) &&
@@ -456,6 +400,7 @@ export function StreamPage() {
 
             {playerError && (
               <OfflineOverlay
+                platform={routePlatform}
                 channelName={channelName}
                 displayName={channelData?.displayName}
                 avatarUrl={channelData?.avatarUrl}
@@ -475,6 +420,7 @@ export function StreamPage() {
                 ends mid-watch, which triggers the dedicated overlay above. */}
             {shouldShowOfflineOverlay && (
               <OfflineOverlay
+                platform={routePlatform}
                 channelName={channelName}
                 displayName={channelData?.displayName}
                 avatarUrl={channelData?.avatarUrl}
@@ -493,45 +439,47 @@ export function StreamPage() {
               isLoading={isChannelLoading}
             />
 
-            <RelatedContent
-              platform={routePlatform}
-              channelName={channelName}
-              channelData={channelData}
-              streamStartedAt={streamData?.startedAt}
-              onClipSelectionChange={setIsClipDialogOpen}
-            />
+            {canMountHeavyContent && (
+              <Suspense fallback={null}>
+                <RelatedContent
+                  platform={routePlatform}
+                  channelName={channelName}
+                  channelData={channelData}
+                  streamStartedAt={streamData?.startedAt}
+                  onClipSelectionChange={setIsClipDialogOpen}
+                />
+              </Suspense>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Resize Handle + Chat Panel — hidden entirely when the viewer set
+      {/* Chat Panel — hidden entirely when the viewer set
           chat position to "hidden" (U5). Not rendering the panel keeps the
           chat service unmounted, so there's no CONNECTING socket to tear down. */}
       {!isChatHidden && (
-        <>
-          {/* We use a slightly wider invisible hit area for easier grabbing */}
-          <div className="relative z-20 shrink-0">
-            <div
-              className="absolute inset-y-0 -left-1 w-2 cursor-ew-resize"
-              onMouseDown={startResizing}
-            />
-            <div className="w-1 h-full bg-[var(--color-border)] hover:bg-[var(--color-primary)] transition-colors" />
-          </div>
-
-          <div
-            style={{ width: chatWidth }}
-            className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
-          >
-            <ChatPanel
-              initialPlatform={routePlatform as "twitch" | "kick"}
-              initialChannel={channelName}
-              channelId={channelData?.id}
-              chatroomId={routePlatform === "kick" ? channelData?.chatroomId : undefined}
-              kickUserId={routePlatform === "kick" ? channelData?.kickUserId : undefined}
-              subscriberBadges={memoizedSubscriberBadges}
-            />
-          </div>
-        </>
+        <div
+          data-testid="stream-chat-rail"
+          style={{
+            width: CHAT_RAIL_WIDTH_PX,
+            minWidth: CHAT_RAIL_WIDTH_PX,
+            maxWidth: CHAT_RAIL_WIDTH_PX,
+          }}
+          className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
+        >
+          {canMountHeavyContent && canMountChatPanel && (
+            <Suspense fallback={null}>
+              <ChatPanel
+                initialPlatform={routePlatform as "twitch" | "kick"}
+                initialChannel={channelName}
+                channelId={channelData?.id}
+                chatroomId={routePlatform === "kick" ? channelData?.chatroomId : undefined}
+                kickUserId={routePlatform === "kick" ? channelData?.kickUserId : undefined}
+                subscriberBadges={memoizedSubscriberBadges}
+              />
+            </Suspense>
+          )}
+        </div>
       )}
     </div>
   );

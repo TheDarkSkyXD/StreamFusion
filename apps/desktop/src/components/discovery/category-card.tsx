@@ -12,6 +12,7 @@ import { formatViewerCount } from "@/lib/utils";
 
 interface CategoryCardProps {
   category: UnifiedCategory;
+  imageLoading?: "lazy" | "eager";
 }
 
 // Hover-debounce window mirrors StreamCard — long enough that wheel-scrolling
@@ -20,7 +21,7 @@ interface CategoryCardProps {
 const HOVER_PREFETCH_DELAY_MS = 150;
 
 // Memoize CategoryCard to prevent re-renders when grid updates but individual category hasn't changed
-export const CategoryCard = React.memo(({ category }: CategoryCardProps) => {
+export const CategoryCard = React.memo(({ category, imageLoading = "lazy" }: CategoryCardProps) => {
   const queryClient = useQueryClient();
   // Lazy-fetch stream count + (Twitch-only) tags. The virtualized grid only
   // mounts cards that are visible, so we only pay for what the user can see.
@@ -70,6 +71,7 @@ export const CategoryCard = React.memo(({ category }: CategoryCardProps) => {
             src={category.boxArtUrl.replace("{width}", "285").replace("{height}", "380")}
             alt={category.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading={imageLoading}
             fallback={
               <div className="w-full h-full flex items-center justify-center text-4xl">🎮</div>
             }
@@ -83,7 +85,7 @@ export const CategoryCard = React.memo(({ category }: CategoryCardProps) => {
             {category.name}
           </h3>
           {category.viewerCount !== undefined && category.viewerCount > 0 && (
-            <p className="text-xs text-gray-400 mt-1 truncate">
+            <p className="text-xs text-neutral-400 mt-1 truncate">
               {formatViewerCount(category.viewerCount)} viewers
             </p>
           )}
@@ -92,7 +94,7 @@ export const CategoryCard = React.memo(({ category }: CategoryCardProps) => {
               {tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag}
-                  className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-background-tertiary)] text-gray-300"
+                  className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-background-tertiary)] text-neutral-300"
                   title={tag}
                 >
                   {tag}

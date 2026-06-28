@@ -2,7 +2,12 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../shared/auth-types";
-import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from "../shared/chat-types";
+import type {
+  ChatConnectionStatus,
+  ChatKnownUser,
+  ChatMessage,
+  ChatPlatform,
+} from "../shared/chat-types";
 import { useAuthStore } from "./auth-store";
 
 /**
@@ -99,6 +104,68 @@ function replaceMessageInBucket(
   return { ...buckets, [channelKey]: next };
 }
 
+function messageToKnownUser(message: ChatMessage): ChatKnownUser | null {
+  if (message.type !== "message") return null;
+  if (!message.username) return null;
+  return {
+    userId: message.userId,
+    username: message.username,
+    displayName: message.displayName || message.username,
+    color: message.color,
+    avatarUrl: message.avatarUrl,
+    lastSeen: message.timestamp,
+  };
+}
+
+function mergeKnownUsers(
+  usersByChannel: Record<string, Record<string, ChatKnownUser>>,
+  channelKey: string,
+  users: ChatKnownUser[]
+): Record<string, Record<string, ChatKnownUser>> {
+  if (users.length === 0) return usersByChannel;
+
+  const current = usersByChannel[channelKey] ?? {};
+  let next: Record<string, ChatKnownUser> | null = null;
+
+  for (const user of users) {
+    const key = user.username.toLowerCase();
+    const existing = current[key];
+    const shouldReplace =
+      !existing ||
+      user.lastSeen.getTime() >= existing.lastSeen.getTime() ||
+      (!existing.avatarUrl && Boolean(user.avatarUrl)) ||
+      (!existing.color && Boolean(user.color));
+
+    if (!shouldReplace) continue;
+
+    if (!next) next = { ...current };
+    next[key] = {
+      ...existing,
+      ...user,
+      color: user.color || existing?.color,
+      avatarUrl: user.avatarUrl || existing?.avatarUrl,
+      lastSeen:
+        existing && existing.lastSeen.getTime() > user.lastSeen.getTime()
+          ? existing.lastSeen
+          : user.lastSeen,
+    };
+  }
+
+  if (!next) return usersByChannel;
+  return { ...usersByChannel, [channelKey]: next };
+}
+
+function mergeKnownUsersFromMessages(
+  usersByChannel: Record<string, Record<string, ChatKnownUser>>,
+  channelKey: string,
+  messages: ChatMessage[]
+): Record<string, Record<string, ChatKnownUser>> {
+  const users = messages
+    .map(messageToKnownUser)
+    .filter((user): user is ChatKnownUser => Boolean(user));
+  return mergeKnownUsers(usersByChannel, channelKey, users);
+}
+
 /**
  * Apply a flushed batch to a single channel's bucket: dedupes against the
  * bucket using the emote-richer rule, appends fresh messages, then trims the
@@ -162,6 +229,8 @@ export const DEFAULT_BATCHING_INTERVAL_MS = 100;
 interface ChatState {
   /** Per-channel message buckets, keyed by `buildChannelKey(platform, channel)`. */
   messagesByChannel: Record<string, ChatMessage[]>;
+  /** Per-channel known chat users, learned from live + historical chat messages. */
+  usersByChannel: Record<string, Record<string, ChatKnownUser>>;
   connectionStatus: Record<ChatPlatform, ChatConnectionStatus>;
   /** Per-channel pause state. */
   pausedChannels: Set<string>;
@@ -229,6 +298,7 @@ export const useChatStore = create<ChatState>()(
     }
     return {
       messagesByChannel: {},
+      usersByChannel: {},
       pausedChannels: new Set<string>(),
       // Batching enabled by default. On busy streams (Kick xQc-tier or Twitch
       // raid bursts at 30+ msg/sec), grouping store updates into a short window
@@ -306,9 +376,13 @@ export const useChatStore = create<ChatState>()(
             message,
             bucketMaxMessages
           );
+          const knownUser = messageToKnownUser(message);
 
           return {
             messagesByChannel,
+            usersByChannel: knownUser
+              ? mergeKnownUsers(state.usersByChannel, channelKey, [knownUser])
+              : state.usersByChannel,
           };
         });
       },
@@ -411,6 +485,7 @@ export const useChatStore = create<ChatState>()(
 
           return {
             messagesByChannel: nextBuckets,
+            usersByChannel: mergeKnownUsersFromMessages(state.usersByChannel, channelKey, queued),
           };
         });
       },
@@ -450,6 +525,7 @@ export const useChatStore = create<ChatState>()(
 
           return {
             messagesByChannel: { ...state.messagesByChannel, [channelKey]: bucketTrimmed },
+            usersByChannel: mergeKnownUsersFromMessages(state.usersByChannel, channelKey, fresh),
           };
         });
       },
@@ -458,8 +534,11 @@ export const useChatStore = create<ChatState>()(
         set((state) => {
           const messagesByChannel = { ...state.messagesByChannel };
           delete messagesByChannel[channelKey];
+          const usersByChannel = { ...state.usersByChannel };
+          delete usersByChannel[channelKey];
           return {
             messagesByChannel,
+            usersByChannel,
           };
         });
       },
@@ -472,12 +551,15 @@ export const useChatStore = create<ChatState>()(
 
           const messagesByChannel = { ...state.messagesByChannel };
           delete messagesByChannel[channelKey];
+          const usersByChannel = { ...state.usersByChannel };
+          delete usersByChannel[channelKey];
 
           const pausedChannels = new Set(state.pausedChannels);
           pausedChannels.delete(channelKey);
 
           return {
             messagesByChannel,
+            usersByChannel,
             pausedChannels,
           };
         }),

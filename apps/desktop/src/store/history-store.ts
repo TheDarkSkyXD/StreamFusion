@@ -6,10 +6,12 @@ export interface HistoryItem {
   originalId: string; // original video/clip ID
   title: string;
   thumbnail: string;
+  playbackUrl?: string;
   platform: "twitch" | "kick";
   type: "video" | "clip" | "stream";
   channelName: string;
   channelDisplayName?: string;
+  channelAvatar?: string | null;
   timestamp: number;
 }
 

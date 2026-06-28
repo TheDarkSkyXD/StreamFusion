@@ -8,6 +8,7 @@ import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { VideoCard } from "@/components/stream/related-content/VideoCard";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
+import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
@@ -67,6 +68,7 @@ export function VideoPage() {
     channelName: passedChannelName,
     channelDisplayName: passedChannelDisplayName,
     channelAvatar: passedChannelAvatar,
+    thumbnail: passedThumbnail,
     views: passedViews,
     date: passedDate,
     category: passedCategory,
@@ -87,6 +89,7 @@ export function VideoPage() {
 
   const [relatedVideos, setRelatedVideos] = useState<VideoOrClip[]>([]);
   const [isRelatedLoading, setIsRelatedLoading] = useState(false);
+  const canUseDirectSourceUrl = platform === "kick" && Boolean(directSourceUrl);
 
   useEffect(() => {
     const fetchVideoData = async () => {
@@ -127,7 +130,7 @@ export function VideoPage() {
         // Case 1: If we have a direct source URL (from video list), use it directly
         // This is the preferred path for Kick VODs since the api/v1/video endpoint
         // requires UUID which we may not have
-        if (directSourceUrl) {
+        if (canUseDirectSourceUrl && directSourceUrl) {
           setStreamUrl(directSourceUrl);
 
           // If we have metadata from search params, use it directly
@@ -210,6 +213,7 @@ export function VideoPage() {
     platform,
     videoId,
     directSourceUrl,
+    canUseDirectSourceUrl,
     passedTitle,
     passedChannelName,
     passedChannelDisplayName,
@@ -233,21 +237,43 @@ export function VideoPage() {
   const channelAvatar = videoMetadata?.channelAvatar || passedChannelAvatar;
 
   // Save to history
-  const { addToHistory } = useHistoryStore();
+  const { addToHistory, removeFromHistory } = useHistoryStore();
+  const historyItemId = `${platform}-video-${videoId}`;
+  const historyPlaybackUrl =
+    platform === "kick" ? directSourceUrl || streamUrl || undefined : undefined;
+
+  const handlePlaybackError = () => {
+    removeFromHistory(historyItemId);
+  };
+
   useEffect(() => {
     if (platform && videoId && videoTitle !== "Loading...") {
       addToHistory({
-        id: `${platform}-video-${videoId}`,
+        id: historyItemId,
         originalId: videoId,
         title: videoTitle,
-        thumbnail: videoMetadata?.thumbnailUrl || "", // Would be nice to have passedThumbnail
+        thumbnail: videoMetadata?.thumbnailUrl || passedThumbnail || "",
+        playbackUrl: historyPlaybackUrl,
         platform: platform as "twitch" | "kick",
         type: "video",
         channelName: channelName,
         channelDisplayName: channelDisplayName,
+        channelAvatar: channelAvatar || null,
       });
     }
-  }, [platform, videoId, videoTitle, channelName, channelDisplayName, videoMetadata, addToHistory]);
+  }, [
+    platform,
+    videoId,
+    videoTitle,
+    channelName,
+    channelDisplayName,
+    channelAvatar,
+    historyPlaybackUrl,
+    passedThumbnail,
+    videoMetadata,
+    addToHistory,
+    historyItemId,
+  ]);
   const views = videoMetadata
     ? formatViews(videoMetadata.views)
     : passedViews
@@ -352,6 +378,7 @@ export function VideoPage() {
                 videoId={videoId}
                 title={videoTitle}
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
+                onError={handlePlaybackError}
               />
             ) : (
               <TwitchVodPlayer
@@ -361,6 +388,7 @@ export function VideoPage() {
                 videoId={videoId}
                 title={videoTitle}
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
+                onError={handlePlaybackError}
               />
             )
           ) : error ? (
@@ -385,10 +413,13 @@ export function VideoPage() {
               className="shrink-0"
             >
               {channelAvatar ? (
-                <img
+                <PlatformAvatar
                   src={channelAvatar}
                   alt={channelDisplayName}
-                  className={`w-14 h-14 rounded-full shadow-lg ring-2 ring-offset-2 ring-offset-[var(--color-background)] ${platform === "twitch" ? "ring-[#9146FF] hover:ring-[#9146FF]/80" : "ring-[#53FC18] hover:ring-[#53FC18]/80"} transition-all object-cover`}
+                  platform={platform as Platform}
+                  size="w-14 h-14"
+                  className={`shadow-lg ring-2 ring-offset-2 ring-offset-[var(--color-background)] ${platform === "twitch" ? "ring-[#9146FF] hover:ring-[#9146FF]/80" : "ring-[#53FC18] hover:ring-[#53FC18]/80"} transition-all`}
+                  disablePlatformBorder
                 />
               ) : (
                 <div

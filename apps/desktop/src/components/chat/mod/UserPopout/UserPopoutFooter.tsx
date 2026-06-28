@@ -248,6 +248,8 @@ export function UserPopoutFooter({
               accessToken: token.accessToken,
               channelSlug: slug,
               username,
+              broadcasterUserId: channelId,
+              userId,
             });
             if (r.ok) {
               toast.success(`Banned ${username}`);
@@ -265,6 +267,8 @@ export function UserPopoutFooter({
               accessToken: token.accessToken,
               channelSlug: slug,
               username,
+              broadcasterUserId: channelId,
+              userId,
               // Kick wants minutes per kick-mod-mutations.ts inline doc.
               duration: Math.max(1, Math.ceil(seconds / 60)),
             });
@@ -282,6 +286,8 @@ export function UserPopoutFooter({
               accessToken: token.accessToken,
               channelSlug: slug,
               username,
+              broadcasterUserId: channelId,
+              userId,
             });
             if (r.ok) {
               toast.success(`Unbanned ${username}`);

@@ -10,6 +10,7 @@ import { LuMaximize2, LuPause, LuPlay, LuVolume2, LuVolumeX, LuX } from "react-i
 import { HlsPlayer } from "@/components/player/hls-player";
 import { TwitchHlsPlayer } from "@/components/player/twitch/twitch-hls-player";
 import type { PlayerError } from "@/components/player/types";
+import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { cn } from "@/lib/utils";
@@ -53,9 +54,10 @@ export function MiniPlayer() {
   const channelName = !shouldHideForStreamPage && currentStream ? currentStream.channelName : "";
   const { playback, reload, reloadAttempts } = useStreamPlayback(platform, channelName);
 
-  // Prefer the freshly-fetched URL; fall back to the snapshot until the first
-  // fetch resolves so playback starts as quickly as possible.
-  const streamUrl = playback?.url || currentStream?.streamUrl || "";
+  // Use only the freshly-resolved playback URL. The PiP store keeps the URL
+  // captured on the stream page, but live HLS tokens can expire before the
+  // mini-player appears on another route, producing noisy 403/404 requests.
+  const streamUrl = playback?.url || "";
 
   // Persistent volume
   const { isMuted, handleToggleMute, syncFromVideoElement, volume, handleVolumeChange } = useVolume(
@@ -335,10 +337,11 @@ export function MiniPlayer() {
           {/* Stream Info */}
           <div className="flex items-center gap-2 mb-2">
             {currentStream.channelAvatar && (
-              <img
+              <ProxiedImage
                 src={currentStream.channelAvatar}
                 alt={currentStream.channelDisplayName}
                 className="w-6 h-6 rounded-full"
+                fallback={<div className="w-6 h-6 rounded-full bg-white/10" />}
               />
             )}
             <div className="flex-1 min-w-0">

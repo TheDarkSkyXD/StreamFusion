@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -49,7 +50,7 @@ const TheaterFilledIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-interface PlayerControlsProps {
+export interface PlayerControlsProps {
   // Playback state
   isPlaying: boolean;
   isLoading?: boolean;
@@ -85,6 +86,14 @@ interface PlayerControlsProps {
   // Playback Speed
   playbackRate?: number;
   onPlaybackRateChange?: (rate: number) => void;
+
+  progressBar?: ReactNode;
+  leftAddon?: ReactNode;
+  liveBadge?: ReactNode;
+  rightAddon?: ReactNode;
+  showVideoStats?: boolean;
+  onToggleVideoStats?: () => void;
+  theaterActiveColor?: string;
 }
 
 export function PlayerControls(props: PlayerControlsProps) {
@@ -110,6 +119,13 @@ export function PlayerControls(props: PlayerControlsProps) {
     buffered,
     playbackRate,
     onPlaybackRateChange,
+    progressBar,
+    leftAddon,
+    liveBadge,
+    rightAddon,
+    showVideoStats,
+    onToggleVideoStats,
+    theaterActiveColor,
   } = props;
 
   const controls =
@@ -233,20 +249,22 @@ export function PlayerControls(props: PlayerControlsProps) {
         onDoubleClick={(e) => e.stopPropagation()}
       >
         {/* VOD Progress Bar */}
-        {!isLive && onSeek && (
+        {(progressBar || (!isLive && onSeek)) && (
           <div
             className="w-full px-4 mb-2 pointer-events-auto"
             onMouseEnter={handleControlsEnter}
             onMouseLeave={handleControlsLeave}
           >
-            <ProgressBar
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={onSeek}
-              onSeekHover={props.onSeekHover}
-              previewImage={props.previewImage}
-              buffered={buffered}
-            />
+            {progressBar ?? (
+              <ProgressBar
+                currentTime={currentTime}
+                duration={duration}
+                onSeek={onSeek ?? (() => {})}
+                onSeekHover={props.onSeekHover}
+                previewImage={props.previewImage}
+                buffered={buffered}
+              />
+            )}
           </div>
         )}
 
@@ -267,18 +285,24 @@ export function PlayerControls(props: PlayerControlsProps) {
 
             {/* Live Badge or Timestamp */}
             {isLive ? (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600 rounded text-xs font-bold uppercase tracking-wider text-white ml-2 select-none">
-                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                Live
-              </div>
+              (liveBadge ?? (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600 rounded text-xs font-bold uppercase tracking-wider text-white ml-2 select-none">
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  Live
+                </div>
+              ))
             ) : (
               <div className="text-white text-2xl font-bold ml-2 select-none">
                 {formatDuration(currentTime)} / {formatDuration(duration)}
               </div>
             )}
+
+            {leftAddon}
           </div>
 
           <div className="flex items-center gap-2">
+            {rightAddon}
+
             <SettingsMenu
               qualities={qualities}
               currentQualityId={currentQualityId}
@@ -289,6 +313,8 @@ export function PlayerControls(props: PlayerControlsProps) {
               playbackRate={playbackRate}
               onPlaybackRateChange={isLive ? undefined : onPlaybackRateChange}
               onOpenChange={handleSettingsOpenChange}
+              showVideoStats={showVideoStats}
+              onToggleVideoStats={onToggleVideoStats}
               container={containerRef.current}
             />
 
@@ -300,6 +326,9 @@ export function PlayerControls(props: PlayerControlsProps) {
                     size="icon"
                     className="text-white hover:bg-white/20 cursor-pointer"
                     onClick={onToggleTheater}
+                    style={
+                      isTheater && theaterActiveColor ? { color: theaterActiveColor } : undefined
+                    }
                   >
                     {isTheater ? (
                       <TheaterFilledIcon className="w-6 h-6" />

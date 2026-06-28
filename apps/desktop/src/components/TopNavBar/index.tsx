@@ -1,11 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { memo } from "react";
-import { LuMenu, LuShield } from "react-icons/lu";
+import { LuMenu } from "react-icons/lu";
 
 import { ProfileDropdown } from "@/components/auth";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { SearchBar } from "./SearchBar";
@@ -21,12 +20,6 @@ export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) 
   // re-render the nav chrome unnecessarily.
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
-
-  // U29 — /mod nav-link gating. Visible only when the signed-in Twitch user
-  // moderates ≥1 channel. We subscribe to the Set's size so this re-renders
-  // when hydrate populates the store.
-  const moderatedCount = useModeratedChannelsStore((s) => s.twitchModeratedChannelIds.size);
-  const showModLink = moderatedCount > 0;
 
   return (
     <div
@@ -57,20 +50,8 @@ export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) 
         <SearchBar className="max-w-[420px]" />
       </div>
 
-      {/* Right side - Mod link + Notifications + User */}
+      {/* Right side - Notifications + User */}
       <div className="flex items-center justify-end gap-4 ml-4">
-        {showModLink ? (
-          <Link
-            to="/mod"
-            data-testid="mod-nav-link"
-            className="flex items-center gap-1.5 text-sm text-white hover:opacity-90 transition-opacity"
-            title="Moderation"
-          >
-            <LuShield size={18} />
-            <span>Mod</span>
-          </Link>
-        ) : null}
-
         {/* Notifications Dropdown */}
         <NotificationsDropdown />
 

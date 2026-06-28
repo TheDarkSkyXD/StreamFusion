@@ -16,7 +16,7 @@ import type { Emote } from "../../backend/services/emotes/emote-types";
 import { EmoteTooltip } from "./tooltips/EmoteTooltip";
 
 /** Size presets for emotes */
-type EmoteSize = "small" | "medium" | "large" | "xlarge";
+type EmoteSize = "small" | "quick" | "medium" | "large" | "xlarge";
 
 interface EmoteImageProps {
   /** Emote data object */
@@ -40,6 +40,7 @@ interface EmoteImageProps {
 /** Size configurations in pixels */
 const SIZE_CONFIG: Record<EmoteSize, { height: number; urlSize: "1x" | "2x" | "4x" }> = {
   small: { height: 20, urlSize: "1x" },
+  quick: { height: 24, urlSize: "1x" },
   medium: { height: 28, urlSize: "2x" },
   large: { height: 48, urlSize: "2x" },
   xlarge: { height: 64, urlSize: "4x" },
@@ -135,14 +136,14 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
     const shouldRenderPlaceholder = !isLoaded && deferredPlaceholder !== "none";
     const placeholderClass =
       deferredPlaceholder === "pulse"
-        ? "inline-block bg-gray-700 rounded animate-pulse"
-        : "inline-block bg-gray-700 rounded opacity-60";
+        ? "inline-block bg-neutral-700 rounded animate-pulse"
+        : "inline-block bg-neutral-700 rounded opacity-60";
 
     if (hasError) {
       // Fallback for broken images - show emote code
       return (
         <span
-          className={`inline-flex items-center justify-center bg-gray-700 rounded px-1 text-xs ${className}`}
+          className={`inline-flex items-center justify-center bg-neutral-700 rounded px-1 text-xs ${className}`}
           style={{ height: config.height }}
           title={`${emote.name} (${emote.provider})`}
         >

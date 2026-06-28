@@ -27,6 +27,7 @@ import {
   getAdBlockStatus,
   initAdBlockService,
   isAdBlockEnabled,
+  type PlayerReloadReason,
   setAuthHeaders,
   setPlayerCallbacks,
   setStatusChangeCallback,
@@ -41,6 +42,7 @@ export interface TwitchHlsPlayerProps
   onError?: (error: PlayerError) => void;
   onHlsInstance?: (hls: Hls) => void;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
+  onAdBlockRecoveryRefresh?: () => void;
   autoPlay?: boolean;
   currentLevel?: string;
   enableAdBlock?: boolean;
@@ -48,6 +50,8 @@ export interface TwitchHlsPlayerProps
 }
 
 const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
+const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
+const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 3000;
 
 export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps>(
   (
@@ -58,6 +62,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       onError,
       onHlsInstance,
       onAdBlockStatusChange,
+      onAdBlockRecoveryRefresh,
       autoPlay = false,
       currentLevel,
       enableAdBlock = true,
@@ -92,24 +97,37 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     // Expose video ref to parent
     useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
 
-    // Heartbeat: check every 10s that fragments are still arriving.
+    // Heartbeat: check every 1s that fragments are still arriving.
     // Active only while heartbeatDelay is a number (set by MANIFEST_PARSED, cleared on teardown).
     useInterval(() => {
       const hls = hlsRef.current;
+      const video = videoRef.current;
       if (!isEffectActiveRef.current || !hls) {
         setHeartbeatDelay(null);
         return;
       }
+
+      if (video?.paused) {
+        lastFragLoadedTimeRef.current = Date.now();
+        return;
+      }
+
       const timeSinceLastFrag = Date.now() - lastFragLoadedTimeRef.current;
-      if (timeSinceLastFrag > 15000) {
-        logger.debug("Player:Twitch:HLS", "no fragments, checking stream", {
+
+      if (timeSinceLastFrag >= LIVE_FRAGMENT_OFFLINE_GRACE_MS) {
+        logger.debug("Player:Twitch:HLS", "no fragments - stream appears to have ended", {
           secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
         });
-        try {
-          hls.startLoad(-1);
-        } catch {
-          // HLS may be in invalid state
-        }
+        setHeartbeatDelay(null);
+        hls.destroy();
+        hlsRef.current = null;
+        onErrorRef.current?.({
+          code: "STREAM_OFFLINE",
+          message: "Stream ended or became unavailable",
+          fatal: true,
+          originalError: null,
+        });
+        return;
       }
     }, heartbeatDelay);
 
@@ -168,6 +186,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const onQualityLevelsRef = useRef(onQualityLevels);
     const onErrorRef = useRef(onError);
     const onAdBlockStatusChangeRef = useRef(onAdBlockStatusChange);
+    const onAdBlockRecoveryRefreshRef = useRef(onAdBlockRecoveryRefresh);
     const onHlsInstanceRef = useRef(onHlsInstance);
     const currentLevelRef = useRef(currentLevel);
 
@@ -175,9 +194,17 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       onQualityLevelsRef.current = onQualityLevels;
       onErrorRef.current = onError;
       onAdBlockStatusChangeRef.current = onAdBlockStatusChange;
+      onAdBlockRecoveryRefreshRef.current = onAdBlockRecoveryRefresh;
       onHlsInstanceRef.current = onHlsInstance;
       currentLevelRef.current = currentLevel;
-    }, [onQualityLevels, onError, onAdBlockStatusChange, onHlsInstance, currentLevel]);
+    }, [
+      onQualityLevels,
+      onError,
+      onAdBlockStatusChange,
+      onAdBlockRecoveryRefresh,
+      onHlsInstance,
+      currentLevel,
+    ]);
 
     // Initialize ad-block service
     useEffect(() => {
@@ -266,14 +293,19 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     }, [currentLevel]);
 
     // Player control callbacks for ad-block service
-    const handlePlayerReload = useCallback(() => {
+    const handlePlayerReload = useCallback((reason: PlayerReloadReason) => {
       const video = videoRef.current;
       const hls = hlsRef.current;
       if (!video || !hls) return;
 
-      logger.debug("Player:Twitch:HLS", "ad-block triggered player reload");
-      // Restart from live edge
+      logger.debug("Player:Twitch:HLS", "ad-block triggered player reload", { reason });
+      // Restart from live edge.
       hls.startLoad(-1);
+
+      if (reason === "ad-ended") {
+        logger.debug("Player:Twitch:HLS", "refreshing playback URL after ad-block completion");
+        onAdBlockRecoveryRefreshRef.current?.();
+      }
     }, []);
 
     const handlePauseResume = useCallback(() => {
@@ -653,10 +685,11 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           lastFragLoadedTimeRef.current = Date.now();
         });
 
-        // Activate heartbeat (10 000 ms) and memory cleanup via useInterval.
+        // Activate heartbeat and memory cleanup via useInterval.
         // The actual interval logic lives in the useInterval hooks above.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setHeartbeatDelay(10000);
+          lastFragLoadedTimeRef.current = Date.now();
+          setHeartbeatDelay(LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS);
           setMemoryCleanupDelay(LIVE_MEMORY_CLEANUP_INTERVAL_MS);
         });
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {

@@ -35,12 +35,14 @@ const mockApi = {
   getAll: vi.fn(),
   add: vi.fn(),
   remove: vi.fn(),
+  update: vi.fn(),
 };
 
 beforeEach(() => {
   mockApi.getAll.mockReset();
   mockApi.add.mockReset();
   mockApi.remove.mockReset();
+  mockApi.update.mockReset();
   // @ts-expect-error — test-only stub of window.electronAPI surface
   globalThis.window.electronAPI = { follows: mockApi };
   useFollowStore.setState({ localFollows: [] });
@@ -243,6 +245,126 @@ describe("follow-store unfollowChannel", () => {
     expect(mockApi.getAll).not.toHaveBeenCalled();
     expect(mockApi.remove).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("follow-store repairFollowMetadataFromChannel", () => {
+  it("updates a stale Kick follow row when a resolved channel has the same stable id and a new slug", async () => {
+    useFollowStore.setState({
+      localFollows: [
+        makeChannel({
+          id: "21103818",
+          username: "hennythingz1",
+          displayName: "hennythingz1",
+        }),
+      ],
+    });
+    mockApi.getAll
+      .mockResolvedValueOnce([
+        makeRow({
+          id: "kick-row-henny",
+          channelId: "21103818",
+          channelName: "hennythingz1",
+          displayName: "hennythingz1",
+        }),
+      ])
+      .mockResolvedValueOnce([
+        makeRow({
+          id: "kick-row-henny",
+          channelId: "21103818",
+          channelName: "hennytingzz",
+          displayName: "Hennytingzz",
+          profileImage: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
+        }),
+      ]);
+
+    const repaired = await useFollowStore.getState().repairFollowMetadataFromChannel(
+      makeChannel({
+        id: "21103818",
+        username: "hennytingzz",
+        displayName: "Hennytingzz",
+        avatarUrl: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
+      })
+    );
+
+    expect(repaired).toBe(true);
+    expect(mockApi.update).toHaveBeenCalledWith("kick-row-henny", {
+      channelId: "21103818",
+      channelName: "hennytingzz",
+      displayName: "Hennytingzz",
+      profileImage: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
+    });
+    expect(useFollowStore.getState().localFollows).toEqual([
+      expect.objectContaining({
+        id: "21103818",
+        username: "hennytingzz",
+        displayName: "Hennytingzz",
+      }),
+    ]);
+  });
+
+  it("repairs a stale Kick slug row when the resolved legacy channel id differs from the stable user id", async () => {
+    useFollowStore.setState({
+      localFollows: [
+        makeChannel({
+          id: "hennythingz1",
+          username: "hennythingz1",
+          displayName: "hennythingz1",
+          avatarUrl:
+            "https://files.kick.com/images/user/21103818/profile_image/conversion/old-thumb.webp",
+        }),
+      ],
+    });
+    mockApi.getAll
+      .mockResolvedValueOnce([
+        makeRow({
+          id: "kick-row-henny",
+          channelId: "hennythingz1",
+          channelName: "hennythingz1",
+          displayName: "hennythingz1",
+          profileImage:
+            "https://files.kick.com/images/user/21103818/profile_image/conversion/old-thumb.webp",
+          source: "kick",
+        }),
+      ])
+      .mockResolvedValueOnce([
+        makeRow({
+          id: "kick-row-henny",
+          channelId: "21103818",
+          channelName: "hennytingzz",
+          displayName: "Hennytingzz",
+          profileImage:
+            "https://files.kick.com/images/user/21103818/profile_image/conversion/new-fullsize.webp",
+          source: "kick",
+        }),
+      ]);
+
+    const repaired = await useFollowStore.getState().repairFollowMetadataFromChannel(
+      makeChannel({
+        id: "20120336",
+        kickUserId: "21103818",
+        username: "hennytingzz",
+        displayName: "Hennytingzz",
+        avatarUrl:
+          "https://files.kick.com/images/user/21103818/profile_image/conversion/new-fullsize.webp",
+      })
+    );
+
+    expect(repaired).toBe(true);
+    expect(mockApi.update).toHaveBeenCalledWith("kick-row-henny", {
+      channelId: "21103818",
+      channelName: "hennytingzz",
+      displayName: "Hennytingzz",
+      profileImage:
+        "https://files.kick.com/images/user/21103818/profile_image/conversion/new-fullsize.webp",
+    });
+    expect(useFollowStore.getState().localFollows).toEqual([
+      expect.objectContaining({
+        id: "21103818",
+        username: "hennytingzz",
+        displayName: "Hennytingzz",
+      }),
+    ]);
   });
 });
 

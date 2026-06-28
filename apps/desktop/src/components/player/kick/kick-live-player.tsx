@@ -6,7 +6,6 @@ import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 import { sleep } from "@/lib/sleep";
 import { logger } from "@/renderer/logging/logger";
 
-import { HlsPlayer } from "../hls-player";
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useFullscreen } from "../hooks/use-fullscreen";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
@@ -15,6 +14,7 @@ import { useResumePlayback } from "../hooks/use-resume-playback";
 import { useVolume } from "../hooks/use-volume";
 import type { Platform, PlayerError, QualityLevel } from "../types";
 
+import { KickHlsPlayer } from "./kick-hls-player";
 import { KickLivePlayerControls } from "./kick-live-player-controls";
 import type { KickProgressBarHandle } from "./kick-progress-bar";
 import { UptimeReadout } from "./uptime-readout";
@@ -314,7 +314,7 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
       className={`relative w-full h-full bg-black overflow-hidden group flex flex-col justify-center ${className || ""}`}
     >
       {streamUrl ? (
-        <HlsPlayer
+        <KickHlsPlayer
           ref={videoRef}
           src={streamUrl}
           isLive

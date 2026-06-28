@@ -106,12 +106,12 @@ function makeVideoMutable(video: HTMLVideoElement): MutableVideo {
 
 /**
  * Advance time in chunks while emitting FRAG_LOADED every step so the
- * fragment heartbeat (5s tick, 15s reload threshold) stays satisfied and
+ * fragment heartbeat stays satisfied and
  * does NOT independently call startLoad / recoverMediaError. The H1 scenario
  * being tested is exactly: fragments still flow, but the decoder hangs.
  */
 function advance(hls: FakeHlsInstance, ms: number) {
-  const STEP = 4000;
+  const STEP = 2000;
   let remaining = ms;
   while (remaining > 0) {
     const step = Math.min(STEP, remaining);

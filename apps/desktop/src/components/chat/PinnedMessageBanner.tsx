@@ -20,10 +20,15 @@ import type React from "react";
 import { memo, useState } from "react";
 import { BsChevronDown, BsReplyFill } from "react-icons/bs";
 import { useTimeout } from "@/hooks/useTimeout";
-import type { ContentFragment, NormalizedPinnedMessage } from "../../shared/chat-types";
+import type {
+  ChatBadge as ChatBadgeType,
+  ContentFragment,
+  NormalizedPinnedMessage,
+} from "../../shared/chat-types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
+import { formatMentionLabel } from "./mention-label";
 
 /**
  * Inline pin SVG — verbatim path from Twitch's own .pinned-chat__highlight-card
@@ -85,10 +90,10 @@ const ICON_BUTTON_CLASS =
   "hover:bg-white/10 active:bg-white/15 transition-colors";
 
 /**
- * Twitch's own pin card shows just ONE badge between "Pinned by" and the
+ * For a normal pinner, show one badge before their
  * username — the user's highest-priority role badge. Pick that one badge
- * out of the displayBadges list using a fixed priority. Returns null if
- * none of the priority sets match (we then render no badge).
+ * unless they are a partner broadcaster; that pair is handled below.
+ * If no priority sets match, the first available badge is shown.
  */
 const PRIMARY_BADGE_PRIORITY = [
   "broadcaster",
@@ -104,17 +109,49 @@ const PRIMARY_BADGE_PRIORITY = [
   "subscriber",
 ] as const;
 
-function pickPrimaryBadge(
-  badges: ReadonlyArray<{ setId: string }> | undefined
-): { setId: string } | null {
-  if (!badges || badges.length === 0) return null;
+function indexBadgesBySet(badges: ReadonlyArray<ChatBadgeType>): Map<string, ChatBadgeType> {
+  const badgeBySet = new Map<string, ChatBadgeType>();
+  for (const badge of badges) {
+    if (!badgeBySet.has(badge.setId)) badgeBySet.set(badge.setId, badge);
+  }
+  return badgeBySet;
+}
+
+function pickPrimaryBadge(badgeBySet: ReadonlyMap<string, ChatBadgeType>): ChatBadgeType | null {
   for (const set of PRIMARY_BADGE_PRIORITY) {
-    const b = badges.find((x) => x.setId === set);
-    if (b) return b;
+    const badge = badgeBySet.get(set);
+    if (badge) return badge;
   }
   // No match in the priority list — fall back to the first available badge
-  // rather than rendering nothing (better signal than empty).
-  return badges[0] ?? null;
+  // The caller falls back to the first badge rather than rendering nothing.
+  return null;
+}
+
+const PARTNER_BADGE_PRIORITY = ["partner", "verified"] as const;
+
+function findBadgeBySet(
+  badgeBySet: ReadonlyMap<string, ChatBadgeType>,
+  setIds: ReadonlyArray<string>
+): ChatBadgeType | null {
+  for (const setId of setIds) {
+    const badge = badgeBySet.get(setId);
+    if (badge) return badge;
+  }
+  return null;
+}
+
+function pickHeaderBadges(badges: ReadonlyArray<ChatBadgeType> | undefined): ChatBadgeType[] {
+  if (!badges || badges.length === 0) return [];
+
+  const badgeBySet = indexBadgesBySet(badges);
+  const broadcasterBadge = findBadgeBySet(badgeBySet, ["broadcaster"]);
+  const partnerBadge = findBadgeBySet(badgeBySet, PARTNER_BADGE_PRIORITY);
+  if (broadcasterBadge && partnerBadge && broadcasterBadge.setId !== partnerBadge.setId) {
+    return [broadcasterBadge, partnerBadge];
+  }
+
+  const primary = pickPrimaryBadge(badgeBySet);
+  return primary ? [primary] : [badges[0]];
 }
 
 /** Format an ISO timestamp as "HH:MM AM/PM" — same shape Twitch uses in the
@@ -165,7 +202,7 @@ const PinnedFragment: React.FC<{ fragment: ContentFragment; platform: "twitch" |
       case "mention":
         return (
           <span className="bg-white/10 font-bold px-1 rounded mx-0.5 text-white">
-            {fragment.username}
+            {formatMentionLabel(fragment.username)}
           </span>
         );
       case "link":
@@ -223,6 +260,12 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
 
   const accentColor = pin.author.color || (pin.platform === "kick" ? "#53FC18" : "#9146FF");
   const pinnedByColor = pin.pinnedBy?.color || accentColor;
+  const cardStyle =
+    pin.platform === "kick"
+      ? {
+          borderColor: "rgba(240, 241, 242, 0.16)",
+        }
+      : undefined;
 
   return (
     <div
@@ -237,7 +280,10 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
        *   message body:      18px / 500 / 1.3
        * Captured live from twitch.tv/fitzbro on 2026-05-18.
        */}
-      <div className="border border-[var(--color-border,rgba(83,83,95,0.48))] rounded-md bg-transparent p-2">
+      <div
+        className="border border-[var(--color-border,rgba(83,83,95,0.48))] rounded-md bg-neutral-800 p-2"
+        style={cardStyle}
+      >
         {/* Header row: pin icon + "Pinned by [badges] X" + controls.
          * Mirrors Twitch's native layout: 16px pin SVG, then a 14px label
          * that includes any inline badges (e.g. Broadcaster) sandwiched
@@ -264,16 +310,19 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
               >
                 <span className="flex-shrink-0">Pinned by</span>
                 {(() => {
-                  // Twitch shows just ONE badge next to the pinner's username
+                  // Render broadcaster + partner/verified together when both
                   // in the header — the user's highest-priority role badge.
-                  const primary = pickPrimaryBadge(pin.pinnedBy.badges);
-                  if (!primary) return null;
-                  const fullBadge = pin.pinnedBy.badges.find((b) => b.setId === primary.setId);
-                  return fullBadge ? (
-                    <span className="inline-flex flex-shrink-0" style={{ marginBottom: "1.5px" }}>
-                      <ChatBadge badge={fullBadge} platform={pin.platform} />
+                  const headerBadges = pickHeaderBadges(pin.pinnedBy.badges);
+                  if (headerBadges.length === 0) return null;
+                  return headerBadges.map((badge) => (
+                    <span
+                      key={`${badge.setId}-${badge.version}`}
+                      className="inline-flex flex-shrink-0"
+                      style={{ marginBottom: "1.5px" }}
+                    >
+                      <ChatBadge badge={badge} platform={pin.platform} />
                     </span>
-                  ) : null;
+                  ));
                 })()}
                 <span className="font-semibold truncate min-w-0" style={{ color: pinnedByColor }}>
                   {pin.pinnedBy.username}
@@ -389,7 +438,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
               {pin.author.username}
             </span>
             {pin.sentAt ? (
-              <span className="text-gray-400" data-testid="pinned-message-timestamp">
+              <span className="text-[#E6E6E6]" data-testid="pinned-message-timestamp">
                 sent at {formatSentAt(pin.sentAt)}
               </span>
             ) : null}
@@ -402,7 +451,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
             <button
               type="button"
               onClick={onReply}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
+              className="flex items-center gap-1 text-xs text-neutral-400 hover:text-white px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
               title="Reply to pinned message"
               aria-label="Reply to pinned message"
             >

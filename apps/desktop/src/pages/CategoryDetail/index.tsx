@@ -9,6 +9,7 @@ import { StreamGrid } from "@/components/stream/stream-grid";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useCategoryById } from "@/hooks/queries/useCategories";
 import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
+import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getStreamElementKey } from "@/lib/id-utils";
 import { formatViewerCount, getEquivalentCategoryName, normalizeCategoryName } from "@/lib/utils";
@@ -17,6 +18,7 @@ import type { Platform } from "@/shared/auth-types";
 const PAGE_SIZE = 30;
 
 export function CategoryDetailPage() {
+  const canRenderContent = useAfterFirstPaint();
   const { platform, categoryId } = useParams({ from: "/_app/categories/$platform/$categoryId" });
   // `otherId` is set by the Categories list when it knows the cross-platform
   // category id up-front. When present, we skip the brittle name-search below.
@@ -109,7 +111,7 @@ export function CategoryDetailPage() {
     langParam
   );
 
-  const isLoading = isCategoryLoading || primaryQuery.isLoading;
+  const isLoading = !canRenderContent || isCategoryLoading || primaryQuery.isLoading;
   const isFetchingNextPage = primaryQuery.isFetchingNextPage || secondaryQuery.isFetchingNextPage;
   const hasNextPage = primaryQuery.hasNextPage || secondaryQuery.hasNextPage;
 

@@ -8,9 +8,11 @@ import type { QualityLevel } from "../types";
 
 /**
  * Quality mapping from user preference to resolution heights
- * User preferences: 'auto' | '1080p' | '720p' | '480p' | '360p' | '160p'
+ * User preferences: 'auto' | '1440p' | '2k' | '1080p' | '720p' | '480p' | '360p' | '160p'
  */
 const QUALITY_HEIGHT_MAP: Record<Exclude<VideoQuality, "auto">, number> = {
+  "1440p": 1440,
+  "2k": 1440,
   "1080p": 1080,
   "720p": 720,
   "480p": 480,
@@ -65,10 +67,14 @@ export function useDefaultQuality(
 
       // 2. Name/Label match (e.g. "1080" in "1080p60")
       // Useful when height is 0 or missing (common with 'Source' quality sometimes)
-      const targetString = defaultQuality.replace("p", ""); // "1080", "720", etc.
-      const nameMatch = realLevels.find(
-        (level) => level.name?.includes(targetString) || level.label.includes(targetString)
-      );
+      const targetStrings =
+        defaultQuality === "1440p" || defaultQuality === "2k"
+          ? ["1440", "2k"]
+          : [defaultQuality.replace("p", "")]; // "1080", "720", etc.
+      const nameMatch = realLevels.find((level) => {
+        const searchableName = `${level.name ?? ""} ${level.label}`.toLowerCase();
+        return targetStrings.some((targetString) => searchableName.includes(targetString));
+      });
       if (nameMatch) {
         return nameMatch.id;
       }

@@ -92,9 +92,9 @@ export function ChannelList() {
     <section data-testid="mod-channel-list">
       <h2 className="text-xl font-semibold mb-3 text-white">Your channels</h2>
       {loading && entries.length === 0 ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-neutral-400">Loading…</p>
       ) : entries.length === 0 ? (
-        <p className="text-gray-400" data-testid="mod-channel-list-empty">
+        <p className="text-neutral-400" data-testid="mod-channel-list-empty">
           You don't moderate any channels yet.
         </p>
       ) : (

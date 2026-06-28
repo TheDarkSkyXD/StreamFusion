@@ -1,7 +1,10 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type React from "react";
+import { useState } from "react";
 import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 
+import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
+import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { Button } from "@/components/ui/button";
 import { type HistoryItem, useHistoryStore } from "@/store/history-store";
 
@@ -50,7 +53,13 @@ const HistoryItemLink = ({
 };
 
 export function HistoryPage() {
+  const navigate = useNavigate();
   const { history, clearHistory, removeFromHistory } = useHistoryStore();
+  const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
+  const [selectedClip, setSelectedClip] = useState<VideoOrClip | null>(null);
+  const [clipPlaybackUrl, setClipPlaybackUrl] = useState<string | null>(null);
+  const [clipError, setClipError] = useState<string | null>(null);
+  const [clipLoading, setClipLoading] = useState(false);
 
   const handleClearHistory = () => {
     if (confirm("Are you sure you want to clear your watch history?")) {
@@ -65,6 +74,90 @@ export function HistoryPage() {
       hour: "numeric",
       minute: "numeric",
     }).format(new Date(timestamp));
+  };
+
+  const toClipDialogItem = (item: HistoryItem): VideoOrClip => ({
+    id: item.originalId,
+    title: item.title || "Untitled clip",
+    duration: "",
+    views: "",
+    date: new Date(item.timestamp).toISOString(),
+    thumbnailUrl: item.thumbnail || "",
+    url: item.playbackUrl,
+    embedUrl: item.playbackUrl,
+    channelSlug: item.channelName,
+    channelName: item.channelDisplayName || item.channelName,
+    channelAvatar: item.channelAvatar || null,
+    platform: item.platform,
+  });
+
+  const verifyVideo = async (item: HistoryItem) => {
+    if (item.platform !== "twitch" && item.playbackUrl) return true;
+
+    const api = (window as any).electronAPI;
+    if (!api?.videos?.getPlaybackUrl) return true;
+
+    const result = await api.videos.getPlaybackUrl({
+      platform: item.platform,
+      videoId: item.originalId,
+    });
+    return Boolean(result?.success && result?.data?.url);
+  };
+
+  const watchHistoryItem = async (item: HistoryItem) => {
+    if (item.type === "stream") return;
+
+    setVerifyingItemId(item.id);
+    try {
+      if (item.type === "video") {
+        const canPlay = await verifyVideo(item);
+        if (!canPlay) {
+          removeFromHistory(item.id);
+          return;
+        }
+
+        await navigate({
+          to: "/video/$platform/$videoId",
+          params: { platform: item.platform, videoId: item.originalId },
+          search: {
+            src: item.platform === "kick" ? item.playbackUrl || undefined : undefined,
+            title: item.title,
+            channelName: item.channelName,
+            channelDisplayName: item.channelDisplayName || item.channelName,
+            channelAvatar: item.channelAvatar || undefined,
+            thumbnail: item.thumbnail || undefined,
+          },
+        });
+        return;
+      }
+
+      setClipLoading(true);
+      setClipError(null);
+      setSelectedClip(toClipDialogItem(item));
+      const api = (window as any).electronAPI;
+      const result = await api?.clips?.getPlaybackUrl?.({
+        platform: item.platform,
+        clipId: item.originalId,
+        clipUrl: item.playbackUrl,
+        thumbnailUrl: item.thumbnail,
+      });
+
+      if (result?.success && result?.data?.url) {
+        setClipPlaybackUrl(result.data.url);
+      } else if (item.platform === "twitch") {
+        setClipPlaybackUrl(null);
+      } else {
+        removeFromHistory(item.id);
+        setSelectedClip(null);
+      }
+    } catch (_error) {
+      removeFromHistory(item.id);
+      setSelectedClip(null);
+      setClipError("This item is no longer available.");
+    } finally {
+      setClipLoading(false);
+      setVerifyingItemId(null);
+    }
   };
 
   return (
@@ -116,13 +209,25 @@ export function HistoryPage() {
                 )}
 
                 {/* Overlay on hover */}
-                <div className="hidden group-hover:flex absolute inset-0 bg-black/40 items-center justify-center transition-opacity">
-                  <HistoryItemLink
-                    item={item}
-                    className="text-white bg-[var(--color-primary)] p-3 rounded-full hover:bg-[var(--color-primary-dark)] transform scale-100 hover:scale-110 transition-transform"
-                  >
-                    <LuPlay className="w-6 h-6 fill-current" />
-                  </HistoryItemLink>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  {item.type === "stream" ? (
+                    <HistoryItemLink
+                      item={item}
+                      className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all hover:bg-white hover:text-black group-hover:scale-100"
+                    >
+                      <LuPlay className="h-5 w-5 fill-current" />
+                    </HistoryItemLink>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => watchHistoryItem(item)}
+                      disabled={verifyingItemId === item.id}
+                      className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all hover:bg-white hover:text-black disabled:opacity-60 group-hover:scale-100"
+                      aria-label={`Watch ${item.title}`}
+                    >
+                      <LuPlay className="h-5 w-5 fill-current" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Platform Badge */}
@@ -131,7 +236,7 @@ export function HistoryPage() {
                 </div>
 
                 {/* Type Badge */}
-                <div className="absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-bold uppercase text-white bg-[var(--color-primary)]">
+                <div className="absolute top-2 right-2 rounded bg-white px-2 py-0.5 text-xs font-bold uppercase text-black">
                   {item.type}
                 </div>
 
@@ -151,14 +256,30 @@ export function HistoryPage() {
 
               {/* Info */}
               <div className="p-3">
-                <HistoryItemLink item={item} className="block">
-                  <h3
-                    className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
-                    title={item.title}
+                {item.type === "stream" ? (
+                  <HistoryItemLink item={item} className="block">
+                    <h3
+                      className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
+                      title={item.title}
+                    >
+                      {item.title || `Untitled ${item.type}`}
+                    </h3>
+                  </HistoryItemLink>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => watchHistoryItem(item)}
+                    disabled={verifyingItemId === item.id}
+                    className="block w-full text-left disabled:opacity-60"
                   >
-                    {item.title || `Untitled ${item.type}`}
-                  </h3>
-                </HistoryItemLink>
+                    <h3
+                      className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
+                      title={item.title}
+                    >
+                      {item.title || `Untitled ${item.type}`}
+                    </h3>
+                  </button>
+                )}
                 <div className="flex justify-between items-center text-xs text-[var(--color-foreground-secondary)]">
                   <span className="font-medium hover:text-[var(--color-foreground)] transition-colors">
                     {item.channelDisplayName || item.channelName}
@@ -170,6 +291,26 @@ export function HistoryPage() {
           ))}
         </div>
       )}
+      <ClipDialog
+        selectedClip={selectedClip}
+        onClose={() => {
+          setSelectedClip(null);
+          setClipPlaybackUrl(null);
+          setClipError(null);
+        }}
+        clipLoading={clipLoading}
+        clipError={clipError}
+        clipPlaybackUrl={clipPlaybackUrl}
+        platform={selectedClip?.platform || "twitch"}
+        channelName={selectedClip?.channelSlug || selectedClip?.channelName || ""}
+        channelData={null}
+        onPlaybackError={() => {
+          setClipError("Failed to play clip");
+          if (selectedClip) {
+            removeFromHistory(`${selectedClip.platform}-clip-${selectedClip.id}`);
+          }
+        }}
+      />
     </div>
   );
 }

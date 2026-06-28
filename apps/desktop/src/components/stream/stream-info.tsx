@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import React, { useEffect, useState } from "react";
-import { LuClock, LuShield, LuUsers } from "react-icons/lu";
+import { LuClock, LuUsers } from "react-icons/lu";
 
 import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
 import { FollowButton } from "@/components/ui/follow-button";
@@ -9,9 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
 import { useInterval } from "@/hooks/useInterval";
-import { useIsKickMod } from "@/hooks/useIsKickMod";
-import { useIsTwitchMod } from "@/hooks/useIsTwitchMod";
 import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
+import { StreamVerifiedBadge } from "./stream-verified-badge";
 
 /**
  * Isolated uptime counter component to prevent re-rendering parent every second
@@ -53,22 +52,6 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
     sourceCategoryName
   );
 
-  // Show a small Mod-page shortcut next to Follow when the signed-in user
-  // moderates this channel. Both hooks always run to satisfy Rules of Hooks;
-  // each accepts null and returns false safely. The Twitch hook keys on
-  // broadcaster_id; the Kick hook keys on the channel slug (username).
-  //
-  // Coverage caveat: the /mod page itself is largely Twitch-centric today
-  // (cross-channel banned-search and engagement aggregate are Helix-only;
-  // the per-channel retention iterates twitchModeratedChannelIds). Kick
-  // mods still get the Global retention card, which controls how long
-  // mod_log entries are kept for ALL platforms — that's the main value.
-  const canModerateTwitch = useIsTwitchMod(channel?.platform === "twitch" ? channel.id : null);
-  const canModerateKick = useIsKickMod(channel?.platform === "kick" ? channel.username : null);
-  const showModButton =
-    (channel?.platform === "twitch" && canModerateTwitch) ||
-    (channel?.platform === "kick" && canModerateKick);
-
   if (isLoading || !channel) {
     return (
       <div className="flex justify-between items-start gap-4 animate-pulse">
@@ -102,17 +85,9 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
       />
       <div className="flex-1 min-w-0">
         <h1 className="text-2xl font-bold flex items-center gap-2 truncate">
-          {channel.displayName}
-          {channel.isVerified && (
-            <span
-              className={`text-xs px-2 py-0.5 h-auto rounded font-bold shrink-0 ${
-                channel.platform === "twitch"
-                  ? "bg-[#9146FF]/20 text-[#9146FF]"
-                  : "bg-[#53FC18]/20 text-[#53FC18]"
-              }`}
-            >
-              Verified
-            </span>
+          <span className="truncate">{channel.displayName}</span>
+          {(stream?.channelIsVerified || channel.isVerified || channel.isPartner) && (
+            <StreamVerifiedBadge platform={channel.platform} className="h-5 w-5" />
           )}
         </h1>
         {/* Use stream title if live, otherwise fall back to channel's last stream title */}
@@ -183,32 +158,6 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
       {/* Right side: Follow button and live stats */}
       <div className="flex flex-col items-end gap-3">
         <div className="flex items-center gap-2">
-          {showModButton && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {channel.platform === "twitch" ? (
-                  <Link
-                    to="/mod/twitch/$channel"
-                    params={{ channel: channel.username }}
-                    aria-label="Open channel moderation page"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#9146FF]/40 bg-[#9146FF]/15 text-[#9146FF] transition-colors hover:bg-[#9146FF]/25"
-                  >
-                    <LuShield className="h-5 w-5" />
-                  </Link>
-                ) : (
-                  <Link
-                    to="/mod/kick/$channel"
-                    params={{ channel: channel.username }}
-                    aria-label="Open channel moderation page"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#53FC18]/40 bg-[#53FC18]/15 text-[#53FC18] transition-colors hover:bg-[#53FC18]/25"
-                  >
-                    <LuShield className="h-5 w-5" />
-                  </Link>
-                )}
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Open this channel's moderation page</TooltipContent>
-            </Tooltip>
-          )}
           <FollowButton channel={channel} size="default" />
         </div>
 

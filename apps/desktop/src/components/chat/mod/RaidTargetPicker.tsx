@@ -101,7 +101,7 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
           disabled={disabled}
           placeholder="Search your follows"
           aria-label="Raid target search"
-          className="mt-1 w-full px-2 py-1.5 bg-white/5 border border-[var(--color-border)] rounded text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-400 disabled:opacity-50"
+          className="mt-1 w-full px-2 py-1.5 bg-white/5 border border-[var(--color-border)] rounded text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-400 disabled:opacity-50"
         />
       </label>
 
@@ -125,21 +125,21 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
                   className="w-full text-left px-2 py-1 text-sm text-[#EFEFF1] hover:bg-white/10 disabled:opacity-50"
                 >
                   {target.broadcasterName}
-                  <span className="text-xs text-gray-400 ml-2">@{target.broadcasterLogin}</span>
+                  <span className="text-xs text-neutral-400 ml-2">@{target.broadcasterLogin}</span>
                 </button>
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="text-xs text-gray-500" data-testid="raid-target-picker-empty">
+        <p className="text-xs text-neutral-500" data-testid="raid-target-picker-empty">
           No matches
         </p>
       )}
 
       {recent.length > 0 ? (
         <div data-testid="raid-target-picker-recent">
-          <p className="text-xs font-semibold text-gray-400 mb-1">Recent</p>
+          <p className="text-xs font-semibold text-neutral-400 mb-1">Recent</p>
           <ul className="space-y-0.5">
             {recent.slice(0, RECENT_LIMIT).map((target) => (
               <li key={target.broadcasterId}>
@@ -150,7 +150,7 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
                   className="w-full text-left px-2 py-1 text-xs text-[#EFEFF1] hover:bg-white/10 rounded disabled:opacity-50"
                 >
                   {target.broadcasterName}
-                  <span className="text-gray-500 ml-2">@{target.broadcasterLogin}</span>
+                  <span className="text-neutral-500 ml-2">@{target.broadcasterLogin}</span>
                 </button>
               </li>
             ))}

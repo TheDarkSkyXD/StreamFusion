@@ -182,8 +182,8 @@
 }
 
 .sf-switch[data-state="checked"] {
-  background-color: #000000;
-  border-color: rgb(180, 112, 247);
+  background-color: rgb(228, 228, 231);
+  border-color: rgb(228, 228, 231);
 }
 
 .sf-switch-thumb {
@@ -193,7 +193,7 @@
 }
 
 .sf-switch[data-state="checked"] .sf-switch-thumb {
-  background-color: rgb(180, 112, 247);
+  background-color: #121214;
 }
 
 .sf-switch-check {
@@ -207,8 +207,8 @@
 }
 
 .sf-switch[data-state="checked"] .sf-switch-check {
-  color: rgb(180, 112, 247);
-  fill: rgb(180, 112, 247);
+  color: #121214;
+  fill: #121214;
 }
 
 html {

@@ -36,6 +36,8 @@ function makePin(overrides: Partial<NormalizedPinnedMessage> = {}): NormalizedPi
 // Guards: AE3 unpin confirm flow — first click arms, second click within 5s fires onUnpin, auto-reverts otherwise. Guards regression cfb0033-area where an accidental unpin must require a second click
 // Guards: long-content paths (truncate-safe usernames, break-words body, break-all on link fragments) — the banner must not push siblings off-screen at multistream's ~280px slot floor
 // Exempt: no async branch in source — pin data is delivered via prop from the upstream Twitch GQL pin poller / Kick Pusher event. Loading/error live in the poller; the empty state ("no pinned message") is "parent omits the banner entirely", validated at PinnedMessageBanner's consumer (TwitchChat / KickChat).
+// Guards: mention fragments render as @username in pinned-message bodies without duplicating an existing @ prefix
+// Guards: pinned-message cards use the same neutral-800 surface as the global search input across platforms
 describe("PinnedMessageBanner", () => {
   it("renders pinnedBy label and content (no author prefix on body — Twitch-faithful)", () => {
     render(
@@ -56,7 +58,29 @@ describe("PinnedMessageBanner", () => {
     expect(screen.getByTestId("pinned-message-content")).toHaveTextContent("check the bracket");
   });
 
-  it("shows only ONE primary badge next to pinnedBy username (matches twitch.tv)", () => {
+  it("renders mention fragments with a single @ prefix", () => {
+    render(
+      <PinnedMessageBanner
+        pin={makePin({
+          content: [
+            { type: "text", content: "hey " },
+            { type: "mention", username: "alice" },
+            { type: "text", content: " " },
+            { type: "mention", username: "@bob" },
+          ],
+        })}
+        viewerRole="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("@alice")).toBeInTheDocument();
+    expect(screen.getByText("@bob")).toBeInTheDocument();
+    expect(screen.queryByText("@@bob")).not.toBeInTheDocument();
+  });
+
+  it("shows broadcaster plus partner badges next to a partner broadcaster pinnedBy username", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({
@@ -67,7 +91,7 @@ describe("PinnedMessageBanner", () => {
               // Highest-priority role badge — should be the one rendered
               { setId: "broadcaster", version: "1", imageUrl: "https://example/b/1", title: "Broadcaster" },
               { setId: "subscriber", version: "12", imageUrl: "https://example/s/1", title: "1-Year Sub" },
-              { setId: "partner", version: "1", imageUrl: "https://example/p/1", title: "Verified" },
+              { setId: "verified", version: "1", imageUrl: "https://example/v/1", title: "Verified" },
             ],
           },
         })}
@@ -79,8 +103,36 @@ describe("PinnedMessageBanner", () => {
     // Only one badge image — the Broadcaster — should appear in the header.
     const header = screen.getByTestId("pinned-message-header");
     const headerImgs = header.querySelectorAll("img");
-    expect(headerImgs.length).toBe(1);
+    expect(headerImgs.length).toBe(2);
     expect(headerImgs[0].getAttribute("alt")).toBe("Broadcaster");
+    expect(headerImgs[1].getAttribute("alt")).toBe("Verified");
+  });
+
+  it("also treats Twitch partner as the partner badge for broadcaster pinners", () => {
+    render(
+      <PinnedMessageBanner
+        pin={makePin({
+          platform: "twitch",
+          pinnedBy: {
+            username: "fitzbro",
+            color: "#008000",
+            badges: [
+              { setId: "broadcaster", version: "1", imageUrl: "https://example/b/1", title: "Broadcaster" },
+              { setId: "partner", version: "1", imageUrl: "https://example/p/1", title: "Partner" },
+            ],
+          },
+        })}
+        viewerRole="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+      />,
+    );
+
+    const header = screen.getByTestId("pinned-message-header");
+    const headerImgs = header.querySelectorAll("img");
+    expect(headerImgs.length).toBe(2);
+    expect(headerImgs[0].getAttribute("alt")).toBe("Broadcaster");
+    expect(headerImgs[1].getAttribute("alt")).toBe("Partner");
   });
 
   it("falls back to the lowest priority badge when no role badge is present", () => {
@@ -265,6 +317,35 @@ describe("PinnedMessageBanner", () => {
     expect(twitchBanner.getAttribute("data-platform")).toBe("twitch");
     // Same component, same outer classes — only the data-platform attr varies.
     expect(twitchBanner.className).toBe(kickClasses);
+  });
+
+  it("uses the shared global-search neutral-800 card surface for both platforms", () => {
+    const { rerender } = render(
+      <PinnedMessageBanner
+        pin={makePin({ platform: "kick" })}
+        viewerRole="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+    const kickCard = screen.getByTestId("pinned-message-banner").firstElementChild;
+    expect(kickCard).toHaveClass("bg-neutral-800");
+    expect(kickCard).toHaveStyle({
+      borderColor: "rgba(240, 241, 242, 0.16)",
+    });
+
+    rerender(
+      <PinnedMessageBanner
+        pin={makePin({ platform: "twitch" })}
+        viewerRole="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+    const twitchCard = screen.getByTestId("pinned-message-banner").firstElementChild;
+    expect(twitchCard).toHaveClass("bg-neutral-800");
   });
 
   it("does NOT render the hide button in collapsed state (matches Twitch native)", () => {

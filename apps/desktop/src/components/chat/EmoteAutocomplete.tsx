@@ -176,9 +176,9 @@ export const EmoteAutocomplete: React.FC<EmoteAutocompleteProps> = ({
       aria-label="Emote suggestions"
     >
       {/* Header */}
-      <div className="px-3 py-1.5 text-xs text-gray-500 border-b border-[var(--color-border)] flex justify-between">
+      <div className="px-3 py-1.5 text-xs text-neutral-500 border-b border-[var(--color-border)] flex justify-between">
         <span>Emotes matching &quot;{match.query}&quot;</span>
-        <span className="text-gray-600">↑↓ to navigate, Tab/Enter to select</span>
+        <span className="text-neutral-600">↑↓ to navigate, Tab/Enter to select</span>
       </div>
 
       {/* Suggestions */}

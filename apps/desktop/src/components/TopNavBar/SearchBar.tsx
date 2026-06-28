@@ -21,7 +21,7 @@ export const SearchBar = memo(function SearchBar({ className }: SearchBarProps) 
       className={className}
       inputClassName="!bg-[#191919] placeholder:!text-white/30"
       onSearch={handleSearch}
-      placeholder="Enter streamer name..."
+      placeholder="Search StreamFusion..."
     />
   );
 });

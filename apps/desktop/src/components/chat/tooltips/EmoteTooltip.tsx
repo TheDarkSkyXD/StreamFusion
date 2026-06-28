@@ -11,7 +11,7 @@ interface EmoteTooltipProps {
 
 const PROVIDER_COLORS: Record<string, string> = {
   twitch: "#9146FF",
-  kick: "#53FC18", // Keeping for text color if needed, but styling is gray button in screenshot
+  kick: "#53FC18", // Keeping for text color if needed, but styling is neutral button in screenshot
   bttv: "#D50014",
   ffz: "#5D8FBC",
   "7tv": "#29B6F6",
@@ -155,10 +155,10 @@ export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emot
         {(emote.isAnimated || emote.isZeroWidth) && (
           <div className="flex gap-2">
             {emote.isAnimated && (
-              <span className="text-[10px] font-bold text-gray-500 uppercase">GIF</span>
+              <span className="text-[10px] font-bold text-neutral-500 uppercase">GIF</span>
             )}
             {emote.isZeroWidth && (
-              <span className="text-[10px] font-bold text-gray-500 uppercase">ZW</span>
+              <span className="text-[10px] font-bold text-neutral-500 uppercase">ZW</span>
             )}
           </div>
         )}

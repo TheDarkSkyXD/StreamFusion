@@ -54,12 +54,34 @@ function baseMessage(overrides: Partial<ChatMessageType> = {}): ChatMessageType 
   } as ChatMessageType;
 }
 
+// Guards: emote-heavy chat rows stay Kick-compact instead of adding outer row gaps around each emote line
+// Guards: chat rows clip horizontal overflow without becoming per-message vertical scroll containers
 // Guards: inline chat images reserve dimensions and load eagerly so virtualized fast chat does not flicker from row remeasurement
+// Guards: mention fragments render as @username in chat rows without duplicating an existing @ prefix
 describe('ChatMessage', () => {
   it('renders username and text fragment', () => {
     render(<ChatMessage message={baseMessage()} />);
     expect(screen.getByText('Ninja')).toBeInTheDocument();
     expect(screen.getByText(/hello world/)).toBeInTheDocument();
+  });
+
+  it('renders mention fragments with a single @ prefix', () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          content: [
+            { type: 'text', content: 'hey ' },
+            { type: 'mention', username: 'alice' },
+            { type: 'text', content: ' ' },
+            { type: 'mention', username: '@bob' },
+          ],
+        })}
+      />
+    );
+
+    expect(screen.getByText('@alice')).toBeInTheDocument();
+    expect(screen.getByText('@bob')).toBeInTheDocument();
+    expect(screen.queryByText('@@bob')).not.toBeInTheDocument();
   });
 
   it('renders deleted-message placeholder when isDeleted', () => {
@@ -147,20 +169,47 @@ describe('ChatMessage chatDisplay appearance (U2)', () => {
     expect(row.style.fontSize).toBe('18px');
   });
 
-  it('uses cozy padding/line-height by default', () => {
+  it('uses Kick-compact cozy padding/line-height by default', () => {
     const { container } = render(<ChatMessage message={baseMessage()} />);
     const row = container.querySelector('.group') as HTMLElement;
-    expect(row.className).toContain('py-1');
-    expect(row.className).toContain('leading-[1.4]');
+    expect(row.className).toContain('py-0.5');
+    expect(row.className).toContain('leading-[1.35]');
   });
 
   it('uses tighter padding/line-height when density is compact', () => {
     setChatDisplay({ density: 'compact' });
     const { container } = render(<ChatMessage message={baseMessage()} />);
     const row = container.querySelector('.group') as HTMLElement;
-    expect(row.className).toContain('py-0.5');
+    expect(row.className).toContain('py-0');
     expect(row.className).toContain('leading-[1.2]');
-    expect(row.className).not.toContain('leading-[1.4]');
+    expect(row.className).not.toContain('leading-[1.35]');
+  });
+
+  it('does not add cozy row padding around an emote-only Kick message', () => {
+    const { container } = render(
+      <ChatMessage
+        message={baseMessage({
+          platform: 'kick',
+          username: 'COME_AT_ME_BRAHHH',
+          displayName: 'COME_AT_ME_BRAHHH',
+          content: [
+            {
+              type: 'emote',
+              id: 'kick-mia',
+              name: 'KICKMIA',
+              url: 'https://example.com/kickmia.png',
+            },
+            { type: 'text', content: ' KICK MIA' },
+          ],
+        })}
+      />
+    );
+
+    const row = container.querySelector('.group') as HTMLElement;
+    expect(row.className).toContain('py-0.5');
+    expect(row.className).not.toContain('py-1');
+    expect(screen.getByAltText('KICKMIA')).toBeInTheDocument();
+    expect(screen.getByText('KICK MIA')).toBeInTheDocument();
   });
 
   it('applies emoteSizePx to rendered emote images', () => {
@@ -249,7 +298,8 @@ describe('ChatMessage chatDisplay appearance (U2)', () => {
     );
 
     const row = container.querySelector('.group') as HTMLElement;
-    expect(row.className).toContain('overflow-x-hidden');
+    expect(row.className).toContain('overflow-x-clip');
+    expect(row.className).not.toContain('overflow-x-hidden');
 
     const content = row.querySelector('[data-testid="chat-message-content"]') as HTMLElement;
     expect(content.className).toContain('max-w-full');

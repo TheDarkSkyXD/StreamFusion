@@ -14,7 +14,8 @@
  */
 
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { Emote } from "../../../backend/services/emotes/emote-types";
 import { useChannelByUsername } from "../../../hooks/queries/useChannels";
 import type { ChatPlatform } from "../../../shared/chat-types";
@@ -26,6 +27,7 @@ import { EmotePickerPopover } from "../EmotePickerPopover";
  *  are loaded yet). Surfaces a recognizable green-blob KEKW on first paint. */
 const KICK_FALLBACK_EMOTE_ID = "1730762";
 const kickEmoteUrl = (id: string) => `https://files.kick.com/emotes/${id}/fullsize`;
+const EMPTY_KICK_EMOTE_POOL: Emote[] = [];
 
 interface NativeEmoteButtonProps {
   platform: ChatPlatform;
@@ -35,6 +37,7 @@ interface NativeEmoteButtonProps {
    *  cache hit on the chat page. */
   channel: string;
   channelId: string | null;
+  kickUserId?: string | null;
   isOpen: boolean;
   onOpenRequest: () => void;
   onEmoteSelect: (emote: Emote) => void;
@@ -54,6 +57,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
   platform,
   channel,
   channelId,
+  kickUserId,
   isOpen,
   onOpenRequest,
   onEmoteSelect,
@@ -72,42 +76,27 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
   // the button matches KickTalk's `kickEmoteButton` UX (random emote image
   // updates each time the cursor enters). Twitch keeps its static glitch mark.
   //
-  // We can't read this via a zustand selector — `getEmotesByProvider()` builds
-  // a new Map on every call, which would force-rerender on every store update
-  // and (because pool is in the dep array of the seeding effect) loop forever.
-  // Instead we pull a stable snapshot inside an effect that subscribes to the
-  // store directly.
-  const [kickEmotePool, setKickEmotePool] = useState<Emote[]>([]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `channelId` is the re-subscribe trigger; the body reads from the store imperatively, so the value isn't referenced directly
-  useEffect(() => {
-    if (platform !== "kick") {
-      setKickEmotePool([]);
-      return;
-    }
-    const refresh = () => {
-      const pool = useEmoteStore.getState().getEmotesByProvider().get("kick");
-      setKickEmotePool((pool ?? []).filter((e) => !e.subscribersOnly));
-    };
-    refresh();
-    const unsubscribe = useEmoteStore.subscribe(refresh);
-    return unsubscribe;
-  }, [platform, channelId]);
+  const kickEmotePool = useEmoteStore(
+    useShallow((state) => {
+      if (platform !== "kick") return EMPTY_KICK_EMOTE_POOL;
+      const pool = state.getEmotesByProvider().get("kick");
+      if (!pool?.length) return EMPTY_KICK_EMOTE_POOL;
+      return pool.filter((emote) => !emote.subscribersOnly);
+    })
+  );
 
-  const [hoverEmoteId, setHoverEmoteId] = useState<string>(KICK_FALLBACK_EMOTE_ID);
-
-  // Reseed when the pool changes (channel switch, lazy emote load) so the
-  // default ID isn't sticky on a channel that has its own emotes loaded.
-  useEffect(() => {
-    if (platform !== "kick" || kickEmotePool.length === 0) return;
-    const seed = kickEmotePool[Math.floor(Math.random() * kickEmotePool.length)];
-    if (seed) setHoverEmoteId(seed.id);
-  }, [platform, kickEmotePool]);
+  const kickPoolKey = `${platform}:${channelId ?? channel}`;
+  const [hoverEmote, setHoverEmote] = useState<{ key: string; id: string } | null>(null);
+  const displayKickEmoteId =
+    hoverEmote?.key === kickPoolKey
+      ? hoverEmote.id
+      : (kickEmotePool[0]?.id ?? KICK_FALLBACK_EMOTE_ID);
 
   const rerollKickEmote = useCallback(() => {
     if (platform !== "kick" || kickEmotePool.length === 0) return;
     const next = kickEmotePool[Math.floor(Math.random() * kickEmotePool.length)];
-    if (next) setHoverEmoteId(next.id);
-  }, [platform, kickEmotePool]);
+    if (next) setHoverEmote({ key: kickPoolKey, id: next.id });
+  }, [platform, kickEmotePool, kickPoolKey]);
 
   return (
     <>
@@ -133,7 +122,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         >
           {platform === "kick" ? (
             <img
-              src={kickEmoteUrl(hoverEmoteId)}
+              src={kickEmoteUrl(displayKickEmoteId)}
               alt=""
               width={24}
               height={24}
@@ -154,6 +143,8 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         scope="native"
         platform={platform}
         channelId={channelId}
+        channelName={channel}
+        kickUserId={kickUserId}
         viewerIsSubscribed={viewerIsSubscribed}
         channelAvatarUrl={channelAvatarUrl}
         channelLabel={channelLabel}

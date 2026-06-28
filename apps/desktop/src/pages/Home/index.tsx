@@ -3,13 +3,16 @@ import { Link } from "@tanstack/react-router";
 import { FeaturedStream } from "@/components/stream/featured-stream";
 import { Button } from "@/components/ui/button";
 import { useTopStreams } from "@/hooks/queries/useStreams";
+import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 
 import { LiveNowSection } from "./components/live-now-section";
 
 export function HomePage() {
   const { data: streams, isLoading, error } = useTopStreams(undefined, 25);
+  const canRenderContent = useAfterFirstPaint();
 
   const featuredStream = streams && streams.length > 0 ? streams[0] : undefined;
+  const featuredStreams = streams?.slice(0, 10);
   const otherStreams = streams && streams.length > 1 ? streams.slice(1) : [];
 
   if (error) {
@@ -28,11 +31,29 @@ export function HomePage() {
     <div className="p-6 space-y-8 max-w-[1800px] mx-auto">
       {/* Featured Stream Section */}
       <section>
-        <FeaturedStream stream={featuredStream} isLoading={isLoading} />
+        {canRenderContent ? (
+          <FeaturedStream stream={featuredStream} streams={featuredStreams} isLoading={isLoading} />
+        ) : (
+          <div className="h-[420px] rounded-xl bg-[var(--color-background-secondary)] animate-pulse" />
+        )}
       </section>
 
       {/* Live Channels Section */}
-      <LiveNowSection streams={otherStreams} isLoading={isLoading} />
+      {canRenderContent ? (
+        <LiveNowSection streams={otherStreams} isLoading={isLoading} />
+      ) : (
+        <div className="space-y-4">
+          <div className="h-7 w-36 rounded bg-[var(--color-background-secondary)] animate-pulse" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="aspect-video rounded-xl bg-[var(--color-background-secondary)] animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Browse Categories Link */}
       <div className="flex justify-center pt-8">

@@ -57,6 +57,7 @@ export const VideoCard = memo(function VideoCard({
           channelName: video.channelName || video.channelSlug || channelName,
           channelDisplayName: video.channelName || channelData?.displayName || channelName,
           channelAvatar: video.channelAvatar || channelData?.avatarUrl || undefined,
+          thumbnail: video.thumbnailUrl || undefined,
           views: video.views,
           date: video.created_at || video.date,
           category: video.category || video.gameName || undefined,
@@ -134,12 +135,12 @@ export const VideoCard = memo(function VideoCard({
         </div>
 
         {/* Hover overlay - show lock for sub-only, play for regular */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center scale-90 group-hover:scale-100 transition-transform">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all group-hover:scale-100 group-hover:bg-white group-hover:text-black">
             {video.isSubOnly ? (
-              <LuLock className="w-5 h-5 text-white" />
+              <LuLock className="h-5 w-5" />
             ) : (
-              <LuPlay className="w-5 h-5 text-white fill-white" />
+              <LuPlay className="h-5 w-5 fill-current" />
             )}
           </div>
         </div>

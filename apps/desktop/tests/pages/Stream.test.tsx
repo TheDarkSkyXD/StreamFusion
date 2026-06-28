@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from '@testing-library/react';
 
+import type { PlayerError } from '@/components/player/types';
 import { fixtures, renderWithProviders, routerMock, screen } from '../test-utils';
 
-vi.mock('@tanstack/react-router', () => routerMock({ params: { platform: 'twitch', channel: 'ninja' } }));
+const mockRouteParams = vi.hoisted(() => ({
+  params: { platform: 'twitch', channel: 'ninja' },
+}));
+
+vi.mock('@tanstack/react-router', () => routerMock({ params: mockRouteParams.params }));
 
 vi.mock('@/hooks/queries/useChannels', () => ({
   useChannelByUsername: vi.fn(),
@@ -26,6 +32,10 @@ const mockPlaybackState: {
 const mockSetCurrentStream = vi.fn();
 const mockSetIsOnStreamPage = vi.fn();
 const mockUseStreamPlayback = vi.fn();
+const playerMocks = vi.hoisted(() => ({
+  kickLivePlayerProps: null as null | { onError?: (error: PlayerError) => void },
+}));
+const mockReloadPlayback = vi.fn();
 
 vi.mock('@/hooks/useStreamPlayback', () => ({
   useStreamPlayback: (platform: string, identifier: string) => {
@@ -40,10 +50,11 @@ vi.mock('@/hooks/useStreamPlayback', () => ({
       get error() {
         return mockPlaybackState.error;
       },
-      reload: vi.fn(),
+      reload: mockReloadPlayback,
       isUsingProxy: false,
       retryWithoutProxy: vi.fn(),
       reloadAttempts: 0,
+      playbackRevision: 0,
     };
   },
 }));
@@ -69,7 +80,10 @@ vi.mock('@/components/player/twitch', () => ({
 }));
 
 vi.mock('@/components/player/kick', () => ({
-  KickLivePlayer: () => <div data-testid="kick-live-player">player</div>,
+  KickLivePlayer: (props: { onError?: (error: PlayerError) => void }) => {
+    playerMocks.kickLivePlayerProps = props;
+    return <div data-testid="kick-live-player">player</div>;
+  },
 }));
 
 vi.mock('@/components/chat', () => ({
@@ -111,6 +125,7 @@ function setChatPosition(position: 'right' | 'left' | 'hidden') {
 // Guards: offline state — channel exists but streamData.startedAt is null AND no playback URL → "is currently offline" panel with a Check Again button so the page is recoverable. Distinct from "error" (which uses the same panel but is gated by playerError) — both surfaces resolve to the same UI because users can't tell the cases apart
 // Guards: error path — handlePlayerError absorbs PROXY_ERROR / NO_FRAGMENTS / TOKEN_EXPIRED via auto-refresh under 3 attempts; STREAM_OFFLINE surfaces the offline overlay when proxy fallback isn't available. The non-fatal paths must NOT show the offline overlay (verified by absence of "is currently offline" while still loading)
 // Guards: stream-ended reloads clear stale playback; if playback refresh now reports offline while metadata still says live, the page shows the offline overlay instead of keeping a dead player mounted.
+// Guards: Kick live playback must refresh instead of showing offline when HLS reports STREAM_OFFLINE while fresh metadata still says the channel is live.
 // Guards: empty channelData (loading) doesn't blank the page — even before channelData resolves the player layout reserves space so the layout doesn't shift after data lands
 // Guards: Twitch offline routes keep playback idle until metadata confirms live, avoiding repeated Usher 404s from the HLS loader
 // Guards: Twitch offline overlay includes the channel's last known category/title metadata when the channel query has it
@@ -119,10 +134,14 @@ describe('StreamPage', () => {
     useChannelMock.mockReset();
     useStreamMock.mockReset();
     mockUseStreamPlayback.mockClear();
+    mockRouteParams.params.platform = 'twitch';
+    mockRouteParams.params.channel = 'ninja';
     setChatPosition('right');
     mockPlaybackState.playback = null;
     mockPlaybackState.isLoading = false;
     mockPlaybackState.error = null;
+    mockReloadPlayback.mockClear();
+    playerMocks.kickLivePlayerProps = null;
     mockSetCurrentStream.mockClear();
     mockSetIsOnStreamPage.mockClear();
   });
@@ -131,12 +150,25 @@ describe('StreamPage', () => {
     setChatPosition('right');
   });
 
-  it('renders the Twitch live player + chat for a twitch route', () => {
+  it('renders the Twitch live player + chat for a twitch route', async () => {
     useChannelMock.mockReturnValue({ data: fixtures.channel(), isLoading: false } as ReturnType<typeof useChannelByUsername>);
     useStreamMock.mockReturnValue({ data: fixtures.stream({ title: 'Going live' }), isLoading: false } as ReturnType<typeof useStreamByChannel>);
     renderWithProviders(<StreamPage />);
-    expect(screen.getByTestId('twitch-live-player')).toBeInTheDocument();
-    expect(screen.getByTestId('chat-panel')).toBeInTheDocument();
+    expect(await screen.findByTestId('twitch-live-player')).toBeInTheDocument();
+    expect(await screen.findByTestId('chat-panel')).toBeInTheDocument();
+  });
+
+  it('keeps the chat content fixed at 340px without a resize handle', () => {
+    useChannelMock.mockReturnValue({ data: fixtures.channel(), isLoading: false } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({ data: fixtures.stream({ title: 'Going live' }), isLoading: false } as ReturnType<typeof useStreamByChannel>);
+    const { container } = renderWithProviders(<StreamPage />);
+
+    expect(screen.getByTestId('stream-chat-rail')).toHaveStyle({
+      width: '341px',
+      minWidth: '341px',
+      maxWidth: '341px',
+    });
+    expect(container.querySelector('.cursor-ew-resize')).toBeNull();
   });
 
   it('passes the loaded stream into StreamInfo', () => {
@@ -146,13 +178,13 @@ describe('StreamPage', () => {
     expect(screen.getByTestId('stream-info')).toHaveTextContent('My Title');
   });
 
-  it('hides the chat panel when chat position is "hidden" (U5)', () => {
+  it('hides the chat panel when chat position is "hidden" (U5)', async () => {
     useChannelMock.mockReturnValue({ data: fixtures.channel(), isLoading: false } as ReturnType<typeof useChannelByUsername>);
     useStreamMock.mockReturnValue({ data: fixtures.stream({ title: 'Going live' }), isLoading: false } as ReturnType<typeof useStreamByChannel>);
     setChatPosition('hidden');
     renderWithProviders(<StreamPage />);
     // Player still renders; the chat panel (and the chat service it mounts) does not.
-    expect(screen.getByTestId('twitch-live-player')).toBeInTheDocument();
+    expect(await screen.findByTestId('twitch-live-player')).toBeInTheDocument();
     expect(screen.queryByTestId('chat-panel')).toBeNull();
   });
 
@@ -237,6 +269,35 @@ describe('StreamPage', () => {
 
     expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /check again/i })).toBeInTheDocument();
+  });
+
+  it('refreshes Kick playback instead of showing offline when HLS reports offline but metadata still says live', async () => {
+    mockRouteParams.params.platform = 'kick';
+    mockRouteParams.params.channel = 'iceposeidon';
+    useChannelMock.mockReturnValue({
+      data: fixtures.channel({ displayName: 'Ice Poseidon', isLive: true }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({ title: 'Cx House', startedAt: '2026-06-25T00:00:00.000Z' }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.isLoading = false;
+    mockPlaybackState.playback = { url: 'https://stream.kick.com/live.m3u8' };
+
+    renderWithProviders(<StreamPage />);
+    await screen.findByTestId('kick-live-player');
+
+    act(() => {
+      playerMocks.kickLivePlayerProps?.onError?.({
+        code: 'STREAM_OFFLINE',
+        message: 'Stream offline or unavailable',
+        fatal: true,
+      });
+    });
+
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/is currently offline/i)).toBeNull();
   });
 
   it('primes PiP as soon as playback URL exists even while stream metadata is loading', () => {

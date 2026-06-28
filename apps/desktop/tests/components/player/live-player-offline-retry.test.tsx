@@ -5,7 +5,10 @@ import type { PlayerError } from "@/components/player/types";
 
 const h = vi.hoisted(() => ({
   kickHlsProps: null as null | { onError?: (error: PlayerError) => void },
-  twitchHlsProps: null as null | { onError?: (error: PlayerError) => void },
+  twitchHlsProps: null as null | {
+    onAdBlockRecoveryRefresh?: () => void;
+    onError?: (error: PlayerError) => void;
+  },
 }));
 
 vi.mock("@/components/ui/loading-spinner", () => ({
@@ -71,7 +74,10 @@ vi.mock("@/components/player/kick/uptime-readout", () => ({
 }));
 
 vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
-  TwitchHlsPlayer: (props: { onError?: (error: PlayerError) => void }) => {
+  TwitchHlsPlayer: (props: {
+    onAdBlockRecoveryRefresh?: () => void;
+    onError?: (error: PlayerError) => void;
+  }) => {
     h.twitchHlsProps = props;
     return <div data-testid="twitch-hls-player" />;
   },
@@ -99,6 +105,7 @@ const offlineError: PlayerError = {
 };
 
 // Guards: live-player wrappers must surface confirmed STREAM_OFFLINE errors to the page instead of refreshing forever on fresh-but-dead playback URLs.
+// Guards: Twitch adblock recovery can escalate from an HLS reload to the page-owned playback URL refresh without coupling the adblock service to page state.
 describe("live player offline retry handling", () => {
   beforeEach(() => {
     h.kickHlsProps = null;
@@ -134,5 +141,20 @@ describe("live player offline retry handling", () => {
 
     expect(onRefresh).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith(offlineError);
+  });
+
+  it("Twitch passes the page refresh callback into adblock recovery", () => {
+    const onRefresh = vi.fn();
+    render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"
+        channelName="xqc"
+        onRefresh={onRefresh}
+      />
+    );
+
+    act(() => h.twitchHlsProps?.onAdBlockRecoveryRefresh?.());
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });

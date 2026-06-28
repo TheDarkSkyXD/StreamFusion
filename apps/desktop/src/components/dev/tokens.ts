@@ -4,7 +4,7 @@
  * (DebugPanel.tsx imports the tools, the tools import these tokens — if they
  * imported them from DebugPanel.tsx they'd hit a TDZ ReferenceError).
  *
- * Mirrors the StreamFusion app theme (apps/desktop/src/index.css): dark
+ * Mirrors the StreamFusion app theme (apps/desktop/src/global.css): dark
  * backgrounds (#0f0f0f / #252525 / #2d2d2d), crimson brand accent (#dc143c),
  * white foreground. Surfaces use rgba so backdrop-filter blur reads through.
  */

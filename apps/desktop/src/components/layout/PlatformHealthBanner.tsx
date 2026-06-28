@@ -5,20 +5,24 @@ import { usePlatformHealth } from "@/hooks/usePlatformHealth";
 
 export function PlatformHealthBanner() {
   const { kick, twitch, anyDegraded, details = {} } = usePlatformHealth();
+  const kickBannerHealth = kick === "down" || details.kick != null ? kick : "healthy";
+  const bannerHasDegradedPlatform = kickBannerHealth !== "healthy" || twitch !== "healthy";
 
-  if (!anyDegraded) return null;
+  if (!anyDegraded || !bannerHasDegradedPlatform) return null;
 
-  const kickUnhealthy = kick !== "healthy";
+  const kickUnhealthy = kickBannerHealth !== "healthy";
   const twitchUnhealthy = twitch !== "healthy";
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`flex items-center justify-center gap-2.5 px-4 py-4 text-lg font-bold text-center ${platformColors(kick, twitch)}`}
+      className={`flex items-center justify-center gap-2.5 px-4 py-4 text-lg font-bold text-center ${platformColors(kickBannerHealth, twitch)}`}
     >
       <WifiOff className="h-5 w-5 shrink-0" />
-      <span>{computeMessage(kick, twitch, details.kick?.summary, details.twitch?.summary)}</span>
+      <span>
+        {computeMessage(kickBannerHealth, twitch, details.kick?.summary, details.twitch?.summary)}
+      </span>
     </div>
   );
 }
@@ -48,7 +52,7 @@ function computeMessage(
 function platformColors(kick: PlatformHealth, twitch: PlatformHealth): string {
   const kickUnhealthy = kick !== "healthy";
   const twitchUnhealthy = twitch !== "healthy";
-  if (kickUnhealthy && twitchUnhealthy) return "bg-gray-700 text-white";
+  if (kickUnhealthy && twitchUnhealthy) return "bg-neutral-700 text-white";
   if (twitchUnhealthy) return "bg-[#9146FF] text-white";
   return "bg-black text-[#53FC18]";
 }

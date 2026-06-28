@@ -79,7 +79,7 @@ export const ChatPanelTabs: React.FC<ChatPanelTabsProps> = ({
               className={`px-3 py-2 text-xs font-medium transition-colors flex items-center gap-1.5 ${
                 isActive
                   ? "bg-[#9146FF]/20 text-purple-300 border-b-2 border-purple-400"
-                  : "text-gray-400 hover:text-white"
+                  : "text-neutral-400 hover:text-white"
               }`}
             >
               <span>{TAB_LABELS[tab]}</span>

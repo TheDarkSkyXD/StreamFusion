@@ -2,8 +2,8 @@
  * TwitchPinMessageDialog
  *
  * Modal a mod uses to pick a duration before pinning a chat message.
- * Offers the same four choices Twitch's native pin flow does: 1h, 12h,
- * 24h, or no expiry. Default = 1h (Twitch's own default in the web UI).
+ * Offers Helix-compatible timed choices: 5m, 15m, 30m, or no expiry.
+ * Default = 30m (Twitch Helix's maximum timed pin duration).
  *
  * The actual pin mutation runs in the parent (`TwitchChat`) so the dialog
  * stays presentation-only — it just collects the duration and reports back
@@ -29,13 +29,13 @@ interface DurationOption {
 }
 
 const DURATION_OPTIONS: DurationOption[] = [
-  { label: "1 hour", value: 60 * 60 },
-  { label: "12 hours", value: 12 * 60 * 60 },
-  { label: "24 hours", value: 24 * 60 * 60 },
+  { label: "5 minutes", value: 5 * 60 },
+  { label: "15 minutes", value: 15 * 60 },
+  { label: "30 minutes", value: 30 * 60 },
   { label: "No expiry", value: null },
 ];
 
-const DEFAULT_DURATION_SECONDS = 60 * 60; // 1 hour — Twitch's UI default.
+const DEFAULT_DURATION_SECONDS = 30 * 60;
 
 export interface TwitchPinMessageDialogProps {
   open: boolean;
