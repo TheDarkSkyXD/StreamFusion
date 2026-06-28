@@ -24,6 +24,7 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
     isAuthenticated: vi.fn(),
     getFollowedStreams: vi.fn(),
     getPublicStreamBySlug: vi.fn(),
+    getChannelsByBroadcasterIds: vi.fn(),
   },
 }));
 
@@ -58,6 +59,8 @@ vi.mock("@/backend/api/unified/registry", () => ({
 vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
     getActiveFollowsByPlatform: vi.fn(),
+    getLocalFollowsByPlatform: vi.fn(),
+    updateLocalFollow: vi.fn(),
   },
 }));
 
@@ -88,6 +91,8 @@ function getHandler(channel: string): Handler {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
+  vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
   registerStreamHandlers();
 });
 
@@ -310,6 +315,61 @@ describe("STREAMS_GET_FOLLOWED", () => {
     );
   });
 
+  it("repairs renamed Kick follow slugs before scanning live streams", async () => {
+    vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
+      platform === "kick"
+        ? ([
+            {
+              id: "follow-1",
+              platform: "kick",
+              channelId: "123",
+              channelName: "old-slug",
+              displayName: "Old Slug",
+              profileImage: "",
+              followedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ] as any)
+        : []
+    );
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
+      {
+        id: "123",
+        platform: "kick",
+        username: "new-slug",
+        displayName: "New Slug",
+        avatarUrl: "https://example.com/new.jpg",
+      },
+    ] as any);
+    vi.mocked(kickClient.getPublicStreamBySlug).mockResolvedValue({
+      id: "stream-123",
+      viewerCount: 42,
+    } as any);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = (await handler({}, { platform: "kick" })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([expect.objectContaining({ id: "stream-123" })]);
+    expect(kickClient.getChannelsByBroadcasterIds).toHaveBeenCalledWith([123]);
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("follow-1", {
+      channelName: "new-slug",
+      displayName: "New Slug",
+      profileImage: "https://example.com/new.jpg",
+    });
+    expect(kickClient.getPublicStreamBySlug).toHaveBeenCalledWith(
+      "new-slug",
+      0,
+      expect.any(AbortSignal)
+    );
+    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalledWith(
+      "old-slug",
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
   it("does not let a concurrent Kick followed-stream scan abort an already visible scan", async () => {
     vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
     vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
@@ -444,6 +504,49 @@ describe("STREAMS_GET_PLAYBACK_URL", () => {
 
     expect(result.success).toBe(true);
     expect(result.data.url).toBe("https://kick.com/stream.m3u8");
+  });
+
+  it("repairs a renamed Kick follow slug and retries playback once", async () => {
+    const { KickStreamResolver } = await import(
+      "@/backend/api/platforms/kick/kick-stream-resolver"
+    );
+    (KickStreamResolver as any).__mock
+      .mockRejectedValueOnce(new Error("Channel not found for old-slug - renamed"))
+      .mockResolvedValueOnce({
+        url: "https://kick.com/repaired.m3u8",
+      });
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "follow-1",
+        platform: "kick",
+        channelId: "123",
+        channelName: "old-slug",
+        displayName: "Old Slug",
+        profileImage: "",
+        followedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ] as any);
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
+      {
+        id: "123",
+        platform: "kick",
+        username: "new-slug",
+        displayName: "New Slug",
+        avatarUrl: "",
+      },
+    ] as any);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
+    const result = (await handler({}, { platform: "kick", channelSlug: "old-slug" })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data.url).toBe("https://kick.com/repaired.m3u8");
+    expect((KickStreamResolver as any).__mock).toHaveBeenNthCalledWith(1, "old-slug");
+    expect((KickStreamResolver as any).__mock).toHaveBeenNthCalledWith(2, "new-slug");
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("follow-1", {
+      channelName: "new-slug",
+      displayName: "New Slug",
+    });
   });
 
   it("returns error envelope on unsupported platform", async () => {

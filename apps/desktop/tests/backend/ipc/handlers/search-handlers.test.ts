@@ -50,6 +50,7 @@ import { ipcMain } from "electron";
 import { getChannelsBySlugs } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
 import { getUsersById } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
+import { getFollowerCounts } from "@/backend/api/platforms/twitch/endpoints/user-endpoints";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { registerSearchHandlers } from "@/backend/ipc/handlers/search-handlers";
 import { storageService } from "@/backend/services/storage-service";
@@ -290,6 +291,64 @@ describe("SEARCH_CHANNELS", () => {
 
     expect(result.data).toHaveLength(1);
     expect(result.data[0].username).toBe("other");
+  });
+
+  it("marks authenticated Twitch partner search results as verified", async () => {
+    vi.mocked(twitchClient.isAuthenticated).mockReturnValue(true);
+    vi.mocked(twitchClient.searchChannels).mockResolvedValue({
+      data: [{ id: "1", username: "partner", displayName: "Partner", isLive: false }],
+      cursor: undefined,
+    } as any);
+    vi.mocked(twitchClient.getUsersByLogin).mockResolvedValue([
+      {
+        id: "1",
+        login: "partner",
+        displayName: "Partner",
+        profileImageUrl: "https://example.com/partner.png",
+        broadcasterType: "partner",
+      },
+    ] as any);
+    vi.mocked(getFollowerCounts).mockResolvedValue(new Map([["1", 1234]]));
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
+    const result = (await handler({}, { query: "partner", platform: "twitch" })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data[0].isPartner).toBe(true);
+    expect(result.data[0].isVerified).toBe(true);
+  });
+
+  it("preserves Kick partner metadata during authenticated channel enrichment", async () => {
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(true);
+    vi.mocked(kickClient.searchChannels).mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          username: "partner",
+          displayName: "Partner",
+          isLive: false,
+          isPartner: true,
+        },
+      ],
+    } as any);
+    vi.mocked(getChannelsBySlugs).mockResolvedValue([
+      {
+        id: "1",
+        username: "partner",
+        displayName: "Partner",
+        avatarUrl: "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
+    ] as any);
+    vi.mocked(getUsersById).mockResolvedValue([{ user_id: 1, name: "Partner" }] as any);
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
+    const result = (await handler({}, { query: "partner", platform: "kick" })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data[0].isPartner).toBe(true);
   });
 
   it("includes own account when query exactly matches", async () => {

@@ -32,6 +32,17 @@ const KICK_IMPACT_PATTERNS: Array<[RegExp, string]> = [
 ];
 const KICK_SERVICE_NAME_KEYS = ["display_name", "displayName", "name", "label", "service_name"];
 const KICK_SERVICE_STATUS_KEYS = ["status", "impact", "state", "status_text", "statusText"];
+const KICK_MAIN_STATUS_SERVICES = new Set([
+  "public api",
+  "public apis",
+  "platform",
+  "streaming",
+  "authentication",
+  "chat",
+  "notifications",
+  "payments",
+  "data services",
+]);
 
 const pollers = new Map<Platform, ReturnType<typeof createManagedInterval>>();
 
@@ -149,9 +160,16 @@ function normalizeKickStatusLabel(value: string): string {
   return sanitized.length === 0 ? value : sanitized[0].toUpperCase() + sanitized.slice(1);
 }
 
+function normalizeKickServiceName(name: string): string {
+  return sanitizeStatusString(name)
+    .toLowerCase()
+    .replace(/^kick\s*-\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function isKickMainStatusService(name: string): boolean {
-  const normalized = sanitizeStatusString(name).toLowerCase();
-  return normalized.length > 0 && normalized !== "other" && !normalized.includes("catch all");
+  return KICK_MAIN_STATUS_SERVICES.has(normalizeKickServiceName(name));
 }
 
 function buildServiceStatusDetail(servicesJson: unknown): StatusPageDetail | undefined {

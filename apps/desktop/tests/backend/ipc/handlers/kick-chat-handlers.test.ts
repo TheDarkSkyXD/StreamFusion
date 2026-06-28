@@ -56,14 +56,14 @@ describe("KICK_CHAT_ENSURE_SEND_WINDOW_READY", () => {
 });
 
 describe("KICK_CHAT_SEND_MESSAGE", () => {
-  it("passes chatroomId and content to sendKickChatMessage", async () => {
+  it("passes chatroomId, content, and broadcasterUserId to sendKickChatMessage", async () => {
     const expected = { ok: true, status: 200 };
     vi.mocked(sendKickChatMessage).mockResolvedValue(expected as any);
 
     const handler = getHandler(IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE);
-    const result = await handler({}, { chatroomId: 42, content: "hello" });
+    const result = await handler({}, { chatroomId: 42, content: "hello", broadcasterUserId: 99 });
 
-    expect(sendKickChatMessage).toHaveBeenCalledWith(42, "hello");
+    expect(sendKickChatMessage).toHaveBeenCalledWith(42, "hello", 99);
     expect(result).toBe(expected);
   });
 });

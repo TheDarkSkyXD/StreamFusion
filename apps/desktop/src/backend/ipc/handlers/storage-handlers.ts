@@ -3,6 +3,7 @@ import { ipcMain } from "electron";
 import type { LocalFollow, Platform, UserPreferences } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
+import { repairKickFollowSlugs } from "./kick-follow-repair";
 
 export function registerStorageHandlers(): void {
   // ========== Generic Storage (backward compatibility) ==========
@@ -27,17 +28,25 @@ export function registerStorageHandlers(): void {
   // This wrapper is now equivalent to `getActiveFollowsByPlatform` — the
   // function already returns guest follows when no token is present — but
   // it's kept as the seam for future "degraded mode" handling.
-  const activeFollows = (platform: Platform) => {
-    return storageService.getActiveFollowsByPlatform(platform);
+  const activeFollows = async (platform: Platform) => {
+    const follows = storageService.getActiveFollowsByPlatform(platform);
+    if (platform !== "kick" || follows.length === 0) {
+      return follows;
+    }
+
+    const { kickClient } = await import("../../api/platforms/kick/kick-client");
+    await repairKickFollowSlugs(kickClient, follows);
+
+    return storageService.getActiveFollowsByPlatform("kick");
   };
 
-  ipcMain.handle(IPC_CHANNELS.FOLLOWS_GET_ALL, () => {
-    return [...activeFollows("twitch"), ...activeFollows("kick")];
+  ipcMain.handle(IPC_CHANNELS.FOLLOWS_GET_ALL, async () => {
+    return [...(await activeFollows("twitch")), ...(await activeFollows("kick"))];
   });
 
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_GET_BY_PLATFORM,
-    (_event, { platform }: { platform: Platform }) => {
+    async (_event, { platform }: { platform: Platform }) => {
       return activeFollows(platform);
     }
   );

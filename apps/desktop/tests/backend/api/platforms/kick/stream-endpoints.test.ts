@@ -72,6 +72,7 @@ const LIVE_BODY = JSON.stringify({
   user: {
     username: "Ac7ionMan",
     profile_picture: "https://files.kick.com/avatars/ac7ionman.webp",
+    verified: { id: 1 },
   },
   livestream: {
     id: 999,
@@ -137,6 +138,14 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
         sourceField: "playback_url",
       })
     );
+  });
+
+  it("maps the Kick verified state from public channel payloads", async () => {
+    mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
+
+    const result = await getPublicStreamBySlug("ac7ionman");
+
+    expect(result?.channelIsVerified).toBe(true);
   });
 
   it("contract 2: stagger fires AFTER cache check — cache-hit path is synchronous even with staggerOffsetMs > 0", async () => {
@@ -214,6 +223,7 @@ describe("getPublicTopStreams", () => {
           id: `user-${index}`,
           username: `Alpha${index}`,
           profile_picture: `https://example.com/${index}.webp`,
+          verified: index === 0 ? { id: 1 } : null,
         },
         channel: {
           id: `channel-${index}`,
@@ -249,6 +259,7 @@ describe("getPublicTopStreams", () => {
     );
     expect(result.data).toHaveLength(10);
     expect(result.data[0].channelName).toBe("alpha-0");
+    expect(result.data[0].channelIsVerified).toBe(true);
     expect(result.cursor).toBe("livestream_next");
   });
 });

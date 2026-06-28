@@ -52,6 +52,16 @@ export function roomStateTagsToPatch(tags: TmiRoomStateTags): RoomStatePatchEven
   return patch;
 }
 
+export function noticeMsgIdToRoomStatePatch(msgId: string): RoomStatePatchEvent["patch"] {
+  if (msgId === "msg_requires_verified_phone_number") {
+    return { twitchVerification: "phone" };
+  }
+  if (msgId === "msg_verified_email") {
+    return { twitchVerification: "email" };
+  }
+  return {};
+}
+
 function parseFollowersOnly(value: string | boolean | undefined): number | null {
   if (value === undefined) return null;
   if (value === false) return null;

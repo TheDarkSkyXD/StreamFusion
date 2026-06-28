@@ -422,7 +422,7 @@ class StorageService {
     if (!current) return null;
 
     const updated = { ...current, ...updates };
-    return dbService.addFollow(updated);
+    return dbService.addFollow(updated, current.source ?? "guest");
   }
 
   /**

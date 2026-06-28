@@ -358,9 +358,57 @@ describe("revokeToken", () => {
 });
 
 describe("getAppAccessToken", () => {
-  it("always throws because client secret is not available on client", async () => {
+  it("fetches a Twitch app token through the Worker", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      jsonResponse({
+        access_token: "app-at",
+        token_type: "bearer",
+        expires_in: 7200,
+        scope: "channel:read",
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const token = await tokenExchangeService.getAppAccessToken("twitch");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://worker.test/auth/twitch/app-token",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(token.accessToken).toBe("app-at");
+    expect(token.expiresAt).toBe(Date.now() + 7200 * 1000);
+    expect(token.scope).toEqual(["channel:read"]);
+  });
+
+  it("does not fetch Kick app tokens into desktop", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(tokenExchangeService.getAppAccessToken("kick")).rejects.toThrow(
+      "Kick app tokens stay inside the StreamFusion Worker"
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("throws the Worker error when app token minting fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ error: "invalid_client" }, false, 401))
+    );
+
     await expect(tokenExchangeService.getAppAccessToken("twitch")).rejects.toThrow(
-      "App Access Token flow not supported"
+      "invalid_client"
+    );
+  });
+
+  it("includes HTTP status when the Worker app-token route has no JSON error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({}, false, 404))
+    );
+
+    await expect(tokenExchangeService.getAppAccessToken("twitch")).rejects.toThrow(
+      "App token request failed: HTTP 404"
     );
   });
 });

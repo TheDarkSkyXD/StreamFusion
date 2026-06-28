@@ -9,7 +9,9 @@ import type { Platform } from "@/shared/auth-types";
 /** Supported emote providers */
 export type EmoteProvider = "twitch" | "kick" | "bttv" | "ffz" | "7tv";
 
-export type KickEmoteSection = "channel" | "global" | "emoji";
+export type KickEmoteSection = "channel" | "subscribed" | "global" | "emoji";
+
+export type EmoteAvailability = "global" | "channel" | "user";
 
 /** Emote data structure */
 export interface Emote {
@@ -21,6 +23,8 @@ export interface Emote {
   provider: EmoteProvider;
   /** Whether this is a global emote (vs channel-specific) */
   isGlobal: boolean;
+  /** Where this emote came from: platform global, current channel, or the signed-in user's usable library. */
+  availability?: EmoteAvailability;
   /** Whether this is an animated emote (GIF/WEBP) */
   isAnimated: boolean;
   /** Whether this is a zero-width emote (overlays previous emote) */
@@ -62,6 +66,7 @@ export interface EmoteOwner {
   id: string;
   username: string;
   displayName: string;
+  avatarUrl?: string;
 }
 
 /** Emote set - a collection of emotes */
@@ -87,6 +92,9 @@ export interface EmoteProviderService {
 
   /** Fetch global emotes from this provider */
   fetchGlobalEmotes(): Promise<Emote[]>;
+
+  /** Fetch emotes the signed-in user can use across channels, when supported. */
+  fetchUserEmotes?(): Promise<Emote[]>;
 
   /**
    * Fetch channel-specific emotes.

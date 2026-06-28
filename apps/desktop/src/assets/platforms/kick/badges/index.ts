@@ -11,10 +11,8 @@
  *     visuals match Kick's current design.
  *   - subscriber / staff / sidekick keep their existing SVG sources for now —
  *     those weren't in the id3adeye set.
- *   - Sub-gifter tier aliases (subgifter5, 25, 50, etc.) all resolve to the
- *     same single sub_gifter PNG since the id3adeye repo ships one canonical
- *     icon; the actual gift COUNT shows in the badge tooltip's title
- *     (see kick-parser.parseKickBadges).
+ *   - Sub-gifter badges use Kick's current count-tiered gift icon colors.
+ *     The count is passed from kick-parser.parseKickBadges.
  */
 
 // ========== Role-badge PNGs (id3adeye/kickicons) ==========
@@ -59,14 +57,48 @@ function svgToDataUri(svg: string): string {
   return `data:image/svg+xml,${encoded}`;
 }
 
+function isSubGifterBadgeType(badgeType: string): boolean {
+  const normalized = badgeType.toLowerCase().replace(/[-\s]/g, "_");
+  return normalized === "sub_gifter" || normalized === "subgifter";
+}
+
+function getGiftBadgeMainColor(quantity: number): string {
+  if (quantity > 0 && quantity < 5) return "#53FC18";
+  if (quantity >= 5 && quantity < 10) return "#2EFAD1";
+  if (quantity >= 10 && quantity < 25) return "#C070FF";
+  if (quantity >= 25 && quantity < 50) return "#FF50A8";
+  if (quantity >= 50 && quantity < 100) return "#FFC466";
+  if (quantity >= 100 && quantity < 150) return "#81FD54";
+  if (quantity >= 150 && quantity < 200) return "#2EFAD1";
+  if (quantity >= 200 && quantity < 250) return "#72ACED";
+  if (quantity >= 250 && quantity < 300) return "#C070FF";
+  if (quantity >= 300 && quantity < 350) return "#FF50A8";
+  if (quantity >= 350 && quantity < 400) return "#FFC466";
+  if (quantity >= 400 && quantity < 550) return "#81FD54";
+  if (quantity >= 550 && quantity < 600) return "#2EFAD1";
+  if (quantity >= 600 && quantity < 650) return "#C070FF";
+  if (quantity >= 650 && quantity < 700) return "#FF50A8";
+  if (quantity >= 700 && quantity < 750) return "#FFC466";
+  if (quantity >= 750 && quantity < 800) return "#81FD54";
+  if (quantity >= 800 && quantity < 850) return "#2EFAD1";
+  if (quantity >= 850 && quantity < 900) return "#C070FF";
+  if (quantity >= 900 && quantity < 950) return "#FFC466";
+  return "#52FC18";
+}
+
+function getGiftBadgeDataUri(quantity: number): string {
+  const fill = getGiftBadgeMainColor(quantity);
+  return svgToDataUri(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="${fill}"><g clip-path="url(#gift-badge-clip)"><path d="M28.75 7.5L33.75 0H23.75L20 5.625L16.25 0H6.25L11.25 7.5H0V15H40V7.5H28.75Z" fill="${fill}"/><path d="M17.5 20H2.5V40H17.5V20Z" fill="${fill}"/><path d="M37.5 20H22.5V40H37.5V20Z" fill="${fill}"/></g><defs><clipPath id="gift-badge-clip"><rect width="40" height="40" fill="white"/></clipPath></defs></svg>`
+  );
+}
+
 // ========== Badge Map ==========
 
 /**
  * Map of badge type to bundled data URI.
- * All sub-gifter tier aliases (subgifter5, 25, 50, 100, 200) point to the
- * same single PNG since id3adeye/kickicons ships one canonical icon.
- * Tooltip rendering surfaces the gift COUNT via the badge title in
- * kick-parser.parseKickBadges.
+ * Sub-gifter aliases are kept for legacy payloads; getBundledBadgeUrl()
+ * returns a count-tiered gift icon for those badge types when count is known.
  */
 const KICK_BUNDLED_BADGES: Record<string, string> = {
   bot: BOT_PNG,
@@ -92,7 +124,11 @@ const KICK_BUNDLED_BADGES: Record<string, string> = {
  * Get bundled badge URL by badge type
  * Returns undefined if badge type is not found
  */
-export function getBundledBadgeUrl(badgeType: string): string | undefined {
+export function getBundledBadgeUrl(badgeType: string, count?: number): string | undefined {
+  if (isSubGifterBadgeType(badgeType) && typeof count === "number") {
+    return getGiftBadgeDataUri(count);
+  }
+
   const normalized = badgeType.toLowerCase().replace(/[-\s]/g, "_");
   return KICK_BUNDLED_BADGES[normalized];
 }

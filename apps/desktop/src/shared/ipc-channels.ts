@@ -14,6 +14,7 @@ import type {
   TwitchUser,
   UserPreferences,
 } from "./auth-types";
+import type { SubscriberEligibilityRequest } from "./chat-types";
 import type { SlotQualityMode } from "./slot-types";
 
 export const IPC_CHANNELS = {
@@ -174,6 +175,8 @@ export const IPC_CHANNELS = {
   // ========== Chat ==========
   CHAT_GET_KICK_HISTORY: "chat:get-kick-history",
   CHAT_GET_TWITCH_HISTORY: "chat:get-twitch-history",
+  CHAT_ENRICH_MENTION_USERS: "chat:enrich-mention-users",
+  CHAT_CHECK_SUBSCRIBER_ELIGIBILITY: "chat:check-subscriber-eligibility",
   // Kick send-window IPC bridge. The send-window owns electron BrowserWindow +
   // a webRequest interceptor + the kick.com session bearer — all main-only.
   // Renderer goes through these channels so kick-chat.ts stays renderer-safe
@@ -305,6 +308,8 @@ export const IPC_CHANNELS = {
   EMOTES_BTTV_GET_USER_BY_TWITCH_ID: "emotes:bttv:get-user-by-twitch-id",
   EMOTES_FFZ_GET_GLOBAL: "emotes:ffz:get-global",
   EMOTES_FFZ_GET_ROOM: "emotes:ffz:get-room",
+  EMOTES_KICK_GET_CHANNEL_EMOTES: "emotes:kick:get-channel-emotes",
+  EMOTES_KICK_GET_USER_SUBSCRIPTIONS: "emotes:kick:get-user-subscriptions",
 
   // ========== Bug Reports ==========
   // Renderer-driven bug-report capture. The handler stitches the description,
@@ -375,13 +380,24 @@ export interface IpcPayloads {
 
   // Kick chat send — chatroomId addresses the v2 broadcast endpoint; content
   // is the raw message text. ensure-ready and dispose take no payload.
-  [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: { chatroomId: number; content: string };
+  [IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS]: {
+    platform: Platform;
+    channel?: string;
+    users: Array<{ userId?: string; username: string }>;
+  };
+  [IPC_CHANNELS.CHAT_CHECK_SUBSCRIBER_ELIGIBILITY]: SubscriberEligibilityRequest;
+  [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: {
+    chatroomId: number;
+    content: string;
+    broadcasterUserId?: number;
+  };
 
   // 7TV REST (main-process transport). Identifier is the platform's own
   // numeric id (Twitch user_id or Kick channel.id), NOT the slug.
   [IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION]: { platform: Platform; identifier: string };
   [IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID]: { channelId: string };
   [IPC_CHANNELS.EMOTES_FFZ_GET_ROOM]: { name?: string; channelId?: string };
+  [IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES]: { slug: string; accessToken?: string };
 
   // Renderer → main log bridge. `level` is restricted to the four supported
   // severities; the handler drops anything else. `tag` is prefixed with

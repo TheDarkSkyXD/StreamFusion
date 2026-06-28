@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Guards: 7TV REST goes through electronAPI.emotes.* (main-process IPC) — calling browser fetch / ky for these endpoints reintroduces the DevTools red `Failed to load resource: ... 404` line PRD #62 closed
+// Guards: 7TV REST prefers electronAPI.emotes.* (main-process IPC) — direct API fetch is only the fallback when the preload bridge is absent.
 // Guards: 404 path is a null sentinel from main (NOT a thrown error) — the renderer logs at info and returns [] without ever hitting ApiClient[error]
 // Guards: Kick without a resolved broadcaster user_id returns [] WITHOUT invoking electronAPI — addressing 7TV with the slug or chatroom id always 404s and undoes the noise reduction
 // Guards: emotes are tagged with the emote-map key (channelId arg) not the 7TV identifier — splits the broadcaster's id (used to address 7TV) from the local key (used to look up emotes per slot)
 
+const getMock = vi.fn();
 const emotesApi = {
   get7TVUserByConnection: vi.fn(),
   get7TVGlobalEmoteSet: vi.fn(),
 };
+
+vi.mock("@/lib/api-client", () => ({
+  api: {
+    get: (...args: unknown[]) => getMock(...args),
+  },
+}));
 
 vi.stubGlobal("window", {
   electronAPI: {
@@ -64,8 +71,14 @@ function flatUserConnection(platform: "KICK" | "TWITCH") {
 
 describe("SevenTVEmoteProvider.fetchChannelEmotes", () => {
   beforeEach(() => {
+    getMock.mockReset();
     emotesApi.get7TVUserByConnection.mockReset();
     emotesApi.get7TVGlobalEmoteSet.mockReset();
+    vi.stubGlobal("window", {
+      electronAPI: {
+        emotes: emotesApi,
+      },
+    } as unknown as Window);
   });
 
   it("Kick: invokes electronAPI.emotes.get7TVUserByConnection('kick', userId) and parses the flat emote_set", async () => {
@@ -124,7 +137,13 @@ describe("SevenTVEmoteProvider.fetchChannelEmotes", () => {
 
 describe("SevenTVEmoteProvider.fetchGlobalEmotes", () => {
   beforeEach(() => {
+    getMock.mockReset();
     emotesApi.get7TVGlobalEmoteSet.mockReset();
+    vi.stubGlobal("window", {
+      electronAPI: {
+        emotes: emotesApi,
+      },
+    } as unknown as Window);
   });
 
   it("invokes electronAPI.emotes.get7TVGlobalEmoteSet and parses the emote_set", async () => {
@@ -158,5 +177,42 @@ describe("SevenTVEmoteProvider.fetchGlobalEmotes", () => {
     expect(emotes).toHaveLength(1);
     expect(emotes[0].name).toBe("FeelsOkayMan");
     expect(emotes[0].isGlobal).toBe(true);
+  });
+
+  it("falls back to the public 7TV API when the preload emote bridge is absent", async () => {
+    vi.stubGlobal("window", {} as Window);
+    getMock.mockReturnValueOnce({
+      json: () =>
+        Promise.resolve({
+          id: "global",
+          emotes: [
+            {
+              id: "01F",
+              name: "RainTime",
+              flags: 0,
+              timestamp: 0,
+              actor_id: null,
+              data: {
+                id: "01F",
+                name: "RainTime",
+                flags: 0,
+                lifecycle: 3,
+                state: ["LISTED"],
+                listed: true,
+                animated: false,
+                host: { url: "//cdn.7tv.app/emote/01F", files: [] },
+              },
+            },
+          ],
+        }),
+    });
+    const provider = new SevenTVEmoteProvider();
+
+    const emotes = await provider.fetchGlobalEmotes();
+
+    expect(getMock).toHaveBeenCalledWith("https://7tv.io/v3/emote-sets/global");
+    expect(emotesApi.get7TVGlobalEmoteSet).not.toHaveBeenCalled();
+    expect(emotes).toHaveLength(1);
+    expect(emotes[0].name).toBe("RainTime");
   });
 });

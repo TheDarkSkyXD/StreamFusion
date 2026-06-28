@@ -28,7 +28,11 @@ import {
   parseTwitchMessage,
   type TwitchTags,
 } from "./twitch-parser";
-import { roomStateTagsToPatch, type TmiRoomStateTags } from "./twitch-roomstate";
+import {
+  noticeMsgIdToRoomStatePatch,
+  roomStateTagsToPatch,
+  type TmiRoomStateTags,
+} from "./twitch-roomstate";
 
 // ========== Types ==========
 
@@ -795,6 +799,21 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.client.on("action", (_channel, _tags, _message, _self) => {
       // Action messages are handled by the 'message' event with message-type: action
       // This is redundant but we can use it for logging
+    });
+
+    this.client.on("notice", (channel, msgId) => {
+      const patch = noticeMsgIdToRoomStatePatch(msgId);
+      if (Object.keys(patch).length === 0) return;
+      const channelLogin = this.normalizeChannel(channel);
+      const channelId = this.broadcasterId.get(channelLogin) ?? "";
+      if (!channelId) return;
+      this.emit("roomState", {
+        platform: "twitch",
+        channel: channelLogin,
+        channelId,
+        patch,
+        reason: "ws",
+      });
     });
 
     // User notice events (subs, raids, etc.)

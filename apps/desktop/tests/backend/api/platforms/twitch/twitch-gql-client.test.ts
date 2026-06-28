@@ -1761,6 +1761,11 @@ describe("gqlGetClipAccessToken", () => {
     ]);
     expect(result.signature).toBe("clipsig");
     expect(result.value).toBe('{"clip":"slug"}');
+
+    const body = JSON.parse(lastFetchBody(fetchMock));
+    expect(body[0].query).toContain("query VideoAccessToken_Clip");
+    expect(body[0].extensions).toBeUndefined();
+    expect(body[0].variables.slug).toBe("MyClip-abc");
   });
 
   it("throws when clip is null", async () => {

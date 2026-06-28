@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/backend/logging/logger", () => ({
   logger: {
@@ -10,10 +10,10 @@ vi.mock("@/backend/logging/logger", () => ({
 }));
 
 import {
-  getStreamsByUserIds,
   getFollowedStreams,
-  getTopStreams,
   getStreamByLogin,
+  getStreamsByUserIds,
+  getTopStreams,
 } from "@/backend/api/platforms/twitch/endpoints/stream-endpoints";
 
 import type { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
@@ -80,6 +80,7 @@ describe("getStreamsByUserIds", () => {
   it("returns transformed streams with cursor", async () => {
     const client = makeClient({
       "/streams": { data: [STREAM], pagination: { cursor: "next" } },
+      "/users": { data: [USER] },
     });
 
     const result = await getStreamsByUserIds(client, ["u1"]);
@@ -90,6 +91,17 @@ describe("getStreamsByUserIds", () => {
     expect(result.data[0].channelName).toBe("streamer1");
     expect(result.data[0].isLive).toBe(true);
     expect(result.cursor).toBe("next");
+  });
+
+  it("marks streams verified when the Twitch broadcaster is a partner", async () => {
+    const client = makeClient({
+      "/streams": { data: [STREAM], pagination: {} },
+      "/users": { data: [{ ...USER, broadcaster_type: "partner" }] },
+    });
+
+    const result = await getStreamsByUserIds(client, ["u1"]);
+
+    expect(result.data[0].channelIsVerified).toBe(true);
   });
 
   it("appends user_id params for each ID", async () => {

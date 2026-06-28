@@ -57,6 +57,21 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("banKickUser", () => {
+  it("POSTs official /public/v1/moderation/bans when stable IDs are available", async () => {
+    const result = await banKickUser({
+      channelSlug: "ac7ionman",
+      username: "spammer",
+      broadcasterUserId: 123,
+      userId: 456,
+      accessToken: "tok-1",
+    });
+    expect(result).toEqual({ ok: true });
+    expect(lastMethod).toBe("POST");
+    expect(lastUrl).toBe("https://api.kick.com/public/v1/moderation/bans");
+    expect(lastBody).toEqual({ broadcaster_user_id: 123, user_id: 456 });
+    expect(lastHeaders?.Authorization).toBe("Bearer tok-1");
+  });
+
   it("POSTs to /api/v2/channels/{slug}/bans with permanent=true", async () => {
     const result = await banKickUser({
       channelSlug: "ac7ionman",
@@ -81,6 +96,20 @@ describe("banKickUser", () => {
 });
 
 describe("timeoutKickUser", () => {
+  it("POSTs official /public/v1/moderation/bans with duration when stable IDs are available", async () => {
+    const result = await timeoutKickUser({
+      channelSlug: "ac7ionman",
+      username: "spammer",
+      broadcasterUserId: "123",
+      userId: "456",
+      duration: 10,
+      accessToken: "tok-1",
+    });
+    expect(result).toEqual({ ok: true });
+    expect(lastUrl).toBe("https://api.kick.com/public/v1/moderation/bans");
+    expect(lastBody).toEqual({ broadcaster_user_id: 123, user_id: 456, duration: 10 });
+  });
+
   it("POSTs to /api/v2/channels/{slug}/bans with permanent=false and duration passed through as-is", async () => {
     const result = await timeoutKickUser({
       channelSlug: "ac7ionman",
@@ -110,6 +139,20 @@ describe("timeoutKickUser", () => {
 });
 
 describe("unbanKickUser", () => {
+  it("DELETEs official /public/v1/moderation/bans with broadcaster and user IDs", async () => {
+    const result = await unbanKickUser({
+      channelSlug: "ac7ionman",
+      username: "spammer",
+      broadcasterUserId: 123,
+      userId: 456,
+      accessToken: "tok-1",
+    });
+    expect(result).toEqual({ ok: true });
+    expect(lastMethod).toBe("DELETE");
+    expect(lastUrl).toBe("https://api.kick.com/public/v1/moderation/bans");
+    expect(lastBody).toEqual({ broadcaster_user_id: 123, user_id: 456 });
+  });
+
   it("DELETEs /api/v2/channels/{slug}/bans/{username}", async () => {
     const result = await unbanKickUser({
       channelSlug: "ac7ionman",
@@ -135,7 +178,7 @@ describe("unbanKickUser", () => {
 });
 
 describe("deleteKickMessage", () => {
-  it("DELETEs /api/v2/chatrooms/{chatroomId}/messages/{messageId}", async () => {
+  it("DELETEs official /public/v1/chat/{messageId}", async () => {
     const result = await deleteKickMessage({
       chatroomId: 12345,
       messageId: "msg-uuid-1",
@@ -143,6 +186,32 @@ describe("deleteKickMessage", () => {
     });
     expect(result).toEqual({ ok: true });
     expect(lastMethod).toBe("DELETE");
+    expect(lastUrl).toBe("https://api.kick.com/public/v1/chat/msg-uuid-1");
+  });
+
+  it("falls back to legacy chatroom delete when official delete fails", async () => {
+    const statuses = [403, 200];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      const status = statuses.shift() ?? 200;
+      lastUrl = url;
+      lastMethod = (init?.method as string) ?? "GET";
+      lastHeaders = (init?.headers as Record<string, string>) ?? {};
+      lastBody = init?.body ? JSON.parse(init.body as string) : null;
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        statusText: "",
+        headers: new Headers(),
+        json: async () => ({ message: status === 403 ? "Forbidden" : "ok" }),
+      } as Response;
+    });
+
+    const result = await deleteKickMessage({
+      chatroomId: 12345,
+      messageId: "msg-uuid-1",
+      accessToken: "tok-1",
+    });
+    expect(result).toEqual({ ok: true });
     expect(lastUrl).toBe("https://kick.com/api/v2/chatrooms/12345/messages/msg-uuid-1");
   });
 });

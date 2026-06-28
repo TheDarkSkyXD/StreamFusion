@@ -959,6 +959,20 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
     });
   });
 
+  it("marks Kick degraded immediately when official API app-token auth fails", async () => {
+    const { getPlatformHealth, onPlatformHealthChanged, recordPlatformOfficialApiAuthFailure } =
+      await import("@/backend/api/unified/platform-health");
+
+    const events: Array<{ platform: string; status: string }> = [];
+    onPlatformHealthChanged((event) => events.push(event));
+
+    recordPlatformOfficialApiAuthFailure("kick", 401);
+
+    expect(getPlatformHealth("kick")).toBe("degraded");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ platform: "kick", status: "degraded" });
+  });
+
   it("status-page detail updates emit another degraded event", async () => {
     const { onPlatformHealthChanged, recordStatusPageSignal } = await import(
       "@/backend/api/unified/platform-health"

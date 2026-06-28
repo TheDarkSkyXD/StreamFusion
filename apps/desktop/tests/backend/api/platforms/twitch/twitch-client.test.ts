@@ -23,6 +23,7 @@ vi.mock("@/backend/auth/twitch-auth", () => ({
 }));
 
 vi.mock("@/backend/auth/oauth-config", () => ({
+  WORKER_BASE_URL: "https://worker.test",
   getOAuthConfig: () => ({ clientId: "test-client-id" }),
 }));
 

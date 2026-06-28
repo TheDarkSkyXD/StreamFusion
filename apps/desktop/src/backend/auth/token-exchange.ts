@@ -164,31 +164,48 @@ class TokenExchangeService {
     }
   }
 
-  /**
-   * Get an App Access Token (Client Credentials Flow)
-   * NOTE: For now, this still tries client_credentials which requires a secret.
-   * If we want to hide the secret, the worker needs an endpoint for this too.
-   * However, app tokens are usually for backend-to-backend.
-   * Since we are proxying API requests, we might not need an app token on the client?
-   * If the worker injects valid credentials, the client just needs to make the request.
-   * But currently Requestors check for tokens.
-   * We should probably fetch the app token from the worker if needed, or rely on worker injection.
-   *
-   * Let's skip updating this specific method for a moment and focus on User Auth first,
-   * as App Token flow on client with no secret is impossible without a proxy endpoint.
-   */
   async getAppAccessToken(platform: Platform): Promise<AuthToken> {
-    // Since we moved secrets to the worker, the client can no longer independently generate App Tokens (Client Credentials).
-    // If App Tokens are critical, we must add a /auth/twitch/app-token endpoint to the worker.
-    // For now, fail gracefully.
-    logger.error(
-      "Auth:TokenExchange",
-      "Cannot get App Access Token: Client Secret is not available on client",
-      { platform }
-    );
-    throw new Error(
-      "App Access Token flow not supported without Client Secret. Please use User Authentication."
-    );
+    if (platform === "kick") {
+      throw new Error(
+        "Kick app tokens stay inside the StreamFusion Worker; use the Worker /kick proxy with app auth."
+      );
+    }
+
+    const config = getOAuthConfig(platform);
+    const appTokenEndpoint = config.tokenEndpoint.replace("/token", "/app-token");
+
+    logger.debug("Auth:TokenExchange", "Fetching app token via Worker", { platform });
+
+    try {
+      const response = await fetch(appTokenEndpoint, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as TokenError;
+        const errorMessage =
+          errorData.error_description ||
+          errorData.message ||
+          errorData.error ||
+          `App token request failed: HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const data = (await response.json()) as TokenResponse;
+      return this.parseTokenResponse(data);
+    } catch (error) {
+      logger.error("Auth:TokenExchange", "App token request failed", {
+        platform,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+      throw error;
+    }
   }
 
   /**

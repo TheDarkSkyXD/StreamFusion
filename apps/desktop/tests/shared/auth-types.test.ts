@@ -14,8 +14,25 @@ import {
   type PlayerControlsPreferences,
   type PredictionPreferences,
   type ProxyPreferences,
+  TWITCH_APP_SCOPES,
+  TWITCH_MOD_ACTION_SCOPES,
   type UserPreferences,
 } from "@/shared/auth-types";
+
+// Guards: Twitch OAuth scope constants are the canonical connect/reconnect list,
+// so duplicates or a mod subset outside the app set would cause repeated consent prompts.
+describe("Twitch OAuth scope constants", () => {
+  it("contains no duplicate app scopes", () => {
+    expect(new Set(TWITCH_APP_SCOPES).size).toBe(TWITCH_APP_SCOPES.length);
+  });
+
+  it("keeps the mod-action subset inside the full app scope set", () => {
+    const appScopes = new Set(TWITCH_APP_SCOPES);
+    for (const scope of TWITCH_MOD_ACTION_SCOPES) {
+      expect(appScopes.has(scope)).toBe(true);
+    }
+  });
+});
 
 describe("PredictionPreferences defaults (U1)", () => {
   it("defaults predictions.style to 'native'", () => {
@@ -45,6 +62,11 @@ describe("ChatDisplayPreferences defaults (U1)", () => {
     // worst case ≈ 4 × 600 × 500B ≈ 1.2 MB, well under the spike threshold.
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit).toBe(600);
     expect(DEFAULT_USER_PREFERENCES.chatDisplay.messageLimit).toBe(600);
+  });
+
+  it("defaults recentMessagesLimit to 200", () => {
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit).toBe(200);
+    expect(DEFAULT_USER_PREFERENCES.chatDisplay.recentMessagesLimit).toBe(200);
   });
 
   it("wires chatDisplay onto the top-level UserPreferences shape", () => {

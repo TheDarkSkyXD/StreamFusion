@@ -1,13 +1,13 @@
 import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
-import { getOAuthConfig } from "../../../auth/oauth-config";
+import { getOAuthConfig, WORKER_BASE_URL } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import type { PlatformFailureClass } from "../../unified/platform-health";
 import { recordPlatformFailure, recordPlatformSuccess } from "../../unified/platform-health";
 import type { TwitchClientError } from "./twitch-types";
 
 export class TwitchRequestor {
-  private readonly baseUrl = "https://streamfusion.leveluptogetherbiz.workers.dev/twitch";
+  private readonly baseUrl = `${WORKER_BASE_URL}/twitch`;
   private config = getOAuthConfig("twitch");
 
   constructor() {

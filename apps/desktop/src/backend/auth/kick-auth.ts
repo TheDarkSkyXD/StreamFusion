@@ -321,49 +321,6 @@ class KickAuthService extends EventEmitter {
 
     return token.accessToken;
   }
-
-  /**
-   * Get the current app access token (if valid)
-   */
-  getAppAccessToken(): string | null {
-    const token = storageService.getAppToken(this.platform);
-    if (!token) return null;
-
-    // Check if expired
-    if (token.expiresAt && Date.now() >= token.expiresAt) {
-      return null;
-    }
-
-    return token.accessToken;
-  }
-
-  /**
-   * Check if app token needs refresh and refresh if necessary
-   */
-  async ensureValidAppToken(): Promise<boolean> {
-    const token = storageService.getAppToken(this.platform);
-
-    // If no token or expired, get a new one
-    if (!token || storageService.isAppTokenExpired(this.platform)) {
-      logger.debug("Auth:Kick", "Kick App token missing or expired, fetching new one");
-      try {
-        // We use tokenExchangeService which handles client_credentials grant
-        const newToken = await tokenExchangeService.getAppAccessToken(this.platform);
-        storageService.saveAppToken(this.platform, newToken);
-        return true;
-      } catch (error) {
-        logger.error("Auth:Kick", "Failed to get Kick App Token", {
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        });
-        return false;
-      }
-    }
-
-    return true;
-  }
 }
 
 export const kickAuthService = new KickAuthService();

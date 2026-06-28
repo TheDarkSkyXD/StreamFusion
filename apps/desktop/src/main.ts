@@ -51,6 +51,8 @@ import {
   KICK_IMAGE_SCHEME,
   registerKickImageProtocol,
 } from "./backend/protocols/kick-image-protocol";
+import { registerTwitchClipMediaProtocol } from "./backend/protocols/twitch-clip-media-protocol";
+import { TWITCH_CLIP_MEDIA_SCHEME } from "./backend/protocols/twitch-clip-media-url";
 import {
   registerTwitchImageProtocol,
   TWITCH_IMAGE_SCHEME,
@@ -59,6 +61,10 @@ import { installRendererCrashRecovery } from "./backend/recovery/renderer-crash-
 import { attachCertVerifyDiagToAllSessions } from "./backend/services/cert-verify-diagnostics";
 import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
 import { dbService } from "./backend/services/database-service";
+import {
+  startKickFollowMetadataRefresh,
+  stopKickFollowMetadataRefresh,
+} from "./backend/services/kick-follow-metadata-refresh";
 import { networkAdBlockService } from "./backend/services/network-adblock-service";
 import { storageService } from "./backend/services/storage-service";
 import {
@@ -247,6 +253,16 @@ protocol.registerSchemesAsPrivileged([
   },
   {
     scheme: TWITCH_IMAGE_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      stream: true,
+    },
+  },
+  {
+    scheme: TWITCH_CLIP_MEDIA_SCHEME,
     privileges: {
       standard: true,
       secure: true,
@@ -496,10 +512,16 @@ app.on("ready", async () => {
   // never reach the renderer's network log.
   registerTwitchImageProtocol();
 
+  // Register twitch-clip-media:// so Twitch clip MP4s stay in the custom player
+  // while Electron's main process handles the signed CDN media request.
+  registerTwitchClipMediaProtocol();
+
   // Initialize VAFT pattern service (auto-updates ad detection patterns)
   vaftPatternService.initialize().catch((error) => {
     console.warn("[Main] VAFT pattern service initialization error:", error);
   });
+
+  startKickFollowMetadataRefresh();
 
   // Initialize ad blocking services
   cosmeticInjectionService.initialize();
@@ -589,6 +611,7 @@ app.on("before-quit", (event) => {
     stopProcessMonitor();
     stopProcessMonitor = null;
   }
+  stopKickFollowMetadataRefresh();
   // `use-resume-playback.ts` saves position every 30s and on pause; chat is
   // ephemeral; window state saves synchronously in mainWindow.on('close').
   // Worst-case loss from this path is the last 30s of playback position.

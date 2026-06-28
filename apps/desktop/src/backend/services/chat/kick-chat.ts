@@ -63,8 +63,12 @@ import {
 // the renderer bundle clean. See docs/brainstorms/2026-05-29-kick-chat-send-...
 // and shared/mod-log-types.ts for the same pattern.
 
-const sendKickChatMessage = (chatroomId: number, content: string): Promise<KickSendResult> =>
-  window.electronAPI.kickChat.sendMessage(chatroomId, content);
+const sendKickChatMessage = (
+  chatroomId: number,
+  content: string,
+  broadcasterUserId?: number
+): Promise<KickSendResult> =>
+  window.electronAPI.kickChat.sendMessage(chatroomId, content, broadcasterUserId);
 
 const ensureSendWindowReady = (): Promise<void> =>
   window.electronAPI.kickChat.ensureSendWindowReady();
@@ -87,6 +91,28 @@ interface PusherConnectionManagerLike {
 
 interface LeaveChannelOptions {
   skipPusherUnsubscribe?: boolean;
+}
+
+function parseKickPinBadges(badges: KickBadge[]): ChatBadge[] {
+  const parsedBadges = parseKickBadges(badges);
+
+  return parsedBadges.map((parsedBadge, index) => {
+    const badge = badges[index];
+    if (!badge) return parsedBadge;
+
+    const isSubGifter = badge.type === "sub_gifter" || badge.type === "subgifter";
+    if (isSubGifter && typeof badge.count === "number" && badge.count > 0) {
+      return {
+        ...parsedBadge,
+        title: `${badge.text || "Sub Gifter"} (${badge.count})`,
+      };
+    }
+
+    return {
+      ...parsedBadge,
+      title: badge.text || parsedBadge.title,
+    };
+  });
 }
 
 /**
@@ -118,14 +144,14 @@ export function kickPinToNormalized(pin: KickPinnedMessage): NormalizedPinnedMes
       username: pin.message.sender.username,
       displayName: pin.message.sender.username,
       color: pin.message.sender.identity.color,
-      badges: parseKickBadges(pin.message.sender.identity.badges ?? []),
+      badges: parseKickPinBadges(pin.message.sender.identity.badges ?? []),
     },
     content: parseKickMessageContent(pin.message.content),
     pinnedBy: pin.pinned_by
       ? {
           username: pin.pinned_by.username,
           color: pin.pinned_by.identity.color,
-          badges: parseKickBadges(pin.pinned_by.identity.badges ?? []),
+          badges: parseKickPinBadges(pin.pinned_by.identity.badges ?? []),
         }
       : null,
     pinnedAt: pin.message.created_at,
@@ -169,6 +195,16 @@ type TypedEventEmitter = {
     ...args: Parameters<ChatServiceEvents[K]>
   ): boolean;
 };
+
+export class KickChatSendError extends Error {
+  readonly kickSendResult: Extract<KickSendResult, { ok: false }>;
+
+  constructor(result: Extract<KickSendResult, { ok: false }>) {
+    super(result.message);
+    this.name = "KickChatSendError";
+    this.kickSendResult = result;
+  }
+}
 
 // ========== Constants ==========
 
@@ -683,11 +719,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     // Delegate to the page-context sender. The send-window owns auth and
     // the actual HTTP — this service just orchestrates rate limit, error
     // surfacing, and optimistic echo.
-    const result = await sendKickChatMessage(channelInfo.chatroomId, message);
+    const result = await sendKickChatMessage(
+      channelInfo.chatroomId,
+      message,
+      channelInfo.broadcasterUserId
+    );
     if (!result.ok) {
-      // Match the historical error shape — sendMessage's callers in
-      // ChatInput catch on `error.message` and surface a toast.
-      throw new Error(result.message);
+      throw new KickChatSendError(result);
     }
     this.recordMessageSent();
 

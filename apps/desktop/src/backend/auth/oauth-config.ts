@@ -7,7 +7,7 @@
 
 import crypto from "node:crypto";
 
-import type { Platform } from "../../shared/auth-types";
+import { type Platform, TWITCH_APP_SCOPES } from "../../shared/auth-types";
 
 // ========== Environment Variables ==========
 // These should be set in .env file
@@ -21,7 +21,8 @@ const KICK_CLIENT_SECRET = "";
 
 // ========== Worker Configuration ==========
 
-const WORKER_BASE_URL = "https://streamfusion.leveluptogetherbiz.workers.dev";
+export const WORKER_BASE_URL =
+  process.env.STREAMFUSION_WORKER_BASE_URL || "https://streamfusion.leveluptogetherbiz.workers.dev";
 
 // ========== Localhost Callback Configuration ==========
 // Twitch requires HTTPS for custom protocols but allows http://localhost
@@ -71,38 +72,9 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
   authorizationEndpoint: "https://id.twitch.tv/oauth2/authorize",
   tokenEndpoint: `${WORKER_BASE_URL}/auth/twitch/token`, // Worker endpoint
   revokeEndpoint: "https://id.twitch.tv/oauth2/revoke",
-  scopes: [
-    "user:read:email",
-    "user:read:follows",
-    "user:read:subscriptions",
-    // IRC chat (tmi.js) auth. PASS oauth:<token> is rejected with
-    // "Login unsuccessful" without these — moderator:manage:chat_messages
-    // below only covers the Helix delete endpoint, not IRC.
-    "chat:read",
-    "chat:edit",
-    // Mod surface (U7): required for pin/unpin actions and the mod-channels cache.
-    // Worker passthrough verified — apps/worker/src/index.ts handleTwitchTokenExchange
-    // forwards client_id + code + redirect_uri only; no scope allow-list filter, so
-    // the scopes Twitch sees are exactly what we request below.
-    "user:read:moderated_channels",
-    "moderator:manage:chat_messages",
-    // Channel-management console (U4) — twelve new scopes covering every mod and
-    // broadcaster action surfaced by the console. The Whisper button (user:manage:whispers)
-    // is feature-flagged off by default (plan decision #4) — scope is included so we
-    // have it ready if Twitch loosens whisper-API gating for new apps.
-    "moderator:manage:banned_users",
-    "moderator:manage:shield_mode",
-    "channel:manage:raids",
-    "channel:manage:moderators",
-    "channel:manage:vips",
-    "channel:manage:predictions",
-    "channel:manage:polls",
-    "channel:edit:commercial",
-    "user:manage:whispers",
-    // Unban-requests review (U?? — added with the moderators/VIPs/unban-requests batch).
-    "moderator:read:unban_requests",
-    "moderator:manage:unban_requests",
-  ],
+  // Shared canonical set: every Twitch connect/reconnect path requests the
+  // same complete app permission list.
+  scopes: [...TWITCH_APP_SCOPES],
   usesPkce: true,
 };
 

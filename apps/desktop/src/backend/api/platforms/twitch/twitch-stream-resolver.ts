@@ -6,6 +6,7 @@
  */
 
 import { logger } from "@/backend/logging/logger";
+import { buildTwitchClipMediaUrl } from "../../../protocols/twitch-clip-media-url";
 import * as GqlClient from "./twitch-gql-client";
 
 export class TwitchStreamResolver {
@@ -109,11 +110,13 @@ export class TwitchStreamResolver {
       }
 
       const bestQuality = sortedQualities[0];
-      const finalUrl = `${bestQuality.sourceURL}?sig=${clipData.signature}&token=${encodeURIComponent(clipData.value)}`;
+      const buildSignedUrl = (sourceUrl: string) =>
+        `${sourceUrl}?sig=${clipData.signature}&token=${encodeURIComponent(clipData.value)}`;
+      const finalUrl = buildTwitchClipMediaUrl(buildSignedUrl(bestQuality.sourceURL));
 
       const mappedQualities = sortedQualities.map((q) => ({
         quality: `${q.quality}p`,
-        url: `${q.sourceURL}?sig=${clipData.signature}&token=${encodeURIComponent(clipData.value)}`,
+        url: buildTwitchClipMediaUrl(buildSignedUrl(q.sourceURL)),
         frameRate: q.frameRate,
       }));
 

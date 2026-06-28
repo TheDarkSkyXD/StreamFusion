@@ -12,6 +12,8 @@
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
 import { BrowserWindow } from "electron";
 
+import { kickAuthService } from "@/backend/auth/kick-auth";
+import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 
 import { acquireBrowserWindowSlot } from "./endpoints/channel-endpoints";
@@ -23,6 +25,16 @@ export type KickSendResult =
       kind: "auth-expired" | "rate-limited" | "forbidden" | "network" | "unknown";
       message: string;
       retryAfterSeconds?: number;
+    };
+
+export type KickWebApiGetResult =
+  | { ok: true; status: number; body: string }
+  | {
+      ok: false;
+      kind: "auth-expired" | "network" | "unknown";
+      status: number;
+      body: string;
+      message: string;
     };
 
 // Module-level state — single send window, single bearer cache.
@@ -103,6 +115,44 @@ export function buildSendIIFE(chatroomId: number, content: string, bearer: strin
       status: 0,
       body: String(err),
       retryAfter: null
+    });
+  }
+})()`;
+}
+
+/**
+ * Build a read-only Kick web API request fired from inside the hidden kick.com
+ * page so session cookies, Sanctum bearer, and Kick's web runtime state attach.
+ *
+ * Keep this helper path-scoped. It exists for web-only account data that the
+ * public Kick API does not expose, not as a generic renderer fetch proxy.
+ */
+export function buildKickWebApiGetIIFE(path: string, bearer: string): string {
+  const p = JSON.stringify(path);
+  const b = JSON.stringify(bearer);
+  return `(async () => {
+  try {
+    const response = await fetch(${p}, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Authorization": ${b},
+        "Accept": "application/json",
+        "Referer": "https://kick.com",
+        "X-App-Platform": "web",
+        "X-Requested-With": "XMLHttpRequest"
+      }
+    });
+    return JSON.stringify({
+      ok: response.ok,
+      status: response.status,
+      body: await response.text()
+    });
+  } catch (err) {
+    return JSON.stringify({
+      ok: false,
+      status: 0,
+      body: String(err)
     });
   }
 })()`;
@@ -210,6 +260,7 @@ export function installBearerInterceptor(targetSession: Session): void {
 
 const WARMUP_TIMEOUT_MS = 10_000;
 const PREDICATE_POLL_MS = 200;
+const KICK_OFFICIAL_CHAT_URL = "https://api.kick.com/public/v1/chat";
 
 const COOKIE_PREDICATE_IIFE = `(() => document.cookie.indexOf("session_token=") >= 0)()`;
 
@@ -302,8 +353,22 @@ async function _reloadAndRecapture(win: BrowserWindow): Promise<void> {
 
 export async function sendKickChatMessage(
   chatroomId: number,
-  content: string
+  content: string,
+  broadcasterUserId?: number
 ): Promise<KickSendResult> {
+  if (broadcasterUserId !== undefined) {
+    const officialResult = await sendKickOfficialChatMessage(broadcasterUserId, content);
+    if (officialResult) {
+      if (officialResult.ok) return officialResult;
+      logger.warn("Kick:SendWindow", "Official Kick chat send failed; falling back to legacy", {
+        chatroomId,
+        broadcasterUserId,
+        kind: officialResult.kind,
+        message: officialResult.message,
+      });
+    }
+  }
+
   await ensureSendWindowReady();
   if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
     return {
@@ -325,6 +390,180 @@ export async function sendKickChatMessage(
     result = await _fireSend(chatroomId, content);
   }
   return result;
+}
+
+async function sendKickOfficialChatMessage(
+  broadcasterUserId: number,
+  content: string
+): Promise<KickSendResult | null> {
+  try {
+    if (!kickAuthService.isAuthenticated()) return null;
+    await kickAuthService.ensureValidToken();
+    const accessToken = kickAuthService.getAccessToken();
+    if (!accessToken) return null;
+
+    const response = await fetch(KICK_OFFICIAL_CHAT_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        broadcaster_user_id: broadcasterUserId,
+        content,
+        type: "user",
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    const bodyText = await response.text().catch(() => "");
+    return classifyOfficialSendResult({
+      status: response.status,
+      body: bodyText,
+      retryAfter: response.headers.get("Retry-After"),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      kind: "network",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function classifyOfficialSendResult(input: {
+  status: number;
+  body: string;
+  retryAfter: string | null;
+}): KickSendResult {
+  if (input.status >= 200 && input.status < 300) {
+    try {
+      const parsed = JSON.parse(input.body) as
+        | { data?: { is_sent?: boolean; message_id?: string } }
+        | undefined;
+      if (parsed?.data?.is_sent === false) {
+        return { ok: false, kind: "unknown", message: "Kick did not send the message." };
+      }
+      return { ok: true, messageId: parsed?.data?.message_id };
+    } catch {
+      return { ok: true, messageId: undefined };
+    }
+  }
+
+  return classifySendResult(input);
+}
+
+const ALLOWED_KICK_WEB_API_GET_PATHS = new Set(["/api/v2/user/subscriptions"]);
+
+export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetResult> {
+  if (!ALLOWED_KICK_WEB_API_GET_PATHS.has(path)) {
+    return {
+      ok: false,
+      kind: "unknown",
+      status: 0,
+      body: "",
+      message: "Unsupported Kick web API path.",
+    };
+  }
+
+  await ensureSendWindowReady();
+  if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: "Send window failed to initialize.",
+    };
+  }
+
+  let result = await _fireKickWebApiGet(path);
+  if (!result.ok && result.kind === "auth-expired") {
+    try {
+      await _reloadAndRecapture(sendWindow);
+    } catch {
+      return result;
+    }
+    if (latestKickWebBearer === null || sendWindow.isDestroyed()) return result;
+    result = await _fireKickWebApiGet(path);
+  }
+  return result;
+}
+
+async function _fireKickWebApiGet(path: string): Promise<KickWebApiGetResult> {
+  if (!sendWindow || latestKickWebBearer === null) {
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: "Send window not ready.",
+    };
+  }
+
+  const iife = buildKickWebApiGetIIFE(path, latestKickWebBearer);
+  let raw: string;
+  try {
+    raw = (await sendWindow.webContents.executeJavaScript(iife)) as string;
+  } catch (err) {
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: `Kick web API window error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  let parsed: { ok: boolean; status: number; body: string };
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    return {
+      ok: false,
+      kind: "unknown",
+      status: 0,
+      body: raw,
+      message: "Kick web API window returned non-JSON response.",
+    };
+  }
+
+  if (parsed.ok && parsed.status >= 200 && parsed.status < 300) {
+    return { ok: true, status: parsed.status, body: parsed.body };
+  }
+
+  if (
+    parsed.status === 401 ||
+    parsed.status === 419 ||
+    (parsed.status === 403 && parsed.body.includes("User is not authenticated"))
+  ) {
+    return {
+      ok: false,
+      kind: "auth-expired",
+      status: parsed.status,
+      body: parsed.body,
+      message: "Kick session expired - reconnect Kick in Settings.",
+    };
+  }
+
+  if (parsed.status === 0) {
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: parsed.body,
+      message: "Network error fetching Kick web API.",
+    };
+  }
+
+  return {
+    ok: false,
+    kind: "unknown",
+    status: parsed.status,
+    body: parsed.body,
+    message: `Kick web API request failed (${parsed.status}).`,
+  };
 }
 
 async function _fireSend(chatroomId: number, content: string): Promise<KickSendResult> {

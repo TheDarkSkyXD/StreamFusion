@@ -61,12 +61,15 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
 
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       if (cached.data) {
+        const isPartner = cached.data.broadcasterType === "partner" || channel.isPartner;
         // Merge cached data (with fresh avatar, display name, and follower count) into the channel
         enrichedChannels.set(loginLower, {
           ...channel,
           avatarUrl: cached.data.profileImageUrl || channel.avatarUrl || "",
           displayName: cached.data.displayName || channel.displayName,
           followerCount: cached.data.followerCount,
+          isPartner,
+          isVerified: isPartner || channel.isVerified,
         });
       }
       // If cached.data is null, channel doesn't exist - skip it
@@ -98,6 +101,7 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
 
           if (user) {
             const followerCount = followerCounts.get(user.id) ?? 0;
+            const isPartner = user.broadcasterType === "partner" || originalChannel.isPartner;
 
             // Cache the fetched user data with follower count
             twitchChannelDataCache.set(loginLower, {
@@ -111,6 +115,8 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
               avatarUrl: user.profileImageUrl || originalChannel.avatarUrl || "",
               displayName: user.displayName || originalChannel.displayName,
               followerCount,
+              isPartner,
+              isVerified: isPartner || originalChannel.isVerified,
             });
           } else {
             // Channel doesn't exist - cache as null
@@ -189,6 +195,7 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
           avatarUrl: cached.data.avatarUrl || channel.avatarUrl || "",
           displayName: cached.data.displayName || channel.displayName,
           isVerified: cached.data.isVerified || channel.isVerified,
+          isPartner: cached.data.isPartner || channel.isPartner,
           isLive: cached.data.isLive,
           followerCount: cached.data.followerCount,
         });
@@ -239,6 +246,7 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
         avatarUrl: avatarUrl || originalChannel.avatarUrl || "",
         displayName,
         isVerified: fetchedChannel.isVerified || originalChannel.isVerified,
+        isPartner: fetchedChannel.isPartner || originalChannel.isPartner,
         isLive: fetchedChannel.isLive,
         // /public/v1/channels doesn't return follower counts, so prefer whatever
         // the upstream search step (kick.com/api/search) populated.
@@ -250,6 +258,7 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
           avatarUrl: merged.avatarUrl,
           displayName: merged.displayName,
           isVerified: merged.isVerified,
+          isPartner: merged.isPartner,
           isLive: merged.isLive,
           followerCount: merged.followerCount,
         },

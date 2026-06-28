@@ -103,7 +103,14 @@ describe("TwitchEmoteProvider", () => {
     it("fetches channel emotes with broadcaster_id", async () => {
       twitchEmoteProvider.configure("cid", "token");
       mockJsonOnce({
-        data: [makeTwitchEmote({ id: "ch-1", name: "ChannelEmote", owner_id: "99" })],
+        data: [
+          makeTwitchEmote({
+            id: "ch-1",
+            name: "ChannelEmote",
+            owner_id: "99",
+            emote_type: "subscriptions",
+          }),
+        ],
       });
 
       const result = await twitchEmoteProvider.fetchChannelEmotes("12345");
@@ -113,6 +120,7 @@ describe("TwitchEmoteProvider", () => {
       expect(result[0].isGlobal).toBe(false);
       expect(result[0].channelId).toBe("12345");
       expect(result[0].owner?.id).toBe("99");
+      expect(result[0].subscribersOnly).toBe(true);
     });
 
     it("returns empty array on 404", async () => {
@@ -164,6 +172,103 @@ describe("TwitchEmoteProvider", () => {
       expect(getMock.mock.calls[0][0]).toContain("emote_set_id=set-123");
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("SetEmote");
+    });
+  });
+
+  describe("fetchUserEmotes", () => {
+    it("skips the scoped user-emotes request when tokenStatus lacks user:read:emotes", async () => {
+      twitchEmoteProvider.configure("cid", "token");
+      const tokenStatus = vi.fn(async () => ({
+        connected: true,
+        valid: true,
+        platform: "twitch",
+        scopes: ["chat:read", "chat:edit"],
+      }));
+      const getTwitchUser = vi.fn(async () => ({ id: "user-123" }));
+      vi.stubGlobal("window", {
+        electronAPI: {
+          auth: {
+            tokenStatus,
+            getTwitchUser,
+            getValidTwitchToken: vi.fn(async () => "fresh-token"),
+          },
+        },
+      });
+
+      const result = await twitchEmoteProvider.fetchUserEmotes();
+
+      expect(result).toEqual([]);
+      expect(tokenStatus).toHaveBeenCalledWith("twitch");
+      expect(getTwitchUser).not.toHaveBeenCalled();
+      expect(getMock).not.toHaveBeenCalled();
+    });
+
+    it("fetches signed-in user's non-global emotes across pages", async () => {
+      twitchEmoteProvider.configure("cid", "token");
+      vi.stubGlobal("window", {
+        electronAPI: {
+          auth: {
+            getTwitchUser: vi.fn(async () => ({ id: "user-123" })),
+            getValidTwitchToken: vi.fn(async () => "fresh-token"),
+          },
+        },
+      });
+      mockJsonOnce({
+        data: [
+          makeTwitchEmote({ id: "global-1", name: "Kappa", emote_type: "globals" }),
+          makeTwitchEmote({
+            id: "sub-1",
+            name: "StreamerSub",
+            emote_type: "subscriptions",
+            owner_id: "owner-1",
+          }),
+        ],
+        pagination: { cursor: "next" },
+      });
+      mockJsonOnce({
+        data: [
+          makeTwitchEmote({
+            id: "follow-1",
+            name: "FollowerWave",
+            emote_type: "follower",
+            owner_id: "owner-2",
+          }),
+        ],
+        pagination: {},
+      });
+      mockJsonOnce({
+        data: [
+          {
+            id: "owner-1",
+            login: "streamerone",
+            display_name: "StreamerOne",
+            profile_image_url: "https://example.test/streamerone/avatar.webp",
+          },
+          {
+            id: "owner-2",
+            login: "followchan",
+            display_name: "FollowChan",
+            profile_image_url: "https://example.test/followchan/avatar.webp",
+          },
+        ],
+      });
+
+      const result = await twitchEmoteProvider.fetchUserEmotes();
+
+      expect(getMock).toHaveBeenCalledTimes(3);
+      expect(getMock.mock.calls[0][0]).toContain("/helix/chat/emotes/user?user_id=user-123");
+      expect(getMock.mock.calls[1][0]).toContain("after=next");
+      expect(getMock.mock.calls[2][0]).toContain("/helix/users?id=owner-1&id=owner-2");
+      expect(result.map((emote) => emote.name)).toEqual(["StreamerSub", "FollowerWave"]);
+      expect(result.every((emote) => emote.availability === "user")).toBe(true);
+      expect(result.map((emote) => emote.owner?.displayName)).toEqual([
+        "StreamerOne",
+        "FollowChan",
+      ]);
+      expect(result.map((emote) => emote.owner?.avatarUrl)).toEqual([
+        "https://example.test/streamerone/avatar.webp",
+        "https://example.test/followchan/avatar.webp",
+      ]);
     });
   });
 

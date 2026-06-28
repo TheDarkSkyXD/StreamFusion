@@ -49,13 +49,16 @@ describe("user-endpoints", () => {
   });
 
   describe("getUsersById", () => {
-    it("returns empty array when not authenticated", async () => {
-      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+    it("uses app auth when viewer is not authenticated", async () => {
+      const client = createMockClient({
+        isAuthenticated: vi.fn(() => false),
+        request: vi.fn().mockResolvedValueOnce({ data: [] }),
+      });
 
       const result = await getUsersById(client, [1, 2, 3]);
 
       expect(result).toEqual([]);
-      expect(client.request).not.toHaveBeenCalled();
+      expect(client.request).toHaveBeenCalledWith("/users?id[]=1&id[]=2&id[]=3", undefined, "app");
     });
 
     it("returns empty array when ids list is empty", async () => {
@@ -78,7 +81,7 @@ describe("user-endpoints", () => {
 
       const result = await getUsersById(client, [1, 2]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id[]=1&id[]=2");
+      expect(client.request).toHaveBeenCalledWith("/users?id[]=1&id[]=2", undefined, "app");
       expect(result).toEqual(mockUsers);
     });
 
@@ -89,7 +92,7 @@ describe("user-endpoints", () => {
 
       await getUsersById(client, [1, 1, 1]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id[]=1");
+      expect(client.request).toHaveBeenCalledWith("/users?id[]=1", undefined, "app");
     });
 
     it("returns empty array when response.data is null", async () => {

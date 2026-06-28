@@ -25,8 +25,11 @@ export function registerKickChatHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE,
-    async (_event, payload: { chatroomId: number; content: string }): Promise<KickSendResult> => {
-      return sendKickChatMessage(payload.chatroomId, payload.content);
+    async (
+      _event,
+      payload: { chatroomId: number; content: string; broadcasterUserId?: number }
+    ): Promise<KickSendResult> => {
+      return sendKickChatMessage(payload.chatroomId, payload.content, payload.broadcasterUserId);
     }
   );
 

@@ -158,7 +158,7 @@ describe("KickChatService.sendMessage", () => {
     kickChatApi.disposeSendWindow.mockClear();
   });
 
-  it("calls sendKickChatMessage with chatroomId, not broadcaster_user_id", async () => {
+  it("calls sendKickChatMessage with chatroomId plus broadcaster_user_id for official fallback", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {
       slug: "ac7ionman",
@@ -166,8 +166,7 @@ describe("KickChatService.sendMessage", () => {
       broadcasterUserId: 42,
     });
     await service.sendMessage("ac7ionman", "hello");
-    expect(kickChatApi.sendMessage).toHaveBeenCalledWith(999_111, "hello");
-    // Sanity: the OLD broadcaster_user_id MUST NOT be the first arg.
+    expect(kickChatApi.sendMessage).toHaveBeenCalledWith(999_111, "hello", 42);
     const [firstArg] = kickChatApi.sendMessage.mock.calls[0]!;
     expect(firstArg).not.toBe(42);
   });

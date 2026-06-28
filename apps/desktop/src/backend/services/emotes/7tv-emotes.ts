@@ -121,8 +121,12 @@ class SevenTVEmoteProvider implements EmoteProviderService {
    */
   async fetchGlobalEmotes(): Promise<Emote[]> {
     try {
-      const data =
-        (await window.electronAPI.emotes.get7TVGlobalEmoteSet()) as SevenTVEmoteSet | null;
+      const bridge = window.electronAPI?.emotes;
+      const data = bridge
+        ? ((await bridge.get7TVGlobalEmoteSet()) as SevenTVEmoteSet | null)
+        : await api
+            .get(`${SevenTVEmoteProvider.BASE_URL}/emote-sets/global`)
+            .json<SevenTVEmoteSet>();
 
       if (!data?.emotes) {
         return [];
@@ -183,10 +187,15 @@ class SevenTVEmoteProvider implements EmoteProviderService {
       // Main returns the flat UserConnection on 200, or null when 7TV doesn't
       // know this user (the 404 we're trying to keep out of DevTools). Real
       // failures (5xx, network) throw — caught below.
-      const connection = (await window.electronAPI.emotes.get7TVUserByConnection(
-        platform,
-        identifier
-      )) as SevenTVUserConnection | null;
+      const bridge = window.electronAPI?.emotes;
+      const connection = bridge
+        ? ((await bridge.get7TVUserByConnection(
+            platform,
+            identifier
+          )) as SevenTVUserConnection | null)
+        : await api
+            .get(`${SevenTVEmoteProvider.BASE_URL}/users/${platform.toUpperCase()}/${identifier}`)
+            .json<SevenTVUserConnection>();
 
       if (!connection) {
         logger.info("Emote:7TV", "No 7TV channel emotes", { platform, identifier });

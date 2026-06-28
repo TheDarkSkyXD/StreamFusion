@@ -32,7 +32,7 @@ function streamToChannel(stream: UnifiedStream): UnifiedChannel {
     bannerUrl: "",
     bio: "",
     isLive: true,
-    isVerified: false,
+    isVerified: !!stream.channelIsVerified,
     isPartner: false,
   };
 }
@@ -83,20 +83,24 @@ export async function searchChannels(
     // follower count) would otherwise lose follower count when we pick the
     // avatar-bearing side. Prefer whichever side actually populated it.
     const followerCount = existing.followerCount ?? newChannel.followerCount;
+    const isVerified = existing.isVerified || newChannel.isVerified;
+    const isPartner = existing.isPartner || newChannel.isPartner;
 
     // Always prefer the entry with an avatar, but keep the authoritative live status
     if (hasAvatar(newChannel) && !hasAvatar(existing)) {
-      return { ...newChannel, isLive, followerCount };
+      return { ...newChannel, isLive, isVerified, isPartner, followerCount };
     }
     // If existing has avatar but new doesn't, keep existing but merge avatar if new has one
     if (hasAvatar(existing)) {
-      return { ...existing, isLive, followerCount };
+      return { ...existing, isLive, isVerified, isPartner, followerCount };
     }
     // Neither has avatar, keep existing with merged data
     return {
       ...existing,
       isLive,
       avatarUrl: newChannel.avatarUrl || existing.avatarUrl,
+      isVerified,
+      isPartner,
       followerCount,
     };
   };
@@ -278,8 +282,14 @@ export async function searchChannels(
               // clobbered Step 4's isLive: true for currently-live channels. The
               // search API agrees with /livestreams in practice, so we read it.
               isLive: typeof item.isLive === "boolean" ? item.isLive : false,
-              isVerified: item.verified || item.is_verified || false,
-              isPartner: false,
+              isVerified:
+                item.verified ||
+                item.is_verified ||
+                item.partner ||
+                item.is_partner ||
+                item.isPartner ||
+                false,
+              isPartner: item.partner || item.is_partner || item.isPartner || false,
               followerCount: rawFollowers,
             };
 

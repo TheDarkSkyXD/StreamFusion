@@ -9,6 +9,8 @@ import {
   fetchBTTVUserByTwitchId,
 } from "@/backend/services/emotes/bttv-emotes-service";
 import { fetchFFZGlobalEmotes, fetchFFZRoom } from "@/backend/services/emotes/ffz-emotes-service";
+import { fetchKickChannelEmotes } from "@/backend/services/emotes/kick-channel-emotes-service";
+import { fetchKickUserSubscriptions } from "@/backend/services/emotes/kick-user-subscriptions-service";
 import { IPC_CHANNELS, type IpcPayloads } from "@/shared/ipc-channels";
 
 export function registerEmoteHandlers(): void {
@@ -50,4 +52,18 @@ export function registerEmoteHandlers(): void {
       return fetchFFZRoom(opts);
     }
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES,
+    async (
+      _event,
+      { slug, accessToken }: IpcPayloads[typeof IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES]
+    ) => {
+      return fetchKickChannelEmotes(slug, accessToken);
+    }
+  );
+
+  ipcMain.handle(IPC_CHANNELS.EMOTES_KICK_GET_USER_SUBSCRIPTIONS, async () => {
+    return fetchKickUserSubscriptions();
+  });
 }

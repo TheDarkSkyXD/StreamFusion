@@ -65,7 +65,7 @@ function toKickCategorySlug(name: string): string {
 // Cache for display name lookups to avoid redundant requests
 const _displayNameCache = new Map<
   string,
-  { displayName: string; avatar: string; timestamp: number }
+  { displayName: string; avatar: string; isVerified: boolean; timestamp: number }
 >();
 const DISPLAY_NAME_CACHE_TTL = 1000 * 60 * 60; // 60 minutes — streamer renames are rare, fewer net.request fallbacks
 const MAX_CACHE_SIZE = 1000; // Limit cache to 1000 entries
@@ -113,11 +113,15 @@ createManagedInterval(
  */
 async function getChannelDisplayInfo(
   slug: string
-): Promise<{ displayName: string; avatar: string } | null> {
+): Promise<{ displayName: string; avatar: string; isVerified: boolean } | null> {
   // Check cache first
   const cached = _displayNameCache.get(slug.toLowerCase());
   if (cached && Date.now() - cached.timestamp < DISPLAY_NAME_CACHE_TTL) {
-    return { displayName: cached.displayName, avatar: cached.avatar };
+    return {
+      displayName: cached.displayName,
+      avatar: cached.avatar,
+      isVerified: cached.isVerified,
+    };
   }
 
   // Skip the round-trip during a known outage — the call has no retries and
@@ -156,6 +160,7 @@ async function getChannelDisplayInfo(
     const result = {
       displayName: data.user?.username || slug,
       avatar: data.user?.profile_picture || data.user?.profile_pic || data.user?.profilepic || "",
+      isVerified: isKickChannelVerified(data),
     };
 
     // Cache the result
@@ -167,6 +172,21 @@ async function getChannelDisplayInfo(
   } finally {
     releaseSlot();
   }
+}
+
+function isKickChannelVerified(data: any): boolean {
+  return !!(
+    data?.verified?.id ??
+    data?.verified ??
+    data?.is_verified ??
+    data?.user?.verified?.id ??
+    data?.user?.verified ??
+    data?.user?.is_verified ??
+    data?.streamer?.user?.verified?.id ??
+    data?.streamer?.user?.verified ??
+    data?.streamer?.user?.is_verified ??
+    false
+  );
 }
 
 // In-flight dedupe: concurrent callers (sidebar refetch + hover prefetch + page
@@ -425,6 +445,7 @@ async function _doFetchPublicStreamBySlug(
         channelDisplayName: data.user?.username || data.slug,
         channelAvatar:
           data.user?.profile_picture || data.user?.profile_pic || data.user?.profilepic || "",
+        channelIsVerified: isKickChannelVerified(data),
         title: livestream.session_title || "",
         viewerCount: livestream.viewer_count ?? livestream.viewers ?? 0,
         thumbnailUrl: livestream.thumbnail?.url || "",
@@ -602,10 +623,6 @@ export async function getStreamBySlug(
     }
 
     if (channel?.isLive) {
-      if (!client.isAuthenticated()) {
-        // Cannot fetch live details without auth; return null (stream offline from caller perspective)
-        return null;
-      }
       // Need to get full stream data from livestreams endpoint
       try {
         const channelIdNum = parseInt(channel.id, 10);
@@ -618,7 +635,9 @@ export async function getStreamBySlug(
         }
 
         const response = await client.request<KickApiResponse<KickApiLivestream[]>>(
-          `/livestreams?broadcaster_user_id=${channelIdNum}`
+          `/livestreams?broadcaster_user_id=${channelIdNum}`,
+          undefined,
+          "app"
         );
 
         if (response.data && response.data.length > 0) {
@@ -672,6 +691,7 @@ export async function getStreamBySlug(
                   if (user.name) {
                     stream.channelDisplayName = user.name;
                   }
+                  stream.channelIsVerified ||= isKickChannelVerified(user);
                 } else {
                   logger.warn(
                     "Kick:Endpoints:Stream",
@@ -782,6 +802,7 @@ async function getPublicStreamsByCategorySlug(
       channelName: channel.slug || user.username || "",
       channelDisplayName: user.username || channel.slug || "",
       channelAvatar: user.profile_picture || "",
+      channelIsVerified: isKickChannelVerified(item),
       title: meta.title || "",
       viewerCount: item.viewers_count ?? 0,
       thumbnailUrl: item.thumbnail_url || "",
@@ -996,6 +1017,7 @@ export async function getPublicTopStreams(
           item.broadcaster_username ||
           slug,
         channelAvatar: avatarUrl,
+        channelIsVerified: isKickChannelVerified(item),
         title: item.metadata?.title || item.session_title || item.title || "",
         viewerCount: item.viewers_count ?? item.viewer_count ?? item.viewers ?? 0,
         thumbnailUrl: thumbnailUrl,
@@ -1079,7 +1101,11 @@ export async function getTopStreams(
     const queryString = params.toString();
     const endpoint = queryString ? `/livestreams?${queryString}` : "/livestreams";
 
-    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(endpoint);
+    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(
+      endpoint,
+      undefined,
+      "app"
+    );
     const rawStreams = response.data || [];
 
     // Fetch avatars
@@ -1111,6 +1137,7 @@ export async function getTopStreams(
         if (user.name) {
           stream.channelDisplayName = user.name;
         }
+        stream.channelIsVerified ||= isKickChannelVerified(user);
       }
       return stream;
     });
@@ -1125,7 +1152,10 @@ export async function getTopStreams(
 
         // Fetch channel data in small batches to avoid rate limiting (429)
         // Reduced from 15 to 3 concurrent requests with delay between batches
-        const displayNameMap = new Map<string, { displayName: string; avatar: string }>();
+        const displayNameMap = new Map<
+          string,
+          { displayName: string; avatar: string; isVerified: boolean }
+        >();
         const batchSize = 3; // Reduced from 15 to avoid 429 rate limits
         const batchDelayMs = 200; // Add delay between batches
 
@@ -1151,6 +1181,7 @@ export async function getTopStreams(
               displayNameMap.set(result.slug.toLowerCase(), {
                 displayName: result.displayName,
                 avatar: result.avatar || "",
+                isVerified: result.isVerified,
               });
             }
           }
@@ -1166,6 +1197,7 @@ export async function getTopStreams(
             if (data.avatar && !stream.channelAvatar) {
               stream.channelAvatar = data.avatar;
             }
+            stream.channelIsVerified ||= data.isVerified;
           }
         }
       } catch {

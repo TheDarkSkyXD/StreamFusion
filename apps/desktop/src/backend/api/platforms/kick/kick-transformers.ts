@@ -99,6 +99,7 @@ export function transformKickLivestream(livestream: KickApiLivestream): UnifiedS
     channelName: livestream.slug,
     channelDisplayName: livestream.broadcaster_display_name || livestream.slug,
     channelAvatar: livestream.profile_picture || "", // Use official API profile_picture
+    channelIsVerified: !!(livestream as any).verified || !!(livestream as any).is_verified,
     title: livestream.stream_title,
     viewerCount: livestream.viewer_count,
     thumbnailUrl: livestream.thumbnail || "",

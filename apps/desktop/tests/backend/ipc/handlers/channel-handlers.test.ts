@@ -18,12 +18,15 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
 vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getChannel: vi.fn(),
+    getChannelsByBroadcasterIds: vi.fn(),
   },
 }));
 
 vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
     getActiveFollowsByPlatform: vi.fn(),
+    getLocalFollowsByPlatform: vi.fn(),
+    updateLocalFollow: vi.fn(),
   },
 }));
 
@@ -50,6 +53,7 @@ function getHandler(channel: string): Handler {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
+  vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
   registerChannelHandlers();
 });
 
@@ -182,6 +186,55 @@ describe("CHANNELS_GET_FOLLOWED", () => {
           avatarUrl: "https://example.com/summit.jpg",
         }),
       ],
+    });
+  });
+
+  it("repairs renamed Kick follow slugs before returning followed channels", async () => {
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "row-1",
+        platform: "kick",
+        channelId: "123",
+        channelName: "old-slug",
+        displayName: "Old Slug",
+        profileImage: "",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "kick",
+      },
+    ]);
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
+      {
+        id: "123",
+        platform: "kick",
+        username: "new-slug",
+        displayName: "New Slug",
+        avatarUrl: "https://example.com/new.jpg",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
+    ] as any);
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
+    const result = (await handler({}, { platform: "kick" })) as any;
+
+    expect(result).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          id: "123",
+          platform: "kick",
+          username: "new-slug",
+          displayName: "New Slug",
+          avatarUrl: "https://example.com/new.jpg",
+        }),
+      ],
+    });
+    expect(kickClient.getChannelsByBroadcasterIds).toHaveBeenCalledWith([123]);
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("row-1", {
+      channelName: "new-slug",
+      displayName: "New Slug",
+      profileImage: "https://example.com/new.jpg",
     });
   });
 

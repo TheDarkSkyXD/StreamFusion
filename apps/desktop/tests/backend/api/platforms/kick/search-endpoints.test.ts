@@ -216,6 +216,46 @@ describe("search-endpoints", () => {
       expect(channel!.followerCount).toBe(10000);
     });
 
+    it("preserves verified metadata when merging live stream fallback results", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          channels: [
+            {
+              id: 100,
+              slug: "verified-merge",
+              username: "VerifiedMerge",
+              verified: true,
+            },
+          ],
+        })
+      );
+      vi.mocked(getPublicTopStreams).mockResolvedValueOnce({
+        data: [
+          {
+            id: "stream-1",
+            platform: "kick",
+            channelId: "100",
+            channelName: "verified-merge",
+            channelDisplayName: "VerifiedMerge",
+            channelAvatar: "https://example.com/avatar.webp",
+            title: "Live",
+            viewerCount: 50,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+          } as any,
+        ],
+      });
+
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+      const result = await searchChannels(client, "verified-merge");
+
+      const channel = result.data.find((c) => c.username === "verified-merge");
+      expect(channel).toBeDefined();
+      expect(channel!.avatarUrl).toBe("https://example.com/avatar.webp");
+      expect(channel!.isVerified).toBe(true);
+    });
+
     it("includes fuzzy matches from top streams (Step 4)", async () => {
       vi.mocked(getPublicTopStreams).mockResolvedValueOnce({
         data: [

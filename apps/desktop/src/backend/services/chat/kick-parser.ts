@@ -29,6 +29,16 @@ export interface KickChatMessageEvent {
     id: number;
     username: string;
     slug: string;
+    profile_pic?: string | null;
+    profile_picture?: string | null;
+    avatar?: string | null;
+    avatar_url?: string | null;
+    user?: {
+      profile_pic?: string | null;
+      profile_picture?: string | null;
+      avatar?: string | null;
+      avatar_url?: string | null;
+    };
     identity: {
       color: string;
       badges: KickBadge[];
@@ -189,6 +199,20 @@ function getDefaultColor(username: string): string {
   return DEFAULT_COLORS[Math.abs(hash) % DEFAULT_COLORS.length];
 }
 
+function getKickSenderAvatarUrl(sender: KickChatMessageEvent["sender"]): string | undefined {
+  return (
+    sender.profile_picture ||
+    sender.profile_pic ||
+    sender.avatar_url ||
+    sender.avatar ||
+    sender.user?.profile_picture ||
+    sender.user?.profile_pic ||
+    sender.user?.avatar_url ||
+    sender.user?.avatar ||
+    undefined
+  );
+}
+
 // ========== Badge Mapping ==========
 
 // Badge URLs are now provided by bundled local assets instead of external CDNs
@@ -216,19 +240,24 @@ export function parseKickBadges(
   subscriberBadges?: SubscriberBadge[]
 ): ChatBadge[] {
   return badges.map((badge) => {
-    // Use bundled badge assets (embedded as data URIs)
-    let imageUrl = getBundledBadgeUrl(badge.type) || "";
-    // Sub-gifter badges carry the gift COUNT in `badge.count`. Surface it in
-    // the tooltip title so hovering reveals e.g. "Sub Gifter (50)" rather
-    // than a plain "Sub Gifter" — matches Kick's own tooltip behavior and is
-    // consistent with how the subscriber badge already exposes month count
-    // via the per-channel custom-badge text.
+    // Use bundled badge assets (embedded as data URIs). Sub-gifter badges use
+    // Kick's current count-tiered gift icon colors, so pass the count through.
+    let imageUrl = getBundledBadgeUrl(badge.type, badge.count) || "";
+    // Sub-gifter badges carry the gift count in `badge.count`. Surface it in
+    // the tooltip title so hovering reveals Kick-style text like
+    // "Gifted 50 subs", consistent with subscriber month-count tooltips.
     const baseTitle = badge.text || badge.type;
     const isSubGifter = badge.type === "sub_gifter" || badge.type === "subgifter";
-    const title =
-      isSubGifter && typeof badge.count === "number" && badge.count > 0
-        ? `${baseTitle} (${badge.count})`
-        : baseTitle;
+    const isSubscriber = badge.type === "subscriber";
+    const title = (() => {
+      if (isSubGifter && typeof badge.count === "number" && badge.count > 0) {
+        return `Gifted ${badge.count} ${badge.count === 1 ? "sub" : "subs"}`;
+      }
+      if (isSubscriber && typeof badge.count === "number" && badge.count > 0) {
+        return `${badge.count}-Month Subscriber`;
+      }
+      return baseTitle;
+    })();
 
     // Custom Subscriber Badge Logic - channel-specific badges from API
     if (badge.type === "subscriber" && subscriberBadges?.length) {
@@ -458,6 +487,7 @@ export function parseKickChatMessage(
     username: event.sender.slug,
     displayName: event.sender.username,
     color: event.sender.identity.color || getDefaultColor(event.sender.username),
+    avatarUrl: getKickSenderAvatarUrl(event.sender),
     badges: parseKickBadges(event.sender.identity.badges, subscriberBadges),
     content: fragments,
     rawContent: cleanContent,

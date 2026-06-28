@@ -22,6 +22,49 @@ export interface EncryptedToken {
   iv?: string; // Initialization vector if needed
 }
 
+// ========== Twitch OAuth Scopes ==========
+
+/**
+ * Canonical Twitch user-token scope set for the current app.
+ *
+ * Initial connect, reconnect/scope-upgrade, and device-code flows must all
+ * request this full list. Existing installs may need one reconnect after a new
+ * scope ships, but after that reconnect the token should carry every scope
+ * StreamFusion currently uses.
+ */
+export const TWITCH_APP_SCOPES = [
+  "user:read:email",
+  "user:read:follows",
+  "user:read:subscriptions",
+  "user:read:emotes",
+  // IRC chat auth. Helix moderation scopes do not unlock tmi.js read/write.
+  "chat:read",
+  "chat:edit",
+  // Mod-channel discovery and chat message moderation.
+  "user:read:moderated_channels",
+  "moderator:manage:chat_messages",
+  // Channel-management console actions.
+  "moderator:manage:banned_users",
+  "moderator:manage:shield_mode",
+  "channel:manage:raids",
+  "channel:manage:moderators",
+  "channel:manage:vips",
+  "channel:manage:predictions",
+  "channel:manage:polls",
+  "channel:edit:commercial",
+  "user:manage:whispers",
+  // Unban-request review and decisions.
+  "moderator:read:unban_requests",
+  "moderator:manage:unban_requests",
+] as const;
+
+export type TwitchAppScope = (typeof TWITCH_APP_SCOPES)[number];
+
+export const TWITCH_MOD_ACTION_SCOPES = [
+  "user:read:moderated_channels",
+  "moderator:manage:chat_messages",
+] as const satisfies readonly TwitchAppScope[];
+
 // ========== User Types ==========
 
 export interface TwitchUser {
@@ -97,7 +140,7 @@ export interface KickFollow {
 // ========== Preferences Types ==========
 
 export type Theme = "light" | "dark" | "system";
-export type VideoQuality = "auto" | "1080p" | "720p" | "480p" | "360p" | "160p";
+export type VideoQuality = "auto" | "1440p" | "2k" | "1080p" | "720p" | "480p" | "360p" | "160p";
 export type ChatPosition = "right" | "left" | "hidden";
 export type ChatSize = "small" | "medium" | "large";
 
@@ -258,6 +301,7 @@ export interface ProxyPreferences {
 
 export type TimestampFormat = "HH:mm" | "h:mm a";
 export type ChatDensity = "cozy" | "compact";
+export type ChatPauseMode = "scroll" | "mouseover" | "alt" | "mouseover-alt";
 
 /**
  * Viewer-facing chat display preferences (Twitch + Kick unified renderer).
@@ -280,6 +324,8 @@ export interface ChatDisplayPreferences {
   fontSizePx: number; // ~10-20
   emoteSizePx: number; // ~16-56
   density: ChatDensity;
+  /** Twitch-style pause-chat trigger. Scrolling the chat pane always pauses. */
+  pauseMode: ChatPauseMode;
   /** Docked chat panel width as a percentage of the stream area (Stream/MultiStream pages, U2). */
   chatWidthPct: number; // 0-100
   // Emotes & badges
@@ -530,6 +576,7 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   fontSizePx: 16,
   emoteSizePx: 28,
   density: "cozy",
+  pauseMode: "scroll",
   chatWidthPct: 30,
   // Emotes & badges
   enable7tv: true,
@@ -546,7 +593,7 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   showPolls: true,
   showPredictions: true,
   recentMessagesOnJoin: true,
-  recentMessagesLimit: 100,
+  recentMessagesLimit: 200,
   messageLimit: 600,
 };
 

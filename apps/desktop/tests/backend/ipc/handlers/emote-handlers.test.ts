@@ -18,6 +18,8 @@ const serviceMock = vi.hoisted(() => ({
   fetchBTTVUserByTwitchId: vi.fn(),
   fetchFFZGlobalEmotes: vi.fn(),
   fetchFFZRoom: vi.fn(),
+  fetchKickChannelEmotes: vi.fn(),
+  fetchKickUserSubscriptions: vi.fn(),
 }));
 
 vi.mock("@/backend/services/emotes/7tv-emotes-service", () => ({
@@ -31,6 +33,12 @@ vi.mock("@/backend/services/emotes/bttv-emotes-service", () => ({
 vi.mock("@/backend/services/emotes/ffz-emotes-service", () => ({
   fetchFFZGlobalEmotes: serviceMock.fetchFFZGlobalEmotes,
   fetchFFZRoom: serviceMock.fetchFFZRoom,
+}));
+vi.mock("@/backend/services/emotes/kick-channel-emotes-service", () => ({
+  fetchKickChannelEmotes: serviceMock.fetchKickChannelEmotes,
+}));
+vi.mock("@/backend/services/emotes/kick-user-subscriptions-service", () => ({
+  fetchKickUserSubscriptions: serviceMock.fetchKickUserSubscriptions,
 }));
 
 import { registerEmoteHandlers } from "@/backend/ipc/handlers/emote-handlers";
@@ -47,6 +55,12 @@ describe("registerEmoteHandlers", () => {
     ipcMock.handle.mockReset();
     serviceMock.fetch7TVUserByConnection.mockReset();
     serviceMock.fetch7TVGlobalEmoteSet.mockReset();
+    serviceMock.fetchBTTVGlobalEmotes.mockReset();
+    serviceMock.fetchBTTVUserByTwitchId.mockReset();
+    serviceMock.fetchFFZGlobalEmotes.mockReset();
+    serviceMock.fetchFFZRoom.mockReset();
+    serviceMock.fetchKickChannelEmotes.mockReset();
+    serviceMock.fetchKickUserSubscriptions.mockReset();
     registerEmoteHandlers();
   });
   afterEach(() => {
@@ -96,6 +110,8 @@ describe("registerEmoteHandlers", () => {
     expect(registered).toContain(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID);
     expect(registered).toContain(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL);
     expect(registered).toContain(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM);
+    expect(registered).toContain(IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES);
+    expect(registered).toContain(IPC_CHANNELS.EMOTES_KICK_GET_USER_SUBSCRIPTIONS);
   });
 
   it("forwards BTTV user-by-twitch-id and passes the null sentinel through", async () => {
@@ -117,5 +133,25 @@ describe("registerEmoteHandlers", () => {
 
     expect(serviceMock.fetchFFZRoom).toHaveBeenCalledWith({ name: "xqc" });
     expect(result).toEqual(room);
+  });
+
+  it("forwards Kick channel-emote lookup and passes the null sentinel through", async () => {
+    serviceMock.fetchKickChannelEmotes.mockResolvedValue(null);
+    const handler = captureHandler(IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES);
+
+    const result = await handler({}, { slug: "missing-channel", accessToken: "token" });
+
+    expect(serviceMock.fetchKickChannelEmotes).toHaveBeenCalledWith("missing-channel", "token");
+    expect(result).toBeNull();
+  });
+
+  it("forwards Kick user subscriptions and passes the null sentinel through", async () => {
+    serviceMock.fetchKickUserSubscriptions.mockResolvedValue(null);
+    const handler = captureHandler(IPC_CHANNELS.EMOTES_KICK_GET_USER_SUBSCRIPTIONS);
+
+    const result = await handler({}, undefined);
+
+    expect(serviceMock.fetchKickUserSubscriptions).toHaveBeenCalledOnce();
+    expect(result).toBeNull();
   });
 });

@@ -10,6 +10,33 @@ import type {
 
 import { getUser, getUsersById } from "./user-endpoints";
 
+function applyUserMetadata(
+  stream: UnifiedStream,
+  user?: { profileImageUrl?: string; broadcasterType?: string }
+): UnifiedStream {
+  if (!user) return stream;
+
+  if (user.profileImageUrl) {
+    stream.channelAvatar = user.profileImageUrl;
+  }
+  stream.channelIsVerified = user.broadcasterType === "partner";
+  return stream;
+}
+
+async function enrichStreamsWithUsers(
+  client: TwitchRequestor,
+  streams: TwitchApiStream[]
+): Promise<UnifiedStream[]> {
+  const unifiedStreams = streams.map(transformTwitchStream);
+  const userIds = streams.map((s) => s.user_id);
+  const users = await getUsersById(client, userIds);
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  return unifiedStreams.map((stream, index) =>
+    applyUserMetadata(stream, userMap.get(streams[index].user_id))
+  );
+}
+
 /**
  * Get live streams for specific user IDs
  */
@@ -38,7 +65,7 @@ export async function getStreamsByUserIds(
   );
 
   return {
-    data: data.data.map(transformTwitchStream),
+    data: await enrichStreamsWithUsers(client, data.data),
     cursor: data.pagination?.cursor,
   };
 }
@@ -69,7 +96,7 @@ export async function getFollowedStreams(
   );
 
   return {
-    data: data.data.map(transformTwitchStream),
+    data: await enrichStreamsWithUsers(client, data.data),
     cursor: data.pagination?.cursor,
   };
 }
@@ -99,22 +126,8 @@ export async function getTopStreams(
     `/streams?${params.toString()}`
   );
 
-  // Fetch user info to get avatars
-  const userIds = data.data.map((s) => s.user_id);
-  const users = await getUsersById(client, userIds);
-  const userMap = new Map(users.map((u) => [u.id, u]));
-
-  const streams = data.data.map((stream) => {
-    const unifiedStream = transformTwitchStream(stream);
-    const user = userMap.get(stream.user_id);
-    if (user) {
-      unifiedStream.channelAvatar = user.profileImageUrl;
-    }
-    return unifiedStream;
-  });
-
   return {
-    data: streams,
+    data: await enrichStreamsWithUsers(client, data.data),
     cursor: data.pagination?.cursor,
   };
 }
@@ -132,7 +145,8 @@ export async function getStreamByLogin(
   );
 
   if (data.data && data.data.length > 0) {
-    return transformTwitchStream(data.data[0]);
+    const [stream] = await enrichStreamsWithUsers(client, data.data);
+    return stream;
   }
   return null;
 }

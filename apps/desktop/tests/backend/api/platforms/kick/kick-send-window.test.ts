@@ -10,12 +10,22 @@ vi.mock("electron", () => ({
   },
 }));
 
+vi.mock("@/backend/auth/kick-auth", () => ({
+  kickAuthService: {
+    isAuthenticated: vi.fn(() => false),
+    ensureValidToken: vi.fn(),
+    getAccessToken: vi.fn(() => null),
+  },
+}));
+
 import {
+  buildKickWebApiGetIIFE,
   buildSendIIFE,
   classifySendResult,
   clearBearerForTest,
   disposeSendWindow,
   ensureSendWindowReady,
+  fetchKickWebApiGet,
   getBearerForTest,
   installBearerInterceptor,
   isSanctumBearer,
@@ -92,6 +102,21 @@ describe("buildSendIIFE", () => {
     expect(src).toContain("try");
     expect(src).toContain("catch");
     expect(src).toContain("JSON.stringify");
+  });
+});
+
+describe("buildKickWebApiGetIIFE", () => {
+  it("builds a credentialed GET with JSON-escaped path and bearer", () => {
+    const src = buildKickWebApiGetIIFE(
+      `/api/v2/user/subscriptions?x="quoted"`,
+      "Bearer 1|abc"
+    );
+
+    expect(src).toContain(`method: "GET"`);
+    expect(src).toContain(JSON.stringify(`/api/v2/user/subscriptions?x="quoted"`));
+    expect(src).toContain(JSON.stringify("Bearer 1|abc"));
+    expect(src).toContain(`"X-Requested-With"`);
+    expect(src).toContain(`credentials: "include"`);
   });
 });
 
@@ -437,6 +462,71 @@ describe("sendKickChatMessage happy path", () => {
     );
     expect(sendCalls.length).toBe(1);
     expect(String(sendCalls[0][0])).toContain(`"Bearer 1|abc"`);
+  });
+});
+
+describe("fetchKickWebApiGet", () => {
+  it("rejects unsupported paths without initializing the hidden window", async () => {
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
+
+    const result = await fetchKickWebApiGet("/api/v2/other");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe("unknown");
+    expect(BrowserWindow).not.toHaveBeenCalled();
+  });
+
+  it("fires an allowed GET from the hidden Kick web session", async () => {
+    const executeJavaScript = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown
+    );
+
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/user/subscriptions")) {
+        return Promise.resolve(
+          JSON.stringify({
+            ok: true,
+            status: 200,
+            body: JSON.stringify({ data: [{ channel: { slug: "subbed" } }] }),
+          })
+        );
+      }
+      return Promise.resolve(true);
+    });
+
+    const result = await fetchKickWebApiGet("/api/v2/user/subscriptions");
+
+    expect(result).toEqual({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({ data: [{ channel: { slug: "subbed" } }] }),
+    });
+    const apiCalls = executeJavaScript.mock.calls.filter((call) =>
+      String(call[0]).includes("/api/v2/user/subscriptions")
+    );
+    expect(apiCalls.length).toBe(1);
+    expect(String(apiCalls[0][0])).toContain(`"Bearer 1|abc"`);
   });
 });
 

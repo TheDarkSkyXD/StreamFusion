@@ -1,5 +1,7 @@
+export type KickAuthMode = "user" | "app";
+
 export interface KickRequestor {
-  request<T>(endpoint: string, options?: RequestInit): Promise<T>;
+  request<T>(endpoint: string, options?: RequestInit, authMode?: KickAuthMode): Promise<T>;
   isAuthenticated(): boolean;
   baseUrl: string;
 

@@ -16,6 +16,7 @@ export interface UnifiedStream {
   channelName: string;
   channelDisplayName: string;
   channelAvatar: string;
+  channelIsVerified?: boolean;
   title: string;
   viewerCount: number;
   thumbnailUrl: string;

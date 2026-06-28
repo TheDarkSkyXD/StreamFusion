@@ -4,6 +4,7 @@ import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
+import { repairKickFollowSlugs } from "./kick-follow-repair";
 
 export function registerChannelHandlers(): void {
   /**
@@ -101,6 +102,7 @@ export function registerChannelHandlers(): void {
       }
     ) => {
       const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
+      const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
         let channels: any[] = [];
@@ -111,16 +113,23 @@ export function registerChannelHandlers(): void {
             channels = await twitchClient.getAllFollowedChannels();
           }
         } else if (params.platform === "kick") {
-          channels = storageService.getActiveFollowsByPlatform("kick").map((follow) => ({
-            id: follow.channelId,
-            platform: "kick",
-            username: follow.channelName,
-            displayName: follow.displayName || follow.channelName,
-            avatarUrl: follow.profileImage || "",
-            isLive: false,
-            isVerified: false,
-            isPartner: false,
-          }));
+          const follows = storageService.getActiveFollowsByPlatform("kick");
+          const repairedChannels = await repairKickFollowSlugs(kickClient, follows);
+
+          channels = follows.map((follow) => {
+            const current = repairedChannels.get(follow.id);
+
+            return {
+              id: follow.channelId,
+              platform: "kick",
+              username: current?.username || follow.channelName,
+              displayName: current?.displayName || follow.displayName || follow.channelName,
+              avatarUrl: current?.avatarUrl || follow.profileImage || "",
+              isLive: current?.isLive || false,
+              isVerified: current?.isVerified || false,
+              isPartner: current?.isPartner || false,
+            };
+          });
         }
 
         return { success: true, data: channels };

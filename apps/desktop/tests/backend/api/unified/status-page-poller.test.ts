@@ -327,6 +327,39 @@ describe("status-page-poller (slice 08)", () => {
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
   });
 
+  it("Kick: direct Other service outage produces 'all-clear'", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ services: [{ name: "KICK - Other", status: "Partial outage" }] }),
+        { status: 200 }
+      )
+    );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
+  });
+
+  it("Kick: Data Services outage produces 'confirmed-outage'", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ services: [{ name: "Data Services", status: "Partial outage" }] }),
+        { status: 200 }
+      )
+    );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
+      "kick",
+      "confirmed-outage",
+      expect.objectContaining({
+        summary: "Kick status: Partial outage.",
+        impact: "Partial outage",
+      })
+    );
+  });
+
   it("Kick: major outage service wording is forwarded as status-page detail", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ services: [{ name: "Platform", status: "Major outage" }] }), {

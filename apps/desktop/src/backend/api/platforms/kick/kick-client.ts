@@ -11,6 +11,7 @@ import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import type { KickUser, Platform } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
+import { WORKER_BASE_URL } from "../../../auth/oauth-config";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
@@ -22,7 +23,11 @@ import { clients } from "../../unified/registry";
 // Re-export common types for compatibility
 export type { PaginatedResult, PaginationOptions } from "./kick-types";
 
-import { isPlatformHealthy, recordPlatformLocalNetError } from "../../unified/platform-health";
+import {
+  isPlatformHealthy,
+  recordPlatformLocalNetError,
+  recordPlatformOfficialApiAuthFailure,
+} from "../../unified/platform-health";
 // Import endpoints
 import * as CategoryEndpoints from "./endpoints/category-endpoints";
 import * as ChannelEndpoints from "./endpoints/channel-endpoints";
@@ -33,7 +38,7 @@ import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
 import { acquireKickRequestSlot } from "./kick-network-health";
-import type { KickRequestor } from "./kick-requestor";
+import type { KickAuthMode, KickRequestor } from "./kick-requestor";
 import type { KickApiUser, PaginatedResult, PaginationOptions } from "./kick-types";
 
 // ========== Global Rate Limiter ==========
@@ -119,7 +124,7 @@ const _IMAGE_NEG_CACHE_TTL_MS = 10 * 60 * 1000;
 
 class KickClient implements KickRequestor, IPlatformReader {
   readonly platform: Platform = "kick";
-  readonly baseUrl = "https://streamfusion.leveluptogetherbiz.workers.dev/kick";
+  readonly baseUrl = `${WORKER_BASE_URL}/kick`;
 
   /**
    * Make an authenticated request to the official Kick Public API v1
@@ -340,28 +345,46 @@ class KickClient implements KickRequestor, IPlatformReader {
     }
   }
 
-  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    let token: string | null = null;
-    const isAppToken = false;
-
-    // Try User Token — App Token flow is intentionally skipped because
-    // client credentials live on the Cloudflare Worker and no
-    // /auth/kick/app-token proxy endpoint has been created yet.
-    // Callers should fall back to the public (no-auth) API when the user
-    // hasn't logged into Kick.
-    if (kickAuthService.isAuthenticated()) {
-      await kickAuthService.ensureValidToken();
-      token = kickAuthService.getAccessToken();
+  private async getOfficialApiBearerToken(authMode: KickAuthMode): Promise<
+    | {
+        token: string;
+        kind: "user";
+      }
+    | {
+        token: null;
+        kind: "app";
+      }
+    | null
+  > {
+    if (authMode === "app") {
+      return { token: null, kind: "app" };
     }
 
-    if (!token) {
-      throw new Error("Not authenticated with Kick. Use the public API fallback.");
+    if (kickAuthService.isAuthenticated()) {
+      await kickAuthService.ensureValidToken();
+      const userToken = kickAuthService.getAccessToken();
+      if (userToken) {
+        return { token: userToken, kind: "user" };
+      }
+    }
+
+    return null;
+  }
+
+  async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    authMode: KickAuthMode = "user"
+  ): Promise<T> {
+    let bearer = await this.getOfficialApiBearerToken(authMode);
+
+    if (!bearer) {
+      throw new Error(`No Kick ${authMode} token is available.`);
     }
 
     const headers: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
       // Add User-Agent and browser headers for Cloudflare/CDN compatibility
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -373,6 +396,11 @@ class KickClient implements KickRequestor, IPlatformReader {
       "sec-ch-ua-platform": '"Windows"',
       ...(options.headers as Record<string, string>),
     };
+    if (bearer.kind === "user") {
+      headers.Authorization = `Bearer ${bearer.token}`;
+    } else {
+      headers["X-StreamFusion-Auth"] = "app";
+    }
 
     const maxRetries = 3;
     let attempt = 0;
@@ -446,7 +474,15 @@ class KickClient implements KickRequestor, IPlatformReader {
             );
           }
 
-          if (response.statusCode === 401 && !isAppToken && !retriedOn401) {
+          if (response.statusCode === 401 && bearer.kind === "app") {
+            recordPlatformOfficialApiAuthFailure("kick", response.statusCode);
+            logger.warn(
+              "Kick:Client",
+              "Kick official API app-token proxy returned 401; marking Kick degraded"
+            );
+          }
+
+          if (response.statusCode === 401 && bearer.kind === "user" && !retriedOn401) {
             // Token may have expired between the pre-flight ensureValidToken() and
             // the actual request. Attempt one refresh and update the Authorization
             // header in-place — no recursive call to avoid infinite loops.
@@ -457,6 +493,7 @@ class KickClient implements KickRequestor, IPlatformReader {
             retriedOn401 = true;
             const refreshed = await kickAuthService.refreshToken();
             if (refreshed) {
+              bearer = { token: refreshed.accessToken, kind: "user" };
               headers.Authorization = `Bearer ${refreshed.accessToken}`;
               continue; // retry the same request with the new token
             }
@@ -481,14 +518,18 @@ class KickClient implements KickRequestor, IPlatformReader {
           recordPlatformLocalNetError("kick");
         }
 
-        // Network errors - log and throw
-        logger.error("Kick:Client", "Kick API request failed", {
-          endpoint,
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        });
+        const isClassifiedAppAuthFailure =
+          bearer.kind === "app" && /^Kick API error: 401\b/.test(errMsg);
+
+        if (!isClassifiedAppAuthFailure) {
+          logger.error("Kick:Client", "Kick API request failed", {
+            endpoint,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
+        }
         throw error;
       }
     }
@@ -520,6 +561,16 @@ class KickClient implements KickRequestor, IPlatformReader {
     return UserEndpoints.getUsersById(this, ids);
   }
 
+  /**
+   * Get a channel-scoped public user profile using Kick's legacy/internal v2 web endpoint.
+   */
+  async getPublicChannelUserProfile(
+    channelSlug: string,
+    username: string
+  ): Promise<UserEndpoints.KickPublicChannelUserProfile | null> {
+    return UserEndpoints.getPublicChannelUserProfile(channelSlug, username);
+  }
+
   // ========== Channel Endpoints ==========
 
   /**
@@ -536,6 +587,14 @@ class KickClient implements KickRequestor, IPlatformReader {
    */
   async getChannelsBySlugs(slugs: string[]): Promise<UnifiedChannel[]> {
     return ChannelEndpoints.getChannelsBySlugs(this, slugs);
+  }
+
+  /**
+   * Get multiple channels by stable Kick broadcaster user IDs.
+   * https://docs.kick.com/apis/channels - GET /public/v1/channels?broadcaster_user_id[]=:id
+   */
+  async getChannelsByBroadcasterIds(broadcasterUserIds: number[]): Promise<UnifiedChannel[]> {
+    return ChannelEndpoints.getChannelsByBroadcasterIds(this, broadcasterUserIds);
   }
 
   /**

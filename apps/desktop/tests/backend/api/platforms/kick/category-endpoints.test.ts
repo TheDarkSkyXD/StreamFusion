@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Module from "module";
 
-/* ------------------------------------------------------------------ *
- * Electron mock: category-endpoints.ts uses `require("electron")`    *
- * (CJS) inside function bodies. vi.mock only intercepts ESM imports. *
- * ------------------------------------------------------------------ */
 const mockFetch = vi.fn<(...args: unknown[]) => Promise<Response>>();
 
 const _origRequire = Module.prototype.require;
@@ -41,6 +37,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// Guards: Kick categories should use the official /public/v2/categories API before private fallback paths.
 describe("category-endpoints", () => {
   let getTopCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
   let searchCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
@@ -60,80 +57,31 @@ describe("category-endpoints", () => {
   });
 
   describe("getTopCategories", () => {
-    it("returns categories aggregated from official /livestreams endpoint", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({
-          data: [
-            {
-              broadcaster_user_id: 1,
-              slug: "streamer1",
-              stream_title: "Live",
-              viewer_count: 500,
-              category: { id: 10, name: "Just Chatting", thumbnail: "https://example.com/jc.webp" },
-            },
-            {
-              broadcaster_user_id: 2,
-              slug: "streamer2",
-              stream_title: "Gaming",
-              viewer_count: 300,
-              category: { id: 20, name: "Fortnite", thumbnail: "https://example.com/fn.webp" },
-            },
-            {
-              broadcaster_user_id: 3,
-              slug: "streamer3",
-              stream_title: "Also Chatting",
-              viewer_count: 200,
-              category: { id: 10, name: "Just Chatting", thumbnail: "https://example.com/jc.webp" },
-            },
-          ],
-        }),
+    it("returns categories from official /public/v2/categories", async () => {
+      const request = vi.fn().mockResolvedValueOnce({
+        data: [
+          { id: 20, name: "Fortnite", thumbnail: "https://example.com/fn.webp", tags: ["FPS"] },
+          { id: 10, name: "Just Chatting", thumbnail: "https://example.com/jc.webp" },
+        ],
+        pagination: { next_cursor: "cursor-2" },
       });
+      const client = createMockClient({ request });
 
       const result = await getTopCategories(client);
 
-      expect(result.data).toHaveLength(2);
-      expect(result.data[0].id).toBe("10");
-      expect(result.data[0].name).toBe("Just Chatting");
-      expect(result.data[0].viewerCount).toBe(700);
-      expect(result.data[1].id).toBe("20");
-      expect(result.data[1].viewerCount).toBe(300);
+      expect(result.data.map((c) => c.name)).toEqual(["Fortnite", "Just Chatting"]);
+      expect(result.data[0].tags).toEqual(["FPS"]);
+      expect(result.cursor).toBe("cursor-2");
+      expect(request).toHaveBeenCalledWith(
+        "/public/v2/categories?limit=1000",
+        undefined,
+        "app"
+      );
     });
 
-    it("sorts categories by viewer count descending", async () => {
+    it("falls back to private category list when official API throws", async () => {
       const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({
-          data: [
-            { viewer_count: 100, category: { id: 1, name: "A", thumbnail: "" } },
-            { viewer_count: 500, category: { id: 2, name: "B", thumbnail: "" } },
-            { viewer_count: 300, category: { id: 3, name: "C", thumbnail: "" } },
-          ],
-        }),
-      });
-
-      const result = await getTopCategories(client);
-
-      expect(result.data.map((c) => c.name)).toEqual(["B", "C", "A"]);
-    });
-
-    it("skips streams without a category", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({
-          data: [
-            { viewer_count: 100, category: null },
-            { viewer_count: 200, category: { id: 1, name: "Valid", thumbnail: "" } },
-          ],
-        }),
-      });
-
-      const result = await getTopCategories(client);
-
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0].name).toBe("Valid");
-    });
-
-    it("falls back to public API when official API throws", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(new Error("401")),
+        request: vi.fn().mockRejectedValueOnce(new Error("official down")),
       });
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
@@ -154,42 +102,19 @@ describe("category-endpoints", () => {
 
       const result = await getTopCategories(client);
 
-      expect(result.data.length).toBeGreaterThanOrEqual(0);
-    });
-
-    it("returns empty data when both APIs fail", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(new Error("Official failed")),
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        id: "42",
+        name: "Public Category",
+        viewerCount: 1000,
       });
-      mockFetch.mockRejectedValueOnce(new Error("Public failed"));
-
-      const result = await getTopCategories(client);
-
-      expect(result.data).toEqual([]);
     });
   });
 
   describe("searchCategories", () => {
-    it("searches via official API when authenticated", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({
-          data: [
-            { id: 10, name: "Just Chatting", thumbnail: "https://example.com/jc.webp" },
-          ],
-        }),
-      });
-
-      const result = await searchCategories(client, "chatting");
-
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0].name).toBe("Just Chatting");
-      expect(result.data[0].platform).toBe("kick");
-    });
-
-    it("falls back to public API filter when not authenticated", async () => {
-      const client = createMockClient({
-        isAuthenticated: vi.fn(() => false),
-      });
+    it("searches via anonymous public category list without app-token auth", async () => {
+      const request = vi.fn();
+      const client = createMockClient({ request });
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           data: {
@@ -197,14 +122,14 @@ describe("category-endpoints", () => {
               {
                 name: "Just Chatting",
                 slug: "just-chatting",
-                viewers_count: 500,
+                viewers_count: 900,
                 image_url: "https://files.kick.com/images/subcategories/10/banner/img.webp",
               },
               {
-                name: "Fortnite",
-                slug: "fortnite",
-                viewers_count: 300,
-                image_url: "https://files.kick.com/images/subcategories/20/banner/img.webp",
+                name: "VALORANT",
+                slug: "valorant",
+                viewers_count: 1200,
+                image_url: "https://files.kick.com/images/subcategories/5/banner/img.webp",
               },
             ],
             next_cursor: null,
@@ -216,10 +141,12 @@ describe("category-endpoints", () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].name).toBe("Just Chatting");
+      expect(request).not.toHaveBeenCalled();
     });
 
-    it("does case-insensitive matching in public fallback", async () => {
-      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+    it("matches public categories by slug and tags", async () => {
+      const request = vi.fn();
+      const client = createMockClient({ request });
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           data: {
@@ -227,8 +154,15 @@ describe("category-endpoints", () => {
               {
                 name: "VALORANT",
                 slug: "valorant",
-                viewers_count: 100,
+                viewers_count: 1200,
                 image_url: "https://files.kick.com/images/subcategories/5/banner/img.webp",
+                tags: ["FPS"],
+              },
+              {
+                name: "Just Chatting",
+                slug: "just-chatting",
+                viewers_count: 900,
+                image_url: "https://files.kick.com/images/subcategories/10/banner/img.webp",
               },
             ],
             next_cursor: null,
@@ -239,64 +173,60 @@ describe("category-endpoints", () => {
       const result = await searchCategories(client, "Valor");
 
       expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        id: "5",
+        name: "VALORANT",
+        slug: "valorant",
+      });
+      expect(request).not.toHaveBeenCalled();
     });
 
-    it("returns empty data on official API failure", async () => {
+    it("returns empty data when the public list has no match", async () => {
       const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(new Error("fail")),
+        request: vi.fn(),
       });
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "VALORANT",
+                slug: "valorant",
+                viewers_count: 1200,
+                image_url: "https://files.kick.com/images/subcategories/5/banner/img.webp",
+              },
+            ],
+            next_cursor: null,
+          },
+        })
+      );
 
       const result = await searchCategories(client, "anything");
 
       expect(result.data).toEqual([]);
     });
-
-    it("sets nextPage when results fill a full page", async () => {
-      const categories = Array.from({ length: 100 }, (_, i) => ({
-        id: i,
-        name: `Cat ${i}`,
-        thumbnail: "",
-      }));
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({ data: categories }),
-      });
-
-      const result = await searchCategories(client, "Cat");
-
-      expect(result.nextPage).toBe(2);
-    });
-
-    it("does not set nextPage when results are fewer than 100", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({
-          data: [{ id: 1, name: "One", thumbnail: "" }],
-        }),
-      });
-
-      const result = await searchCategories(client, "One");
-
-      expect(result.nextPage).toBeUndefined();
-    });
   });
 
   describe("getCategoryById", () => {
-    it("fetches category via official API when authenticated", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({
-          data: { id: 10, name: "Just Chatting", thumbnail: "https://example.com/jc.webp" },
-        }),
+    it("fetches category via official v2 id[] parameter", async () => {
+      const request = vi.fn().mockResolvedValueOnce({
+        data: [{ id: 10, name: "Just Chatting", thumbnail: "https://example.com/jc.webp" }],
       });
+      const client = createMockClient({ request });
 
       const result = await getCategoryById(client, "10");
 
-      expect(result).not.toBeNull();
-      expect(result!.id).toBe("10");
-      expect(result!.name).toBe("Just Chatting");
+      expect(result).toMatchObject({ id: "10", name: "Just Chatting" });
+      expect(request).toHaveBeenCalledWith(
+        "/public/v2/categories?id%5B%5D=10",
+        undefined,
+        "app"
+      );
     });
 
-    it("returns null when official API returns no data", async () => {
+    it("returns null when official v2 returns no category", async () => {
       const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({ data: null }),
+        request: vi.fn().mockResolvedValueOnce({ data: [] }),
       });
 
       const result = await getCategoryById(client, "999");
@@ -304,7 +234,7 @@ describe("category-endpoints", () => {
       expect(result).toBeNull();
     });
 
-    it("falls back to public API on official API failure", async () => {
+    it("falls back to private category list on official failure", async () => {
       const client = createMockClient({
         request: vi.fn().mockRejectedValueOnce(new Error("fail")),
       });
@@ -326,106 +256,45 @@ describe("category-endpoints", () => {
 
       const result = await getCategoryById(client, "42");
 
-      expect(result).not.toBeNull();
-      expect(result!.id).toBe("42");
-    });
-
-    it("falls back to public API when not authenticated", async () => {
-      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            categories: [
-              {
-                name: "Public Cat",
-                slug: "public-cat",
-                viewers_count: 100,
-                image_url: "https://files.kick.com/images/subcategories/55/banner/img.webp",
-              },
-            ],
-            next_cursor: null,
-          },
-        })
-      );
-
-      const result = await getCategoryById(client, "55");
-
-      expect(result).not.toBeNull();
-      expect(result!.id).toBe("55");
-    });
-
-    it("returns null when category not found in public fallback", async () => {
-      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ data: { categories: [], next_cursor: null } })
-      );
-
-      const result = await getCategoryById(client, "999");
-
-      expect(result).toBeNull();
+      expect(result).toMatchObject({ id: "42", name: "Found via public" });
     });
   });
 
   describe("getAllCategories", () => {
-    it("aggregates categories from multiple pages of /livestreams when authenticated", async () => {
-      const requestMock = vi.fn();
-      requestMock
+    it("paginates official v2 categories by cursor", async () => {
+      const request = vi
+        .fn()
         .mockResolvedValueOnce({
-          data: [
-            { viewer_count: 100, category: { id: 1, name: "Cat1", thumbnail: "" } },
-            { viewer_count: 200, category: { id: 2, name: "Cat2", thumbnail: "" } },
-          ],
+          data: [{ id: 1, name: "Cat1", thumbnail: "" }],
+          pagination: { next_cursor: "cursor-2" },
         })
         .mockResolvedValueOnce({
-          data: [
-            { viewer_count: 50, category: { id: 3, name: "Cat3", thumbnail: "" } },
-          ],
-        })
-        .mockResolvedValueOnce({ data: [] });
-
-      const client = createMockClient({ request: requestMock });
+          data: [{ id: 2, name: "Cat2", thumbnail: "" }],
+          pagination: { next_cursor: null },
+        });
+      const client = createMockClient({ request });
 
       const result = await getAllCategories(client);
 
-      expect(result.length).toBe(3);
-      expect(result[0].name).toBe("Cat2");
-      expect(result[0].viewerCount).toBe(200);
-    });
-
-    it("skips to public fallback when not authenticated", async () => {
-      const client = createMockClient({
-        isAuthenticated: vi.fn(() => false),
-      });
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            categories: [
-              {
-                name: "Public Cat",
-                viewers_count: 100,
-                slug: "pub",
-                image_url: "https://files.kick.com/images/subcategories/1/banner/img.webp",
-              },
-            ],
-            next_cursor: null,
-          },
-        })
+      expect(result.map((c) => c.name)).toEqual(["Cat1", "Cat2"]);
+      expect(request).toHaveBeenNthCalledWith(
+        1,
+        "/public/v2/categories?limit=1000",
+        undefined,
+        "app"
       );
-
-      const result = await getAllCategories(client);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe("Public Cat");
-      expect(client.request).not.toHaveBeenCalled();
+      expect(request).toHaveBeenNthCalledWith(
+        2,
+        "/public/v2/categories?limit=1000&cursor=cursor-2",
+        undefined,
+        "app"
+      );
     });
 
-    it("falls back to public API when official returns empty categories", async () => {
-      const requestMock = vi.fn();
-      for (let i = 0; i < 10; i++) {
-        requestMock.mockResolvedValueOnce({ data: [] });
-      }
-      const client = createMockClient({ request: requestMock });
-
+    it("falls back to private category list when official returns empty categories", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({ data: [] }),
+      });
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           data: {
@@ -446,71 +315,6 @@ describe("category-endpoints", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Fallback Cat");
-    });
-
-    it("aggregates viewer counts for the same category across pages", async () => {
-      const requestMock = vi.fn();
-      requestMock
-        .mockResolvedValueOnce({
-          data: [
-            { viewer_count: 500, category: { id: 1, name: "JC", thumbnail: "" } },
-          ],
-        })
-        .mockResolvedValueOnce({
-          data: [
-            { viewer_count: 300, category: { id: 1, name: "JC", thumbnail: "" } },
-          ],
-        })
-        .mockResolvedValueOnce({ data: [] });
-
-      const client = createMockClient({ request: requestMock });
-
-      const result = await getAllCategories(client);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].viewerCount).toBe(800);
-    });
-
-    it("continues fetching when one page throws", async () => {
-      const requestMock = vi.fn();
-      requestMock
-        .mockResolvedValueOnce({
-          data: [
-            { viewer_count: 100, category: { id: 1, name: "Cat1", thumbnail: "" } },
-          ],
-        })
-        .mockRejectedValueOnce(new Error("transient"))
-        .mockResolvedValueOnce({
-          data: [
-            { viewer_count: 50, category: { id: 2, name: "Cat2", thumbnail: "" } },
-          ],
-        })
-        .mockResolvedValue({ data: [] });
-
-      const client = createMockClient({ request: requestMock });
-
-      const result = await getAllCategories(client);
-
-      expect(result).toHaveLength(2);
-    });
-
-    it("sorts results by viewer count descending", async () => {
-      const requestMock = vi.fn();
-      requestMock
-        .mockResolvedValueOnce({
-          data: [
-            { viewer_count: 100, category: { id: 1, name: "Small", thumbnail: "" } },
-            { viewer_count: 500, category: { id: 2, name: "Big", thumbnail: "" } },
-            { viewer_count: 300, category: { id: 3, name: "Mid", thumbnail: "" } },
-          ],
-        })
-        .mockResolvedValue({ data: [] });
-
-      const client = createMockClient({ request: requestMock });
-
-      const result = await getAllCategories(client);
-
-      expect(result.map((c) => c.name)).toEqual(["Big", "Mid", "Small"]);
     });
   });
 });

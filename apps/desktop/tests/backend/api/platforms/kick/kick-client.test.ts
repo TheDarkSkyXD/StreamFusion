@@ -33,6 +33,7 @@ vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
 vi.mock("@/backend/api/unified/platform-health", () => ({
   isPlatformHealthy: vi.fn(() => true),
   recordPlatformLocalNetError: vi.fn(),
+  recordPlatformOfficialApiAuthFailure: vi.fn(),
 }));
 
 vi.mock("@/backend/auth/kick-auth", () => ({
@@ -67,6 +68,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/category-endpoints", () => ({
 vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
   getChannel: vi.fn(),
   getChannelsBySlugs: vi.fn(),
+  getChannelsByBroadcasterIds: vi.fn(),
   getPublicChannel: vi.fn(),
   acquireBrowserWindowSlot: vi.fn(),
   mapKickChatroomToSettings: vi.fn(),
@@ -109,7 +111,10 @@ vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
 }));
 
 import { kickAuthService } from "@/backend/auth/kick-auth";
-import { recordPlatformLocalNetError } from "@/backend/api/unified/platform-health";
+import {
+  recordPlatformLocalNetError,
+  recordPlatformOfficialApiAuthFailure,
+} from "@/backend/api/unified/platform-health";
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -123,6 +128,7 @@ describe("KickClient", () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    vi.clearAllMocks();
     mockFetch.mockReset();
     mockSessionFetch.mockReset();
     vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(true);
@@ -137,12 +143,33 @@ describe("KickClient", () => {
   });
 
   describe("request", () => {
-    it("throws when not authenticated", async () => {
+    it("throws when default user-token auth is unavailable", async () => {
       vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(false);
 
-      await expect(kickClient.request("/test")).rejects.toThrow(
-        "Not authenticated"
+      await expect(kickClient.request("/test")).rejects.toThrow("No Kick user token");
+    });
+
+    it("uses an app token when the caller explicitly requests app auth", async () => {
+      vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(false);
+      mockFetch.mockResolvedValueOnce(jsonResponse({ result: "ok" }));
+
+      await kickClient.request("/channels?broadcaster_user_id[]=123", undefined, "app");
+
+      const fetchOptions = mockFetch.mock.calls[0][1] as Record<string, unknown>;
+      const fetchHeaders = fetchOptions.headers as Record<string, string>;
+      expect(fetchHeaders.Authorization).toBeUndefined();
+      expect(fetchHeaders["X-StreamFusion-Auth"]).toBe("app");
+    });
+
+    it("marks Kick degraded when the Worker app-token proxy returns 401", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({}, 401));
+
+      await expect(kickClient.request("/channels?slug[]=hennytingzz", undefined, "app")).rejects.toThrow(
+        "401"
       );
+
+      expect(recordPlatformOfficialApiAuthFailure).toHaveBeenCalledWith("kick", 401);
+      expect(kickAuthService.refreshToken).not.toHaveBeenCalled();
     });
 
     it("sends Authorization header with Bearer token", async () => {
@@ -164,6 +191,10 @@ describe("KickClient", () => {
       const url = mockFetch.mock.calls[0][0] as string;
       expect(url).toContain(kickClient.baseUrl);
       expect(url).toContain("/test-endpoint");
+    });
+
+    it("builds official API URLs from the shared Worker base URL", async () => {
+      expect(kickClient.baseUrl).toBe("https://streamfusion.leveluptogetherbiz.workers.dev/kick");
     });
 
     it("uses absolute URL for endpoints starting with http", async () => {
@@ -393,6 +424,24 @@ describe("KickClient", () => {
       const result = await kickClient.getChannel("test");
 
       expect(getChannel).toHaveBeenCalledWith(kickClient, "test");
+    });
+
+    it("getChannelsByBroadcasterIds delegates to ChannelEndpoints", async () => {
+      const { getChannelsByBroadcasterIds } = await import(
+        "@/backend/api/platforms/kick/endpoints/channel-endpoints"
+      );
+      vi.mocked(getChannelsByBroadcasterIds).mockResolvedValueOnce([
+        {
+          id: "123",
+          platform: "kick",
+          username: "new-slug",
+        },
+      ] as any);
+
+      const result = await kickClient.getChannelsByBroadcasterIds([123]);
+
+      expect(getChannelsByBroadcasterIds).toHaveBeenCalledWith(kickClient, [123]);
+      expect(result[0].username).toBe("new-slug");
     });
 
     it("getTopStreams delegates to StreamEndpoints and returns PageResult", async () => {

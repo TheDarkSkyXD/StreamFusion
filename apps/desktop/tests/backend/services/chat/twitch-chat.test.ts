@@ -7,12 +7,13 @@ const { ClientCtor } = vi.hoisted(() => ({ ClientCtor: vi.fn() }));
 vi.mock("tmi.js", () => ({ default: { Client: ClientCtor } }));
 
 import { TwitchChatService } from "@/backend/services/chat/twitch-chat";
-import type { ChatMessage } from "@/shared/chat-types";
+import type { ChatMessage, RoomStatePatchEvent } from "@/shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 interface ServiceInternals {
   channels: Set<string>;
   channelUsers: Map<string, number>;
+  broadcasterId: Map<string, string>;
 }
 
 function makeChatMessage(id: string, channel: string): ChatMessage {
@@ -137,5 +138,34 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(useChatStore.getState().messagesByChannel[channelKey]).toBeUndefined();
     expect(useChatStore.getState().pausedChannels.has(channelKey)).toBe(false);
     expect(internals.channelUsers.has("xqc")).toBe(false);
+  });
+
+  it("emits a roomState patch when Twitch rejects chat for phone verification", async () => {
+    const service = new TwitchChatService();
+    const internals = service as unknown as ServiceInternals;
+    const roomStateEvents: RoomStatePatchEvent[] = [];
+    service.on("roomState", (event) => roomStateEvents.push(event));
+
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    internals.broadcasterId.set("erobb221", "71092938");
+
+    fakeClient.emit(
+      "notice",
+      "#erobb221",
+      "msg_requires_verified_phone_number",
+      "A verified phone number is required to chat in this channel."
+    );
+
+    expect(roomStateEvents).toEqual([
+      {
+        platform: "twitch",
+        channel: "erobb221",
+        channelId: "71092938",
+        patch: { twitchVerification: "phone" },
+        reason: "ws",
+      },
+    ]);
   });
 });

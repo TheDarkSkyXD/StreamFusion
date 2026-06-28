@@ -29,6 +29,8 @@ vi.mock("@/backend/services/database-service", () => ({
   dbService: {
     get: vi.fn(),
     set: vi.fn(),
+    addFollow: vi.fn(),
+    getAllFollows: vi.fn(),
     getFollowsByPlatformAndSource: vi.fn(),
     upsertSyncedFollows: vi.fn(),
   },
@@ -62,6 +64,8 @@ beforeEach(() => {
     addedCount: 0,
     removedCount: 0,
   });
+  vi.mocked(dbService.getAllFollows).mockReturnValue([]);
+  vi.mocked(dbService.addFollow).mockImplementation((follow, source) => ({ ...follow, source }));
 });
 
 afterEach(() => {
@@ -145,6 +149,39 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
     storageService.upsertSyncedFollows("kick", []);
 
     expect(dbService.set).toHaveBeenCalledWith("kick-account-follows-verified-v2", true);
+  });
+});
+
+// Guards: follow metadata repair must preserve account-vs-guest source when rewriting stale Kick rows.
+describe("storageService.updateLocalFollow", () => {
+  it("passes the current row source through to the DB upsert", () => {
+    const current = {
+      id: "kick-account-row",
+      platform: "kick",
+      channelId: "old-slug",
+      channelName: "old-slug",
+      displayName: "Old Slug",
+      profileImage: "",
+      followedAt: "2026-01-01T00:00:00.000Z",
+      source: "kick",
+    };
+    vi.mocked(dbService.getAllFollows).mockReturnValue([current]);
+
+    const result = storageService.updateLocalFollow("kick-account-row", {
+      channelId: "123",
+      channelName: "new-slug",
+    });
+
+    expect(dbService.addFollow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "kick-account-row",
+        channelId: "123",
+        channelName: "new-slug",
+        source: "kick",
+      }),
+      "kick"
+    );
+    expect(result?.source).toBe("kick");
   });
 });
 

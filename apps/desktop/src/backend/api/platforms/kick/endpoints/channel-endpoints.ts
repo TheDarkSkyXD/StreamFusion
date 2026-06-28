@@ -74,7 +74,8 @@ createManagedInterval(
  * Get channel info by slug
  * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug[]=:slug
  *
- * ROBUST FIX: Uses public API first to avoid authenticated API identity mismatch bugs
+ * Uses the official app-token API first. Legacy Kick web lookup is only a
+ * last-resort compatibility path.
  */
 export async function getChannel(
   client: KickRequestor,
@@ -88,14 +89,111 @@ export async function getChannel(
     return cached.channel;
   }
 
-  // STRATEGY: Use public API first as it's more reliable and doesn't have identity mismatch bugs
-  // The authenticated API has a known bug where it sometimes returns the authenticated user's
-  // own channel data instead of the requested channel when using single-slug queries
+  try {
+    const response = await client.request<KickApiResponse<KickApiChannel[]>>(
+      `/channels?slug[]=${encodeURIComponent(slug)}`,
+      undefined,
+      "app"
+    );
+
+    if (response.data && response.data.length > 0) {
+      const apiChannel = response.data[0];
+
+      // CRITICAL: Multi-field validation to ensure we got the correct channel
+      // Check both slug AND that it's not empty/null
+      if (!apiChannel.slug || apiChannel.slug.toLowerCase() !== normalizedSlug) {
+        logger.debug(
+          "Kick:Endpoints:Channel",
+          "API identity mismatch; rejecting response (Kick API bug)",
+          {
+            requestedSlug: slug,
+            returnedSlug: apiChannel.slug || "null",
+          }
+        );
+        return null;
+      }
+
+      const channel = transformKickChannel(apiChannel);
+
+      // Validate transformed channel data
+      if (channel.username.toLowerCase() !== normalizedSlug) {
+        logger.warn(
+          "Kick:Endpoints:Channel",
+          "Post-transform validation failed; channel username does not match requested slug; rejecting",
+          {
+            channelUsername: channel.username,
+            requestedSlug: slug,
+          }
+        );
+        return null;
+      }
+
+      // Fetch user info to get avatar and display name
+      // Use defensive approach to handle user ID mismatches
+      try {
+        const channelIdNum = parseInt(channel.id, 10);
+        if (Number.isNaN(channelIdNum)) {
+          logger.warn("Kick:Endpoints:Channel", "Invalid channel ID", {
+            channelId: channel.id,
+            slug,
+          });
+        } else {
+          const users = await getUsersById(client, [channelIdNum]);
+          if (users.length > 0) {
+            const user = users[0];
+
+            // CRITICAL: Triple-check that the user ID matches the channel ID
+            // This prevents propagating incorrect user data
+            if (user.user_id.toString() === channel.id) {
+              if (user.profile_picture) {
+                channel.avatarUrl = user.profile_picture;
+              }
+              if (user.name) {
+                channel.displayName = user.name;
+              }
+            } else {
+              logger.warn(
+                "Kick:Endpoints:Channel",
+                "User ID mismatch for channel; skipping user data enrichment",
+                {
+                  slug,
+                  fetchedUserId: user.user_id,
+                  expectedChannelId: channel.id,
+                }
+              );
+            }
+          }
+        }
+      } catch (e) {
+        logger.debug("Kick:Endpoints:Channel", "Failed to enrich user info for channel", {
+          slug,
+          error:
+            e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+        });
+        // Not critical - channel data is still valid without user enrichment
+      }
+
+      // Cache successful result
+      _channelCache.set(normalizedSlug, {
+        channel,
+        timestamp: Date.now(),
+      });
+
+      return channel;
+    }
+  } catch (error) {
+    logger.warn("Kick:Endpoints:Channel", "Official channel API failed", {
+      slug,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
+  }
 
   try {
     const publicChannel = await getPublicChannel(slug);
     if (publicChannel) {
-      // Cache successful result
       _channelCache.set(normalizedSlug, {
         channel: publicChannel,
         timestamp: Date.now(),
@@ -103,115 +201,7 @@ export async function getChannel(
       return publicChannel;
     }
   } catch (error) {
-    logger.warn(
-      "Kick:Endpoints:Channel",
-      "Public API failed for channel; trying authenticated API",
-      {
-        slug,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      }
-    );
-  }
-
-  // Fallback to official API only if public API fails
-  // This is less likely to be reached, but provides a backup path
-  try {
-    if (client.isAuthenticated()) {
-      const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-        `/channels?slug[]=${encodeURIComponent(slug)}`
-      );
-
-      if (response.data && response.data.length > 0) {
-        const apiChannel = response.data[0];
-
-        // CRITICAL: Multi-field validation to ensure we got the correct channel
-        // Check both slug AND that it's not empty/null
-        if (!apiChannel.slug || apiChannel.slug.toLowerCase() !== normalizedSlug) {
-          logger.debug(
-            "Kick:Endpoints:Channel",
-            "API identity mismatch; rejecting response (Kick API bug)",
-            {
-              requestedSlug: slug,
-              returnedSlug: apiChannel.slug || "null",
-            }
-          );
-          return null;
-        }
-
-        const channel = transformKickChannel(apiChannel);
-
-        // Validate transformed channel data
-        if (channel.username.toLowerCase() !== normalizedSlug) {
-          logger.warn(
-            "Kick:Endpoints:Channel",
-            "Post-transform validation failed; channel username does not match requested slug; rejecting",
-            {
-              channelUsername: channel.username,
-              requestedSlug: slug,
-            }
-          );
-          return null;
-        }
-
-        // Fetch user info to get avatar and display name
-        // Use defensive approach to handle user ID mismatches
-        try {
-          const channelIdNum = parseInt(channel.id, 10);
-          if (Number.isNaN(channelIdNum)) {
-            logger.warn("Kick:Endpoints:Channel", "Invalid channel ID", {
-              channelId: channel.id,
-              slug,
-            });
-          } else {
-            const users = await getUsersById(client, [channelIdNum]);
-            if (users.length > 0) {
-              const user = users[0];
-
-              // CRITICAL: Triple-check that the user ID matches the channel ID
-              // This prevents propagating incorrect user data
-              if (user.user_id.toString() === channel.id) {
-                if (user.profile_picture) {
-                  channel.avatarUrl = user.profile_picture;
-                }
-                if (user.name) {
-                  channel.displayName = user.name;
-                }
-              } else {
-                logger.warn(
-                  "Kick:Endpoints:Channel",
-                  "User ID mismatch for channel; skipping user data enrichment",
-                  {
-                    slug,
-                    fetchedUserId: user.user_id,
-                    expectedChannelId: channel.id,
-                  }
-                );
-              }
-            }
-          }
-        } catch (e) {
-          logger.debug("Kick:Endpoints:Channel", "Failed to enrich user info for channel", {
-            slug,
-            error:
-              e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
-          });
-          // Not critical - channel data is still valid without user enrichment
-        }
-
-        // Cache successful result
-        _channelCache.set(normalizedSlug, {
-          channel,
-          timestamp: Date.now(),
-        });
-
-        return channel;
-      }
-    }
-  } catch (error) {
-    logger.warn("Kick:Endpoints:Channel", "Authenticated API failed for channel", {
+    logger.warn("Kick:Endpoints:Channel", "Legacy channel lookup failed", {
       slug,
       error:
         error instanceof Error
@@ -236,16 +226,74 @@ export async function getChannelsBySlugs(
     return [];
   }
 
+  if (isKickOfficialApiUnavailable()) {
+    return [];
+  }
+
   try {
     // Max 50 slugs per request
     const limitedSlugs = slugs.slice(0, 50);
     const params = limitedSlugs.map((s) => `slug[]=${encodeURIComponent(s)}`).join("&");
 
-    const response = await client.request<KickApiResponse<KickApiChannel[]>>(`/channels?${params}`);
+    const response = await client.request<KickApiResponse<KickApiChannel[]>>(
+      `/channels?${params}`,
+      undefined,
+      "app"
+    );
 
     return (response.data || []).map(transformKickChannel);
   } catch (error) {
-    logger.error("Kick:Endpoints:Channel", "Failed to fetch Kick channels", {
+    const log = isKickAppAuthFailure(error) ? logger.warn : logger.error;
+    log("Kick:Endpoints:Channel", "Failed to fetch Kick channels", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
+    return [];
+  }
+}
+
+/**
+ * Get multiple channels by stable Kick broadcaster user IDs.
+ * https://docs.kick.com/apis/channels - GET /public/v1/channels?broadcaster_user_id[]=:id
+ */
+export async function getChannelsByBroadcasterIds(
+  client: KickRequestor,
+  broadcasterUserIds: number[]
+): Promise<UnifiedChannel[]> {
+  if (broadcasterUserIds.length === 0) {
+    return [];
+  }
+
+  if (isKickOfficialApiUnavailable()) {
+    return [];
+  }
+
+  try {
+    const channels: UnifiedChannel[] = [];
+
+    // Max 50 IDs per request. The official endpoint rejects mixed slug and
+    // broadcaster_user_id parameters, so keep every chunk id-only.
+    for (let i = 0; i < broadcasterUserIds.length; i += 50) {
+      const ids = broadcasterUserIds.slice(i, i + 50);
+      const params = ids
+        .map((id) => `broadcaster_user_id[]=${encodeURIComponent(id.toString())}`)
+        .join("&");
+
+      const response = await client.request<KickApiResponse<KickApiChannel[]>>(
+        `/channels?${params}`,
+        undefined,
+        "app"
+      );
+
+      channels.push(...(response.data || []).map(transformKickChannel));
+    }
+
+    return channels;
+  } catch (error) {
+    const log = isKickAppAuthFailure(error) ? logger.warn : logger.error;
+    log("Kick:Endpoints:Channel", "Failed to fetch Kick channels by broadcaster ID", {
       error:
         error instanceof Error
           ? { name: error.name, message: error.message, stack: error.stack }
@@ -275,6 +323,15 @@ const PUBLIC_CHANNEL_LOAD_TIMEOUT_MS = 10000;
 
 function isKickLocallyDown(): boolean {
   return getPlatformHealth("kick") === "down";
+}
+
+function isKickOfficialApiUnavailable(): boolean {
+  const health = getPlatformHealth("kick");
+  return health === "degraded" || health === "down";
+}
+
+function isKickAppAuthFailure(error: unknown): boolean {
+  return error instanceof Error && /^Kick API error: 401\b/.test(error.message);
 }
 
 // Serialise BrowserWindow creation. Each hidden window spins up a fresh

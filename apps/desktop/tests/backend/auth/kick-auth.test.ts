@@ -26,9 +26,7 @@ const storageState: {
     scope?: string[];
   } | null;
   kickUser: any;
-  appToken: { accessToken: string; expiresAt?: number } | null;
-  appTokenExpired: boolean;
-} = { token: null, kickUser: null, appToken: null, appTokenExpired: true };
+} = { token: null, kickUser: null };
 
 vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
@@ -46,21 +44,14 @@ vi.mock("@/backend/services/storage-service", () => ({
     clearKickUser: vi.fn(() => {
       storageState.kickUser = null;
     }),
-    getAppToken: vi.fn(() => storageState.appToken),
-    saveAppToken: vi.fn((_p: string, t: any) => {
-      storageState.appToken = t;
-    }),
-    isAppTokenExpired: vi.fn(() => storageState.appTokenExpired),
   },
 }));
 
 const refreshTokenMock = vi.fn();
-const getAppAccessTokenMock = vi.fn();
 
 vi.mock("@/backend/auth/token-exchange", () => ({
   tokenExchangeService: {
     refreshToken: (...a: unknown[]) => refreshTokenMock(...a),
-    getAppAccessToken: (...a: unknown[]) => getAppAccessTokenMock(...a),
   },
 }));
 
@@ -76,8 +67,6 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-06-01T12:00:00.000Z"));
   storageState.token = null;
   storageState.kickUser = null;
-  storageState.appToken = null;
-  storageState.appTokenExpired = true;
   vi.clearAllMocks();
 });
 
@@ -121,22 +110,6 @@ describe("getAccessToken", () => {
   it("returns access token when expiresAt is absent", () => {
     storageState.token = { accessToken: "at" };
     expect(kickAuthService.getAccessToken()).toBe("at");
-  });
-});
-
-describe("getAppAccessToken", () => {
-  it("returns null when no app token stored", () => {
-    expect(kickAuthService.getAppAccessToken()).toBeNull();
-  });
-
-  it("returns null when app token is expired", () => {
-    storageState.appToken = { accessToken: "app-at", expiresAt: Date.now() - 1000 };
-    expect(kickAuthService.getAppAccessToken()).toBeNull();
-  });
-
-  it("returns app access token when valid", () => {
-    storageState.appToken = { accessToken: "app-at", expiresAt: Date.now() + 60_000 };
-    expect(kickAuthService.getAppAccessToken()).toBe("app-at");
   });
 });
 
@@ -424,28 +397,6 @@ describe("fetchCurrentUser", () => {
 
     expect(result).not.toBeNull();
     expect(refreshTokenMock).toHaveBeenCalled();
-  });
-});
-
-describe("ensureValidAppToken", () => {
-  it("returns true when app token is not expired", async () => {
-    storageState.appTokenExpired = false;
-    storageState.appToken = { accessToken: "app-at" };
-
-    expect(await kickAuthService.ensureValidAppToken()).toBe(true);
-  });
-
-  it("fetches new app token when expired", async () => {
-    getAppAccessTokenMock.mockResolvedValueOnce({ accessToken: "new-app" });
-
-    expect(await kickAuthService.ensureValidAppToken()).toBe(true);
-    expect(getAppAccessTokenMock).toHaveBeenCalledWith("kick");
-  });
-
-  it("returns false when fetching app token throws", async () => {
-    getAppAccessTokenMock.mockRejectedValueOnce(new Error("no secret"));
-
-    expect(await kickAuthService.ensureValidAppToken()).toBe(false);
   });
 });
 

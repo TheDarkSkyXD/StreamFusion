@@ -48,6 +48,7 @@ export interface EmoteManagerEvents {
 class EmoteManager extends EventEmitter {
   private providers: Map<EmoteProvider, EmoteProviderService> = new Map();
   private globalEmotes: Map<EmoteProvider, Emote[]> = new Map();
+  private userEmotes: Map<EmoteProvider, Emote[]> = new Map();
   private channelEmotes: Map<string, Map<EmoteProvider, Emote[]>> = new Map();
   private emoteCache: Map<string, EmoteCacheEntry> = new Map();
   private config: EmoteManagerConfig;
@@ -146,10 +147,13 @@ class EmoteManager extends EventEmitter {
       enabledProviders.map(async ([name, provider]) => {
         try {
           const emotes = await provider.fetchGlobalEmotes();
+          const userEmotes = provider.fetchUserEmotes ? await provider.fetchUserEmotes() : [];
           this.globalEmotes.set(name, emotes);
+          this.userEmotes.set(name, userEmotes);
           this.cacheEmotes(`global:${name}`, emotes);
+          this.cacheEmotes(`user:${name}`, userEmotes);
           this.emit("emotesFetched", name, true);
-          return { provider: name, emotes };
+          return { provider: name, emotes, userEmotes };
         } catch (error) {
           this.emit("error", error as Error, name);
           throw error;
@@ -163,6 +167,7 @@ class EmoteManager extends EventEmitter {
       if (result.status === "fulfilled") {
         logger.info("Emote:Manager", "Loaded global emotes", {
           count: result.value.emotes.length,
+          userCount: result.value.userEmotes.length,
           provider: providerName,
         });
       } else {
@@ -370,6 +375,10 @@ class EmoteManager extends EventEmitter {
       allEmotes.push(...emotes);
     }
 
+    for (const emotes of this.userEmotes.values()) {
+      allEmotes.push(...emotes);
+    }
+
     // Add channel emotes
     if (channelId) {
       const channelMap = this.channelEmotes.get(channelId);
@@ -392,6 +401,11 @@ class EmoteManager extends EventEmitter {
     // Add global emotes per provider
     for (const [provider, emotes] of this.globalEmotes) {
       result.set(provider, [...emotes]);
+    }
+
+    for (const [provider, emotes] of this.userEmotes) {
+      const existing = result.get(provider) || [];
+      result.set(provider, [...existing, ...emotes]);
     }
 
     // Merge channel emotes per provider
@@ -493,17 +507,27 @@ class EmoteManager extends EventEmitter {
   /**
    * Get stats about loaded emotes
    */
-  getStats(): { global: Record<string, number>; channels: Record<string, Record<string, number>> } {
+  getStats(): {
+    global: Record<string, number>;
+    user: Record<string, number>;
+    channels: Record<string, Record<string, number>>;
+  } {
     const stats: {
       global: Record<string, number>;
+      user: Record<string, number>;
       channels: Record<string, Record<string, number>>;
     } = {
       global: {},
+      user: {},
       channels: {},
     };
 
     for (const [provider, emotes] of this.globalEmotes) {
       stats.global[provider] = emotes.length;
+    }
+
+    for (const [provider, emotes] of this.userEmotes) {
+      stats.user[provider] = emotes.length;
     }
 
     for (const [channelId, channelMap] of this.channelEmotes) {
@@ -524,6 +548,10 @@ class EmoteManager extends EventEmitter {
 
     // Count global emotes
     for (const emotes of this.globalEmotes.values()) {
+      totalEmotes += emotes.length;
+    }
+
+    for (const emotes of this.userEmotes.values()) {
       totalEmotes += emotes.length;
     }
 
@@ -549,6 +577,7 @@ class EmoteManager extends EventEmitter {
    */
   clearAll(): void {
     this.globalEmotes.clear();
+    this.userEmotes.clear();
     this.channelEmotes.clear();
     this.emoteCache.clear();
     this.channelAccessOrder = [];

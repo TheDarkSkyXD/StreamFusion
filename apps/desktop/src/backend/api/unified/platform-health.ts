@@ -185,6 +185,31 @@ export function recordPlatformFailure(platform: Platform, _errorClass: PlatformF
   evaluateRecovery(platform, now);
 }
 
+export function recordPlatformOfficialApiAuthFailure(platform: Platform, statusCode: number): void {
+  const now = Date.now();
+  const state = states[platform];
+  pruneWindow(state, now);
+  state.outcomes.push({ ts: now, failed: true });
+
+  if (state.status !== "degraded") {
+    state.status = "degraded";
+    state.startedAt = now;
+    state.statusSource = "internal";
+    logger.warn(
+      "PlatformHealth",
+      `${platform} degraded: official API auth/proxy returned ${statusCode}. Falling back where possible.`
+    );
+    emit({
+      platform,
+      status: "degraded",
+      startedAt: now,
+      sampleSize: state.outcomes.length,
+      failureRate: 1,
+      source: "internal",
+    });
+  }
+}
+
 export function recordPlatformSuccess(platform: Platform): void {
   const now = Date.now();
   const state = states[platform];

@@ -23,6 +23,10 @@ vi.mock("@/backend/api/platforms/twitch/twitch-gql-client", () => ({
 
 import { TwitchStreamResolver } from "@/backend/api/platforms/twitch/twitch-stream-resolver";
 import { logger } from "@/backend/logging/logger";
+import {
+  TWITCH_CLIP_MEDIA_SCHEME,
+  decodeTwitchClipMediaUrl,
+} from "@/backend/protocols/twitch-clip-media-url";
 
 // Guards: Twitch live playback must log one-token-request timing without restoring the live-status preflight.
 describe("TwitchStreamResolver", () => {
@@ -109,27 +113,45 @@ describe("TwitchStreamResolver", () => {
   });
 
   describe("getClipPlaybackUrl", () => {
-    it("returns best quality MP4 URL with signed parameters", async () => {
+    it("returns best quality MP4 URL through the custom clip media protocol", async () => {
       mockGqlGetClipAccessToken.mockResolvedValueOnce({
         value: "clip-token",
         signature: "clip-sig",
         qualities: [
-          { quality: "480", sourceURL: "https://clips.twitch.tv/480.mp4", frameRate: 30 },
-          { quality: "1080", sourceURL: "https://clips.twitch.tv/1080.mp4", frameRate: 60 },
-          { quality: "720", sourceURL: "https://clips.twitch.tv/720.mp4", frameRate: 30 },
+          {
+            quality: "480",
+            sourceURL: "https://d1ndex63qxojbr.cloudfront.net/480.mp4",
+            frameRate: 30,
+          },
+          {
+            quality: "1080",
+            sourceURL: "https://d1ndex63qxojbr.cloudfront.net/1080.mp4",
+            frameRate: 60,
+          },
+          {
+            quality: "720",
+            sourceURL: "https://d1ndex63qxojbr.cloudfront.net/720.mp4",
+            frameRate: 30,
+          },
         ],
       });
 
       const result = await resolver.getClipPlaybackUrl("my-clip");
+      const encodedUrl = new URL(result.url).searchParams.get("u");
 
       expect(result.format).toBe("mp4");
-      expect(result.url).toContain("1080.mp4");
-      expect(result.url).toContain("sig=clip-sig");
-      expect(result.url).toContain("token=");
+      expect(result.url.startsWith(`${TWITCH_CLIP_MEDIA_SCHEME}://media?u=`)).toBe(true);
+      expect(encodedUrl).not.toBeNull();
+      expect(decodeTwitchClipMediaUrl(encodedUrl!)).toBe(
+        "https://d1ndex63qxojbr.cloudfront.net/1080.mp4?sig=clip-sig&token=clip-token"
+      );
       expect(result.qualities).toHaveLength(3);
       expect(result.qualities![0].quality).toBe("1080p");
       expect(result.qualities![1].quality).toBe("720p");
       expect(result.qualities![2].quality).toBe("480p");
+      expect(result.qualities![0].url.startsWith(`${TWITCH_CLIP_MEDIA_SCHEME}://media?u=`)).toBe(
+        true
+      );
     });
 
     it("throws when no qualities are returned", async () => {
@@ -160,14 +182,21 @@ describe("TwitchStreamResolver", () => {
         signature: "s",
         qualities: [
           { quality: "1080", sourceURL: "", frameRate: 60 },
-          { quality: "720", sourceURL: "https://clips.twitch.tv/720.mp4", frameRate: 30 },
+          {
+            quality: "720",
+            sourceURL: "https://d1ndex63qxojbr.cloudfront.net/720.mp4",
+            frameRate: 30,
+          },
         ],
       });
 
       const result = await resolver.getClipPlaybackUrl("partial");
+      const encodedUrl = new URL(result.url).searchParams.get("u");
 
       expect(result.qualities).toHaveLength(1);
-      expect(result.url).toContain("720.mp4");
+      expect(decodeTwitchClipMediaUrl(encodedUrl!)).toBe(
+        "https://d1ndex63qxojbr.cloudfront.net/720.mp4?sig=s&token=t"
+      );
     });
 
     it("throws when all qualities have empty sourceURL", async () => {

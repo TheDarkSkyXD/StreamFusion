@@ -12,13 +12,25 @@ import type {
 
 function makeProvider(name: EmoteProvider): EmoteProviderService & {
   fetchGlobalEmotes: ReturnType<typeof vi.fn>;
+  fetchUserEmotes: ReturnType<typeof vi.fn>;
   fetchChannelEmotes: ReturnType<typeof vi.fn>;
 } {
   return {
     name,
     fetchGlobalEmotes: vi.fn(async () => [] as Emote[]),
+    fetchUserEmotes: vi.fn(async () => [] as Emote[]),
     fetchChannelEmotes: vi.fn(async () => [] as Emote[]),
     getEmoteUrl: (e: Emote) => e.urls.url2x,
+  };
+}
+
+function emote(overrides: Partial<Emote> & { id: string; name: string; provider: EmoteProvider }): Emote {
+  return {
+    isGlobal: true,
+    isAnimated: false,
+    isZeroWidth: false,
+    urls: { url1x: `https://example.test/${overrides.id}/1x`, url2x: `https://example.test/${overrides.id}/2x` },
+    ...overrides,
   };
 }
 
@@ -102,6 +114,28 @@ describe("EmoteManager.loadGlobalEmotes platform filter", () => {
 
     expect(twitch.fetchGlobalEmotes).toHaveBeenCalledTimes(1);
     expect(kick.fetchGlobalEmotes).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads user-available emotes and merges them into provider lookups", async () => {
+    const manager = createManager();
+    const twitch = makeProvider("twitch");
+    twitch.fetchGlobalEmotes.mockResolvedValueOnce([
+      emote({ id: "global-1", name: "Kappa", provider: "twitch", availability: "global" }),
+    ]);
+    twitch.fetchUserEmotes.mockResolvedValueOnce([
+      emote({ id: "user-1", name: "SubWave", provider: "twitch", availability: "user" }),
+    ]);
+    manager.registerProvider(twitch);
+
+    await manager.loadGlobalEmotes("twitch");
+
+    expect(twitch.fetchUserEmotes).toHaveBeenCalledTimes(1);
+    expect(manager.getAllEmotes().map((item) => item.name)).toEqual(["Kappa", "SubWave"]);
+    expect(manager.getEmotesByProvider().get("twitch")?.map((item) => item.name)).toEqual([
+      "Kappa",
+      "SubWave",
+    ]);
+    expect(manager.getStats().user.twitch).toBe(1);
   });
 });
 

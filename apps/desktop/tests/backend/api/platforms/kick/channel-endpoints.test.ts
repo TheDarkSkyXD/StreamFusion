@@ -31,6 +31,7 @@ import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor"
 import {
   mapKickChatroomToSettings,
   getChannel,
+  getChannelsByBroadcasterIds,
   getChannelsBySlugs,
   getPublicChannel,
   acquireBrowserWindowSlot,
@@ -322,6 +323,16 @@ describe("channel-endpoints", () => {
       expect(client.request).not.toHaveBeenCalled();
     });
 
+    it("skips official slug batch lookup while Kick official API is degraded", async () => {
+      vi.mocked(getPlatformHealth).mockReturnValue("degraded");
+      const client = createMockClient();
+
+      const result = await getChannelsBySlugs(client, ["a", "b"]);
+
+      expect(result).toEqual([]);
+      expect(client.request).not.toHaveBeenCalled();
+    });
+
     it("constructs correct query params for multiple slugs", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({
@@ -335,7 +346,9 @@ describe("channel-endpoints", () => {
       const result = await getChannelsBySlugs(client, ["a", "b"]);
 
       expect(client.request).toHaveBeenCalledWith(
-        expect.stringContaining("slug[]=a&slug[]=b")
+        expect.stringContaining("slug[]=a&slug[]=b"),
+        undefined,
+        "app"
       );
       expect(result).toHaveLength(2);
     });
@@ -374,32 +387,142 @@ describe("channel-endpoints", () => {
     });
   });
 
-  describe("getChannel", () => {
-    it("prefers public API result over authenticated API", async () => {
-      mockExecuteJavaScript.mockResolvedValueOnce(
-        JSON.stringify({
-          id: 100,
-          slug: "public-first",
-          user: { username: "PublicFirst", profile_pic: "https://example.com/avatar.webp" },
-        })
-      );
-
+  describe("getChannelsByBroadcasterIds", () => {
+    it("returns empty array for empty broadcaster ID input", async () => {
       const client = createMockClient();
-      const result = await getChannel(client, "public-first");
 
-      expect(result).not.toBeNull();
-      expect(result!.id).toBe("100");
+      const result = await getChannelsByBroadcasterIds(client, []);
+
+      expect(result).toEqual([]);
       expect(client.request).not.toHaveBeenCalled();
     });
 
-    it("falls back to authenticated API when public fails", async () => {
-      mockLoadURL.mockRejectedValueOnce(new Error("timeout"));
+    it("skips official broadcaster ID lookup while Kick official API is degraded", async () => {
+      vi.mocked(getPlatformHealth).mockReturnValue("degraded");
+      const client = createMockClient();
 
+      const result = await getChannelsByBroadcasterIds(client, [123, 456]);
+
+      expect(result).toEqual([]);
+      expect(client.request).not.toHaveBeenCalled();
+    });
+
+    it("constructs correct query params for multiple broadcaster IDs", async () => {
       const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 123,
+              slug: "new-slug",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+            {
+              broadcaster_user_id: 456,
+              slug: "other-slug",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, [123, 456]);
+
+      expect(client.request).toHaveBeenCalledWith(
+        expect.stringContaining("broadcaster_user_id[]=123&broadcaster_user_id[]=456"),
+        undefined,
+        "app"
+      );
+      expect(result.map((channel) => channel.username)).toEqual(["new-slug", "other-slug"]);
+    });
+
+    it("chunks broadcaster IDs into 50-item requests without dropping later follows", async () => {
+      const ids = Array.from({ length: 60 }, (_, i) => i + 1);
+      const client = createMockClient({
+        request: vi
+          .fn()
+          .mockResolvedValueOnce({ data: [] })
+          .mockResolvedValueOnce({
+            data: [
+              {
+                broadcaster_user_id: 60,
+                slug: "renamed-after-first-page",
+                channel_description: "",
+                stream: null,
+                stream_title: "",
+                banner_picture: null,
+                category: null,
+              },
+            ],
+          }),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, ids);
+
+      const calls = vi.mocked(client.request).mock.calls.map((call) => call[0] as string);
+      expect(calls).toHaveLength(2);
+      expect((calls[0].match(/broadcaster_user_id\[\]/g) || []).length).toBe(50);
+      expect((calls[1].match(/broadcaster_user_id\[\]/g) || []).length).toBe(10);
+      expect(calls[1]).toContain("broadcaster_user_id[]=60");
+      expect(vi.mocked(client.request).mock.calls.every((call) => call[2] === "app")).toBe(true);
+      expect(result.map((channel) => channel.username)).toEqual(["renamed-after-first-page"]);
+    });
+
+    it("returns empty array on request failure", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(new Error("500")),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, [123]);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("getChannel", () => {
+    it("prefers official app-token API result over legacy public lookup", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 100,
+              slug: "official-first",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+
+      const result = await getChannel(client, "official-first");
+
+      expect(result).not.toBeNull();
+      expect(result!.id).toBe("100");
+      expect(client.request).toHaveBeenCalledWith(
+        "/channels?slug[]=official-first",
+        undefined,
+        "app"
+      );
+      expect(mockLoadURL).not.toHaveBeenCalled();
+    });
+
+    it("uses official app-token API without requiring a viewer login", async () => {
+      const client = createMockClient({
+        isAuthenticated: vi.fn(() => false),
         request: vi.fn().mockResolvedValueOnce({
           data: [{
             broadcaster_user_id: 200,
-            slug: "auth-fallback",
+            slug: "app-token-read",
             channel_description: "desc",
             stream_title: "title",
             banner_picture: null,
@@ -417,7 +540,7 @@ describe("channel-endpoints", () => {
         };
       });
 
-      const result = await getChannel(client, "auth-fallback");
+      const result = await getChannel(client, "app-token-read");
 
       expect(result).not.toBeNull();
     });

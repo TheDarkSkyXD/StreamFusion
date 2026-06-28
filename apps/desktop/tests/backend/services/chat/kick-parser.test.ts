@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   type KickBadge,
@@ -45,6 +45,7 @@ function makeKickMessage(overrides: Partial<KickChatMessageEvent> = {}): KickCha
 
 // ========== Badge Parsing ==========
 
+// Guards: Kick sub-gifter badges use the current count-tiered gift icon instead of one stale static asset.
 describe("parseKickBadges", () => {
   it("returns empty array for empty badges", () => {
     expect(parseKickBadges([])).toEqual([]);
@@ -73,10 +74,27 @@ describe("parseKickBadges", () => {
     expect(result[0].version).toBe("6");
   });
 
-  it("includes sub-gifter count in title", () => {
+  it("formats sub-gifter title like Kick hover text", () => {
     const badges: KickBadge[] = [{ type: "sub_gifter", text: "Sub Gifter", count: 50 }];
     const result = parseKickBadges(badges);
-    expect(result[0].title).toBe("Sub Gifter (50)");
+    expect(result[0].title).toBe("Gifted 50 subs");
+  });
+
+  it("uses count-tiered Kick gift badge art for sub-gifters", () => {
+    const lowTier = parseKickBadges([{ type: "sub_gifter", text: "Sub Gifter", count: 1 }]);
+    const highTier = parseKickBadges([{ type: "sub_gifter", text: "Sub Gifter", count: 50 }]);
+
+    expect(lowTier[0].imageUrl).toMatch(/^data:image\/svg\+xml,/);
+    expect(highTier[0].imageUrl).toMatch(/^data:image\/svg\+xml,/);
+    expect(decodeURIComponent(lowTier[0].imageUrl)).toContain("#53FC18");
+    expect(decodeURIComponent(highTier[0].imageUrl)).toContain("#FFC466");
+    expect(lowTier[0].imageUrl).not.toBe(highTier[0].imageUrl);
+  });
+
+  it("formats subscriber title like Kick hover text", () => {
+    const badges: KickBadge[] = [{ type: "subscriber", text: "Sub", count: 17 }];
+    const result = parseKickBadges(badges);
+    expect(result[0].title).toBe("17-Month Subscriber");
   });
 
   it("does not add count to non-sub_gifter badges", () => {
@@ -142,7 +160,7 @@ describe("parseKickBadges", () => {
   it("handles subgifter alias", () => {
     const badges: KickBadge[] = [{ type: "subgifter", text: "Sub Gifter", count: 10 }];
     const result = parseKickBadges(badges);
-    expect(result[0].title).toBe("Sub Gifter (10)");
+    expect(result[0].title).toBe("Gifted 10 subs");
   });
 });
 
@@ -212,6 +230,7 @@ describe("parseKickMessageContent", () => {
 // ========== Chat Message Parsing ==========
 
 describe("parseKickChatMessage", () => {
+  // Guards: Kick mention autocomplete can reuse avatar URLs that arrive on live/history chat sender payloads instead of falling back to initials.
   it("produces a ChatMessage with correct fields", () => {
     const event = makeKickMessage();
     const msg = parseKickChatMessage(event, "somechannel");
@@ -242,6 +261,20 @@ describe("parseKickChatMessage", () => {
     });
     const msg = parseKickChatMessage(event, "ch");
     expect(msg.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+  });
+
+  it("preserves avatar URL from Kick sender profile fields", () => {
+    const event = makeKickMessage({
+      sender: {
+        id: 1,
+        username: "AvatarUser",
+        slug: "avataruser",
+        profile_pic: "https://files.kick.com/images/user/1/profile_image.webp",
+        identity: { color: "#00FF00", badges: [] },
+      },
+    });
+    const msg = parseKickChatMessage(event, "ch");
+    expect(msg.avatarUrl).toBe("https://files.kick.com/images/user/1/profile_image.webp");
   });
 
   it("parses reply info from metadata", () => {

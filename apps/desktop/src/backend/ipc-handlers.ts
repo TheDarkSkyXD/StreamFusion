@@ -16,6 +16,7 @@ import { registerAuthHandlers } from "./ipc/handlers/auth-handlers";
 import { registerBugReportHandlers } from "./ipc/handlers/bug-report-handlers";
 import { registerCategoryHandlers } from "./ipc/handlers/category-handlers";
 import { registerChannelHandlers } from "./ipc/handlers/channel-handlers";
+import { registerChatEligibilityHandlers } from "./ipc/handlers/chat-eligibility-handlers";
 import { registerChatHandlers } from "./ipc/handlers/chat-handlers";
 import { registerEmoteHandlers } from "./ipc/handlers/emote-handlers";
 import { registerKickChatHandlers } from "./ipc/handlers/kick-chat-handlers";
@@ -43,6 +44,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerSearchHandlers();
   registerChannelHandlers();
   registerChatHandlers();
+  registerChatEligibilityHandlers();
   registerKickChatHandlers();
   registerEmoteHandlers();
   registerModLogHandlers();

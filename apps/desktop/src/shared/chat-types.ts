@@ -8,6 +8,7 @@
 // ========== Platform Types ==========
 
 export type ChatPlatform = "twitch" | "kick";
+export type TwitchVerificationRequirement = "phone" | "email" | "account";
 
 // ========== Badge Types ==========
 
@@ -122,6 +123,8 @@ export interface ChatMessage {
   displayName: string;
   /** Username color (hex) */
   color: string;
+  /** Sender avatar/profile image URL, when the platform payload or enrichment has it. */
+  avatarUrl?: string;
   /** User's badges */
   badges: ChatBadge[];
   /** Parsed message content with emotes, mentions, and links */
@@ -149,6 +152,21 @@ export interface ChatMessage {
     lastMessage?: string;
     duration?: number;
   };
+}
+
+export interface ChatKnownUser {
+  /** Platform-specific user id, when known. */
+  userId: string;
+  /** Login/username used for mentions. */
+  username: string;
+  /** Display name shown in chat. */
+  displayName: string;
+  /** Username color (hex), when known. */
+  color?: string;
+  /** Avatar/profile image URL, when known. */
+  avatarUrl?: string;
+  /** Most recent timestamp this user was observed in the channel. */
+  lastSeen: Date;
 }
 
 // ========== User Notice Types ==========
@@ -431,10 +449,23 @@ export interface RoomStatePatchEvent {
     emoteOnly?: boolean;
     uniqueChat?: boolean;
     shieldMode?: boolean;
+    twitchVerification?: TwitchVerificationRequirement | null;
     accountAge?: number | null;
   };
   /** Source provenance: 'ws' for live WS events, 'fetch' for initial reads. */
   reason: "ws" | "fetch";
+}
+
+export type SubscriberEligibilityResult =
+  | { status: "subscribed" }
+  | { status: "notSubscribed" }
+  | { status: "unknown" }
+  | { status: "missingScopes"; missingScopes: string[] };
+
+export interface SubscriberEligibilityRequest {
+  platform: ChatPlatform;
+  channel: string;
+  channelId: string | null;
 }
 
 // ========== Chat Service Events ==========

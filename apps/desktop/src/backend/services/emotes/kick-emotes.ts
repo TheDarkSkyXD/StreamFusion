@@ -34,6 +34,20 @@ interface KickEmoteSetResponse {
   emotes: KickEmoteResponse[];
 }
 
+interface KickChannelEmotesBridgePayload {
+  emoteSets?: unknown;
+  channelData?: unknown;
+}
+
+type KickSubscriptionResponse = unknown;
+
+interface KickSubscriptionChannel {
+  slug: string;
+  id?: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
 class KickEmoteProvider implements EmoteProviderService {
   readonly name = "kick" as const;
 
@@ -68,6 +82,64 @@ class KickEmoteProvider implements EmoteProviderService {
   }
 
   /**
+   * Fetch subscriber emotes unlocked by the signed-in Kick user's subscriptions.
+   *
+   * Kick does not expose this in the public v1 API; this must go through the
+   * Electron bridge so the request runs inside the hidden kick.com web session.
+   * Calling the v2 endpoint directly from the renderer reliably produces noisy
+   * 401s before our catch block can downgrade the failure.
+   */
+  async fetchUserEmotes(): Promise<Emote[]> {
+    const bridge = this.getKickSubscriptionsBridge();
+    if (!bridge) {
+      return [];
+    }
+
+    let subscriptions: KickSubscriptionResponse | null;
+    try {
+      subscriptions = await bridge();
+    } catch (error: any) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        logger.info("Emote:Kick", "User subscription emotes unavailable via Kick web session");
+        return [];
+      }
+      logger.warn("Emote:Kick", "Failed to fetch user subscriptions for emotes", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+      return [];
+    }
+    if (subscriptions === null) return [];
+
+    const subscribedChannels = this.extractSubscriptionChannels(subscriptions).slice(0, 50);
+    if (subscribedChannels.length === 0) return [];
+
+    const all: Emote[] = [];
+    for (const channel of subscribedChannels) {
+      const channelEmotes = await this.fetchChannelEmotes(channel.slug, channel.slug, "kick");
+      for (const emote of channelEmotes) {
+        if (emote.subscribersOnly !== true) continue;
+        all.push({
+          ...emote,
+          isGlobal: true,
+          availability: "user",
+          kickSection: "subscribed",
+          owner: {
+            id: channel.id ?? channel.slug,
+            username: channel.slug,
+            displayName: channel.displayName ?? channel.slug,
+            avatarUrl: channel.avatarUrl,
+          },
+        });
+      }
+    }
+
+    return this.dedupeEmotes(all);
+  }
+
+  /**
    * Fetch channel-specific Kick emotes
    * Uses the channel slug or ID to fetch emotes
    */
@@ -82,6 +154,15 @@ class KickEmoteProvider implements EmoteProviderService {
   ): Promise<Emote[]> {
     const slug = channelName || channelId;
     const emotes: Emote[] = [];
+    const bridge = this.getKickChannelEmotesBridge();
+
+    if (bridge) {
+      const payload = await bridge({
+        slug,
+        ...(this.accessToken ? { accessToken: this.accessToken } : {}),
+      });
+      return this.extractChannelEmotesPayload(payload, channelId);
+    }
 
     // Method 1: Try the dedicated emotes endpoint (used by official web client)
     try {
@@ -186,11 +267,217 @@ class KickEmoteProvider implements EmoteProviderService {
 
   // ========== Private Methods ==========
 
+  private getKickSubscriptionsBridge(): (() => Promise<unknown | null>) | null {
+    if (typeof window === "undefined") return null;
+    const bridge = window.electronAPI?.emotes?.kick?.getUserSubscriptions;
+    return typeof bridge === "function" ? bridge : null;
+  }
+
+  private getKickChannelEmotesBridge():
+    | ((params: {
+        slug: string;
+        accessToken?: string;
+      }) => Promise<KickChannelEmotesBridgePayload | null>)
+    | null {
+    if (typeof window === "undefined") return null;
+    const bridge = window.electronAPI?.emotes?.kick?.getChannelEmotes;
+    if (typeof bridge !== "function") return null;
+    return async (params) => this.asChannelEmotesBridgePayload(await bridge(params));
+  }
+
+  private extractChannelEmotesPayload(
+    payload: KickChannelEmotesBridgePayload | null,
+    channelId: string
+  ): Emote[] {
+    if (!payload) return [];
+
+    const emoteSets = payload.emoteSets;
+    if (Array.isArray(emoteSets)) {
+      const emotes: Emote[] = [];
+      for (const set of emoteSets) {
+        const record = this.asRecord(set);
+        if (!record) continue;
+        const rawEmotes = record?.emotes;
+        if (!Array.isArray(rawEmotes)) continue;
+        for (const emote of rawEmotes) {
+          if (this.isKickEmoteResponse(emote)) {
+            emotes.push(this.transformEmote(emote, channelId, this.firstString([record.name])));
+          }
+        }
+      }
+      if (emotes.length > 0) return emotes;
+    }
+
+    const channelData = this.asRecord(payload.channelData);
+    if (!channelData) return [];
+
+    const chatroom = this.asRecord(channelData.chatroom);
+    const rawEmotes = Array.isArray(channelData.emotes)
+      ? channelData.emotes
+      : Array.isArray(chatroom?.emotes)
+        ? chatroom.emotes
+        : [];
+
+    return rawEmotes
+      .filter((emote): emote is KickEmoteResponse => this.isKickEmoteResponse(emote))
+      .map((emote) => this.transformEmote(emote, channelId));
+  }
+
+  private asChannelEmotesBridgePayload(value: unknown): KickChannelEmotesBridgePayload | null {
+    if (!value || typeof value !== "object") return null;
+    const payload = value as Record<string, unknown>;
+    return {
+      emoteSets: payload.emoteSets,
+      channelData: payload.channelData,
+    };
+  }
+
+  private isKickEmoteResponse(value: unknown): value is KickEmoteResponse {
+    if (!value || typeof value !== "object") return false;
+    const record = value as Record<string, unknown>;
+    return (
+      typeof record.id === "number" &&
+      typeof record.name === "string" &&
+      (typeof record.subscribers_only === "boolean" || record.subscribers_only === undefined)
+    );
+  }
+
   private getKickSection(setName?: string | null): KickEmoteSection {
     const normalized = (setName || "channel_set").trim().toLowerCase();
     if (normalized === "channel_set") return "channel";
     if (normalized === "emojis") return "emoji";
     return "global";
+  }
+
+  private extractSubscriptionChannels(payload: unknown): KickSubscriptionChannel[] {
+    const items = this.extractArray(payload);
+    if (!items) return [];
+
+    const channels = new Map<string, KickSubscriptionChannel>();
+    for (const item of items) {
+      const channel = this.extractSubscriptionChannel(item);
+      if (channel && !channels.has(channel.slug)) {
+        channels.set(channel.slug, channel);
+      }
+    }
+    return [...channels.values()];
+  }
+
+  private extractArray(payload: unknown): unknown[] | null {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== "object") return null;
+    const object = payload as Record<string, unknown>;
+    if (Array.isArray(object.data)) return object.data;
+    if (Array.isArray(object.subscriptions)) return object.subscriptions;
+    return null;
+  }
+
+  private extractSubscriptionChannel(item: unknown): KickSubscriptionChannel | null {
+    if (!item || typeof item !== "object") return null;
+    const object = item as Record<string, unknown>;
+    const channel = this.asRecord(object.channel);
+    const broadcaster = this.asRecord(object.broadcaster);
+    const user =
+      this.asRecord(object.user) ??
+      this.asRecord(channel?.user) ??
+      this.asRecord(broadcaster?.user);
+
+    const slug = this.firstString([
+      object.channel_slug,
+      object.slug,
+      channel?.slug,
+      channel?.username,
+      channel?.name,
+      broadcaster?.slug,
+      broadcaster?.username,
+      broadcaster?.name,
+      user?.slug,
+      user?.username,
+    ]);
+    if (!slug) return null;
+
+    const id = this.firstString([
+      object.channel_id,
+      object.user_id,
+      object.id,
+      channel?.id,
+      channel?.user_id,
+      broadcaster?.id,
+      broadcaster?.user_id,
+      user?.id,
+    ]);
+    const displayName = this.firstString([
+      object.display_name,
+      object.displayName,
+      object.name,
+      object.username,
+      channel?.display_name,
+      channel?.displayName,
+      channel?.name,
+      channel?.username,
+      broadcaster?.display_name,
+      broadcaster?.displayName,
+      broadcaster?.name,
+      broadcaster?.username,
+      user?.display_name,
+      user?.displayName,
+      user?.name,
+      user?.username,
+    ]);
+    const avatarUrl = this.firstString([
+      object.profile_pic,
+      object.profile_picture,
+      object.profile_image,
+      object.profileImage,
+      object.avatar,
+      object.avatar_url,
+      object.thumbnail,
+      channel?.profile_pic,
+      channel?.profile_picture,
+      channel?.profile_image,
+      channel?.profileImage,
+      channel?.avatar,
+      channel?.avatar_url,
+      channel?.thumbnail,
+      broadcaster?.profile_pic,
+      broadcaster?.profile_picture,
+      broadcaster?.profile_image,
+      broadcaster?.profileImage,
+      broadcaster?.avatar,
+      broadcaster?.avatar_url,
+      broadcaster?.thumbnail,
+      user?.profile_pic,
+      user?.profile_picture,
+      user?.profile_image,
+      user?.profileImage,
+      user?.avatar,
+      user?.avatar_url,
+    ]);
+
+    return { slug, id, displayName, avatarUrl };
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  }
+
+  private firstString(values: unknown[]): string | undefined {
+    for (const value of values) {
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return value.toString();
+    }
+    return undefined;
+  }
+
+  private dedupeEmotes(emotes: Emote[]): Emote[] {
+    const seen = new Set<string>();
+    const deduped: Emote[] = [];
+    for (const emote of emotes) {
+      if (seen.has(emote.id)) continue;
+      seen.add(emote.id);
+      deduped.push(emote);
+    }
+    return deduped;
   }
 
   private transformEmote(
@@ -210,6 +497,7 @@ class KickEmoteProvider implements EmoteProviderService {
       name: emote.name,
       provider: "kick",
       isGlobal: kickSection !== "channel",
+      availability: kickSection === "channel" ? "channel" : "global",
       isAnimated: false, // Kick emotes are typically static
       isZeroWidth: false,
       channelId,

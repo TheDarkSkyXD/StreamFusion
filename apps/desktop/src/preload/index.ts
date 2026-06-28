@@ -23,6 +23,10 @@ import type {
   TwitchUser,
   UserPreferences,
 } from "../shared/auth-types";
+import type {
+  SubscriberEligibilityRequest,
+  SubscriberEligibilityResult,
+} from "../shared/chat-types";
 import {
   type AppEnvironment,
   type AuthStatus,
@@ -460,6 +464,7 @@ const electronAPI = {
       channelId?: string;
       limit?: number;
       cursor?: string;
+      sort?: "date" | "views";
     }): Promise<{
       success: boolean;
       data?: any[];
@@ -593,6 +598,26 @@ const electronAPI = {
       data?: { rawMessages: string[] } | null;
       error?: string;
     }> => ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY, params),
+
+    enrichMentionUsers: (params: {
+      platform: Platform;
+      channel?: string;
+      users: Array<{ userId?: string; username: string }>;
+    }): Promise<{
+      success: boolean;
+      data?: Array<{
+        userId: string;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+      }>;
+      error?: string;
+    }> => ipcRenderer.invoke(IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS, params),
+
+    checkSubscriberEligibility: (
+      request: SubscriberEligibilityRequest
+    ): Promise<SubscriberEligibilityResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CHAT_CHECK_SUBSCRIBER_ELIGIBILITY, request),
   },
 
   // ========== Kick Chat Send (main-only send-window over IPC) ==========
@@ -606,8 +631,16 @@ const electronAPI = {
   kickChat: {
     ensureSendWindowReady: (): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY),
-    sendMessage: (chatroomId: number, content: string): Promise<KickSendResult> =>
-      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE, { chatroomId, content }),
+    sendMessage: (
+      chatroomId: number,
+      content: string,
+      broadcasterUserId?: number
+    ): Promise<KickSendResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE, {
+        chatroomId,
+        content,
+        broadcasterUserId,
+      }),
     disposeSendWindow: (): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW),
   },
@@ -629,6 +662,12 @@ const electronAPI = {
       getGlobal: (): Promise<unknown> => ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL),
       getRoom: (opts: { name?: string; channelId?: string }): Promise<unknown | null> =>
         ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM, opts),
+    },
+    kick: {
+      getChannelEmotes: (params: { slug: string; accessToken?: string }): Promise<unknown | null> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES, params),
+      getUserSubscriptions: (): Promise<unknown | null> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_KICK_GET_USER_SUBSCRIPTIONS),
     },
   },
 

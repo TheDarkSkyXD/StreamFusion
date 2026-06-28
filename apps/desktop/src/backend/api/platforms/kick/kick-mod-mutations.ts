@@ -1,35 +1,17 @@
+import { logger } from "@/lib/cross-logger";
+
 /**
- * Kick v2 — Moderation Mutations (authenticated)
+ * Kick moderation mutations.
  *
- * Endpoints (captured from KickTalk's reference implementation, 2026-05-18:
- * `reference/KickTalk-main/utils/services/kick/kickAPI.js`):
- *
- *   POST   /api/v2/channels/{slug}/bans
- *     body: { banned_username, permanent: true }                          — ban
- *     body: { banned_username, duration, permanent: false }               — timeout
- *   DELETE /api/v2/channels/{slug}/bans/{username}                        — unban
- *   DELETE /api/v2/chatrooms/{chatroomId}/messages/{messageId}            — delete message
- *   POST   /api/v2/channels/{slug}/chatroom                               — chat-mode update
- *
- * Auth: Bearer token from our Kick OAuth flow (same as kick-pin-mutations).
- * We deliberately do NOT reproduce KickTalk's cookie-jar / X-XSRF-TOKEN
- * setup — see kick-pin-mutations.ts for the rationale.
- *
- * Slug handling: we pass the slug through cleanly and rely on the caller
- * to give us the canonical Kick slug. KickTalk performs an
- * underscore-to-dash retry on failure; that's a KickTalk-specific quirk
- * and is intentionally not mirrored here.
- *
- * U7 ships the helpers in isolation; U11 wires them into call-sites.
+ * Official Kick Public API is primary where it covers the operation and the
+ * caller has the required stable IDs. Legacy v2 web routes remain as fallback
+ * for scope gaps, older call sites, and room-mode updates that the official
+ * docs do not currently expose.
  */
 
-const KICK_API_BASE = "https://kick.com/api/v2";
+const KICK_LEGACY_API_BASE = "https://kick.com/api/v2";
+const KICK_OFFICIAL_API_BASE = "https://api.kick.com/public/v1";
 const REQUEST_TIMEOUT_MS = 10_000;
-
-// ---------------------------------------------------------------------------
-// Result types (mirrors kick-pin-mutations + rate-limited branch for parity
-// with U6's Helix moderation helpers).
-// ---------------------------------------------------------------------------
 
 export type KickModErrorKind =
   | "unauthenticated"
@@ -47,10 +29,6 @@ export type KickModResult =
       kind: "unauthenticated" | "forbidden" | "not-found" | "network" | "unknown";
       message: string;
     };
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 function classify(
   status: number,
@@ -104,7 +82,7 @@ async function kickRequest(args: KickRequestArgs): Promise<KickModResult> {
     return { ok: false, kind: "network", message };
   }
 
-  if (res.ok) return { ok: true };
+  if (res.ok || res.status === 204) return { ok: true };
 
   if (res.status === 429) {
     return {
@@ -119,75 +97,151 @@ async function kickRequest(args: KickRequestArgs): Promise<KickModResult> {
   return { ok: false, kind: classify(res.status, respBody), message: `${res.status}` };
 }
 
-// ---------------------------------------------------------------------------
-// 1. banKickUser — permanent ban
-// ---------------------------------------------------------------------------
+async function withOfficialFallback(
+  official: (() => Promise<KickModResult>) | null,
+  legacy: () => Promise<KickModResult>,
+  context: Record<string, unknown>
+): Promise<KickModResult> {
+  if (official) {
+    const result = await official();
+    if (result.ok) return result;
+    logger.warn("Kick:Mod", "Official Kick moderation API failed; falling back to legacy", {
+      ...context,
+      kind: result.kind,
+      message: result.message,
+    });
+  }
+  return legacy();
+}
+
+function numericId(value: number | string | undefined): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
 export interface BanKickUserArgs {
   channelSlug: string;
   username: string;
   accessToken: string;
+  broadcasterUserId?: number | string;
+  userId?: number | string;
+  reason?: string;
 }
 
 export function banKickUser(args: BanKickUserArgs): Promise<KickModResult> {
-  const url = `${KICK_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/bans`;
-  return kickRequest({
-    method: "POST",
-    url,
-    accessToken: args.accessToken,
-    body: { banned_username: args.username, permanent: true },
-  });
-}
+  const broadcasterUserId = numericId(args.broadcasterUserId);
+  const userId = numericId(args.userId);
+  const official =
+    broadcasterUserId !== null && userId !== null
+      ? () =>
+          kickRequest({
+            method: "POST",
+            url: `${KICK_OFFICIAL_API_BASE}/moderation/bans`,
+            accessToken: args.accessToken,
+            body: {
+              broadcaster_user_id: broadcasterUserId,
+              user_id: userId,
+              ...(args.reason ? { reason: args.reason } : {}),
+            },
+          })
+      : null;
 
-// ---------------------------------------------------------------------------
-// 2. timeoutKickUser — temporary ban
-// ---------------------------------------------------------------------------
+  return withOfficialFallback(
+    official,
+    () =>
+      kickRequest({
+        method: "POST",
+        url: `${KICK_LEGACY_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/bans`,
+        accessToken: args.accessToken,
+        body: { banned_username: args.username, permanent: true },
+      }),
+    { action: "ban", channelSlug: args.channelSlug, username: args.username }
+  );
+}
 
 export interface TimeoutKickUserArgs {
   channelSlug: string;
   username: string;
-  /**
-   * Timeout duration. Per Kick's API (and KickTalk's `getTimeoutUser`,
-   * kickAPI.js ~line 389), the wire field is `duration` and Kick's UI uses
-   * minutes. This helper does NOT convert — it passes whatever the caller
-   * supplies through to the API as-is. Callers should pass minutes.
-   */
+  /** Kick timeout duration in minutes. */
   duration: number;
   accessToken: string;
+  broadcasterUserId?: number | string;
+  userId?: number | string;
+  reason?: string;
 }
 
 export function timeoutKickUser(args: TimeoutKickUserArgs): Promise<KickModResult> {
-  const url = `${KICK_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/bans`;
-  return kickRequest({
-    method: "POST",
-    url,
-    accessToken: args.accessToken,
-    body: {
-      banned_username: args.username,
-      duration: args.duration,
-      permanent: false,
-    },
-  });
-}
+  const broadcasterUserId = numericId(args.broadcasterUserId);
+  const userId = numericId(args.userId);
+  const official =
+    broadcasterUserId !== null && userId !== null
+      ? () =>
+          kickRequest({
+            method: "POST",
+            url: `${KICK_OFFICIAL_API_BASE}/moderation/bans`,
+            accessToken: args.accessToken,
+            body: {
+              broadcaster_user_id: broadcasterUserId,
+              user_id: userId,
+              duration: args.duration,
+              ...(args.reason ? { reason: args.reason } : {}),
+            },
+          })
+      : null;
 
-// ---------------------------------------------------------------------------
-// 3. unbanKickUser
-// ---------------------------------------------------------------------------
+  return withOfficialFallback(
+    official,
+    () =>
+      kickRequest({
+        method: "POST",
+        url: `${KICK_LEGACY_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/bans`,
+        accessToken: args.accessToken,
+        body: {
+          banned_username: args.username,
+          duration: args.duration,
+          permanent: false,
+        },
+      }),
+    { action: "timeout", channelSlug: args.channelSlug, username: args.username }
+  );
+}
 
 export interface UnbanKickUserArgs {
   channelSlug: string;
   username: string;
   accessToken: string;
+  broadcasterUserId?: number | string;
+  userId?: number | string;
 }
 
 export function unbanKickUser(args: UnbanKickUserArgs): Promise<KickModResult> {
-  const url = `${KICK_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/bans/${encodeURIComponent(args.username)}`;
-  return kickRequest({ method: "DELETE", url, accessToken: args.accessToken });
-}
+  const broadcasterUserId = numericId(args.broadcasterUserId);
+  const userId = numericId(args.userId);
+  const official =
+    broadcasterUserId !== null && userId !== null
+      ? () =>
+          kickRequest({
+            method: "DELETE",
+            url: `${KICK_OFFICIAL_API_BASE}/moderation/bans`,
+            accessToken: args.accessToken,
+            body: {
+              broadcaster_user_id: broadcasterUserId,
+              user_id: userId,
+            },
+          })
+      : null;
 
-// ---------------------------------------------------------------------------
-// 4. deleteKickMessage — note: chatroomId, not slug
-// ---------------------------------------------------------------------------
+  return withOfficialFallback(
+    official,
+    () =>
+      kickRequest({
+        method: "DELETE",
+        url: `${KICK_LEGACY_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/bans/${encodeURIComponent(args.username)}`,
+        accessToken: args.accessToken,
+      }),
+    { action: "unban", channelSlug: args.channelSlug, username: args.username }
+  );
+}
 
 export interface DeleteKickMessageArgs {
   chatroomId: number;
@@ -196,13 +250,22 @@ export interface DeleteKickMessageArgs {
 }
 
 export function deleteKickMessage(args: DeleteKickMessageArgs): Promise<KickModResult> {
-  const url = `${KICK_API_BASE}/chatrooms/${args.chatroomId}/messages/${encodeURIComponent(args.messageId)}`;
-  return kickRequest({ method: "DELETE", url, accessToken: args.accessToken });
+  return withOfficialFallback(
+    () =>
+      kickRequest({
+        method: "DELETE",
+        url: `${KICK_OFFICIAL_API_BASE}/chat/${encodeURIComponent(args.messageId)}`,
+        accessToken: args.accessToken,
+      }),
+    () =>
+      kickRequest({
+        method: "DELETE",
+        url: `${KICK_LEGACY_API_BASE}/chatrooms/${args.chatroomId}/messages/${encodeURIComponent(args.messageId)}`,
+        accessToken: args.accessToken,
+      }),
+    { action: "delete-message", chatroomId: args.chatroomId, messageId: args.messageId }
+  );
 }
-
-// ---------------------------------------------------------------------------
-// 5. setKickChatMode — partial chat-mode update
-// ---------------------------------------------------------------------------
 
 export interface KickChatModeUpdate {
   /** When enabled, `seconds` is the message_interval. When disabled, `seconds` is ignored. */
@@ -218,54 +281,25 @@ export interface SetKickChatModeArgs {
   accessToken: string;
 }
 
-/**
- * Builds the Kick `/chatroom` body from a partial settings object.
- *
- * Body shapes (room-state mirror — read off KickTalk's
- * `src/renderer/src/components/Chat/Input/InfoBar.jsx` lines 13-22, which
- * reads `slow_mode.message_interval`, `followers_mode.min_duration`,
- * `subscribers_mode.enabled`, `emotes_mode.enabled`):
- *
- *   slow on  → { slow_mode:        { enabled: true,  message_interval: N } }
- *   slow off → { slow_mode:        { enabled: false, message_interval: 0 } }
- *   foll on  → { followers_mode:   { enabled: true,  min_duration: N } }
- *   foll off → { followers_mode:   { enabled: false, min_duration: 0 } }
- *   subs     → { subscribers_mode: { enabled: bool } }
- *   emote    → { emotes_mode:      { enabled: bool } }
- *
- * Multiple modes may be combined in a single call — Kick's `/chatroom`
- * endpoint accepts the merged body.
- *
- * Slow-off note: per the plan's rationale (and the KickTalk room-state
- * shape it reads), we send `slow_mode: { enabled: false, message_interval: 0 }`
- * to the same `/chatroom` endpoint rather than a separate `/slow-off`
- * route. KickTalk's current code has the wire path commented out
- * (`preload/index.js:368`) so there is no live precedent to copy — the
- * room-state shape on InfoBar.jsx is the only ground truth.
- */
 function buildChatModeBody(update: KickChatModeUpdate): Record<string, unknown> {
   const body: Record<string, unknown> = {};
 
   if (update.slowMode) {
-    if (update.slowMode.enabled) {
-      body.slow_mode = {
-        enabled: true,
-        message_interval: update.slowMode.seconds ?? 0,
-      };
-    } else {
-      body.slow_mode = { enabled: false, message_interval: 0 };
-    }
+    body.slow_mode = update.slowMode.enabled
+      ? {
+          enabled: true,
+          message_interval: update.slowMode.seconds ?? 0,
+        }
+      : { enabled: false, message_interval: 0 };
   }
 
   if (update.followersOnly) {
-    if (update.followersOnly.enabled) {
-      body.followers_mode = {
-        enabled: true,
-        min_duration: update.followersOnly.minutes ?? 0,
-      };
-    } else {
-      body.followers_mode = { enabled: false, min_duration: 0 };
-    }
+    body.followers_mode = update.followersOnly.enabled
+      ? {
+          enabled: true,
+          min_duration: update.followersOnly.minutes ?? 0,
+        }
+      : { enabled: false, min_duration: 0 };
   }
 
   if (update.subscribersOnly) {
@@ -280,10 +314,9 @@ function buildChatModeBody(update: KickChatModeUpdate): Record<string, unknown> 
 }
 
 export function setKickChatMode(args: SetKickChatModeArgs): Promise<KickModResult> {
-  const url = `${KICK_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/chatroom`;
   return kickRequest({
     method: "POST",
-    url,
+    url: `${KICK_LEGACY_API_BASE}/channels/${encodeURIComponent(args.channelSlug)}/chatroom`,
     accessToken: args.accessToken,
     body: buildChatModeBody(args.update),
   });

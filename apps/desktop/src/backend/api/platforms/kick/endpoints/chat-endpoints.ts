@@ -41,6 +41,16 @@ export interface KickV2ChatMessage {
     id: number;
     username: string;
     slug: string;
+    profile_pic?: string | null;
+    profile_picture?: string | null;
+    avatar?: string | null;
+    avatar_url?: string | null;
+    user?: {
+      profile_pic?: string | null;
+      profile_picture?: string | null;
+      avatar?: string | null;
+      avatar_url?: string | null;
+    };
     identity: {
       color: string;
       badges: Array<{ type: string; text: string; count?: number }>;

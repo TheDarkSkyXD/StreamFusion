@@ -5,22 +5,29 @@ import {
   unpinChatMessage,
 } from "@/backend/api/platforms/twitch/twitch-gql-pin-mutations";
 
-// Guards: Twitch GQL pin/unpin mutation wire shape — operationName, persisted-op hash, variable shape. Twitch rotates persisted-op hashes on schema changes; a fix-and-forget rename would silently 4xx in production. Test asserts the request body verbatim so any drift surfaces here.
+// Guards: Twitch Helix chat-pin wire shape - pin/unpin must use the official /chat/pins endpoint with broadcaster_id, moderator_id, message_id, and a client id matching the user token.
+// Guards: Helix missing-scope responses surface as missing-scopes so the UI can reopen the reconnect flow instead of showing a dead generic error.
 
-// Capture each fetch call so the tests can inspect the body Twitch receives.
-let lastBody: unknown = null;
-let nextResponse: { status: number; body: unknown } = { status: 200, body: { data: {} } };
+let lastUrl: string | null = null;
+let lastMethod: string | null = null;
+let lastHeaders: Record<string, string> | null = null;
+let nextResponse: { status: number; body?: unknown } = { status: 204 };
 
 beforeEach(() => {
-  lastBody = null;
-  nextResponse = { status: 200, body: { data: {} } };
-  vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
-    lastBody = init?.body ? JSON.parse(init.body as string) : null;
+  lastUrl = null;
+  lastMethod = null;
+  lastHeaders = null;
+  nextResponse = { status: 204 };
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    lastUrl = url;
+    lastMethod = (init?.method as string) ?? "GET";
+    lastHeaders = (init?.headers as Record<string, string>) ?? {};
     return {
       ok: nextResponse.status >= 200 && nextResponse.status < 300,
       status: nextResponse.status,
       statusText: "",
-      json: async () => nextResponse.body,
+      headers: new Headers(),
+      json: async () => nextResponse.body ?? {},
     } as Response;
   });
 });
@@ -30,89 +37,69 @@ afterEach(() => {
 });
 
 describe("pinChatMessage", () => {
-  it("sends the canonical PinChatMessage mutation with type: MOD and the given duration", async () => {
-    const result = await pinChatMessage("19789903", "msg-1", 3600, "tok-1");
+  it("PUTs the official Helix chat pin endpoint with the chosen duration", async () => {
+    const result = await pinChatMessage("19789903", "mod-42", "msg-1", 1800, "tok-1", "client-1");
 
     expect(result).toEqual({ ok: true });
-    expect(lastBody).toMatchObject({
-      operationName: "PinChatMessage",
-      variables: {
-        input: {
-          channelID: "19789903",
-          messageID: "msg-1",
-          durationSeconds: 3600,
-          type: "MOD",
-        },
-      },
+    expect(lastMethod).toBe("PUT");
+    expect(lastUrl).toBe(
+      "https://api.twitch.tv/helix/chat/pins?broadcaster_id=19789903&moderator_id=mod-42&message_id=msg-1&duration_seconds=1800",
+    );
+    expect(lastHeaders).toMatchObject({
+      "Client-Id": "client-1",
+      Authorization: "Bearer tok-1",
     });
   });
 
-  it("omits durationSeconds when null (no-expiry pin)", async () => {
-    await pinChatMessage("19789903", "msg-1", null, "tok-1");
-    const input = (lastBody as { variables: { input: Record<string, unknown> } }).variables.input;
-    expect(input).not.toHaveProperty("durationSeconds");
-    expect(input).toMatchObject({
-      channelID: "19789903",
-      messageID: "msg-1",
-      type: "MOD",
-    });
+  it("omits duration_seconds when null so Twitch pins until the stream ends", async () => {
+    await pinChatMessage("19789903", "mod-42", "msg-1", null, "tok-1", "client-1");
+    expect(lastUrl).toBe(
+      "https://api.twitch.tv/helix/chat/pins?broadcaster_id=19789903&moderator_id=mod-42&message_id=msg-1",
+    );
   });
 
-  it("classifies an 'unauthenticated' GQL error and surfaces it on the result", async () => {
+  it("classifies a missing-scope 401 and carries moderator:manage:chat_messages", async () => {
     nextResponse = {
-      status: 200,
-      body: { errors: [{ message: "unauthenticated", path: ["pinChatMessage"] }] },
+      status: 401,
+      body: {
+        error: "Unauthorized",
+        status: 401,
+        message: "Missing scope: moderator:manage:chat_messages",
+      },
     };
-    const result = await pinChatMessage("19789903", "msg-1", 3600, "tok-1");
+
+    const result = await pinChatMessage("19789903", "mod-42", "msg-1", 1800, "tok-1", "client-1");
+
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.kind).toBe("unauthenticated");
+      expect(result.kind).toBe("missing-scopes");
+      if (result.kind === "missing-scopes") {
+        expect(result.missingScopes).toEqual(["moderator:manage:chat_messages"]);
+      }
     }
   });
 
-  it("classifies a 'forbidden' error", async () => {
-    nextResponse = { status: 200, body: { errors: [{ message: "Permission denied" }] } };
-    const result = await pinChatMessage("19789903", "msg-1", 3600, "tok-1");
-    if (!result.ok) {
-      expect(result.kind).toBe("forbidden");
-    } else {
-      throw new Error("expected forbidden");
-    }
-  });
+  it("classifies forbidden and not-found Helix responses", async () => {
+    nextResponse = { status: 403, body: { message: "not a moderator" } };
+    const forbidden = await pinChatMessage("19789903", "mod-42", "msg-1", 1800, "tok-1", "client-1");
+    expect(forbidden.ok).toBe(false);
+    if (!forbidden.ok) expect(forbidden.kind).toBe("forbidden");
 
-  it("classifies a non-2xx HTTP response as a network error", async () => {
-    nextResponse = { status: 500, body: {} };
-    const result = await pinChatMessage("19789903", "msg-1", 3600, "tok-1");
-    if (!result.ok) {
-      expect(result.kind).toBe("network");
-    } else {
-      throw new Error("expected network");
-    }
+    nextResponse = { status: 404, body: { message: "message not found" } };
+    const missing = await pinChatMessage("19789903", "mod-42", "msg-1", 1800, "tok-1", "client-1");
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.kind).toBe("not-found");
   });
 });
 
 describe("unpinChatMessage", () => {
-  it("sends UnpinChatMessage with the pin record id and reason: UNPIN", async () => {
-    const result = await unpinChatMessage("pin-78bf3377", "tok-1");
+  it("DELETEs the official Helix chat pin endpoint with the chat message id", async () => {
+    const result = await unpinChatMessage("19789903", "mod-42", "msg-1", "tok-1", "client-1");
 
     expect(result).toEqual({ ok: true });
-    expect(lastBody).toMatchObject({
-      operationName: "UnpinChatMessage",
-      variables: {
-        input: { id: "pin-78bf3377", reason: "UNPIN" },
-      },
-    });
-  });
-
-  it("surfaces unauthenticated errors", async () => {
-    nextResponse = {
-      status: 200,
-      body: { errors: [{ message: "unauthenticated" }] },
-    };
-    const result = await unpinChatMessage("pin-x", "tok-1");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.kind).toBe("unauthenticated");
-    }
+    expect(lastMethod).toBe("DELETE");
+    expect(lastUrl).toBe(
+      "https://api.twitch.tv/helix/chat/pins?broadcaster_id=19789903&moderator_id=mod-42&message_id=msg-1",
+    );
   });
 });

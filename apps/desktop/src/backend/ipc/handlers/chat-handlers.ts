@@ -3,6 +3,73 @@ import { ipcMain } from "electron";
 import { logger } from "@/backend/logging/logger";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
+interface MentionUserLookup {
+  userId?: string;
+  username: string;
+}
+
+interface MentionUserEnrichment {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
+const mentionUserCache = new Map<string, { user: MentionUserEnrichment; expiresAt: number }>();
+const MENTION_USER_CACHE_TTL_MS = 15 * 60 * 1000;
+
+function getKickDefaultMentionAvatarUrl(): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><rect width="48" height="48" rx="24" fill="#53FC18"/><circle cx="24" cy="18" r="8" fill="#101510"/><path d="M10 41c2.4-9 7.2-13 14-13s11.6 4 14 13" fill="#101510"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function getKickMentionAvatarUrl(avatarUrl?: string | null): string {
+  return avatarUrl || getKickDefaultMentionAvatarUrl();
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function uniqueMentionUsers(users: MentionUserLookup[]): MentionUserLookup[] {
+  const seen = new Set<string>();
+  const unique: MentionUserLookup[] = [];
+  for (const user of users) {
+    const username = user.username.trim();
+    if (!username) continue;
+    const key = username.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push({ userId: user.userId, username });
+  }
+  return unique;
+}
+
+function getCachedMentionUser(
+  platform: "twitch" | "kick",
+  username: string
+): MentionUserEnrichment | null {
+  const key = `${platform}:${username.toLowerCase()}`;
+  const cached = mentionUserCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt < Date.now()) {
+    mentionUserCache.delete(key);
+    return null;
+  }
+  return cached.user;
+}
+
+function setCachedMentionUser(platform: "twitch" | "kick", user: MentionUserEnrichment): void {
+  mentionUserCache.set(`${platform}:${user.username.toLowerCase()}`, {
+    user,
+    expiresAt: Date.now() + MENTION_USER_CACHE_TTL_MS,
+  });
+}
+
 export function registerChatHandlers(): void {
   /**
    * Fetch the v2 chat-history page for a Kick channel. The renderer uses this
@@ -57,6 +124,221 @@ export function registerChatHandlers(): void {
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch Twitch chat history",
+        };
+      }
+    }
+  );
+
+  /**
+   * Enrich known mention candidates with profile metadata. This does not try
+   * to enumerate passive viewers; it only looks up users the renderer already
+   * knows from chat history/live chat.
+   */
+  ipcMain.handle(
+    IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS,
+    async (
+      _event,
+      params: { platform: "twitch" | "kick"; channel?: string; users: MentionUserLookup[] }
+    ): Promise<
+      { success: true; data: MentionUserEnrichment[] } | { success: false; error: string }
+    > => {
+      try {
+        const users = uniqueMentionUsers(params.users).slice(0, 25);
+        if (users.length === 0) return { success: true, data: [] };
+
+        const cachedData: MentionUserEnrichment[] = [];
+        const usersToFetch: MentionUserLookup[] = [];
+        for (const user of users) {
+          const cached = getCachedMentionUser(params.platform, user.username);
+          if (cached) {
+            cachedData.push(cached);
+          } else {
+            usersToFetch.push(user);
+          }
+        }
+        if (usersToFetch.length === 0) return { success: true, data: cachedData };
+
+        if (params.platform === "twitch") {
+          const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
+          const data: MentionUserEnrichment[] = [...cachedData];
+          const found = new Set<string>();
+
+          try {
+            for (const batch of chunk(usersToFetch, 100)) {
+              const fetched = await twitchClient.getUsersByLogin(
+                batch.map((user) => user.username)
+              );
+              for (const user of fetched) {
+                const enriched = {
+                  userId: user.id,
+                  username: user.login,
+                  displayName: user.displayName || user.login,
+                  avatarUrl: user.profileImageUrl || undefined,
+                };
+                data.push(enriched);
+                found.add(user.login.toLowerCase());
+                setCachedMentionUser("twitch", enriched);
+              }
+            }
+          } catch (error) {
+            logger.debug("IPC:Chat", "Twitch Helix mention enrichment failed; using GQL fallback", {
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            });
+          }
+
+          for (const user of usersToFetch) {
+            if (found.has(user.username.toLowerCase())) continue;
+            try {
+              const channel = await twitchClient.getChannelByLogin(user.username);
+              if (!channel) continue;
+              const enriched = {
+                userId: channel.id,
+                username: channel.username,
+                displayName: channel.displayName || channel.username,
+                avatarUrl: channel.avatarUrl || undefined,
+              };
+              data.push(enriched);
+              setCachedMentionUser("twitch", enriched);
+            } catch (error) {
+              logger.debug("IPC:Chat", "Twitch GQL mention enrichment failed", {
+                username: user.username,
+                error:
+                  error instanceof Error
+                    ? { name: error.name, message: error.message, stack: error.stack }
+                    : String(error),
+              });
+            }
+          }
+
+          return { success: true, data };
+        }
+
+        const { kickClient } = await import("../../api/platforms/kick/kick-client");
+        const data: MentionUserEnrichment[] = [...cachedData];
+        const found = new Set<string>();
+        const ids = usersToFetch
+          .map((user) => Number(user.userId))
+          .filter((id) => Number.isInteger(id) && id > 0);
+
+        if (ids.length > 0) {
+          const usernameById = new Map(
+            usersToFetch
+              .filter((user) => user.userId)
+              .map((user) => [String(user.userId), user.username] as const)
+          );
+          try {
+            for (const batch of chunk(ids, 100)) {
+              const fetched = await kickClient.getUsersById(batch);
+              for (const user of fetched) {
+                const enriched = {
+                  userId: String(user.user_id),
+                  username: usernameById.get(String(user.user_id)) ?? user.name,
+                  displayName: user.name,
+                  avatarUrl: getKickMentionAvatarUrl(user.profile_picture),
+                };
+                data.push(enriched);
+                found.add(enriched.username.toLowerCase());
+                setCachedMentionUser("kick", enriched);
+              }
+            }
+          } catch (error) {
+            logger.debug(
+              "IPC:Chat",
+              "Kick official mention enrichment failed; using public fallback",
+              {
+                error:
+                  error instanceof Error
+                    ? { name: error.name, message: error.message, stack: error.stack }
+                    : String(error),
+              }
+            );
+          }
+        }
+
+        const channelSlug = params.channel?.trim();
+        if (channelSlug) {
+          for (const user of usersToFetch) {
+            if (found.has(user.username.toLowerCase())) continue;
+            try {
+              const profile = await kickClient.getPublicChannelUserProfile(
+                channelSlug,
+                user.username
+              );
+              if (!profile) continue;
+              const enriched = {
+                userId: profile.userId || user.userId || user.username,
+                username: user.username,
+                displayName: profile.displayName || user.username,
+                avatarUrl: getKickMentionAvatarUrl(profile.avatarUrl),
+              };
+              data.push(enriched);
+              found.add(user.username.toLowerCase());
+              setCachedMentionUser("kick", enriched);
+            } catch (error) {
+              logger.debug("IPC:Chat", "Kick channel-user mention enrichment failed", {
+                channel: channelSlug,
+                username: user.username,
+                error:
+                  error instanceof Error
+                    ? { name: error.name, message: error.message, stack: error.stack }
+                    : String(error),
+              });
+            }
+          }
+        }
+
+        for (const user of usersToFetch) {
+          if (found.has(user.username.toLowerCase())) continue;
+          try {
+            const channel = await kickClient.getPublicChannel(user.username);
+            if (!channel?.avatarUrl) continue;
+            const enriched = {
+              userId: channel.id || user.userId || user.username,
+              username: user.username,
+              displayName: channel.displayName || user.username,
+              avatarUrl: getKickMentionAvatarUrl(channel.avatarUrl),
+            };
+            data.push(enriched);
+            found.add(user.username.toLowerCase());
+            setCachedMentionUser("kick", enriched);
+          } catch (error) {
+            logger.debug("IPC:Chat", "Kick public mention enrichment failed", {
+              username: user.username,
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            });
+          }
+        }
+
+        for (const user of usersToFetch) {
+          if (found.has(user.username.toLowerCase())) continue;
+          const enriched = {
+            userId: user.userId || user.username,
+            username: user.username,
+            displayName: user.username,
+            avatarUrl: getKickDefaultMentionAvatarUrl(),
+          };
+          data.push(enriched);
+          setCachedMentionUser("kick", enriched);
+        }
+
+        return { success: true, data };
+      } catch (error) {
+        logger.warn("IPC:Chat", "mention user enrichment failed", {
+          platform: params.platform,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to enrich mention users",
         };
       }
     }

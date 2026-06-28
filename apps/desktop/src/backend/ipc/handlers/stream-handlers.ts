@@ -6,6 +6,7 @@ import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
 import { clients } from "../../api/unified/registry";
 import { storageService } from "../../services/storage-service";
+import { getKickFollowScanSlugs, resolveKickFollowPlaybackSlug } from "./kick-follow-repair";
 
 export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 0;
 
@@ -329,7 +330,7 @@ export function registerStreamHandlers(): void {
             });
           } else if (localKick.length > 0) {
             const scanStartedAt = Date.now();
-            const uniqueSlugs = [...new Set(localKick.map((f) => f.channelName))];
+            const uniqueSlugs = await getKickFollowScanSlugs(kickClient, localKick);
 
             // Stagger by 60ms each so N parallel /channels/{slug} fetches don't
             // fan-out on the same JS tick. The actual sleep lives inside
@@ -466,6 +467,7 @@ export function registerStreamHandlers(): void {
         "../../api/platforms/twitch/twitch-stream-resolver"
       );
       const { KickStreamResolver } = await import("../../api/platforms/kick/kick-stream-resolver");
+      const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       const twitchResolver = new TwitchStreamResolver();
       const kickResolver = new KickStreamResolver();
@@ -475,8 +477,25 @@ export function registerStreamHandlers(): void {
           const result = await twitchResolver.getStreamPlaybackUrl(params.channelSlug);
           return { success: true, data: result };
         } else if (params.platform === "kick") {
-          const result = await kickResolver.getStreamPlaybackUrl(params.channelSlug);
-          return { success: true, data: result };
+          try {
+            const result = await kickResolver.getStreamPlaybackUrl(params.channelSlug);
+            return { success: true, data: result };
+          } catch (error) {
+            const repairedSlug = await resolveKickFollowPlaybackSlug(
+              kickClient,
+              params.channelSlug
+            );
+            if (repairedSlug && repairedSlug.toLowerCase() !== params.channelSlug.toLowerCase()) {
+              logger.info("IPC:Stream", "Retrying Kick playback with repaired channel slug", {
+                requestedSlug: params.channelSlug,
+                repairedSlug,
+              });
+              const result = await kickResolver.getStreamPlaybackUrl(repairedSlug);
+              return { success: true, data: result };
+            }
+
+            throw error;
+          }
         }
         throw new Error(`Unsupported platform: ${params.platform}`);
       } catch (error) {

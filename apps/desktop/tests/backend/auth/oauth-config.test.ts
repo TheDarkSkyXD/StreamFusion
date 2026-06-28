@@ -1,6 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { KICK_OAUTH_CONFIG, TWITCH_OAUTH_CONFIG } from "@/backend/auth/oauth-config";
+import {
+  buildAuthorizationUrl,
+  KICK_OAUTH_CONFIG,
+  TWITCH_OAUTH_CONFIG,
+  WORKER_BASE_URL,
+} from "@/backend/auth/oauth-config";
+import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
+
+describe("WORKER_BASE_URL", () => {
+  it("defaults to the deployed StreamFusion Worker", () => {
+    expect(WORKER_BASE_URL).toBe("https://streamfusion.leveluptogetherbiz.workers.dev");
+    expect(TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe(`${WORKER_BASE_URL}/auth/twitch/token`);
+    expect(KICK_OAUTH_CONFIG.tokenEndpoint).toBe(`${WORKER_BASE_URL}/auth/kick/token`);
+  });
+
+  it("can be overridden for local Worker verification", async () => {
+    vi.resetModules();
+    vi.stubEnv("STREAMFUSION_WORKER_BASE_URL", "http://localhost:8787");
+
+    const config = await import("@/backend/auth/oauth-config");
+
+    expect(config.WORKER_BASE_URL).toBe("http://localhost:8787");
+    expect(config.TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe("http://localhost:8787/auth/twitch/token");
+    expect(config.KICK_OAUTH_CONFIG.tokenEndpoint).toBe("http://localhost:8787/auth/kick/token");
+  });
+});
 
 // Guards: Twitch IRC chat-scope regression — `chat:read` + `chat:edit` MUST stay in `TWITCH_OAUTH_CONFIG.scopes`. Dropping either breaks tmi.js authentication with the user-invisible "Login unsuccessful" failure (the `twitch-irc-missing-chat-scopes-2026-05-19` bug class). The second `describe` exists specifically because the Helix-side `moderator:manage:chat_messages` scope is NOT accepted by IRC, so the test pins the IRC requirements separately from the broader Helix scope set.
 // Guards: channel-management console scope set — 11 retained-feature scopes plus prior scopes. Per-item `toContain` (not snapshot-equality) so a casual "tidy up" PR can't silently drop a single scope while keeping the list "mostly right". After the b15bdec refactor removed AutoMod/Streamlabs/giveaway features, no AutoMod-specific scopes appear in this set — the explicit AutoMod-absence assertion (added U20.c) pins this so drift in either direction fails (drop a retained scope OR re-add an AutoMod scope without re-introducing the feature).
@@ -37,6 +62,10 @@ const REMOVED_AUTOMOD_SCOPES = [
 ] as const;
 
 describe("TWITCH_OAUTH_CONFIG scopes (U4 — channel-management console batch)", () => {
+  it("uses the shared full app scope set as the single source of truth", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toEqual([...TWITCH_APP_SCOPES]);
+  });
+
   it("includes all eleven new console scopes", () => {
     for (const scope of REQUIRED_NEW_SCOPES) {
       expect(TWITCH_OAUTH_CONFIG.scopes).toContain(scope);
@@ -79,6 +108,32 @@ describe("TWITCH_OAUTH_CONFIG scopes (IRC chat — tmi.js)", () => {
 
   it("includes chat:edit so tmi.js can send messages and replies", () => {
     expect(TWITCH_OAUTH_CONFIG.scopes).toContain("chat:edit");
+  });
+});
+
+// Guards: Twitch reconnect for subscribed-channel emotes must request the
+// user-emote scope and force the consent screen for already-signed-in users.
+describe("TWITCH OAuth authorization URL (scope upgrades)", () => {
+  it("requests user:read:emotes so subscribed-channel emotes can load", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toContain("user:read:emotes");
+  });
+
+  it("forces Twitch consent without requiring the user to log out and back in", () => {
+    const url = new URL(
+      buildAuthorizationUrl({
+        platform: "twitch",
+        redirectUri: "http://localhost:8765/auth/twitch/callback",
+        pkce: {
+          codeVerifier: "verifier",
+          codeChallenge: "challenge",
+          codeChallengeMethod: "S256",
+        },
+        state: "state",
+      })
+    );
+
+    expect(url.searchParams.get("force_verify")).toBe("true");
+    expect(url.searchParams.get("scope")?.split(" ")).toEqual([...TWITCH_APP_SCOPES]);
   });
 });
 

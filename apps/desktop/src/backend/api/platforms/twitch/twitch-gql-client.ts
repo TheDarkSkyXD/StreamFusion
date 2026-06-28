@@ -33,7 +33,6 @@ import {
   getQueryStreamMetadata,
   getQueryUseLive,
   getQueryUseViewCount,
-  getQueryVideoAccessTokenClip,
   getQueryVideoMetadata,
   getRawQuery,
   type PlaybackAccessTokenData,
@@ -192,6 +191,9 @@ function transformGqlStream(
   overrides: Partial<UnifiedStream> = {}
 ): UnifiedStream {
   const thumbnailUrl = stream.previewImageURL.replace("{width}", "440").replace("{height}", "248");
+  const broadcaster = stream.broadcaster as
+    | (typeof stream.broadcaster & { roles?: { isPartner?: boolean } })
+    | undefined;
 
   return {
     id: stream.id,
@@ -200,6 +202,7 @@ function transformGqlStream(
     channelName: stream.broadcaster?.login || "",
     channelDisplayName: stream.broadcaster?.displayName || "",
     channelAvatar: stream.broadcaster?.profileImageURL || "",
+    channelIsVerified: !!broadcaster?.roles?.isPartner,
     title: stream.title,
     viewerCount: stream.viewersCount,
     thumbnailUrl,
@@ -659,6 +662,7 @@ export async function gqlGetStreamByLogin(login: string): Promise<UnifiedStream 
   if (!user?.stream) return null;
 
   const stream = user.stream;
+  const userWithRoles = user as typeof user & { roles?: { isPartner?: boolean } };
   const viewers = viewCount.data?.user?.stream?.viewersCount ?? 0;
   const { tags, language } = extractTagsAndLanguage(tagsLang.data);
 
@@ -669,6 +673,7 @@ export async function gqlGetStreamByLogin(login: string): Promise<UnifiedStream 
     channelName: login,
     channelDisplayName: login, // StreamMetadata doesn't include displayName directly
     channelAvatar: user.profileImageURL || "",
+    channelIsVerified: !!userWithRoles.roles?.isPartner,
     title: user.lastBroadcast?.title || "",
     viewerCount: viewers,
     thumbnailUrl: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${login}-440x248.jpg`,
@@ -727,6 +732,7 @@ export async function gqlGetStreamsByLogins(logins: string[]): Promise<UnifiedSt
 
           const user = meta.data?.user;
           if (!user?.stream) continue;
+          const userWithRoles = user as typeof user & { roles?: { isPartner?: boolean } };
 
           results.push({
             id: user.stream.id,
@@ -735,6 +741,7 @@ export async function gqlGetStreamsByLogins(logins: string[]): Promise<UnifiedSt
             channelName: login,
             channelDisplayName: login,
             channelAvatar: user.profileImageURL || "",
+            channelIsVerified: !!userWithRoles.roles?.isPartner,
             title: user.lastBroadcast?.title || "",
             viewerCount: vc.data?.user?.stream?.viewersCount ?? 0,
             thumbnailUrl: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${login}-440x248.jpg`,
@@ -1562,9 +1569,23 @@ export async function gqlGetClipAccessToken(slug: string): Promise<{
   signature: string;
   value: string;
 }> {
-  const [response] = (await gqlRequest([getQueryVideoAccessTokenClip({ slug })])) as [
-    { data: VideoAccessTokenClipData },
-  ];
+  const query = `query VideoAccessToken_Clip($slug: ID!) {
+    clip(slug: $slug) {
+      playbackAccessToken(params: { platform: "web", playerBackend: "mediaplayer", playerType: "site" }) {
+        signature
+        value
+      }
+      videoQualities {
+        frameRate
+        quality
+        sourceURL
+      }
+    }
+  }`;
+
+  const [response] = (await gqlRequest([
+    getRawQuery<VideoAccessTokenClipData>({ query, variables: { slug } }),
+  ])) as [{ data: VideoAccessTokenClipData }];
 
   const clip = response.data?.clip;
   if (!clip) {
