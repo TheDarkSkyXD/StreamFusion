@@ -8,6 +8,7 @@
 import type React from "react";
 import { LuCopy, LuMinus, LuSquare, LuX } from "react-icons/lu";
 
+import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
 import { useWindowControls } from "@/hooks";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,8 @@ export function TitleBar({ className }: TitleBarProps) {
       <div className="flex items-center gap-2 px-4">
         {/* Spacer for macOS traffic lights */}
         {isMac && <div className="w-16" />}
-        <span className="text-xs font-semibold text-[var(--color-foreground)]">🌩️ StreamFusion</span>
+        <img src={streamFusionLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+        <span className="text-xs font-semibold text-[var(--color-foreground)]">StreamFusion</span>
       </div>
 
       {/* Right side - Window controls (Windows/Linux only) */}

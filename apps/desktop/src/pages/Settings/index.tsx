@@ -28,6 +28,7 @@ import {
   LuX,
 } from "react-icons/lu";
 
+import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
 import { AccountConnect } from "@/components/auth";
 import {
   getAdBlockDeviceId,
@@ -1968,9 +1969,11 @@ export function SettingsPage() {
 
                   {isRowVisible("About") && (
                     <div className="p-8 rounded-xl border border-[#27272a] bg-[#121214] flex flex-col items-center text-center space-y-4">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                        <LuRocket className="w-8 h-8 text-white" />
-                      </div>
+                      <img
+                        src={streamFusionLogo}
+                        alt=""
+                        className="h-16 w-16 rounded-xl object-contain"
+                      />
                       <div>
                         <h3 className="text-xl font-bold text-white">StreamFusion</h3>
                         <div className="flex items-center justify-center gap-2 mt-1">

@@ -1,7 +1,11 @@
+import path from "node:path";
+
 import { app, type BrowserWindow, ipcMain, Notification, nativeTheme, shell } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+
+const appIconPath = path.join(__dirname, "../../assets/icons/icon.png");
 
 export function registerSystemHandlers(mainWindow: BrowserWindow): void {
   /**
@@ -134,7 +138,7 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
         const notification = new Notification({
           title,
           body,
-          icon: undefined, // TODO: Add app icon
+          icon: appIconPath,
         });
         notification.show();
       }

@@ -17,6 +17,7 @@ import { markCleanShutdown } from "./shutdown-marker";
 // No longer using Electron Forge globals - electron-vite provides:
 //   - process.env.ELECTRON_RENDERER_URL (dev server URL in development)
 //   - __dirname points to out/main/ in production
+const appIconPath = path.join(__dirname, "../../assets/icons/icon.png");
 
 interface WindowBounds {
   x: number;
@@ -180,6 +181,7 @@ class WindowManager {
       minHeight: 768,
       backgroundColor: "#0f0f0f",
       show: false,
+      icon: appIconPath,
       frame: false, // Custom title bar
       titleBarStyle: "hidden",
       trafficLightPosition: { x: 12, y: 12 }, // macOS traffic lights position

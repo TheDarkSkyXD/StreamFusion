@@ -33,12 +33,14 @@
   "build": {
     "appId": "com.streamfusion.app",
     "productName": "StreamFusion",
+    "icon": "assets/icons/icon",
     "directories": {
       "output": "release"
     },
     "npmRebuild": false,
     "files": [
       "out/**/*",
+      "assets/icons/icon.png",
       "package.json",
       "!**/*.map",
       "!**/*.d.ts",

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { memo } from "react";
 import { LuMenu } from "react-icons/lu";
 
+import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
 import { ProfileDropdown } from "@/components/auth";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
@@ -39,8 +40,9 @@ export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) 
         </button>
         <Link
           to="/"
-          className="text-xl font-bold text-white tracking-tight hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 text-xl font-bold text-white tracking-tight hover:opacity-90 transition-opacity"
         >
+          <img src={streamFusionLogo} alt="" className="h-7 w-7 shrink-0 object-contain" />
           StreamFusion
         </Link>
       </div>
