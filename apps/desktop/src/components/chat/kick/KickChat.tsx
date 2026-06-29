@@ -2,17 +2,14 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
+import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
 import { logger } from "@/renderer/logging/logger";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import {
-  banKickUser,
-  deleteKickMessage,
   type KickModResult,
   setKickChatMode,
-  timeoutKickUser,
-  unbanKickUser,
 } from "../../../backend/api/platforms/kick/kick-mod-mutations";
 import { kickChatService } from "../../../backend/services/chat/kick-chat";
 import { kickPredictionsService } from "../../../backend/services/chat/kick-predictions-service";
@@ -24,29 +21,33 @@ import { useIsKickMod } from "../../../hooks/useIsKickMod";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
 import type {
   ChatConnectionStatus,
+  ChatHighlightKind,
   ChatMessage,
   ClearChat,
   KickPoll,
   MessageDeletion,
   NormalizedPinnedMessage,
+  RetainedDeletedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../../store/chat-store";
 import { useEmoteStore } from "../../../store/emote-store";
+import { useModeratedChannelsStore } from "../../../store/moderated-channels-store";
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { useRenderCount } from "../../dev/use-render-count";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
+import { showModActionSuccessToast } from "../mod/mod-action-toast";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { ModLogTab } from "../mod/tabs/ModLogTab";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
-import { KickPinMessageDialog } from "./KickPinMessageDialog";
 import { seedKickChatHistory } from "./kick-chat-history";
 
 export interface KickChatProps {
@@ -86,8 +87,98 @@ function formatTimeoutLabel(seconds: number): string {
   return `${Math.floor(seconds / 86_400)}d`;
 }
 
+function getNoticeHighlightKind(type: UserNotice["type"]): ChatHighlightKind {
+  switch (type) {
+    case "sub":
+      return "subscription";
+    case "resub":
+      return "resub";
+    case "subgift":
+    case "submysterygift":
+      return "gifted-sub";
+    case "raid":
+      return "raid";
+    case "bitsbadgetier":
+      return "bits";
+    case "ritual":
+      return "ritual";
+  }
+
+  const exhaustive: never = type;
+  return exhaustive;
+}
+
+function readOwnKickModeratorState(
+  message: ChatMessage,
+  channel: string,
+  ownKickUserId: number | string | null | undefined
+): boolean | null {
+  if (message.platform !== "kick") return null;
+  if (ownKickUserId === undefined || ownKickUserId === null) return null;
+  if (message.userId !== String(ownKickUserId)) return null;
+  if (message.channel.toLowerCase() !== channel.toLowerCase()) return null;
+  return message.badges.some(
+    (badge) => badge.setId === "moderator" || badge.setId === "broadcaster"
+  );
+}
+
+async function deleteKickMessageViaKickWebSession(
+  chatroomId: number,
+  messageId: string
+): Promise<KickModResult> {
+  const result = await window.electronAPI.kickChat.deleteMessage(chatroomId, messageId);
+  return kickWebMutationToKickModResult(result);
+}
+
+async function banKickUserViaKickWebSession(
+  channelSlug: string,
+  username: string
+): Promise<KickModResult> {
+  const result = await window.electronAPI.kickChat.banUser(channelSlug, username);
+  return kickWebMutationToKickModResult(result);
+}
+
+async function timeoutKickUserViaKickWebSession(
+  channelSlug: string,
+  username: string,
+  duration: number
+): Promise<KickModResult> {
+  const result = await window.electronAPI.kickChat.timeoutUser(channelSlug, username, duration);
+  return kickWebMutationToKickModResult(result);
+}
+
+async function unbanKickUserViaKickWebSession(
+  channelSlug: string,
+  username: string
+): Promise<KickModResult> {
+  const result = await window.electronAPI.kickChat.unbanUser(channelSlug, username);
+  return kickWebMutationToKickModResult(result);
+}
+
+function kickWebMutationToKickModResult(
+  result: Awaited<ReturnType<typeof window.electronAPI.kickChat.deleteMessage>>
+): KickModResult {
+  if (result.ok) return { ok: true };
+
+  if (result.kind === "auth-expired") {
+    return { ok: false, kind: "unauthenticated", message: result.message };
+  }
+  if (result.status === 403) {
+    return { ok: false, kind: "forbidden", message: "403" };
+  }
+  if (result.kind === "network") {
+    return { ok: false, kind: "network", message: result.message };
+  }
+  return {
+    ok: false,
+    kind: "unknown",
+    message: result.status ? `${result.status}` : result.message,
+  };
+}
+
 const CONNECTING_TEXT = "Connecting to channel...";
 const CONNECTED_TEXT = "Connected to the channel";
+const VIEWER_ROLE_REFRESH_MS = 30_000;
 
 function createConnectionStatusMessage(
   channel: string,
@@ -170,8 +261,6 @@ export const KickChat: React.FC<KickChatProps> = ({
   // Mod-action state (mirrors TwitchChat). Kick has no scope-reconnect flow
   // — perm checks happen server-side on the v2 pinned-message endpoint —
   // so we just gate the UI on broadcaster-of-self via useIsKickMod.
-  const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
-  const [pinDialogBusy, setPinDialogBusy] = useState(false);
   // U11/U13 — generic mod-action dialog state. Widened in U13 to cover the
   // strip's chat-mode toggles + local clear.
   const [pendingModAction, setPendingModAction] = useState<PendingKickModAction | null>(null);
@@ -193,6 +282,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   );
   const roomState = useChatRoomState("kick", kickRoomKey || null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
+  const setKickChannelModState = useModeratedChannelsStore((s) => s.setKickChannelModState);
   const markUserUnbannable = useCallback((userId: string) => {
     setUnbanUserIds((current) => {
       if (current.has(userId)) return current;
@@ -220,6 +310,152 @@ export const KickChat: React.FC<KickChatProps> = ({
     channelId: kickRoomKey || null,
   });
   const kickUser = useAuthStore((state) => state.kickUser);
+  const signedInUserIsBroadcaster = useMemo(() => {
+    if (!channel || !kickUser) return false;
+    return (
+      (kickUserId !== undefined && String(kickUser.id) === kickUserId) ||
+      (typeof kickUser.slug === "string" &&
+        kickUser.slug.toLowerCase() === channel.toLowerCase()) ||
+      (typeof kickUser.username === "string" &&
+        kickUser.username.toLowerCase() === channel.toLowerCase())
+    );
+  }, [channel, kickUser, kickUserId]);
+
+  useEffect(() => {
+    if (!signedInUserIsBroadcaster) return;
+    setKickChannelModState(channel, true);
+    kickChatService.setModeratorState(channel, true);
+  }, [channel, signedInUserIsBroadcaster, setKickChannelModState]);
+
+  const refreshKickViewerRole = useCallback(
+    async (options: { isCancelled?: () => boolean } = {}) => {
+      if (!channel || !kickUser) return;
+      try {
+        const result = await window.electronAPI.kickChat.getViewerRole(channel);
+        if (options.isCancelled?.() || !result.ok || result.isModerator === null) return;
+        if (!result.isModerator && signedInUserIsBroadcaster) return;
+        setKickChannelModState(channel, result.isModerator);
+        kickChatService.setModeratorState(channel, result.isModerator);
+      } catch (error) {
+        if (!options.isCancelled?.()) {
+          logger.debug("UI:Chat:Kick", "failed to load Kick viewer role", {
+            channel,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    },
+    [channel, kickUser, signedInUserIsBroadcaster, setKickChannelModState]
+  );
+
+  useEffect(() => {
+    if (!channel || !kickUser) return;
+
+    let cancelled = false;
+    void refreshKickViewerRole({ isCancelled: () => cancelled });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [channel, kickUser, refreshKickViewerRole]);
+
+  useInterval(
+    () => {
+      void refreshKickViewerRole();
+    },
+    channel && kickUser ? VIEWER_ROLE_REFRESH_MS : null
+  );
+
+  const handleDeleteMessage = useCallback(
+    async (message: ChatMessage) => {
+      if (chatroomId === undefined) {
+        toast.error("Couldn't delete message", {
+          description: "Chatroom not loaded",
+        });
+        return;
+      }
+
+      try {
+        const result = await deleteKickMessageViaKickWebSession(chatroomId, message.id);
+        if (result.ok) {
+          showModActionSuccessToast("Deleted message");
+          return;
+        }
+        if (result.kind === "unauthenticated") {
+          toast.error("Reconnect Kick to delete messages", {
+            description: "Kick needs the chat moderation permission.",
+          });
+          return;
+        }
+        if (result.kind === "forbidden") {
+          toast.error("Action forbidden", { description: result.message });
+          return;
+        }
+        if (result.kind === "rate-limited") {
+          const retry = result.retryAfterSeconds;
+          toast.error(
+            retry !== null ? `Rate-limited, retry in ${retry}s` : "Rate-limited, retry shortly"
+          );
+          return;
+        }
+        toast.error("Couldn't delete message", {
+          description: result.message ?? result.kind,
+        });
+      } catch (error) {
+        toast.error("Couldn't delete message", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [chatroomId]
+  );
+
+  const handlePinMessage = useCallback(
+    async (message: ChatMessage) => {
+      if (chatroomId === undefined) {
+        toast.error("Couldn't pin message", {
+          description: "Chatroom not loaded",
+        });
+        return;
+      }
+
+      const senderId = Number(message.userId);
+      if (!Number.isFinite(senderId)) {
+        toast.error("Couldn't pin message", {
+          description: "Message sender unavailable",
+        });
+        return;
+      }
+
+      try {
+        const result = await window.electronAPI.kickChat.pinMessage({
+          channelSlug: channel,
+          messageId: message.id,
+          chatroomId,
+          content: message.rawContent,
+          sender: {
+            id: senderId,
+            username: message.displayName || message.username,
+            slug: message.username,
+          },
+          durationSeconds: null,
+        });
+        if (result.ok) {
+          toast.success("Pinned message");
+          return;
+        }
+        toast.error("Couldn't pin message", {
+          description: result.message || result.kind,
+        });
+      } catch (error) {
+        toast.error("Couldn't pin message", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [channel, chatroomId]
+  );
+
   const [activePoll, setActivePoll] = useState<KickPoll | null>(null);
   // U6 read-only viewer prediction. Currently fed via dev injection (U9);
   // real Kick prediction API + Pusher event discovery lives in U4.
@@ -340,6 +576,15 @@ export const KickChat: React.FC<KickChatProps> = ({
               onPinnedMessage: (pin) => {
                 kickChatService.emit("pinnedMessage", pin);
               },
+              onParsedMessages: (messages) => {
+                const ownKickUserId = useAuthStore.getState().kickUser?.id;
+                for (const message of messages) {
+                  const isModerator = readOwnKickModeratorState(message, channel, ownKickUserId);
+                  if (isModerator === null) continue;
+                  setKickChannelModState(channel, isModerator);
+                  kickChatService.setModeratorState(channel, isModerator);
+                }
+              },
             });
             if (!isMounted) return;
           }
@@ -430,6 +675,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     applyProviderPrefs,
     addMessage,
     prependMessages,
+    setKickChannelModState,
   ]);
 
   // Separate effect for updating subscriber badges without triggering reconnection
@@ -516,6 +762,12 @@ export const KickChat: React.FC<KickChatProps> = ({
   useEffect(() => {
     const handleMessage = (message: ChatMessage) => {
       if (message.platform === "kick") {
+        const isModerator = readOwnKickModeratorState(message, channel, kickUser?.id);
+        if (isModerator !== null) {
+          setKickChannelModState(channel, isModerator);
+          kickChatService.setModeratorState(channel, isModerator);
+        }
+
         // Substitute third-party (7TV / BTTV / FFZ) emote NAMES inside the
         // text fragments with emote fragments. Kick's chat server only knows
         // its native emote set, so 7TV-style emotes arrive as plain text
@@ -545,16 +797,17 @@ export const KickChat: React.FC<KickChatProps> = ({
         platform: notice.platform,
         type: "system",
         channel: notice.channel,
-        userId: notice.userId,
-        username: "System",
-        displayName: "System",
-        color: "#808080",
+        userId: notice.userId || notice.username || "system",
+        username: notice.username || notice.displayName || "system",
+        displayName: notice.displayName || notice.username || "System",
+        color: "#53fc18",
         badges: [],
         content: [{ type: "text", content: notice.systemMessage }],
         rawContent: notice.systemMessage,
         timestamp: notice.timestamp,
         isDeleted: false,
         isHighlighted: true,
+        highlightKind: getNoticeHighlightKind(notice.type),
         isAction: false,
       };
       addMessage(systemMessage);
@@ -599,10 +852,51 @@ export const KickChat: React.FC<KickChatProps> = ({
       } else if (clear.targetUserId) {
         markUserUnbannable(clear.targetUserId);
         const messages = useChatStore.getState().messagesByChannel[clearChannelKey] ?? [];
-        const lastMsg = [...messages]
-          .reverse()
-          .find((m) => m.userId === clear.targetUserId && m.type === "message");
-        deleteMessagesByUser(clearChannelKey, clear.targetUserId);
+        let retainedUserMessage: ChatMessage | undefined;
+        let moderatorMessage: ChatMessage | undefined;
+        const deletedMessageDetails = messages.reduce<RetainedDeletedMessage[]>((acc, m) => {
+          if (m.userId !== clear.targetUserId || m.type !== "message") return acc;
+          retainedUserMessage = m;
+          if (m.rawContent.trim().length === 0) return acc;
+          acc.push({
+            id: m.id,
+            author: {
+              userId: m.userId,
+              username: m.username,
+              displayName: m.displayName,
+              color: m.color,
+              badges: m.badges,
+            },
+            content: m.content,
+            rawContent: m.rawContent,
+            deletedAt: clear.timestamp,
+          });
+          return acc;
+        }, []);
+        const deletedMessageBodies = deletedMessageDetails.map(
+          (deletedMessage) => deletedMessage.rawContent
+        );
+        if (clear.bannedByUsername) {
+          const moderatorLogin = clear.bannedByUsername.toLowerCase();
+          moderatorMessage = messages.find(
+            (m) => m.username.toLowerCase() === moderatorLogin && m.type === "message"
+          );
+        }
+        const moderatorUser = moderatorMessage
+          ? {
+              userId: moderatorMessage.userId,
+              username: moderatorMessage.username,
+              displayName: moderatorMessage.displayName,
+              color: moderatorMessage.color,
+              badges: moderatorMessage.badges,
+            }
+          : undefined;
+        const lastDeletedMessage = deletedMessageBodies[deletedMessageBodies.length - 1];
+        deleteMessagesByUser(clearChannelKey, clear.targetUserId, {
+          deletedAt: clear.timestamp,
+          ...(moderatorUser ? { deletedByUser: moderatorUser } : {}),
+          deletedByUsername: clear.bannedByUsername,
+        });
         addMessage({
           id: crypto.randomUUID(),
           platform: clear.platform,
@@ -622,7 +916,21 @@ export const KickChat: React.FC<KickChatProps> = ({
           banInfo: {
             bannedUsername: clear.targetUsername ?? clear.targetUserId,
             bannedByUsername: clear.bannedByUsername,
-            lastMessage: lastMsg?.rawContent,
+            ...(retainedUserMessage
+              ? {
+                  bannedUser: {
+                    userId: retainedUserMessage.userId,
+                    username: retainedUserMessage.username,
+                    displayName: retainedUserMessage.displayName,
+                    color: retainedUserMessage.color,
+                    badges: retainedUserMessage.badges,
+                  },
+                }
+              : {}),
+            ...(moderatorUser ? { bannedByUser: moderatorUser } : {}),
+            lastMessage: lastDeletedMessage ?? retainedUserMessage?.rawContent,
+            deletedMessages: deletedMessageBodies,
+            deletedMessageDetails,
             duration: clear.duration,
           },
         });
@@ -631,7 +939,11 @@ export const KickChat: React.FC<KickChatProps> = ({
 
     const handleMessageDeleted = (deletion: MessageDeletion) => {
       if (deletion.channel !== channel) return;
-      deleteMessage(buildChannelKey("kick", deletion.channel), deletion.messageId);
+      deleteMessage(buildChannelKey("kick", deletion.channel), deletion.messageId, {
+        deletedAt: deletion.timestamp,
+        ...(deletion.deletedByUser ? { deletedByUser: deletion.deletedByUser } : {}),
+        ...(deletion.deletedByUsername ? { deletedByUsername: deletion.deletedByUsername } : {}),
+      });
     };
 
     const handleError = (error: Error) => {
@@ -641,7 +953,10 @@ export const KickChat: React.FC<KickChatProps> = ({
     };
 
     const handlePinnedMessage = (msg: NormalizedPinnedMessage) => {
-      setPinnedMessage(msg);
+      const map = useEmoteStore.getState().getEmoteNameMap();
+      const enrichedContent = substituteThirdPartyEmotes(msg.content, map);
+      const enriched = enrichedContent === msg.content ? msg : { ...msg, content: enrichedContent };
+      setPinnedMessage(enriched);
       setShowPinned(true);
       setIsPinExpanded(false);
     };
@@ -719,6 +1034,8 @@ export const KickChat: React.FC<KickChatProps> = ({
     channelKey,
     kickRoomKey,
     channel,
+    kickUser?.id,
+    setKickChannelModState,
     markUserUnbannable,
     predictionDismissGate,
     pollTimer,
@@ -834,13 +1151,6 @@ export const KickChat: React.FC<KickChatProps> = ({
                   }
                 : undefined
             }
-            // Hide Reply for guests, same logic as TwitchChat: the action
-            // drafts an @mention into the chat input, which guests can't send.
-            onReply={
-              isAuthenticated
-                ? () => chatInputRef.current?.mentionUser(pinnedMessage.author.username)
-                : undefined
-            }
             currentChannelContext={currentChannelContext}
           />
         )}
@@ -848,7 +1158,7 @@ export const KickChat: React.FC<KickChatProps> = ({
           key={`kick-${channel}-${chatroomId}`}
           channelKey={channelKey}
           onReply={isAuthenticated ? handleReply : undefined}
-          onPin={isMod ? (message) => setPinDialogMessage(message) : undefined}
+          onPin={isMod ? handlePinMessage : undefined}
           onTimeout={
             isMod
               ? (message) =>
@@ -868,12 +1178,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               : undefined
           }
           unbanUserIds={unbanUserIds}
-          onDelete={
-            isMod
-              ? (message) =>
-                  setPendingModAction({ kind: "messageScoped", message, actionType: "delete" })
-              : undefined
-          }
+          onDelete={isMod ? handleDeleteMessage : undefined}
           selfUserId={kickUser ? String(kickUser.id) : undefined}
           currentChannelContext={currentChannelContext}
         />
@@ -1006,14 +1311,14 @@ export const KickChat: React.FC<KickChatProps> = ({
                         toast.success("Cleared local chat");
                         return;
                       }
-                      const token = await window.electronAPI.auth.getToken("kick");
-                      if (!token?.accessToken) {
-                        setPendingModAction(null);
-                        toast.error("Sign in to Kick to take this action");
-                        return;
-                      }
                       let result: KickModResult;
                       if (action.kind === "stripChatMode") {
+                        const token = await window.electronAPI.auth.getToken("kick");
+                        if (!token?.accessToken) {
+                          setPendingModAction(null);
+                          toast.error("Sign in to Kick to take this action");
+                          return;
+                        }
                         const turnOn = !action.currentlyActive;
                         const seconds =
                           (extraData as { durationSeconds?: number } | undefined)
@@ -1079,13 +1384,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                         let messageResult: KickModResult;
                         switch (action.actionType) {
                           case "ban":
-                            messageResult = await banKickUser({
-                              channelSlug: channel,
-                              username,
-                              broadcasterUserId: channelId,
-                              userId: action.message.userId,
-                              accessToken: token.accessToken,
-                            });
+                            messageResult = await banKickUserViaKickWebSession(channel, username);
                             break;
                           case "timeout": {
                             const seconds =
@@ -1096,24 +1395,15 @@ export const KickChat: React.FC<KickChatProps> = ({
                             // 0 minutes via integer division; Kick rejects that,
                             // so we clamp the floor to 1 minute.
                             const minutes = Math.max(1, Math.floor(seconds / 60));
-                            messageResult = await timeoutKickUser({
-                              channelSlug: channel,
+                            messageResult = await timeoutKickUserViaKickWebSession(
+                              channel,
                               username,
-                              broadcasterUserId: channelId,
-                              userId: action.message.userId,
-                              duration: minutes,
-                              accessToken: token.accessToken,
-                            });
+                              minutes
+                            );
                             break;
                           }
                           case "unban":
-                            messageResult = await unbanKickUser({
-                              channelSlug: channel,
-                              username,
-                              broadcasterUserId: channelId,
-                              userId: action.message.userId,
-                              accessToken: token.accessToken,
-                            });
+                            messageResult = await unbanKickUserViaKickWebSession(channel, username);
                             break;
                           case "delete":
                             if (chatroomId === undefined) {
@@ -1123,11 +1413,10 @@ export const KickChat: React.FC<KickChatProps> = ({
                               });
                               return;
                             }
-                            messageResult = await deleteKickMessage({
+                            messageResult = await deleteKickMessageViaKickWebSession(
                               chatroomId,
-                              messageId: action.message.id,
-                              accessToken: token.accessToken,
-                            });
+                              action.message.id
+                            );
                             break;
                         }
                         result = messageResult;
@@ -1135,18 +1424,18 @@ export const KickChat: React.FC<KickChatProps> = ({
                           setPendingModAction(null);
                           if (action.actionType === "ban") {
                             markUserUnbannable(action.message.userId);
-                            toast.success(`Banned ${username}`);
+                            showModActionSuccessToast(`Banned ${username}`);
                           } else if (action.actionType === "unban") {
                             markUserUnbanned(action.message.userId);
                             toast.success(`Unbanned ${username}`);
                           } else if (action.actionType === "delete") {
-                            toast.success("Deleted message");
+                            showModActionSuccessToast("Deleted message");
                           } else {
                             markUserUnbannable(action.message.userId);
                             const seconds =
                               (extraData as { durationSeconds?: number } | undefined)
                                 ?.durationSeconds ?? 600;
-                            toast.success(
+                            showModActionSuccessToast(
                               `Timed out ${username} for ${formatTimeoutLabel(seconds)}`
                             );
                           }
@@ -1182,54 +1471,6 @@ export const KickChat: React.FC<KickChatProps> = ({
               );
             })()
           : null}
-
-        {/* Kick pin duration picker. Channel slug + chatroomId are required by
-         *  the v2 pinned-message endpoint; we only render the dialog when both
-         *  are known, which is true any time a KickChat is mounted. */}
-        {pinDialogMessage && chatroomId ? (
-          <KickPinMessageDialog
-            open={!!pinDialogMessage}
-            onOpenChange={(open) => {
-              if (!open) setPinDialogMessage(null);
-            }}
-            messagePreview={pinDialogMessage.rawContent || ""}
-            busy={pinDialogBusy}
-            onConfirm={async (durationSeconds) => {
-              setPinDialogBusy(true);
-              try {
-                const senderId = Number(pinDialogMessage.userId);
-                if (!Number.isFinite(senderId)) {
-                  toast.error("Couldn't pin message", {
-                    description: "Message sender unavailable",
-                  });
-                  return;
-                }
-                const result = await window.electronAPI.kickChat.pinMessage({
-                  channelSlug: channel,
-                  messageId: pinDialogMessage.id,
-                  chatroomId,
-                  content: pinDialogMessage.rawContent,
-                  sender: {
-                    id: senderId,
-                    username: pinDialogMessage.displayName || pinDialogMessage.username,
-                    slug: pinDialogMessage.username,
-                  },
-                  durationSeconds,
-                });
-                if (result.ok) {
-                  setPinDialogMessage(null);
-                  toast.success("Pinned message");
-                  return;
-                }
-                toast.error("Couldn't pin message", {
-                  description: result.message || result.kind,
-                });
-              } finally {
-                setPinDialogBusy(false);
-              }
-            }}
-          />
-        ) : null}
       </div>
     </UserPopoutProvider>
   );
@@ -1263,28 +1504,38 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
           {isPollEnded && <span className="text-xs text-neutral-500 flex-shrink-0">Ended</span>}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
-            title={isExpanded ? "Collapse" : "Expand"}
-          >
-            <BsChevronDown
-              size={12}
-              style={{
-                transform: isExpanded ? "rotate(180deg)" : "none",
-                transition: "transform 0.2s",
-              }}
-            />
-          </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
-            title="Dismiss"
-          >
-            <BsX size={14} />
-          </button>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleExpand}
+                aria-label={isExpanded ? "Collapse" : "Expand"}
+                className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
+              >
+                <BsChevronDown
+                  size={12}
+                  style={{
+                    transform: isExpanded ? "rotate(180deg)" : "none",
+                    transition: "transform 0.2s",
+                  }}
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{isExpanded ? "Collapse" : "Expand"}</TooltipContent>
+          </Tooltip>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onDismiss}
+                aria-label="Dismiss"
+                className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
+              >
+                <BsX size={14} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Dismiss</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

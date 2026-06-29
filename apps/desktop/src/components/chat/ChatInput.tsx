@@ -26,8 +26,9 @@ import {
   useState,
 } from "react";
 import { flushSync } from "react-dom";
-import { BsGear, BsReplyFill, BsXLg } from "react-icons/bs";
+import { BsGear } from "react-icons/bs";
 import { LuShield } from "react-icons/lu";
+import { toast } from "sonner";
 import { logger } from "@/renderer/logging/logger";
 import { KickChatSendError, kickChatService } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
@@ -38,13 +39,20 @@ import type {
   ChatMessage,
   ChatPlatform,
   ContentFragment,
+  ReplyInfo,
   SubscriberEligibilityRequest,
   SubscriberEligibilityResult,
 } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { useEmoteStore } from "../../store/emote-store";
 import { useFollowStore } from "../../store/follow-store";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import {
+  TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS,
+  TWITCH_CHAT_ACTION_TOOLTIP_CLASS,
+} from "./ChatMessageActionStyles";
 import { ChatQuickSettingsPopover } from "./ChatQuickSettingsPopover";
+import { ChatComposerReplyPreview } from "./ChatReply";
 import { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
 import { InfoBanner } from "./InfoBanner";
 import { NativeEmoteButton } from "./input/NativeEmoteButton";
@@ -98,6 +106,7 @@ export interface ChatInputProps {
 
 interface ReplyState {
   messageId: string;
+  userId: string;
   username: string;
   displayName: string;
   content: string;
@@ -167,6 +176,7 @@ interface ClassifiedSendBlocker {
  *  occurrence in `message` maps 1:1 with an entry in `emoteSlots` (same
  *  order), so rich editor helpers count an emote as ONE character. */
 const EMOTE_CHAR = "";
+const PLATFORM_CHAT_MESSAGE_MAX_LENGTH = 500;
 
 /** Build ContentFragments from the rich editor value + emote slots, mirroring
  *  what the Kick parser produces for inbound `[emote:id:name]` markers.
@@ -374,6 +384,10 @@ function getNodeMessageLength(node: Node): number {
 }
 
 function getOffsetInsideNode(root: Node, container: Node, offset: number): number {
+  if (root.nodeType === Node.TEXT_NODE) {
+    return root === container ? offset : (root.textContent?.length ?? 0);
+  }
+
   if (root === container) {
     let length = 0;
     for (let i = 0; i < offset; i++) {
@@ -381,10 +395,6 @@ function getOffsetInsideNode(root: Node, container: Node, offset: number): numbe
       if (child) length += getNodeMessageLength(child);
     }
     return length;
-  }
-
-  if (root.nodeType === Node.TEXT_NODE) {
-    return root === container ? offset : (root.textContent?.length ?? 0);
   }
 
   if (root instanceof HTMLElement && root.dataset.chatEmoteNode === "true") {
@@ -415,13 +425,34 @@ function getEditorSelectionRange(editor: HTMLElement): { start: number; end: num
     return { start: 0, end: 0 };
   }
   const range = selection.getRangeAt(0);
-  if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) {
+  const editorLength = getNodeMessageLength(editor);
+  const startsInEditor = editor.contains(range.startContainer);
+  const endsInEditor = editor.contains(range.endContainer);
+
+  if (!startsInEditor && !endsInEditor) {
+    if (range.collapsed) {
+      return { start: 0, end: 0 };
+    }
+    if (typeof range.intersectsNode === "function" && range.intersectsNode(editor)) {
+      return { start: 0, end: editorLength };
+    }
     return { start: 0, end: 0 };
   }
 
-  const start = getEditorPositionFromDomPoint(editor, range.startContainer, range.startOffset);
-  const end = getEditorPositionFromDomPoint(editor, range.endContainer, range.endOffset);
+  const start = startsInEditor
+    ? getEditorPositionFromDomPoint(editor, range.startContainer, range.startOffset)
+    : 0;
+  const end = endsInEditor
+    ? getEditorPositionFromDomPoint(editor, range.endContainer, range.endOffset)
+    : editorLength;
   return start <= end ? { start, end } : { start: end, end: start };
+}
+
+function showMessageTooLongToast(maxLength: number) {
+  toast.error("Message is too long", {
+    id: "chat-message-too-long",
+    description: `Twitch and Kick messages can be up to ${maxLength} characters.`,
+  });
 }
 
 function setEditorCaret(editor: HTMLElement, position: number) {
@@ -464,6 +495,10 @@ function setEditorCaret(editor: HTMLElement, position: number) {
   const selection = window.getSelection();
   selection?.removeAllRanges();
   selection?.addRange(range);
+
+  if (target >= getNodeMessageLength(editor)) {
+    editor.scrollTop = editor.scrollHeight;
+  }
 }
 
 function renderEditorDom(editor: HTMLElement, message: string, slots: Emote[]) {
@@ -622,7 +657,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       chatroomId: _chatroomId,
       kickUserId,
       channelId,
-      maxLength = 500,
+      maxLength = PLATFORM_CHAT_MESSAGE_MAX_LENGTH,
       placeholder = "Send a message...",
       canSend = true,
       isAuthenticated,
@@ -826,6 +861,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       const editor = editorRef.current;
       if (!editor) return;
       const selection = getEditorSelectionRange(editor);
+      if (selection.start !== selection.end) {
+        cursorPositionRef.current = selection.start;
+        return;
+      }
       const nextPosition =
         selection.start === 0 &&
         selection.end === 0 &&
@@ -841,6 +880,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       setIsEditorFocused(true);
       const editor = editorRef.current;
       if (!editor) return;
+      const selection = getEditorSelectionRange(editor);
+      if (selection.start !== selection.end) {
+        cursorPositionRef.current = selection.start;
+        setCursorPosition(selection.start);
+        return;
+      }
       setEditorCaret(editor, cursorPosition);
     }, [cursorPosition]);
 
@@ -968,8 +1013,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const replaceSelection = useCallback(
       (insertText: string, insertSlot?: Emote) => {
         const editor = editorRef.current;
-        const currentMessage = messageRef.current;
-        const currentSlots = emoteSlotsRef.current;
+        const parsedEditor = editor ? readEditorValue(editor, emoteSlotsRef.current) : null;
+        const currentMessage = parsedEditor?.message ?? messageRef.current;
+        const currentSlots = parsedEditor?.slots ?? emoteSlotsRef.current;
         const domSelection = editor
           ? getEditorSelectionRange(editor)
           : { start: cursorPositionRef.current, end: cursorPositionRef.current };
@@ -998,6 +1044,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           setCursorPosition(next.cursorPosition);
           setError(null);
         });
+        if (editor) {
+          renderEditorDom(editor, next.message, next.slots);
+        }
         checkEmoteAutocompleteTrigger(next.message, next.cursorPosition, ":");
         checkMentionAutocompleteTrigger(next.message, next.cursorPosition);
         if (editor) {
@@ -1028,8 +1077,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         }
 
         const selection = getEditorSelectionRange(editor);
-        const currentMessage = messageRef.current;
-        const currentSlots = emoteSlotsRef.current;
+        const parsedEditor = readEditorValue(editor, emoteSlotsRef.current);
+        const currentMessage = parsedEditor.message;
+        const currentSlots = parsedEditor.slots;
         const deleteRange = getInputDeleteRange(
           currentMessage,
           selection.start,
@@ -1056,6 +1106,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           setCursorPosition(next.cursorPosition);
           setError(null);
         });
+        renderEditorDom(editor, next.message, next.slots);
         editor.focus();
         setEditorCaret(editor, next.cursorPosition);
       },
@@ -1136,6 +1187,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const handleReply = useCallback((msg: ChatMessage) => {
       setReply({
         messageId: msg.id,
+        userId: msg.userId,
         username: msg.username,
         displayName: msg.displayName,
         content: msg.rawContent.length > 50 ? `${msg.rawContent.slice(0, 50)}...` : msg.rawContent,
@@ -1181,18 +1233,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               localFragments
             );
           } else {
-            // Prepend the @mention so the local echo shows the same
-            // `@user message` shape Kick will broadcast back.
-            const replyFragments: ContentFragment[] = [
-              { type: "mention", username: reply.username },
-              { type: "text", content: " " },
-              ...localFragments,
-            ];
+            const localReplyTo: ReplyInfo = {
+              parentMessageId: reply.messageId,
+              parentUserId: reply.userId,
+              parentUsername: reply.username,
+              parentDisplayName: reply.displayName,
+              parentMessageBody: reply.content,
+            };
             await kickChatService.sendMessage(
               channel,
               `@${reply.username} ${trimmedMessage}`,
               kickUser ?? undefined,
-              replyFragments
+              localFragments,
+              localReplyTo
             );
           }
           return;
@@ -1220,7 +1273,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         const quickSlots = [emote];
         const serialized = serializeMessage(quickMessage, quickSlots, platform);
         const trimmedMessage = serialized.trim();
-        if (!trimmedMessage || serialized.length > maxLength) return;
+        if (!trimmedMessage) return;
+        if (serialized.length > maxLength) {
+          showMessageTooLongToast(maxLength);
+          editorRef.current?.focus();
+          return;
+        }
         if (!viewerIsAuthenticated) {
           await handleAuthRequired();
           return;
@@ -1304,7 +1362,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       // plain text). The chat server has no awareness of our private emote marker.
       const serialized = serializeMessage(message, emoteSlots, platform);
       const trimmedMessage = serialized.trim();
-      if (!trimmedMessage || isSending || serialized.length > maxLength) return;
+      if (!trimmedMessage || isSending) return;
+      if (serialized.length > maxLength) {
+        showMessageTooLongToast(maxLength);
+        editorRef.current?.focus();
+        return;
+      }
       if (!viewerIsAuthenticated) {
         await handleAuthRequired();
         return;
@@ -1460,8 +1523,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             e.currentTarget === editor
               ? { start: currentCursorPosition, end: currentCursorPosition }
               : selection;
-          const currentMessage = messageRef.current;
-          const currentSlots = emoteSlotsRef.current;
+          const parsedEditor = editor ? readEditorValue(editor, emoteSlotsRef.current) : null;
+          const currentMessage = parsedEditor?.message ?? messageRef.current;
+          const currentSlots = parsedEditor?.slots ?? emoteSlotsRef.current;
           const deleteRange = getInputDeleteRange(
             currentMessage,
             deleteSelection.start,
@@ -1487,6 +1551,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               setCursorPosition(next.cursorPosition);
               setError(null);
             });
+            if (editor) {
+              renderEditorDom(editor, next.message, next.slots);
+            }
             checkEmoteAutocompleteTrigger(next.message, next.cursorPosition, ":");
             checkMentionAutocompleteTrigger(next.message, next.cursorPosition);
             editor?.focus();
@@ -1585,6 +1652,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       serializeMessage(message, emoteSlots, platform).trim().length > 0;
     const shouldDimSubmit =
       composerDisabled || sendUnavailable || isSending || isOverLimit || slowModeSendLocked;
+    const submitDisabled = composerDisabled || sendUnavailable || isSending || slowModeSendLocked;
     const handlePaste = useCallback(
       (e: React.ClipboardEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -1597,24 +1665,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       <div ref={containerRef} className={`relative flex flex-col ${className}`}>
         {/* Reply Preview — stays at the top, above InfoBanner */}
         {reply && (
-          <div
-            data-testid="reply-preview"
-            className="flex items-center gap-2 px-3 py-2 bg-white/5 border-b border-[var(--color-border)] rounded-t-md"
-          >
-            <BsReplyFill className="text-neutral-400 flex-shrink-0" size={14} />
-            <div className="flex-1 min-w-0">
-              <span className="text-xs text-neutral-400">Replying to </span>
-              <span className="text-xs font-medium text-white">{reply.displayName}</span>
-              <p className="text-xs text-neutral-500 truncate">{reply.content}</p>
-            </div>
-            <button
-              onClick={clearReply}
-              className="flex-shrink-0 p-1 hover:bg-white/10 rounded transition-colors"
-              aria-label="Cancel reply"
-            >
-              <BsXLg className="text-neutral-400" size={12} />
-            </button>
-          </div>
+          <ChatComposerReplyPreview
+            displayName={reply.displayName}
+            content={reply.content}
+            onCancel={clearReply}
+          />
         )}
 
         <QuickEmoteActionBar
@@ -1702,7 +1757,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onBlur={handleEditorBlur}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                className="relative min-h-6 max-h-[120px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-sm leading-[1.5] text-white caret-white focus:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                className="no-scrollbar relative min-h-6 max-h-[120px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-sm leading-[1.5] text-white caret-white focus:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                 style={{ wordBreak: "break-word" }}
               />
 
@@ -1723,7 +1778,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     ? "text-red-500"
                     : charactersRemaining <= 50
                       ? "text-yellow-500"
-                      : "text-neutral-500"
+                      : "text-white"
                 }`}
               >
                 {charactersRemaining}
@@ -1824,36 +1879,56 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             )}
             <div className="flex items-center gap-2">
               {showModViewLink ? (
-                <Link
-                  to={platform === "twitch" ? "/mod/twitch/$channel" : "/mod/kick/$channel"}
-                  params={{ channel }}
-                  data-testid="chat-mod-view-link"
-                  aria-label="Open channel moderation page"
-                  title="Open channel moderation page"
-                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] ${
-                    platform === "twitch"
-                      ? "border-[#9146FF]/40 bg-[#9146FF]/15 text-[#a970ff] hover:bg-[#9146FF]/25"
-                      : "border-[#53FC18]/40 bg-[#53FC18]/15 text-[#53FC18] hover:bg-[#53FC18]/25"
-                  }`}
-                >
-                  <LuShield className="h-4 w-4" />
-                </Link>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to={platform === "twitch" ? "/mod/twitch/$channel" : "/mod/kick/$channel"}
+                      params={{ channel }}
+                      data-testid="chat-mod-view-link"
+                      aria-label="Open channel moderation page"
+                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] ${
+                        platform === "twitch"
+                          ? "border-[#9146FF]/40 bg-[#9146FF]/15 text-[#a970ff] hover:bg-[#9146FF]/25"
+                          : "border-[#53FC18]/40 bg-[#53FC18]/15 text-[#53FC18] hover:bg-[#53FC18]/25"
+                      }`}
+                    >
+                      <LuShield className="h-4 w-4" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+                    arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+                  >
+                    Mod View
+                  </TooltipContent>
+                </Tooltip>
               ) : null}
-              <button
-                ref={settingsButtonRef}
-                type="button"
-                onClick={() => setShowChatSettings((v) => !v)}
-                aria-label="Chat settings"
-                aria-expanded={showChatSettings}
-                title="Chat settings"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors duration-150 hover:bg-[#232629] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919]"
-              >
-                <BsGear size={18} style={{ stroke: "currentColor", strokeWidth: 0.45 }} />
-              </button>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <button
+                    ref={settingsButtonRef}
+                    type="button"
+                    onClick={() => setShowChatSettings((v) => !v)}
+                    aria-label="Chat settings"
+                    aria-expanded={showChatSettings}
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors duration-150 hover:bg-[#232629] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919]"
+                  >
+                    <BsGear size={18} style={{ stroke: "currentColor", strokeWidth: 0.45 }} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+                  arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+                >
+                  Chat settings
+                </TooltipContent>
+              </Tooltip>
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={shouldDimSubmit}
+                disabled={submitDisabled}
                 aria-disabled={!canSubmit}
                 className={`h-[38px] flex-shrink-0 cursor-pointer rounded-[4px] bg-white px-4 text-sm font-bold text-[#0f0f0f] transition-opacity duration-150 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#191919] disabled:cursor-not-allowed ${
                   shouldDimSubmit ? "opacity-40" : ""

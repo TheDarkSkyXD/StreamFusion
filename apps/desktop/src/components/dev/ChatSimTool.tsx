@@ -12,7 +12,13 @@ import { useState } from "react";
 
 import { kickChatService, kickPinToNormalized } from "../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../backend/services/chat/twitch-chat";
+import type { ModerationHighlightStyle, UserPreferences } from "../../shared/auth-types";
+import {
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  DEFAULT_USER_PREFERENCES,
+} from "../../shared/auth-types";
 import type {
+  ChatHighlightKind,
   ChatMessage,
   ChatPlatform,
   KickPinnedMessage,
@@ -20,6 +26,7 @@ import type {
   NormalizedPinnedMessage,
   UnifiedPrediction,
 } from "../../shared/chat-types";
+import { useAuthStore } from "../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../store/chat-store";
 import { useDevModOverrideStore } from "../../store/dev-mod-override-store";
 import { useReconnectDialogStore } from "../../store/reconnect-dialog-store";
@@ -30,6 +37,13 @@ let counter = 0;
 function uid(prefix: string): string {
   counter += 1;
   return `${prefix}-${Date.now()}-${counter}`;
+}
+
+function getInitialPlatform(): ChatPlatform {
+  const { connectionStatus } = useChatStore.getState();
+  if (connectionStatus.twitch.channels.length > 0) return "twitch";
+  if (connectionStatus.kick.channels.length > 0) return "kick";
+  return "twitch";
 }
 
 interface FakeUser {
@@ -48,6 +62,63 @@ const POOL: FakeUser[] = [
 
 function pickUser(): FakeUser {
   return POOL[Math.floor(Math.random() * POOL.length)];
+}
+
+const DEBUG_BADGE_IMAGE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect width='18' height='18' rx='4' fill='%23dc143c'/%3E%3Cpath d='M9 3.5l1.6 3.2 3.5.5-2.5 2.4.6 3.5L9 11.5 5.8 13.1l.6-3.5-2.5-2.4 3.5-.5L9 3.5z' fill='white'/%3E%3C/svg%3E";
+
+function debugBadge(platform: ChatPlatform): ChatMessage["badges"][number] {
+  return {
+    setId: platform === "kick" ? "subscriber" : "vip",
+    version: "1",
+    imageUrl: DEBUG_BADGE_IMAGE,
+    title: platform === "kick" ? "Subscriber" : "VIP",
+  };
+}
+
+function moderatorPresentation(platform: ChatPlatform): NonNullable<ChatMessage["deletedByUser"]> {
+  return {
+    userId: "moderatorbot",
+    username: "ModeratorBot",
+    displayName: "ModeratorBot",
+    color: "#f87171",
+    badges: [
+      {
+        setId: "moderator",
+        version: "1",
+        imageUrl: DEBUG_BADGE_IMAGE,
+        title: "Moderator",
+      },
+    ],
+  };
+}
+
+function styleLabel(style: ModerationHighlightStyle): "Compact" | "Framed" {
+  return style === "compact" ? "Compact" : "Framed";
+}
+
+const GIFT_RECIPIENT_DISPLAY_NAMES = [
+  "ecchatan21",
+  "TorchOsrs",
+  "5maestr0",
+  "Cursedsnek",
+  "SVIIIXD",
+  "PixelMint",
+  "NovaWarden",
+  "lunarbyte",
+  "StaticMango",
+  "VelvetRush",
+];
+
+function buildGiftRecipient(index: number): FakeUser {
+  const displayName =
+    GIFT_RECIPIENT_DISPLAY_NAMES[index] ?? `GiftedViewer${String(index + 1).padStart(2, "0")}`;
+
+  return {
+    username: displayName.toLowerCase(),
+    displayName,
+    color: "#f472b6",
+  };
 }
 
 const sectionStyle: React.CSSProperties = { marginBottom: 14 };
@@ -87,7 +158,7 @@ function PillButton({
 }: {
   onClick: () => void;
   disabled?: boolean;
-  title?: string;
+  title: string;
   children: React.ReactNode;
 }) {
   return (
@@ -120,8 +191,12 @@ function PillButton({
 }
 
 export function ChatSimTool() {
-  const [platform, setPlatform] = useState<ChatPlatform>("twitch");
-  const debugChannelKey = buildChannelKey(platform, "debug-channel");
+  const [platform, setPlatform] = useState<ChatPlatform>(getInitialPlatform);
+  const connectedChannels = useChatStore(
+    (state) => state.connectionStatus[platform]?.channels ?? []
+  );
+  const targetChannel = connectedChannels[0] ?? "debug-channel";
+  const debugChannelKey = buildChannelKey(platform, targetChannel);
 
   const inject = (overrides: Partial<ChatMessage>) => {
     const u = pickUser();
@@ -129,7 +204,7 @@ export function ChatSimTool() {
       id: uid("debug"),
       platform,
       type: "message",
-      channel: "debug-channel",
+      channel: targetChannel,
       userId: u.username,
       username: u.username,
       displayName: u.displayName,
@@ -144,6 +219,23 @@ export function ChatSimTool() {
       ...overrides,
     };
     useChatStore.getState().addMessage(msg);
+  };
+
+  const setModerationHighlightPreviewStyle = (style: ModerationHighlightStyle) => {
+    const preferences = useAuthStore.getState().preferences ?? DEFAULT_USER_PREFERENCES;
+    useAuthStore.setState({
+      preferences: {
+        ...preferences,
+        chatDisplay: {
+          ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+          ...(preferences.chatDisplay ?? {}),
+          deletedMessageDisplay: "compact",
+          moderationHighlightStyle: style,
+          showClearChat: true,
+          showClearMsg: true,
+        },
+      } as UserPreferences,
+    });
   };
 
   const injectRandom = () => {
@@ -204,25 +296,6 @@ export function ChatSimTool() {
     });
   };
 
-  const injectBan = (duration?: number) => {
-    const u = pickUser();
-    inject({
-      type: "ban",
-      userId: "system",
-      username: "System",
-      displayName: "System",
-      color: "#808080",
-      content: [],
-      rawContent: "",
-      banInfo: {
-        bannedUsername: u.displayName,
-        bannedByUsername: "ModeratorBot",
-        lastMessage: "this was the last thing they said",
-        duration,
-      },
-    });
-  };
-
   const injectClearAll = () => {
     useChatStore.getState().clearMessages(debugChannelKey);
     inject({
@@ -250,36 +323,196 @@ export function ChatSimTool() {
     });
   };
 
+  const injectEventNotice = (user: FakeUser, text: string, highlightKind: ChatHighlightKind) => {
+    inject({
+      type: "system",
+      userId: user.username,
+      username: user.username,
+      displayName: user.displayName,
+      color: user.color,
+      content: [{ type: "text", content: text }],
+      rawContent: text,
+      isHighlighted: true,
+      highlightKind,
+    });
+  };
+
   const injectSub = () => {
     const u = pickUser();
-    injectSystemNotice(`${u.displayName} just subscribed!`);
+    injectEventNotice(u, `${u.displayName} subscribed with Prime.`, "subscription");
   };
 
   const injectResub = (months: number) => {
     const u = pickUser();
-    injectSystemNotice(`${u.displayName} resubscribed for ${months} months!`);
+    injectEventNotice(
+      u,
+      `${u.displayName} subscribed with Prime. They've subscribed for ${months} months!`,
+      "resub"
+    );
   };
 
   const injectGiftSub = () => {
     const u = pickUser();
     const r = pickUser();
-    injectSystemNotice(`${u.displayName} gifted a subscription to ${r.displayName}!`);
+    injectEventNotice(u, `${u.displayName} gifted a Tier 1 Sub to ${r.displayName}!`, "gifted-sub");
   };
 
   const injectMysteryGift = (count: number) => {
-    const u = pickUser();
-    injectSystemNotice(`${u.displayName} is gifting ${count} subs to the channel!`);
+    const u = POOL[0];
+    injectEventNotice(
+      u,
+      `${u.displayName} gifted ${count} Tier 1 Subs to the channel!`,
+      "gifted-sub"
+    );
+
+    for (let index = 0; index < count; index++) {
+      const recipient = buildGiftRecipient(index);
+      injectEventNotice(
+        u,
+        `${u.displayName} gifted a Tier 1 Sub to ${recipient.displayName}!`,
+        "gifted-sub"
+      );
+    }
   };
 
   const injectRaid = (count: number) => {
     const u = pickUser();
-    injectSystemNotice(`${count} raiders from ${u.displayName} have joined!`);
+    injectEventNotice(u, `${count} raiders from ${u.displayName} have joined!`, "raid");
   };
 
-  const injectDeleteLast = () => {
-    const messages = useChatStore.getState().messagesByChannel[debugChannelKey] ?? [];
-    const last = [...messages].reverse().find((m) => m.type === "message");
-    if (last) useChatStore.getState().deleteMessage(debugChannelKey, last.id);
+  const injectDeletedMessagePreview = (style: ModerationHighlightStyle) => {
+    setModerationHighlightPreviewStyle(style);
+    const u = pickUser();
+    const deletedAt = new Date();
+    const msg: ChatMessage = {
+      id: uid("deleted-debug"),
+      platform,
+      type: "message",
+      channel: targetChannel,
+      userId: u.username,
+      username: u.username,
+      displayName: u.displayName,
+      color: u.color,
+      badges: [debugBadge(platform)],
+      content: [
+        { type: "text", content: "debug deleted message " },
+        {
+          type: "emote",
+          id: "25",
+          name: "Kappa",
+          url: "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/1.0",
+          isAnimated: false,
+        },
+        { type: "text", content: " :)" },
+      ],
+      rawContent: "debug deleted message Kappa :)",
+      timestamp: deletedAt,
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    };
+    const store = useChatStore.getState();
+    store.addMessage(msg);
+    store.deleteMessage(debugChannelKey, msg.id, {
+      deletedAt,
+      deletedByUser: moderatorPresentation(platform),
+      deletedByUsername: "ModeratorBot",
+    });
+  };
+
+  const injectModerationActionPreview = (style: ModerationHighlightStyle, duration?: number) => {
+    setModerationHighlightPreviewStyle(style);
+    const u = pickUser();
+    const deletedAt = new Date();
+    const store = useChatStore.getState();
+    const actionPrefix = duration ? "timeout" : "ban";
+    const removedMessages: ChatMessage[] = [1, 2, 3].map((index) => ({
+      id: uid(`${actionPrefix}-debug-${index}`),
+      platform,
+      type: "message",
+      channel: targetChannel,
+      userId: u.username,
+      username: u.username,
+      displayName: u.displayName,
+      color: u.color,
+      badges: [debugBadge(platform)],
+      content:
+        index === 1
+          ? [
+              { type: "text", content: `${actionPrefix} preview message 1 ` },
+              {
+                type: "emote",
+                id: "25",
+                name: "Kappa",
+                url: "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/1.0",
+                isAnimated: false,
+              },
+            ]
+          : [{ type: "text", content: `${actionPrefix} preview message ${index}` }],
+      rawContent:
+        index === 1
+          ? `${actionPrefix} preview message 1 Kappa`
+          : `${actionPrefix} preview message ${index}`,
+      timestamp: deletedAt,
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    }));
+
+    for (const msg of removedMessages) {
+      store.addMessage(msg);
+    }
+
+    store.deleteMessagesByUser(debugChannelKey, u.username, {
+      deletedAt,
+      deletedByUser: moderatorPresentation(platform),
+      deletedByUsername: "ModeratorBot",
+    });
+    store.addMessage({
+      id: uid(`${actionPrefix}-debug-ban`),
+      platform,
+      type: "ban",
+      channel: targetChannel,
+      userId: "system",
+      username: "System",
+      displayName: "System",
+      color: "#808080",
+      badges: [],
+      content: [],
+      rawContent: "",
+      timestamp: deletedAt,
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+      banInfo: {
+        bannedUsername: u.displayName,
+        bannedByUsername: "ModeratorBot",
+        bannedByUser: moderatorPresentation(platform),
+        bannedUser: {
+          userId: u.username,
+          username: u.username,
+          displayName: u.displayName,
+          color: u.color,
+          badges: [debugBadge(platform)],
+        },
+        lastMessage: removedMessages[1].rawContent,
+        deletedMessages: removedMessages.map((message) => message.rawContent),
+        deletedMessageDetails: removedMessages.map((message) => ({
+          id: message.id,
+          author: {
+            userId: message.userId,
+            username: message.username,
+            displayName: message.displayName,
+            color: message.color,
+            badges: message.badges,
+          },
+          content: message.content,
+          rawContent: message.rawContent,
+          deletedAt,
+        })),
+        duration,
+      },
+    });
   };
 
   const injectPinnedKick = () => {
@@ -307,7 +540,9 @@ export function ChatSimTool() {
     const u = pickUser();
     // Synthetic NormalizedPinnedMessage emitted via the same event the
     // GraphQL poller uses, so the banner renders through the production path.
-    const now = new Date().toISOString();
+    const pinnedAtMs = Date.now();
+    const now = new Date(pinnedAtMs).toISOString();
+    const expiresAt = new Date(pinnedAtMs + 10 * 60 * 1_000).toISOString();
     const pinId = uid("twitch-pin");
     const pin: NormalizedPinnedMessage = {
       platform: "twitch",
@@ -325,7 +560,7 @@ export function ChatSimTool() {
       pinnedBy: { username: "ModeratorBot", color: "#FF6F61", badges: [] },
       pinnedAt: now,
       sentAt: now,
-      expiresAt: null,
+      expiresAt,
     };
     twitchChatService.emit("pinnedMessage", pin);
   };
@@ -479,7 +714,6 @@ export function ChatSimTool() {
 
   const isKick = platform === "kick";
   const isTwitch = platform === "twitch";
-  const kickDisabledTitle = isKick ? "" : "Switch platform to Kick";
 
   // Mod-action debug controls (U8/U9) — read the dev-override store + the
   // reconnect-dialog opener so the panel can flip flags and pop dialogs
@@ -493,7 +727,11 @@ export function ChatSimTool() {
   const setForceResolvedId = useDevModOverrideStore((s) => s.setForceResolvedTwitchBroadcasterId);
   const setForceBroadcasterIdentity = useDevModOverrideStore((s) => s.setForceBroadcasterIdentity);
   const openReconnectDialog = useReconnectDialogStore((s) => s.open);
-  const twitchDisabledTitle = isTwitch ? "" : "Switch platform to Twitch";
+  const platformActionTitle = (
+    enabled: boolean,
+    enabledTitle: string,
+    requiredPlatform: "Kick" | "Twitch"
+  ) => (enabled ? enabledTitle : `Switch platform to ${requiredPlatform}`);
 
   return (
     <div>
@@ -505,8 +743,14 @@ export function ChatSimTool() {
           gap: 10,
         }}
       >
-        <label style={{ color: DEBUG_TOKENS.textSecondary, fontSize: 13 }}>Platform</label>
+        <label
+          htmlFor="chat-sim-platform"
+          style={{ color: DEBUG_TOKENS.textSecondary, fontSize: 13 }}
+        >
+          Platform
+        </label>
         <select
+          id="chat-sim-platform"
           value={platform}
           onChange={(e) => setPlatform(e.target.value as ChatPlatform)}
           style={{
@@ -527,72 +771,151 @@ export function ChatSimTool() {
       <section style={sectionStyle}>
         <div style={sectionLabelStyle}>Messages</div>
         <div style={buttonRowStyle}>
-          <PillButton onClick={injectRandom}>random</PillButton>
-          <PillButton onClick={injectFirstTime}>first-time chatter</PillButton>
-          <PillButton onClick={injectAction}>/me action</PillButton>
-          <PillButton onClick={injectMention}>mention</PillButton>
-          <PillButton onClick={injectLong}>long wrap</PillButton>
-          <PillButton onClick={injectLongUsername}>long username</PillButton>
+          <PillButton title={`Inject a random ${platform} chat message`} onClick={injectRandom}>
+            random
+          </PillButton>
+          <PillButton
+            title="Inject a highlighted first-time chatter message"
+            onClick={injectFirstTime}
+          >
+            first-time chatter
+          </PillButton>
+          {isTwitch && (
+            <PillButton title="Inject a Twitch /me action message" onClick={injectAction}>
+              /me action
+            </PillButton>
+          )}
+          <PillButton title="Inject a message with a mention fragment" onClick={injectMention}>
+            mention
+          </PillButton>
+          <PillButton title="Inject a long wrapping chat message" onClick={injectLong}>
+            long wrap
+          </PillButton>
+          <PillButton
+            title="Inject a chat message from an extra-long username"
+            onClick={injectLongUsername}
+          >
+            long username
+          </PillButton>
         </div>
       </section>
 
       <section style={sectionStyle}>
         <div style={sectionLabelStyle}>Moderation</div>
         <div style={buttonRowStyle}>
-          <PillButton onClick={() => injectBan(60)}>timeout 60s</PillButton>
-          <PillButton onClick={() => injectBan(600)}>timeout 10m</PillButton>
-          <PillButton onClick={() => injectBan()}>perma ban</PillButton>
-          <PillButton onClick={injectClearAll}>clear all</PillButton>
-          <PillButton onClick={injectDeleteLast}>delete last</PillButton>
+          <PillButton
+            title="Clear the debug target chat and inject a clear notice"
+            onClick={injectClearAll}
+          >
+            clear all
+          </PillButton>
+          {(["compact", "cozy"] as const).map((style) => (
+            <PillButton
+              key={`deleted-${style}`}
+              title={`Show a ${styleLabel(style)} deleted-message highlight for ${platform}`}
+              onClick={() => injectDeletedMessagePreview(style)}
+            >
+              deleted {styleLabel(style).toLowerCase()}
+            </PillButton>
+          ))}
+          {(["compact", "cozy"] as const).map((style) => (
+            <PillButton
+              key={`timeout-${style}`}
+              title={`Show a ${styleLabel(style)} timeout highlight with deleted rows for ${platform}`}
+              onClick={() => injectModerationActionPreview(style, 600)}
+            >
+              timeout {styleLabel(style).toLowerCase()}
+            </PillButton>
+          ))}
+          {(["compact", "cozy"] as const).map((style) => (
+            <PillButton
+              key={`ban-${style}`}
+              title={`Show a ${styleLabel(style)} ban highlight with deleted rows for ${platform}`}
+              onClick={() => injectModerationActionPreview(style)}
+            >
+              ban {styleLabel(style).toLowerCase()}
+            </PillButton>
+          ))}
         </div>
       </section>
 
       <section style={sectionStyle}>
         <div style={sectionLabelStyle}>Notices</div>
         <div style={buttonRowStyle}>
-          <PillButton onClick={injectSub}>sub</PillButton>
-          <PillButton onClick={() => injectResub(5)}>resub 5mo</PillButton>
-          <PillButton onClick={() => injectResub(36)}>resub 3yr</PillButton>
-          <PillButton onClick={injectGiftSub}>gift sub</PillButton>
-          <PillButton onClick={() => injectMysteryGift(50)}>50 mystery gifts</PillButton>
-          <PillButton onClick={() => injectRaid(1234)}>raid 1.2k</PillButton>
+          <PillButton title="Inject a subscription notice" onClick={injectSub}>
+            sub
+          </PillButton>
+          <PillButton title="Inject a 5 month resub notice" onClick={() => injectResub(5)}>
+            resub 5mo
+          </PillButton>
+          <PillButton title="Inject a 36 month resub notice" onClick={() => injectResub(36)}>
+            resub 3yr
+          </PillButton>
+          <PillButton title="Inject a gifted subscription notice" onClick={injectGiftSub}>
+            gift sub
+          </PillButton>
+          <PillButton
+            title="Inject a 50 mystery gifts notice"
+            onClick={() => injectMysteryGift(50)}
+          >
+            50 mystery gifts
+          </PillButton>
+          <PillButton title="Inject a 1.2k viewer raid notice" onClick={() => injectRaid(1234)}>
+            raid 1.2k
+          </PillButton>
         </div>
       </section>
 
       <section style={sectionStyle}>
         <div style={sectionLabelStyle}>Twitch-only</div>
         <div style={buttonRowStyle}>
-          <PillButton onClick={injectPinnedTwitch} disabled={!isTwitch} title={twitchDisabledTitle}>
+          <PillButton
+            onClick={injectPinnedTwitch}
+            disabled={!isTwitch}
+            title={platformActionTitle(isTwitch, "Show a Twitch pinned message banner", "Twitch")}
+          >
             pin message
           </PillButton>
           <PillButton
             onClick={injectPinnedClearTwitch}
             disabled={!isTwitch}
-            title={twitchDisabledTitle}
+            title={platformActionTitle(
+              isTwitch,
+              "Clear the Twitch pinned message banner",
+              "Twitch"
+            )}
           >
             clear pin
           </PillButton>
-          <PillButton onClick={injectPollTwitch} disabled={!isTwitch} title={twitchDisabledTitle}>
+          <PillButton
+            onClick={injectPollTwitch}
+            disabled={!isTwitch}
+            title={platformActionTitle(isTwitch, "Show a live Twitch poll widget", "Twitch")}
+          >
             poll (live)
           </PillButton>
           <PillButton
             onClick={injectPollEndedTwitch}
             disabled={!isTwitch}
-            title={twitchDisabledTitle}
+            title={platformActionTitle(isTwitch, "Show an ended Twitch poll widget", "Twitch")}
           >
             poll (ended)
           </PillButton>
           <PillButton
             onClick={injectPredictionTwitch}
             disabled={!isTwitch}
-            title={twitchDisabledTitle}
+            title={platformActionTitle(isTwitch, "Show a live Twitch prediction banner", "Twitch")}
           >
             prediction (live)
           </PillButton>
           <PillButton
             onClick={injectPredictionEndedTwitch}
             disabled={!isTwitch}
-            title={twitchDisabledTitle}
+            title={platformActionTitle(
+              isTwitch,
+              "Show a resolved Twitch prediction banner",
+              "Twitch"
+            )}
           >
             prediction (ended)
           </PillButton>
@@ -717,6 +1040,7 @@ export function ChatSimTool() {
         </div>
         <div style={buttonRowStyle}>
           <PillButton
+            title="Open the reconnect dialog with Twitch moderator scopes missing"
             onClick={() =>
               openReconnectDialog({
                 missingScopes: ["user:read:moderated_channels", "moderator:manage:chat_messages"],
@@ -731,25 +1055,45 @@ export function ChatSimTool() {
       <section style={sectionStyle}>
         <div style={sectionLabelStyle}>Kick-only</div>
         <div style={buttonRowStyle}>
-          <PillButton onClick={injectPinnedKick} disabled={!isKick} title={kickDisabledTitle}>
+          <PillButton
+            onClick={injectPinnedKick}
+            disabled={!isKick}
+            title={platformActionTitle(isKick, "Show a Kick pinned message banner", "Kick")}
+          >
             pin message
           </PillButton>
-          <PillButton onClick={injectPinnedClearKick} disabled={!isKick} title={kickDisabledTitle}>
+          <PillButton
+            onClick={injectPinnedClearKick}
+            disabled={!isKick}
+            title={platformActionTitle(isKick, "Clear the Kick pinned message banner", "Kick")}
+          >
             clear pin
           </PillButton>
-          <PillButton onClick={injectPollKick} disabled={!isKick} title={kickDisabledTitle}>
+          <PillButton
+            onClick={injectPollKick}
+            disabled={!isKick}
+            title={platformActionTitle(isKick, "Show a live Kick poll widget", "Kick")}
+          >
             poll (live)
           </PillButton>
-          <PillButton onClick={injectPollEndedKick} disabled={!isKick} title={kickDisabledTitle}>
+          <PillButton
+            onClick={injectPollEndedKick}
+            disabled={!isKick}
+            title={platformActionTitle(isKick, "Show an ended Kick poll widget", "Kick")}
+          >
             poll (ended)
           </PillButton>
-          <PillButton onClick={injectPredictionKick} disabled={!isKick} title={kickDisabledTitle}>
+          <PillButton
+            onClick={injectPredictionKick}
+            disabled={!isKick}
+            title={platformActionTitle(isKick, "Show a live Kick prediction banner", "Kick")}
+          >
             prediction (live)
           </PillButton>
           <PillButton
             onClick={injectPredictionEndedKick}
             disabled={!isKick}
-            title={kickDisabledTitle}
+            title={platformActionTitle(isKick, "Show a resolved Kick prediction banner", "Kick")}
           >
             prediction (ended)
           </PillButton>

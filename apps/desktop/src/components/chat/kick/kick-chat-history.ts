@@ -45,6 +45,8 @@ export interface SeedKickChatHistoryParams {
   subscriberBadges: SubscriberBadge[] | undefined;
   /** Restore the pinned-message banner if the history payload includes one. */
   onPinnedMessage: (pin: NormalizedPinnedMessage) => void;
+  /** Observe parsed history messages for page-load role seeding. */
+  onParsedMessages?: (messages: ChatMessage[]) => void;
 }
 
 /**
@@ -53,8 +55,15 @@ export interface SeedKickChatHistoryParams {
  * rather than throwing, so the caller can fall back to live-only.
  */
 export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Promise<void> {
-  const { channelId, channel, isMounted, prependMessages, subscriberBadges, onPinnedMessage } =
-    params;
+  const {
+    channelId,
+    channel,
+    isMounted,
+    prependMessages,
+    subscriberBadges,
+    onPinnedMessage,
+    onParsedMessages,
+  } = params;
 
   // U5 — `recentMessagesOnJoin` gates the recent-message seed; `recentMessagesLimit`
   // caps how many seed. The pinned-message restore below is a distinct feature
@@ -73,6 +82,31 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
 
     const { messages: rawMessages, pinnedMessage: rawPinned } = result.data;
 
+    const parseRawMessage = (raw: (typeof rawMessages)[number]): ChatMessage => {
+      let parsedMetadata: KickChatMessageEvent["metadata"];
+      if (raw.metadata) {
+        try {
+          parsedMetadata = JSON.parse(raw.metadata);
+        } catch {
+          parsedMetadata = undefined;
+        }
+      }
+      const event: KickChatMessageEvent = {
+        id: raw.id,
+        chatroom_id: raw.chatroom_id,
+        content: raw.content,
+        type: raw.type,
+        created_at: raw.created_at,
+        sender: raw.sender,
+        metadata: parsedMetadata,
+      };
+      return parseKickChatMessage(event, channel, subscriberBadges);
+    };
+
+    if (rawMessages.length > 0 && onParsedMessages) {
+      onParsedMessages(rawMessages.map(parseRawMessage));
+    }
+
     if (seedRecent && rawMessages.length > 0) {
       // v2 returns newest-first; reverse so the prepended block lands in
       // chronological order (oldest at the top, newest just above the
@@ -83,24 +117,7 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
       const parsed: ChatMessage[] = [];
       for (let i = sourced.length - 1; i >= 0; i--) {
         const raw = sourced[i];
-        let parsedMetadata: KickChatMessageEvent["metadata"];
-        if (raw.metadata) {
-          try {
-            parsedMetadata = JSON.parse(raw.metadata);
-          } catch {
-            parsedMetadata = undefined;
-          }
-        }
-        const event: KickChatMessageEvent = {
-          id: raw.id,
-          chatroom_id: raw.chatroom_id,
-          content: raw.content,
-          type: raw.type,
-          created_at: raw.created_at,
-          sender: raw.sender,
-          metadata: parsedMetadata,
-        };
-        const message = parseKickChatMessage(event, channel, subscriberBadges);
+        const message = parseRawMessage(raw);
         message.isHistorical = true;
         parsed.push(message);
       }

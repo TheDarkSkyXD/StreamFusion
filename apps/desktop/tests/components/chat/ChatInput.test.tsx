@@ -12,6 +12,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const toastErrorMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
@@ -28,6 +30,12 @@ vi.mock("@tanstack/react-router", () => ({
       {children}
     </a>
   ),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: (...args: unknown[]) => toastErrorMock(...args),
+  },
 }));
 
 const emotePickerPopoverCalls = vi.hoisted(
@@ -242,6 +250,7 @@ import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
 import { ChatInput, type ChatInputHandle } from "@/components/chat/ChatInput";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useFollowStore } from "@/store/follow-store";
 import type { ChatMessage } from "@/shared/chat-types";
 import { useRoomStateStore } from "@/store/room-state-store";
@@ -259,6 +268,7 @@ beforeEach(() => {
   emoteStoreState.getAllEmotes = () => [];
   emoteStoreState.addRecentEmote.mockClear();
   emoteStoreState.toggleFavorite.mockClear();
+  toastErrorMock.mockReset();
   vi.mocked(twitchChatService.sendMessage).mockClear();
   vi.mocked(twitchChatService.sendReply).mockClear();
   vi.mocked(twitchChatService.sendAction).mockClear();
@@ -277,8 +287,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+function renderWithTooltipProvider(ui: React.ReactElement) {
+  return render(<TooltipProvider>{ui}</TooltipProvider>);
+}
+
 function renderInput(overrides: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
-  return render(<ChatInput channel="ninja" platform="twitch" channelId="12345" {...overrides} />);
+  return renderWithTooltipProvider(
+    <ChatInput channel="ninja" platform="twitch" channelId="12345" {...overrides} />
+  );
 }
 
 function makeQuickEmote(
@@ -334,6 +350,17 @@ function setCaretAtTextEnd(editor: HTMLElement) {
   selection?.addRange(range);
 }
 
+function selectEditorText(editor: HTMLElement, start: number, end: number) {
+  const text = editor.firstChild;
+  if (!text) return;
+  const range = document.createRange();
+  range.setStart(text, start);
+  range.setEnd(text, end);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 describe("ChatInput — basics", () => {
   it("renders a rich textbox with the default placeholder", () => {
     infoBannerImpl.mockReturnValue(null);
@@ -357,6 +384,36 @@ describe("ChatInput — basics", () => {
     const link = screen.getByTestId("chat-mod-view-link");
     expect(link).toHaveAttribute("data-to", "/mod/twitch/$channel");
     expect(link).toHaveAttribute("data-params", JSON.stringify({ channel: "ninja" }));
+  });
+
+  it("uses the custom tooltip for the moderation page shield", async () => {
+    renderInput({ showModViewLink: true });
+    const link = screen.getByTestId("chat-mod-view-link");
+    expect(link).not.toHaveAttribute("title");
+
+    fireEvent.pointerMove(link);
+    fireEvent.pointerEnter(link);
+
+    const tooltips = await screen.findAllByText("Mod View");
+    expect(tooltips).not.toHaveLength(0);
+    expect(tooltips[0].className).toContain("!bg-white");
+    expect(tooltips[0].className).toContain("!text-[#0e0e10]");
+    expect(tooltips[0].querySelector("svg")?.className.baseVal).toContain("!fill-white");
+  });
+
+  it("uses the custom tooltip for chat settings", async () => {
+    renderInput();
+    const button = screen.getByRole("button", { name: "Chat settings" });
+    expect(button).not.toHaveAttribute("title");
+
+    fireEvent.pointerMove(button);
+    fireEvent.pointerEnter(button);
+
+    const tooltips = await screen.findAllByText("Chat settings");
+    expect(tooltips).not.toHaveLength(0);
+    expect(tooltips[0].className).toContain("!bg-white");
+    expect(tooltips[0].className).toContain("!text-[#0e0e10]");
+    expect(tooltips[0].querySelector("svg")?.className.baseVal).toContain("!fill-white");
   });
 
   it("renders a Kick moderation page shield when allowed", () => {
@@ -395,6 +452,22 @@ describe("ChatInput — basics", () => {
     expect(editor).toHaveTextContent("ab");
   });
 
+  it("scrolls the rich editor to the bottom as typing extends the draft", () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput();
+    const editor = getEditor();
+    Object.defineProperty(editor, "scrollHeight", { configurable: true, value: 240 });
+    Object.defineProperty(editor, "clientHeight", { configurable: true, value: 80 });
+    editor.scrollTop = 0;
+
+    act(() => {
+      editor.focus();
+      fireEvent.keyDown(editor, { key: "a" });
+    });
+
+    expect(editor.scrollTop).toBe(240);
+  });
+
   it("deletes regular text with one Backspace", () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput();
@@ -408,6 +481,76 @@ describe("ChatInput — basics", () => {
     });
 
     expect(editor).toHaveTextContent("a");
+  });
+
+  it("deletes a highlighted long draft with one Backspace", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput();
+    const editor = getEditor();
+    const longDraft = "x".repeat(650);
+
+    typeInEditor(editor, longDraft);
+    await waitFor(() => expect(screen.getByText("-150")).toBeInTheDocument());
+    act(() => {
+      editor.focus();
+    });
+    selectEditorText(editor, 0, longDraft.length);
+    act(() => {
+      fireEvent.keyDown(editor, { key: "Backspace" });
+    });
+
+    expect(editor.textContent).toBe("");
+    expect(screen.getByText("Send a message...")).toBeInTheDocument();
+  });
+
+  it("preserves a highlighted partial selection through focus before Backspace", () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput();
+    const editor = getEditor();
+
+    typeInEditor(editor, "abcdef");
+    selectEditorText(editor, 1, 5);
+
+    act(() => {
+      fireEvent.focus(editor);
+      fireEvent.keyDown(editor, { key: "Backspace" });
+    });
+
+    expect(editor.textContent).toBe("af");
+  });
+
+  it("keeps a small highlighted selection visible after mouse selection completes", () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput();
+    const editor = getEditor();
+
+    typeInEditor(editor, "abcdef");
+    selectEditorText(editor, 1, 5);
+    fireEvent.mouseUp(editor);
+
+    const selection = window.getSelection();
+    expect(selection?.rangeCount).toBe(1);
+    expect(selection?.getRangeAt(0).toString()).toBe("bcde");
+  });
+
+  it("deletes a large highlighted selection after mouse selection completes", () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput();
+    const editor = getEditor();
+    const prefix = "keep-start ";
+    const highlighted = "x".repeat(240);
+    const suffix = " keep-end";
+
+    typeInEditor(editor, `${prefix}${highlighted}${suffix}`);
+    selectEditorText(editor, prefix.length, prefix.length + highlighted.length);
+    fireEvent.mouseUp(editor);
+
+    const selection = window.getSelection();
+    expect(selection?.getRangeAt(0).toString()).toBe(highlighted);
+
+    fireEvent.keyDown(editor, { key: "Backspace" });
+
+    expect(editor.textContent).toBe(`${prefix}${suffix}`);
   });
 
   it("respects the disabled prop", () => {
@@ -474,7 +617,7 @@ describe("ChatInput — basics", () => {
     infoBannerImpl.mockReturnValue(null);
     const onAuthRequired = vi.fn(async () => {});
     const ref = createRef<ChatInputHandle>();
-    render(
+    renderWithTooltipProvider(
       <ChatInput
         ref={ref}
         channel="ninja"
@@ -513,6 +656,60 @@ describe("ChatInput — basics", () => {
     expect(onAuthRequired).toHaveBeenCalledWith("twitch");
     expect(screen.getByTestId("reply-preview")).toBeInTheDocument();
     expect(editor).toHaveTextContent("reply draft");
+  });
+
+  // Guards: Kick replies keep Kick's wire mention while the local echo carries ReplyInfo for Twitch-style rendering.
+  it("sends Kick replies with reply metadata for the optimistic echo", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const ref = createRef<ChatInputHandle>();
+    renderWithTooltipProvider(
+      <ChatInput
+        ref={ref}
+        channel="ninja"
+        platform="kick"
+        channelId="12345"
+        canSend
+        isAuthenticated
+      />
+    );
+    const msg: ChatMessage = {
+      id: "m1",
+      platform: "kick",
+      type: "message",
+      channel: "ninja",
+      userId: "u1",
+      username: "alice",
+      displayName: "Alice",
+      color: "#fff",
+      badges: [],
+      content: [{ type: "text", content: "hello" }],
+      rawContent: "hello there",
+      timestamp: new Date(),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    };
+    act(() => ref.current?.replyTo(msg));
+    const editor = getEditor();
+    typeInEditor(editor, "reply draft");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(kickChatService.sendMessage).toHaveBeenCalledWith(
+      "ninja",
+      "@alice reply draft",
+      undefined,
+      [{ type: "text", content: "reply draft" }],
+      {
+        parentMessageId: "m1",
+        parentUserId: "u1",
+        parentUsername: "alice",
+        parentDisplayName: "Alice",
+        parentMessageBody: "hello there",
+      }
+    );
   });
 });
 
@@ -615,7 +812,7 @@ describe("ChatInput — room-state send blockers", () => {
     infoBannerImpl.mockReturnValue(null);
     useRoomStateStore.getState().updateRoomState("twitch", "12345", { followersOnly: 10 });
     const ref = createRef<ChatInputHandle>();
-    render(
+    renderWithTooltipProvider(
       <ChatInput
         ref={ref}
         channel="ninja"
@@ -1200,7 +1397,9 @@ describe("ChatInput — InfoBanner integration", () => {
   it("reply preview stacks above InfoBanner when both are active", () => {
     infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Slow Mode</div>);
     const ref = createRef<ChatInputHandle>();
-    render(<ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />);
+    renderWithTooltipProvider(
+      <ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />
+    );
     const msg: ChatMessage = {
       id: "m1",
       platform: "twitch",
@@ -1590,13 +1789,35 @@ describe("ChatInput — character counter", () => {
     typeInEditor(getEditor(), "a".repeat(60));
     expect(screen.getByText("40")).toHaveClass("text-yellow-500");
   });
+  it("shows a toast and does not send when the user tries an over-limit message", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput({ maxLength: 500 });
+    const editor = getEditor();
+
+    typeInEditor(editor, "a".repeat(501));
+    const chatButton = screen.getByRole("button", { name: "Chat" });
+    expect(chatButton).not.toBeDisabled();
+    expect(chatButton).toHaveAttribute("aria-disabled", "true");
+
+    await act(async () => {
+      fireEvent.click(chatButton);
+    });
+
+    expect(toastErrorMock).toHaveBeenCalledWith("Message is too long", {
+      id: "chat-message-too-long",
+      description: "Twitch and Kick messages can be up to 500 characters.",
+    });
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
 });
 
 describe("ChatInput — imperative handle", () => {
   it("mentionUser prepends @username and focuses", () => {
     infoBannerImpl.mockReturnValue(null);
     const ref = createRef<ChatInputHandle>();
-    render(<ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />);
+    renderWithTooltipProvider(
+      <ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />
+    );
     act(() => ref.current?.mentionUser("alice"));
     expect(getEditor().textContent).toBe("@alice ");
   });
@@ -1604,7 +1825,9 @@ describe("ChatInput — imperative handle", () => {
   it("mentionUser focuses the rich editor synchronously", () => {
     infoBannerImpl.mockReturnValue(null);
     const ref = createRef<ChatInputHandle>();
-    render(<ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />);
+    renderWithTooltipProvider(
+      <ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />
+    );
     act(() => ref.current?.mentionUser("alice"));
     const editor = getEditor();
     expect(editor.textContent).toBe("@alice ");
@@ -1614,7 +1837,9 @@ describe("ChatInput — imperative handle", () => {
   it("replyTo sets the reply preview", () => {
     infoBannerImpl.mockReturnValue(null);
     const ref = createRef<ChatInputHandle>();
-    render(<ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />);
+    renderWithTooltipProvider(
+      <ChatInput ref={ref} channel="ninja" platform="twitch" channelId="12345" />
+    );
     const msg: ChatMessage = {
       id: "m1",
       platform: "twitch",

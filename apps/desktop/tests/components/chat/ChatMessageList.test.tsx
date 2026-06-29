@@ -21,6 +21,13 @@ const virtuosoItemContentRefs = vi.hoisted<Array<(i: number, m: unknown) => Reac
 const virtuosoLayoutProps = vi.hoisted<Array<{ className?: string; style?: React.CSSProperties }>>(
   () => []
 );
+const virtuosoScrollToIndexCalls = vi.hoisted<
+  Array<{
+    index: number | "LAST";
+    align?: "start" | "center" | "end";
+    behavior?: "auto" | "smooth";
+  }>
+>(() => []);
 
 vi.mock("@/components/chat/ChatMessage", () => ({
   ChatMessage: ({
@@ -42,70 +49,106 @@ vi.mock("@/components/chat/ChatMessage", () => ({
   ),
 }));
 
-vi.mock("react-virtuoso", () => ({
-  Virtuoso: ({
-    data,
-    itemContent,
-    atBottomStateChange,
-    scrollerRef,
-    initialTopMostItemIndex,
-    overscan,
-    increaseViewportBy,
-    defaultItemHeight,
-    className,
-    style,
-  }: {
-    data: Array<{ id: string }>;
-    itemContent: (i: number, m: unknown) => React.ReactNode;
-    atBottomStateChange?: (atBottom: boolean) => void;
-    scrollerRef?: (el: HTMLElement | null) => void;
-    initialTopMostItemIndex?: number;
-    overscan?: number;
-    increaseViewportBy?: number | { top?: number; bottom?: number };
-    defaultItemHeight?: number;
-    className?: string;
-    style?: React.CSSProperties;
-  }) => {
-    virtuosoInitialIndexes.push(initialTopMostItemIndex);
-    virtuosoWindowProps.push({ overscan, increaseViewportBy, defaultItemHeight });
-    virtuosoItemContentRefs.push(itemContent);
-    virtuosoLayoutProps.push({ className, style });
-    const scroller = document.createElement("div");
-    scrollerRef?.(scroller);
-    return (
-      <div data-testid="virtuoso">
-        <button
-          type="button"
-          onClick={() => {
-            const wheel = new Event("wheel") as WheelEvent;
-            Object.defineProperty(wheel, "deltaY", { value: -1 });
-            scroller.dispatchEvent(wheel);
-            atBottomStateChange?.(false);
-          }}
-        >
-          leave bottom
-        </button>
-        <button type="button" onClick={() => scroller.dispatchEvent(new Event("mouseenter"))}>
-          enter chat
-        </button>
-        <button type="button" onClick={() => scroller.dispatchEvent(new Event("mouseleave"))}>
-          leave chat
-        </button>
-        <button type="button" onClick={() => atBottomStateChange?.(true)}>
-          return bottom
-        </button>
-        {data.map((m, i) => (
-          <div key={m.id}>{itemContent(i, m)}</div>
-        ))}
-      </div>
-    );
-  },
-}));
+vi.mock("react-virtuoso", async () => {
+  const React = await import("react");
+
+  return {
+    Virtuoso: React.forwardRef(
+      (
+        {
+          data,
+          itemContent,
+          atBottomStateChange,
+          scrollerRef,
+          totalListHeightChanged,
+          initialTopMostItemIndex,
+          overscan,
+          increaseViewportBy,
+          defaultItemHeight,
+          className,
+          style,
+        }: {
+          data: Array<{ id: string }>;
+          itemContent: (i: number, m: unknown) => React.ReactNode;
+          atBottomStateChange?: (atBottom: boolean) => void;
+          scrollerRef?: (el: HTMLElement | null) => void;
+          totalListHeightChanged?: (height: number) => void;
+          initialTopMostItemIndex?: number;
+          overscan?: number;
+          increaseViewportBy?: number | { top?: number; bottom?: number };
+          defaultItemHeight?: number;
+          className?: string;
+          style?: React.CSSProperties;
+        },
+        ref
+      ) => {
+        React.useImperativeHandle(
+          ref,
+          () => ({
+            autoscrollToBottom: () => undefined,
+            scrollToIndex: (args: {
+              index: number | "LAST";
+              align?: "start" | "center" | "end";
+              behavior?: "auto" | "smooth";
+            }) => {
+              virtuosoScrollToIndexCalls.push(args);
+            },
+          }),
+          []
+        );
+        virtuosoInitialIndexes.push(initialTopMostItemIndex);
+        virtuosoWindowProps.push({ overscan, increaseViewportBy, defaultItemHeight });
+        virtuosoItemContentRefs.push(itemContent);
+        virtuosoLayoutProps.push({ className, style });
+        const scroller = document.createElement("div");
+        Object.defineProperty(scroller, "scrollHeight", { value: 1200, configurable: true });
+        Object.defineProperty(scroller, "clientHeight", { value: 300, configurable: true });
+        scrollerRef?.(scroller);
+        return (
+          <div data-testid="virtuoso">
+            <button
+              type="button"
+              onClick={() => {
+                const wheel = new Event("wheel") as WheelEvent;
+                Object.defineProperty(wheel, "deltaY", { value: -1 });
+                scroller.dispatchEvent(wheel);
+                atBottomStateChange?.(false);
+              }}
+            >
+              leave bottom
+            </button>
+            <button type="button" onClick={() => scroller.dispatchEvent(new Event("mouseenter"))}>
+              enter chat
+            </button>
+            <button type="button" onClick={() => scroller.dispatchEvent(new Event("mouseleave"))}>
+              leave chat
+            </button>
+            <button type="button" onClick={() => atBottomStateChange?.(true)}>
+              return bottom
+            </button>
+            <button type="button" onClick={() => totalListHeightChanged?.(1600)}>
+              grow content
+            </button>
+            {data.map((m, i) => (
+              <div key={m.id}>{itemContent(i, m)}</div>
+            ))}
+          </div>
+        );
+      }
+    ),
+  };
+});
 
 const channelA = buildChannelKey("twitch", "alpha");
 const channelB = buildChannelKey("twitch", "bravo");
+const kickChannel = buildChannelKey("kick", "alpha");
 
-function message(id: string, channel: string, displayName = id): ChatMessage {
+function message(
+  id: string,
+  channel: string,
+  displayName = id,
+  overrides: Partial<ChatMessage> = {}
+): ChatMessage {
   return {
     id,
     platform: "twitch",
@@ -122,6 +165,7 @@ function message(id: string, channel: string, displayName = id): ChatMessage {
     isDeleted: false,
     isHighlighted: false,
     isAction: false,
+    ...overrides,
   };
 }
 
@@ -151,8 +195,11 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 // Guards: Twitch-style Pause Chat preferences add mouseover and Alt-key pause triggers without breaking scroll pause.
 // Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
 // Guards: rapid chat updates must not mutate Virtuoso's initial scroll index and flash/jump the visible list
+// Guards: live message appends get one post-measure bottom align, not the old repeated direct-scroll loop that made fast chat bounce
+// Guards: late row-height changes from images/emotes/badges realign the latest item to the bottom while follow mode is active
 // Guards: click-to-reply is only exposed when the platform orchestrator opts the list into reply behavior
 // Guards: inline Unban is exposed only for senders known to be banned or timed out; missing unban state must not show it for ordinary users
+// Guards: the new-messages divider appears after seeded history and connection system rows, only when real live chat begins, with the live platform's color
 describe("ChatMessageList", () => {
   beforeEach(() => {
     resetChatStore();
@@ -162,10 +209,12 @@ describe("ChatMessageList", () => {
     virtuosoWindowProps.length = 0;
     virtuosoItemContentRefs.length = 0;
     virtuosoLayoutProps.length = 0;
+    virtuosoScrollToIndexCalls.length = 0;
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("empty: renders the virtuoso container even with no messages", () => {
@@ -178,7 +227,7 @@ describe("ChatMessageList", () => {
     expect(virtuosoWindowProps.at(-1)).toEqual({
       overscan: 150,
       increaseViewportBy: { top: 240, bottom: 480 },
-      defaultItemHeight: 32,
+      defaultItemHeight: 36,
     });
   });
 
@@ -231,6 +280,50 @@ describe("ChatMessageList", () => {
 
     expect(getAllByTestId("chat-message")).toHaveLength(1);
     expect(getAllByTestId("chat-message")[0]).toHaveTextContent("Alpha");
+  });
+
+  it("marks the boundary between seeded history and live chat messages", () => {
+    act(() => {
+      useChatStore
+        .getState()
+        .prependMessages(channelA, [
+          message("history", "alpha", "History", { isHistorical: true }),
+        ]);
+      useChatStore
+        .getState()
+        .addMessage(message("connecting", "alpha", "Connected", { type: "system" }));
+      useChatStore.getState().addMessage(message("live", "alpha", "Live"));
+    });
+
+    const { container, getByLabelText, getByText } = render(
+      <ChatMessageList channelKey={channelA} />
+    );
+    const renderedText = container.textContent ?? "";
+
+    expect(getByText("New messages")).toBeInTheDocument();
+    expect(getByLabelText("New messages")).toHaveStyle({ color: "#a970ff" });
+    expect(renderedText.indexOf("Connected")).toBeLessThan(renderedText.indexOf("New messages"));
+    expect(renderedText.indexOf("New messages")).toBeLessThan(renderedText.indexOf("Live"));
+  });
+
+  it("uses Kick green for the history-to-live divider in Kick chat", () => {
+    act(() => {
+      useChatStore.getState().prependMessages(kickChannel, [
+        message("kick-history", "alpha", "History", {
+          platform: "kick",
+          isHistorical: true,
+        }),
+      ]);
+      useChatStore.getState().addMessage(
+        message("kick-live", "alpha", "Live", {
+          platform: "kick",
+        })
+      );
+    });
+
+    const { getByLabelText } = render(<ChatMessageList channelKey={kickChannel} />);
+
+    expect(getByLabelText("New messages")).toHaveStyle({ color: "#53fc18" });
   });
 
   it("passes reply only when onReply is provided", () => {
@@ -311,6 +404,80 @@ describe("ChatMessageList", () => {
     });
 
     expect(virtuosoInitialIndexes.at(-1)).toBe(0);
+  });
+
+  it("post-measure aligns the latest live message to the bottom while unpaused", async () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+
+    act(() => {
+      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
+    });
+    render(<ChatMessageList channelKey={channelA} />);
+    virtuosoScrollToIndexCalls.length = 0;
+
+    await act(async () => {
+      useChatStore.getState().addMessage(
+        message("raid", "alpha", "1234 raiders from Alice have joined!", {
+          type: "system",
+          highlightKind: "raid",
+        })
+      );
+    });
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+    expect(virtuosoScrollToIndexCalls).toContainEqual({
+      index: "LAST",
+      align: "end",
+      behavior: "auto",
+    });
+  });
+
+  it("scrolls to the latest message when the paused banner is clicked", async () => {
+    vi.useFakeTimers();
+    const { getByRole, getByText } = render(<ChatMessageList channelKey={channelA} />);
+
+    fireEvent.click(getByText("leave bottom"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    fireEvent.click(getByRole("button", { name: /chat paused due to scroll/i }));
+
+    expect(virtuosoScrollToIndexCalls).toContainEqual({
+      index: "LAST",
+      align: "end",
+      behavior: "auto",
+    });
+    expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
+  });
+
+  it("realigns the latest item when the measured list height changes while following bottom", async () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+
+    act(() => {
+      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
+    });
+    const { getByText } = render(<ChatMessageList channelKey={channelA} />);
+    virtuosoScrollToIndexCalls.length = 0;
+
+    fireEvent.click(getByText("grow content"));
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalled();
+    expect(virtuosoScrollToIndexCalls).toContainEqual({
+      index: "LAST",
+      align: "end",
+      behavior: "auto",
+    });
   });
 
   it("keeps pause state scoped to the channel that scrolls away from bottom", async () => {

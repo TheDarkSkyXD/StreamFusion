@@ -38,7 +38,7 @@ export interface UserPopoutProps {
   platform: "twitch" | "kick";
   channelId: string;
   channelSlug: string;
-  /** Kick chatroom id — required for `deleteKickMessage`. Twitch ignores. */
+  /** Kick chatroom id — required for Kick message delete. Twitch ignores. */
   kickChatroomId?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;

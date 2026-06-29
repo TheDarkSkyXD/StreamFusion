@@ -10,6 +10,7 @@ import type { UnifiedPrediction } from "@/shared/chat-types";
 import {
   pinChatMessage,
   unpinChatMessage,
+  updatePinnedChatMessage,
 } from "../../../backend/api/platforms/twitch/twitch-gql-pin-mutations";
 import {
   banUser,
@@ -39,24 +40,30 @@ import { useManagedTimeout } from "../../../hooks/useManagedTimeout";
 import { useRequireModScopes } from "../../../hooks/useRequireModScopes";
 import type {
   ChatConnectionStatus,
+  ChatHighlightKind,
   ChatMessage,
   ClearChat,
   KickPoll,
   MessageDeletion,
+  ModeratorStateEvent,
   NormalizedPinnedMessage,
+  RetainedDeletedMessage,
   UserNotice,
 } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../../store/chat-store";
 import { useDevModOverrideStore } from "../../../store/dev-mod-override-store";
 import { useEmoteStore } from "../../../store/emote-store";
+import { useModeratedChannelsStore } from "../../../store/moderated-channels-store";
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { useRenderCount } from "../../dev/use-render-count";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
+import { showModActionSuccessToast } from "../mod/mod-action-toast";
 import { appendRecentRaid, type RaidTarget, RaidTargetPicker } from "../mod/RaidTargetPicker";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { EngagementTab } from "../mod/tabs/EngagementTab";
@@ -98,6 +105,8 @@ type PendingTwitchModAction =
       currentlyActive?: boolean;
     };
 
+const DEFAULT_TWITCH_PIN_DURATION_SECONDS = 30 * 60;
+
 /** Human-readable timeout duration (toast label). Mirrors the small helper
  *  in ChatMessage.tsx; inlined here rather than exported to keep U11's
  *  surface-area minimal per the plan's "Do NOT modify ChatMessage.tsx" rule. */
@@ -106,6 +115,27 @@ function formatTimeoutLabel(seconds: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
   return `${Math.floor(seconds / 86_400)}d`;
+}
+
+function getNoticeHighlightKind(type: UserNotice["type"]): ChatHighlightKind {
+  switch (type) {
+    case "sub":
+      return "subscription";
+    case "resub":
+      return "resub";
+    case "subgift":
+    case "submysterygift":
+      return "gifted-sub";
+    case "raid":
+      return "raid";
+    case "bitsbadgetier":
+      return "bits";
+    case "ritual":
+      return "ritual";
+  }
+
+  const exhaustive: never = type;
+  return exhaustive;
 }
 
 const CONNECTING_TEXT = "Connecting to channel...";
@@ -186,6 +216,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     (state) =>
       state.preferences?.chatDisplay?.showPolls ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.showPolls
   );
+  const showTwitchPinDurationDialog = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.showTwitchPinDurationDialog ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.showTwitchPinDurationDialog
+  );
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
   const [isPinExpanded, setIsPinExpanded] = useState(false);
@@ -203,6 +238,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // Mod-action state (U8): the message currently queued for the Pin dialog.
   const [pinDialogMessage, setPinDialogMessage] = useState<ChatMessage | null>(null);
   const [pinDialogBusy, setPinDialogBusy] = useState(false);
+  const [pinMenuBusy, setPinMenuBusy] = useState(false);
   // U11 — generic mod-action confirm dialog state (Timeout/Ban/Unban/Delete).
   // U13/U15 widened the union to include strip-driven actions which carry no
   // chat message. The dialog branches on `kind` to render the correct preview
@@ -218,6 +254,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     [channel, channelId]
   );
   const roomState = useChatRoomState("twitch", channelId ?? null);
+  const hydrateModeratedChannels = useModeratedChannelsStore((s) => s.hydrate);
+  const isModeratedChannelsStale = useModeratedChannelsStore((s) => s.isStale);
+  const setTwitchChannelModState = useModeratedChannelsStore((s) => s.setTwitchChannelModState);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
   const markUserUnbannable = useCallback((userId: string) => {
     setUnbanUserIds((current) => {
@@ -245,16 +284,113 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // Mod-role gating for Pin/Unpin actions. Both hooks return safe defaults
   // when the user isn't signed in or doesn't moderate the current channel.
   const isMod = useIsTwitchMod(channelId);
-  const { hasModScopes, promptReconnect } = useRequireModScopes();
+  const { hasModScopes, loading: modScopesLoading, promptReconnect } = useRequireModScopes();
   // Moderator's own Twitch user id — required for every Helix mod-action call
   // as the `moderator_id` query param. Pulled from the auth store rather than
   // re-fetched per call.
   const twitchUser = useAuthStore((state) => state.twitchUser);
+  useEffect(() => {
+    if (!channelId || !twitchUser?.id) return;
+    if (twitchUser.id === channelId) return;
+    if (!isModeratedChannelsStale()) return;
+
+    let cancelled = false;
+    void (async () => {
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!clientId) return;
+      try {
+        const token = await window.electronAPI.auth.getToken("twitch");
+        if (cancelled || !token?.accessToken) return;
+        await hydrateModeratedChannels(twitchUser.id, token.accessToken, clientId);
+      } catch {
+        // AuthProvider also hydrates this cache; direct chat-page refresh is best-effort.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [channelId, twitchUser?.id, hydrateModeratedChannels, isModeratedChannelsStale]);
+
+  const handleDeleteMessage = useCallback(
+    async (message: ChatMessage) => {
+      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+      if (!channelId || !twitchUser?.id || !clientId) {
+        toast.error("Couldn't delete message", {
+          description: "Channel or moderator identity not loaded",
+        });
+        return;
+      }
+
+      const runDelete = (accessToken: string) =>
+        deleteChatMessage({
+          accessToken,
+          clientId,
+          broadcasterId: channelId,
+          moderatorId: twitchUser.id,
+          messageId: message.id,
+        });
+
+      try {
+        const token = await window.electronAPI.auth.getToken("twitch");
+        if (!token?.accessToken) {
+          toast.error("Sign in to Twitch to take this action");
+          return;
+        }
+
+        const result = await runDelete(token.accessToken);
+        if (result.ok) {
+          showModActionSuccessToast("Deleted message");
+          return;
+        }
+        if (result.kind === "missing-scopes") {
+          promptReconnect({
+            missingScopes:
+              result.missingScopes.length > 0
+                ? result.missingScopes
+                : ["moderator:manage:chat_messages"],
+            onReconnected: async () => {
+              const fresh = await window.electronAPI.auth.getToken("twitch");
+              if (!fresh?.accessToken) return;
+              const retry = await runDelete(fresh.accessToken);
+              if (retry.ok) {
+                showModActionSuccessToast("Deleted message");
+              } else {
+                toast.error("Couldn't delete message", {
+                  description: retry.message,
+                });
+              }
+            },
+          });
+          return;
+        }
+        if (result.kind === "forbidden") {
+          toast.error("Action forbidden", { description: result.message });
+          return;
+        }
+        if (result.kind === "rate-limited") {
+          const retry = result.retryAfterSeconds;
+          toast.error(
+            retry !== null ? `Rate-limited, retry in ${retry}s` : "Rate-limited, retry shortly"
+          );
+          return;
+        }
+        toast.error("Couldn't delete message", {
+          description: result.message ?? result.kind,
+        });
+      } catch (error) {
+        toast.error("Couldn't delete message", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [channelId, promptReconnect, twitchUser?.id]
+  );
 
   // Track current channel for cleanup
   // Initialize with null so we know when it's the first connection.
   const currentChannelRef = useRef<string | null>(null);
-  // Imperative handle on ChatInput for the pinned-message Reply action.
+  // Imperative handle on ChatInput for regular chat reply/mention actions.
   const chatInputRef = useRef<ChatInputHandle>(null);
   // Track channelId for emote cleanup
   const currentChannelIdRef = useRef<string | null>(null);
@@ -567,16 +703,17 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         platform: notice.platform,
         type: "system",
         channel: notice.channel,
-        userId: notice.userId,
-        username: "System",
-        displayName: "System",
-        color: "#808080",
+        userId: notice.userId || notice.username || "system",
+        username: notice.username || notice.displayName || "system",
+        displayName: notice.displayName || notice.username || "System",
+        color: "#a970ff",
         badges: [],
         content: [{ type: "text", content: notice.systemMessage }],
         rawContent: notice.systemMessage,
         timestamp: notice.timestamp,
         isDeleted: false,
         isHighlighted: true,
+        highlightKind: getNoticeHighlightKind(notice.type),
         isAction: false,
       };
       addMessage(systemMessage);
@@ -621,10 +758,51 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       } else if (clear.targetUserId) {
         markUserUnbannable(clear.targetUserId);
         const messages = useChatStore.getState().messagesByChannel[clearChannelKey] ?? [];
-        const lastMsg = [...messages]
-          .reverse()
-          .find((m) => m.userId === clear.targetUserId && m.type === "message");
-        deleteMessagesByUser(clearChannelKey, clear.targetUserId);
+        let retainedUserMessage: ChatMessage | undefined;
+        let moderatorMessage: ChatMessage | undefined;
+        const deletedMessageDetails = messages.reduce<RetainedDeletedMessage[]>((acc, m) => {
+          if (m.userId !== clear.targetUserId || m.type !== "message") return acc;
+          retainedUserMessage = m;
+          if (m.rawContent.trim().length === 0) return acc;
+          acc.push({
+            id: m.id,
+            author: {
+              userId: m.userId,
+              username: m.username,
+              displayName: m.displayName,
+              color: m.color,
+              badges: m.badges,
+            },
+            content: m.content,
+            rawContent: m.rawContent,
+            deletedAt: clear.timestamp,
+          });
+          return acc;
+        }, []);
+        const deletedMessageBodies = deletedMessageDetails.map(
+          (deletedMessage) => deletedMessage.rawContent
+        );
+        if (clear.bannedByUsername) {
+          const moderatorLogin = clear.bannedByUsername.toLowerCase();
+          moderatorMessage = messages.find(
+            (m) => m.username.toLowerCase() === moderatorLogin && m.type === "message"
+          );
+        }
+        const moderatorUser = moderatorMessage
+          ? {
+              userId: moderatorMessage.userId,
+              username: moderatorMessage.username,
+              displayName: moderatorMessage.displayName,
+              color: moderatorMessage.color,
+              badges: moderatorMessage.badges,
+            }
+          : undefined;
+        const lastDeletedMessage = deletedMessageBodies[deletedMessageBodies.length - 1];
+        deleteMessagesByUser(clearChannelKey, clear.targetUserId, {
+          deletedAt: clear.timestamp,
+          ...(moderatorUser ? { deletedByUser: moderatorUser } : {}),
+          deletedByUsername: clear.bannedByUsername,
+        });
         addMessage({
           id: crypto.randomUUID(),
           platform: clear.platform,
@@ -643,7 +821,21 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           isAction: false,
           banInfo: {
             bannedUsername: clear.targetUsername ?? clear.targetUserId,
-            lastMessage: lastMsg?.rawContent,
+            ...(retainedUserMessage
+              ? {
+                  bannedUser: {
+                    userId: retainedUserMessage.userId,
+                    username: retainedUserMessage.username,
+                    displayName: retainedUserMessage.displayName,
+                    color: retainedUserMessage.color,
+                    badges: retainedUserMessage.badges,
+                  },
+                }
+              : {}),
+            ...(moderatorUser ? { bannedByUser: moderatorUser } : {}),
+            lastMessage: lastDeletedMessage ?? retainedUserMessage?.rawContent,
+            deletedMessages: deletedMessageBodies,
+            deletedMessageDetails,
             duration: clear.duration,
           },
         });
@@ -652,7 +844,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     const handleMessageDeleted = (deletion: MessageDeletion) => {
       if (deletion.channel !== channel) return;
-      deleteMessage(buildChannelKey("twitch", deletion.channel), deletion.messageId);
+      deleteMessage(buildChannelKey("twitch", deletion.channel), deletion.messageId, {
+        deletedAt: deletion.timestamp,
+      });
     };
 
     const handleError = (error: Error) => {
@@ -663,7 +857,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     const handlePinnedMessage = (pin: NormalizedPinnedMessage) => {
       if (pin.platform !== "twitch") return;
-      setPinnedMessage(pin);
+      const map = useEmoteStore.getState().getEmoteNameMap();
+      const enrichedContent = substituteThirdPartyEmotes(pin.content, map, {
+        includeNative: true,
+      });
+      const enriched = enrichedContent === pin.content ? pin : { ...pin, content: enrichedContent };
+      setPinnedMessage(enriched);
       setShowPinned(true);
       setIsPinExpanded(false);
     };
@@ -694,6 +893,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       setActivePrediction(prediction);
     };
 
+    const handleModeratorState = (event: ModeratorStateEvent) => {
+      if (event.platform !== "twitch") return;
+      if (channelId && event.channelId !== channelId) return;
+      setTwitchChannelModState(event.channelId, event.isModerator);
+    };
+
     twitchChatService.on("message", handleMessage);
     twitchChatService.on("userNotice", handleUserNotice);
     twitchChatService.on("connectionStateChange", handleConnectionStatus);
@@ -704,6 +909,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     twitchChatService.on("pinnedMessageCleared", handlePinnedMessageCleared);
     twitchChatService.on("pollUpdate", handlePollUpdate);
     twitchChatService.on("predictionUpdate", handlePredictionUpdate);
+    twitchChatService.on("moderatorState", handleModeratorState);
 
     return () => {
       twitchChatService.off("message", handleMessage);
@@ -716,6 +922,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       twitchChatService.off("pinnedMessageCleared", handlePinnedMessageCleared);
       twitchChatService.off("pollUpdate", handlePollUpdate);
       twitchChatService.off("predictionUpdate", handlePredictionUpdate);
+      twitchChatService.off("moderatorState", handleModeratorState);
     };
   }, [
     addMessage,
@@ -730,6 +937,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     markUserUnbannable,
     predictionDismissGate,
     pollTimer,
+    setTwitchChannelModState,
   ]);
 
   // U2 — Hermes WebSocket subscription per channelId. Forwards predictions
@@ -781,6 +989,56 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const handleReply = useCallback((message: ChatMessage) => {
     chatInputRef.current?.replyTo(message);
   }, []);
+  const handlePinMessage = useCallback(
+    async (message: ChatMessage, durationSeconds: number | null) => {
+      const messageId = message.id;
+      const runPin = async (accessToken: string) => {
+        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+        if (!channelId || !clientId || !twitchUser?.id) return null;
+        return pinChatMessage(
+          channelId,
+          twitchUser.id,
+          messageId,
+          durationSeconds,
+          accessToken,
+          clientId
+        );
+      };
+
+      const token = await window.electronAPI.auth.getToken("twitch");
+      if (!token?.accessToken) return;
+      const result = await runPin(token.accessToken);
+      if (!result) return;
+      if (result.ok) {
+        setPinDialogMessage(null);
+        toast.success("Pinned message");
+      } else if (result.kind === "unauthenticated" || result.kind === "missing-scopes") {
+        setPinDialogMessage(null);
+        promptReconnect({
+          missingScopes:
+            result.kind === "missing-scopes"
+              ? result.missingScopes
+              : ["moderator:manage:chat_messages"],
+          onReconnected: async () => {
+            const fresh = await window.electronAPI.auth.getToken("twitch");
+            if (!fresh?.accessToken) return;
+            const retry = await runPin(fresh.accessToken);
+            if (retry?.ok) toast.success("Pinned message");
+            else if (retry)
+              toast.error("Couldn't pin message", {
+                description: retry.message ?? retry.kind,
+              });
+          },
+        });
+      } else {
+        toast.error("Couldn't pin message", {
+          description: result.message ?? result.kind,
+        });
+        setPinDialogMessage(null);
+      }
+    },
+    [channelId, promptReconnect, twitchUser?.id]
+  );
 
   // U19 — Chat-tab body. Keeps the existing pinned banner / mod strip /
   // message list / input footer wiring intact. The mod-action and pin
@@ -866,6 +1124,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             onUnpin={
               isMod && pinnedMessage.messageId && twitchUser?.id && channelId
                 ? async () => {
+                    setPinMenuBusy(true);
                     const runUnpin = async (accessToken: string) => {
                       const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
                       if (!clientId || !twitchUser?.id || !channelId) return null;
@@ -877,7 +1136,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                         clientId
                       );
                     };
-                    if (!hasModScopes) {
+                    if (!modScopesLoading && !hasModScopes) {
                       promptReconnect({
                         missingScopes: ["moderator:manage:chat_messages"],
                         onReconnected: async () => {
@@ -915,17 +1174,95 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                           error: error instanceof Error ? error.message : String(error),
                         });
                       }
+                    } finally {
+                      setPinMenuBusy(false);
                     }
                   }
                 : undefined
             }
-            // Hide Reply for guests, the action drafts an @mention into the
-            // chat input, but guests can't send messages anyway.
-            onReply={
-              isAuthenticated
-                ? () => chatInputRef.current?.mentionUser(pinnedMessage.author.username)
+            onUpdateDuration={
+              isMod && pinnedMessage.messageId && twitchUser?.id && channelId
+                ? async (durationSeconds) => {
+                    setPinMenuBusy(true);
+                    const runUpdatePin = async (accessToken: string) => {
+                      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+                      if (!clientId || !twitchUser?.id || !channelId) return null;
+                      return updatePinnedChatMessage(
+                        channelId,
+                        twitchUser.id,
+                        pinnedMessage.messageId,
+                        durationSeconds,
+                        accessToken,
+                        clientId
+                      );
+                    };
+                    const applyOptimisticDuration = () => {
+                      const pinnedAt = new Date().toISOString();
+                      const expiresAt =
+                        durationSeconds === null
+                          ? null
+                          : new Date(Date.now() + durationSeconds * 1000).toISOString();
+                      setPinnedMessage((current) =>
+                        current?.messageId === pinnedMessage.messageId
+                          ? { ...current, pinnedAt, expiresAt }
+                          : current
+                      );
+                    };
+
+                    try {
+                      if (!modScopesLoading && !hasModScopes) {
+                        promptReconnect({
+                          missingScopes: ["moderator:manage:chat_messages"],
+                          onReconnected: async () => {
+                            const fresh = await window.electronAPI.auth.getToken("twitch");
+                            if (!fresh?.accessToken) return;
+                            const retry = await runUpdatePin(fresh.accessToken);
+                            if (retry?.ok) {
+                              applyOptimisticDuration();
+                              toast.success("Pinned message updated");
+                            } else if (retry) {
+                              toast.error("Couldn't update pinned message", {
+                                description: retry.message ?? retry.kind,
+                              });
+                            }
+                          },
+                        });
+                        return;
+                      }
+
+                      const token = await window.electronAPI.auth.getToken("twitch");
+                      if (!token?.accessToken) return;
+                      const result = await runUpdatePin(token.accessToken);
+                      if (!result) return;
+                      if (result.ok) {
+                        applyOptimisticDuration();
+                        toast.success("Pinned message updated");
+                      } else if (
+                        result.kind === "unauthenticated" ||
+                        result.kind === "missing-scopes"
+                      ) {
+                        promptReconnect({
+                          missingScopes:
+                            result.kind === "missing-scopes"
+                              ? result.missingScopes
+                              : ["moderator:manage:chat_messages"],
+                        });
+                      } else {
+                        toast.error("Couldn't update pinned message", {
+                          description: result.message ?? result.kind,
+                        });
+                      }
+                    } catch (error) {
+                      toast.error("Couldn't update pinned message", {
+                        description: error instanceof Error ? error.message : String(error),
+                      });
+                    } finally {
+                      setPinMenuBusy(false);
+                    }
+                  }
                 : undefined
             }
+            pinActionBusy={pinMenuBusy}
             currentChannelContext={currentChannelContext}
           />
         )}
@@ -936,16 +1273,24 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           onPin={
             isMod
               ? (message) => {
-                  // Lazy scope-check: if the token lacks the new scopes, surface
+                  const pinMessage = () => {
+                    if (showTwitchPinDurationDialog) {
+                      setPinDialogMessage(message);
+                    } else {
+                      void handlePinMessage(message, DEFAULT_TWITCH_PIN_DURATION_SECONDS);
+                    }
+                  };
+
+                  // Lazy scope-check: once the token has been inspected, surface
                   // the reconnect dialog instead of opening the pin dialog.
-                  if (!hasModScopes) {
+                  if (!modScopesLoading && !hasModScopes) {
                     promptReconnect({
                       missingScopes: ["moderator:manage:chat_messages"],
-                      onReconnected: () => setPinDialogMessage(message),
+                      onReconnected: pinMessage,
                     });
                     return;
                   }
-                  setPinDialogMessage(message);
+                  pinMessage();
                 }
               : undefined
           }
@@ -980,12 +1325,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               : undefined
           }
           unbanUserIds={unbanUserIds}
-          onDelete={
-            isMod
-              ? (message) =>
-                  setPendingModAction({ kind: "messageScoped", message, actionType: "delete" })
-              : undefined
-          }
+          onDelete={isMod ? handleDeleteMessage : undefined}
           selfUserId={twitchUser?.id}
           currentChannelContext={currentChannelContext}
         />
@@ -1421,7 +1761,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                           const username = action.message.username;
                           if (action.actionType === "ban") {
                             markUserUnbannable(action.message.userId);
-                            toast.success(`Banned ${username}`);
+                            showModActionSuccessToast(`Banned ${username}`);
                           } else if (action.actionType === "warn") {
                             setWarnReason("");
                             toast.success(`Warned ${username}`);
@@ -1429,13 +1769,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                             markUserUnbanned(action.message.userId);
                             toast.success(`Unbanned ${username}`);
                           } else if (action.actionType === "delete") {
-                            toast.success("Deleted message");
+                            showModActionSuccessToast("Deleted message");
                           } else {
                             markUserUnbannable(action.message.userId);
                             const seconds =
                               (extraData as { durationSeconds?: number } | undefined)
                                 ?.durationSeconds ?? 600;
-                            toast.success(
+                            showModActionSuccessToast(
                               `Timed out ${username} for ${formatTimeoutLabel(seconds)}`
                             );
                           }
@@ -1462,8 +1802,18 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                             const freshClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
                             if (!fresh?.accessToken || !freshClientId) return;
                             const retry = await runAction(fresh.accessToken, freshClientId);
-                            if (retry.ok) toast.success("Action completed");
-                            else
+                            if (retry.ok) {
+                              if (
+                                action.kind === "messageScoped" &&
+                                (action.actionType === "ban" ||
+                                  action.actionType === "timeout" ||
+                                  action.actionType === "delete")
+                              ) {
+                                showModActionSuccessToast("Action completed");
+                              } else {
+                                toast.success("Action completed");
+                              }
+                            } else
                               toast.error("Action still failed after reconnect", {
                                 description: retry.message,
                               });
@@ -1506,58 +1856,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             onOpenChange={(open) => {
               if (!open) setPinDialogMessage(null);
             }}
-            messagePreview={pinDialogMessage.rawContent || ""}
+            message={pinDialogMessage}
             busy={pinDialogBusy}
             onConfirm={async (durationSeconds) => {
+              if (!pinDialogMessage) return;
               setPinDialogBusy(true);
-              const messageId = pinDialogMessage.id;
-              const runPin = async (accessToken: string) => {
-                const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                if (!clientId || !twitchUser?.id) return null;
-                return pinChatMessage(
-                  channelId,
-                  twitchUser.id,
-                  messageId,
-                  durationSeconds,
-                  accessToken,
-                  clientId
-                );
-              };
               try {
-                const token = await window.electronAPI.auth.getToken("twitch");
-                if (!token?.accessToken) return;
-                const result = await runPin(token.accessToken);
-                if (!result) return;
-                if (result.ok) {
-                  setPinDialogMessage(null);
-                  toast.success("Pinned message");
-                } else if (result.kind === "unauthenticated" || result.kind === "missing-scopes") {
-                  setPinDialogMessage(null);
-                  promptReconnect({
-                    missingScopes:
-                      result.kind === "missing-scopes"
-                        ? result.missingScopes
-                        : ["moderator:manage:chat_messages"],
-                    onReconnected: async () => {
-                      const fresh = await window.electronAPI.auth.getToken("twitch");
-                      if (!fresh?.accessToken) return;
-                      const retry = await runPin(fresh.accessToken);
-                      if (retry?.ok) toast.success("Pinned message");
-                      else if (retry)
-                        toast.error("Couldn't pin message", {
-                          description: retry.message ?? retry.kind,
-                        });
-                    },
-                  });
-                } else {
-                  // Forbidden / network / other failures: surface a toast and
-                  // close the dialog. The toast carries the action name + the
-                  // server's reason; the user can retry by re-opening the menu.
-                  setPinDialogMessage(null);
-                  toast.error("Couldn't pin message", {
-                    description: result.message ?? result.kind,
-                  });
-                }
+                await handlePinMessage(pinDialogMessage, durationSeconds);
               } finally {
                 setPinDialogBusy(false);
               }
@@ -1612,28 +1917,38 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
           {isPollEnded && <span className="text-xs text-neutral-500 flex-shrink-0">Ended</span>}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
-            title={isExpanded ? "Collapse" : "Expand"}
-          >
-            <BsChevronDown
-              size={12}
-              style={{
-                transform: isExpanded ? "rotate(180deg)" : "none",
-                transition: "transform 0.2s",
-              }}
-            />
-          </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
-            title="Dismiss"
-          >
-            <BsX size={14} />
-          </button>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleExpand}
+                aria-label={isExpanded ? "Collapse" : "Expand"}
+                className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
+              >
+                <BsChevronDown
+                  size={12}
+                  style={{
+                    transform: isExpanded ? "rotate(180deg)" : "none",
+                    transition: "transform 0.2s",
+                  }}
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{isExpanded ? "Collapse" : "Expand"}</TooltipContent>
+          </Tooltip>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onDismiss}
+                aria-label="Dismiss"
+                className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
+              >
+                <BsX size={14} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Dismiss</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

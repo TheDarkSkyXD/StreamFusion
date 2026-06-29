@@ -45,9 +45,8 @@ describe("ChatSettingsSection", () => {
 
     // Traverse to the outer SettingRow div (label <p> → inner text div → left
     // container → outer flex row), where the Switch lives in the right slot.
-    const row = screen
-      .getByText("Readable color for uncolored users")
-      .closest("div")!.parentElement!.parentElement!;
+    const row = screen.getByText("Readable color for uncolored users").closest("div")!
+      .parentElement!.parentElement!;
     fireEvent.click(row.querySelector('[role="switch"]')!);
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
@@ -114,6 +113,44 @@ describe("ChatSettingsSection", () => {
     expect(messageLimit).toHaveAttribute("min", "100");
     expect(messageLimit).toHaveAttribute("max", "1000");
     expect(messageLimit).toHaveAttribute("step", "100");
+  });
+
+  it("shows a deleted-message display dropdown and writes the selected mode", async () => {
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Deleted message display" }));
+    fireEvent.click(screen.getByRole("option", { name: "Audit-style detail" }));
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
+    const arg = updatePreferences.mock.calls[0][0] as {
+      chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    };
+    expect(arg.chatDisplay.deletedMessageDisplay).toBe("audit");
+    expect(arg.chatDisplay.showClearMsg).toBe(true);
+    expect(arg.chatDisplay.messageLimit).toBe(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit);
+  });
+
+  it("uses picture buttons for moderation highlight style and writes the selected style", async () => {
+    renderWithProviders(<ChatSettingsSection only={["events"]} />);
+
+    const compactButton = screen.getByRole("button", { name: /compact/i });
+    const framedButton = screen.getByRole("button", { name: /framed/i });
+    expect(compactButton).toHaveAttribute("aria-pressed", "true");
+    expect(compactButton.className).toContain("shadow-[inset_0_0_0_1px");
+    expect(framedButton.className).toContain("hover:border-[#a1a1aa]");
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+
+    fireEvent.click(framedButton);
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
+    const arg = updatePreferences.mock.calls[0][0] as {
+      chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    };
+    expect(arg.chatDisplay.moderationHighlightStyle).toBe("cozy");
+    expect(arg.chatDisplay.deletedMessageDisplay).toBe(
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.deletedMessageDisplay
+    );
+    expect(arg.chatDisplay.messageLimit).toBe(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit);
   });
 
   it("uses the requested recent messages slider range", () => {
@@ -236,7 +273,8 @@ describe("ChatSettingsSection", () => {
   it('"Hide chat panel" writes chat.position (not chatDisplay)', async () => {
     renderWithProviders(<ChatSettingsSection only={["behavior"]} />);
 
-    fireEvent.click(screen.getByRole("switch"));
+    const row = screen.getByText("Hide chat panel").closest("div")!.parentElement!.parentElement!;
+    fireEvent.click(row.querySelector('[role="switch"]')!);
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
     const arg = updatePreferences.mock.calls[0][0] as {
@@ -245,5 +283,20 @@ describe("ChatSettingsSection", () => {
     expect(arg.chat.position).toBe("hidden");
     // Sibling chat fields preserved.
     expect(arg.chat.size).toBe(DEFAULT_CHAT_PREFERENCES.size);
+  });
+
+  it('"Ask for Twitch pin duration" writes chatDisplay with the spread preserved', async () => {
+    renderWithProviders(<ChatSettingsSection only={["behavior"]} />);
+
+    const row = screen.getByText("Ask for Twitch pin duration").closest("div")!.parentElement!
+      .parentElement!;
+    fireEvent.click(row.querySelector('[role="switch"]')!);
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
+    const arg = updatePreferences.mock.calls[0][0] as {
+      chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    };
+    expect(arg.chatDisplay.showTwitchPinDurationDialog).toBe(false);
+    expect(arg.chatDisplay.messageLimit).toBe(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit);
   });
 });

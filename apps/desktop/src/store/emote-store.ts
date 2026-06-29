@@ -6,6 +6,7 @@
  */
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 import { logger } from "@/renderer/logging/logger";
 import { emoteManager } from "../backend/services/emotes";
@@ -84,219 +85,241 @@ interface EmoteState {
   getEmoteNameMap: () => Map<string, Emote>;
 }
 
-export const useEmoteStore = create<EmoteState>((set, get) => ({
-  isLoading: false,
-  loadedGlobalPlatforms: new Set(),
-  error: null,
-  emoteRevision: 0,
-  loadedChannels: new Set(),
-  recentEmotes: [],
-  maxRecentEmotes: 20,
-  favoriteEmotes: [],
-  activeChannelId: null,
-
-  setLoading: (loading) => set({ isLoading: loading }),
-
-  setError: (error) => set({ error }),
-
-  applyProviderPrefs: (prefs) => {
-    const desired: Record<"7tv" | "bttv" | "ffz", boolean> = {
-      "7tv": prefs.enable7tv,
-      bttv: prefs.enableBttv,
-      ffz: prefs.enableFfz,
-    };
-
-    let changed = false;
-    for (const [provider, enabled] of Object.entries(desired) as Array<[EmoteProvider, boolean]>) {
-      if (emoteManager.isProviderEnabled(provider) !== enabled) {
-        emoteManager.setProviderEnabled(provider, enabled);
-        changed = true;
-      }
-    }
-
-    if (!changed) return;
-
-    // A provider was toggled — drop everything loaded so the next channel/global
-    // load re-fetches with the new provider set. clearAll() purges the manager's
-    // cached emotes (disabled providers stop rendering); resetting the tracking
-    // Sets re-opens the load gates in loadGlobalEmotes/loadChannelEmotes. The
-    // in-flight global map is module-scoped and self-clears on settle, so no
-    // separate reset is needed. We do NOT re-parse already-buffered messages —
-    // next-load semantics only (R10).
-    emoteManager.clearAll();
-    set((state) => ({
+export const useEmoteStore = create<EmoteState>()(
+  persist(
+    (set, get) => ({
+      isLoading: false,
       loadedGlobalPlatforms: new Set(),
+      error: null,
+      emoteRevision: 0,
       loadedChannels: new Set(),
-      emoteRevision: state.emoteRevision + 1,
-    }));
-  },
+      recentEmotes: [],
+      maxRecentEmotes: 20,
+      favoriteEmotes: [],
+      activeChannelId: null,
 
-  loadGlobalEmotes: async (platform, options) => {
-    const state = get();
-    // Per-platform gate when platform is given (so opening Twitch then Kick
-    // still loads each platform's providers once). Falls back to the legacy
-    // "loaded anything" gate when called without a platform.
-    if (
-      !options?.force &&
-      (platform ? state.loadedGlobalPlatforms.has(platform) : state.loadedGlobalPlatforms.size > 0)
-    )
-      return;
+      setLoading: (loading) => set({ isLoading: loading }),
 
-    // Single-flight per-platform key. Critically, "twitch" and "kick" are
-    // independent keys — a Kick load no longer blocks a concurrent Twitch
-    // load the way the old shared `isLoading` boolean did.
-    const key: Platform | "legacy" = platform ?? "legacy";
-    const existing = inFlightGlobalLoads.get(key);
-    if (existing) {
-      await existing;
-      return;
-    }
+      setError: (error) => set({ error }),
 
-    set({ isLoading: true, error: null });
-
-    const run = (async () => {
-      try {
-        await emoteManager.loadGlobalEmotes(platform);
-        set((s) => ({
-          loadedGlobalPlatforms: platform
-            ? new Set([...s.loadedGlobalPlatforms, platform])
-            : s.loadedGlobalPlatforms,
-          emoteRevision: s.emoteRevision + 1,
-          isLoading: false,
-        }));
-      } catch (error) {
-        logger.error("Store:Emote", "failed to load global emotes", {
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        });
-        set({
-          error: "Failed to load global emotes",
-          isLoading: false,
-        });
-      }
-    })();
-
-    inFlightGlobalLoads.set(key, run);
-    try {
-      await run;
-    } finally {
-      if (inFlightGlobalLoads.get(key) === run) {
-        inFlightGlobalLoads.delete(key);
-      }
-    }
-  },
-
-  loadChannelEmotes: async (channelId, channelName, platform = "twitch", kickUserId, options) => {
-    const state = get();
-    if (!options?.force && state.loadedChannels.has(channelId)) return;
-
-    set({ isLoading: true, error: null });
-
-    try {
-      await emoteManager.loadChannelEmotes(channelId, channelName, platform, kickUserId);
-
-      set((state) => ({
-        loadedChannels: new Set([...state.loadedChannels, channelId]),
-        emoteRevision: state.emoteRevision + 1,
-        isLoading: false,
-      }));
-    } catch (error) {
-      logger.error("Store:Emote", "failed to load channel emotes", {
-        channelId,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      set({
-        error: `Failed to load channel emotes`,
-        isLoading: false,
-      });
-    }
-  },
-
-  unloadChannelEmotes: (channelId) => {
-    emoteManager.clearChannelEmotes(channelId);
-
-    set((state) => {
-      const newLoadedChannels = new Set(state.loadedChannels);
-      newLoadedChannels.delete(channelId);
-      return { loadedChannels: newLoadedChannels, emoteRevision: state.emoteRevision + 1 };
-    });
-  },
-
-  setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
-
-  addRecentEmote: (emote) => {
-    set((state) => {
-      // Remove if already exists (to move to front)
-      const filtered = state.recentEmotes.filter((e) => e.id !== emote.id);
-      // Add to front
-      const newRecent = [emote, ...filtered].slice(0, state.maxRecentEmotes);
-      return { recentEmotes: newRecent };
-    });
-  },
-
-  clearRecentEmotes: () => set({ recentEmotes: [] }),
-
-  toggleFavorite: (emote) => {
-    set((state) => {
-      const isFav = state.favoriteEmotes.some((e) => e.id === emote.id);
-      if (isFav) {
-        return {
-          favoriteEmotes: state.favoriteEmotes.filter((e) => e.id !== emote.id),
+      applyProviderPrefs: (prefs) => {
+        const desired: Record<"7tv" | "bttv" | "ffz", boolean> = {
+          "7tv": prefs.enable7tv,
+          bttv: prefs.enableBttv,
+          ffz: prefs.enableFfz,
         };
-      } else {
-        return { favoriteEmotes: [...state.favoriteEmotes, emote] };
-      }
-    });
-  },
 
-  isFavorite: (emoteId) => {
-    const state = get();
-    return state.favoriteEmotes.some((e) => e.id === emoteId);
-  },
+        let changed = false;
+        for (const [provider, enabled] of Object.entries(desired) as Array<
+          [EmoteProvider, boolean]
+        >) {
+          if (emoteManager.isProviderEnabled(provider) !== enabled) {
+            emoteManager.setProviderEnabled(provider, enabled);
+            changed = true;
+          }
+        }
 
-  searchEmotes: (query, limit = 20) => {
-    const state = get();
-    return emoteManager.searchEmotes(query, state.activeChannelId || undefined, limit);
-  },
+        if (!changed) return;
 
-  getEmotesByProvider: () => {
-    const state = get();
-    return emoteManager.getEmotesByProvider(state.activeChannelId || undefined);
-  },
+        // A provider was toggled — drop everything loaded so the next channel/global
+        // load re-fetches with the new provider set. clearAll() purges the manager's
+        // cached emotes (disabled providers stop rendering); resetting the tracking
+        // Sets re-opens the load gates in loadGlobalEmotes/loadChannelEmotes. The
+        // in-flight global map is module-scoped and self-clears on settle, so no
+        // separate reset is needed. We do NOT re-parse already-buffered messages —
+        // next-load semantics only (R10).
+        emoteManager.clearAll();
+        set((state) => ({
+          loadedGlobalPlatforms: new Set(),
+          loadedChannels: new Set(),
+          emoteRevision: state.emoteRevision + 1,
+        }));
+      },
 
-  getAllEmotes: () => {
-    const state = get();
-    return emoteManager.getAllEmotes(state.activeChannelId || undefined);
-  },
+      loadGlobalEmotes: async (platform, options) => {
+        const state = get();
+        // Per-platform gate when platform is given (so opening Twitch then Kick
+        // still loads each platform's providers once). Falls back to the legacy
+        // "loaded anything" gate when called without a platform.
+        if (
+          !options?.force &&
+          (platform
+            ? state.loadedGlobalPlatforms.has(platform)
+            : state.loadedGlobalPlatforms.size > 0)
+        )
+          return;
 
-  getEmoteNameMap: () => {
-    const state = get();
-    if (
-      emoteNameMapCache &&
-      emoteNameMapCache.activeChannelId === state.activeChannelId &&
-      emoteNameMapCache.emoteRevision === state.emoteRevision
-    ) {
-      return emoteNameMapCache.map;
+        // Single-flight per-platform key. Critically, "twitch" and "kick" are
+        // independent keys — a Kick load no longer blocks a concurrent Twitch
+        // load the way the old shared `isLoading` boolean did.
+        const key: Platform | "legacy" = platform ?? "legacy";
+        const existing = inFlightGlobalLoads.get(key);
+        if (existing) {
+          await existing;
+          return;
+        }
+
+        set({ isLoading: true, error: null });
+
+        const run = (async () => {
+          try {
+            await emoteManager.loadGlobalEmotes(platform);
+            set((s) => ({
+              loadedGlobalPlatforms: platform
+                ? new Set([...s.loadedGlobalPlatforms, platform])
+                : s.loadedGlobalPlatforms,
+              emoteRevision: s.emoteRevision + 1,
+              isLoading: false,
+            }));
+          } catch (error) {
+            logger.error("Store:Emote", "failed to load global emotes", {
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            });
+            set({
+              error: "Failed to load global emotes",
+              isLoading: false,
+            });
+          }
+        })();
+
+        inFlightGlobalLoads.set(key, run);
+        try {
+          await run;
+        } finally {
+          if (inFlightGlobalLoads.get(key) === run) {
+            inFlightGlobalLoads.delete(key);
+          }
+        }
+      },
+
+      loadChannelEmotes: async (
+        channelId,
+        channelName,
+        platform = "twitch",
+        kickUserId,
+        options
+      ) => {
+        const state = get();
+        if (!options?.force && state.loadedChannels.has(channelId)) return;
+
+        set({ isLoading: true, error: null });
+
+        try {
+          await emoteManager.loadChannelEmotes(channelId, channelName, platform, kickUserId);
+
+          set((state) => ({
+            loadedChannels: new Set([...state.loadedChannels, channelId]),
+            emoteRevision: state.emoteRevision + 1,
+            isLoading: false,
+          }));
+        } catch (error) {
+          logger.error("Store:Emote", "failed to load channel emotes", {
+            channelId,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
+          set({
+            error: `Failed to load channel emotes`,
+            isLoading: false,
+          });
+        }
+      },
+
+      unloadChannelEmotes: (channelId) => {
+        emoteManager.clearChannelEmotes(channelId);
+
+        set((state) => {
+          const newLoadedChannels = new Set(state.loadedChannels);
+          newLoadedChannels.delete(channelId);
+          return { loadedChannels: newLoadedChannels, emoteRevision: state.emoteRevision + 1 };
+        });
+      },
+
+      setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
+
+      addRecentEmote: (emote) => {
+        set((state) => {
+          // Remove if already exists (to move to front)
+          const filtered = state.recentEmotes.filter((e) => e.id !== emote.id);
+          // Add to front
+          const newRecent = [emote, ...filtered].slice(0, state.maxRecentEmotes);
+          return { recentEmotes: newRecent };
+        });
+      },
+
+      clearRecentEmotes: () => set({ recentEmotes: [] }),
+
+      toggleFavorite: (emote) => {
+        set((state) => {
+          const isFav = state.favoriteEmotes.some((e) => e.id === emote.id);
+          if (isFav) {
+            return {
+              favoriteEmotes: state.favoriteEmotes.filter((e) => e.id !== emote.id),
+            };
+          } else {
+            return { favoriteEmotes: [...state.favoriteEmotes, emote] };
+          }
+        });
+      },
+
+      isFavorite: (emoteId) => {
+        const state = get();
+        return state.favoriteEmotes.some((e) => e.id === emoteId);
+      },
+
+      searchEmotes: (query, limit = 20) => {
+        const state = get();
+        return emoteManager.searchEmotes(query, state.activeChannelId || undefined, limit);
+      },
+
+      getEmotesByProvider: () => {
+        const state = get();
+        return emoteManager.getEmotesByProvider(state.activeChannelId || undefined);
+      },
+
+      getAllEmotes: () => {
+        const state = get();
+        return emoteManager.getAllEmotes(state.activeChannelId || undefined);
+      },
+
+      getEmoteNameMap: () => {
+        const state = get();
+        if (
+          emoteNameMapCache &&
+          emoteNameMapCache.activeChannelId === state.activeChannelId &&
+          emoteNameMapCache.emoteRevision === state.emoteRevision
+        ) {
+          return emoteNameMapCache.map;
+        }
+
+        const map = new Map(
+          emoteManager
+            .getAllEmotes(state.activeChannelId || undefined)
+            .map((emote) => [emote.name, emote])
+        );
+        emoteNameMapCache = {
+          activeChannelId: state.activeChannelId,
+          emoteRevision: state.emoteRevision,
+          map,
+        };
+        return map;
+      },
+    }),
+    {
+      name: "emote-storage",
+      partialize: (state) => ({
+        recentEmotes: state.recentEmotes,
+        maxRecentEmotes: state.maxRecentEmotes,
+        favoriteEmotes: state.favoriteEmotes,
+      }),
     }
-
-    const map = new Map(
-      emoteManager
-        .getAllEmotes(state.activeChannelId || undefined)
-        .map((emote) => [emote.name, emote])
-    );
-    emoteNameMapCache = {
-      activeChannelId: state.activeChannelId,
-      emoteRevision: state.emoteRevision,
-      map,
-    };
-    return map;
-  },
-}));
+  )
+);
 
 /**
  * Derived selector for "global emotes have loaded for at least one platform".

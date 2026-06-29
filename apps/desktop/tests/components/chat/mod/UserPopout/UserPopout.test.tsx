@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Mock the profile fetcher BEFORE importing the popout — the hook runs an
 // effect on mount and we don't want it touching the network.
@@ -26,7 +27,6 @@ beforeEach(() => {
   mockedUseUserProfile.mockReset();
   useChatStore.setState({ messagesByChannel: {} });
   // Stub the electronAPI for openExternal usage inside the footer.
-  // biome-ignore lint/suspicious/noExplicitAny: test stub
   (globalThis as any).window.electronAPI = {
     openExternal: vi.fn(),
     auth: { getToken: vi.fn().mockResolvedValue(null) },
@@ -55,15 +55,17 @@ function makeMessage(id: string, channel: string, rawContent: string): ChatMessa
 
 function renderPopout(open = true) {
   return render(
-    <UserPopout
-      userId="u1"
-      username="alice"
-      platform="twitch"
-      channelId="c1"
-      channelSlug="streamer"
-      open={open}
-      onOpenChange={() => {}}
-    />,
+    <TooltipProvider>
+      <UserPopout
+        userId="u1"
+        username="alice"
+        platform="twitch"
+        channelId="c1"
+        channelSlug="streamer"
+        open={open}
+        onOpenChange={() => {}}
+      />
+    </TooltipProvider>
   );
 }
 

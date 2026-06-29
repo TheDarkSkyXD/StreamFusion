@@ -4,17 +4,19 @@
  * Visual style mirrors Twitch.tv's native pinned card: an inset 6px-radius
  * card with a "Pinned by [mod]" label on top and the original message row
  * underneath. Layout is narrow-width safe down to ~280px (multistream slot
- * floor); long content truncates to one line in collapsed state and wraps
- * in expanded state.
+ * floor); long content shows a short preview in collapsed state and wraps in
+ * full when expanded.
  *
  * The close control is viewer-role-aware:
  *   - viewerRole="viewer" -> Dismiss (X icon), local-only via `onDismiss`
  *   - viewerRole="mod"    -> Unpin (eye-off icon), server-side via `onUnpin`
  */
 
+import { MoreVertical } from "lucide-react";
 import type React from "react";
-import { memo, useMemo } from "react";
-import { BsChevronDown, BsReplyFill } from "react-icons/bs";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { BsChevronDown } from "react-icons/bs";
+import { useInterval } from "@/hooks/useInterval";
 import type {
   ChatBadge as ChatBadgeType,
   ContentFragment,
@@ -23,6 +25,10 @@ import type {
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
+import {
+  TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS,
+  TWITCH_CHAT_ACTION_TOOLTIP_CLASS,
+} from "./ChatMessageActionStyles";
 import { formatMentionLabel } from "./mention-label";
 import { Username, type UsernameChannelContext } from "./Username";
 
@@ -84,6 +90,120 @@ const EyeOffIcon: React.FC<{ className?: string }> = ({ className }) => (
 const ICON_BUTTON_CLASS =
   "inline-flex items-center justify-center w-8 h-8 rounded-full text-[#EFEFF1] " +
   "hover:bg-white/10 active:bg-white/15 transition-colors";
+const COLLAPSED_CONTENT_STYLE: React.CSSProperties = {
+  maxHeight: "3.25rem",
+  WebkitMaskImage: "linear-gradient(to bottom, #000 72%, transparent)",
+  maskImage: "linear-gradient(to bottom, #000 72%, transparent)",
+};
+const TWITCH_PIN_DURATION_OPTIONS = [
+  { label: "1 minute", value: 60 },
+  { label: "5 minutes", value: 5 * 60 },
+  { label: "15 minutes", value: 15 * 60 },
+  { label: "30 minutes", value: 30 * 60 },
+  { label: "No expiry", value: null },
+] as const;
+const DEFAULT_TWITCH_PIN_DURATION_SECONDS = 30 * 60;
+const CUSTOM_TWITCH_PIN_DURATION = "custom";
+
+type TwitchPinDurationSelection =
+  | (typeof TWITCH_PIN_DURATION_OPTIONS)[number]["value"]
+  | typeof CUSTOM_TWITCH_PIN_DURATION;
+type TwitchPinDurationUnit = "seconds" | "minutes";
+
+interface TwitchPinProgressState {
+  percent: number;
+  timeLeftLabel: string;
+}
+
+function formatTimeLeft(remainingMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+  if (totalSeconds === 0) return "Expired";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s left`;
+  if (minutes > 0) return `${minutes}m ${seconds}s left`;
+  return `${seconds}s left`;
+}
+
+function getTwitchPinProgressState(
+  pin: NormalizedPinnedMessage,
+  now = Date.now()
+): TwitchPinProgressState | null {
+  if (pin.platform !== "twitch" || !pin.pinnedAt || !pin.expiresAt) return null;
+  const start = Date.parse(pin.pinnedAt);
+  const end = Date.parse(pin.expiresAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return {
+    percent: Math.min(100, Math.max(0, ((end - now) / (end - start)) * 100)),
+    timeLeftLabel: formatTimeLeft(end - now),
+  };
+}
+
+function useTwitchPinProgressState(pin: NormalizedPinnedMessage): TwitchPinProgressState | null {
+  const [now, setNow] = useState(() => Date.now());
+  const { platform, pinnedAt, expiresAt } = pin;
+  const hasRunningTimer =
+    platform === "twitch" &&
+    Boolean(pinnedAt && expiresAt) &&
+    Number.isFinite(Date.parse(pinnedAt ?? "")) &&
+    Number.isFinite(Date.parse(expiresAt ?? "")) &&
+    Date.parse(expiresAt ?? "") > Date.parse(pinnedAt ?? "");
+
+  useEffect(() => {
+    if (platform !== "twitch" || !pinnedAt || !expiresAt) return;
+    const start = Date.parse(pinnedAt);
+    const end = Date.parse(expiresAt);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    setNow(Date.now());
+  }, [platform, pinnedAt, expiresAt]);
+
+  useInterval(() => setNow(Date.now()), hasRunningTimer ? 250 : null);
+
+  return getTwitchPinProgressState(pin, now);
+}
+
+function getTwitchPinDurationSeconds(pin: NormalizedPinnedMessage): number | null {
+  if (pin.platform !== "twitch" || !pin.pinnedAt || !pin.expiresAt) return null;
+  const start = Date.parse(pin.pinnedAt);
+  const end = Date.parse(pin.expiresAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+
+  return Math.round((end - start) / 1000);
+}
+
+function getInitialTwitchPinDuration(pin: NormalizedPinnedMessage): TwitchPinDurationSelection {
+  const seconds = getTwitchPinDurationSeconds(pin);
+  if (seconds === null) return DEFAULT_TWITCH_PIN_DURATION_SECONDS;
+  return TWITCH_PIN_DURATION_OPTIONS.some((opt) => opt.value === seconds)
+    ? seconds
+    : CUSTOM_TWITCH_PIN_DURATION;
+}
+
+function getInitialCustomDuration(pin: NormalizedPinnedMessage): {
+  amount: string;
+  unit: TwitchPinDurationUnit;
+} {
+  const seconds = getTwitchPinDurationSeconds(pin);
+  if (seconds === null || TWITCH_PIN_DURATION_OPTIONS.some((opt) => opt.value === seconds)) {
+    return { amount: "1", unit: "minutes" };
+  }
+
+  return seconds % 60 === 0
+    ? { amount: String(seconds / 60), unit: "minutes" }
+    : { amount: String(seconds), unit: "seconds" };
+}
+
+function resolveTwitchPinDurationSelection(
+  selection: TwitchPinDurationSelection,
+  customAmount: string,
+  customUnit: TwitchPinDurationUnit
+): number | null | undefined {
+  if (selection !== CUSTOM_TWITCH_PIN_DURATION) return selection;
+  const amount = Number(customAmount);
+  if (!Number.isInteger(amount) || amount <= 0) return undefined;
+  return customUnit === "minutes" ? amount * 60 : amount;
+}
 
 const KICK_GIFT_BADGE_SET_IDS = new Set([
   "sub_gifter",
@@ -136,8 +256,9 @@ export interface PinnedMessageBannerProps {
   onDismiss?: () => void;
   /** Mod-only server-side unpin. */
   onUnpin?: () => void;
-  /** Optional reply-to-pinned-author action. Only rendered when expanded. */
-  onReply?: () => void;
+  /** Twitch mod-only duration update for the currently pinned message. */
+  onUpdateDuration?: (durationSeconds: number | null) => void | Promise<void>;
+  pinActionBusy?: boolean;
   /** Channel scope used by clickable usernames to open the user popout. */
   currentChannelContext?: UsernameChannelContext;
 }
@@ -198,9 +319,21 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   onExpandToggle,
   onDismiss,
   onUnpin,
-  onReply,
+  onUpdateDuration,
+  pinActionBusy = false,
   currentChannelContext,
 }) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [selectedDuration, setSelectedDuration] = useState<TwitchPinDurationSelection>(() =>
+    getInitialTwitchPinDuration(pin)
+  );
+  const [customDurationAmount, setCustomDurationAmount] = useState(
+    () => getInitialCustomDuration(pin).amount
+  );
+  const [customDurationUnit, setCustomDurationUnit] = useState<TwitchPinDurationUnit>(
+    () => getInitialCustomDuration(pin).unit
+  );
   const renderableAuthorBadges = useMemo(
     () => orderRenderableUsernameBadges(pin.author.badges, pin.platform),
     [pin.author.badges, pin.platform]
@@ -209,6 +342,11 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
     () => orderRenderableUsernameBadges(pin.pinnedBy?.badges ?? [], pin.platform),
     [pin.pinnedBy?.badges, pin.platform]
   );
+  const progressState = useTwitchPinProgressState(pin);
+  const progressWidth = progressState === null ? null : `${progressState.percent}%`;
+  const progressAriaValue = progressState === null ? undefined : Math.round(progressState.percent);
+  const showTwitchModMenu =
+    pin.platform === "twitch" && viewerRole === "mod" && (!!onUnpin || !!onUpdateDuration);
 
   const accentColor = pin.author.color || (pin.platform === "kick" ? "#53FC18" : "#9146FF");
   const pinnedByColor = pin.pinnedBy?.color || accentColor;
@@ -218,6 +356,51 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
           borderColor: "rgba(240, 241, 242, 0.16)",
         }
       : undefined;
+
+  useEffect(() => {
+    setSelectedDuration(getInitialTwitchPinDuration(pin));
+    const customDuration = getInitialCustomDuration(pin);
+    setCustomDurationAmount(customDuration.amount);
+    setCustomDurationUnit(customDuration.unit);
+  }, [pin]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    function onPointerDown(event: MouseEvent) {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setIsMenuOpen(false);
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsMenuOpen(false);
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  const handleApplyDuration = () => {
+    if (!onUpdateDuration) return;
+    const duration = resolveTwitchPinDurationSelection(
+      selectedDuration,
+      customDurationAmount,
+      customDurationUnit
+    );
+    if (duration === undefined) return;
+    setIsMenuOpen(false);
+    void Promise.resolve(onUpdateDuration(duration));
+  };
+  const canApplyDuration =
+    resolveTwitchPinDurationSelection(
+      selectedDuration,
+      customDurationAmount,
+      customDurationUnit
+    ) !== undefined;
 
   return (
     <div
@@ -233,7 +416,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
        * Captured live from twitch.tv/fitzbro on 2026-05-18.
        */}
       <div
-        className="pointer-events-auto border border-[var(--color-border,rgba(83,83,95,0.48))] rounded-md bg-neutral-800 p-2"
+        className="pointer-events-auto cursor-pointer border border-[var(--color-border,rgba(83,83,95,0.48))] rounded-md bg-neutral-800 p-2"
         style={cardStyle}
       >
         {/* Header row: pin icon + "Pinned by [badges] X" + controls.
@@ -273,7 +456,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                 <Username
                   userId={pin.pinnedBy.userId ?? pin.pinnedBy.username}
                   username={pin.pinnedBy.username}
-                  displayName={pin.pinnedBy.username}
+                  displayName={pin.pinnedBy.displayName || pin.pinnedBy.username}
                   color={pinnedByColor}
                   platform={pin.platform}
                   className="font-semibold truncate min-w-0"
@@ -301,10 +484,15 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                     <EyeOffIcon />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Hide for yourself</TooltipContent>
+                <TooltipContent
+                  className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+                  arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+                >
+                  Hide for yourself
+                </TooltipContent>
               </Tooltip>
             ) : null}
-            {viewerRole === "mod" && onUnpin ? (
+            {viewerRole === "mod" && onUnpin && !showTwitchModMenu ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -317,28 +505,166 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                     <EyeOffIcon />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Unpin</TooltipContent>
+                <TooltipContent
+                  className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+                  arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+                >
+                  Unpin
+                </TooltipContent>
               </Tooltip>
             ) : null}
-            <Tooltip>
-              <TooltipTrigger asChild>
+            {showTwitchModMenu ? (
+              <div ref={menuRef} className="relative">
                 <button
                   type="button"
-                  onClick={onExpandToggle}
+                  onClick={() => setIsMenuOpen((open) => !open)}
                   className={ICON_BUTTON_CLASS}
-                  aria-label={isExpanded ? "Collapse pinned message" : "Expand pinned message"}
+                  aria-label="Pinned message options"
+                  aria-expanded={isMenuOpen}
+                  data-testid="pinned-message-options-button"
                 >
-                  <BsChevronDown
-                    size={20}
-                    style={{
-                      transform: isExpanded ? "rotate(180deg)" : "none",
-                      transition: "transform 0.2s",
-                    }}
-                  />
+                  <MoreVertical size={20} strokeWidth={2.5} />
                 </button>
-              </TooltipTrigger>
-              <TooltipContent>{isExpanded ? "Collapse" : "Expand"}</TooltipContent>
-            </Tooltip>
+                {isMenuOpen ? (
+                  <div
+                    role="menu"
+                    aria-label="Pinned message options"
+                    className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-[rgba(83,83,95,0.72)] bg-[#18181b] py-2 text-sm text-[#EFEFF1] shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+                    data-testid="pinned-message-options-menu"
+                  >
+                    {onUpdateDuration ? (
+                      <div className="px-2">
+                        <div className="px-2 pb-1 text-xs font-semibold uppercase text-[#adadb8]">
+                          Duration
+                        </div>
+                        <fieldset className="space-y-0.5">
+                          {TWITCH_PIN_DURATION_OPTIONS.map((option) => (
+                            <label
+                              key={option.label}
+                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10"
+                            >
+                              <input
+                                type="radio"
+                                name="pinned-message-duration"
+                                checked={selectedDuration === option.value}
+                                onChange={() => setSelectedDuration(option.value)}
+                                className="cursor-pointer accent-[#9146FF]"
+                                disabled={pinActionBusy}
+                              />
+                              <span>{option.label}</span>
+                            </label>
+                          ))}
+                          <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10">
+                            <input
+                              type="radio"
+                              name="pinned-message-duration"
+                              checked={selectedDuration === CUSTOM_TWITCH_PIN_DURATION}
+                              onChange={() => setSelectedDuration(CUSTOM_TWITCH_PIN_DURATION)}
+                              className="cursor-pointer accent-[#9146FF]"
+                              disabled={pinActionBusy}
+                            />
+                            <span>Custom</span>
+                          </label>
+                        </fieldset>
+                        {selectedDuration === CUSTOM_TWITCH_PIN_DURATION ? (
+                          <div className="mt-2 flex items-center gap-2 px-2">
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              inputMode="numeric"
+                              aria-label="Custom pin duration"
+                              value={customDurationAmount}
+                              onChange={(event) => setCustomDurationAmount(event.target.value)}
+                              onFocus={() => setSelectedDuration(CUSTOM_TWITCH_PIN_DURATION)}
+                              disabled={pinActionBusy}
+                              className="h-8 min-w-0 flex-1 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
+                            />
+                            <select
+                              aria-label="Custom pin duration unit"
+                              value={customDurationUnit}
+                              onChange={(event) =>
+                                setCustomDurationUnit(event.target.value as TwitchPinDurationUnit)
+                              }
+                              disabled={pinActionBusy}
+                              className="h-8 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <option value="seconds">secs</option>
+                              <option value="minutes">mins</option>
+                            </select>
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={handleApplyDuration}
+                          disabled={pinActionBusy || !canApplyDuration}
+                          className="mt-2 flex h-8 w-full items-center justify-center rounded bg-[#9146FF] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#772ce8] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {pinActionBusy ? "Applying..." : "Apply"}
+                        </button>
+                      </div>
+                    ) : null}
+                    {onUpdateDuration && (onDismiss || onUnpin) ? (
+                      <div className="my-2 h-px bg-[rgba(83,83,95,0.72)]" />
+                    ) : null}
+                    {onDismiss ? (
+                      <div className="px-2">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            onDismiss();
+                          }}
+                          disabled={pinActionBusy}
+                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#EFEFF1] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
+                          <span>Hide for yourself</span>
+                        </button>
+                      </div>
+                    ) : null}
+                    {onDismiss && onUnpin ? (
+                      <div className="my-2 h-px bg-[rgba(83,83,95,0.72)]" />
+                    ) : null}
+                    {onUnpin ? (
+                      <div className="px-2">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            onUnpin();
+                          }}
+                          disabled={pinActionBusy}
+                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#ff8280] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
+                          <span>Unpin message</span>
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={onExpandToggle}
+              className={ICON_BUTTON_CLASS}
+              aria-label={isExpanded ? "Collapse pinned message" : "Expand pinned message"}
+            >
+              <BsChevronDown
+                data-testid="pinned-message-expand-icon"
+                size={22}
+                style={{
+                  stroke: "currentColor",
+                  strokeWidth: 1.35,
+                  transform: isExpanded ? "rotate(180deg)" : "none",
+                  transition: "transform 0.2s",
+                }}
+              />
+            </button>
           </div>
         </div>
 
@@ -346,13 +672,16 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
          * sender entirely in collapsed state — the "Pinned by X" header is
          * the only attribution. 18px / weight 500 / 1.3 line-height.
          *
-         * Body always wraps (twitch.tv parity): long messages flow to as many
-         * lines as needed; long URLs fall back to `break-all` on the link
-         * fragment itself. The expand/collapse chevron only toggles the
-         * sender row + reply button — never clips the message. */}
+         * Collapsed body shows a short preview so long pins do not cover the
+         * chat. Expanded body removes the cap and wraps fully; long URLs fall
+         * back to `break-all` on the link fragment itself. */}
         <div
-          className="mt-0.5 text-lg font-medium leading-snug text-[#EFEFF1] break-words"
+          className={`mt-0.5 text-lg font-medium leading-snug text-[#EFEFF1] break-words ${
+            isExpanded ? "" : "overflow-hidden"
+          }`}
           data-testid="pinned-message-content"
+          data-expanded={isExpanded ? "true" : "false"}
+          style={isExpanded ? undefined : COLLAPSED_CONTENT_STYLE}
         >
           {pin.content.map((fragment, i) => (
             <PinnedFragment
@@ -404,24 +733,41 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
           </div>
         ) : null}
 
-        {/* Expanded-only actions row */}
-        {isExpanded && onReply ? (
-          <div className="mt-1 flex justify-end">
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={onReply}
-                  className="flex items-center gap-1 text-xs text-neutral-400 hover:text-white px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
-                  aria-label="Reply to pinned message"
+        {isExpanded && progressWidth && progressState ? (
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <div
+                className="group mt-2 h-5 cursor-pointer py-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
+                data-testid="pinned-message-duration-progress-slot"
+                tabIndex={0}
+              >
+                <div
+                  role="progressbar"
+                  aria-label="Pinned message duration"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progressAriaValue}
+                  aria-valuetext={progressState.timeLeftLabel}
+                  className="h-1 w-full overflow-hidden rounded-[9000px] bg-[rgba(83,83,95,0.55)] transition-colors duration-150 group-hover:bg-[rgba(83,83,95,0.78)] group-focus-visible:bg-[rgba(83,83,95,0.78)]"
+                  data-testid="pinned-message-duration-progress"
                 >
-                  <BsReplyFill size={10} />
-                  Reply
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Reply to pinned message</TooltipContent>
-            </Tooltip>
-          </div>
+                  <div
+                    className={`h-full bg-[#A970FF] transition-[width,background-color] duration-[250ms] ease-linear group-hover:bg-[#BF94FF] group-focus-visible:bg-[#BF94FF] ${
+                      progressAriaValue === 100 ? "rounded-[9000px]" : "rounded-l-[9000px]"
+                    }`}
+                    data-testid="pinned-message-duration-progress-fill"
+                    style={{ width: progressWidth }}
+                  />
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent
+              className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+              arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+            >
+              {progressState.timeLeftLabel}
+            </TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
     </div>

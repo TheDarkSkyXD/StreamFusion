@@ -6,6 +6,7 @@ import {
   type InlineModAction,
   type InlineModStripRoomState,
 } from "@/components/chat/mod/InlineModStrip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const EMPTY_STATE: InlineModStripRoomState = {
   slowMode: null,
@@ -24,14 +25,16 @@ function setup(props: {
 }) {
   const onActionClick = props.onActionClick ?? vi.fn();
   render(
-    <InlineModStrip
-      platform={props.platform}
-      isBroadcaster={props.isBroadcaster}
-      channelId="c1"
-      channelSlug="streamer"
-      roomState={{ ...EMPTY_STATE, ...(props.roomState ?? {}) }}
-      onActionClick={onActionClick}
-    />,
+    <TooltipProvider>
+      <InlineModStrip
+        platform={props.platform}
+        isBroadcaster={props.isBroadcaster}
+        channelId="c1"
+        channelSlug="streamer"
+        roomState={{ ...EMPTY_STATE, ...(props.roomState ?? {}) }}
+        onActionClick={onActionClick}
+      />
+    </TooltipProvider>,
   );
   return { onActionClick };
 }
@@ -69,6 +72,17 @@ describe("InlineModStrip", () => {
     expect(screen.queryByTestId("inline-mod-strip-commercial")).toBeNull();
     expect(screen.queryByTestId("inline-mod-strip-shield")).toBeNull();
     expect(screen.queryByTestId("inline-mod-strip-unique")).toBeNull();
+  });
+
+  it("uses the custom tooltip for mod action icons", async () => {
+    setup({ platform: "twitch", isBroadcaster: false });
+    const button = screen.getByTestId("inline-mod-strip-clear");
+    expect(button).not.toHaveAttribute("title");
+
+    fireEvent.pointerMove(button);
+    fireEvent.pointerEnter(button);
+
+    expect(await screen.findAllByText("Clear chat")).not.toHaveLength(0);
   });
 
   it("paints the slow-mode toggle active when roomState.slowMode is set", () => {

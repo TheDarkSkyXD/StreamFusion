@@ -1,7 +1,8 @@
-import { act, render, screen, fireEvent } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PredictionBanner } from "@/components/chat/PredictionBanner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -55,6 +56,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
 });
+
+function renderWithTooltipProvider(ui: React.ReactElement) {
+  return render(<TooltipProvider>{ui}</TooltipProvider>);
+}
 
 function setTwitchUser() {
   useAuthStore.setState((s) => ({
@@ -113,8 +118,12 @@ describe("PredictionBanner (read-only viewer widget)", () => {
   it("renders 'Winner' tag + ended-state subtitle on winning outcome when status is RESOLVED", () => {
     render(
       <PredictionBanner
-        prediction={makePrediction({ status: "RESOLVED", winningOutcomeId: "outcome-a", endedAt: "2026-05-18T22:02:11Z" })}
-      />,
+        prediction={makePrediction({
+          status: "RESOLVED",
+          winningOutcomeId: "outcome-a",
+          endedAt: "2026-05-18T22:02:11Z",
+        })}
+      />
     );
     // Ended states use "View Result" CTA instead of "See Details"
     fireEvent.click(screen.getByLabelText("View Result"));
@@ -137,7 +146,7 @@ describe("PredictionBanner (read-only viewer widget)", () => {
         <PredictionBanner
           prediction={makePrediction({ status: "RESOLVED", winningOutcomeId: "outcome-a" })}
           onAutoDismiss={onAutoDismiss}
-        />,
+        />
       );
       vi.advanceTimersByTime(60_000);
       expect(onAutoDismiss).toHaveBeenCalledTimes(1);
@@ -150,9 +159,7 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     vi.useFakeTimers();
     try {
       const onAutoDismiss = vi.fn();
-      render(
-        <PredictionBanner prediction={makePrediction()} onAutoDismiss={onAutoDismiss} />,
-      );
+      render(<PredictionBanner prediction={makePrediction()} onAutoDismiss={onAutoDismiss} />);
       vi.advanceTimersByTime(120_000);
       expect(onAutoDismiss).not.toHaveBeenCalled();
     } finally {
@@ -176,15 +183,13 @@ describe("PredictionBanner (read-only viewer widget)", () => {
   it("data-style is 'twitch-native' for Twitch + native preference", () => {
     render(<PredictionBanner prediction={makePrediction()} />);
     expect(screen.getByTestId("prediction-banner").getAttribute("data-style")).toBe(
-      "twitch-native",
+      "twitch-native"
     );
   });
 
   it("data-style is 'kick-native' for Kick + native preference", () => {
     render(<PredictionBanner prediction={makePrediction({ platform: "kick" })} />);
-    expect(screen.getByTestId("prediction-banner").getAttribute("data-style")).toBe(
-      "kick-native",
-    );
+    expect(screen.getByTestId("prediction-banner").getAttribute("data-style")).toBe("kick-native");
   });
 
   it("collapses expanded state when a new prediction id arrives", () => {
@@ -200,7 +205,9 @@ describe("PredictionBanner (read-only viewer widget)", () => {
   });
 
   it("renders a dismiss control in the collapsed view when onDismiss is provided", () => {
-    render(<PredictionBanner prediction={makePrediction()} onDismiss={() => {}} />);
+    renderWithTooltipProvider(
+      <PredictionBanner prediction={makePrediction()} onDismiss={() => {}} />
+    );
     expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
   });
 
@@ -211,20 +218,26 @@ describe("PredictionBanner (read-only viewer widget)", () => {
 
   it("calls onDismiss when the collapsed-view dismiss button is clicked", () => {
     const onDismiss = vi.fn();
-    render(<PredictionBanner prediction={makePrediction()} onDismiss={onDismiss} />);
+    renderWithTooltipProvider(
+      <PredictionBanner prediction={makePrediction()} onDismiss={onDismiss} />
+    );
     fireEvent.click(screen.getByTestId("prediction-dismiss"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
   it("renders an expanded-view dismiss control when onDismiss is provided", () => {
-    render(<PredictionBanner prediction={makePrediction()} onDismiss={() => {}} />);
+    renderWithTooltipProvider(
+      <PredictionBanner prediction={makePrediction()} onDismiss={() => {}} />
+    );
     fireEvent.click(screen.getByLabelText("See Details"));
     expect(screen.getByTestId("prediction-dismiss-expanded")).toBeTruthy();
   });
 
   it("calls onDismiss when the expanded-view dismiss button is clicked", () => {
     const onDismiss = vi.fn();
-    render(<PredictionBanner prediction={makePrediction()} onDismiss={onDismiss} />);
+    renderWithTooltipProvider(
+      <PredictionBanner prediction={makePrediction()} onDismiss={onDismiss} />
+    );
     fireEvent.click(screen.getByLabelText("See Details"));
     fireEvent.click(screen.getByTestId("prediction-dismiss-expanded"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -241,22 +254,21 @@ describe("PredictionBanner (read-only viewer widget)", () => {
 
   it("dismiss control is also available during LOCKED and ended states (so users can hide them)", () => {
     const onDismiss = vi.fn();
-    const { rerender } = render(
-      <PredictionBanner
-        prediction={makePrediction({ status: "LOCKED" })}
-        onDismiss={onDismiss}
-      />,
+    const { rerender } = renderWithTooltipProvider(
+      <PredictionBanner prediction={makePrediction({ status: "LOCKED" })} onDismiss={onDismiss} />
     );
     expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
     rerender(
-      <PredictionBanner
-        prediction={makePrediction({
-          id: "pred-resolved",
-          status: "RESOLVED",
-          winningOutcomeId: "outcome-a",
-        })}
-        onDismiss={onDismiss}
-      />,
+      <TooltipProvider>
+        <PredictionBanner
+          prediction={makePrediction({
+            id: "pred-resolved",
+            status: "RESOLVED",
+            winningOutcomeId: "outcome-a",
+          })}
+          onDismiss={onDismiss}
+        />
+      </TooltipProvider>
     );
     expect(screen.getByTestId("prediction-dismiss")).toBeTruthy();
   });
@@ -269,7 +281,7 @@ describe("PredictionBanner (read-only viewer widget)", () => {
           winningOutcomeId: "outcome-a",
           endedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
         })}
-      />,
+      />
     );
     fireEvent.click(screen.getByLabelText("View Result"));
     expect(screen.getByText("Sodapoppin")).toBeTruthy();
@@ -277,8 +289,8 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     // "Winner" badge marks the broadcaster-chosen outcome (twitch.tv results layout).
     expect(screen.getByText("Winner")).toBeTruthy();
     // Each outcome shows a percentage (now in spans, not a 2-column grid of divs).
-    const percentNodes = Array.from(document.querySelectorAll("span")).filter(
-      (s) => /^\d+%$/.test(s.textContent || ""),
+    const percentNodes = Array.from(document.querySelectorAll("span")).filter((s) =>
+      /^\d+%$/.test(s.textContent || "")
     );
     expect(percentNodes.length).toBeGreaterThanOrEqual(2);
   });
@@ -363,7 +375,7 @@ describe("PredictionBanner (read-only viewer widget)", () => {
           onAutoDismiss={() => {
             calls += 1;
           }}
-        />,
+        />
       );
       // Re-render 5 times with new callback identity each pass (parent re-renders).
       for (let i = 0; i < 5; i += 1) {
@@ -374,7 +386,7 @@ describe("PredictionBanner (read-only viewer widget)", () => {
             onAutoDismiss={() => {
               calls += 1;
             }}
-          />,
+          />
         );
       }
       // Now push past the 60s mark.
@@ -413,7 +425,7 @@ describe("PredictionBanner — read-only (no in-app voting)", () => {
     render(
       <PredictionBanner
         prediction={makePrediction({ viewerOutcomeId: "outcome-a", viewerStake: 500 })}
-      />,
+      />
     );
     fireEvent.click(screen.getByLabelText("See Details"));
     const picked = screen.getByTestId("prediction-outcome-outcome-a");
@@ -438,7 +450,7 @@ describe("PredictionBanner — time-remaining countdown", () => {
             predictionWindowSeconds: 100,
             createdAt: new Date(start).toISOString(),
           })}
-        />,
+        />
       );
       const bar = screen.getByRole("progressbar");
       // Full at the start of the window.
@@ -474,7 +486,7 @@ describe("PredictionBanner — time-remaining countdown", () => {
           status: "LOCKED",
           createdAt: new Date().toISOString(),
         })}
-      />,
+      />
     );
     expect(Number(screen.getByRole("progressbar").getAttribute("aria-valuenow"))).toBe(0);
   });

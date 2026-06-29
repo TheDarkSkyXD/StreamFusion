@@ -7,6 +7,7 @@ import type {
   ChatKnownUser,
   ChatMessage,
   ChatPlatform,
+  ChatUserPresentation,
 } from "../shared/chat-types";
 import { useAuthStore } from "./auth-store";
 
@@ -256,13 +257,19 @@ interface ChatState {
   prependMessages: (channelKey: string, messages: ChatMessage[]) => void;
   clearMessages: (channelKey: string) => void;
   dropChannel: (channelKey: string) => void;
-  deleteMessage: (channelKey: string, messageId: string) => void;
-  deleteMessagesByUser: (channelKey: string, userId: string) => void;
+  deleteMessage: (channelKey: string, messageId: string, metadata?: DeletionMetadata) => void;
+  deleteMessagesByUser: (channelKey: string, userId: string, metadata?: DeletionMetadata) => void;
   updateConnectionStatus: (status: ChatConnectionStatus) => void;
   setPaused: (channelKey: string, paused: boolean) => void;
   setBatchingEnabled: (enabled: boolean) => void;
   setBatchingInterval: (interval: number) => void;
   cleanupBatching: () => void;
+}
+
+interface DeletionMetadata {
+  deletedAt?: Date;
+  deletedByUser?: ChatUserPresentation;
+  deletedByUsername?: string;
 }
 
 // DEV-only counters for live perf inspection via PerfOverlay or electron-mcp
@@ -564,7 +571,7 @@ export const useChatStore = create<ChatState>()(
           };
         }),
 
-      deleteMessage: (channelKey, messageId) => {
+      deleteMessage: (channelKey, messageId, metadata) => {
         __debug.deleteMessage++;
         set((state) => {
           const bucket = state.messagesByChannel[channelKey];
@@ -572,7 +579,7 @@ export const useChatStore = create<ChatState>()(
             ? {
                 ...state.messagesByChannel,
                 [channelKey]: bucket.map((m) =>
-                  m.id === messageId ? { ...m, isDeleted: true } : m
+                  m.id === messageId ? { ...m, ...metadata, isDeleted: true } : m
                 ),
               }
             : state.messagesByChannel;
@@ -582,7 +589,7 @@ export const useChatStore = create<ChatState>()(
         });
       },
 
-      deleteMessagesByUser: (channelKey, userId) => {
+      deleteMessagesByUser: (channelKey, userId, metadata) => {
         __debug.deleteMessagesByUser++;
         set((state) => {
           const bucket = state.messagesByChannel[channelKey];
@@ -590,7 +597,7 @@ export const useChatStore = create<ChatState>()(
             ? {
                 ...state.messagesByChannel,
                 [channelKey]: bucket.map((m) =>
-                  m.userId === userId ? { ...m, isDeleted: true } : m
+                  m.userId === userId ? { ...m, ...metadata, isDeleted: true } : m
                 ),
               }
             : state.messagesByChannel;

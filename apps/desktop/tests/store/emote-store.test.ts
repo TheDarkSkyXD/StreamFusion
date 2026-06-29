@@ -20,6 +20,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Emote } from "@/backend/services/emotes/emote-types";
 
 const loadGlobalEmotesMock = vi.fn();
 const loadChannelEmotesMock = vi.fn();
@@ -48,10 +49,7 @@ vi.mock("@/backend/services/emotes", () => ({
   },
 }));
 
-import {
-  type ChatDisplayPreferences,
-  DEFAULT_CHAT_DISPLAY_PREFERENCES,
-} from "@/shared/auth-types";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 
 function providerPrefs(
   overrides: Partial<Pick<ChatDisplayPreferences, "enable7tv" | "enableBttv" | "enableFfz">> = {}
@@ -65,6 +63,22 @@ function providerPrefs(
 }
 
 import { useEmoteStore } from "@/store/emote-store";
+
+function makeEmote(overrides: Partial<Emote> = {}): Emote {
+  return {
+    id: "emote-1",
+    name: "Wave",
+    provider: "7tv",
+    isGlobal: false,
+    isAnimated: false,
+    isZeroWidth: false,
+    urls: {
+      url1x: "https://cdn.example/emote-1/1x.webp",
+      url2x: "https://cdn.example/emote-1/2x.webp",
+    },
+    ...overrides,
+  };
+}
 
 function resetStore(): void {
   useEmoteStore.setState({
@@ -80,6 +94,7 @@ function resetStore(): void {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   loadGlobalEmotesMock.mockReset();
   loadGlobalEmotesMock.mockResolvedValue(undefined);
   loadChannelEmotesMock.mockReset();
@@ -94,6 +109,7 @@ beforeEach(() => {
 
 afterEach(() => {
   resetStore();
+  localStorage.clear();
 });
 
 describe("emote-store loadGlobalEmotes", () => {
@@ -177,6 +193,35 @@ describe("emote-store loadGlobalEmotes", () => {
     expect(loadGlobalEmotesMock).toHaveBeenCalledTimes(2);
     expect(loadGlobalEmotesMock).toHaveBeenNthCalledWith(1, "twitch");
     expect(loadGlobalEmotesMock).toHaveBeenNthCalledWith(2, "twitch");
+  });
+});
+
+describe("emote-store persisted picker state", () => {
+  // Guards: favorite, frequently-used, and quick-bar emote state survives app restart.
+  it("hydrates recent and favorite emotes from persisted storage without persisting load caches", async () => {
+    const recentEmote = makeEmote({ id: "recent-1", name: "RecentWave", provider: "kick" });
+    const favoriteEmote = makeEmote({ id: "favorite-1", name: "FavoriteStar", provider: "7tv" });
+
+    useEmoteStore.setState({
+      loadedGlobalPlatforms: new Set(["kick"]),
+      loadedChannels: new Set(["channel-1"]),
+    });
+    useEmoteStore.getState().addRecentEmote(recentEmote);
+    useEmoteStore.getState().toggleFavorite(favoriteEmote);
+
+    const persisted = JSON.parse(localStorage.getItem("emote-storage") ?? "{}");
+    expect(persisted.state.recentEmotes).toEqual([recentEmote]);
+    expect(persisted.state.favoriteEmotes).toEqual([favoriteEmote]);
+    expect(persisted.state.loadedGlobalPlatforms).toBeUndefined();
+    expect(persisted.state.loadedChannels).toBeUndefined();
+
+    vi.resetModules();
+    const { useEmoteStore: freshEmoteStore } = await import("@/store/emote-store");
+
+    expect(freshEmoteStore.getState().recentEmotes).toEqual([recentEmote]);
+    expect(freshEmoteStore.getState().favoriteEmotes).toEqual([favoriteEmote]);
+    expect(freshEmoteStore.getState().loadedGlobalPlatforms.size).toBe(0);
+    expect(freshEmoteStore.getState().loadedChannels.size).toBe(0);
   });
 });
 

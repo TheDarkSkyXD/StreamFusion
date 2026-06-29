@@ -22,12 +22,6 @@ import {
 } from "react-icons/lu";
 import { toast } from "sonner";
 import {
-  banKickUser,
-  deleteKickMessage,
-  timeoutKickUser,
-  unbanKickUser,
-} from "@/backend/api/platforms/kick/kick-mod-mutations";
-import {
   addModerator,
   addVip,
   banUser,
@@ -41,9 +35,13 @@ import {
   ModActionConfirmDialog,
   type ModActionType,
 } from "@/components/chat/mod/ModActionConfirmDialog";
+import { showModActionSuccessToast } from "@/components/chat/mod/mod-action-toast";
 import { TimeoutDurationPicker } from "@/components/chat/mod/TimeoutDurationPicker";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { logger } from "@/renderer/logging/logger";
+import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
+import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 export interface UserPopoutFooterProps {
   userId: string;
@@ -57,7 +55,7 @@ export interface UserPopoutFooterProps {
   /** Latest message id from this user in current chat, if any. Used by
    *  Delete; if null the button is disabled. */
   latestMessageId: string | null;
-  /** Kick chatroom id — required for `deleteKickMessage`. Twitch ignores. */
+  /** Kick chatroom id — required for Kick message delete. Twitch ignores. */
   kickChatroomId?: number;
   /** Called after a successful mutation so the parent can re-query mod-log. */
   onActionSuccess?: () => void;
@@ -76,6 +74,43 @@ type PendingAction =
 const FOOTER_BTN =
   "inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
+async function deleteKickMessageViaKickWebSession(chatroomId: number, messageId: string) {
+  const result = await window.electronAPI.kickChat.deleteMessage(chatroomId, messageId);
+  return kickWebMutationToPopoutResult(result);
+}
+
+async function banKickUserViaKickWebSession(channelSlug: string, username: string) {
+  const result = await window.electronAPI.kickChat.banUser(channelSlug, username);
+  return kickWebMutationToPopoutResult(result);
+}
+
+async function timeoutKickUserViaKickWebSession(
+  channelSlug: string,
+  username: string,
+  duration: number
+) {
+  const result = await window.electronAPI.kickChat.timeoutUser(channelSlug, username, duration);
+  return kickWebMutationToPopoutResult(result);
+}
+
+async function unbanKickUserViaKickWebSession(channelSlug: string, username: string) {
+  const result = await window.electronAPI.kickChat.unbanUser(channelSlug, username);
+  return kickWebMutationToPopoutResult(result);
+}
+
+function kickWebMutationToPopoutResult(
+  result: Awaited<ReturnType<typeof window.electronAPI.kickChat.deleteMessage>>
+) {
+  if (result.ok) {
+    return { ok: true as const };
+  }
+
+  return {
+    ok: false as const,
+    message: result.status ? `${result.status}` : result.message,
+  };
+}
+
 export function UserPopoutFooter({
   userId,
   username,
@@ -88,6 +123,8 @@ export function UserPopoutFooter({
   onActionSuccess,
 }: UserPopoutFooterProps) {
   const showWhisper = useDevModOverrideStore((s) => s.showWhisper);
+  const twitchUser = useAuthStore((s) => s.twitchUser);
+  const setTwitchChannelModState = useModeratedChannelsStore((s) => s.setTwitchChannelModState);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -119,7 +156,7 @@ export function UserPopoutFooter({
           case "ban": {
             const r = await banUser({ ...ctx, userId });
             if (r.ok) {
-              toast.success(`Banned ${username}`);
+              showModActionSuccessToast(`Banned ${username}`);
               setPending(null);
               onActionSuccess?.();
             } else {
@@ -132,7 +169,7 @@ export function UserPopoutFooter({
               (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
             const r = await timeoutUser({ ...ctx, userId, durationSeconds: seconds });
             if (r.ok) {
-              toast.success(`Timed out ${username}`);
+              showModActionSuccessToast(`Timed out ${username}`);
               setPending(null);
               onActionSuccess?.();
             } else {
@@ -161,7 +198,7 @@ export function UserPopoutFooter({
               messageId: latestMessageId,
             });
             if (r.ok) {
-              toast.success("Deleted message");
+              showModActionSuccessToast("Deleted message");
               setPending(null);
               onActionSuccess?.();
             } else {
@@ -177,6 +214,9 @@ export function UserPopoutFooter({
               userId,
             });
             if (r.ok) {
+              if (userId === twitchUser?.id) {
+                setTwitchChannelModState(channelId, true);
+              }
               toast.success(`@${username} is now a moderator`);
               setPending(null);
               onActionSuccess?.();
@@ -193,6 +233,9 @@ export function UserPopoutFooter({
               userId,
             });
             if (r.ok) {
+              if (userId === twitchUser?.id) {
+                setTwitchChannelModState(channelId, false);
+              }
               toast.success(`@${username} is no longer a moderator`);
               setPending(null);
               onActionSuccess?.();
@@ -236,23 +279,12 @@ export function UserPopoutFooter({
         }
       } else {
         // Kick — ban / timeout / unban / delete are the only supported actions.
-        const token = await window.electronAPI.auth.getToken("kick");
-        if (!token?.accessToken) {
-          toast.error("Sign in to Kick to take this action");
-          return;
-        }
         const slug = channelSlug;
         switch (pending.kind) {
           case "ban": {
-            const r = await banKickUser({
-              accessToken: token.accessToken,
-              channelSlug: slug,
-              username,
-              broadcasterUserId: channelId,
-              userId,
-            });
+            const r = await banKickUserViaKickWebSession(slug, username);
             if (r.ok) {
-              toast.success(`Banned ${username}`);
+              showModActionSuccessToast(`Banned ${username}`);
               setPending(null);
               onActionSuccess?.();
             } else {
@@ -263,17 +295,14 @@ export function UserPopoutFooter({
           case "timeout": {
             const seconds =
               (extraData as { durationSeconds?: number } | undefined)?.durationSeconds ?? 600;
-            const r = await timeoutKickUser({
-              accessToken: token.accessToken,
-              channelSlug: slug,
+            const r = await timeoutKickUserViaKickWebSession(
+              slug,
               username,
-              broadcasterUserId: channelId,
-              userId,
               // Kick wants minutes per kick-mod-mutations.ts inline doc.
-              duration: Math.max(1, Math.ceil(seconds / 60)),
-            });
+              Math.max(1, Math.ceil(seconds / 60))
+            );
             if (r.ok) {
-              toast.success(`Timed out ${username}`);
+              showModActionSuccessToast(`Timed out ${username}`);
               setPending(null);
               onActionSuccess?.();
             } else {
@@ -282,13 +311,7 @@ export function UserPopoutFooter({
             break;
           }
           case "unban": {
-            const r = await unbanKickUser({
-              accessToken: token.accessToken,
-              channelSlug: slug,
-              username,
-              broadcasterUserId: channelId,
-              userId,
-            });
+            const r = await unbanKickUserViaKickWebSession(slug, username);
             if (r.ok) {
               toast.success(`Unbanned ${username}`);
               setPending(null);
@@ -303,13 +326,9 @@ export function UserPopoutFooter({
               toast.error("No recent message to delete");
               return;
             }
-            const r = await deleteKickMessage({
-              accessToken: token.accessToken,
-              chatroomId: kickChatroomId,
-              messageId: latestMessageId,
-            });
+            const r = await deleteKickMessageViaKickWebSession(kickChatroomId, latestMessageId);
             if (r.ok) {
-              toast.success("Deleted message");
+              showModActionSuccessToast("Deleted message");
               setPending(null);
               onActionSuccess?.();
             } else {
@@ -344,6 +363,9 @@ export function UserPopoutFooter({
   );
 
   const pendingActionType: ModActionType | null = pending?.kind ?? null;
+  const deleteTooltip = latestMessageId
+    ? "Delete this user's latest message"
+    : "No recent message in chat to delete";
 
   return (
     <div data-testid="user-popout-footer">
@@ -375,21 +397,23 @@ export function UserPopoutFooter({
           <LuRotateCcw className="w-3.5 h-3.5" />
           Unban
         </button>
-        <button
-          type="button"
-          className={FOOTER_BTN}
-          disabled={!latestMessageId}
-          onClick={() => setPending({ kind: "delete" })}
-          aria-label="Delete most recent message"
-          title={
-            latestMessageId
-              ? "Delete this user's latest message"
-              : "No recent message in chat to delete"
-          }
-        >
-          <LuTrash2 className="w-3.5 h-3.5" />
-          Delete
-        </button>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <button
+                type="button"
+                className={FOOTER_BTN}
+                disabled={!latestMessageId}
+                onClick={() => setPending({ kind: "delete" })}
+                aria-label="Delete most recent message"
+              >
+                <LuTrash2 className="w-3.5 h-3.5" />
+                Delete
+              </button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{deleteTooltip}</TooltipContent>
+        </Tooltip>
         {isBroadcaster && platform === "twitch" ? (
           <>
             <button

@@ -36,7 +36,6 @@ export interface UserProfile {
   verified?: boolean;
 }
 
-const HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const HELIX_BASE = "https://api.twitch.tv/helix";
 const PROFILE_TTL_MS = 5 * 60 * 1000;
 
@@ -61,12 +60,13 @@ interface HelixSubscription {
 async function fetchTwitchProfile(
   userId: string,
   channelId: string,
-  accessToken: string | null
+  accessToken: string,
+  clientId: string
 ): Promise<UserProfile | null> {
   const headers: Record<string, string> = {
-    "Client-Id": HELIX_CLIENT_ID,
+    "Client-Id": clientId,
+    Authorization: `Bearer ${accessToken}`,
   };
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   const userRes = await fetch(`${HELIX_BASE}/users?id=${userId}`, { headers });
   if (!userRes.ok) return null;
@@ -77,38 +77,36 @@ async function fetchTwitchProfile(
   // Aux fetches — treat 401 / failures as "no data" rather than failing.
   let followSince: string | null = null;
   let subscription: UserProfile["subscription"] = null;
-  if (accessToken) {
-    try {
-      const followRes = await fetch(
-        `${HELIX_BASE}/channels/followed?user_id=${userId}&broadcaster_id=${channelId}`,
-        { headers }
-      );
-      if (followRes.ok) {
-        const body = (await followRes.json()) as { data: HelixFollow[] };
-        followSince = body.data?.[0]?.followed_at ?? null;
-      }
-    } catch {
-      // Silent — defaults to null.
+  try {
+    const followRes = await fetch(
+      `${HELIX_BASE}/channels/followed?user_id=${userId}&broadcaster_id=${channelId}`,
+      { headers }
+    );
+    if (followRes.ok) {
+      const body = (await followRes.json()) as { data: HelixFollow[] };
+      followSince = body.data?.[0]?.followed_at ?? null;
     }
-    try {
-      const subRes = await fetch(
-        `${HELIX_BASE}/subscriptions/user?broadcaster_id=${channelId}&user_id=${userId}`,
-        { headers }
-      );
-      if (subRes.ok) {
-        const body = (await subRes.json()) as { data: HelixSubscription[] };
-        const s = body.data?.[0];
-        if (s) {
-          subscription = {
-            tier: (s.tier as "1000" | "2000" | "3000") ?? null,
-            months: null,
-            isGift: Boolean(s.is_gift),
-          };
-        }
+  } catch {
+    // Silent — defaults to null.
+  }
+  try {
+    const subRes = await fetch(
+      `${HELIX_BASE}/subscriptions/user?broadcaster_id=${channelId}&user_id=${userId}`,
+      { headers }
+    );
+    if (subRes.ok) {
+      const body = (await subRes.json()) as { data: HelixSubscription[] };
+      const s = body.data?.[0];
+      if (s) {
+        subscription = {
+          tier: (s.tier as "1000" | "2000" | "3000") ?? null,
+          months: null,
+          isGift: Boolean(s.is_gift),
+        };
       }
-    } catch {
-      // Silent — defaults to null.
     }
+  } catch {
+    // Silent — defaults to null.
   }
 
   return {
@@ -202,13 +200,16 @@ export function useUserProfile(
       if (platform === "twitch") {
         let accessToken: string | null = null;
         try {
-          const token = await window.electronAPI.auth.getToken("twitch");
-          accessToken = token?.accessToken ?? null;
+          accessToken = await window.electronAPI.auth.getValidTwitchToken();
         } catch {
           accessToken = null;
         }
+        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
         // userId / channelId are guaranteed non-null here — `enabled` gates on them.
-        next = await fetchTwitchProfile(userId!, channelId!, accessToken);
+        next =
+          accessToken && clientId
+            ? await fetchTwitchProfile(userId!, channelId!, accessToken, clientId)
+            : null;
       } else {
         next = await fetchKickProfile(userId!, username ?? userId!, channelSlug ?? "");
       }

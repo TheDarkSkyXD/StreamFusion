@@ -29,6 +29,7 @@ vi.mock('sonner', () => ({
 
 import { toast } from 'sonner';
 import { ChannelModeratorsTable } from '@/pages/Mod/channel/ChannelModeratorsTable';
+import { useModeratedChannelsStore } from '@/store/moderated-channels-store';
 
 interface MockResponse {
   status: number;
@@ -49,6 +50,7 @@ describe('ChannelModeratorsTable', () => {
     (import.meta as any).env = { VITE_TWITCH_CLIENT_ID: 'cid' };
     const api = installElectronAPIMock();
     api.auth.getToken = vi.fn(async () => ({ accessToken: 'tok' }));
+    useModeratedChannelsStore.getState().clear();
     (toast.success as ReturnType<typeof vi.fn>).mockClear();
     (toast.error as ReturnType<typeof vi.fn>).mockClear();
   });
@@ -148,6 +150,45 @@ describe('ChannelModeratorsTable', () => {
     expect(toast.success).toHaveBeenCalled();
   });
 
+  it('Add updates live mod state when the resolved user is the signed-in user', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = (init?.method as string) ?? 'GET';
+      if (url.includes('/moderation/moderators') && method === 'GET') {
+        return jsonResponse({
+          status: 200,
+          body: { data: [], pagination: {} },
+        });
+      }
+      if (url.includes('/users?login=me')) {
+        return jsonResponse({
+          status: 200,
+          body: {
+            data: [{ id: '111', login: 'me', display_name: 'Me' }],
+          },
+        });
+      }
+      if (url.includes('/moderation/moderators') && method === 'POST') {
+        return new Response(null, { status: 204 });
+      }
+      return jsonResponse({ status: 404, body: {} });
+    });
+
+    renderWithProviders(<ChannelModeratorsTable broadcasterId="222" />);
+    await waitFor(() =>
+      expect(screen.getByText(/no moderators yet/i)).toBeInTheDocument(),
+    );
+
+    fireEvent.change(screen.getByLabelText(/add moderator by username/i), {
+      target: { value: 'me' },
+    });
+    fireEvent.click(screen.getByTestId('add-moderator-button'));
+
+    await waitFor(() => {
+      expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has('222')).toBe(true);
+    });
+  });
+
   it('Add toasts error when user cannot be resolved', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
@@ -208,6 +249,40 @@ describe('ChannelModeratorsTable', () => {
       expect(screen.queryByTestId('moderator-row-u1')).not.toBeInTheDocument(),
     );
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('Remove updates live mod state when the removed row is the signed-in user', async () => {
+    useModeratedChannelsStore.getState().setTwitchChannelModState('222', true);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = (init?.method as string) ?? 'GET';
+      if (url.includes('/moderation/moderators') && method === 'GET') {
+        return jsonResponse({
+          status: 200,
+          body: {
+            data: [{ user_id: '111', user_login: 'me', user_name: 'Me' }],
+            pagination: {},
+          },
+        });
+      }
+      if (url.includes('/moderation/moderators') && method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+      return jsonResponse({ status: 404, body: {} });
+    });
+
+    renderWithProviders(<ChannelModeratorsTable broadcasterId="222" />);
+    await waitFor(() =>
+      expect(screen.getByTestId('moderator-row-111')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId('remove-moderator-button-111'));
+
+    await waitFor(() => {
+      expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has('222')).toBe(
+        false,
+      );
+    });
   });
 
   it('surfaces an error when load fails', async () => {

@@ -30,6 +30,7 @@ describe("useModeratedChannelsStore", () => {
   it("starts empty and stale", () => {
     const state = useModeratedChannelsStore.getState();
     expect(state.twitchModeratedChannelIds.size).toBe(0);
+    expect(state.kickModeratedChannelSlugs.size).toBe(0);
     expect(state.hydratedAt).toBeNull();
     expect(state.isStale()).toBe(true);
   });
@@ -88,6 +89,38 @@ describe("useModeratedChannelsStore", () => {
     expect(useModeratedChannelsStore.getState().hydrating).toBe(false);
   });
 
+  it("applies live Twitch moderator grants and removals for one channel", () => {
+    act(() => {
+      useModeratedChannelsStore.getState().setTwitchChannelModState("111", true);
+    });
+
+    expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("111")).toBe(true);
+
+    act(() => {
+      useModeratedChannelsStore.getState().setTwitchChannelModState("111", false);
+    });
+
+    expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("111")).toBe(false);
+  });
+
+  it("applies live Kick moderator grants and removals for one channel slug", () => {
+    act(() => {
+      useModeratedChannelsStore.getState().setKickChannelModState("Ac7ionMan", true);
+    });
+
+    expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("ac7ionman")).toBe(
+      true
+    );
+
+    act(() => {
+      useModeratedChannelsStore.getState().setKickChannelModState("ac7ionman", false);
+    });
+
+    expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("ac7ionman")).toBe(
+      false
+    );
+  });
+
   it("isStale returns true after 5 minutes elapsed", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-18T00:00:00Z"));
@@ -123,7 +156,34 @@ describe("useModeratedChannelsStore", () => {
 
     const state = useModeratedChannelsStore.getState();
     expect(state.twitchModeratedChannelIds.size).toBe(0);
+    expect(state.kickModeratedChannelSlugs.size).toBe(0);
     expect(state.hydratedAt).toBeNull();
     expect(state.isStale()).toBe(true);
+  });
+
+  it("clears Twitch and Kick moderator state independently", () => {
+    act(() => {
+      useModeratedChannelsStore.getState().setTwitchChannelModState("111", true);
+      useModeratedChannelsStore.getState().setKickChannelModState("ac7ionman", true);
+    });
+
+    act(() => {
+      useModeratedChannelsStore.getState().clearTwitch();
+    });
+
+    expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("111")).toBe(false);
+    expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("ac7ionman")).toBe(
+      true
+    );
+
+    act(() => {
+      useModeratedChannelsStore.getState().setTwitchChannelModState("111", true);
+      useModeratedChannelsStore.getState().clearKick();
+    });
+
+    expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("111")).toBe(true);
+    expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("ac7ionman")).toBe(
+      false
+    );
   });
 });

@@ -1,4 +1,4 @@
-import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -88,16 +88,53 @@ function setTwitchViewer(login = "darkskyfullofstars", displayName = "DarkSkyFul
 // Guards: signed-in Kick broadcasters do not see moderator presentation on their own channel messages
 // Guards: subscription, gift, bits, cheer, and highlighted-message events render as event-specific banners instead of generic System rows
 // Guards: click-to-reply uses Twitch's circular reply affordance and exact SVG path on every opted-in chat platform
+// Guards: deleted chat rows can reveal the retained original message with emotes plus deletion metadata when enabled
 // Guards: pin-message uses Twitch's circular hover affordance and exact SVG path instead of a generic icon
 // Guards: reply and pin hover actions sit on the top edge of the chat row with visible space between them
 // Guards: pin-message tooltip uses Twitch's top-end placement while keeping text left-aligned
 // Guards: username hover keeps the message row background off while the username keeps its own Twitch hover state
 // Guards: parsed Twitch reply metadata renders the inline "Replying to @user" context above the child message
+// Guards: long usernames keep the regular-message colon in the same wrap group as the name.
+// Guards: Twitch /me action messages keep visual space between username and action text.
 describe("ChatMessage", () => {
   it("renders username and text fragment", () => {
     render(<ChatMessage message={baseMessage()} />);
     expect(screen.getByText("Ninja")).toBeInTheDocument();
     expect(screen.getByText(/hello world/)).toBeInTheDocument();
+  });
+
+  it("keeps the message colon attached to a long username", () => {
+    const longUsername = "ExtremelyLongUsernameForTestingTheChatSeparatorWrap";
+
+    render(
+      <ChatMessage
+        message={baseMessage({
+          username: longUsername.toLowerCase(),
+          displayName: longUsername,
+        })}
+      />
+    );
+
+    const usernameContainer = screen
+      .getByText(longUsername)
+      .closest(".chat-line__username-container");
+    expect(usernameContainer).not.toBeNull();
+    expect(usernameContainer).toHaveTextContent(`${longUsername}:`);
+  });
+
+  it("keeps spacing between the username and /me action text", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          isAction: true,
+          content: [{ type: "text", content: "waves at chat" }],
+        })}
+      />
+    );
+
+    const actionText = screen.getByText("waves at chat");
+    expect(actionText.parentElement?.className).toContain("italic");
+    expect(actionText.parentElement?.className).toContain("ml-1");
   });
 
   it("renders mention fragments with a single @ prefix", () => {
@@ -271,9 +308,28 @@ describe("ChatMessage", () => {
     expect(screen.getByAltText("moderator")).toBeInTheDocument();
   });
 
-  it("renders deleted-message placeholder when isDeleted", () => {
-    render(<ChatMessage message={baseMessage({ isDeleted: true })} />);
-    expect(screen.getByText(/message deleted/i)).toBeInTheDocument();
+  it("renders deleted-message highlights with sender and moderator badges/colors", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          badges: [badge("vip")],
+          deletedByUser: {
+            userId: "mod-1",
+            username: "mod",
+            displayName: "Mod",
+            color: "#5B9BD5",
+            badges: [badge("moderator")],
+          },
+          deletedByUsername: "mod",
+          isDeleted: true,
+        })}
+      />
+    );
+    expect(screen.getByTestId("deleted-message-highlight")).toBeInTheDocument();
+    expect(screen.getByAltText("vip")).toBeInTheDocument();
+    expect(screen.getByAltText("moderator")).toBeInTheDocument();
+    expect(screen.getByText("Ninja")).toHaveStyle({ color: "#ff0000" });
+    expect(screen.getByText("Mod")).toHaveStyle({ color: "#5B9BD5" });
   });
 
   it("renders ban info for ban-type messages", () => {
@@ -285,6 +341,20 @@ describe("ChatMessage", () => {
             banInfo: {
               bannedUsername: "spammer",
               bannedByUsername: "mod",
+              bannedUser: {
+                userId: "u-spammer",
+                username: "spammer",
+                displayName: "Spammer",
+                color: "#5B9BD5",
+                badges: [badge("subscriber")],
+              },
+              bannedByUser: {
+                userId: "mod-1",
+                username: "mod",
+                displayName: "Mod",
+                color: "#70AD47",
+                badges: [badge("moderator")],
+              },
               duration: 600,
               lastMessage: "lol",
             },
@@ -292,8 +362,34 @@ describe("ChatMessage", () => {
         }
       />
     );
-    expect(screen.getByText("spammer")).toBeInTheDocument();
-    expect(screen.getByText(/timed out for 10m/)).toBeInTheDocument();
+    expect(screen.getAllByAltText("subscriber").length).toBeGreaterThan(0);
+    expect(screen.getByAltText("moderator")).toBeInTheDocument();
+    expect(screen.getAllByText("Spammer")[0]).toHaveStyle({ color: "#5B9BD5" });
+    expect(screen.getByText("Mod")).toHaveStyle({ color: "#70AD47" });
+    const actionPhrase = screen.getByText(/was timed out for 10m/);
+    expect(actionPhrase).toBeInTheDocument();
+    expect(actionPhrase.className).toContain("font-bold");
+    expect(actionPhrase.className).toContain("text-white");
+  });
+
+  it("renders permanent ban action text bold and white", () => {
+    render(
+      <ChatMessage
+        message={
+          baseMessage({
+            type: "ban",
+            banInfo: {
+              bannedUsername: "spammer",
+              bannedByUsername: "mod",
+            },
+          }) as ChatMessageType
+        }
+      />
+    );
+
+    const actionPhrase = screen.getByText(/was permanently banned/);
+    expect(actionPhrase.className).toContain("font-bold");
+    expect(actionPhrase.className).toContain("text-white");
   });
 
   it("renders Kick gifted badge before subscriber badge with Kick-style spacing", () => {
@@ -631,7 +727,176 @@ describe("ChatMessage event/notice visibility (U5)", () => {
 
   it("renders the ban/timeout notice by default (showClearChat true)", () => {
     render(<ChatMessage message={banMessage()} />);
-    expect(screen.getByText("spammer")).toBeInTheDocument();
+    expect(screen.getByTestId("moderation-action-highlight")).toBeInTheDocument();
+    expect(screen.getAllByText("spammer").length).toBeGreaterThan(0);
+  });
+
+  it("renders ban/timeout highlights with the framed Cozy style when selected", () => {
+    setChatDisplay({ moderationHighlightStyle: "cozy" });
+    render(<ChatMessage message={banMessage()} />);
+
+    const highlight = screen.getByTestId("moderation-action-highlight");
+    expect(highlight.className).toContain("rounded-[6px]");
+    expect(highlight.className).toContain("border-[#f87171]");
+    expect(highlight).not.toHaveAccessibleName("Twitch Timeout notice");
+  });
+
+  it("bottom-aligns deleted-message text inside Cozy timeout/ban highlights", () => {
+    setChatDisplay({ moderationHighlightStyle: "cozy" });
+    render(
+      <ChatMessage
+        message={baseMessage({
+          type: "ban",
+          banInfo: {
+            bannedUsername: "spammer",
+            bannedByUsername: "mod",
+            bannedUser: {
+              userId: "u-spammer",
+              username: "spammer",
+              displayName: "Spammer",
+              color: "#5B9BD5",
+              badges: [badge("subscriber")],
+            },
+            duration: 600,
+            deletedMessageDetails: [
+              {
+                id: "cozy-deleted-1",
+                author: {
+                  userId: "u-spammer",
+                  username: "spammer",
+                  displayName: "Spammer",
+                  color: "#5B9BD5",
+                  badges: [badge("subscriber")],
+                },
+                content: [{ type: "text", content: "cozy deleted message" }],
+                rawContent: "cozy deleted message",
+                deletedAt: new Date("2026-06-29T17:45:00"),
+              },
+            ],
+          },
+        })}
+      />
+    );
+
+    const deletedMessages = screen.getByTestId("moderation-deleted-messages");
+    const firstRow = deletedMessages.querySelector("li");
+    expect(deletedMessages.className).toContain("[&_li>span:first-child]:items-end");
+    expect(firstRow?.children[0]?.className).toContain("items-end");
+    expect(firstRow?.querySelector(".chat-line__username-container")?.className).toContain(
+      "whitespace-nowrap"
+    );
+    expect(firstRow?.querySelector(".chat-line__username-container")).toHaveTextContent("Spammer:");
+    expect(firstRow?.children[1]?.className).toContain("align-bottom");
+    expect(firstRow?.children[1]?.className).toContain("ml-1");
+    expect(deletedMessages).toHaveTextContent("cozy deleted message");
+  });
+
+  it("renders every retained timeout/ban-deleted message in the moderation highlight", () => {
+    const deletedAt = new Date("2026-06-29T17:45:00");
+    render(
+      <ChatMessage
+        message={baseMessage({
+          timestamp: deletedAt,
+          type: "ban",
+          banInfo: {
+            bannedUsername: "spammer",
+            bannedByUsername: "mod",
+            bannedUser: {
+              userId: "u-spammer",
+              username: "spammer",
+              displayName: "Spammer",
+              color: "#5B9BD5",
+              badges: [badge("subscriber")],
+            },
+            duration: 600,
+            lastMessage: "second deleted message with a lot of detail",
+            deletedMessages: [
+              "first deleted message with full wording",
+              "second deleted message with a lot of detail",
+            ],
+            deletedMessageDetails: [
+              {
+                id: "deleted-1",
+                author: {
+                  userId: "u-spammer",
+                  username: "spammer",
+                  displayName: "Spammer",
+                  color: "#5B9BD5",
+                  badges: [badge("subscriber")],
+                },
+                content: [
+                  { type: "text", content: "first deleted message with full wording " },
+                  {
+                    type: "emote",
+                    id: "25",
+                    name: "Kappa",
+                    url: "https://example.com/kappa.png",
+                    isAnimated: false,
+                  },
+                ],
+                rawContent: "first deleted message with full wording Kappa",
+                deletedAt,
+              },
+              {
+                id: "deleted-2",
+                author: {
+                  userId: "u-spammer",
+                  username: "spammer",
+                  displayName: "Spammer",
+                  color: "#5B9BD5",
+                  badges: [badge("subscriber")],
+                },
+                content: [{ type: "text", content: "second deleted message with a lot of detail" }],
+                rawContent: "second deleted message with a lot of detail",
+                deletedAt,
+              },
+            ],
+          },
+        })}
+      />
+    );
+
+    const deletedMessages = screen.getByTestId("moderation-deleted-messages");
+    expect(deletedMessages).toHaveTextContent("first deleted message with full wording");
+    expect(deletedMessages).toHaveTextContent("second deleted message with a lot of detail");
+    expect(deletedMessages.textContent?.match(/Spammer/g)).toHaveLength(2);
+    expect(screen.getByAltText("Kappa")).toBeInTheDocument();
+    expect(screen.getAllByAltText("subscriber")).toHaveLength(3);
+    const firstRow = deletedMessages.querySelector("li");
+    expect(firstRow?.className).toContain("text-white");
+    expect(firstRow?.className).toContain("align-bottom");
+    expect(firstRow?.children[0]?.className).toContain("items-end");
+    expect(firstRow?.querySelector(".chat-line__username-container")?.className).toContain(
+      "whitespace-nowrap"
+    );
+    expect(firstRow?.querySelector(".chat-line__username-container")).toHaveTextContent("Spammer:");
+    expect(firstRow?.children[1]?.className).toContain("align-bottom");
+    expect(firstRow?.children[1]?.className).toContain("ml-1");
+    expect(deletedMessages.querySelector(".truncate")).toBeNull();
+    expect(screen.queryByText(/last:/i)).toBeNull();
+    expect(screen.getByText(/5:45 PM|17:45/)).toBeInTheDocument();
+  });
+
+  it("uses a full action date and time in audit timeout/ban highlights", () => {
+    setChatDisplay({ deletedMessageDisplay: "audit" });
+    render(
+      <ChatMessage
+        message={baseMessage({
+          timestamp: new Date("2026-06-29T17:45:00"),
+          type: "ban",
+          banInfo: {
+            bannedUsername: "spammer",
+            bannedByUsername: "mod",
+            duration: 600,
+            lastMessage: "audit deleted message",
+          },
+        })}
+      />
+    );
+
+    const highlight = screen.getByTestId("moderation-action-highlight");
+    expect(highlight).toHaveTextContent("2026");
+    expect(highlight).toHaveTextContent(/5:45 PM|17:45/);
   });
 
   it("hides the ban/timeout notice when showClearChat is false", () => {
@@ -642,9 +907,116 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders the "Message deleted" tombstone by default (showClearMsg true)', () => {
+  it("keeps ban notices visible but hides the retained last message when deleted messages are off", () => {
+    setChatDisplay({ showClearMsg: false });
+    render(<ChatMessage message={banMessage()} />);
+
+    expect(screen.getByText("spammer")).toBeInTheDocument();
+    expect(screen.queryByText(/last:/i)).toBeNull();
+  });
+
+  it("renders retained deleted-message content with compact moderation details by default", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          isDeleted: true,
+          deletedAt: new Date("2026-06-29T17:45:00"),
+          deletedByUsername: "ModBot",
+          content: [
+            { type: "text", content: "too spicy " },
+            {
+              type: "emote",
+              id: "25",
+              name: "Kappa",
+              url: "https://example.com/kappa.png",
+              isAnimated: false,
+            },
+            { type: "text", content: " 🙂" },
+          ],
+          rawContent: "too spicy Kappa 🙂",
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("deleted-message-highlight")).toBeInTheDocument();
+    expect(screen.getByText("Deleted message")).toBeInTheDocument();
+    expect(screen.getByText("Ninja")).toBeInTheDocument();
+    const deletedText = screen.getByText(/too spicy/i);
+    expect(deletedText).toBeInTheDocument();
+    expect(deletedText.parentElement?.className).toContain("align-bottom");
+    expect(deletedText.parentElement?.className).toContain("ml-1");
+    expect(
+      screen.getByText("Ninja").closest(".chat-line__username-container")?.parentElement?.className
+    ).toContain("items-end");
+    expect(
+      screen.getByText("Ninja").closest(".chat-line__username-container")?.className
+    ).toContain("whitespace-nowrap");
+    expect(screen.getByText("Ninja").closest(".chat-line__username-container")).toHaveTextContent(
+      "Ninja:"
+    );
+    expect(screen.getByAltText("Kappa")).toBeInTheDocument();
+    expect(screen.getByText(/deleted by/i)).toBeInTheDocument();
+    expect(screen.getByText("ModBot")).toBeInTheDocument();
+    const deletedAt = screen.getByText(/5:45 PM|17:45/);
+    expect(deletedAt).toBeInTheDocument();
+    expect(deletedAt.className).toContain("align-bottom");
+    expect(deletedAt.parentElement?.className).toContain("align-bottom");
+  });
+
+  it("renders deleted-message highlights with the framed Cozy style when selected", () => {
+    setChatDisplay({ moderationHighlightStyle: "cozy" });
     render(<ChatMessage message={baseMessage({ isDeleted: true })} />);
+
+    const highlight = screen.getByTestId("deleted-message-highlight");
+    expect(highlight.className).toContain("rounded-[6px]");
+    expect(highlight.className).toContain("border-[#ff6b6b]");
+    expect(highlight).not.toHaveAccessibleName("Twitch Deleted message notice");
+    const deletedText = screen.getByText("hello world");
+    expect(deletedText).toBeInTheDocument();
+    expect(deletedText.parentElement?.className).toContain("align-bottom");
+    expect(deletedText.parentElement?.className).toContain("ml-1");
+    expect(
+      screen.getByText("Ninja").closest(".chat-line__username-container")?.parentElement?.className
+    ).toContain("items-end");
+    expect(
+      screen.getByText("Ninja").closest(".chat-line__username-container")?.className
+    ).toContain("whitespace-nowrap");
+    expect(screen.getByText("Ninja").closest(".chat-line__username-container")).toHaveTextContent(
+      "Ninja:"
+    );
+    expect(screen.getByText(/Deleted by/i).className).toContain("align-bottom");
+  });
+
+  it("renders deleted-message rows according to tombstone, message-only, and audit modes", () => {
+    setChatDisplay({ deletedMessageDisplay: "tombstone" });
+    const { rerender } = render(<ChatMessage message={baseMessage({ isDeleted: true })} />);
     expect(screen.getByText(/message deleted/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("deleted-message-highlight")).toBeNull();
+
+    act(() => setChatDisplay({ deletedMessageDisplay: "message" }));
+    rerender(<ChatMessage message={baseMessage({ isDeleted: true })} />);
+    expect(screen.getByTestId("deleted-message-highlight")).toBeInTheDocument();
+    expect(screen.getByText("hello world")).toBeInTheDocument();
+    expect(screen.queryByText("Ninja")).toBeNull();
+
+    act(() => setChatDisplay({ deletedMessageDisplay: "audit" }));
+    rerender(<ChatMessage message={baseMessage({ isDeleted: true })} />);
+    expect(screen.getByText(/Twitch - id m1/)).toBeInTheDocument();
+  });
+
+  it("falls back to the plain tombstone when deleted content is no longer retained", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          isDeleted: true,
+          content: [],
+          rawContent: "",
+        })}
+      />
+    );
+
+    expect(screen.getByText(/message deleted/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("deleted-message-highlight")).toBeNull();
   });
 
   it("hides the deletion tombstone when showClearMsg is false", () => {
@@ -684,8 +1056,9 @@ describe("ChatMessage event/notice visibility (U5)", () => {
       />
     );
 
-    expect(screen.getByTestId("highlighted-message-highlight")).toBeInTheDocument();
-    expect(screen.getByText("Highlighted Message")).toBeInTheDocument();
+    expect(screen.getByTestId("highlighted-message-highlight")).toHaveAccessibleName(
+      "Twitch Highlighted Message notice"
+    );
     expect(screen.queryByTestId("first-time-chat-highlight")).toBeNull();
     expect(screen.getByText("read this one")).toBeInTheDocument();
   });
@@ -694,13 +1067,18 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     [
       "subscription",
       "subscription-highlight",
-      "Subscription",
+      "Twitch Subscription notice",
       "ImJustAGhostt subscribed with Prime.",
     ],
-    ["resub", "resub-highlight", "Resub", "They have subscribed for 38 months!"],
-    ["gifted-sub", "gifted-sub-highlight", "Gifted Sub", "Anon gifted 5 subscriptions!"],
-    ["bits", "bits-highlight", "Bits", "Bits badge unlocked!"],
-  ] as const)("wraps %s system events in their own banner without a System username", (highlightKind, testId, label, text) => {
+    ["resub", "resub-highlight", "Twitch Resub notice", "They have subscribed for 38 months!"],
+    [
+      "gifted-sub",
+      "gifted-sub-highlight",
+      "Twitch Gifted Sub notice",
+      "Anon gifted 5 subscriptions!",
+    ],
+    ["bits", "bits-highlight", "Twitch Bits notice", "Bits badge unlocked!"],
+  ] as const)("wraps %s system events in their own banner without a System username", (highlightKind, testId, ariaLabel, text) => {
     const { container } = render(
       <ChatMessage
         message={baseMessage({
@@ -717,8 +1095,10 @@ describe("ChatMessage event/notice visibility (U5)", () => {
 
     const card = screen.getByTestId(testId);
     expect(card).toBeInTheDocument();
-    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(card).toHaveAccessibleName(ariaLabel);
     expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.queryByText("Subscription")).toBeNull();
+    expect(screen.queryByText("Twitch")).toBeNull();
     expect(screen.queryByText("System")).toBeNull();
     expect(container.querySelector(".group")).toBeNull();
     expect(card.style.borderLeft).toMatch(/^1px solid/);
@@ -736,8 +1116,7 @@ describe("ChatMessage event/notice visibility (U5)", () => {
       />
     );
 
-    expect(screen.getByTestId("cheer-highlight")).toBeInTheDocument();
-    expect(screen.getByText("Cheer")).toBeInTheDocument();
+    expect(screen.getByTestId("cheer-highlight")).toHaveAccessibleName("Twitch Cheer notice");
     expect(screen.getByText("Ninja")).toBeInTheDocument();
     expect(screen.getByText("cheer100 lets go")).toBeInTheDocument();
   });

@@ -22,6 +22,7 @@ import {
   getModerators,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderators-vips";
 import { useAuthStore } from "@/store/auth-store";
+import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
 
@@ -58,6 +59,7 @@ export function ChannelModeratorsTable({
   refreshCounter,
 }: ChannelModeratorsTableProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
+  const setTwitchChannelModState = useModeratedChannelsStore((s) => s.setTwitchChannelModState);
   const [entries, setEntries] = useState<ChannelMember[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -134,6 +136,9 @@ export function ChannelModeratorsTable({
           user_name: resolved.display_name,
         },
       ]);
+      if (resolved.id === twitchUser.id) {
+        setTwitchChannelModState(broadcasterId, true);
+      }
       toast.success(`Added ${resolved.display_name} as moderator`);
       setAddInput("");
     } finally {
@@ -161,6 +166,9 @@ export function ChannelModeratorsTable({
         return;
       }
       setEntries((prev) => prev.filter((e) => e.user_id !== row.user_id));
+      if (row.user_id === twitchUser?.id) {
+        setTwitchChannelModState(broadcasterId, false);
+      }
       toast.success(`Removed ${row.user_name || row.user_login}`);
     } finally {
       setRemoving((prev) => {

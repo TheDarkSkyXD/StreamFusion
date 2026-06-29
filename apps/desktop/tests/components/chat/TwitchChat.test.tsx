@@ -1,11 +1,9 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { installElectronAPIMock, renderWithProviders as render } from '../../test-utils';
-import {
-  type ChatDisplayPreferences,
-  DEFAULT_CHAT_DISPLAY_PREFERENCES,
-} from '@/shared/auth-types';
+import { installElectronAPIMock, renderWithProviders as render } from "../../test-utils";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import type { ChatMessage, NormalizedPinnedMessage } from "@/shared/chat-types";
 
 // U11 — capture the latest ChatMessageList props so tests can simulate a
 // toolbar click without rendering the full message virtuoso.
@@ -15,6 +13,7 @@ const lastListProps: {
   onTimeout?: (m: unknown) => void;
   onUnban?: (m: unknown) => void;
   onDelete?: (m: unknown) => void;
+  onPin?: (m: unknown) => void;
   selfUserId?: string;
 } = {};
 // Helper mocks must be hoisted, but referenced module-locally in tests too.
@@ -22,19 +21,32 @@ const banUserMock = vi.fn();
 const timeoutUserMock = vi.fn();
 const unbanUserMock = vi.fn();
 const deleteChatMessageMock = vi.fn();
+const pinChatMessageMock = vi.fn();
+const updatePinnedChatMessageMock = vi.fn();
 
-vi.mock('@/backend/api/platforms/twitch/twitch-helix-moderation-mutations', () => ({
+vi.mock("@/backend/api/platforms/twitch/twitch-gql-pin-mutations", () => ({
+  pinChatMessage: (...args: unknown[]) => pinChatMessageMock(...args),
+  updatePinnedChatMessage: (...args: unknown[]) => updatePinnedChatMessageMock(...args),
+  unpinChatMessage: vi.fn(),
+}));
+
+vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation-mutations", () => ({
   banUser: (...args: unknown[]) => banUserMock(...args),
   timeoutUser: (...args: unknown[]) => timeoutUserMock(...args),
   unbanUser: (...args: unknown[]) => unbanUserMock(...args),
   deleteChatMessage: (...args: unknown[]) => deleteChatMessageMock(...args),
 }));
 
+vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
+  getModeratedChannels: vi.fn(),
+}));
+
 const promptReconnectMock = vi.fn();
-vi.mock('@/hooks/useRequireModScopes', () => ({
+const mockModScopes = { hasModScopes: true, loading: false };
+vi.mock("@/hooks/useRequireModScopes", () => ({
   useRequireModScopes: () => ({
-    hasModScopes: true,
-    loading: false,
+    hasModScopes: mockModScopes.hasModScopes,
+    loading: mockModScopes.loading,
     promptReconnect: promptReconnectMock,
   }),
 }));
@@ -43,7 +55,7 @@ vi.mock('@/hooks/useRequireModScopes', () => ({
 // mod-action paths). The U7 viewer-path gear test flips it to false so
 // ChatPanelTabs takes its single-tab (no-chrome) branch.
 const mockIsTwitchMod = { value: true };
-vi.mock('@/hooks/useIsTwitchMod', () => ({
+vi.mock("@/hooks/useIsTwitchMod", () => ({
   useIsTwitchMod: () => mockIsTwitchMod.value,
 }));
 
@@ -57,7 +69,7 @@ function setMockChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   mockChatDisplay.value = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...overrides };
 }
 
-vi.mock('@/store/auth-store', () => {
+vi.mock("@/store/auth-store", () => {
   // TwitchChat's `isAuthenticated` is a useAuthStore selector reading
   // `twitchConnected && !twitchReconnectRequired` (commit 9c4bbf7). The
   // mock has to expose those fields or the selector returns `undefined`
@@ -68,7 +80,7 @@ vi.mock('@/store/auth-store', () => {
   // selector) and imperatively (handleUserNotice via getState()), so the
   // getter pulls from the mutable holder above on every access.
   const buildState = () => ({
-    twitchUser: { id: 'mod-1', login: 'modder', displayName: 'Modder' },
+    twitchUser: { id: "mod-1", login: "modder", displayName: "Modder" },
     twitchConnected: false,
     twitchReconnectRequired: false,
     kickConnected: false,
@@ -79,8 +91,8 @@ vi.mock('@/store/auth-store', () => {
     const state = buildState();
     return selector ? selector(state) : state;
   };
-  (useAuthStore as unknown as { getState: () => ReturnType<typeof buildState> }).getState =
-    () => buildState();
+  (useAuthStore as unknown as { getState: () => ReturnType<typeof buildState> }).getState = () =>
+    buildState();
   return { useAuthStore };
 });
 
@@ -88,7 +100,7 @@ vi.mock('@/store/auth-store', () => {
 // predictionUpdate without a real socket. Keyed by event name; `on` records,
 // `off` clears.
 const mockServiceHandlers: Record<string, ((arg: unknown) => void) | undefined> = {};
-vi.mock('@/backend/services/chat/twitch-chat', () => ({
+vi.mock("@/backend/services/chat/twitch-chat", () => ({
   twitchChatService: {
     connect: vi.fn(async () => true),
     disconnect: vi.fn(async () => true),
@@ -109,12 +121,12 @@ vi.mock('@/backend/services/chat/twitch-chat', () => ({
     // Needed so the connect-effect doesn't short-circuit on an undefined
     // getConnectionStatus call. The platform-scoped loadGlobalEmotes assertion
     // below depends on the effect reaching past this check.
-    getConnectionStatus: vi.fn(() => ({ state: 'connected' })),
+    getConnectionStatus: vi.fn(() => ({ state: "connected" })),
     joinChannel: vi.fn(async () => true),
   },
 }));
 
-vi.mock('@/backend/services/emotes', () => ({
+vi.mock("@/backend/services/emotes", () => ({
   initializeTwitchEmotes: vi.fn(),
   initializeKickEmotes: vi.fn(),
 }));
@@ -122,7 +134,7 @@ vi.mock('@/backend/services/emotes', () => ({
 // The Hermes client opens a real WebSocket on start(); stub it so the unit
 // test neither hits the network nor surfaces undici's async WS errors. U5's
 // prediction path is exercised by firing the predictionUpdate service handler.
-vi.mock('@/backend/services/chat/twitch-hermes-client', () => ({
+vi.mock("@/backend/services/chat/twitch-hermes-client", () => ({
   TwitchHermesClient: class {
     on() {}
     off() {}
@@ -133,9 +145,10 @@ vi.mock('@/backend/services/chat/twitch-hermes-client', () => ({
 
 const storeState = {
   connectionStatus: {
-    twitch: { platform: 'twitch', state: 'disconnected', channels: [], isAuthenticated: false },
-    kick: { platform: 'kick', state: 'disconnected', channels: [], isAuthenticated: false },
+    twitch: { platform: "twitch", state: "disconnected", channels: [], isAuthenticated: false },
+    kick: { platform: "kick", state: "disconnected", channels: [], isAuthenticated: false },
   },
+  messagesByChannel: {} as Record<string, ChatMessage[]>,
   clearMessages: vi.fn(),
   setPaused: vi.fn(),
   addMessage: vi.fn(),
@@ -148,9 +161,11 @@ const storeState = {
   cleanupBatching: vi.fn(),
 };
 
-vi.mock('@/store/chat-store', () => {
+vi.mock("@/store/chat-store", () => {
   const useChatStore = ((selector?: (s: typeof storeState) => unknown) =>
-    selector ? selector(storeState) : storeState) as ((selector?: (s: typeof storeState) => unknown) => unknown) & {
+    selector ? selector(storeState) : storeState) as ((
+    selector?: (s: typeof storeState) => unknown
+  ) => unknown) & {
     getState: () => typeof storeState;
   };
   useChatStore.getState = () => storeState;
@@ -162,35 +177,51 @@ vi.mock('@/store/chat-store', () => {
 
 const loadGlobalEmotesMock = vi.fn();
 const loadChannelEmotesMock = vi.fn();
-vi.mock('@/store/emote-store', () => {
+vi.mock("@/store/emote-store", () => {
   const state = {
     loadedChannels: new Set(),
     setActiveChannel: vi.fn(),
     loadChannelEmotes: (...args: unknown[]) => loadChannelEmotesMock(...args),
     loadGlobalEmotes: (...args: unknown[]) => loadGlobalEmotesMock(...args),
+    getEmoteNameMap: vi.fn(() => new Map()),
     unloadChannelEmotes: vi.fn(),
     applyProviderPrefs: vi.fn(),
   };
+  const useEmoteStore = ((selector?: (s: typeof state) => unknown) =>
+    selector ? selector(state) : state) as ((selector?: (s: typeof state) => unknown) => unknown) & {
+    getState: () => typeof state;
+  };
+  useEmoteStore.getState = () => state;
   return {
-    useEmoteStore: (selector?: (s: typeof state) => unknown) =>
-      selector ? selector(state) : state,
+    useEmoteStore,
   };
 });
 
-vi.mock('@/components/chat/ChatMessageList', () => ({
+const lastPinnedBannerProps: {
+  onUpdateDuration?: (durationSeconds: number | null) => void | Promise<void>;
+} = {};
+vi.mock("@/components/chat/PinnedMessageBanner", () => ({
+  PinnedMessageBanner: (props: typeof lastPinnedBannerProps) => {
+    lastPinnedBannerProps.onUpdateDuration = props.onUpdateDuration;
+    return <div data-testid="pinned-message-banner">pinned</div>;
+  },
+}));
+
+vi.mock("@/components/chat/ChatMessageList", () => ({
   ChatMessageList: (props: typeof lastListProps) => {
     lastListProps.channelKey = props.channelKey;
     lastListProps.onBan = props.onBan;
     lastListProps.onTimeout = props.onTimeout;
     lastListProps.onUnban = props.onUnban;
     lastListProps.onDelete = props.onDelete;
+    lastListProps.onPin = props.onPin;
     lastListProps.selfUserId = props.selfUserId;
     return <div data-testid="message-list">messages</div>;
   },
 }));
 
 const chatInputProps: { canSend?: boolean } = {};
-vi.mock('@/components/chat/ChatInput', () => ({
+vi.mock("@/components/chat/ChatInput", () => ({
   ChatInput: (props: { canSend?: boolean }) => {
     chatInputProps.canSend = props.canSend;
     return (
@@ -206,22 +237,26 @@ vi.mock('@/components/chat/ChatInput', () => ({
 
 // Stub the prediction banner to a marker so U5's showPredictions gate can be
 // asserted without the real countdown / dismiss internals.
-vi.mock('@/components/chat/PredictionBanner', () => ({
+vi.mock("@/components/chat/PredictionBanner", () => ({
   PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
 }));
 
-import { twitchChatService } from '@/backend/services/chat/twitch-chat';
-import { initializeTwitchEmotes } from '@/backend/services/emotes';
-import { TwitchChat } from '@/components/chat/twitch/TwitchChat';
+import { twitchChatService } from "@/backend/services/chat/twitch-chat";
+import { initializeTwitchEmotes } from "@/backend/services/emotes";
+import { getModeratedChannels } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+import { TwitchChat } from "@/components/chat/twitch/TwitchChat";
+import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+
+const getModeratedChannelsMock = vi.mocked(getModeratedChannels);
 
 // Minimal active prediction matching the channelId the multiview gate compares.
 const fakePrediction = {
-  id: 'pred-1',
-  platform: 'twitch',
-  channelId: 'ninja-id',
-  channelSlug: 'ninja',
-  title: 'Who wins?',
-  status: 'ACTIVE',
+  id: "pred-1",
+  platform: "twitch",
+  channelId: "ninja-id",
+  channelSlug: "ninja",
+  title: "Who wins?",
+  status: "ACTIVE",
   outcomes: [],
   winningOutcomeId: null,
   predictionWindowSeconds: 60,
@@ -236,48 +271,58 @@ const fakePrediction = {
 // Guards: empty messages — message list still renders (see ChatMessageList tests); chat input + chat-settings gear render in viewer single-tab path (U7) so the chrome doesn't disappear under the tab-shell refactor
 // Guards: U5 prefs — sub/raid notice + chat-cleared notice + prediction banner each suppress when their visibility pref is false. clearMessages('twitch:ninja') still runs even when its notice is suppressed (moderation action is real, only the notice text is hidden)
 // Guards: U11 — Ban toolbar click opens ModActionConfirmDialog; confirm fires banUser with the broadcaster/moderator/user ids assembled from the page route
-describe('TwitchChat', () => {
+describe("TwitchChat", () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
     // Provide a Twitch token so the U11 onConfirm path doesn't early-out.
-    api.auth.getToken = vi.fn(async () => ({ accessToken: 'tok', scope: [] }));
-    storeState.connectionStatus.kick.state = 'disconnected';
-    storeState.connectionStatus.twitch.state = 'disconnected';
+    api.auth.getToken = vi.fn(async () => ({ accessToken: "tok", scope: [] }));
+    storeState.connectionStatus.kick.state = "disconnected";
+    storeState.connectionStatus.twitch.state = "disconnected";
+    storeState.messagesByChannel = {};
     chatInputProps.canSend = undefined;
     lastListProps.onBan = undefined;
     lastListProps.onTimeout = undefined;
     lastListProps.onUnban = undefined;
     lastListProps.onDelete = undefined;
+    lastListProps.onPin = undefined;
     lastListProps.selfUserId = undefined;
     lastListProps.channelKey = undefined;
     banUserMock.mockReset();
     timeoutUserMock.mockReset();
     unbanUserMock.mockReset();
     deleteChatMessageMock.mockReset();
+    pinChatMessageMock.mockReset();
+    updatePinnedChatMessageMock.mockReset();
+    lastPinnedBannerProps.onUpdateDuration = undefined;
+    mockModScopes.hasModScopes = true;
+    mockModScopes.loading = false;
     promptReconnectMock.mockReset();
     vi.mocked(twitchChatService.connect).mockClear();
     loadGlobalEmotesMock.mockReset();
     loadChannelEmotesMock.mockReset();
     vi.mocked(initializeTwitchEmotes).mockReset();
+    getModeratedChannelsMock.mockReset();
     storeState.addMessage = vi.fn();
     storeState.clearMessages = vi.fn();
+    storeState.deleteMessagesByUser = vi.fn();
     setMockChatDisplay({});
     mockIsTwitchMod.value = true;
+    useModeratedChannelsStore.getState().clear();
     for (const k of Object.keys(mockServiceHandlers)) delete mockServiceHandlers[k];
   });
 
-  it('renders message list and chat input', () => {
+  it("renders message list and chat input", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
-    expect(screen.getByTestId('message-list')).toBeInTheDocument();
-    expect(screen.getByTestId('chat-input')).toBeInTheDocument();
+    expect(screen.getByTestId("message-list")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-input")).toBeInTheDocument();
   });
 
-  it('passes the per-channel key to ChatMessageList', () => {
+  it("passes the per-channel key to ChatMessageList", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
-    expect(lastListProps.channelKey).toBe('twitch:ninja');
+    expect(lastListProps.channelKey).toBe("twitch:ninja");
   });
 
-  it('shows the connecting row before Twitch token/network setup resolves', async () => {
+  it("shows the connecting row before Twitch token/network setup resolves", async () => {
     const api = installElectronAPIMock();
     api.auth.getValidTwitchToken = vi.fn(() => new Promise<never>(() => {}));
 
@@ -288,9 +333,9 @@ describe('TwitchChat', () => {
         (call: unknown[]) => {
           const msg = call[0] as { rawContent?: string } | undefined;
           return msg?.rawContent;
-        },
+        }
       );
-      expect(addedTexts).toContain('Connecting to channel...');
+      expect(addedTexts).toContain("Connecting to channel...");
     });
     expect(twitchChatService.connect).not.toHaveBeenCalled();
   });
@@ -299,40 +344,91 @@ describe('TwitchChat', () => {
   // ChatPanelTabs, so it must survive the single-tab (viewer) path that strips
   // tab chrome. Lock it with a POSITIVE render assertion per the
   // chat-header-banner-lost-in-tab-shell-refactor learning.
-  it('renders the chat-settings gear in the single-tab viewer path', () => {
+  it("renders the chat-settings gear in the single-tab viewer path", () => {
     mockIsTwitchMod.value = false; // viewer → ChatPanelTabs single-tab branch
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     // No tab strip is rendered for a viewer...
-    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole("tablist")).toBeNull();
     // ...but the gear (header chrome, sibling of ChatPanelTabs) is still there.
-    expect(screen.getByRole('button', { name: /chat settings/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /chat settings/i })).toBeInTheDocument();
   });
 
-  it("loads global emotes scoped to 'twitch' after auth/connect", async () => {
-    // The branch that calls loadGlobalEmotes('twitch') is gated on
-    // `if (twitchClientId)`. Stub the env so the gate opens for this test.
-    vi.stubEnv('VITE_TWITCH_CLIENT_ID', 'test-client-id');
+  it("applies live moderatorState events to the moderated-channel store", () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    expect(mockServiceHandlers.moderatorState).toBeTypeOf("function");
+
+    act(() => {
+      mockServiceHandlers.moderatorState?.({
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "ninja-id",
+        isModerator: true,
+        reason: "ws",
+      });
+    });
+    expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("ninja-id")).toBe(
+      true
+    );
+
+    act(() => {
+      mockServiceHandlers.moderatorState?.({
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "ninja-id",
+        isModerator: false,
+        reason: "ws",
+      });
+    });
+    expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("ninja-id")).toBe(
+      false
+    );
+  });
+
+  it("hydrates Twitch moderated channels on direct chat mount", async () => {
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
+    getModeratedChannelsMock.mockResolvedValue([
+      { broadcaster_id: "ninja-id", broadcaster_login: "ninja", broadcaster_name: "Ninja" },
+    ]);
+
     try {
       render(<TwitchChat channel="ninja" channelId="ninja-id" />);
-      // The connect effect is async — wait until the platform-scoped call lands
-      // before asserting the argument so we don't race the resolve.
-      await waitFor(() => expect(loadGlobalEmotesMock).toHaveBeenCalled());
-      expect(loadGlobalEmotesMock).toHaveBeenCalledWith('twitch', { force: true });
+
+      await waitFor(() =>
+        expect(getModeratedChannelsMock).toHaveBeenCalledWith("mod-1", "tok", "test-client-id")
+      );
+      expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("ninja-id")).toBe(
+        true
+      );
     } finally {
       vi.unstubAllEnvs();
     }
   });
 
-  it('initializes Twitch native emotes before loading channel emotes', async () => {
-    vi.stubEnv('VITE_TWITCH_CLIENT_ID', 'test-client-id');
+  it("loads global emotes scoped to 'twitch' after auth/connect", async () => {
+    // The branch that calls loadGlobalEmotes('twitch') is gated on
+    // `if (twitchClientId)`. Stub the env so the gate opens for this test.
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
+    try {
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+      // The connect effect is async — wait until the platform-scoped call lands
+      // before asserting the argument so we don't race the resolve.
+      await waitFor(() => expect(loadGlobalEmotesMock).toHaveBeenCalled());
+      expect(loadGlobalEmotesMock).toHaveBeenCalledWith("twitch", { force: true });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("initializes Twitch native emotes before loading channel emotes", async () => {
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
     const api = installElectronAPIMock();
-    api.auth.getValidTwitchToken = vi.fn(async () => 'fresh-token');
+    api.auth.getValidTwitchToken = vi.fn(async () => "fresh-token");
     try {
       render(<TwitchChat channel="ninja" channelId="ninja-id" />);
 
       await waitFor(() => expect(loadChannelEmotesMock).toHaveBeenCalled());
-      expect(initializeTwitchEmotes).toHaveBeenCalledWith('test-client-id', 'fresh-token');
-      expect(loadChannelEmotesMock).toHaveBeenCalledWith('ninja-id', 'ninja', 'twitch');
+      expect(initializeTwitchEmotes).toHaveBeenCalledWith("test-client-id", "fresh-token");
+      expect(loadChannelEmotesMock).toHaveBeenCalledWith("ninja-id", "ninja", "twitch");
 
       const initializeOrder = vi.mocked(initializeTwitchEmotes).mock.invocationCallOrder[0];
       const channelLoadOrder = loadChannelEmotesMock.mock.invocationCallOrder[0];
@@ -342,12 +438,12 @@ describe('TwitchChat', () => {
     }
   });
 
-  it('canSend reflects the narrowed connection-state selector', () => {
-    storeState.connectionStatus.twitch.state = 'disconnected';
+  it("canSend reflects the narrowed connection-state selector", () => {
+    storeState.connectionStatus.twitch.state = "disconnected";
     const { rerender, unmount } = render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(chatInputProps.canSend).toBe(false);
 
-    storeState.connectionStatus.twitch.state = 'connected';
+    storeState.connectionStatus.twitch.state = "connected";
     rerender(<TwitchChat channel="ninja" channelId="ninja-id" />);
     // Still false because isAuthenticated is local state behind the async
     // token resolution. The selector returned a fresh boolean primitive on
@@ -359,70 +455,213 @@ describe('TwitchChat', () => {
 
   // ---------- U11 — mod-action mutation wiring ----------
   const fakeMessage = {
-    id: 'msg-42',
-    username: 'baduser',
-    userId: 'user-99',
-    rawContent: 'spam spam spam',
+    id: "msg-42",
+    username: "baduser",
+    userId: "user-99",
+    rawContent: "spam spam spam",
   } as const;
 
-  it('Ban toolbar click opens the ModActionConfirmDialog', () => {
+  it("Ban toolbar click opens the ModActionConfirmDialog", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
-    expect(lastListProps.onBan).toBeTypeOf('function');
+    expect(lastListProps.onBan).toBeTypeOf("function");
     act(() => {
       lastListProps.onBan?.(fakeMessage);
     });
-    expect(screen.getByRole('heading', { name: /^Ban user$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Ban user$/ })).toBeInTheDocument();
   });
 
-  it('Confirming the Ban dialog calls banUser with the correct args', async () => {
+  it("Confirming the Ban dialog calls banUser with the correct args", async () => {
     banUserMock.mockResolvedValue({ ok: true, payload: {} });
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     act(() => {
       lastListProps.onBan?.(fakeMessage);
     });
-    fireEvent.click(screen.getByRole('button', { name: /^Ban user$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Ban user$/ }));
     await waitFor(() => expect(banUserMock).toHaveBeenCalledTimes(1));
     expect(banUserMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        accessToken: 'tok',
-        broadcasterId: 'ninja-id',
-        moderatorId: 'mod-1',
-        userId: 'user-99',
+        accessToken: "tok",
+        broadcasterId: "ninja-id",
+        moderatorId: "mod-1",
+        userId: "user-99",
         clientId: expect.any(String),
-      }),
+      })
     );
   });
 
-  it('A missing-scopes result fires promptReconnect with the listed scopes', async () => {
+  it("A missing-scopes result fires promptReconnect with the listed scopes", async () => {
     banUserMock.mockResolvedValue({
       ok: false,
-      kind: 'missing-scopes',
-      message: 'Missing scope: moderator:manage:banned_users',
-      missingScopes: ['moderator:manage:banned_users'],
+      kind: "missing-scopes",
+      message: "Missing scope: moderator:manage:banned_users",
+      missingScopes: ["moderator:manage:banned_users"],
     });
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     act(() => {
       lastListProps.onBan?.(fakeMessage);
     });
-    fireEvent.click(screen.getByRole('button', { name: /^Ban user$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Ban user$/ }));
     await waitFor(() => expect(promptReconnectMock).toHaveBeenCalledTimes(1));
     expect(promptReconnectMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        missingScopes: ['moderator:manage:banned_users'],
-      }),
+        missingScopes: ["moderator:manage:banned_users"],
+      })
     );
   });
 
   // ---------- U5 — event/notice visibility + prediction widget ----------
+  it("Pin toolbar click opens the Twitch duration dialog and confirms the Helix pin payload", async () => {
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
+    try {
+      pinChatMessageMock.mockResolvedValue({ ok: true });
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+      act(() => {
+        lastListProps.onPin?.(fakeMessage);
+      });
+      expect(screen.getByRole("heading", { name: /^Pin message$/ })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Pin message$/ }));
+
+      await waitFor(() => expect(pinChatMessageMock).toHaveBeenCalledTimes(1));
+      expect(pinChatMessageMock).toHaveBeenCalledWith(
+        "ninja-id",
+        "mod-1",
+        "msg-42",
+        1800,
+        "tok",
+        "test-client-id"
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole("heading", { name: /^Pin message$/ })).toBeNull()
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("pins immediately when the Twitch pin duration dialog setting is off", async () => {
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
+    try {
+      setMockChatDisplay({ showTwitchPinDurationDialog: false });
+      pinChatMessageMock.mockResolvedValue({ ok: true });
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+      await act(async () => {
+        await lastListProps.onPin?.(fakeMessage);
+      });
+
+      expect(screen.queryByRole("heading", { name: /^Pin message$/ })).toBeNull();
+      await waitFor(() => expect(pinChatMessageMock).toHaveBeenCalledTimes(1));
+      expect(pinChatMessageMock).toHaveBeenCalledWith(
+        "ninja-id",
+        "mod-1",
+        "msg-42",
+        30 * 60,
+        "tok",
+        "test-client-id"
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("updates an existing Twitch pin duration with PATCH instead of pinning again", async () => {
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
+    try {
+      updatePinnedChatMessageMock.mockResolvedValue({ ok: true });
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+      const pinnedMessage: NormalizedPinnedMessage = {
+        platform: "twitch",
+        messageId: "msg-42",
+        pinRecordId: null,
+        author: {
+          username: "baduser",
+          displayName: "BadUser",
+          color: "#9146ff",
+          badges: [],
+        },
+        content: [{ type: "text", content: "spam spam spam" }],
+        pinnedBy: null,
+        pinnedAt: new Date("2026-06-29T15:00:00.000Z").toISOString(),
+        sentAt: null,
+        expiresAt: new Date("2026-06-29T15:30:00.000Z").toISOString(),
+      };
+
+      act(() => {
+        mockServiceHandlers.pinnedMessage?.(pinnedMessage);
+      });
+      expect(screen.getByTestId("pinned-message-banner")).toBeInTheDocument();
+
+      await act(async () => {
+        await lastPinnedBannerProps.onUpdateDuration?.(60);
+      });
+
+      await waitFor(() => expect(updatePinnedChatMessageMock).toHaveBeenCalledTimes(1));
+      expect(updatePinnedChatMessageMock).toHaveBeenCalledWith(
+        "ninja-id",
+        "mod-1",
+        "msg-42",
+        60,
+        "tok",
+        "test-client-id"
+      );
+      expect(pinChatMessageMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("does not block Twitch pinning while the scope check is still loading", () => {
+    mockModScopes.hasModScopes = false;
+    mockModScopes.loading = true;
+
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    act(() => {
+      lastListProps.onPin?.(fakeMessage);
+    });
+
+    expect(screen.getByRole("heading", { name: /^Pin message$/ })).toBeInTheDocument();
+    expect(promptReconnectMock).not.toHaveBeenCalled();
+  });
+
+  it("Delete toolbar click deletes immediately without opening a confirmation dialog", async () => {
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
+    try {
+      deleteChatMessageMock.mockResolvedValue({ ok: true, payload: {} });
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+      await act(async () => {
+        await lastListProps.onDelete?.(fakeMessage);
+      });
+
+      await waitFor(() => expect(deleteChatMessageMock).toHaveBeenCalledTimes(1));
+      expect(deleteChatMessageMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accessToken: "tok",
+          clientId: "test-client-id",
+          broadcasterId: "ninja-id",
+          moderatorId: "mod-1",
+          messageId: "msg-42",
+        })
+      );
+      expect(screen.queryByRole("heading", { name: /^Delete message$/ })).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   const fakeNotice = {
-    id: 'notice-1',
-    platform: 'twitch' as const,
-    channel: 'ninja',
-    type: 'sub' as const,
-    userId: 'u-sub',
-    username: 'subber',
-    displayName: 'Subber',
-    systemMessage: 'Subber subscribed!',
+    id: "notice-1",
+    platform: "twitch" as const,
+    channel: "ninja",
+    type: "sub" as const,
+    userId: "u-sub",
+    username: "subber",
+    displayName: "Subber",
+    systemMessage: "Subber subscribed!",
     timestamp: new Date(),
   };
 
@@ -430,77 +669,240 @@ describe('TwitchChat', () => {
   // the message CONTENT rather than the call count — this isolates the
   // notice/clear lines from connect-flow noise. The handler binds to the
   // render-time addMessage mock, so the mock must stay stable (no reassign).
-  const addMessageCalledWithText = (text: string): boolean =>
-    (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
-      (call: unknown[]) => {
-        const msg = call[0] as { content?: Array<{ content?: string }> } | undefined;
-        return msg?.content?.[0]?.content === text;
-      },
-    );
+  const addedMessageWithText = (text: string) =>
+    (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls
+      .map((call: unknown[]) => call[0] as { content?: Array<{ content?: string }> })
+      .find((msg) => msg?.content?.[0]?.content === text);
 
-  it('adds a sub/raid notice to the store by default (showUserNotices true)', () => {
+  const addMessageCalledWithText = (text: string): boolean => Boolean(addedMessageWithText(text));
+
+  it("adds a sub/raid notice to the store by default (showUserNotices true)", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
-    expect(mockServiceHandlers.userNotice).toBeTypeOf('function');
+    expect(mockServiceHandlers.userNotice).toBeTypeOf("function");
     act(() => {
       mockServiceHandlers.userNotice?.(fakeNotice);
     });
-    expect(addMessageCalledWithText('Subber subscribed!')).toBe(true);
+    expect(addedMessageWithText("Subber subscribed!")).toEqual(
+      expect.objectContaining({
+        username: "subber",
+        displayName: "Subber",
+        highlightKind: "subscription",
+      })
+    );
   });
 
-  it('suppresses sub/raid notices when showUserNotices is false', () => {
+  it("suppresses sub/raid notices when showUserNotices is false", () => {
     setMockChatDisplay({ showUserNotices: false });
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     act(() => {
       mockServiceHandlers.userNotice?.(fakeNotice);
     });
-    expect(addMessageCalledWithText('Subber subscribed!')).toBe(false);
+    expect(addMessageCalledWithText("Subber subscribed!")).toBe(false);
   });
 
-  it('still clears messages but suppresses the clear notice when showClearChat is false', () => {
+  it("still clears messages but suppresses the clear notice when showClearChat is false", () => {
     setMockChatDisplay({ showClearChat: false });
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     act(() => {
       mockServiceHandlers.clearChat?.({
-        platform: 'twitch',
-        channel: 'ninja',
+        platform: "twitch",
+        channel: "ninja",
         isClearAll: true,
         timestamp: new Date(),
       });
     });
     // The moderation effect runs (chat is cleared for this channel)...
-    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch:ninja');
+    expect(storeState.clearMessages).toHaveBeenCalledWith("twitch:ninja");
     // ...but the "Chat was cleared" system line is not added.
-    expect(addMessageCalledWithText('Chat was cleared')).toBe(false);
+    expect(addMessageCalledWithText("Chat was cleared")).toBe(false);
   });
 
   it('adds the "Chat was cleared" notice by default (showClearChat true)', () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     act(() => {
       mockServiceHandlers.clearChat?.({
-        platform: 'twitch',
-        channel: 'ninja',
+        platform: "twitch",
+        channel: "ninja",
         isClearAll: true,
         timestamp: new Date(),
       });
     });
-    expect(storeState.clearMessages).toHaveBeenCalledWith('twitch:ninja');
-    expect(addMessageCalledWithText('Chat was cleared')).toBe(true);
+    expect(storeState.clearMessages).toHaveBeenCalledWith("twitch:ninja");
+    expect(addMessageCalledWithText("Chat was cleared")).toBe(true);
   });
 
-  it('renders the prediction banner when a prediction arrives (showPredictions true)', () => {
+  it("passes all retained Twitch timeout/ban-deleted message bodies into the ban notice", () => {
+    const deletedAt = new Date("2026-06-29T17:45:00");
+    storeState.messagesByChannel["twitch:ninja"] = [
+      {
+        id: "t-msg-1",
+        platform: "twitch",
+        type: "message",
+        channel: "ninja",
+        userId: "u1",
+        username: "spammer",
+        displayName: "Spammer",
+        color: "#fff",
+        badges: [],
+        content: [{ type: "text", content: "first twitch message" }],
+        rawContent: "first twitch message",
+        timestamp: deletedAt,
+        isDeleted: false,
+        isHighlighted: false,
+        isAction: false,
+      },
+      {
+        id: "t-msg-2",
+        platform: "twitch",
+        type: "message",
+        channel: "ninja",
+        userId: "u1",
+        username: "spammer",
+        displayName: "Spammer",
+        color: "#5B9BD5",
+        badges: [
+          {
+            setId: "vip",
+            version: "1",
+            imageUrl: "https://example.com/vip.png",
+            title: "VIP",
+          },
+        ],
+        content: [{ type: "text", content: "second twitch message" }],
+        rawContent: "second twitch message",
+        timestamp: deletedAt,
+        isDeleted: false,
+        isHighlighted: false,
+        isAction: false,
+      },
+      {
+        id: "t-mod-msg",
+        platform: "twitch",
+        type: "message",
+        channel: "ninja",
+        userId: "mod-1",
+        username: "mod",
+        displayName: "Mod",
+        color: "#70AD47",
+        badges: [
+          {
+            setId: "moderator",
+            version: "1",
+            imageUrl: "https://example.com/mod.png",
+            title: "Moderator",
+          },
+        ],
+        content: [{ type: "text", content: "keep it clean" }],
+        rawContent: "keep it clean",
+        timestamp: deletedAt,
+        isDeleted: false,
+        isHighlighted: false,
+        isAction: false,
+      },
+    ];
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    act(() => {
+      mockServiceHandlers.clearChat?.({
+        platform: "twitch",
+        channel: "ninja",
+        targetUserId: "u1",
+        targetUsername: "spammer",
+        bannedByUsername: "mod",
+        duration: 600,
+        isClearAll: false,
+        timestamp: deletedAt,
+      });
+    });
+
+    expect(storeState.deleteMessagesByUser).toHaveBeenCalledWith("twitch:ninja", "u1", {
+      deletedAt,
+      deletedByUser: {
+        userId: "mod-1",
+        username: "mod",
+        displayName: "Mod",
+        color: "#70AD47",
+        badges: [
+          {
+            setId: "moderator",
+            version: "1",
+            imageUrl: "https://example.com/mod.png",
+            title: "Moderator",
+          },
+        ],
+      },
+      deletedByUsername: "mod",
+    });
+    expect(storeState.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        banInfo: expect.objectContaining({
+          bannedUser: {
+            userId: "u1",
+            username: "spammer",
+            displayName: "Spammer",
+            color: "#5B9BD5",
+            badges: [
+              {
+                setId: "vip",
+                version: "1",
+                imageUrl: "https://example.com/vip.png",
+                title: "VIP",
+              },
+            ],
+          },
+          bannedByUser: {
+            userId: "mod-1",
+            username: "mod",
+            displayName: "Mod",
+            color: "#70AD47",
+            badges: [
+              {
+                setId: "moderator",
+                version: "1",
+                imageUrl: "https://example.com/mod.png",
+                title: "Moderator",
+              },
+            ],
+          },
+          lastMessage: "second twitch message",
+          deletedMessages: ["first twitch message", "second twitch message"],
+        }),
+      })
+    );
+  });
+
+  it("passes Twitch message deletion timestamps into the retained deleted row", () => {
+    const deletedAt = new Date("2026-06-29T17:45:00");
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    act(() => {
+      mockServiceHandlers.messageDeleted?.({
+        platform: "twitch",
+        channel: "ninja",
+        messageId: "msg-1",
+        timestamp: deletedAt,
+      });
+    });
+
+    expect(storeState.deleteMessage).toHaveBeenCalledWith("twitch:ninja", "msg-1", {
+      deletedAt,
+    });
+  });
+
+  it("renders the prediction banner when a prediction arrives (showPredictions true)", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     act(() => {
       mockServiceHandlers.predictionUpdate?.(fakePrediction);
     });
-    expect(screen.getByTestId('prediction-banner')).toBeInTheDocument();
+    expect(screen.getByTestId("prediction-banner")).toBeInTheDocument();
   });
 
-  it('hides the prediction banner when showPredictions is false', () => {
+  it("hides the prediction banner when showPredictions is false", () => {
     setMockChatDisplay({ showPredictions: false });
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     act(() => {
       mockServiceHandlers.predictionUpdate?.(fakePrediction);
     });
-    expect(screen.queryByTestId('prediction-banner')).toBeNull();
+    expect(screen.queryByTestId("prediction-banner")).toBeNull();
   });
 });

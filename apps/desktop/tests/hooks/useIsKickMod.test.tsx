@@ -1,18 +1,25 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { useIsKickMod } from "@/hooks/useIsKickMod";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
+import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 beforeEach(() => {
-  useDevModOverrideStore.getState().reset();
-  useAuthStore.setState({ kickUser: null });
+  act(() => {
+    useDevModOverrideStore.getState().reset();
+    useAuthStore.setState({ kickUser: null });
+    useModeratedChannelsStore.getState().clear();
+  });
 });
 
 afterEach(() => {
-  useDevModOverrideStore.getState().reset();
-  useAuthStore.setState({ kickUser: null });
+  act(() => {
+    useDevModOverrideStore.getState().reset();
+    useAuthStore.setState({ kickUser: null });
+    useModeratedChannelsStore.getState().clear();
+  });
 });
 
 describe("useIsKickMod", () => {
@@ -57,6 +64,25 @@ describe("useIsKickMod", () => {
       kickUser: { id: 1, username: "me", slug: "me", profilePic: "", verified: false },
     });
     const { result } = renderHook(() => useIsKickMod("ac7ionman"));
+    expect(result.current).toBe(false);
+  });
+
+  it("returns live Kick moderator state from observed self-badges", () => {
+    useAuthStore.setState({
+      kickUser: { id: 1, username: "me", slug: "me", profilePic: "", verified: false },
+    });
+    const { result } = renderHook(() => useIsKickMod("Ac7ionMan"));
+
+    expect(result.current).toBe(false);
+
+    act(() => {
+      useModeratedChannelsStore.getState().setKickChannelModState("ac7ionman", true);
+    });
+    expect(result.current).toBe(true);
+
+    act(() => {
+      useModeratedChannelsStore.getState().setKickChannelModState("ac7ionman", false);
+    });
     expect(result.current).toBe(false);
   });
 

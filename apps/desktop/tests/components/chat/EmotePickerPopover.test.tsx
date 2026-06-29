@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const toastMocks = vi.hoisted(() => ({
   warning: vi.fn(),
@@ -129,7 +130,11 @@ function renderPicker(props: Partial<IntendedEmotePickerPopoverProps> = {}) {
     channelAvatarUrl: props.channelAvatarUrl,
     channelLabel: props.channelLabel,
   };
-  const utils = render(<EmotePickerPopover {...pickerProps} />);
+  const utils = render(
+    <TooltipProvider>
+      <EmotePickerPopover {...pickerProps} />
+    </TooltipProvider>
+  );
   return { ...utils, onClose, onSelect, anchor };
 }
 

@@ -14,6 +14,8 @@ import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_CHAT_PREFERENCES,
+  type DeletedMessageDisplayMode,
+  type ModerationHighlightStyle,
 } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -39,7 +41,8 @@ export type ChatSettingsGroup = "appearance" | "emotes" | "events" | "behavior";
  * Settings groups pass `notifySettingsSaved`; the in-chat gear omits it).
  */
 export function useChatDisplay(onSaved?: () => void) {
-  const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  const storedChatDisplay = useAuthStore((s) => s.preferences?.chatDisplay);
+  const cd = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...(storedChatDisplay ?? {}) };
   const updatePreferences = useAuthStore((s) => s.updatePreferences);
   // Read full prefs lazily inside the writer so the freshest sibling groups are
   // spread (avoids stomping a concurrent write to another group).
@@ -48,7 +51,9 @@ export function useChatDisplay(onSaved?: () => void) {
     async <K extends keyof ChatDisplayPreferences>(field: K, value: ChatDisplayPreferences[K]) => {
       const current =
         useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
-      await updatePreferences({ chatDisplay: { ...current, [field]: value } });
+      await updatePreferences({
+        chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...current, [field]: value },
+      });
       onSaved?.();
     },
     [updatePreferences, onSaved]
@@ -300,7 +305,10 @@ export function SelectRow<T extends string>({
       note={note}
       control={
         <Select value={value} onValueChange={(v) => onChange(v as T)}>
-          <SelectTrigger className="w-[160px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
+          <SelectTrigger
+            aria-label={label}
+            className="w-[160px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
@@ -459,6 +467,98 @@ function EmotesGroup() {
   );
 }
 
+function HighlightStylePreview({
+  active,
+  label,
+  onClick,
+  tone,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  tone: "compact" | "cozy";
+}) {
+  const isCozy = tone === "cozy";
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "group relative w-[148px] rounded-[8px] border p-2 text-left transition-[background,border-color,box-shadow,color,transform] duration-150",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214]",
+        active
+          ? "border-white bg-[#242428] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.82)]"
+          : "border-[#333333] bg-[#18181b] text-zinc-300 hover:-translate-y-0.5 hover:border-[#a1a1aa] hover:bg-[#202024] hover:text-white hover:shadow-[inset_0_0_0_1px_rgba(161,161,170,0.34)]"
+      )}
+    >
+      <span className="mb-2 flex min-h-4 items-center justify-between gap-2">
+        <span className="block text-xs font-semibold">{label}</span>
+        {active && (
+          <span className="rounded-[4px] bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-normal text-[#18181b]">
+            Selected
+          </span>
+        )}
+      </span>
+      <span
+        className={cn(
+          "block overflow-hidden border text-[10px] leading-tight transition-colors duration-150",
+          isCozy
+            ? active
+              ? "rounded-[6px] border-[#ff9b9b]"
+              : "rounded-[6px] border-[#f87171] group-hover:border-[#ff9b9b]"
+            : active
+              ? "border-white/70 border-l-[#ff9b9b]"
+              : "border-[#333333] border-l-[#f87171] group-hover:border-[#52525b] group-hover:border-l-[#ff9b9b]"
+        )}
+      >
+        {isCozy && (
+          <span className="flex h-5 items-center gap-1 bg-[#26262c] px-1.5 text-[#efeff1]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#f87171]" />
+            <span>Timeout</span>
+          </span>
+        )}
+        <span className={cn("block bg-[#1f1f24] px-1.5 py-1", isCozy && "bg-[#18181b]")}>
+          <span className="font-bold text-[#70AD47]">Mod</span>
+          <span className="text-[#adadb8]"> removed </span>
+          <span className="text-white">message</span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function HighlightStyleRow({
+  value,
+  onChange,
+}: {
+  value: ModerationHighlightStyle;
+  onChange: (value: ModerationHighlightStyle) => void;
+}) {
+  return (
+    <SettingRow
+      label="Moderation highlight style"
+      description="Choose the visual treatment for deleted-message, timeout, and ban highlights."
+      control={
+        <div className="flex flex-wrap justify-end gap-2">
+          <HighlightStylePreview
+            active={value === "compact"}
+            label="Compact"
+            onClick={() => onChange("compact")}
+            tone="compact"
+          />
+          <HighlightStylePreview
+            active={value === "cozy"}
+            label="Framed"
+            onClick={() => onChange("cozy")}
+            tone="cozy"
+          />
+        </div>
+      }
+    />
+  );
+}
+
 function EventsGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
@@ -504,6 +604,22 @@ function EventsGroup() {
         checked={cd.showClearMsg}
         onChange={(v) => set("showClearMsg", v)}
       />
+      <SelectRow<DeletedMessageDisplayMode>
+        label="Deleted message display"
+        description="Choose how much retained deleted-message detail appears in chat."
+        value={cd.deletedMessageDisplay}
+        options={[
+          { value: "tombstone", label: "Tombstone only" },
+          { value: "message", label: "Message content only" },
+          { value: "compact", label: "Full compact detail (Recommended)" },
+          { value: "audit", label: "Audit-style detail" },
+        ]}
+        onChange={(v) => set("deletedMessageDisplay", v)}
+      />
+      <HighlightStyleRow
+        value={cd.moderationHighlightStyle}
+        onChange={(v) => set("moderationHighlightStyle", v)}
+      />
       <SwitchRow
         label="Show chat-cleared notices"
         checked={cd.showClearChat}
@@ -525,6 +641,7 @@ function EventsGroup() {
 }
 
 function BehaviorGroup() {
+  const { cd, set } = useChatDisplay(notifySettingsSaved);
   const updatePreferences = useAuthStore((s) => s.updatePreferences);
   const hidden = useAuthStore((s) => s.preferences?.chat?.position) === "hidden";
 
@@ -541,6 +658,12 @@ function BehaviorGroup() {
         description="Collapse the docked chat panel on stream pages."
         checked={hidden}
         onChange={onHideChange}
+      />
+      <SwitchRow
+        label="Ask for Twitch pin duration"
+        description="Show the duration dialog when pinning a Twitch chat message. Turn this off to pin immediately."
+        checked={cd.showTwitchPinDurationDialog}
+        onChange={(v) => set("showTwitchPinDurationDialog", v)}
       />
     </GroupCard>
   );

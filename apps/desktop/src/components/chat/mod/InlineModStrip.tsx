@@ -24,6 +24,7 @@ import {
   LuTrash2,
   LuUserCheck,
 } from "react-icons/lu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 
 export type InlineModAction =
   | { kind: "slow-mode"; currentlyActive: boolean }
@@ -70,20 +71,24 @@ interface StripButtonProps {
 
 function StripButton({ label, active, onClick, children, testId }: StripButtonProps) {
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={active === undefined ? undefined : active}
-      data-active={active ? "true" : "false"}
-      data-testid={testId}
-      onClick={onClick}
-      className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-        active ? ACTIVE_CLASS : INACTIVE_CLASS
-      }`}
-    >
-      {children}
-    </button>
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-pressed={active === undefined ? undefined : active}
+          data-active={active ? "true" : "false"}
+          data-testid={testId}
+          onClick={onClick}
+          className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+            active ? ACTIVE_CLASS : INACTIVE_CLASS
+          }`}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

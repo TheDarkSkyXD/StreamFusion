@@ -140,7 +140,6 @@ export const QuickEmoteActionBar: React.FC<QuickEmoteActionBarProps> = memo(
               disabled={disabled}
               onClick={() => onSelect(emote)}
               aria-label={`Use ${emote.name}`}
-              title={emote.name}
               data-testid="quick-emote-button"
               data-emote-key={key}
               className="group flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] border border-transparent bg-transparent p-0.5 opacity-85 transition-[background-color,border-color,opacity,transform] duration-150 ease-out hover:border-white/20 hover:bg-white/[0.08] hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] disabled:cursor-not-allowed disabled:opacity-40"

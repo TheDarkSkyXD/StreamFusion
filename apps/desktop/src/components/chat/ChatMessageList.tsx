@@ -1,9 +1,17 @@
 import type React from "react";
-import { memo, useCallback, useEffect, useEffectEvent, useRef } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useManagedTimeout } from "../../hooks/useManagedTimeout";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
-import type { ChatMessage as ChatMessageType } from "../../shared/chat-types";
+import type { ChatMessage as ChatMessageType, ChatPlatform } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { useChatStore } from "../../store/chat-store";
 import { useRenderCount } from "../dev/use-render-count";
@@ -19,12 +27,30 @@ const MemoizedChatMessage = memo(ChatMessage);
 const EMPTY_MESSAGES: ChatMessageType[] = [];
 const CHAT_LIST_OVERSCAN_PX = 150;
 const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 240, bottom: 480 };
+const NEW_MESSAGES_DIVIDER_COLOR: Record<ChatPlatform, string> = {
+  twitch: "#a970ff",
+  kick: "#53fc18",
+};
 
 function estimateDefaultItemHeight(chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES): number {
-  const lineHeight = chatDisplay.density === "compact" ? 1.2 : 1.35;
-  const verticalPadding = chatDisplay.density === "compact" ? 0 : 4;
-  return Math.ceil(
-    Math.max(chatDisplay.emoteSizePx, chatDisplay.fontSizePx * lineHeight) + verticalPadding
+  const lineHeight = chatDisplay.density === "compact" ? chatDisplay.fontSizePx * 1.2 : 22;
+  const verticalPadding = chatDisplay.density === "compact" ? 0 : 8;
+  return Math.ceil(Math.max(chatDisplay.emoteSizePx, lineHeight) + verticalPadding);
+}
+
+function NewMessagesDivider({ platform }: { platform: ChatPlatform }) {
+  const dividerColor = NEW_MESSAGES_DIVIDER_COLOR[platform];
+
+  return (
+    <div
+      className="flex items-center gap-2 px-2 py-1.5"
+      aria-label="New messages"
+      style={{ color: dividerColor }}
+    >
+      <div className="h-px min-w-0 flex-1 bg-current" />
+      <div className="shrink-0 text-sm font-bold leading-none">New messages</div>
+      <div className="h-px min-w-0 flex-1 bg-current" />
+    </div>
   );
 }
 
@@ -74,6 +100,21 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const pauseOnMouseover = pauseMode === "mouseover" || pauseMode === "mouseover-alt";
     const pauseOnAlt = pauseMode === "alt" || pauseMode === "mouseover-alt";
     const defaultItemHeight = estimateDefaultItemHeight(chatDisplay);
+    const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : undefined;
+    const newMessagesStartIndex = useMemo(() => {
+      let sawHistoricalMessage = false;
+
+      for (let index = 0; index < messages.length; index++) {
+        const message = messages[index];
+        if (message.isHistorical) {
+          sawHistoricalMessage = true;
+          continue;
+        }
+        if (sawHistoricalMessage && message.type !== "system") return index;
+      }
+
+      return -1;
+    }, [messages]);
 
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const scrollerRef = useRef<HTMLElement | null>(null);
@@ -81,6 +122,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const pendingPauseRef = useRef(false);
     const mouseoverPauseRef = useRef(false);
     const altPauseRef = useRef(false);
+    const bottomFollowFrameRef = useRef<number | null>(null);
+    const lastAutoFollowMessageIdRef = useRef<string | undefined>(lastMessageId);
     const pauseTimer = useManagedTimeout(
       useCallback(() => setPaused(channelKey, true), [channelKey, setPaused])
     );
@@ -263,23 +306,77 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       };
     }, [channelKey, pauseOnAlt, setPaused]);
 
+    const cancelBottomFollowFrame = useCallback(() => {
+      if (bottomFollowFrameRef.current === null) return;
+      window.cancelAnimationFrame(bottomFollowFrameRef.current);
+      bottomFollowFrameRef.current = null;
+    }, []);
+
+    const scrollLastItemToBottom = useCallback(() => {
+      virtuosoRef.current?.scrollToIndex({
+        index: "LAST",
+        align: "end",
+        behavior: "auto",
+      });
+    }, []);
+
+    useLayoutEffect(() => {
+      if (lastAutoFollowMessageIdRef.current === lastMessageId) return;
+      lastAutoFollowMessageIdRef.current = lastMessageId;
+      if (!lastMessageId) return;
+      if (
+        isPaused ||
+        userScrolledUpRef.current ||
+        pendingPauseRef.current ||
+        hasActiveInputPause()
+      ) {
+        return;
+      }
+
+      cancelBottomFollowFrame();
+      bottomFollowFrameRef.current = window.requestAnimationFrame(() => {
+        bottomFollowFrameRef.current = null;
+        if (
+          isPaused ||
+          userScrolledUpRef.current ||
+          pendingPauseRef.current ||
+          hasActiveInputPause()
+        ) {
+          return;
+        }
+        scrollLastItemToBottom();
+      });
+
+      return cancelBottomFollowFrame;
+    }, [
+      lastMessageId,
+      isPaused,
+      hasActiveInputPause,
+      cancelBottomFollowFrame,
+      scrollLastItemToBottom,
+    ]);
+
     const itemContent = useCallback(
-      (_index: number, message: ChatMessageType) => (
-        <MemoizedChatMessage
-          key={message.id}
-          message={message}
-          onReply={hasReply ? handleReply : undefined}
-          onPin={hasPin ? handlePin : undefined}
-          onTimeout={hasTimeout ? handleTimeout : undefined}
-          onWarn={hasWarn ? handleWarn : undefined}
-          onBan={hasBan ? handleBan : undefined}
-          onUnban={hasUnban && unbanUserIds?.has(message.userId) ? handleUnban : undefined}
-          onDelete={hasDelete ? handleDelete : undefined}
-          selfUserId={selfUserId}
-          currentChannelContext={currentChannelContext}
-        />
+      (index: number, message: ChatMessageType) => (
+        <>
+          {index === newMessagesStartIndex && <NewMessagesDivider platform={message.platform} />}
+          <MemoizedChatMessage
+            key={message.id}
+            message={message}
+            onReply={hasReply ? handleReply : undefined}
+            onPin={hasPin ? handlePin : undefined}
+            onTimeout={hasTimeout ? handleTimeout : undefined}
+            onWarn={hasWarn ? handleWarn : undefined}
+            onBan={hasBan ? handleBan : undefined}
+            onUnban={hasUnban && unbanUserIds?.has(message.userId) ? handleUnban : undefined}
+            onDelete={hasDelete ? handleDelete : undefined}
+            selfUserId={selfUserId}
+            currentChannelContext={currentChannelContext}
+          />
+        </>
       ),
       [
+        newMessagesStartIndex,
         handleReply,
         hasReply,
         handlePin,
@@ -321,16 +418,32 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       [channelKey, hasActiveInputPause, setPaused, pauseTimer]
     );
 
+    const shouldAutoFollowBottom = useCallback(() => {
+      return (
+        !isPaused &&
+        !userScrolledUpRef.current &&
+        !pendingPauseRef.current &&
+        !hasActiveInputPause()
+      );
+    }, [hasActiveInputPause, isPaused]);
+
+    const scheduleAutoscrollToBottom = useCallback(() => {
+      if (!shouldAutoFollowBottom()) return;
+
+      cancelBottomFollowFrame();
+      bottomFollowFrameRef.current = window.requestAnimationFrame(() => {
+        bottomFollowFrameRef.current = null;
+        if (!shouldAutoFollowBottom()) return;
+        scrollLastItemToBottom();
+      });
+    }, [cancelBottomFollowFrame, scrollLastItemToBottom, shouldAutoFollowBottom]);
+
     const scrollToBottom = useCallback(() => {
       userScrolledUpRef.current = false;
       pendingPauseRef.current = false;
       setPaused(channelKey, false);
-      virtuosoRef.current?.scrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      });
-    }, [channelKey, setPaused]);
+      scrollLastItemToBottom();
+    }, [channelKey, setPaused, scrollLastItemToBottom]);
 
     const followOutput = useCallback(
       (_isAtBottom: boolean) => {
@@ -353,6 +466,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           overscan={CHAT_LIST_OVERSCAN_PX}
           increaseViewportBy={CHAT_LIST_INCREASE_VIEWPORT_BY}
           atBottomStateChange={handleAtBottomStateChange}
+          totalListHeightChanged={scheduleAutoscrollToBottom}
           scrollerRef={scrollerCallbackRef}
           defaultItemHeight={defaultItemHeight}
           style={{

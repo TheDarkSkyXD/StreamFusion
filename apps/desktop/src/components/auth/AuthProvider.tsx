@@ -22,7 +22,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const hydrateFollows = useFollowStore((state) => state.hydrate);
   const twitchUser = useAuthStore((state) => state.twitchUser);
   const hydrateModeratedChannels = useModeratedChannelsStore((state) => state.hydrate);
-  const clearModeratedChannels = useModeratedChannelsStore((state) => state.clear);
+  const clearTwitchModeratedChannels = useModeratedChannelsStore((state) => state.clearTwitch);
   const hydratedFollowsRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let cancelled = false;
     (async () => {
       if (!twitchUser) {
-        clearModeratedChannels();
+        clearTwitchModeratedChannels();
         return;
       }
       try {
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       cancelled = true;
     };
-  }, [initialized, twitchUser, hydrateModeratedChannels, clearModeratedChannels]);
+  }, [initialized, twitchUser, hydrateModeratedChannels, clearTwitchModeratedChannels]);
 
   return (
     <>

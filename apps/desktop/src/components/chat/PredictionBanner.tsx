@@ -26,6 +26,7 @@ import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const ENDED_AUTO_DISMISS_MS = 60_000;
 
@@ -167,16 +168,20 @@ const CollapsedView: React.FC<CollapsedProps> = ({
             {ctaLabel}
           </button>
           {onDismiss && (
-            <button
-              type="button"
-              onClick={onDismiss}
-              aria-label="Dismiss prediction"
-              title="Dismiss"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10"
-              data-testid="prediction-dismiss"
-            >
-              {VerticalDotsIcon}
-            </button>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onDismiss}
+                  aria-label="Dismiss prediction"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10"
+                  data-testid="prediction-dismiss"
+                >
+                  {VerticalDotsIcon}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Dismiss</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -565,16 +570,20 @@ const ExpandedHeader: React.FC<{
       </div>
       <div className="flex flex-shrink-0 items-center gap-1">
         {onDismiss && (
-          <button
-            type="button"
-            onClick={onDismiss}
-            aria-label="Dismiss prediction"
-            title="Dismiss"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
-            data-testid="prediction-dismiss-expanded"
-          >
-            {VerticalDotsIcon}
-          </button>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onDismiss}
+                aria-label="Dismiss prediction"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
+                data-testid="prediction-dismiss-expanded"
+              >
+                {VerticalDotsIcon}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Dismiss</TooltipContent>
+          </Tooltip>
         )}
         <button
           type="button"

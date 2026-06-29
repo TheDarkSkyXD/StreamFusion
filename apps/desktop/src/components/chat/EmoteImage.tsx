@@ -142,13 +142,17 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
     if (hasError) {
       // Fallback for broken images - show emote code
       return (
-        <span
-          className={`inline-flex items-center justify-center bg-neutral-700 rounded px-1 text-xs ${className}`}
-          style={{ height: config.height }}
-          title={`${emote.name} (${emote.provider})`}
-        >
-          {emote.name}
-        </span>
+        <>
+          <span
+            className={`inline-flex items-center justify-center bg-neutral-700 rounded px-1 text-xs ${className}`}
+            style={{ height: config.height }}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            {emote.name}
+          </span>
+          <EmoteTooltip show={showTooltipState} mousePos={mousePos} emote={emote} />
+        </>
       );
     }
 

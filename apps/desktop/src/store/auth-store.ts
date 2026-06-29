@@ -7,8 +7,11 @@
 
 import { create } from "zustand";
 
+import {
+  invalidateFollowCachesAfterMutation,
+  removePlatformAccountCaches,
+} from "@/hooks/queries/cache-invalidation";
 import { logger } from "@/renderer/logging/logger";
-import { CHANNEL_KEYS } from "../hooks/queries/useChannels";
 import { STREAM_KEYS } from "../hooks/queries/useStreams";
 import { queryClient } from "../providers/query-provider";
 import type {
@@ -214,8 +217,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // The listener is intentionally never unregistered — it lives for the app lifetime.
       window.electronAPI.auth.onKickSessionExpired(() => {
         logger.warn("Store:Auth", "kick session expired at runtime — clearing state");
-        queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("kick") });
-        queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+        removePlatformAccountCaches(queryClient, "kick");
         void useFollowStore.getState().hydrate();
         set({
           kickUser: null,
@@ -254,9 +256,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         // marker can flip without row diffs. Streams refetch too so live/offline
         // sections update immediately.
         if (platform === "kick" || netChanged) {
-          queryClient.invalidateQueries({ queryKey: CHANNEL_KEYS.followed(platform) });
-          queryClient.invalidateQueries({ queryKey: STREAM_KEYS.followed(platform) });
-          queryClient.invalidateQueries({ queryKey: STREAM_KEYS.followed() });
+          invalidateFollowCachesAfterMutation(queryClient, platform);
         }
       });
 
@@ -269,8 +269,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         // the storage-handlers `activeFollows` fallback (no-token → guest
         // follows) means hydrate() now returns guest data instead of the
         // synced account follows that linger in the DB.
-        queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("twitch") });
-        queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+        removePlatformAccountCaches(queryClient, "twitch");
         void useFollowStore.getState().hydrate();
         // Degraded mode: keep twitchUser so the UI can still show the
         // user's identity and a "Reconnect" affordance. twitchConnected
@@ -412,8 +411,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // SidebarFollows keeps merging the React-Query cache (enabled:false does
       // not invalidate data) and the in-memory useFollowStore copy (only
       // hydrated at app boot) until the next restart.
-      queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("twitch") });
-      queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+      removePlatformAccountCaches(queryClient, "twitch");
       await useFollowStore.getState().hydrate();
 
       set({
@@ -518,8 +516,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // clearAccountFollows("kick"); without these the React-Query cache and
       // the in-memory useFollowStore copy keep the synced rows visible until
       // restart.
-      queryClient.removeQueries({ queryKey: CHANNEL_KEYS.followed("kick") });
-      queryClient.removeQueries({ queryKey: STREAM_KEYS.followed() });
+      removePlatformAccountCaches(queryClient, "kick");
       await useFollowStore.getState().hydrate();
 
       set({

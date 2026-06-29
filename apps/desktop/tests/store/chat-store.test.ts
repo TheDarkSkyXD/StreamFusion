@@ -698,6 +698,32 @@ describe('chat-store per-channel moderation actions', () => {
     expect(state.messagesByChannel[keyB]?.[0].isDeleted).toBe(false);
   });
 
+  it('deleteMessage(channelKey, messageId, metadata) preserves content and records deletion metadata', () => {
+    const key = buildChannelKey('twitch', 'alpha');
+    const deletedAt = new Date('2026-06-29T17:45:00');
+    useChatStore.getState().addMessage({
+      ...makeMessage('m1', 'twitch'),
+      channel: 'alpha',
+      rawContent: 'kept original',
+      content: [{ type: 'text', content: 'kept original' }],
+    });
+
+    useChatStore
+      .getState()
+      .deleteMessage(key, 'm1', { deletedAt, deletedByUsername: 'ModeratorBot' });
+
+    const deleted = useChatStore.getState().messagesByChannel[key]?.[0];
+    expect(deleted).toEqual(
+      expect.objectContaining({
+        isDeleted: true,
+        rawContent: 'kept original',
+        deletedAt,
+        deletedByUsername: 'ModeratorBot',
+      })
+    );
+    expect(deleted?.content).toEqual([{ type: 'text', content: 'kept original' }]);
+  });
+
   it('deleteMessagesByUser(channelKey, userId) marks only that user in one channel deleted', () => {
     const keyA = buildChannelKey('kick', 'alpha');
     const keyB = buildChannelKey('kick', 'bravo');

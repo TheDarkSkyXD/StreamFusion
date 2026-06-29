@@ -73,6 +73,10 @@ interface UsernameProps {
   onClick?: (e: React.MouseEvent) => void;
   /** When provided, clicks open the user popout for this channel context. */
   currentChannelContext?: UsernameChannelContext;
+  /** Non-clickable inline content that must wrap with the username, e.g. a chat colon. */
+  suffix?: React.ReactNode;
+  /** Keep suffix punctuation visually attached to the username in compact highlight rows. */
+  keepSuffixAttached?: boolean;
 }
 
 export const Username: React.FC<UsernameProps> = ({
@@ -84,6 +88,8 @@ export const Username: React.FC<UsernameProps> = ({
   className,
   onClick,
   currentChannelContext,
+  suffix,
+  keepSuffixAttached = false,
 }) => {
   const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const platformDefaultColor = platform === "kick" ? "#53fc18" : "#9146ff";
@@ -125,9 +131,11 @@ export const Username: React.FC<UsernameProps> = ({
   };
 
   return (
-    <span className="chat-line__username-container chat-line__username-container--hoverable -mx-0.5 inline-block rounded-[4px] px-0.5 transition-colors duration-100 hover:bg-[rgba(255,255,255,0.16)] active:bg-[rgba(255,255,255,0.16)] focus-within:bg-[rgba(255,255,255,0.16)]">
+    <span
+      className={`chat-line__username-container chat-line__username-container--hoverable -mx-0.5 inline-block max-w-full break-words rounded-[4px] px-0.5 [overflow-wrap:anywhere] transition-colors duration-100 hover:bg-[rgba(255,255,255,0.16)] active:bg-[rgba(255,255,255,0.16)] focus-within:bg-[rgba(255,255,255,0.16)] ${keepSuffixAttached ? "whitespace-nowrap" : ""}`}
+    >
       <span
-        className="chat-line__username cursor-pointer no-underline hover:no-underline focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
+        className="chat-line__username max-w-full cursor-pointer break-words no-underline [overflow-wrap:anywhere] hover:no-underline focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
         onClick={handleClick}
         role="button"
         tabIndex={0}
@@ -139,7 +147,7 @@ export const Username: React.FC<UsernameProps> = ({
       >
         <span>
           <span
-            className={`chat-author__display-name font-bold ${className || ""}`}
+            className={`chat-author__display-name break-words font-bold [overflow-wrap:anywhere] ${className || ""}`}
             data-a-target="chat-message-username"
             data-a-user={username}
             data-test-selector="message-username"
@@ -149,6 +157,7 @@ export const Username: React.FC<UsernameProps> = ({
           </span>
         </span>
       </span>
+      {suffix}
     </span>
   );
 };

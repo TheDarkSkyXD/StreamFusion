@@ -21,6 +21,7 @@ import { useManagedTimeout } from "../../hooks/useManagedTimeout";
 import { useEmoteStore } from "../../store/emote-store";
 import { KickIcon } from "../icons/PlatformIcons";
 import { ProxiedImage } from "../ui/proxied-image";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { EmoteImage } from "./EmoteImage";
 
 export type EmotePickerScope = "native" | "thirdParty";
@@ -632,34 +633,38 @@ const EmotePickerItem = memo(function EmotePickerItem({
       className="relative group flex h-10 aspect-square items-center justify-center rounded-[4px] border border-[#515151] bg-transparent p-1 ring-1 ring-inset ring-[#515151] transition-[background-color,border-color,box-shadow] duration-150 ease-in-out hover:bg-white/[0.08] hover:border-[#666666] hover:ring-[#666666]"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      title={emote.name}
     >
-      <button
-        type="button"
-        onClick={handleClick}
-        aria-label={ariaLabel}
-        aria-disabled={locked ? "true" : undefined}
-        // content-visibility lets the browser skip layout/paint/decode for
-        // emotes scrolled off-screen — the main scroll-jank cost when paging
-        // through a large set. Applied to the image button (not the outer
-        // cell) so the hover "favorite" star, an overflowing sibling, isn't
-        // clipped by paint containment. contain-intrinsic-size reserves the
-        // row height so skipped rows don't collapse and shift the scroll.
-        style={{ contentVisibility: "auto", containIntrinsicSize: "auto 28px" }}
-        className={`flex items-center justify-center w-full h-full ${
-          locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-        }`}
-      >
-        <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
-        {locked && (
-          <span
-            data-testid="emote-lock-overlay"
-            className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-[3px] bg-black/75 text-white shadow-sm ring-1 ring-white/20 pointer-events-none"
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={handleClick}
+            aria-label={ariaLabel}
+            aria-disabled={locked ? "true" : undefined}
+            // content-visibility lets the browser skip layout/paint/decode for
+            // emotes scrolled off-screen — the main scroll-jank cost when paging
+            // through a large set. Applied to the image button (not the outer
+            // cell) so the hover "favorite" star, an overflowing sibling, isn't
+            // clipped by paint containment. contain-intrinsic-size reserves the
+            // row height so skipped rows don't collapse and shift the scroll.
+            style={{ contentVisibility: "auto", containIntrinsicSize: "auto 28px" }}
+            className={`flex items-center justify-center w-full h-full ${
+              locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            }`}
           >
-            <LockIcon />
-          </span>
-        )}
-      </button>
+            <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
+            {locked && (
+              <span
+                data-testid="emote-lock-overlay"
+                className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-[3px] bg-black/75 text-white shadow-sm ring-1 ring-white/20 pointer-events-none"
+              >
+                <LockIcon />
+              </span>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{emote.name}</TooltipContent>
+      </Tooltip>
       {hovered && !locked && (
         <button
           type="button"
@@ -1316,36 +1321,39 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
                 const isAvatar =
                   (sub.id === "channel" && !!channelAvatarUrl) || sub.id.startsWith("user:");
                 return (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    onClick={() => handleSubSectionClick(sub)}
-                    aria-pressed={active}
-                    aria-label={sub.label}
-                    title={sub.label}
-                    className={`group/tab relative flex h-10 w-10 shrink-0 grow-0 items-center justify-center rounded-[4px] border transition-[background-color,border-color] duration-200 ease-in-out text-white ${
-                      active
-                        ? "bg-white/[0.13] border-white/[0.22]"
-                        : "bg-transparent border-white/20 hover:bg-white/[0.13] hover:border-white/[0.22]"
-                    }`}
-                  >
-                    <span
-                      className={`flex items-center justify-center transition-opacity duration-200 ease-in-out ${
-                        isAvatar || active
-                          ? "opacity-100"
-                          : "opacity-50 group-hover/tab:opacity-100"
-                      }`}
-                    >
-                      {sub.icon}
-                    </span>
-                    {active && (
-                      <span
-                        aria-hidden="true"
-                        data-testid="emote-subsection-active-indicator"
-                        className="absolute -bottom-1.5 left-0 z-20 h-0.5 w-full bg-white"
-                      />
-                    )}
-                  </button>
+                  <Tooltip key={sub.id} delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => handleSubSectionClick(sub)}
+                        aria-pressed={active}
+                        aria-label={sub.label}
+                        className={`group/tab relative flex h-10 w-10 shrink-0 grow-0 items-center justify-center rounded-[4px] border transition-[background-color,border-color] duration-200 ease-in-out text-white ${
+                          active
+                            ? "bg-white/[0.13] border-white/[0.22]"
+                            : "bg-transparent border-white/20 hover:bg-white/[0.13] hover:border-white/[0.22]"
+                        }`}
+                      >
+                        <span
+                          className={`flex items-center justify-center transition-opacity duration-200 ease-in-out ${
+                            isAvatar || active
+                              ? "opacity-100"
+                              : "opacity-50 group-hover/tab:opacity-100"
+                          }`}
+                        >
+                          {sub.icon}
+                        </span>
+                        {active && (
+                          <span
+                            aria-hidden="true"
+                            data-testid="emote-subsection-active-indicator"
+                            className="absolute -bottom-1.5 left-0 z-20 h-0.5 w-full bg-white"
+                          />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{sub.label}</TooltipContent>
+                  </Tooltip>
                 );
               })}
             </div>

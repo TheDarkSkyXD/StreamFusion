@@ -1,7 +1,11 @@
 import { Ban, Check, Clock3, Trash2, TriangleAlert } from "lucide-react";
 import type React from "react";
 import { memo, useMemo, useState } from "react";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, type TimestampFormat } from "../../shared/auth-types";
+import {
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  type DeletedMessageDisplayMode,
+  type TimestampFormat,
+} from "../../shared/auth-types";
 import type {
   ChatHighlightKind,
   ChatMessage as ChatMessageType,
@@ -22,10 +26,13 @@ import { ChatPinButton } from "./ChatPinButton";
 import { ChatMessageReplyPreview } from "./ChatReply";
 import { ChatReplyButton } from "./ChatReplyButton";
 import { CheerHighlight } from "./CheerHighlight";
+import { DeletedMessageHighlight } from "./DeletedMessageHighlight";
 import { FirstTimeChatHighlight } from "./FirstTimeChatHighlight";
 import { GiftedSubHighlight } from "./GiftedSubHighlight";
 import { HighlightedMessageHighlight } from "./HighlightedMessageHighlight";
 import { MentionHighlight } from "./MentionHighlight";
+import { ModerationActionHighlightCompact } from "./ModerationActionHighlightCompact";
+import { ModerationActionHighlightCozy } from "./ModerationActionHighlightCozy";
 import { ModeratorHighlight } from "./ModeratorHighlight";
 import { formatMentionLabel } from "./mention-label";
 import { RaidHighlight } from "./RaidHighlight";
@@ -118,6 +125,63 @@ function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   return `${Math.floor(seconds / 3600)}h`;
+}
+
+function deletedMessageDisplayMode(
+  mode: DeletedMessageDisplayMode | undefined
+): DeletedMessageDisplayMode {
+  return mode ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.deletedMessageDisplay;
+}
+
+function hasRetainedDeletedContent(message: ChatMessageType): boolean {
+  return (
+    message.content.length > 0 ||
+    Boolean(message.rawContent && message.rawContent.trim().length > 0)
+  );
+}
+
+function formatModerationTimestamp(
+  timestamp: Date | number | undefined,
+  mode: DeletedMessageDisplayMode
+): string | null {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  if (mode === "compact") {
+    return date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+  if (mode === "audit") {
+    return `${date.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })}, ${date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    })}`;
+  }
+  return null;
+}
+
+function renderBadgeList(
+  badges: ChatMessageType["badges"],
+  platform: ChatMessageType["platform"]
+): React.ReactNode {
+  if (badges.length === 0) return null;
+
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 align-middle [&_img]:!mr-0">
+      {badges.map((badge, index) => (
+        <ChatBadge
+          key={`${badge.setId}-${badge.version}-${index}`}
+          badge={badge}
+          platform={platform}
+        />
+      ))}
+    </span>
+  );
 }
 
 // Content-derived keys preserve child state across deletions/edits.
@@ -263,6 +327,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     currentChannelContext,
   }) => {
     const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const moderationHighlightStyle =
+      cd.moderationHighlightStyle ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.moderationHighlightStyle;
     const [isMessageRowHovered, setIsMessageRowHovered] = useState(false);
     const viewerMentionUsername = useAuthStore((s) => {
       if (message.platform === "twitch") {
@@ -308,31 +374,165 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       // (emitted as a ClearChat with a targetUserId). When the viewer has
       // disabled chat-clear notices, suppress the whole line.
       if (!cd.showClearChat) return null;
-      const { bannedUsername, bannedByUsername, lastMessage, duration } = message.banInfo;
+      const {
+        bannedUsername,
+        bannedByUsername,
+        bannedUser,
+        bannedByUser,
+        deletedMessageDetails,
+        lastMessage,
+        deletedMessages,
+        duration,
+      } = message.banInfo;
+      const displayMode = deletedMessageDisplayMode(cd.deletedMessageDisplay);
       const actionText = duration
         ? `timed out for ${formatDuration(duration)}`
         : "permanently banned";
-      return (
-        <div
-          className="mx-2 my-1 px-3 py-2 rounded-md border border-red-500/30 bg-red-950/40 text-sm"
-          style={style}
-        >
-          <div className="flex items-start gap-2">
-            <span className="text-red-400 flex-shrink-0">🚫</span>
-            <div className="min-w-0">
-              <span className="font-bold text-red-400">{bannedUsername}</span>
-              <span className="text-foreground-secondary"> was {actionText}</span>
-              {bannedByUsername && (
-                <span className="text-foreground-secondary"> by {bannedByUsername}</span>
-              )}
-              {lastMessage && (
-                <div className="text-foreground-muted italic text-xs mt-0.5 truncate">
-                  Last: {lastMessage}
-                </div>
-              )}
-            </div>
-          </div>
+      const moderatorUsername = bannedByUsername?.trim() || "unknown moderator";
+      const bannedUserBadges = orderRenderableBadges(bannedUser?.badges ?? [], message.platform);
+      const moderatorUser =
+        bannedByUser ??
+        (bannedByUsername?.trim()
+          ? {
+              userId: bannedByUsername,
+              username: bannedByUsername,
+              displayName: bannedByUsername,
+              badges: [],
+            }
+          : undefined);
+      const moderatorBadges = orderRenderableBadges(moderatorUser?.badges ?? [], message.platform);
+      const retainedDeletedMessages = deletedMessageDetails?.filter(
+        (deletedMessage) =>
+          deletedMessage.content.length > 0 || deletedMessage.rawContent.trim().length > 0
+      );
+      const fallbackDeletedMessages =
+        deletedMessages && deletedMessages.length > 0
+          ? deletedMessages
+          : lastMessage
+            ? [lastMessage]
+            : [];
+      const visibleDeletedMessages = fallbackDeletedMessages.filter((entry) => entry.trim());
+      const canShowDeletedMessages = cd.showClearMsg && displayMode !== "tombstone";
+      const moderationTimestamp = formatModerationTimestamp(message.timestamp, displayMode);
+      const actionLabel: "Timeout" | "Ban" = duration ? "Timeout" : "Ban";
+      const actionPhrase = `was ${actionText}`;
+      const summary = (
+        <div className="min-w-0 text-sm leading-[1.45]">
+          <span className="inline-flex min-w-0 max-w-full items-center gap-1 align-middle">
+            {renderBadgeList(bannedUserBadges, message.platform)}
+            <Username
+              userId={bannedUser?.userId ?? bannedUsername}
+              username={bannedUser?.username ?? bannedUsername}
+              displayName={bannedUser?.displayName ?? bannedUsername}
+              color={bannedUser?.color}
+              platform={message.platform}
+              className="align-middle"
+              currentChannelContext={currentChannelContext}
+            />
+          </span>
+          <span className="font-bold text-white"> {actionPhrase}</span>
+          <span className="text-[#adadb8]"> by </span>
+          {moderatorUser ? (
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1 align-middle">
+              {renderBadgeList(moderatorBadges, message.platform)}
+              <Username
+                userId={moderatorUser.userId}
+                username={moderatorUser.username}
+                displayName={moderatorUser.displayName}
+                color={moderatorUser.color}
+                platform={message.platform}
+                className="align-middle"
+                currentChannelContext={currentChannelContext}
+              />
+            </span>
+          ) : (
+            <span className="font-medium text-[#f4f4f5]">{moderatorUsername}</span>
+          )}
+          {moderationTimestamp && <span className="text-[#adadb8]"> at {moderationTimestamp}</span>}
         </div>
+      );
+      const deletedMessageCount = retainedDeletedMessages?.length ?? visibleDeletedMessages.length;
+      const deletedMessageRows =
+        canShowDeletedMessages && deletedMessageCount > 0 ? (
+          <ol className="space-y-1">
+            {retainedDeletedMessages && retainedDeletedMessages.length > 0
+              ? retainedDeletedMessages.map((deletedMessage) => {
+                  const authorBadges = orderRenderableBadges(
+                    deletedMessage.author.badges,
+                    message.platform
+                  );
+                  return (
+                    <li
+                      className="min-w-0 break-words align-bottom text-xs font-normal leading-snug text-white [overflow-wrap:anywhere]"
+                      key={deletedMessage.id}
+                    >
+                      <span className="inline-flex min-w-0 max-w-full items-end gap-1 align-bottom">
+                        {renderBadgeList(authorBadges, message.platform)}
+                        <Username
+                          userId={deletedMessage.author.userId}
+                          username={deletedMessage.author.username}
+                          displayName={deletedMessage.author.displayName}
+                          color={deletedMessage.author.color}
+                          platform={message.platform}
+                          className="align-bottom"
+                          currentChannelContext={currentChannelContext}
+                          keepSuffixAttached
+                          suffix={<span className="align-bottom text-white">:</span>}
+                        />
+                      </span>
+                      <span className="ml-1 inline align-bottom break-words text-white [overflow-wrap:anywhere] [&_img]:align-bottom">
+                        {deletedMessage.content.length > 0
+                          ? deletedMessage.content.map((fragment, index) => (
+                              <MessageFragment
+                                key={fragmentKey(fragment, index)}
+                                fragment={fragment}
+                                platform={message.platform}
+                                viewerMentionUsername={viewerMentionUsername}
+                              />
+                            ))
+                          : deletedMessage.rawContent}
+                      </span>
+                    </li>
+                  );
+                })
+              : visibleDeletedMessages.map((deletedMessage) => (
+                  <li
+                    className="min-w-0 break-words align-bottom text-xs font-normal leading-snug text-white [overflow-wrap:anywhere]"
+                    key={deletedMessage}
+                  >
+                    <span className="inline-flex min-w-0 max-w-full items-end gap-1 align-bottom">
+                      {renderBadgeList(bannedUserBadges, message.platform)}
+                      <Username
+                        userId={bannedUser?.userId ?? bannedUsername}
+                        username={bannedUser?.username ?? bannedUsername}
+                        displayName={bannedUser?.displayName ?? bannedUsername}
+                        color={bannedUser?.color}
+                        platform={message.platform}
+                        className="align-bottom"
+                        currentChannelContext={currentChannelContext}
+                        keepSuffixAttached
+                        suffix={<span className="align-bottom text-white">:</span>}
+                      />
+                    </span>
+                    <span className="ml-1 inline align-bottom break-words text-white [overflow-wrap:anywhere]">
+                      {deletedMessage}
+                    </span>
+                  </li>
+                ))}
+          </ol>
+        ) : undefined;
+      const sharedProps = {
+        actionLabel,
+        deletedMessageCount,
+        deletedMessages: deletedMessageRows,
+        style,
+        summary,
+      };
+
+      return moderationHighlightStyle === "cozy" ? (
+        <ModerationActionHighlightCozy {...sharedProps} />
+      ) : (
+        <ModerationActionHighlightCompact {...sharedProps} platform={message.platform} />
       );
     }
 
@@ -341,6 +541,31 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       // notice. When the viewer has disabled it, drop the row entirely rather
       // than leaving a placeholder.
       if (!cd.showClearMsg) return null;
+      const displayMode = deletedMessageDisplayMode(cd.deletedMessageDisplay);
+      if (displayMode !== "tombstone" && hasRetainedDeletedContent(message)) {
+        return (
+          <DeletedMessageHighlight
+            badges={renderableBadges}
+            currentChannelContext={currentChannelContext}
+            deletedAt={message.deletedAt ?? message.timestamp}
+            highlightStyle={moderationHighlightStyle}
+            message={message}
+            mode={displayMode}
+            moderatorUser={message.deletedByUser}
+            moderatorUsername={message.deletedByUsername}
+            style={style}
+          >
+            {message.content.map((fragment, index) => (
+              <MessageFragment
+                key={fragmentKey(fragment, index)}
+                fragment={fragment}
+                platform={message.platform}
+                viewerMentionUsername={viewerMentionUsername}
+              />
+            ))}
+          </DeletedMessageHighlight>
+        );
+      }
       return (
         <div className="px-4 py-1 text-sm text-foreground-muted italic opacity-50" style={style}>
           Message deleted
@@ -529,15 +754,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
               platform={message.platform}
               className="align-middle"
               currentChannelContext={currentChannelContext}
+              suffix={!message.isAction ? <span className="mr-1 align-middle">:</span> : undefined}
             />
           </span>
 
-          {/* Separator for regular messages */}
-          {!message.isAction && <span className="mr-1 align-middle">:</span>}
-
           {/* Content */}
           <span
-            className={`align-middle min-w-0 max-w-full break-words [overflow-wrap:anywhere] ${message.isAction ? "italic" : ""}`}
+            className={`align-middle min-w-0 max-w-full break-words [overflow-wrap:anywhere] ${message.isAction ? "ml-1 italic" : ""}`}
             style={message.isAction ? { color: message.color } : undefined}
           >
             {message.content.map((fragment, index) => (

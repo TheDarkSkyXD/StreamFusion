@@ -16,10 +16,14 @@
 
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
+import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 export function useIsKickMod(channelSlug?: string | null): boolean {
   const kickUser = useAuthStore((state) => state.kickUser);
   const forceMod = useDevModOverrideStore((s) => s.forceModRole);
+  const kickModeratedChannelSlugs = useModeratedChannelsStore(
+    (state) => state.kickModeratedChannelSlugs
+  );
 
   if (forceMod) return true;
   if (!channelSlug) return false;
@@ -30,6 +34,7 @@ export function useIsKickMod(channelSlug?: string | null): boolean {
   const slug = channelSlug.toLowerCase();
   return (
     (typeof kickUser.slug === "string" && kickUser.slug.toLowerCase() === slug) ||
-    (typeof kickUser.username === "string" && kickUser.username.toLowerCase() === slug)
+    (typeof kickUser.username === "string" && kickUser.username.toLowerCase() === slug) ||
+    kickModeratedChannelSlugs.has(slug)
   );
 }

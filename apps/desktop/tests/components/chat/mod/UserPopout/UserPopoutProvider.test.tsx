@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
   useUserProfile: vi.fn(() => ({
@@ -32,7 +33,6 @@ import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile"
 const mockedUseUserProfile = vi.mocked(useUserProfile);
 
 beforeEach(() => {
-  // biome-ignore lint/suspicious/noExplicitAny: stub
   (globalThis as any).window.electronAPI = {
     openExternal: vi.fn(),
     auth: { getToken: vi.fn().mockResolvedValue(null) },
@@ -57,17 +57,19 @@ function Opener({
 describe("UserPopoutProvider", () => {
   it("openUserPopout renders the popout for the requested user", () => {
     render(
-      <UserPopoutProvider>
-        <Opener
-          payload={{
-            userId: "u1",
-            username: "alice",
-            platform: "twitch",
-            channelId: "c1",
-            channelSlug: "streamer",
-          }}
-        />
-      </UserPopoutProvider>,
+      <TooltipProvider>
+        <UserPopoutProvider>
+          <Opener
+            payload={{
+              userId: "u1",
+              username: "alice",
+              platform: "twitch",
+              channelId: "c1",
+              channelSlug: "streamer",
+            }}
+          />
+        </UserPopoutProvider>
+      </TooltipProvider>
     );
     expect(screen.queryByTestId("user-popout")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "open" }));
@@ -145,9 +147,11 @@ describe("UserPopoutProvider", () => {
     }
 
     render(
-      <UserPopoutProvider>
-        <Trigger />
-      </UserPopoutProvider>,
+      <TooltipProvider>
+        <UserPopoutProvider>
+          <Trigger />
+        </UserPopoutProvider>
+      </TooltipProvider>
     );
 
     fireEvent.click(screen.getByTestId("alice"));
