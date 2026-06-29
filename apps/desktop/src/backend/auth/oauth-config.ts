@@ -92,6 +92,8 @@ export const KICK_OAUTH_CONFIG: OAuthConfig = {
   scopes: [
     "user:read", // View user information (username, streamer ID, etc.)
     "channel:read", // View channel information (description, category, etc.)
+    "moderation:chat_message:manage", // Delete chat messages as a moderator or broadcaster
+    "moderation:ban", // Ban, timeout, unban, and remove timeouts as a moderator or broadcaster
     // chat:write removed 2026-05-29: chat send moved to
     // kick.com/api/v2/messages/send/{chatroomId} via page-context fetch
     // (see kick-send-window.ts). The public-API path is gated behind

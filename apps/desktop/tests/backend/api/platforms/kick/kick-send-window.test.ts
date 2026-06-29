@@ -19,17 +19,22 @@ vi.mock("@/backend/auth/kick-auth", () => ({
 }));
 
 import {
+  buildKickWebApiMutationIIFE,
   buildKickWebApiGetIIFE,
   buildSendIIFE,
   classifySendResult,
   clearBearerForTest,
   disposeSendWindow,
   ensureSendWindowReady,
+  fetchKickWebApiMutation,
   fetchKickWebApiGet,
+  getKickChannelViewerRole,
   getBearerForTest,
   installBearerInterceptor,
   isSanctumBearer,
+  parseKickChannelViewerRoleBody,
   setBearerForTest,
+  timeoutKickChatUser,
   type KickSendResult,
 } from "@/backend/api/platforms/kick/kick-send-window";
 
@@ -117,6 +122,25 @@ describe("buildKickWebApiGetIIFE", () => {
     expect(src).toContain(JSON.stringify("Bearer 1|abc"));
     expect(src).toContain(`"X-Requested-With"`);
     expect(src).toContain(`credentials: "include"`);
+  });
+});
+
+describe("buildKickWebApiMutationIIFE", () => {
+  it("builds a credentialed mutation with JSON-escaped path, bearer, and body", () => {
+    const body = { message: { content: `quote " me` }, duration: 1200 };
+    const src = buildKickWebApiMutationIIFE(
+      "POST",
+      "/api/v2/channels/ac7ionman/pinned-message",
+      "Bearer 1|abc",
+      body
+    );
+
+    expect(src).toContain(`method: "POST"`);
+    expect(src).toContain(JSON.stringify("/api/v2/channels/ac7ionman/pinned-message"));
+    expect(src).toContain(JSON.stringify("Bearer 1|abc"));
+    expect(src).toContain(`credentials: "include"`);
+    expect(src).toContain(`"X-Requested-With"`);
+    expect(src).toContain(JSON.stringify(JSON.stringify(body)));
   });
 });
 
@@ -527,6 +551,281 @@ describe("fetchKickWebApiGet", () => {
     );
     expect(apiCalls.length).toBe(1);
     expect(String(apiCalls[0][0])).toContain(`"Bearer 1|abc"`);
+  });
+
+  it("allows the channel viewer role GET path", async () => {
+    const executeJavaScript = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown
+    );
+
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/channels/xqc/me")) {
+        return Promise.resolve(
+          JSON.stringify({
+            ok: true,
+            status: 200,
+            body: JSON.stringify({ data: { is_moderator: true } }),
+          })
+        );
+      }
+      return Promise.resolve(true);
+    });
+
+    const result = await fetchKickWebApiGet("/api/v2/channels/xqc/me");
+
+    expect(result).toEqual({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({ data: { is_moderator: true } }),
+    });
+    const apiCalls = executeJavaScript.mock.calls.filter((call) =>
+      String(call[0]).includes("/api/v2/channels/xqc/me")
+    );
+    expect(apiCalls.length).toBe(1);
+  });
+});
+
+describe("getKickChannelViewerRole", () => {
+  it("parses explicit moderator booleans", () => {
+    expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { is_moderator: true } }))).toBe(
+      true
+    );
+    expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { is_moderator: false } }))).toBe(
+      false
+    );
+  });
+
+  it("parses role arrays and leaves unknown shapes as null", () => {
+    expect(parseKickChannelViewerRoleBody(JSON.stringify({ roles: ["subscriber", "moderator"] }))).toBe(
+      true
+    );
+    expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { following: true } }))).toBeNull();
+  });
+
+  it("returns the parsed load-time viewer role", async () => {
+    const executeJavaScript = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown
+    );
+
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/channels/xqc/me")) {
+        return Promise.resolve(
+          JSON.stringify({
+            ok: true,
+            status: 200,
+            body: JSON.stringify({ data: { is_moderator: true } }),
+          })
+        );
+      }
+      return Promise.resolve(true);
+    });
+
+    await expect(getKickChannelViewerRole("XQC")).resolves.toEqual({
+      ok: true,
+      isModerator: true,
+      status: 200,
+    });
+  });
+});
+
+describe("fetchKickWebApiMutation", () => {
+  it("rejects unsupported mutations without initializing the hidden window", async () => {
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
+
+    const result = await fetchKickWebApiMutation("POST", "/api/v2/other", {});
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe("unknown");
+    expect(BrowserWindow).not.toHaveBeenCalled();
+  });
+
+  it("fires a pinned-message POST from the hidden Kick web session", async () => {
+    const executeJavaScript = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown
+    );
+
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/channels/ac7ionman/pinned-message")) {
+        return Promise.resolve(JSON.stringify({ ok: true, status: 200, body: "{}" }));
+      }
+      return Promise.resolve(true);
+    });
+
+    const result = await fetchKickWebApiMutation(
+      "POST",
+      "/api/v2/channels/ac7ionman/pinned-message",
+      { duration: 1200 }
+    );
+
+    expect(result).toEqual({ ok: true, status: 200, body: "{}" });
+    const apiCalls = executeJavaScript.mock.calls.filter((call) =>
+      String(call[0]).includes("/api/v2/channels/ac7ionman/pinned-message")
+    );
+    expect(apiCalls.length).toBe(1);
+    expect(String(apiCalls[0][0])).toContain(`"Bearer 1|abc"`);
+    expect(String(apiCalls[0][0])).toContain(JSON.stringify(JSON.stringify({ duration: 1200 })));
+  });
+
+  it("fires a chatroom message DELETE from the hidden Kick web session", async () => {
+    const executeJavaScript = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown
+    );
+
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (
+        src.includes("/api/v2/chatrooms/14161546/messages/963b2976-8388-4975-b63a-32eb9c64f145")
+      ) {
+        return Promise.resolve(JSON.stringify({ ok: true, status: 204, body: "" }));
+      }
+      return Promise.resolve(true);
+    });
+
+    const result = await fetchKickWebApiMutation(
+      "DELETE",
+      "/api/v2/chatrooms/14161546/messages/963b2976-8388-4975-b63a-32eb9c64f145"
+    );
+
+    expect(result).toEqual({ ok: true, status: 204, body: "" });
+    const apiCalls = executeJavaScript.mock.calls.filter((call) =>
+      String(call[0]).includes(
+        "/api/v2/chatrooms/14161546/messages/963b2976-8388-4975-b63a-32eb9c64f145"
+      )
+    );
+    expect(apiCalls.length).toBe(1);
+    expect(String(apiCalls[0][0])).toContain(`"Bearer 1|abc"`);
+    expect(String(apiCalls[0][0])).toContain(`method: "DELETE"`);
+  });
+
+  it("fires a timeout POST from the hidden Kick web session", async () => {
+    const executeJavaScript = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: {
+          webRequest: { onBeforeSendHeaders: vi.fn() },
+        },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
+      function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown
+    );
+
+    executeJavaScript.mockImplementation((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/channels/anonsociety/bans")) {
+        return Promise.resolve(JSON.stringify({ ok: true, status: 200, body: "{}" }));
+      }
+      return Promise.resolve(true);
+    });
+
+    const result = await timeoutKickChatUser("anonsociety", "baduser", 10);
+
+    expect(result).toEqual({ ok: true, status: 200, body: "{}" });
+    const apiCalls = executeJavaScript.mock.calls.filter((call) =>
+      String(call[0]).includes("/api/v2/channels/anonsociety/bans")
+    );
+    expect(apiCalls.length).toBe(1);
+    expect(String(apiCalls[0][0])).toContain(`"Bearer 1|abc"`);
+    expect(String(apiCalls[0][0])).toContain(
+      JSON.stringify(
+        JSON.stringify({
+          banned_username: "baduser",
+          duration: 10,
+          permanent: false,
+        })
+      )
+    );
   });
 });
 

@@ -15,6 +15,10 @@ interface MentionUserEnrichment {
   avatarUrl?: string;
 }
 
+const TWITCH_GQL_ENDPOINT = "https://gql.twitch.tv/gql";
+const TWITCH_GQL_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
+const TWITCH_PIN_REQUEST_TIMEOUT_MS = 8_000;
+
 const mentionUserCache = new Map<string, { user: MentionUserEnrichment; expiresAt: number }>();
 const MENTION_USER_CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -68,6 +72,71 @@ function setCachedMentionUser(platform: "twitch" | "kick", user: MentionUserEnri
     user,
     expiresAt: Date.now() + MENTION_USER_CACHE_TTL_MS,
   });
+}
+
+async function fetchTwitchPinnedMessage(channel: string): Promise<unknown | null> {
+  const login = channel.trim().toLowerCase();
+  if (!login) return null;
+
+  const res = await fetch(TWITCH_GQL_ENDPOINT, {
+    method: "POST",
+    headers: { "Client-Id": TWITCH_GQL_CLIENT_ID, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operationName: "PinnedMessagesByChannel",
+      variables: { login },
+      query: `query PinnedMessagesByChannel($login: String!) {
+        channel(name: $login) {
+          pinnedChatMessages {
+            edges {
+              node {
+                id
+                type
+                updatedAt
+                startsAt
+                endsAt
+                pinnedBy {
+                  id
+                  login
+                  displayName
+                  chatColor
+                  displayBadges(channelLogin: $login) { setID version title imageURL }
+                }
+                pinnedMessage {
+                  id
+                  sentAt
+                  sender {
+                    id
+                    login
+                    displayName
+                    chatColor
+                    displayBadges(channelLogin: $login) { setID version title imageURL }
+                  }
+                  content {
+                    text
+                    fragments {
+                      text
+                      content { __typename ... on Emote { id token assetType } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`,
+    }),
+    signal: AbortSignal.timeout(TWITCH_PIN_REQUEST_TIMEOUT_MS),
+  });
+
+  if (!res.ok) throw new Error(`gql PinnedMessagesByChannel ${res.status}`);
+  const json = (await res.json()) as {
+    data?: {
+      channel?: { pinnedChatMessages?: { edges?: Array<{ node?: unknown }> } } | null;
+    };
+    errors?: unknown;
+  };
+  if (json.errors) throw new Error("gql PinnedMessagesByChannel errors");
+  return json.data?.channel?.pinnedChatMessages?.edges?.[0]?.node ?? null;
 }
 
 export function registerChatHandlers(): void {
@@ -124,6 +193,33 @@ export function registerChatHandlers(): void {
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch Twitch chat history",
+        };
+      }
+    }
+  );
+
+  /**
+   * Fetch Twitch's current pinned chat message in the main process. Chromium
+   * DevTools logs failed renderer fetches even when caught, so this keeps
+   * transient DNS/Twitch outages out of the user's console.
+   */
+  ipcMain.handle(
+    IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE,
+    async (_event, params: { channel: string }) => {
+      try {
+        const pin = await fetchTwitchPinnedMessage(params.channel);
+        return { success: true, data: pin };
+      } catch (error) {
+        logger.debug("IPC:Chat", "getTwitchPinnedMessage failed", {
+          channel: params.channel,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to fetch Twitch pinned message",
         };
       }
     }

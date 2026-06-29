@@ -5,6 +5,7 @@ import type { KickPinnedMessage } from "@/shared/chat-types";
 
 // Guards: Kick pin payload → normalized shape — message id, sender identity, pinned_by, finish_at → expiresAt, content as a single text fragment. Kick's identity.badges parser is exercised here; sub_gifter count appends to the title only for that badge type (not subscriber).
 // Guards: defensive Kick payload handling — older pin events omit `identity.badges`; the history endpoint occasionally omits `pinned_by`. Both must not throw; both must produce a usable banner.
+// Guards: Kick pin sender and pinner ids flow into the normalized payload so pinned banner usernames can open the user popout.
 
 function makeRawPin(overrides: Partial<KickPinnedMessage> = {}): KickPinnedMessage {
   return {
@@ -40,7 +41,7 @@ describe("kickPinToNormalized", () => {
         badges: [],
       },
       content: [{ type: "text", content: "check the bracket" }],
-      pinnedBy: { username: "modbot", color: "#FF6F61", badges: [] },
+      pinnedBy: { username: "modbot", displayName: "modbot", color: "#FF6F61", badges: [] },
       pinnedAt: "2026-05-17T12:00:00.000Z",
       sentAt: "2026-05-17T12:00:00.000Z",
       expiresAt: "2026-05-17T13:00:00.000Z",
@@ -50,6 +51,31 @@ describe("kickPinToNormalized", () => {
   it("maps missing finish_at to expiresAt: null", () => {
     const normalized = kickPinToNormalized(makeRawPin({ finish_at: undefined }));
     expect(normalized.expiresAt).toBeNull();
+  });
+
+  it("maps sender and pinner ids when Kick includes them in the pin payload", () => {
+    const normalized = kickPinToNormalized(
+      makeRawPin({
+        message: {
+          id: "msg-with-ids",
+          content: "test",
+          created_at: "2026-05-17T12:00:00.000Z",
+          sender: {
+            id: 123,
+            username: "viewer",
+            identity: { color: "#FF7F50" },
+          },
+        },
+        pinned_by: {
+          id: 456,
+          username: "modbot",
+          identity: { color: "#FF6F61" },
+        },
+      })
+    );
+
+    expect(normalized.author.userId).toBe("123");
+    expect(normalized.pinnedBy?.userId).toBe("456");
   });
 
   it("maps sender.identity.badges + pinned_by.identity.badges into ChatBadge[]", () => {
@@ -81,7 +107,7 @@ describe("kickPinToNormalized", () => {
             badges: [{ type: "broadcaster", text: "Broadcaster" }],
           },
         },
-      }),
+      })
     );
 
     expect(normalized.author.badges.map((b) => b.setId)).toEqual(["vip", "subscriber"]);
@@ -111,7 +137,7 @@ describe("kickPinToNormalized", () => {
             },
           },
         },
-      }),
+      })
     );
     expect(normalized.author.badges[0].title).toBe("Sub Gifter (50)");
   });
@@ -133,7 +159,7 @@ describe("kickPinToNormalized", () => {
             },
           },
         },
-      }),
+      })
     );
     expect(normalized.author.badges[0].title).toBe("1-Year Subscriber");
   });
@@ -150,7 +176,7 @@ describe("kickPinToNormalized", () => {
     // The Kick history endpoint occasionally returns pins without a pinned_by
     // actor; the adapter should accept that without throwing.
     const normalized = kickPinToNormalized(
-      makeRawPin({ pinned_by: undefined as unknown as KickPinnedMessage["pinned_by"] }),
+      makeRawPin({ pinned_by: undefined as unknown as KickPinnedMessage["pinned_by"] })
     );
     expect(normalized.pinnedBy).toBeNull();
   });
@@ -168,7 +194,7 @@ describe("kickPinToNormalized", () => {
           created_at: "2026-05-17T12:00:00.000Z",
           sender: { username: "fitzbro", identity: { color: "#53FC18" } },
         },
-      }),
+      })
     );
     expect(normalized.content).toEqual([
       { type: "link", url: "https://youtube.com/@CoHBro", text: "https://youtube.com/@CoHBro" },
@@ -184,7 +210,7 @@ describe("kickPinToNormalized", () => {
           created_at: "2026-05-17T12:00:00.000Z",
           sender: { username: "fitzbro", identity: { color: "#53FC18" } },
         },
-      }),
+      })
     );
     expect(normalized.content).toEqual([
       { type: "text", content: "check this " },
@@ -202,7 +228,7 @@ describe("kickPinToNormalized", () => {
           created_at: "2026-05-17T12:00:00.000Z",
           sender: { username: "fitzbro", identity: { color: "#53FC18" } },
         },
-      }),
+      })
     );
     expect(normalized.content).toEqual([
       { type: "text", content: "see " },
@@ -221,7 +247,7 @@ describe("kickPinToNormalized", () => {
           created_at: "2026-05-17T12:00:00.000Z",
           sender: { username: "fitzbro", identity: { color: "#53FC18" } },
         },
-      }),
+      })
     );
     expect(normalized.content).toEqual([
       {
@@ -245,7 +271,7 @@ describe("kickPinToNormalized", () => {
           created_at: "2026-05-17T12:00:00.000Z",
           sender: { username: "fitzbro", identity: { color: "#53FC18" } },
         },
-      }),
+      })
     );
     expect(normalized.content).toEqual([
       { type: "mention", username: "bob" },
@@ -262,7 +288,7 @@ describe("kickPinToNormalized", () => {
           created_at: "2026-05-17T12:00:00.000Z",
           sender: { username: "fitzbro", identity: { color: "#53FC18" } },
         },
-      }),
+      })
     );
     expect(normalized.content).toEqual([{ type: "text", content: "just a regular pin" }]);
   });

@@ -83,6 +83,7 @@ describe("ChatDisplayPreferences defaults (U1)", () => {
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.density).toBe("cozy");
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.fontSizePx).toBe(16);
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx).toBe(28);
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.showTwitchPinDurationDialog).toBe(true);
     // Emote providers + event surfaces are on by default.
     for (const on of [
       DEFAULT_CHAT_DISPLAY_PREFERENCES.enable7tv,

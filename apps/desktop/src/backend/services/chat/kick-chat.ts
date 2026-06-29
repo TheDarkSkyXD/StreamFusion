@@ -21,6 +21,7 @@ import type {
   KickPinnedMessage,
   KickPoll,
   NormalizedPinnedMessage,
+  ReplyInfo,
 } from "../../../shared/chat-types";
 import { buildChannelKey, useChatStore } from "../../../store/chat-store";
 // Type-only import: lets us reference the KickSendResult shape without pulling
@@ -75,7 +76,10 @@ const ensureSendWindowReady = (): Promise<void> =>
 
 const disposeSendWindow = (): Promise<void> => window.electronAPI.kickChat.disposeSendWindow();
 
+const WEB_SOCKET_CONNECTING_READY_STATE = 0;
 const WEB_SOCKET_OPEN_READY_STATE = 1;
+const WEB_SOCKET_CLOSING_READY_STATE = 2;
+const WEB_SOCKET_CLOSED_READY_STATE = 3;
 
 interface PusherConnectionManagerLike {
   state?: string;
@@ -91,6 +95,11 @@ interface PusherConnectionManagerLike {
 
 interface LeaveChannelOptions {
   skipPusherUnsubscribe?: boolean;
+}
+
+function getPusherSocketReadyState(pusher: Pick<Pusher, "connection">): number | undefined {
+  const connection = pusher.connection as unknown as PusherConnectionManagerLike;
+  return connection.connection?.transport?.socket?.readyState;
 }
 
 function parseKickPinBadges(badges: KickBadge[]): ChatBadge[] {
@@ -113,6 +122,10 @@ function parseKickPinBadges(badges: KickBadge[]): ChatBadge[] {
       title: badge.text || parsedBadge.title,
     };
   });
+}
+
+function removeModeratorBadge(badges: ChatBadge[]): ChatBadge[] {
+  return badges.filter((badge) => badge.setId !== "moderator");
 }
 
 /**
@@ -141,6 +154,9 @@ export function kickPinToNormalized(pin: KickPinnedMessage): NormalizedPinnedMes
     // the same thing on Kick's side. Use the message id for both.
     pinRecordId: pin.message.id,
     author: {
+      ...(pin.message.sender.id !== undefined && pin.message.sender.id !== null
+        ? { userId: String(pin.message.sender.id) }
+        : {}),
       username: pin.message.sender.username,
       displayName: pin.message.sender.username,
       color: pin.message.sender.identity.color,
@@ -149,7 +165,11 @@ export function kickPinToNormalized(pin: KickPinnedMessage): NormalizedPinnedMes
     content: parseKickMessageContent(pin.message.content),
     pinnedBy: pin.pinned_by
       ? {
+          ...(pin.pinned_by.id !== undefined && pin.pinned_by.id !== null
+            ? { userId: String(pin.pinned_by.id) }
+            : {}),
           username: pin.pinned_by.username,
+          displayName: pin.pinned_by.username,
           color: pin.pinned_by.identity.color,
           badges: parseKickPinBadges(pin.pinned_by.identity.badges ?? []),
         }
@@ -237,8 +257,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   // Self-learning badge cache: snapshot of each sender's badges in each
   // channel, populated whenever a Pusher ChatMessageEvent arrives. Used by
   // sendMessage's optimistic local echo so the signed-in user's own
-  // outbound message renders with the same badge set Kick stamped on
-  // their previous inbound message. Falls back to broadcaster/mod
+  // outbound message renders with the same non-moderator badge set Kick
+  // stamped on their previous inbound message. Falls back to broadcaster
   // synthesis from local state when no cached entry exists yet.
   // Outer key: channel slug. Inner key: userId (string).
   private senderBadgesCache: Map<string, Map<string, ChatBadge[]>> = new Map();
@@ -416,7 +436,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     try {
       // No per-channel unsubscribe: closing the socket cleans them up
       // server-side, and the explicit frame races pusher.disconnect().
-      this.pusher.disconnect();
+      this.disconnectPusherSafe(this.pusher);
     } catch {
       // Ignore disconnect errors
     }
@@ -540,7 +560,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         }
       }
 
-      this.pusher.disconnect();
+      this.disconnectPusherSafe(this.pusher);
     } catch {
       // Ignore disconnect errors
     }
@@ -702,7 +722,9 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
      * delivery arrives. Falls back to a single text fragment when omitted,
      * preserving the historical echo shape for non-input callers.
      */
-    localFragments?: ContentFragment[]
+    localFragments?: ContentFragment[],
+    /** Reply metadata for the optimistic local echo, matching Kick Pusher reply payloads. */
+    localReplyTo?: ReplyInfo
   ): Promise<void> {
     const normalizedChannel = this.normalizeChannel(channel);
     const channelInfo = this.channels.get(normalizedChannel);
@@ -737,13 +759,11 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       const cachedBadges = cachedForChannel?.get(String(sender.id));
       let echoBadges: ChatBadge[];
       if (cachedBadges && cachedBadges.length > 0) {
-        echoBadges = cachedBadges;
+        echoBadges = removeModeratorBadge(cachedBadges);
       } else {
         const synthBadges: KickBadge[] = [];
         if (sender.id === channelInfo.broadcasterUserId) {
           synthBadges.push({ type: "broadcaster", text: "Broadcaster" });
-        } else if (this.isModerator.get(normalizedChannel)) {
-          synthBadges.push({ type: "moderator", text: "Moderator" });
         }
         echoBadges = parseKickBadges(synthBadges);
       }
@@ -766,6 +786,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         isDeleted: false,
         isHighlighted: false,
         isAction: false,
+        replyTo: localReplyTo,
       });
     }
   }
@@ -796,6 +817,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    */
   isModeratorIn(channel: string): boolean {
     return this.isModerator.get(this.normalizeChannel(channel)) ?? false;
+  }
+
+  /**
+   * Apply an observed self moderator-state change for a Kick channel.
+   */
+  setModeratorState(channel: string, isModerator: boolean): void {
+    this.isModerator.set(this.normalizeChannel(channel), isModerator);
   }
 
   /**
@@ -842,6 +870,43 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       forceTLS: true,
       enabledTransports: ["ws", "wss"],
     });
+  }
+
+  private disconnectPusherSafe(pusher: Pusher): void {
+    const readyState = getPusherSocketReadyState(pusher);
+    if (
+      readyState === WEB_SOCKET_CLOSING_READY_STATE ||
+      readyState === WEB_SOCKET_CLOSED_READY_STATE
+    ) {
+      return;
+    }
+
+    if (readyState === WEB_SOCKET_CONNECTING_READY_STATE) {
+      let settled = false;
+      let onConnected: (() => void) | null = null;
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        if (onConnected) pusher.connection.unbind("connected", onConnected);
+        pusher.connection.unbind("failed", cleanup);
+        pusher.connection.unbind("disconnected", cleanup);
+      };
+      onConnected = () => {
+        cleanup();
+        try {
+          pusher.disconnect();
+        } catch {
+          // Ignore disconnect errors
+        }
+      };
+
+      pusher.connection.bind("connected", onConnected);
+      pusher.connection.bind("failed", cleanup);
+      pusher.connection.bind("disconnected", cleanup);
+      return;
+    }
+
+    pusher.disconnect();
   }
 
   /**
@@ -1034,7 +1099,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    */
   private handleChatMessage(data: KickChatMessageEvent, channelSlug: string): void {
     const subscriberBadges = this.channelBadges.get(channelSlug);
-    const message = parseKickChatMessage(data, channelSlug, subscriberBadges);
+    const parsedMessage = parseKickChatMessage(data, channelSlug, subscriberBadges);
+    const channelInfo = this.channels.get(channelSlug);
+    const message =
+      channelInfo?.broadcasterUserId !== undefined &&
+      parsedMessage.userId === String(channelInfo.broadcasterUserId)
+        ? { ...parsedMessage, badges: removeModeratorBadge(parsedMessage.badges) }
+        : parsedMessage;
 
     // Snapshot the sender's badges so sendMessage's optimistic local echo
     // can stamp the user's own outbound messages with their real badge set

@@ -10,13 +10,38 @@
  * See `mod-log-types.ts` for the same pattern.
  */
 import { ipcMain } from "electron";
+import { logger } from "@/backend/logging/logger";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import {
+  type KickPinMutationResult,
+  type KickPinPayload,
+  pinKickMessage,
+  unpinKickMessage,
+} from "../../api/platforms/kick/kick-pin-mutations";
+import {
+  banKickChatUser,
+  deleteKickChatMessage,
   disposeSendWindow,
   ensureSendWindowReady,
+  getKickChannelViewerRole,
+  type KickChannelViewerRoleResult,
   type KickSendResult,
+  type KickWebApiMutationResult,
   sendKickChatMessage,
+  timeoutKickChatUser,
+  unbanKickChatUser,
 } from "../../api/platforms/kick/kick-send-window";
+import { isAllowedSender } from "../sender-origin";
+
+function rejectedKickWebMutation(message = "Rejected sender origin."): KickWebApiMutationResult {
+  return {
+    ok: false,
+    kind: "unknown",
+    status: 0,
+    body: "",
+    message,
+  };
+}
 
 export function registerKickChatHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY, async (): Promise<void> => {
@@ -30,6 +55,179 @@ export function registerKickChatHandlers(): void {
       payload: { chatroomId: number; content: string; broadcasterUserId?: number }
     ): Promise<KickSendResult> => {
       return sendKickChatMessage(payload.chatroomId, payload.content, payload.broadcasterUserId);
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_BAN_USER,
+    async (
+      event,
+      payload: { channelSlug: string; username: string }
+    ): Promise<KickWebApiMutationResult> => {
+      if (!isAllowedSender(event)) {
+        logger.warn("IPC:KickChat", "Rejected Kick chat ban request from unexpected sender", {
+          channelSlug: payload.channelSlug,
+          username: payload.username,
+        });
+        return rejectedKickWebMutation();
+      }
+      logger.info("IPC:KickChat", "Kick chat ban requested", {
+        channelSlug: payload.channelSlug,
+        username: payload.username,
+      });
+      const result = await banKickChatUser(payload.channelSlug, payload.username);
+      logger[result.ok ? "info" : "warn"](
+        "IPC:KickChat",
+        result.ok ? "Kick chat ban succeeded" : "Kick chat ban failed",
+        {
+          channelSlug: payload.channelSlug,
+          username: payload.username,
+          status: result.status,
+          kind: result.ok ? "ok" : result.kind,
+        }
+      );
+      return result;
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_TIMEOUT_USER,
+    async (
+      event,
+      payload: { channelSlug: string; username: string; duration: number }
+    ): Promise<KickWebApiMutationResult> => {
+      if (!isAllowedSender(event)) {
+        logger.warn("IPC:KickChat", "Rejected Kick chat timeout request from unexpected sender", {
+          channelSlug: payload.channelSlug,
+          username: payload.username,
+          duration: payload.duration,
+        });
+        return rejectedKickWebMutation();
+      }
+      logger.info("IPC:KickChat", "Kick chat timeout requested", {
+        channelSlug: payload.channelSlug,
+        username: payload.username,
+        duration: payload.duration,
+      });
+      const result = await timeoutKickChatUser(
+        payload.channelSlug,
+        payload.username,
+        payload.duration
+      );
+      logger[result.ok ? "info" : "warn"](
+        "IPC:KickChat",
+        result.ok ? "Kick chat timeout succeeded" : "Kick chat timeout failed",
+        {
+          channelSlug: payload.channelSlug,
+          username: payload.username,
+          duration: payload.duration,
+          status: result.status,
+          kind: result.ok ? "ok" : result.kind,
+        }
+      );
+      return result;
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_UNBAN_USER,
+    async (
+      event,
+      payload: { channelSlug: string; username: string }
+    ): Promise<KickWebApiMutationResult> => {
+      if (!isAllowedSender(event)) {
+        logger.warn("IPC:KickChat", "Rejected Kick chat unban request from unexpected sender", {
+          channelSlug: payload.channelSlug,
+          username: payload.username,
+        });
+        return rejectedKickWebMutation();
+      }
+      logger.info("IPC:KickChat", "Kick chat unban requested", {
+        channelSlug: payload.channelSlug,
+        username: payload.username,
+      });
+      const result = await unbanKickChatUser(payload.channelSlug, payload.username);
+      logger[result.ok ? "info" : "warn"](
+        "IPC:KickChat",
+        result.ok ? "Kick chat unban succeeded" : "Kick chat unban failed",
+        {
+          channelSlug: payload.channelSlug,
+          username: payload.username,
+          status: result.status,
+          kind: result.ok ? "ok" : result.kind,
+        }
+      );
+      return result;
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_DELETE_MESSAGE,
+    async (
+      event,
+      payload: { chatroomId: number; messageId: string }
+    ): Promise<KickWebApiMutationResult> => {
+      if (!isAllowedSender(event)) {
+        logger.warn("IPC:KickChat", "Rejected Kick chat delete request from unexpected sender", {
+          chatroomId: payload.chatroomId,
+          messageId: payload.messageId,
+        });
+        return rejectedKickWebMutation();
+      }
+      logger.info("IPC:KickChat", "Kick chat delete requested", {
+        chatroomId: payload.chatroomId,
+        messageId: payload.messageId,
+      });
+      const result = await deleteKickChatMessage(payload.chatroomId, payload.messageId);
+      logger[result.ok ? "info" : "warn"](
+        "IPC:KickChat",
+        result.ok ? "Kick chat delete succeeded" : "Kick chat delete failed",
+        {
+          chatroomId: payload.chatroomId,
+          messageId: payload.messageId,
+          status: result.status,
+          kind: result.ok ? "ok" : result.kind,
+        }
+      );
+      return result;
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_GET_VIEWER_ROLE,
+    async (event, payload: { channelSlug: string }): Promise<KickChannelViewerRoleResult> => {
+      if (!isAllowedSender(event)) {
+        logger.warn("IPC:KickChat", "Rejected Kick viewer role request from unexpected sender", {
+          channelSlug: payload.channelSlug,
+        });
+        return {
+          ok: false,
+          kind: "unknown",
+          status: 0,
+          message: "Rejected sender origin.",
+        };
+      }
+      return getKickChannelViewerRole(payload.channelSlug);
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_PIN_MESSAGE,
+    async (event, payload: KickPinPayload): Promise<KickPinMutationResult> => {
+      if (!isAllowedSender(event)) {
+        return { ok: false, kind: "forbidden", message: "Rejected sender origin." };
+      }
+      return pinKickMessage(payload);
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_UNPIN_MESSAGE,
+    async (event, payload: { channelSlug: string }): Promise<KickPinMutationResult> => {
+      if (!isAllowedSender(event)) {
+        return { ok: false, kind: "forbidden", message: "Rejected sender origin." };
+      }
+      return unpinKickMessage(payload.channelSlug);
     }
   );
 

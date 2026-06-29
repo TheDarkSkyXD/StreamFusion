@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
@@ -52,11 +52,16 @@ beforeEach(() => {
   registerChatHandlers();
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("registerChatHandlers", () => {
   it("registers chat history and mention enrichment channels", () => {
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(channels).toContain(IPC_CHANNELS.CHAT_GET_KICK_HISTORY);
     expect(channels).toContain(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY);
+    expect(channels).toContain(IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE);
     expect(channels).toContain(IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS);
   });
 });
@@ -112,6 +117,49 @@ describe("CHAT_GET_TWITCH_HISTORY", () => {
     const result = await handler({}, { channel: "testchannel" });
 
     expect(result).toEqual({ success: false, error: "timeout" });
+  });
+});
+
+// Guards: Twitch pin polling must go through main-process IPC so renderer DevTools does not log Chromium net::ERR_* fetch failures on every poll when DNS/Twitch is unavailable.
+describe("CHAT_GET_TWITCH_PINNED_MESSAGE", () => {
+  it("returns the active pin node on success", async () => {
+    const pin = { id: "pin-1", pinnedMessage: { id: "msg-1" } };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: {
+            channel: {
+              pinnedChatMessages: {
+                edges: [{ node: pin }],
+              },
+            },
+          },
+        }),
+      })
+    );
+
+    const handler = getHandler(IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE);
+    const result = await handler({}, { channel: "FitzBro" });
+
+    expect(result).toEqual({ success: true, data: pin });
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("https://gql.twitch.tv/gql");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).variables).toEqual({
+      login: "fitzbro",
+    });
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    expect(body.query).toContain("startsAt");
+    expect(body.query).toContain("endsAt");
+  });
+
+  it("returns { success: false, error } on DNS or network failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("ERR_NAME_NOT_RESOLVED")));
+
+    const handler = getHandler(IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE);
+    const result = await handler({}, { channel: "fitzbro" });
+
+    expect(result).toEqual({ success: false, error: "ERR_NAME_NOT_RESOLVED" });
   });
 });
 

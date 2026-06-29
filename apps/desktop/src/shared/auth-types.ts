@@ -303,6 +303,8 @@ export interface ProxyPreferences {
 export type TimestampFormat = "HH:mm" | "h:mm a";
 export type ChatDensity = "cozy" | "compact";
 export type ChatPauseMode = "scroll" | "mouseover" | "alt" | "mouseover-alt";
+export type DeletedMessageDisplayMode = "tombstone" | "message" | "compact" | "audit";
+export type ModerationHighlightStyle = "compact" | "cozy";
 
 /**
  * Viewer-facing chat display preferences (Twitch + Kick unified renderer).
@@ -342,10 +344,14 @@ export interface ChatDisplayPreferences {
   // Messages & events
   showUserNotices: boolean;
   showClearMsg: boolean;
+  deletedMessageDisplay: DeletedMessageDisplayMode;
+  moderationHighlightStyle: ModerationHighlightStyle;
   showClearChat: boolean;
   firstMsgHighlight: boolean;
   showPolls: boolean;
   showPredictions: boolean;
+  /** Ask for a duration before pinning a Twitch chat message. */
+  showTwitchPinDurationDialog: boolean;
   recentMessagesOnJoin: boolean;
   recentMessagesLimit: number;
   /**
@@ -589,10 +595,13 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   // Messages & events
   showUserNotices: true,
   showClearMsg: true,
+  deletedMessageDisplay: "compact",
+  moderationHighlightStyle: "compact",
   showClearChat: true,
   firstMsgHighlight: true,
   showPolls: true,
   showPredictions: true,
+  showTwitchPinDurationDialog: true,
   recentMessagesOnJoin: true,
   recentMessagesLimit: 200,
   messageLimit: 600,

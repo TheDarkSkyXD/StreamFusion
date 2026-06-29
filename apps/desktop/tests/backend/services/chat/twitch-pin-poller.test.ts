@@ -1,13 +1,170 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { __resetTwitchPinPollers, toNormalized } from "@/backend/services/chat/twitch-pin-poller";
 
 // Guards: Twitch `PinnedChatMessage.id` (the pin record's id) is NOT the same as `pinnedMessage.id` (the chat message's id). The normalized payload's `messageId` must come from `pinnedMessage.id` so the banner can thread back to the right chat row. First test pins fixture ids from production GQL to keep these distinct on every diff.
-// Guards: `PinnedChatMessage` has exactly 5 fields per the live schema (`id`, `type`, `updatedAt`, `pinnedBy`, `pinnedMessage`). Adding a 6th means Twitch shipped a schema change worth investigating; removing one means our normalizer needs to defend against undefined.
+// Guards: `PinnedChatMessage` includes Twitch's live pin timing fields (`startsAt`, `endsAt`) so timed pins can render the native duration progress bar.
 // Guards: pin payloads with `pinnedMessage: null` (chat message deleted while pin record is still active) must still produce a valid banner using the pin record's id and an empty content array.
+// Guards: Twitch pinnedBy and sender ids flow into the normalized payload so pinned banner usernames can open the user popout.
+// Guards: Twitch pinned-message emote fragments stay rich so pinned emotes render as images instead of plain text.
 
 afterEach(() => {
   __resetTwitchPinPollers();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  Object.defineProperty(window, "electronAPI", { configurable: true, value: undefined });
+});
+
+describe("transport", () => {
+  it("uses the Electron chat bridge when available so renderer fetch does not log net::ERR failures", async () => {
+    const bridgedPin = {
+      id: "pin-bridge",
+      type: "MOD",
+      updatedAt: "2026-05-18T01:12:12Z",
+      startsAt: "2026-05-18T01:10:00Z",
+      endsAt: "2026-05-18T01:20:00Z",
+      pinnedBy: null,
+      pinnedMessage: {
+        id: "msg-bridge",
+        sentAt: null,
+        sender: {
+          login: "alice",
+          displayName: "Alice",
+          chatColor: null,
+          displayBadges: null,
+        },
+        content: { text: "hello", fragments: [{ text: "hello", content: null }] },
+      },
+    };
+    const getTwitchPinnedMessage = vi.fn().mockResolvedValue({ success: true, data: bridgedPin });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { getTwitchPinnedMessage } },
+    });
+
+    const { startTwitchPinPolling } = await import("@/backend/services/chat/twitch-pin-poller");
+    startTwitchPinPolling("FitzBro");
+    await vi.waitFor(() => expect(getTwitchPinnedMessage).toHaveBeenCalled());
+
+    expect(getTwitchPinnedMessage).toHaveBeenCalledWith({ channel: "fitzbro" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("falls back to direct GQL when the Electron bridge returns a pin without timing fields", async () => {
+    const bridgedPin = {
+      id: "pin-stale-bridge",
+      type: "MOD",
+      updatedAt: "2026-06-29T05:13:42Z",
+      pinnedBy: null,
+      pinnedMessage: {
+        id: "msg-stale-bridge",
+        sentAt: null,
+        sender: {
+          login: "alice",
+          displayName: "Alice",
+          chatColor: null,
+          displayBadges: null,
+        },
+        content: { text: "timed", fragments: [{ text: "timed", content: null }] },
+      },
+    };
+    const timedPin = {
+      ...bridgedPin,
+      startsAt: "2026-06-29T05:13:42Z",
+      endsAt: "2026-06-29T05:28:42Z",
+    };
+    const getTwitchPinnedMessage = vi.fn().mockResolvedValue({ success: true, data: bridgedPin });
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          channel: {
+            pinnedChatMessages: {
+              edges: [{ node: timedPin }],
+            },
+          },
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { getTwitchPinnedMessage } },
+    });
+    const emitSpy = vi.spyOn(twitchChatService, "emit");
+
+    const { startTwitchPinPolling } = await import("@/backend/services/chat/twitch-pin-poller");
+    startTwitchPinPolling("DarkSkyFullOfStars");
+
+    await vi.waitFor(() => {
+      expect(emitSpy).toHaveBeenCalledWith(
+        "pinnedMessage",
+        expect.objectContaining({
+          messageId: "msg-stale-bridge",
+          pinnedAt: "2026-06-29T05:13:42Z",
+          expiresAt: "2026-06-29T05:28:42Z",
+        }),
+      );
+    });
+    expect(getTwitchPinnedMessage).toHaveBeenCalledWith({ channel: "darkskyfullofstars" });
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it("re-emits the same pinned message when its duration fields change", async () => {
+    vi.useFakeTimers();
+    const untimedPin = {
+      id: "pin-duration-change",
+      type: "MOD",
+      updatedAt: "2026-06-29T05:13:42Z",
+      startsAt: null,
+      endsAt: null,
+      pinnedBy: null,
+      pinnedMessage: {
+        id: "msg-duration-change",
+        sentAt: null,
+        sender: {
+          login: "alice",
+          displayName: "Alice",
+          chatColor: null,
+          displayBadges: null,
+        },
+        content: { text: "timed", fragments: [{ text: "timed", content: null }] },
+      },
+    };
+    const timedPin = {
+      ...untimedPin,
+      startsAt: "2026-06-29T05:13:42Z",
+      endsAt: "2026-06-29T05:28:42Z",
+    };
+    const getTwitchPinnedMessage = vi
+      .fn()
+      .mockResolvedValueOnce({ success: true, data: untimedPin })
+      .mockResolvedValue({ success: true, data: timedPin });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { getTwitchPinnedMessage } },
+    });
+    const emitSpy = vi.spyOn(twitchChatService, "emit");
+    const pinEvents = () => emitSpy.mock.calls.filter(([event]) => event === "pinnedMessage");
+
+    const { startTwitchPinPolling } = await import("@/backend/services/chat/twitch-pin-poller");
+    startTwitchPinPolling("FitzBro");
+
+    await vi.waitFor(() => expect(pinEvents()).toHaveLength(1));
+    expect(pinEvents()[0]?.[1]).toMatchObject({ messageId: "msg-duration-change", expiresAt: null });
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.waitFor(() => expect(pinEvents()).toHaveLength(2));
+    expect(pinEvents()[1]?.[1]).toMatchObject({
+      messageId: "msg-duration-change",
+      pinnedAt: "2026-06-29T05:13:42Z",
+      expiresAt: "2026-06-29T05:28:42Z",
+    });
+  });
 });
 
 describe("toNormalized", () => {
@@ -21,7 +178,10 @@ describe("toNormalized", () => {
       id: "8fee27eb-c167-4fe0-bede-2ae035e48190",
       type: "MOD",
       updatedAt: "2026-05-18T01:12:12Z",
+      startsAt: "2026-05-18T01:10:00Z",
+      endsAt: "2026-05-18T01:20:00Z",
       pinnedBy: {
+        id: "1001",
         login: "fitzbro",
         displayName: "FitzBro",
         chatColor: "#008000",
@@ -44,6 +204,7 @@ describe("toNormalized", () => {
         id: "37be039a-0aac-42ab-b783-2d63dffcbcf6",
         sentAt: "2026-05-18T01:11:00.000Z",
         sender: {
+          id: "1001",
           login: "fitzbro",
           displayName: "FitzBro",
           chatColor: "#008000",
@@ -57,7 +218,12 @@ describe("toNormalized", () => {
     });
 
     expect(normalized.messageId).toBe("37be039a-0aac-42ab-b783-2d63dffcbcf6");
+    expect(normalized.pinnedAt).toBe("2026-05-18T01:10:00Z");
+    expect(normalized.expiresAt).toBe("2026-05-18T01:20:00Z");
+    expect(normalized.author.userId).toBe("1001");
+    expect(normalized.pinnedBy?.userId).toBe("1001");
     expect(normalized.pinnedBy?.username).toBe("fitzbro");
+    expect(normalized.pinnedBy?.displayName).toBe("FitzBro");
     expect(normalized.pinnedBy?.badges).toEqual([
       {
         setId: "broadcaster",
@@ -81,6 +247,8 @@ describe("toNormalized", () => {
       id: "pin-mod",
       type: "MOD",
       updatedAt: "2026-05-18T04:42:37Z",
+      startsAt: "2026-05-18T04:40:00Z",
+      endsAt: "2026-05-18T04:50:00Z",
       pinnedBy: {
         login: "modlogin",
         displayName: "ModName",
@@ -121,6 +289,8 @@ describe("toNormalized", () => {
       id: "pin-link",
       type: "MOD",
       updatedAt: "2026-05-18T04:42:37Z",
+      startsAt: "2026-05-18T04:40:00Z",
+      endsAt: "2026-05-18T04:50:00Z",
       pinnedBy: {
         login: "fitzbro",
         displayName: "FitzBro",
@@ -130,7 +300,12 @@ describe("toNormalized", () => {
       pinnedMessage: {
         id: "msg-link",
         sentAt: null,
-        sender: { login: "fitzbro", displayName: "FitzBro", chatColor: "#008000", displayBadges: null },
+        sender: {
+          login: "fitzbro",
+          displayName: "FitzBro",
+          chatColor: "#008000",
+          displayBadges: null,
+        },
         content: {
           text: "check this https://example.com/foo",
           fragments: [{ text: "check this https://example.com/foo", content: null }],
@@ -149,6 +324,8 @@ describe("toNormalized", () => {
       id: "pin-nobadges",
       type: "MOD",
       updatedAt: "2026-05-18T04:42:37Z",
+      startsAt: "2026-05-18T04:40:00Z",
+      endsAt: "2026-05-18T04:50:00Z",
       pinnedBy: {
         login: "nobadges",
         displayName: "NoBadges",
@@ -179,6 +356,8 @@ describe("toNormalized", () => {
       id: "pin-1",
       type: "MOD",
       updatedAt: "2026-05-17T01:00:00Z",
+      startsAt: "2026-05-17T00:55:00Z",
+      endsAt: "2026-05-17T01:05:00Z",
       pinnedBy: {
         login: "fitzbro",
         displayName: "FitzBro",
@@ -197,7 +376,12 @@ describe("toNormalized", () => {
       color: "#008000",
       badges: [],
     });
-    expect(normalized.pinnedBy).toEqual({ username: "fitzbro", color: "#008000", badges: [] });
+    expect(normalized.pinnedBy).toEqual({
+      username: "fitzbro",
+      displayName: "FitzBro",
+      color: "#008000",
+      badges: [],
+    });
   });
 
   it("falls back to an unknown author when both pinnedMessage and pinnedBy are null", () => {
@@ -205,6 +389,8 @@ describe("toNormalized", () => {
       id: "pin-x",
       type: null,
       updatedAt: null,
+      startsAt: null,
+      endsAt: null,
       pinnedBy: null,
       pinnedMessage: null,
     });
@@ -220,6 +406,8 @@ describe("toNormalized", () => {
       id: "pin-2",
       type: "MOD",
       updatedAt: "2026-05-17T12:00:00Z",
+      startsAt: "2026-05-17T11:55:00Z",
+      endsAt: "2026-05-17T12:05:00Z",
       pinnedBy: {
         login: "modlogin",
         displayName: "ModName",
@@ -240,11 +428,59 @@ describe("toNormalized", () => {
     expect(normalized.content).toEqual([{ type: "text", content: "authoritative text" }]);
   });
 
+  it("preserves Twitch emote fragments in pinned-message content", () => {
+    const normalized = toNormalized({
+      id: "pin-emote",
+      type: "MOD",
+      updatedAt: "2026-05-17T12:00:00Z",
+      startsAt: "2026-05-17T11:55:00Z",
+      endsAt: "2026-05-17T12:05:00Z",
+      pinnedBy: null,
+      pinnedMessage: {
+        id: "chat-emote",
+        sentAt: null,
+        sender: { login: "alice", displayName: "Alice", chatColor: null, displayBadges: null },
+        content: {
+          text: "hello Kappa https://example.com",
+          fragments: [
+            { text: "hello ", content: null },
+            {
+              text: "Kappa",
+              content: {
+                __typename: "Emote",
+                id: "25",
+                token: "Kappa",
+                assetType: "STATIC",
+              },
+            },
+            { text: " https://example.com", content: null },
+          ],
+        },
+      },
+    });
+
+    expect(normalized.content).toEqual([
+      { type: "text", content: "hello " },
+      {
+        type: "emote",
+        id: "25",
+        name: "Kappa",
+        url: "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/3.0",
+        isAnimated: false,
+        isZeroWidth: false,
+      },
+      { type: "text", content: " " },
+      { type: "link", url: "https://example.com", text: "https://example.com" },
+    ]);
+  });
+
   it("falls back to fragment-concatenation when content.text is empty/missing", () => {
     const normalized = toNormalized({
       id: "pin-3",
       type: "MOD",
       updatedAt: "2026-05-17T12:00:00Z",
+      startsAt: "2026-05-17T11:55:00Z",
+      endsAt: "2026-05-17T12:05:00Z",
       pinnedBy: null,
       pinnedMessage: {
         id: "chat-3",
@@ -272,6 +508,8 @@ describe("toNormalized", () => {
       id: "pin-4",
       type: "MOD",
       updatedAt: "2026-05-17T12:00:00Z",
+      startsAt: "2026-05-17T11:55:00Z",
+      endsAt: "2026-05-17T12:05:00Z",
       pinnedBy: null,
       pinnedMessage: {
         id: "chat-4",

@@ -381,6 +381,7 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           views: c.viewCount.toString(),
           date: new Date(c.createdAt).toISOString(),
           created_at: c.createdAt,
+          creatorName: c.creatorName,
           thumbnailUrl: c.thumbnailUrl,
           embedUrl: c.embedUrl,
           url: c.clipUrl,

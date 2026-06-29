@@ -27,6 +27,7 @@ vi.stubGlobal("window", {
 import { KickChatService } from "@/backend/services/chat/kick-chat";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 import type { ChatMessage } from "@/shared/chat-types";
+import type { KickChatMessageEvent } from "@/backend/services/chat/kick-parser";
 
 // Guards: kick-chat sendMessage wire format — POST /public/v1/chat must carry the
 // broadcaster's user_id (channel data.id), NOT the chatroom id used for Pusher.
@@ -218,6 +219,39 @@ describe("KickChatService.sendMessage", () => {
     expect(messages[0].rawContent).toBe("hi PeepoClap");
   });
 
+  // Guards: local Kick reply echoes must render with the same replyTo row as incoming Kick/Twitch replies.
+  it("optimistic echo includes local reply metadata when provided", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const messages: any[] = [];
+    service.on("message", (m) => messages.push(m));
+    const replyTo = {
+      parentMessageId: "parent-1",
+      parentUserId: "parent-user",
+      parentUsername: "alice",
+      parentDisplayName: "Alice",
+      parentMessageBody: "hello there",
+    };
+    const fragments = [{ type: "text" as const, content: "hi back" }];
+
+    await service.sendMessage(
+      "ac7ionman",
+      "@alice hi back",
+      { id: 7, username: "me", slug: "me" },
+      fragments,
+      replyTo,
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).toEqual(fragments);
+    expect(messages[0].rawContent).toBe("@alice hi back");
+    expect(messages[0].replyTo).toEqual(replyTo);
+  });
+
   it("optimistic echo falls back to a single text fragment when fragments are omitted", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {
@@ -230,6 +264,106 @@ describe("KickChatService.sendMessage", () => {
     await service.sendMessage("ac7ionman", "hi", { id: 7, username: "me", slug: "me" });
     expect(messages).toHaveLength(1);
     expect(messages[0].content).toEqual([{ type: "text", content: "hi" }]);
+  });
+
+  it("optimistic echo does not synthesize a moderator badge for the signed-in Kick user", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const messages: any[] = [];
+    service.on("message", (m) => messages.push(m));
+
+    service.setModeratorState("ac7ionman", true);
+    await service.sendMessage("ac7ionman", "mod hi", { id: 7, username: "me", slug: "me" });
+
+    service.setModeratorState("ac7ionman", false);
+    await service.sendMessage("ac7ionman", "viewer hi", { id: 7, username: "me", slug: "me" });
+
+    expect(messages[0].badges.some((badge: { setId: string }) => badge.setId === "moderator")).toBe(
+      false
+    );
+    expect(messages[1].badges.some((badge: { setId: string }) => badge.setId === "moderator")).toBe(
+      false
+    );
+  });
+
+  it("optimistic echo strips stale cached moderator badges but keeps ordinary badges", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const messages: any[] = [];
+    service.on("message", (m) => messages.push(m));
+    const cachedBadges = new Map<string, Array<{ setId: string; version: string; imageUrl: string; title: string }>>([
+      [
+        "7",
+        [
+          { setId: "subscriber", version: "1", imageUrl: "", title: "Subscriber" },
+          { setId: "moderator", version: "1", imageUrl: "", title: "Moderator" },
+        ],
+      ],
+    ]);
+    (service as any).senderBadgesCache.set("ac7ionman", cachedBadges);
+
+    service.setModeratorState("ac7ionman", true);
+    await service.sendMessage("ac7ionman", "cached badge hi", {
+      id: 7,
+      username: "me",
+      slug: "me",
+    });
+
+    expect(messages[0].badges.map((badge: { setId: string }) => badge.setId)).toEqual([
+      "subscriber",
+    ]);
+  });
+
+  it("incoming broadcaster messages drop Kick moderator badges before rendering and caching", () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 7,
+    });
+    const messages: any[] = [];
+    service.on("message", (m) => messages.push(m));
+    const event: KickChatMessageEvent = {
+      id: "msg-broadcaster-1",
+      chatroom_id: 999_111,
+      content: "broadcaster hi",
+      type: "message",
+      created_at: "2026-06-28T20:00:00Z",
+      sender: {
+        id: 7,
+        username: "Me",
+        slug: "me",
+        identity: {
+          color: "#53FC18",
+          badges: [
+            { type: "broadcaster", text: "Broadcaster" },
+            { type: "moderator", text: "Moderator" },
+            { type: "subscriber", text: "Sub", count: 3 },
+          ],
+        },
+      },
+    };
+
+    (service as any).handleChatMessage(event, "ac7ionman");
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].badges.map((badge: { setId: string }) => badge.setId)).toEqual([
+      "broadcaster",
+      "subscriber",
+    ]);
+    const cache = (service as any).senderBadgesCache.get("ac7ionman").get("7");
+    expect(cache.map((badge: { setId: string }) => badge.setId)).toEqual([
+      "broadcaster",
+      "subscriber",
+    ]);
   });
 
   it("surfaces rate-limited cleanly", async () => {
@@ -307,25 +441,38 @@ describe("KickChatService teardown does not race the Pusher socket close", () =>
   // Guards: leaveChannel must skip pusher.unsubscribe when connection.state is not 'connected' — pusher-js otherwise tries to flush the unsubscribe frame on a closing/closed socket and logs "WebSocket is already in CLOSING or CLOSED state"
   // Guards: leaveChannel must also skip pusher.unsubscribe when the raw WebSocket is already CLOSING/CLOSED even if Pusher's public state still says connected
   // Guards: final-user release must not enqueue channel unsubscribe frames immediately before shutdown closes the shared Pusher socket
+  // Guards: disconnect() must defer closing a CONNECTING raw WebSocket until it opens, preventing the browser-level "WebSocket is closed before the connection is established" console error
   // Guards: disconnect() must not call pusher.unsubscribe per channel — closing the socket implicitly unsubscribes server-side, and the explicit frame races the close
   // Guards: forceShutdown() must keep per-channel unbind_all() (local closure cleanup) but drop pusher.unsubscribe (socket-touching frame that races the disconnect)
   function makePusherStub(
     state: "connected" | "disconnected" | "connecting" | "unavailable" | "failed",
     socketReadyState: number = 1,
   ) {
+    const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
     return {
       connection: {
         state,
         connection: {
           transport: {
-            state: "open",
+            state: socketReadyState === 1 ? "open" : "connecting",
             socket: { readyState: socketReadyState },
           },
         },
-        unbind_all: vi.fn(),
+        bind: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+          const existing = handlers.get(event) ?? new Set();
+          existing.add(handler);
+          handlers.set(event, existing);
+        }),
+        unbind: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+          handlers.get(event)?.delete(handler);
+        }),
+        unbind_all: vi.fn(() => handlers.clear()),
       },
       unsubscribe: vi.fn(),
       disconnect: vi.fn(),
+      __emitConnection: (event: string, ...args: unknown[]) => {
+        for (const handler of handlers.get(event) ?? []) handler(...args);
+      },
     };
   }
 
@@ -398,6 +545,29 @@ describe("KickChatService teardown does not race the Pusher socket close", () =>
 
     expect(pusher.unsubscribe).not.toHaveBeenCalled();
     expect(pusher.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("disconnect waits for a connecting raw socket to open before closing Pusher", async () => {
+    const { service, internals } = makeService();
+    const pusher = makePusherStub("connecting", 0);
+    (service as unknown as { pusher: typeof pusher }).pusher = pusher;
+    joinFakeChannel(internals, "ac7ionman", 999_111, { unbind_all: vi.fn() });
+
+    await service.disconnect();
+
+    expect(pusher.unsubscribe).not.toHaveBeenCalled();
+    expect(pusher.disconnect).not.toHaveBeenCalled();
+    expect(pusher.connection.bind).toHaveBeenCalledWith("connected", expect.any(Function));
+
+    pusher.connection.state = "connected";
+    pusher.connection.connection.transport.state = "open";
+    pusher.connection.connection.transport.socket.readyState = 1;
+    pusher.__emitConnection("connected");
+
+    expect(pusher.disconnect).toHaveBeenCalledOnce();
+    expect(pusher.connection.unbind).toHaveBeenCalledWith("connected", expect.any(Function));
+    expect(pusher.connection.unbind).toHaveBeenCalledWith("failed", expect.any(Function));
+    expect(pusher.connection.unbind).toHaveBeenCalledWith("disconnected", expect.any(Function));
   });
 
   it("forceShutdown unbinds per-channel handlers but does not call pusher.unsubscribe", async () => {

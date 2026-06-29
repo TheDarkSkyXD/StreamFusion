@@ -17,6 +17,8 @@
  *           id            # pin record id (NOT the chat message id)
  *           type          # MOD | ...
  *           updatedAt
+ *           startsAt      # when the timed pin began
+ *           endsAt        # when the timed pin expires
  *           pinnedBy { login displayName chatColor }
  *           pinnedMessage {
  *             id          # the actual chat message id
@@ -34,11 +36,9 @@
  * Android-app Client-Id (kd1unb4b3q4t58fwlpcbzcbnm76a8fp) works without
  * an Authorization header.
  *
- * Diffing key is the *inner* `pinnedMessage.id` (the chat message id), not
- * the outer pin record id — because Twitch updates the outer record's
- * `updatedAt` on every pin-state change without necessarily changing the
- * underlying message, and we want banner refreshes to track the message
- * the user actually pinned.
+ * Change detection includes the chat message id plus timing fields. Twitch can
+ * update duration metadata on the same pinned message, and the banner must
+ * refresh so the native-style progress bar can appear.
  */
 
 // Cross-logger: imported by TwitchChat (renderer) — avoids dragging
@@ -80,6 +80,10 @@ function parseTextForLinks(text: string): ContentFragment[] {
   return fragments;
 }
 
+function getTwitchEmoteUrl(emoteId: string): string {
+  return `https://static-cdn.jtvnw.net/emoticons/v2/${emoteId}/default/dark/3.0`;
+}
+
 const GQL_ENDPOINT = "https://gql.twitch.tv/gql";
 // Anonymous Android-app Client-Id — same one used elsewhere in twitch-gql-client.ts.
 const GQL_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
@@ -97,7 +101,10 @@ interface PinnedChatMessageNode {
   id: string;
   type: string | null;
   updatedAt: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
   pinnedBy: {
+    id?: string;
     login: string;
     displayName: string;
     chatColor: string | null;
@@ -107,6 +114,7 @@ interface PinnedChatMessageNode {
     id: string;
     sentAt: string | null;
     sender: {
+      id?: string;
       login: string;
       displayName: string;
       chatColor: string | null;
@@ -114,24 +122,53 @@ interface PinnedChatMessageNode {
     } | null;
     content: {
       text: string;
-      fragments: Array<{ text: string; content: unknown }> | null;
+      fragments: Array<{
+        text: string;
+        content: {
+          __typename?: string;
+          id?: string;
+          token?: string;
+          assetType?: string;
+        } | null;
+      }> | null;
     } | null;
   } | null;
 }
+
+type PinnedMessageContent = NonNullable<PinnedChatMessageNode["pinnedMessage"]>["content"];
 
 interface PollState {
   /** Channel login (e.g. "fitzbro") this poller targets. */
   login: string;
   /** Active interval timer. */
   timer: { stop: () => void };
-  /** Last seen chat message id ("" when no pin). Used for change detection. */
-  lastMessageId: string;
+  /** Last seen pin signature. Used for change detection. */
+  lastPinSignature: string;
   /** Set once the poller has completed its first poll, so callers can tell
    *  "no pin" apart from "haven't polled yet". */
   bootstrapped: boolean;
 }
 
+type TwitchPinnedMessageBridge = (params: {
+  channel: string;
+}) => Promise<{ success: boolean; data?: unknown | null; error?: string }>;
+
 const pollers = new Map<string, PollState>();
+
+function getTwitchPinnedMessageBridge(): TwitchPinnedMessageBridge | null {
+  if (typeof window === "undefined") return null;
+  return (
+    (
+      window as Window & {
+        electronAPI?: {
+          chat?: {
+            getTwitchPinnedMessage?: TwitchPinnedMessageBridge;
+          };
+        };
+      }
+    ).electronAPI?.chat?.getTwitchPinnedMessage ?? null
+  );
+}
 
 /** Start polling a channel's pinned message. Safe to call repeatedly for the
  *  same channel — duplicate calls are ignored. */
@@ -142,7 +179,7 @@ export function startTwitchPinPolling(channelLogin: string): void {
   const state: PollState = {
     login,
     timer: createManagedInterval(() => void poll(login), POLL_INTERVAL_MS),
-    lastMessageId: "",
+    lastPinSignature: "",
     bootstrapped: false,
   };
   pollers.set(login, state);
@@ -187,9 +224,9 @@ async function poll(login: string): Promise<void> {
   }
 
   state.bootstrapped = true;
-  const currentMessageId = pin?.pinnedMessage?.id ?? "";
-  if (currentMessageId === state.lastMessageId) return;
-  state.lastMessageId = currentMessageId;
+  const currentPinSignature = getPinSignature(pin);
+  if (currentPinSignature === state.lastPinSignature) return;
+  state.lastPinSignature = currentPinSignature;
 
   if (!pin) {
     twitchChatService.emit("pinnedMessageCleared");
@@ -199,7 +236,44 @@ async function poll(login: string): Promise<void> {
   twitchChatService.emit("pinnedMessage", toNormalized(pin, login));
 }
 
+function getPinSignature(pin: PinnedChatMessageNode | null): string {
+  if (!pin) return "";
+  return [
+    pin.pinnedMessage?.id ?? "",
+    pin.id,
+    pin.updatedAt ?? "",
+    pin.startsAt ?? "",
+    pin.endsAt ?? "",
+  ].join("|");
+}
+
+function hasTimingFields(pin: Partial<PinnedChatMessageNode> | null): boolean {
+  if (!pin) return true;
+  return "startsAt" in pin && "endsAt" in pin;
+}
+
 async function fetchActivePin(login: string): Promise<PinnedChatMessageNode | null> {
+  const bridgedFetch = getTwitchPinnedMessageBridge();
+  if (bridgedFetch) {
+    const result = await bridgedFetch({ channel: login });
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch Twitch pinned message");
+    }
+    const bridgedPin = (result.data ?? null) as Partial<PinnedChatMessageNode> | null;
+    if (hasTimingFields(bridgedPin)) return bridgedPin as PinnedChatMessageNode | null;
+
+    if (process.env.NODE_ENV !== "production") {
+      logger.debug("Chat:Pin", "Bridge pin payload missing timing fields; using direct GQL", {
+        login,
+        pinId: bridgedPin?.id,
+      });
+    }
+  }
+
+  return fetchActivePinDirect(login);
+}
+
+async function fetchActivePinDirect(login: string): Promise<PinnedChatMessageNode | null> {
   const data = await gqlRequest<{
     channel: { pinnedChatMessages: { edges: Array<{ node: PinnedChatMessageNode }> } } | null;
   }>({
@@ -213,7 +287,10 @@ async function fetchActivePin(login: string): Promise<PinnedChatMessageNode | nu
               id
               type
               updatedAt
+              startsAt
+              endsAt
               pinnedBy {
+                id
                 login
                 displayName
                 chatColor
@@ -223,12 +300,19 @@ async function fetchActivePin(login: string): Promise<PinnedChatMessageNode | nu
                 id
                 sentAt
                 sender {
+                  id
                   login
                   displayName
                   chatColor
                   displayBadges(channelLogin: $login) { setID version title imageURL }
                 }
-                content { text fragments { text content { __typename } } }
+                content {
+                  text
+                  fragments {
+                    text
+                    content { __typename ... on Emote { id token assetType } }
+                  }
+                }
               }
             }
           }
@@ -287,19 +371,51 @@ function gqlBadgesToChatBadges(gqlBadges: GqlBadge[] | null | undefined): ChatBa
   }));
 }
 
+function parsePinnedMessageContent(content: PinnedMessageContent): ContentFragment[] {
+  if (!content) return [];
+
+  const fragments = content.fragments ?? [];
+  const hasRichEmoteFragments = fragments.some(
+    (fragment) => fragment.content?.__typename === "Emote" && !!fragment.content.id
+  );
+
+  if (!hasRichEmoteFragments) {
+    const fragmentText = fragments.map((fragment) => fragment.text).join("");
+    const text = content.text || fragmentText;
+    return text ? parseTextForLinks(text) : [];
+  }
+
+  const out: ContentFragment[] = [];
+  for (const fragment of fragments) {
+    const emote = fragment.content;
+    if (emote?.__typename === "Emote" && emote.id) {
+      out.push({
+        type: "emote",
+        id: emote.id,
+        name: emote.token || fragment.text,
+        url: getTwitchEmoteUrl(emote.id),
+        isAnimated: emote.assetType === "ANIMATED",
+        isZeroWidth: false,
+      });
+      continue;
+    }
+
+    out.push(...parseTextForLinks(fragment.text));
+  }
+
+  return out;
+}
+
 export function toNormalized(
   pin: PinnedChatMessageNode,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   channelLogin?: string
 ): NormalizedPinnedMessage {
   const inner = pin.pinnedMessage;
-  const fragmentText = inner?.content?.fragments?.map((f) => f.text).join("") ?? "";
-  // Prefer authoritative `text`; fall back to fragment-concat when text is
-  // empty/missing.
-  const text = inner?.content?.text || fragmentText;
 
   const author = inner?.sender
     ? {
+        ...(inner.sender.id ? { userId: inner.sender.id } : {}),
         username: inner.sender.login,
         displayName: inner.sender.displayName,
         color: inner.sender.chatColor ?? "#9146FF",
@@ -307,6 +423,7 @@ export function toNormalized(
       }
     : pin.pinnedBy
       ? {
+          ...(pin.pinnedBy.id ? { userId: pin.pinnedBy.id } : {}),
           username: pin.pinnedBy.login,
           displayName: pin.pinnedBy.displayName,
           color: pin.pinnedBy.chatColor ?? "#9146FF",
@@ -322,16 +439,18 @@ export function toNormalized(
     messageId: inner?.id ?? pin.id,
     pinRecordId: pin.id,
     author,
-    content: text ? parseTextForLinks(text) : [],
+    content: parsePinnedMessageContent(inner?.content ?? null),
     pinnedBy: pin.pinnedBy
       ? {
+          ...(pin.pinnedBy.id ? { userId: pin.pinnedBy.id } : {}),
           username: pin.pinnedBy.login,
+          displayName: pin.pinnedBy.displayName,
           color: pin.pinnedBy.chatColor ?? "#9146FF",
           badges: gqlBadgesToChatBadges(pin.pinnedBy.displayBadges),
         }
       : null,
-    pinnedAt: pin.updatedAt ?? new Date().toISOString(),
+    pinnedAt: pin.startsAt ?? pin.updatedAt ?? new Date().toISOString(),
     sentAt: inner?.sentAt ?? null,
-    expiresAt: null,
+    expiresAt: pin.endsAt ?? null,
   };
 }

@@ -9,7 +9,15 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { KickSendResult } from "../backend/api/platforms/kick/kick-send-window";
+import type {
+  KickPinMutationResult,
+  KickPinPayload,
+} from "../backend/api/platforms/kick/kick-pin-mutations";
+import type {
+  KickChannelViewerRoleResult,
+  KickSendResult,
+  KickWebApiMutationResult,
+} from "../backend/api/platforms/kick/kick-send-window";
 import type {
   PlatformHealth,
   PlatformHealthEvent,
@@ -599,6 +607,17 @@ const electronAPI = {
       error?: string;
     }> => ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY, params),
 
+    /**
+     * Twitch pinned-message GQL is routed through main so renderer DevTools do
+     * not log Chromium `net::ERR_*` fetch failures during transient DNS/network
+     * outages. Data stays raw because the renderer-side poller owns
+     * normalization and diffing.
+     */
+    getTwitchPinnedMessage: (params: {
+      channel: string;
+    }): Promise<{ success: boolean; data?: unknown | null; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE, params),
+
     enrichMentionUsers: (params: {
       platform: Platform;
       channel?: string;
@@ -641,6 +660,37 @@ const electronAPI = {
         content,
         broadcasterUserId,
       }),
+    banUser: (channelSlug: string, username: string): Promise<KickWebApiMutationResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_BAN_USER, {
+        channelSlug,
+        username,
+      }),
+    timeoutUser: (
+      channelSlug: string,
+      username: string,
+      duration: number
+    ): Promise<KickWebApiMutationResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_TIMEOUT_USER, {
+        channelSlug,
+        username,
+        duration,
+      }),
+    unbanUser: (channelSlug: string, username: string): Promise<KickWebApiMutationResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_UNBAN_USER, {
+        channelSlug,
+        username,
+      }),
+    deleteMessage: (chatroomId: number, messageId: string): Promise<KickWebApiMutationResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_DELETE_MESSAGE, {
+        chatroomId,
+        messageId,
+      }),
+    getViewerRole: (channelSlug: string): Promise<KickChannelViewerRoleResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_GET_VIEWER_ROLE, { channelSlug }),
+    pinMessage: (payload: KickPinPayload): Promise<KickPinMutationResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_PIN_MESSAGE, payload),
+    unpinMessage: (channelSlug: string): Promise<KickPinMutationResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_UNPIN_MESSAGE, { channelSlug }),
     disposeSendWindow: (): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW),
   },

@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   pinChatMessage,
   unpinChatMessage,
+  updatePinnedChatMessage,
 } from "@/backend/api/platforms/twitch/twitch-gql-pin-mutations";
 
 // Guards: Twitch Helix chat-pin wire shape - pin/unpin must use the official /chat/pins endpoint with broadcaster_id, moderator_id, message_id, and a client id matching the user token.
+// Guards: updating a pinned message duration must PATCH, not PUT. PUT returns 409 when the message is already pinned.
 // Guards: Helix missing-scope responses surface as missing-scopes so the UI can reopen the reconnect flow instead of showing a dead generic error.
 
 let lastUrl: string | null = null;
@@ -89,6 +91,37 @@ describe("pinChatMessage", () => {
     const missing = await pinChatMessage("19789903", "mod-42", "msg-1", 1800, "tok-1", "client-1");
     expect(missing.ok).toBe(false);
     if (!missing.ok) expect(missing.kind).toBe("not-found");
+  });
+});
+
+describe("updatePinnedChatMessage", () => {
+  it("PATCHes the official Helix chat pin endpoint with the new duration", async () => {
+    const result = await updatePinnedChatMessage(
+      "19789903",
+      "mod-42",
+      "msg-1",
+      60,
+      "tok-1",
+      "client-1"
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(lastMethod).toBe("PATCH");
+    expect(lastUrl).toBe(
+      "https://api.twitch.tv/helix/chat/pins?broadcaster_id=19789903&moderator_id=mod-42&message_id=msg-1&duration_seconds=60"
+    );
+  });
+
+  it("classifies a pinned-message conflict instead of hiding Twitch's 409", async () => {
+    nextResponse = {
+      status: 409,
+      body: { message: "The specified message is already pinned." },
+    };
+
+    const result = await pinChatMessage("19789903", "mod-42", "msg-1", 1800, "tok-1", "client-1");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe("conflict");
   });
 });
 

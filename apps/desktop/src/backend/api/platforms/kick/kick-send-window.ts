@@ -37,6 +37,27 @@ export type KickWebApiGetResult =
       message: string;
     };
 
+export type KickChannelViewerRoleResult =
+  | { ok: true; isModerator: boolean | null; status: number }
+  | {
+      ok: false;
+      kind: "auth-expired" | "network" | "unknown";
+      status: number;
+      message: string;
+    };
+
+export type KickWebApiMutationMethod = "POST" | "DELETE";
+
+export type KickWebApiMutationResult =
+  | { ok: true; status: number; body: string }
+  | {
+      ok: false;
+      kind: "auth-expired" | "network" | "unknown";
+      status: number;
+      body: string;
+      message: string;
+    };
+
 // Module-level state — single send window, single bearer cache.
 let sendWindow: BrowserWindow | null = null;
 let latestKickWebBearer: string | null = null;
@@ -142,6 +163,51 @@ export function buildKickWebApiGetIIFE(path: string, bearer: string): string {
         "X-App-Platform": "web",
         "X-Requested-With": "XMLHttpRequest"
       }
+    });
+    return JSON.stringify({
+      ok: response.ok,
+      status: response.status,
+      body: await response.text()
+    });
+  } catch (err) {
+    return JSON.stringify({
+      ok: false,
+      status: 0,
+      body: String(err)
+    });
+  }
+})()`;
+}
+
+/**
+ * Build a Kick web API mutation fired from inside the hidden kick.com page.
+ * This is for legacy/internal endpoints that reject OAuth bearer tokens but
+ * accept Kick's web session cookies + Sanctum bearer.
+ */
+export function buildKickWebApiMutationIIFE(
+  method: KickWebApiMutationMethod,
+  path: string,
+  bearer: string,
+  body: unknown
+): string {
+  const p = JSON.stringify(path);
+  const b = JSON.stringify(bearer);
+  const m = JSON.stringify(method);
+  const serializedBody = body === undefined ? "undefined" : JSON.stringify(JSON.stringify(body));
+  return `(async () => {
+  try {
+    const response = await fetch(${p}, {
+      method: ${m},
+      credentials: "include",
+      headers: {
+        "Authorization": ${b},
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Referer": "https://kick.com",
+        "X-App-Platform": "web",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: ${serializedBody}
     });
     return JSON.stringify({
       ok: response.ok,
@@ -454,10 +520,38 @@ function classifyOfficialSendResult(input: {
   return classifySendResult(input);
 }
 
-const ALLOWED_KICK_WEB_API_GET_PATHS = new Set(["/api/v2/user/subscriptions"]);
+const ALLOWED_KICK_WEB_API_GET_PATHS = [
+  /^\/api\/v2\/user\/subscriptions$/,
+  /^\/api\/v2\/channels\/[^/?#]+\/me$/,
+] as const;
+const ALLOWED_KICK_WEB_API_MUTATIONS: ReadonlyArray<{
+  method: KickWebApiMutationMethod;
+  pattern: RegExp;
+}> = [
+  {
+    method: "POST",
+    pattern: /^\/api\/v2\/channels\/[^/?#]+\/pinned-message$/,
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/v2\/channels\/[^/?#]+\/pinned-message$/,
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/v2\/channels\/[^/?#]+\/bans$/,
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/v2\/channels\/[^/?#]+\/bans\/[^/?#]+$/,
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/v2\/chatrooms\/\d+\/messages\/[^/?#]+$/,
+  },
+];
 
 export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetResult> {
-  if (!ALLOWED_KICK_WEB_API_GET_PATHS.has(path)) {
+  if (!isAllowedKickWebApiGet(path)) {
     return {
       ok: false,
       kind: "unknown",
@@ -489,6 +583,231 @@ export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetRes
     result = await _fireKickWebApiGet(path);
   }
   return result;
+}
+
+function isAllowedKickWebApiGet(path: string): boolean {
+  return ALLOWED_KICK_WEB_API_GET_PATHS.some((pattern) => pattern.test(path));
+}
+
+function valueHasModRole(value: unknown): boolean | null {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (
+      normalized === "moderator" ||
+      normalized === "mod" ||
+      normalized === "broadcaster" ||
+      normalized === "owner" ||
+      normalized === "channel_owner" ||
+      normalized === "channel-owner"
+    ) {
+      return true;
+    }
+    if (normalized === "viewer" || normalized === "follower" || normalized === "subscriber") {
+      return false;
+    }
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    let sawExplicitFalse = false;
+    for (const item of value) {
+      const itemResult = valueHasModRole(item);
+      if (itemResult === true) return true;
+      if (itemResult === false) sawExplicitFalse = true;
+    }
+    return sawExplicitFalse ? false : null;
+  }
+
+  if (!value || typeof value !== "object") return null;
+  return parseKickChannelViewerRoleObject(value as Record<string, unknown>);
+}
+
+function parseKickChannelViewerRoleObject(data: Record<string, unknown>): boolean | null {
+  const explicitBooleanKeys = [
+    "is_moderator",
+    "isModerator",
+    "is_mod",
+    "isMod",
+    "moderator",
+    "can_moderate",
+    "canModerate",
+    "is_broadcaster",
+    "isBroadcaster",
+    "broadcaster",
+    "is_channel_owner",
+    "isChannelOwner",
+  ];
+  for (const key of explicitBooleanKeys) {
+    if (typeof data[key] === "boolean") return data[key] as boolean;
+  }
+
+  const roleKeys = ["role", "roles", "badges", "permissions", "user_role", "userRole"];
+  for (const key of roleKeys) {
+    const result = valueHasModRole(data[key]);
+    if (result !== null) return result;
+  }
+
+  let sawExplicitFalse = false;
+  for (const value of Object.values(data)) {
+    if (!value || typeof value !== "object") continue;
+    const result = valueHasModRole(value);
+    if (result === true) return true;
+    if (result === false) sawExplicitFalse = true;
+  }
+  return sawExplicitFalse ? false : null;
+}
+
+export function parseKickChannelViewerRoleBody(body: string): boolean | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+
+  return valueHasModRole(parsed);
+}
+
+export async function getKickChannelViewerRole(
+  channelSlug: string
+): Promise<KickChannelViewerRoleResult> {
+  const slug = channelSlug.trim().toLowerCase();
+  if (!slug) return { ok: true, isModerator: null, status: 0 };
+
+  const result = await fetchKickWebApiGet(`/api/v2/channels/${encodeURIComponent(slug)}/me`);
+  if (!result.ok) {
+    return {
+      ok: false,
+      kind: result.kind,
+      status: result.status,
+      message: result.message,
+    };
+  }
+
+  return {
+    ok: true,
+    isModerator: parseKickChannelViewerRoleBody(result.body),
+    status: result.status,
+  };
+}
+
+function isAllowedKickWebApiMutation(method: KickWebApiMutationMethod, path: string): boolean {
+  return ALLOWED_KICK_WEB_API_MUTATIONS.some(
+    (entry) => entry.method === method && entry.pattern.test(path)
+  );
+}
+
+export async function fetchKickWebApiMutation(
+  method: KickWebApiMutationMethod,
+  path: string,
+  body?: unknown
+): Promise<KickWebApiMutationResult> {
+  const logMeta = { method, path };
+  if (!isAllowedKickWebApiMutation(method, path)) {
+    logger.warn("Kick:SendWindow", "Rejected unsupported Kick web API mutation", logMeta);
+    return {
+      ok: false,
+      kind: "unknown",
+      status: 0,
+      body: "",
+      message: "Unsupported Kick web API mutation.",
+    };
+  }
+
+  logger.info("Kick:SendWindow", "Kick web API mutation requested", logMeta);
+  await ensureSendWindowReady();
+  if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
+    logger.warn("Kick:SendWindow", "Kick web API mutation send window unavailable", logMeta);
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: "Send window failed to initialize.",
+    };
+  }
+
+  let result = await _fireKickWebApiMutation(method, path, body);
+  if (!result.ok && result.kind === "auth-expired") {
+    logger.warn("Kick:SendWindow", "Kick web API mutation auth expired; reloading session", {
+      ...logMeta,
+      status: result.status,
+      kind: result.kind,
+    });
+    try {
+      await _reloadAndRecapture(sendWindow);
+    } catch {
+      logger.warn("Kick:SendWindow", "Kick web API mutation session reload failed", {
+        ...logMeta,
+        status: result.status,
+        kind: result.kind,
+      });
+      return result;
+    }
+    if (latestKickWebBearer === null || sendWindow.isDestroyed()) return result;
+    result = await _fireKickWebApiMutation(method, path, body);
+  }
+  logger[result.ok ? "info" : "warn"](
+    "Kick:SendWindow",
+    result.ok ? "Kick web API mutation succeeded" : "Kick web API mutation failed",
+    {
+      ...logMeta,
+      status: result.status,
+      kind: result.ok ? "ok" : result.kind,
+    }
+  );
+  return result;
+}
+
+export function deleteKickChatMessage(
+  chatroomId: number,
+  messageId: string
+): Promise<KickWebApiMutationResult> {
+  return fetchKickWebApiMutation(
+    "DELETE",
+    `/api/v2/chatrooms/${chatroomId}/messages/${encodeURIComponent(messageId)}`
+  );
+}
+
+export function banKickChatUser(
+  channelSlug: string,
+  username: string
+): Promise<KickWebApiMutationResult> {
+  return fetchKickWebApiMutation(
+    "POST",
+    `/api/v2/channels/${encodeURIComponent(channelSlug)}/bans`,
+    {
+      banned_username: username,
+      permanent: true,
+    }
+  );
+}
+
+export function timeoutKickChatUser(
+  channelSlug: string,
+  username: string,
+  duration: number
+): Promise<KickWebApiMutationResult> {
+  return fetchKickWebApiMutation(
+    "POST",
+    `/api/v2/channels/${encodeURIComponent(channelSlug)}/bans`,
+    {
+      banned_username: username,
+      duration,
+      permanent: false,
+    }
+  );
+}
+
+export function unbanKickChatUser(
+  channelSlug: string,
+  username: string
+): Promise<KickWebApiMutationResult> {
+  return fetchKickWebApiMutation(
+    "DELETE",
+    `/api/v2/channels/${encodeURIComponent(channelSlug)}/bans/${encodeURIComponent(username)}`
+  );
 }
 
 async function _fireKickWebApiGet(path: string): Promise<KickWebApiGetResult> {
@@ -563,6 +882,85 @@ async function _fireKickWebApiGet(path: string): Promise<KickWebApiGetResult> {
     status: parsed.status,
     body: parsed.body,
     message: `Kick web API request failed (${parsed.status}).`,
+  };
+}
+
+async function _fireKickWebApiMutation(
+  method: KickWebApiMutationMethod,
+  path: string,
+  body: unknown
+): Promise<KickWebApiMutationResult> {
+  if (!sendWindow || latestKickWebBearer === null) {
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: "Send window not ready.",
+    };
+  }
+
+  const iife = buildKickWebApiMutationIIFE(method, path, latestKickWebBearer, body);
+  let raw: string;
+  try {
+    raw = (await sendWindow.webContents.executeJavaScript(iife)) as string;
+  } catch (err) {
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: `Kick web API window error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  let parsed: { ok: boolean; status: number; body: string };
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    return {
+      ok: false,
+      kind: "unknown",
+      status: 0,
+      body: raw,
+      message: "Kick web API window returned non-JSON response.",
+    };
+  }
+
+  if (parsed.ok && parsed.status >= 200 && parsed.status < 300) {
+    return { ok: true, status: parsed.status, body: parsed.body };
+  }
+
+  if (
+    parsed.status === 401 ||
+    parsed.status === 419 ||
+    (parsed.status === 403 && parsed.body.includes("User is not authenticated"))
+  ) {
+    return {
+      ok: false,
+      kind: "auth-expired",
+      status: parsed.status,
+      body: parsed.body,
+      message: "Kick session expired - reconnect Kick in Settings.",
+    };
+  }
+
+  if (parsed.status === 0) {
+    return {
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: parsed.body,
+      message: "Network error mutating Kick web API.",
+    };
+  }
+
+  return {
+    ok: false,
+    kind: "unknown",
+    status: parsed.status,
+    body: parsed.body,
+    message: `Kick web API mutation failed (${parsed.status}).`,
   };
 }
 

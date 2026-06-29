@@ -18,6 +18,7 @@ import type {
   ChatMessage,
   ChatServiceEvents,
   ContentFragment,
+  ModeratorStateEvent,
   UserNotice,
 } from "../../../shared/chat-types";
 import { buildChannelKey, useChatStore } from "../../../store/chat-store";
@@ -457,6 +458,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
           await badgeResolver.loadChannelBadges(broadcasterId, this.accessToken, this.clientId);
         }
       }
+      this.refreshOwnModeratorState(normalizedChannel);
 
       this.emitConnectionStatus();
       this.log(`Joined channel: ${normalizedChannel}`);
@@ -598,9 +600,11 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       (channelState?.color as string | undefined) ||
       (globalState?.color as string | undefined) ||
       getDefaultColor(this.user.login);
-    const badgesTag =
+    const badgesTag = this.withCurrentModeratorBadge(
+      channel,
       (channelState?.badges as Record<string, string> | undefined) ||
-      (globalState?.badges as Record<string, string> | undefined);
+        (globalState?.badges as Record<string, string> | undefined)
+    );
     const broadcasterId = this.broadcasterId.get(this.normalizeChannel(channel));
     const echo: ChatMessage = {
       id: crypto.randomUUID(),
@@ -728,6 +732,52 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
   // ========== Private Methods ==========
 
+  private refreshOwnModeratorState(channel: string): void {
+    if (!this.client || !this.user) return;
+    const client = this.client as tmi.Client & {
+      isMod?: (channel: string, username: string) => boolean;
+    };
+    const isModerator = client.isMod?.(channel, this.user.login) ?? false;
+    this.setOwnModeratorState(channel, isModerator, { emitUnchanged: true });
+  }
+
+  private setOwnModeratorState(
+    channel: string,
+    isModerator: boolean,
+    options: { emitUnchanged?: boolean } = {}
+  ): void {
+    const normalizedChannel = this.normalizeChannel(channel);
+    const previous = this.isModerator.get(normalizedChannel);
+    this.isModerator.set(normalizedChannel, isModerator);
+    if (!options.emitUnchanged && previous === isModerator) return;
+
+    const channelId = this.broadcasterId.get(normalizedChannel);
+    if (!channelId) return;
+
+    const event: ModeratorStateEvent = {
+      platform: "twitch",
+      channel: normalizedChannel,
+      channelId,
+      isModerator,
+      reason: "ws",
+    };
+    this.emit("moderatorState", event);
+  }
+
+  private withCurrentModeratorBadge(
+    channel: string,
+    badgesTag: Record<string, string> | undefined
+  ): Record<string, string> | undefined {
+    const isModerator = this.isModerator.get(this.normalizeChannel(channel)) ?? false;
+    if (isModerator) {
+      return { ...(badgesTag ?? {}), moderator: "1" };
+    }
+    if (!badgesTag?.moderator) return badgesTag;
+    const next = { ...badgesTag };
+    delete next.moderator;
+    return next;
+  }
+
   /**
    * Create tmi.js client with appropriate options
    */
@@ -829,6 +879,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.handleUserNotice("subgift", channel, tags as TwitchTags, undefined);
     });
 
+    this.client.on("submysterygift", (channel, _username, giftCount, _methods, tags) => {
+      this.handleUserNotice("submysterygift", channel, tags as TwitchTags, undefined, {
+        giftCount,
+      });
+    });
+
     this.client.on("raided", (channel, username, viewers) => {
       // Note: raided event doesn't provide tags, create minimal notice
       const notice: UserNotice = {
@@ -895,13 +951,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     // Mod status
     this.client.on("mod", (channel, username) => {
       if (this.user && username.toLowerCase() === this.user.login.toLowerCase()) {
-        this.isModerator.set(this.normalizeChannel(channel), true);
+        this.setOwnModeratorState(channel, true);
       }
     });
 
     this.client.on("unmod", (channel, username) => {
       if (this.user && username.toLowerCase() === this.user.login.toLowerCase()) {
-        this.isModerator.set(this.normalizeChannel(channel), false);
+        this.setOwnModeratorState(channel, false);
       }
     });
 
@@ -951,12 +1007,17 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    * Handle user notice events (subs, raids, etc.)
    */
   private handleUserNotice(
-    type: "sub" | "resub" | "subgift" | "raid",
+    type: "sub" | "resub" | "subgift" | "submysterygift" | "raid",
     channel: string,
     tags: TwitchTags,
-    message: string | undefined
+    message: string | undefined,
+    options: { giftCount?: number } = {}
   ): void {
     const typedTags = tags as Record<string, unknown>;
+    const taggedGiftCount =
+      typeof typedTags["msg-param-mass-gift-count"] === "string"
+        ? Number.parseInt(typedTags["msg-param-mass-gift-count"], 10)
+        : undefined;
     const notice: UserNotice = {
       id: (typedTags.id as string) ?? crypto.randomUUID(),
       platform: "twitch",
@@ -968,6 +1029,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       message,
       systemMessage: (typedTags["system-msg"] as string) ?? "",
       timestamp: new Date(),
+      giftCount:
+        options.giftCount ?? (Number.isFinite(taggedGiftCount) ? taggedGiftCount : undefined),
     };
 
     this.emit("userNotice", notice);

@@ -3,6 +3,7 @@
  *
  * Official Helix chat-pin endpoints:
  *   PUT    /helix/chat/pins
+ *   PATCH  /helix/chat/pins
  *   DELETE /helix/chat/pins
  *
  * The user access token must include `moderator:manage:chat_messages`, and
@@ -19,6 +20,7 @@ export type PinMutationErrorKind =
   | "unauthenticated"
   | "forbidden"
   | "not-found"
+  | "conflict"
   | "rate-limited"
   | "network"
   | "unknown";
@@ -63,7 +65,7 @@ function isMissingScope(message: string): boolean {
 }
 
 async function helixPinRequest(
-  method: "PUT" | "DELETE",
+  method: "PUT" | "PATCH" | "DELETE",
   query: Record<string, string | number | null | undefined>,
   accessToken: string,
   clientId: string
@@ -110,6 +112,7 @@ async function helixPinRequest(
 
   if (res.status === 403) return { ok: false, kind: "forbidden", message };
   if (res.status === 404) return { ok: false, kind: "not-found", message };
+  if (res.status === 409) return { ok: false, kind: "conflict", message };
   if (res.status === 429) return { ok: false, kind: "rate-limited", message };
   if (res.status >= 500) return { ok: false, kind: "network", message };
   return { ok: false, kind: "unknown", message };
@@ -128,6 +131,30 @@ export function pinChatMessage(
 ): Promise<PinMutationResult> {
   return helixPinRequest(
     "PUT",
+    {
+      broadcaster_id: broadcasterId,
+      moderator_id: moderatorId,
+      message_id: messageId,
+      duration_seconds: durationSeconds,
+    },
+    accessToken,
+    clientId
+  );
+}
+
+/**
+ * Update the duration of the current Twitch pinned chat message.
+ */
+export function updatePinnedChatMessage(
+  broadcasterId: string,
+  moderatorId: string,
+  messageId: string,
+  durationSeconds: number | null,
+  accessToken: string,
+  clientId: string
+): Promise<PinMutationResult> {
+  return helixPinRequest(
+    "PATCH",
     {
       broadcaster_id: broadcasterId,
       moderator_id: moderatorId,

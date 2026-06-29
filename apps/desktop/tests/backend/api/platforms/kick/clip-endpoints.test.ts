@@ -80,6 +80,7 @@ describe("clip-endpoints — getClipsByChannelSlug", () => {
       thumbnailUrl: "https://files.kick.com/thumb-clip-1.webp",
       vodId: "ls-100",
       channelSlug: "streamer1",
+      creatorName: "",
     });
     expect(result.cursor).toBe("abc123");
   });

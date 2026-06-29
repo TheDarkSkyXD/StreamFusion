@@ -110,11 +110,32 @@ export interface KickUserUnbannedEvent {
 }
 
 /** Kick message deleted event */
+interface KickMessageDeletedActor {
+  id?: number | string;
+  username?: string;
+  slug?: string;
+  name?: string;
+  display_name?: string;
+}
+
 export interface KickMessageDeletedEvent {
   id: string;
   message: {
     id: string;
+    deleted_by?: KickMessageDeletedActor | string | null;
+    deletedBy?: KickMessageDeletedActor | string | null;
+    moderator?: KickMessageDeletedActor | string | null;
+    actor?: KickMessageDeletedActor | string | null;
   };
+  deleted_by?: KickMessageDeletedActor | string | null;
+  deletedBy?: KickMessageDeletedActor | string | null;
+  moderator?: KickMessageDeletedActor | string | null;
+  actor?: KickMessageDeletedActor | string | null;
+  bot?: KickMessageDeletedActor | string | null;
+  automod?: KickMessageDeletedActor | string | null;
+  auto_mod?: KickMessageDeletedActor | string | null;
+  automation?: KickMessageDeletedActor | string | null;
+  source?: KickMessageDeletedActor | string | null;
 }
 
 /** Kick chat cleared event */
@@ -565,14 +586,55 @@ export function parseKickUserBanned(event: KickUserBannedEvent, channel: string)
 /**
  * Parse a Kick message deleted event
  */
+function formatKickDeleteActorName(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (/^auto[-_\s]?mod$/i.test(trimmed)) return "AutoMod";
+  if (/^bot$/i.test(trimmed)) return "Bot";
+  return trimmed;
+}
+
+function getKickDeleteActorName(
+  actor: KickMessageDeletedActor | string | null | undefined
+): string | undefined {
+  if (!actor) return undefined;
+  if (typeof actor === "string") return formatKickDeleteActorName(actor);
+  return (
+    formatKickDeleteActorName(actor.username ?? "") ??
+    formatKickDeleteActorName(actor.display_name ?? "") ??
+    formatKickDeleteActorName(actor.name ?? "") ??
+    formatKickDeleteActorName(actor.slug ?? "")
+  );
+}
+
+function getKickMessageDeletedActorName(event: KickMessageDeletedEvent): string | undefined {
+  return (
+    getKickDeleteActorName(event.deleted_by) ??
+    getKickDeleteActorName(event.deletedBy) ??
+    getKickDeleteActorName(event.moderator) ??
+    getKickDeleteActorName(event.actor) ??
+    getKickDeleteActorName(event.bot) ??
+    getKickDeleteActorName(event.automod) ??
+    getKickDeleteActorName(event.auto_mod) ??
+    getKickDeleteActorName(event.automation) ??
+    getKickDeleteActorName(event.source) ??
+    getKickDeleteActorName(event.message.deleted_by) ??
+    getKickDeleteActorName(event.message.deletedBy) ??
+    getKickDeleteActorName(event.message.moderator) ??
+    getKickDeleteActorName(event.message.actor)
+  );
+}
+
 export function parseKickMessageDeleted(
   event: KickMessageDeletedEvent,
   channel: string
 ): MessageDeletion {
+  const deletedByUsername = getKickMessageDeletedActorName(event);
   return {
     platform: "kick",
     channel,
     messageId: event.message.id,
+    ...(deletedByUsername ? { deletedByUsername } : {}),
     timestamp: new Date(),
   };
 }

@@ -453,6 +453,17 @@ describe("parseKickMessageDeleted", () => {
     expect(result.channel).toBe("ch");
     expect(result.timestamp).toBeInstanceOf(Date);
   });
+
+  it("preserves Kick delete actor attribution for bots and automod", () => {
+    const event = {
+      id: "del-automod",
+      message: { id: "msg-to-delete" },
+      deleted_by: { id: 99, username: "AutoMod", slug: "automod" },
+    } as KickMessageDeletedEvent;
+    const result = parseKickMessageDeleted(event, "ch");
+
+    expect(result.deletedByUsername).toBe("AutoMod");
+  });
 });
 
 describe("parseKickChatCleared", () => {

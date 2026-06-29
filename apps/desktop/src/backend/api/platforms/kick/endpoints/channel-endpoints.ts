@@ -3,7 +3,7 @@ import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import { getPlatformHealth } from "../../../unified/platform-health";
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
-import type { KickRequestor } from "../kick-requestor";
+import type { KickAuthMode, KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
 import { KICK_LEGACY_API_V2_BASE, type KickApiChannel, type KickApiResponse } from "../kick-types";
 
@@ -292,27 +292,37 @@ export async function getChannelsByBroadcasterIds(
     return [];
   }
 
+  const authModes: KickAuthMode[] = client.isAuthenticated() ? ["user", "app"] : ["app"];
+  let lastError: unknown;
+
   try {
-    const channels: UnifiedChannel[] = [];
+    for (const authMode of authModes) {
+      try {
+        return await fetchChannelsByBroadcasterIds(client, broadcasterUserIds, authMode);
+      } catch (error) {
+        lastError = error;
+        if (
+          authMode === "user" &&
+          authModes.includes("app") &&
+          shouldRetryBroadcasterIdLookupWithAppAuth(error)
+        ) {
+          logger.debug(
+            "Kick:Endpoints:Channel",
+            "User-token broadcaster ID lookup failed; retrying with app auth",
+            {
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            }
+          );
+          continue;
+        }
 
-    // Max 50 IDs per request. The official endpoint rejects mixed slug and
-    // broadcaster_user_id parameters, so keep every chunk id-only.
-    for (let i = 0; i < broadcasterUserIds.length; i += 50) {
-      const ids = broadcasterUserIds.slice(i, i + 50);
-      const params = ids
-        .map((id) => `broadcaster_user_id[]=${encodeURIComponent(id.toString())}`)
-        .join("&");
-
-      const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-        `/channels?${params}`,
-        undefined,
-        "app"
-      );
-
-      channels.push(...(response.data || []).map(transformKickChannel));
+        throw error;
+      }
     }
-
-    return channels;
+    throw lastError;
   } catch (error) {
     const log = isKickAppAuthFailure(error) ? logger.warn : logger.error;
     log("Kick:Endpoints:Channel", "Failed to fetch Kick channels by broadcaster ID", {
@@ -323,6 +333,33 @@ export async function getChannelsByBroadcasterIds(
     });
     return [];
   }
+}
+
+async function fetchChannelsByBroadcasterIds(
+  client: KickRequestor,
+  broadcasterUserIds: number[],
+  authMode: KickAuthMode
+): Promise<UnifiedChannel[]> {
+  const channels: UnifiedChannel[] = [];
+
+  // Max 50 IDs per request. The official endpoint rejects mixed slug and
+  // broadcaster_user_id parameters, so keep every chunk id-only.
+  for (let i = 0; i < broadcasterUserIds.length; i += 50) {
+    const ids = broadcasterUserIds.slice(i, i + 50);
+    const params = ids
+      .map((id) => `broadcaster_user_id[]=${encodeURIComponent(id.toString())}`)
+      .join("&");
+
+    const response = await client.request<KickApiResponse<KickApiChannel[]>>(
+      `/channels?${params}`,
+      undefined,
+      authMode
+    );
+
+    channels.push(...(response.data || []).map(transformKickChannel));
+  }
+
+  return channels;
 }
 
 // In-flight dedupe: search fans out 5 concurrent calls per batch, hover prefetch
@@ -354,6 +391,11 @@ function isKickOfficialApiUnavailable(): boolean {
 
 function isKickAppAuthFailure(error: unknown): boolean {
   return error instanceof Error && /^Kick API error: 401\b/.test(error.message);
+}
+
+function shouldRetryBroadcasterIdLookupWithAppAuth(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /^(Kick API error: 40[13]\b|No Kick user token is available\.)/.test(error.message);
 }
 
 // Serialise BrowserWindow creation. Each hidden window spins up a fresh

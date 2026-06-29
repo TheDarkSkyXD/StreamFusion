@@ -1,25 +1,19 @@
 /**
- * Kick — Pin / Unpin Mutations
+ * Kick - Pin / Unpin Mutations
  *
- * Endpoints (captured from KickTalk's reference implementation, 2026-05-18):
+ * Legacy/internal endpoints:
  *
  *   POST   /api/v2/channels/{slug}/pinned-message
- *     body: { duration: <seconds>, message: { id, content, chatroom_id, created_at, sender, type: "message" } }
+ *     body: { duration, message: { id, content, chatroom_id, created_at, sender, type: "message" } }
  *   DELETE /api/v2/channels/{slug}/pinned-message
  *
- * Auth: Bearer token from our Kick OAuth flow. KickTalk passes a session
- * cookie in this header — Kick's API appears to accept either flavor for
- * authenticated mod actions. If the OAuth Bearer token is rejected in
- * practice, the cookie-jar approach is the fallback (would require IPC).
- *
- * The duration parameter is in seconds. Kick's UI offers 20m / 1h / 24h /
- * indefinite; KickTalk hardcodes 1200s (20min) as a single default. We
- * preserve the duration the caller supplies so the dialog's choice flows
- * through.
+ * Kick returns 401 when these routes are called with the OAuth bearer token.
+ * They must run through the main-process Kick web send-window so the hidden
+ * kick.com page supplies session cookies, Kasada runtime state, and the web
+ * Sanctum bearer captured from Kick's own requests.
  */
 
-const KICK_API_BASE = "https://kick.com/api/v2";
-const REQUEST_TIMEOUT_MS = 10_000;
+import { fetchKickWebApiMutation } from "./kick-send-window";
 
 export type KickPinMutationErrorKind =
   | "unauthenticated"
@@ -33,7 +27,7 @@ export type KickPinMutationResult =
   | { ok: false; kind: KickPinMutationErrorKind; message: string };
 
 function classify(status: number, body: unknown): KickPinMutationErrorKind {
-  if (status === 401) return "unauthenticated";
+  if (status === 401 || status === 419) return "unauthenticated";
   if (status === 403) return "forbidden";
   if (status === 404) return "not-found";
   if (status >= 500) return "network";
@@ -43,6 +37,15 @@ function classify(status: number, body: unknown): KickPinMutationErrorKind {
     if (m.includes("forbid") || m.includes("permission")) return "forbidden";
   }
   return "unknown";
+}
+
+function toMutationResult(input: Awaited<ReturnType<typeof fetchKickWebApiMutation>>) {
+  if (input.ok) return { ok: true } as const;
+  return {
+    ok: false,
+    kind: input.kind === "auth-expired" ? "unauthenticated" : classify(input.status, null),
+    message: input.status ? `${input.status}` : input.message,
+  } as const;
 }
 
 export interface KickPinPayload {
@@ -58,12 +61,10 @@ export interface KickPinPayload {
   sender: { id: number; username: string; slug?: string; identity?: unknown };
   /** Pin duration in seconds. `null` lets the caller skip the field. */
   durationSeconds: number | null;
-  /** OAuth Bearer token from our Kick auth flow. */
-  accessToken: string;
 }
 
 export async function pinKickMessage(payload: KickPinPayload): Promise<KickPinMutationResult> {
-  const url = `${KICK_API_BASE}/channels/${encodeURIComponent(payload.channelSlug)}/pinned-message`;
+  const path = `/api/v2/channels/${encodeURIComponent(payload.channelSlug)}/pinned-message`;
   const body: Record<string, unknown> = {
     message: {
       id: payload.messageId,
@@ -76,45 +77,10 @@ export async function pinKickMessage(payload: KickPinPayload): Promise<KickPinMu
   };
   if (payload.durationSeconds !== null) body.duration = payload.durationSeconds;
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${payload.accessToken}`,
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (res.ok) return { ok: true };
-    const respBody = await res.json().catch(() => null);
-    return { ok: false, kind: classify(res.status, respBody), message: `${res.status}` };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, kind: "network", message };
-  }
+  return toMutationResult(await fetchKickWebApiMutation("POST", path, body));
 }
 
-export async function unpinKickMessage(
-  channelSlug: string,
-  accessToken: string
-): Promise<KickPinMutationResult> {
-  const url = `${KICK_API_BASE}/channels/${encodeURIComponent(channelSlug)}/pinned-message`;
-  try {
-    const res = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (res.ok) return { ok: true };
-    const respBody = await res.json().catch(() => null);
-    return { ok: false, kind: classify(res.status, respBody), message: `${res.status}` };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, kind: "network", message };
-  }
+export async function unpinKickMessage(channelSlug: string): Promise<KickPinMutationResult> {
+  const path = `/api/v2/channels/${encodeURIComponent(channelSlug)}/pinned-message`;
+  return toMutationResult(await fetchKickWebApiMutation("DELETE", path));
 }

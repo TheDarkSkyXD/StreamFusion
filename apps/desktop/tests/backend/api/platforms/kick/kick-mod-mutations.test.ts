@@ -189,8 +189,8 @@ describe("deleteKickMessage", () => {
     expect(lastUrl).toBe("https://api.kick.com/public/v1/chat/msg-uuid-1");
   });
 
-  it("falls back to legacy chatroom delete when official delete fails", async () => {
-    const statuses = [403, 200];
+  it("falls back to legacy chatroom delete when official delete has a non-auth failure", async () => {
+    const statuses = [500, 200];
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
       const status = statuses.shift() ?? 200;
       lastUrl = url;
@@ -202,7 +202,7 @@ describe("deleteKickMessage", () => {
         status,
         statusText: "",
         headers: new Headers(),
-        json: async () => ({ message: status === 403 ? "Forbidden" : "ok" }),
+        json: async () => ({ message: status === 500 ? "Server error" : "ok" }),
       } as Response;
     });
 
@@ -214,6 +214,41 @@ describe("deleteKickMessage", () => {
     expect(result).toEqual({ ok: true });
     expect(lastUrl).toBe("https://kick.com/api/v2/chatrooms/12345/messages/msg-uuid-1");
   });
+
+  it.each([401, 403] as const)(
+    "falls back to legacy chatroom delete after official %s",
+    async (status) => {
+      const statuses = [status, 200];
+      const urls: string[] = [];
+      vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+        const nextStatus = statuses.shift() ?? 200;
+        urls.push(url);
+        lastUrl = url;
+        lastMethod = (init?.method as string) ?? "GET";
+        lastHeaders = (init?.headers as Record<string, string>) ?? {};
+        lastBody = init?.body ? JSON.parse(init.body as string) : null;
+        return {
+          ok: nextStatus >= 200 && nextStatus < 300,
+          status: nextStatus,
+          statusText: "",
+          headers: new Headers(),
+          json: async () => ({ message: nextStatus === 200 ? "ok" : "Official API rejected" }),
+        } as Response;
+      });
+
+      const result = await deleteKickMessage({
+        chatroomId: 12345,
+        messageId: "msg-uuid-1",
+        accessToken: "tok-1",
+      });
+
+      expect(result).toEqual({ ok: true });
+      expect(urls).toEqual([
+        "https://api.kick.com/public/v1/chat/msg-uuid-1",
+        "https://kick.com/api/v2/chatrooms/12345/messages/msg-uuid-1",
+      ]);
+    }
+  );
 });
 
 // ---------------------------------------------------------------------------

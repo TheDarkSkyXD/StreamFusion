@@ -7,7 +7,12 @@ const { ClientCtor } = vi.hoisted(() => ({ ClientCtor: vi.fn() }));
 vi.mock("tmi.js", () => ({ default: { Client: ClientCtor } }));
 
 import { TwitchChatService } from "@/backend/services/chat/twitch-chat";
-import type { ChatMessage, RoomStatePatchEvent } from "@/shared/chat-types";
+import type {
+  ChatMessage,
+  ModeratorStateEvent,
+  RoomStatePatchEvent,
+  UserNotice,
+} from "@/shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 interface ServiceInternals {
@@ -49,12 +54,17 @@ function seedTwitchBucket(channel: string): string {
 // A controllable stand-in for tmi.js's Client. connect() resolves immediately;
 // the service treats the "connected" EVENT (not connect()'s resolution) as
 // success, so the test drives completion by emitting "connected".
-let fakeClient: EventEmitter & { connect: ReturnType<typeof vi.fn> };
+let fakeClient: EventEmitter & {
+  connect: ReturnType<typeof vi.fn>;
+  say: ReturnType<typeof vi.fn>;
+};
 
+// Guards: Twitch community gift USERNOTICE events emit an aggregate notice so the gifted-sub banner appears before recipient rows.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
       connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
     });
     ClientCtor.mockReset();
     // Arrow functions cannot be used with `new`; use a regular function so that
@@ -166,6 +176,119 @@ describe("TwitchChatService connect() single-flight", () => {
         patch: { twitchVerification: "phone" },
         reason: "ws",
       },
+    ]);
+  });
+
+  it("emits moderatorState when the signed-in user is modded and unmodded live", async () => {
+    const service = new TwitchChatService();
+    const internals = service as unknown as ServiceInternals;
+    const moderatorStateEvents: ModeratorStateEvent[] = [];
+    service.on("moderatorState", (event) => moderatorStateEvents.push(event));
+
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "mod-1",
+        login: "modder",
+        displayName: "Modder",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    internals.broadcasterId.set("ninja", "111");
+
+    fakeClient.emit("mod", "#ninja", "Modder");
+    fakeClient.emit("unmod", "#ninja", "modder");
+
+    expect(moderatorStateEvents).toEqual([
+      {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "111",
+        isModerator: true,
+        reason: "ws",
+      },
+      {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "111",
+        isModerator: false,
+        reason: "ws",
+      },
+    ]);
+    expect(service.isModeratorIn("ninja")).toBe(false);
+  });
+
+  it("applies live moderator status to immediate self-echo badges", async () => {
+    const service = new TwitchChatService();
+    const internals = service as unknown as ServiceInternals;
+    const messages: ChatMessage[] = [];
+    service.on("message", (message) => messages.push(message));
+
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "mod-1",
+        login: "modder",
+        displayName: "Modder",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    internals.channels.add("ninja");
+    internals.broadcasterId.set("ninja", "111");
+
+    fakeClient.emit("mod", "#ninja", "modder");
+    await service.sendMessage("ninja", "hello");
+    fakeClient.emit("unmod", "#ninja", "modder");
+    await service.sendMessage("ninja", "hello again");
+
+    expect(messages[0].badges.some((badge) => badge.setId === "moderator")).toBe(true);
+    expect(messages[1].badges.some((badge) => badge.setId === "moderator")).toBe(false);
+  });
+
+  it("emits a community gift notice for Twitch mystery gift aggregates", async () => {
+    const service = new TwitchChatService();
+    const notices: UserNotice[] = [];
+    service.on("userNotice", (notice) => notices.push(notice));
+
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+
+    fakeClient.emit(
+      "submysterygift",
+      "#ninja",
+      "marshnman001",
+      100,
+      { plan: "1000", planName: "Tier 1", prime: false },
+      {
+        id: "gift-100",
+        "user-id": "gifter-1",
+        "display-name": "marshnman001",
+        "system-msg": "marshnman001 gifted 100 Tier 1 Subs to the channel!",
+        "msg-param-mass-gift-count": "100",
+      }
+    );
+
+    expect(notices).toEqual([
+      expect.objectContaining({
+        id: "gift-100",
+        platform: "twitch",
+        channel: "ninja",
+        type: "submysterygift",
+        userId: "gifter-1",
+        username: "marshnman001",
+        displayName: "marshnman001",
+        systemMessage: "marshnman001 gifted 100 Tier 1 Subs to the channel!",
+        giftCount: 100,
+      }),
     ]);
   });
 });

@@ -154,6 +154,14 @@ describe("KICK_OAUTH_CONFIG scopes (chat send)", () => {
     );
   });
 
+  it("requests chat-message moderation so Kick mods and owners can delete chat messages", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toContain("moderation:chat_message:manage");
+  });
+
+  it("requests ban moderation so Kick mods and owners can ban, timeout, unban, and remove timeouts", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toContain("moderation:ban");
+  });
+
   it("contains no duplicate scopes", () => {
     const set = new Set(KICK_OAUTH_CONFIG.scopes);
     expect(set.size).toBe(KICK_OAUTH_CONFIG.scopes.length);

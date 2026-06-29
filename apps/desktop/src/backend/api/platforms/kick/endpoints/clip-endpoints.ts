@@ -58,6 +58,7 @@ export async function getClipsByChannelSlug(
         views: c.views?.toString() || c.view_count?.toString() || "0",
         date: new Date(c.created_at).toLocaleDateString(),
         created_at: c.created_at, // Raw ISO date for time range filtering
+        creatorName: c.creator?.username || c.creator?.slug || "",
         embedUrl: c.video_url, // Actual video file URL for playback
         url: c.clip_url, // Clip page URL on Kick website
         gameName: c.category?.name || "Unknown",

@@ -175,6 +175,7 @@ export const IPC_CHANNELS = {
   // ========== Chat ==========
   CHAT_GET_KICK_HISTORY: "chat:get-kick-history",
   CHAT_GET_TWITCH_HISTORY: "chat:get-twitch-history",
+  CHAT_GET_TWITCH_PINNED_MESSAGE: "chat:get-twitch-pinned-message",
   CHAT_ENRICH_MENTION_USERS: "chat:enrich-mention-users",
   CHAT_CHECK_SUBSCRIBER_ELIGIBILITY: "chat:check-subscriber-eligibility",
   // Kick send-window IPC bridge. The send-window owns electron BrowserWindow +
@@ -183,6 +184,13 @@ export const IPC_CHANNELS = {
   // (no transitive better-sqlite3 / electron import via channel-endpoints).
   KICK_CHAT_ENSURE_SEND_WINDOW_READY: "kick-chat:ensure-send-window-ready",
   KICK_CHAT_SEND_MESSAGE: "kick-chat:send-message",
+  KICK_CHAT_BAN_USER: "kick-chat:ban-user",
+  KICK_CHAT_TIMEOUT_USER: "kick-chat:timeout-user",
+  KICK_CHAT_UNBAN_USER: "kick-chat:unban-user",
+  KICK_CHAT_DELETE_MESSAGE: "kick-chat:delete-message",
+  KICK_CHAT_GET_VIEWER_ROLE: "kick-chat:get-viewer-role",
+  KICK_CHAT_PIN_MESSAGE: "kick-chat:pin-message",
+  KICK_CHAT_UNPIN_MESSAGE: "kick-chat:unpin-message",
   KICK_CHAT_DISPOSE_SEND_WINDOW: "kick-chat:dispose-send-window",
 
   // ========== Network Ad Blocking ==========
@@ -385,11 +393,40 @@ export interface IpcPayloads {
     channel?: string;
     users: Array<{ userId?: string; username: string }>;
   };
+  [IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE]: { channel: string };
   [IPC_CHANNELS.CHAT_CHECK_SUBSCRIBER_ELIGIBILITY]: SubscriberEligibilityRequest;
   [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: {
     chatroomId: number;
     content: string;
     broadcasterUserId?: number;
+  };
+  [IPC_CHANNELS.KICK_CHAT_BAN_USER]: {
+    channelSlug: string;
+    username: string;
+  };
+  [IPC_CHANNELS.KICK_CHAT_TIMEOUT_USER]: {
+    channelSlug: string;
+    username: string;
+    duration: number;
+  };
+  [IPC_CHANNELS.KICK_CHAT_UNBAN_USER]: {
+    channelSlug: string;
+    username: string;
+  };
+  [IPC_CHANNELS.KICK_CHAT_DELETE_MESSAGE]: {
+    chatroomId: number;
+    messageId: string;
+  };
+  [IPC_CHANNELS.KICK_CHAT_PIN_MESSAGE]: {
+    channelSlug: string;
+    messageId: string;
+    chatroomId: number;
+    content: string;
+    sender: { id: number; username: string; slug?: string; identity?: unknown };
+    durationSeconds: number | null;
+  };
+  [IPC_CHANNELS.KICK_CHAT_UNPIN_MESSAGE]: {
+    channelSlug: string;
   };
 
   // 7TV REST (main-process transport). Identifier is the platform's own

@@ -52,6 +52,7 @@ describe("parseBadgeTags", () => {
   });
 });
 
+// Guards: Twitch tag parsing preserves distinct highlight kinds for first-time chat, paid highlighted messages, and bits cheers
 describe("parseTwitchMessage", () => {
   function makeTags(overrides: Partial<TwitchTags> = {}): TwitchTags {
     return {
@@ -101,11 +102,13 @@ describe("parseTwitchMessage", () => {
     const msg = parseTwitchMessage("#ch", makeTags({ bits: "100" }), "cheer100", false);
     expect(msg.type).toBe("bits");
     expect(msg.bits).toBe(100);
+    expect(msg.highlightKind).toBe("cheer");
   });
 
   it("marks first-msg as highlighted", () => {
     const msg = parseTwitchMessage("#ch", makeTags({ "first-msg": true }), "hi", false);
     expect(msg.isHighlighted).toBe(true);
+    expect(msg.highlightKind).toBe("first-time-chat");
   });
 
   it("marks custom-reward-id as highlighted", () => {
@@ -116,6 +119,7 @@ describe("parseTwitchMessage", () => {
       false
     );
     expect(msg.isHighlighted).toBe(true);
+    expect(msg.highlightKind).toBe("highlighted-message");
   });
 
   it("parses reply info when reply tags are present", () => {

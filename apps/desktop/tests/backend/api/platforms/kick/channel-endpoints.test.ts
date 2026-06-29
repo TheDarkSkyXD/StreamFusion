@@ -440,6 +440,8 @@ describe("channel-endpoints", () => {
     });
   });
 
+  // Guards: signed-in Kick follow slug repair uses user-token channel reads so a broken app-token proxy does not spam 401s during follow hydration.
+  // Guards: guest Kick follow slug repair still uses the worker-backed app token because no user token is available.
   describe("getChannelsByBroadcasterIds", () => {
     it("returns empty array for empty broadcaster ID input", async () => {
       const client = createMockClient();
@@ -491,9 +493,75 @@ describe("channel-endpoints", () => {
       expect(client.request).toHaveBeenCalledWith(
         expect.stringContaining("broadcaster_user_id[]=123&broadcaster_user_id[]=456"),
         undefined,
-        "app"
+        "user"
       );
       expect(result.map((channel) => channel.username)).toEqual(["new-slug", "other-slug"]);
+    });
+
+    it("uses app auth for broadcaster ID repair when no Kick user token is available", async () => {
+      const client = createMockClient({
+        isAuthenticated: vi.fn(() => false),
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 123,
+              slug: "guest-repair",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, [123]);
+
+      expect(client.request).toHaveBeenCalledWith(
+        expect.stringContaining("broadcaster_user_id[]=123"),
+        undefined,
+        "app"
+      );
+      expect(result.map((channel) => channel.username)).toEqual(["guest-repair"]);
+    });
+
+    it("falls back to app auth if a signed-in user's channel read is rejected", async () => {
+      const client = createMockClient({
+        request: vi
+          .fn()
+          .mockRejectedValueOnce(new Error("Kick API error: 401"))
+          .mockResolvedValueOnce({
+            data: [
+              {
+                broadcaster_user_id: 123,
+                slug: "fallback-repair",
+                channel_description: "",
+                stream: null,
+                stream_title: "",
+                banner_picture: null,
+                category: null,
+              },
+            ],
+          }),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, [123]);
+
+      expect(vi.mocked(client.request).mock.calls.map((call) => call[2])).toEqual(["user", "app"]);
+      expect(result.map((channel) => channel.username)).toEqual(["fallback-repair"]);
+    });
+
+    it("does not retry app auth after a non-auth user-token failure", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(new Error("Kick API error: 500")),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, [123]);
+
+      expect(client.request).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(client.request).mock.calls[0][2]).toBe("user");
+      expect(result).toEqual([]);
     });
 
     it("chunks broadcaster IDs into 50-item requests without dropping later follows", async () => {
@@ -524,7 +592,7 @@ describe("channel-endpoints", () => {
       expect((calls[0].match(/broadcaster_user_id\[\]/g) || []).length).toBe(50);
       expect((calls[1].match(/broadcaster_user_id\[\]/g) || []).length).toBe(10);
       expect(calls[1]).toContain("broadcaster_user_id[]=60");
-      expect(vi.mocked(client.request).mock.calls.every((call) => call[2] === "app")).toBe(true);
+      expect(vi.mocked(client.request).mock.calls.every((call) => call[2] === "user")).toBe(true);
       expect(result.map((channel) => channel.username)).toEqual(["renamed-after-first-page"]);
     });
 

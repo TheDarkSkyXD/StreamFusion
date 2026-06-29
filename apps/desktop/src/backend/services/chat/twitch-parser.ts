@@ -355,6 +355,13 @@ export function parseTwitchMessage(
     timestamp: new Date(),
     isDeleted: false,
     isHighlighted: tags["first-msg"] === true || !!tags["custom-reward-id"],
+    highlightKind: tags.bits
+      ? "cheer"
+      : tags["custom-reward-id"]
+        ? "highlighted-message"
+        : tags["first-msg"] === true
+          ? "first-time-chat"
+          : undefined,
     isAction,
     replyTo: parseReplyInfo(tags),
     bits: tags.bits ? parseInt(tags.bits, 10) : undefined,

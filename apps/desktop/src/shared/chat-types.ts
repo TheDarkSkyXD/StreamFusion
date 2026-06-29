@@ -23,6 +23,22 @@ export interface ChatBadge {
   title: string;
 }
 
+export interface ChatUserPresentation {
+  userId: string;
+  username: string;
+  displayName: string;
+  color?: string;
+  badges: ChatBadge[];
+}
+
+export interface RetainedDeletedMessage {
+  id: string;
+  author: ChatUserPresentation;
+  content: ContentFragment[];
+  rawContent: string;
+  deletedAt?: Date;
+}
+
 export interface BadgeSet {
   setId: string;
   versions: Map<string, BadgeVersion>;
@@ -154,6 +170,12 @@ export interface ChatMessage {
   isAction: boolean;
   /** True for messages seeded from the v2 history endpoint on join — rendered dimmer than live chat. */
   isHistorical?: boolean;
+  /** When a retained message row is marked deleted, the platform deletion event timestamp. */
+  deletedAt?: Date;
+  /** Moderator/login that deleted the message, when the platform event provides it. */
+  deletedByUsername?: string;
+  /** Moderator presentation, when it can be resolved from platform data or local chat history. */
+  deletedByUser?: ChatUserPresentation;
   /** Reply information if this is a reply */
   replyTo?: ReplyInfo;
   /** Bits amount if this is a bits message */
@@ -162,7 +184,11 @@ export interface ChatMessage {
   banInfo?: {
     bannedUsername: string;
     bannedByUsername?: string;
+    bannedUser?: ChatUserPresentation;
+    bannedByUser?: ChatUserPresentation;
     lastMessage?: string;
+    deletedMessages?: string[];
+    deletedMessageDetails?: RetainedDeletedMessage[];
     duration?: number;
   };
 }
@@ -230,6 +256,10 @@ export interface MessageDeletion {
   channel: string;
   /** ID of the deleted message */
   messageId: string;
+  /** Moderator/login/system actor that deleted the message, when the platform event provides it. */
+  deletedByUsername?: string;
+  /** Rich presentation for the deleting actor, when known from local chat context. */
+  deletedByUser?: ChatUserPresentation;
   timestamp: Date;
 }
 
@@ -317,6 +347,9 @@ export interface NormalizedPinnedMessage {
   pinnedBy: {
     userId?: string;
     username: string;
+    /** Platform display name with original casing. Falls back to username for
+     *  older payloads that only carried a login. */
+    displayName?: string;
     color: string;
     /** Inline badges to render before the username (e.g. Broadcaster).
      *  Empty array when none are known. */
