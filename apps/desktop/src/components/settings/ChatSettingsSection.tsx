@@ -356,11 +356,6 @@ function AppearanceGroup() {
   return (
     <GroupCard title="Appearance">
       <SwitchRow
-        label="Bold usernames"
-        checked={cd.boldUsernames}
-        onChange={(v) => set("boldUsernames", v)}
-      />
-      <SwitchRow
         label="Readable color for uncolored users"
         description="Assign a deterministic readable color to chatters with no chosen color."
         checked={cd.readableColorForUncolored}

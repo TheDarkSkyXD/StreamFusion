@@ -30,7 +30,12 @@ describe("ChatSettingsSection", () => {
   beforeEach(() => {
     updatePreferences.mockClear();
     setStore({
-      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, boldUsernames: false, fontSizePx: 13 },
+      chatDisplay: {
+        ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+        boldUsernames: false,
+        readableColorForUncolored: false,
+        fontSizePx: 13,
+      },
       chat: { ...DEFAULT_CHAT_PREFERENCES },
     });
   });
@@ -40,19 +45,28 @@ describe("ChatSettingsSection", () => {
 
     // Traverse to the outer SettingRow div (label <p> → inner text div → left
     // container → outer flex row), where the Switch lives in the right slot.
-    const row = screen.getByText("Bold usernames").closest("div")!.parentElement!.parentElement!;
+    const row = screen
+      .getByText("Readable color for uncolored users")
+      .closest("div")!.parentElement!.parentElement!;
     fireEvent.click(row.querySelector('[role="switch"]')!);
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
     const arg = updatePreferences.mock.calls[0][0] as {
       chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES;
     };
-    // Flipped field…
-    expect(arg.chatDisplay.boldUsernames).toBe(true);
-    // …siblings intact (spread preserved).
+    // Flipped field...
+    expect(arg.chatDisplay.readableColorForUncolored).toBe(true);
+    // Siblings intact (spread preserved).
+    expect(arg.chatDisplay.boldUsernames).toBe(false);
     expect(arg.chatDisplay.fontSizePx).toBe(13);
     expect(arg.chatDisplay.emoteSizePx).toBe(DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx);
     expect(arg.chatDisplay.messageLimit).toBe(DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit);
+  });
+
+  it("does not render a bold usernames toggle because chat names are always bold", () => {
+    renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
+
+    expect(screen.queryByText("Bold usernames")).toBeNull();
   });
 
   it("changing a range writes the numeric value with siblings intact", async () => {
