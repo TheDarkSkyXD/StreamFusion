@@ -335,12 +335,19 @@ export function StreamPage() {
   );
 
   // Update PiP store as soon as playback is ready so leaving the page can
-  // activate mini-player even if metadata is still catching up.
+  // activate mini-player even if metadata is still catching up. Clear it once
+  // this page has proven the stream is offline so stale live state cannot
+  // activate the mini-player on the next route.
   useEffect(() => {
-    if (effectiveStreamUrl) {
+    if (effectiveStreamUrl && !playerError) {
       setCurrentStream(pipStreamInfo);
+      return;
     }
-  }, [effectiveStreamUrl, pipStreamInfo, setCurrentStream]);
+
+    if (playerError || shouldShowOfflineOverlay) {
+      setCurrentStream(null);
+    }
+  }, [effectiveStreamUrl, pipStreamInfo, playerError, setCurrentStream, shouldShowOfflineOverlay]);
 
   return (
     <div className="h-full flex overflow-hidden">

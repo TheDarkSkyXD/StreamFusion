@@ -125,6 +125,7 @@ function setChatPosition(position: 'right' | 'left' | 'hidden') {
 // Guards: offline state — channel exists but streamData.startedAt is null AND no playback URL → "is currently offline" panel with a Check Again button so the page is recoverable. Distinct from "error" (which uses the same panel but is gated by playerError) — both surfaces resolve to the same UI because users can't tell the cases apart
 // Guards: error path — handlePlayerError absorbs PROXY_ERROR / NO_FRAGMENTS / TOKEN_EXPIRED via auto-refresh under 3 attempts; STREAM_OFFLINE surfaces the offline overlay when proxy fallback isn't available. The non-fatal paths must NOT show the offline overlay (verified by absence of "is currently offline" while still loading)
 // Guards: stream-ended reloads clear stale playback; if playback refresh now reports offline while metadata still says live, the page shows the offline overlay instead of keeping a dead player mounted.
+// Guards: offline/player-error stream pages clear PiP state so a stale live stream cannot spawn the mini-player after route navigation.
 // Guards: Kick live playback must refresh instead of showing offline when HLS reports STREAM_OFFLINE while fresh metadata still says the channel is live.
 // Guards: empty channelData (loading) doesn't blank the page — even before channelData resolves the player layout reserves space so the layout doesn't shift after data lands
 // Guards: Twitch offline routes keep playback idle until metadata confirms live, avoiding repeated Usher 404s from the HLS loader
@@ -223,6 +224,7 @@ describe('StreamPage', () => {
     expect(screen.getByText('Zero Build with chat')).toBeInTheDocument();
     expect(screen.getByText('Last streamed in Fortnite')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /check again/i })).toBeInTheDocument();
+    expect(mockSetCurrentStream).toHaveBeenCalledWith(null);
   });
 
   it('live: requests Twitch playback only after live metadata is present', () => {
@@ -269,6 +271,7 @@ describe('StreamPage', () => {
 
     expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /check again/i })).toBeInTheDocument();
+    expect(mockSetCurrentStream).toHaveBeenCalledWith(null);
   });
 
   it('refreshes Kick playback instead of showing offline when HLS reports offline but metadata still says live', async () => {

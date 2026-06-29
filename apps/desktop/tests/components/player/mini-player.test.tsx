@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fireEvent, renderWithProviders, screen } from "../../test-utils";
+import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
 
 const routerState = vi.hoisted(() => ({
   pathname: "/",
@@ -10,6 +10,8 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 const streamPlaybackMock = vi.hoisted(() => ({
   useStreamPlayback: vi.fn(() => ({
     playback: null as null | { url: string; format: "hls" | "dash" | "mp4" },
+    isLoading: false,
+    error: null as Error | null,
     reload: vi.fn(),
     reloadAttempts: 0,
   })),
@@ -60,10 +62,18 @@ function primePipStore() {
 
 // Guards: mini-player must synchronously idle on /stream routes so the main player does not share startup with a duplicate playback subscriber.
 // Guards: mini-player must not mount HLS from the persisted stream snapshot while a fresh playback URL is still resolving; stale Kick live-video tokens 403 when Following activates PiP.
+// Guards: mini-player closes stale PiP state when its fresh playback lookup reports the stream unavailable, preventing an offline stream from showing as LIVE.
 describe("MiniPlayer playback routing", () => {
   beforeEach(() => {
     routerState.pathname = "/";
-    streamPlaybackMock.useStreamPlayback.mockClear();
+    streamPlaybackMock.useStreamPlayback.mockReset();
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: null,
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
     mockNavigate.mockClear();
     usePipStore.setState({
       currentStream: null,
@@ -96,6 +106,8 @@ describe("MiniPlayer playback routing", () => {
     routerState.pathname = "/following";
     streamPlaybackMock.useStreamPlayback.mockReturnValue({
       playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
       reload: vi.fn(),
       reloadAttempts: 0,
     });
@@ -110,8 +122,35 @@ describe("MiniPlayer playback routing", () => {
     expect(screen.getByTestId("hls-player")).not.toHaveTextContent("https://example.test/live.m3u8");
   });
 
+  it("closes PiP instead of showing the mini-player when fresh playback says offline", async () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: null,
+      isLoading: false,
+      error: new Error("Channel is offline"),
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    primePipStore();
+
+    renderWithProviders(<MiniPlayer />);
+
+    expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(usePipStore.getState().currentStream).toBeNull();
+      expect(usePipStore.getState().isPipActive).toBe(false);
+    });
+  });
+
   it("expands back to the stream Home tab", () => {
     routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
     primePipStore();
 
     renderWithProviders(<MiniPlayer />);

@@ -52,7 +52,13 @@ export function MiniPlayer() {
   // name which short-circuits the fetch.
   const platform = (currentStream?.platform ?? "kick") as Platform;
   const channelName = !shouldHideForStreamPage && currentStream ? currentStream.channelName : "";
-  const { playback, reload, reloadAttempts } = useStreamPlayback(platform, channelName);
+  const {
+    playback,
+    isLoading: isPlaybackLoading,
+    error: playbackError,
+    reload,
+    reloadAttempts,
+  } = useStreamPlayback(platform, channelName);
 
   // Use only the freshly-resolved playback URL. The PiP store keeps the URL
   // captured on the stream page, but live HLS tokens can expire before the
@@ -102,6 +108,26 @@ export function MiniPlayer() {
   useEffect(() => {
     if (streamUrl) setHasError(false);
   }, [streamUrl]);
+
+  useEffect(() => {
+    if (!currentStream || shouldHideForStreamPage || isPlaybackLoading || streamUrl) return;
+    if (playbackError) {
+      logger.debug("Player:Mini", "closing PiP because playback is unavailable", {
+        platform,
+        channelName: currentStream.channelName,
+        error: playbackError.message,
+      });
+      closePip();
+    }
+  }, [
+    closePip,
+    currentStream,
+    isPlaybackLoading,
+    platform,
+    playbackError,
+    shouldHideForStreamPage,
+    streamUrl,
+  ]);
 
   // Dragging handlers
   const handleMouseDown = useCallback(
@@ -226,7 +252,7 @@ export function MiniPlayer() {
   );
 
   // Don't render if not active or no stream
-  if (!isPipActive || !currentStream || shouldHideForStreamPage) {
+  if (!isPipActive || !currentStream || shouldHideForStreamPage || !streamUrl) {
     return null;
   }
 
@@ -310,6 +336,7 @@ export function MiniPlayer() {
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   onClick={handleExpand}
                   className="p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
                 >
@@ -321,6 +348,7 @@ export function MiniPlayer() {
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   onClick={closePip}
                   className="p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors"
                 >
@@ -360,6 +388,7 @@ export function MiniPlayer() {
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <button
+                    type="button"
                     onClick={togglePlay}
                     className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
                   >
@@ -381,6 +410,7 @@ export function MiniPlayer() {
                   <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleToggleMute();
