@@ -125,19 +125,30 @@ export const Username: React.FC<UsernameProps> = ({
   };
 
   return (
-    <span
-      className={`${cd.boldUsernames ? "font-bold " : ""}cursor-pointer hover:underline ${className || ""}`}
-      style={{ color: resolvedColor }}
-      onClick={handleClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          handleClick(e as unknown as React.MouseEvent);
-        }
-      }}
-    >
-      {displayName}
+    <span className="chat-line__username-container chat-line__username-container--hoverable -mx-0.5 inline-block rounded-[4px] px-0.5 transition-colors duration-100 hover:bg-[rgba(255,255,255,0.16)] active:bg-[rgba(255,255,255,0.16)] focus-within:bg-[rgba(255,255,255,0.16)]">
+      <span
+        className="chat-line__username cursor-pointer no-underline hover:no-underline focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            handleClick(e as unknown as React.MouseEvent);
+          }
+        }}
+      >
+        <span>
+          <span
+            className={`chat-author__display-name font-bold ${className || ""}`}
+            data-a-target="chat-message-username"
+            data-a-user={username}
+            data-test-selector="message-username"
+            style={{ color: resolvedColor }}
+          >
+            {displayName}
+          </span>
+        </span>
+      </span>
     </span>
   );
 };

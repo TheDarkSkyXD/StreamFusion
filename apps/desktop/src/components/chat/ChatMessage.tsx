@@ -1,17 +1,37 @@
 import { Ban, Check, Clock3, Trash2, TriangleAlert } from "lucide-react";
 import type React from "react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES, type TimestampFormat } from "../../shared/auth-types";
-import type { ChatMessage as ChatMessageType, ContentFragment } from "../../shared/chat-types";
+import type {
+  ChatHighlightKind,
+  ChatMessage as ChatMessageType,
+  ChatPlatform,
+  ContentFragment,
+} from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { BitsHighlight } from "./BitsHighlight";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
-import { ChatMessageReplyPreview, ChatPinButton, ChatReplyButton } from "./ChatReply";
+import {
+  TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS,
+  TWITCH_CHAT_ACTION_TOOLTIP_CLASS,
+  TWITCH_MESSAGE_ACTION_CLUSTER_CLASS,
+} from "./ChatMessageActionStyles";
+import { ChatPinButton } from "./ChatPinButton";
+import { ChatMessageReplyPreview } from "./ChatReply";
+import { ChatReplyButton } from "./ChatReplyButton";
+import { CheerHighlight } from "./CheerHighlight";
 import { FirstTimeChatHighlight } from "./FirstTimeChatHighlight";
+import { GiftedSubHighlight } from "./GiftedSubHighlight";
+import { HighlightedMessageHighlight } from "./HighlightedMessageHighlight";
 import { MentionHighlight } from "./MentionHighlight";
 import { ModeratorHighlight } from "./ModeratorHighlight";
 import { formatMentionLabel } from "./mention-label";
+import { RaidHighlight } from "./RaidHighlight";
+import { ResubHighlight } from "./ResubHighlight";
+import { RitualHighlight } from "./RitualHighlight";
+import { SubscriptionHighlight } from "./SubscriptionHighlight";
 import { Username, type UsernameChannelContext } from "./Username";
 
 interface ChatMessageProps {
@@ -49,13 +69,19 @@ const PROTECTED_BADGE_SET_IDS = new Set([
 ]);
 
 const INLINE_MOD_BUTTON_CLASS =
-  "inline-flex h-5 w-4 shrink-0 items-center justify-center rounded-sm text-[#d3d3d9] hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-white";
+  "inline-flex h-5 w-4 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[#d3d3d9] hover:bg-[rgba(83,83,95,0.48)] hover:text-white active:bg-[rgba(83,83,95,0.55)] focus:outline-none focus-visible:ring-1 focus-visible:ring-white";
 
 function IconActionTooltip({ label, children }: { label: string; children: React.ReactElement }) {
   return (
     <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent
+        side="top"
+        className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+        arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+      >
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -124,6 +150,98 @@ function mentionMatchesUsername(
   );
 }
 
+function isKickChannelBroadcasterMessage(
+  message: ChatMessageType,
+  currentChannelContext: UsernameChannelContext | undefined
+): boolean {
+  if (message.platform !== "kick") return false;
+
+  const channelSlug = normalizeMentionUsername(currentChannelContext?.channelSlug);
+  if (!channelSlug) return false;
+
+  return [message.username, message.displayName].some(
+    (name) => normalizeMentionUsername(name) === channelSlug
+  );
+}
+
+function getEventHighlightKind(message: ChatMessageType): ChatHighlightKind | undefined {
+  if (message.highlightKind) {
+    return message.highlightKind;
+  }
+
+  if (message.type === "bits") {
+    return "cheer";
+  }
+
+  return undefined;
+}
+
+function EventHighlight({
+  children,
+  kind,
+  platform,
+  style,
+}: {
+  children: React.ReactNode;
+  kind: Exclude<ChatHighlightKind, "first-time-chat">;
+  platform: ChatPlatform;
+  style?: React.CSSProperties;
+}) {
+  switch (kind) {
+    case "subscription":
+      return (
+        <SubscriptionHighlight platform={platform} style={style}>
+          {children}
+        </SubscriptionHighlight>
+      );
+    case "resub":
+      return (
+        <ResubHighlight platform={platform} style={style}>
+          {children}
+        </ResubHighlight>
+      );
+    case "gifted-sub":
+      return (
+        <GiftedSubHighlight platform={platform} style={style}>
+          {children}
+        </GiftedSubHighlight>
+      );
+    case "bits":
+      return (
+        <BitsHighlight platform={platform} style={style}>
+          {children}
+        </BitsHighlight>
+      );
+    case "cheer":
+      return (
+        <CheerHighlight platform={platform} style={style}>
+          {children}
+        </CheerHighlight>
+      );
+    case "highlighted-message":
+      return (
+        <HighlightedMessageHighlight platform={platform} style={style}>
+          {children}
+        </HighlightedMessageHighlight>
+      );
+    case "raid":
+      return (
+        <RaidHighlight platform={platform} style={style}>
+          {children}
+        </RaidHighlight>
+      );
+    case "ritual":
+      return (
+        <RitualHighlight platform={platform} style={style}>
+          {children}
+        </RitualHighlight>
+      );
+  }
+
+  const exhaustive: never = kind;
+  return exhaustive;
+}
+
 /**
  * ChatMessage Component - Performance Optimized
  *
@@ -145,6 +263,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     currentChannelContext,
   }) => {
     const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const [isMessageRowHovered, setIsMessageRowHovered] = useState(false);
     const viewerMentionUsername = useAuthStore((s) => {
       if (message.platform === "twitch") {
         return s.twitchConnected ? s.twitchUser?.login : null;
@@ -155,14 +274,23 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     // Density drives row padding + line-height; font size is applied inline so it
     // can be any px value from prefs (replacing the hardcoded `text-sm`).
     const densityClass =
-      cd.density === "compact" ? "px-4 py-0 leading-[1.2]" : "px-4 py-0.5 leading-[1.35]";
+      cd.density === "compact" ? "px-4 py-0 leading-[1.2]" : "px-4 py-1 leading-[22px]";
     const mentionDensityClass =
-      cd.density === "compact" ? "py-0 leading-[1.2]" : "py-0 leading-[1.35]";
+      cd.density === "compact" ? "py-0 leading-[1.2]" : "py-1 leading-[22px]";
     const fontSizeStyle = { fontSize: cd.fontSizePx };
     const isDeleted = message.isDeleted;
+    const isOwnMessage = selfUserId !== undefined && message.userId === selfUserId;
+    const isKickBroadcasterMessage = isKickChannelBroadcasterMessage(
+      message,
+      currentChannelContext
+    );
+    const displayBadges = useMemo(() => {
+      if (!isKickBroadcasterMessage) return message.badges;
+      return message.badges.filter((badge) => badge.setId !== "moderator");
+    }, [isKickBroadcasterMessage, message.badges]);
     const renderableBadges = useMemo(
-      () => orderRenderableBadges(message.badges, message.platform),
-      [message.badges, message.platform]
+      () => orderRenderableBadges(displayBadges, message.platform),
+      [displayBadges, message.platform]
     );
     const mentionsViewer = useMemo(
       () =>
@@ -223,32 +351,86 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     // U5 — first-time chatter chat rows now use Twitch's framed callout style.
     // System / connection / notice lines still use their existing inline
     // highlight and ignore the first-message preference.
+    const eventHighlightKind = getEventHighlightKind(message);
     const showFirstTimeChatHighlight =
-      message.isHighlighted && message.type === "message" && cd.firstMsgHighlight;
+      (eventHighlightKind === "first-time-chat" && cd.firstMsgHighlight) ||
+      (!eventHighlightKind &&
+        message.isHighlighted &&
+        message.type === "message" &&
+        cd.firstMsgHighlight);
     const showModeratorHighlight =
-      message.type === "message" && message.badges.some((badge) => badge.setId === "moderator");
-    const showHighlight = message.isHighlighted && message.type !== "message";
+      message.type === "message" && displayBadges.some((badge) => badge.setId === "moderator");
+    const framedEventHighlightKind: Exclude<ChatHighlightKind, "first-time-chat"> | undefined =
+      eventHighlightKind && eventHighlightKind !== "first-time-chat"
+        ? eventHighlightKind
+        : undefined;
+    const showHighlight =
+      message.isHighlighted && message.type !== "message" && !eventHighlightKind;
     const isFramedHighlight =
-      mentionsViewer || showFirstTimeChatHighlight || showModeratorHighlight;
+      mentionsViewer ||
+      showFirstTimeChatHighlight ||
+      showModeratorHighlight ||
+      Boolean(framedEventHighlightKind);
 
     // U5 — when `systemMessageEmotes` is off, emotes inside system / notice
     // lines render as their literal name instead of an image. Regular chat
     // messages are unaffected.
     const renderEmotesAsText = message.type === "system" && !cd.systemMessageEmotes;
     const isMessage = message.type === "message";
-    const isOwnMessage = selfUserId !== undefined && message.userId === selfUserId;
-    const senderIsProtected = message.badges.some((b) => PROTECTED_BADGE_SET_IDS.has(b.setId));
+    const senderIsProtected =
+      isKickBroadcasterMessage || displayBadges.some((b) => PROTECTED_BADGE_SET_IDS.has(b.setId));
     const canShowMessageModActions = isMessage && (!senderIsProtected || isOwnMessage);
     const canReply = Boolean(onReply) && isMessage;
+    const canPin = Boolean(onPin) && canShowMessageModActions;
+    const showUserTargetingInlineActions = !isOwnMessage;
+    const inlineBanAction = showUserTargetingInlineActions ? onBan : undefined;
+    const inlineTimeoutAction = showUserTargetingInlineActions ? onTimeout : undefined;
+    const inlineWarnAction = showUserTargetingInlineActions ? onWarn : undefined;
+    const inlineUnbanAction = showUserTargetingInlineActions ? onUnban : undefined;
+    const inlineDeleteAction = onDelete;
     const hasInlineModActions =
-      canShowMessageModActions && Boolean(onBan || onTimeout || onWarn || onUnban || onDelete);
+      canShowMessageModActions &&
+      Boolean(
+        inlineBanAction ||
+          inlineTimeoutAction ||
+          inlineWarnAction ||
+          inlineUnbanAction ||
+          inlineDeleteAction
+      );
+    const updateMessageRowHover = (target: EventTarget | null) => {
+      const targetElement = target instanceof Element ? target : null;
+      const isUsernameTarget = Boolean(targetElement?.closest(".chat-line__username-container"));
+      setIsMessageRowHovered((current) => {
+        const next = !isUsernameTarget;
+        return current === next ? current : next;
+      });
+    };
+
+    if (framedEventHighlightKind && message.type === "system") {
+      return (
+        <EventHighlight kind={framedEventHighlightKind} platform={message.platform} style={style}>
+          {message.content.map((fragment, index) => (
+            <MessageFragment
+              key={fragmentKey(fragment, index)}
+              fragment={fragment}
+              platform={message.platform}
+              renderEmotesAsText={renderEmotesAsText}
+              viewerMentionUsername={viewerMentionUsername}
+            />
+          ))}
+        </EventHighlight>
+      );
+    }
 
     const messageRow = (
       <div
-        className={`group relative min-w-0 max-w-full overflow-x-clip ${isFramedHighlight ? mentionDensityClass : densityClass} hover:bg-white/5 ${showHighlight ? "bg-purple-500/10 border-l-2 border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
+        className={`group relative min-w-0 max-w-full overflow-x-clip ${isFramedHighlight ? mentionDensityClass : densityClass} ${isMessageRowHovered ? "bg-[rgba(255,255,255,0.16)]" : ""} ${showHighlight ? "bg-purple-500/10 border-l border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
         style={
           isFramedHighlight ? fontSizeStyle : style ? { ...style, ...fontSizeStyle } : fontSizeStyle
         }
+        onMouseEnter={(event) => updateMessageRowHover(event.target)}
+        onMouseMove={(event) => updateMessageRowHover(event.target)}
+        onMouseLeave={() => setIsMessageRowHovered(false)}
       >
         <div
           className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]"
@@ -261,11 +443,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
 
           {hasInlineModActions && (
             <span className="mr-1 inline-flex align-middle items-center gap-0.5">
-              {onBan && (
+              {inlineBanAction && (
                 <IconActionTooltip label="Ban user">
                   <button
                     type="button"
-                    onClick={() => onBan(message)}
+                    onClick={() => inlineBanAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
                     aria-label="Ban user"
                   >
@@ -273,11 +455,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                   </button>
                 </IconActionTooltip>
               )}
-              {onTimeout && (
+              {inlineTimeoutAction && (
                 <IconActionTooltip label="Timeout user">
                   <button
                     type="button"
-                    onClick={() => onTimeout(message)}
+                    onClick={() => inlineTimeoutAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
                     aria-label="Timeout user"
                   >
@@ -285,11 +467,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                   </button>
                 </IconActionTooltip>
               )}
-              {onWarn && (
+              {inlineWarnAction && (
                 <IconActionTooltip label="Warn user">
                   <button
                     type="button"
-                    onClick={() => onWarn(message)}
+                    onClick={() => inlineWarnAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
                     aria-label="Warn user"
                   >
@@ -297,11 +479,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                   </button>
                 </IconActionTooltip>
               )}
-              {onUnban && (
+              {inlineUnbanAction && (
                 <IconActionTooltip label="Unban user">
                   <button
                     type="button"
-                    onClick={() => onUnban(message)}
+                    onClick={() => inlineUnbanAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
                     aria-label="Unban user"
                   >
@@ -309,11 +491,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                   </button>
                 </IconActionTooltip>
               )}
-              {onDelete && (
+              {inlineDeleteAction && (
                 <IconActionTooltip label="Delete message">
                   <button
                     type="button"
-                    onClick={() => onDelete(message)}
+                    onClick={() => inlineDeleteAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
                     aria-label="Delete message"
                   >
@@ -370,15 +552,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
           </span>
         </div>
 
-        {/* Twitch-style click-to-reply button, visible on hover/focus. */}
-        {canReply && <ChatReplyButton onClick={() => onReply?.(message)} />}
-        {/* Mod toolbar — each button rendered iff its callback was passed.
-         *  Parent surfaces decide which callbacks to pass based on mod state. */}
-        {onPin && canShowMessageModActions && (
-          <ChatPinButton
-            onClick={() => onPin(message)}
-            rightClassName={canReply ? "right-10" : "right-2"}
-          />
+        {(canPin || canReply) && (
+          <span
+            className={TWITCH_MESSAGE_ACTION_CLUSTER_CLASS}
+            data-testid="chat-message-hover-actions"
+          >
+            {canPin && <ChatPinButton onClick={() => onPin?.(message)} />}
+            {canReply && <ChatReplyButton onClick={() => onReply?.(message)} />}
+          </span>
         )}
       </div>
     );
@@ -396,6 +577,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
         <MentionHighlight style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}>
           {messageRow}
         </MentionHighlight>
+      );
+    }
+
+    if (framedEventHighlightKind) {
+      return (
+        <EventHighlight
+          kind={framedEventHighlightKind}
+          platform={message.platform}
+          style={style ? { ...style, ...fontSizeStyle } : fontSizeStyle}
+        >
+          {messageRow}
+        </EventHighlight>
       );
     }
 

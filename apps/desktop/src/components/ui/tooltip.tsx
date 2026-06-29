@@ -12,9 +12,10 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
+    arrowClassName?: string;
     container?: HTMLElement | null;
   }
->(({ className, sideOffset = 8, container, ...props }, ref) => (
+>(({ arrowClassName, className, sideOffset = 8, container, ...props }, ref) => (
   <TooltipPrimitive.Portal container={container}>
     <TooltipPrimitive.Content
       ref={ref}
@@ -26,7 +27,11 @@ const TooltipContent = React.forwardRef<
       {...props}
     >
       {props.children}
-      <TooltipPrimitive.Arrow className="fill-[#18181b]" width={12} height={6} />
+      <TooltipPrimitive.Arrow
+        className={cn("fill-[#18181b]", arrowClassName)}
+        width={12}
+        height={6}
+      />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ));

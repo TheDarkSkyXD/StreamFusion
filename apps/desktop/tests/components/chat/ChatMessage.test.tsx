@@ -85,8 +85,13 @@ function setTwitchViewer(login = "darkskyfullofstars", displayName = "DarkSkyFul
 // Guards: signed-in viewer mentions render as Twitch-style mention cards, while guest and other-user mentions stay ordinary rows
 // Guards: first-time chat messages render as white-bordered Twitch-style cards instead of inline purple rows
 // Guards: moderator-badged chat messages render as green moderator cards with platform-specific icons instead of ordinary rows
+// Guards: signed-in Kick broadcasters do not see moderator presentation on their own channel messages
+// Guards: subscription, gift, bits, cheer, and highlighted-message events render as event-specific banners instead of generic System rows
 // Guards: click-to-reply uses Twitch's circular reply affordance and exact SVG path on every opted-in chat platform
 // Guards: pin-message uses Twitch's circular hover affordance and exact SVG path instead of a generic icon
+// Guards: reply and pin hover actions sit on the top edge of the chat row with visible space between them
+// Guards: pin-message tooltip uses Twitch's top-end placement while keeping text left-aligned
+// Guards: username hover keeps the message row background off while the username keeps its own Twitch hover state
 // Guards: parsed Twitch reply metadata renders the inline "Replying to @user" context above the child message
 describe("ChatMessage", () => {
   it("renders username and text fragment", () => {
@@ -193,11 +198,77 @@ describe("ChatMessage", () => {
     expect(screen.getByText("Moderator")).toBeInTheDocument();
     expect(card.className).toContain("border-[#00a865]");
     expect(card.querySelector("svg")?.getAttribute("class")).toContain("-scale-x-100");
-    expect(card.querySelector("path")?.getAttribute("d")).toContain(
-      "M15.784 14.309l-8.572-7.804"
-    );
+    expect(card.querySelector("path")?.getAttribute("d")).toContain("M15.784 14.309l-8.572-7.804");
     expect(screen.getByText("Ninja")).toBeInTheDocument();
     expect(screen.getByText(/hello world/)).toBeInTheDocument();
+  });
+
+  it("renders a Kick broadcaster channel message without moderator presentation", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          platform: "kick",
+          userId: "kick-chat-sender-id",
+          username: "anonsociety",
+          displayName: "AnonSociety",
+          badges: [badge("broadcaster"), badge("moderator")],
+        })}
+        currentChannelContext={{ channelId: "self", channelSlug: "anonsociety" }}
+      />
+    );
+
+    expect(screen.queryByTestId("moderator-chat-highlight")).toBeNull();
+    expect(screen.queryByText("Moderator")).toBeNull();
+    expect(screen.getByAltText("broadcaster")).toBeInTheDocument();
+    expect(screen.queryByAltText("moderator")).toBeNull();
+  });
+
+  it("keeps Kick broadcaster channel messages protected when Kick only sends a moderator badge", () => {
+    const onBan = vi.fn();
+    const onTimeout = vi.fn();
+    const onDelete = vi.fn();
+
+    render(
+      <ChatMessage
+        message={baseMessage({
+          platform: "kick",
+          userId: "kick-chat-sender-id",
+          username: "anonsociety",
+          displayName: "AnonSociety",
+          badges: [badge("moderator")],
+        })}
+        currentChannelContext={{ channelId: "self", channelSlug: "anonsociety" }}
+        onBan={onBan}
+        onTimeout={onTimeout}
+        onDelete={onDelete}
+      />
+    );
+
+    expect(screen.queryByTestId("moderator-chat-highlight")).toBeNull();
+    expect(screen.queryByAltText("moderator")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^ban user$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /timeout user/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /delete message/i })).toBeNull();
+  });
+
+  it("keeps Kick moderator presentation for the signed-in user when modding another channel", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          platform: "kick",
+          userId: "self",
+          username: "anonsociety",
+          displayName: "AnonSociety",
+          badges: [badge("moderator")],
+        })}
+        selfUserId="self"
+        currentChannelContext={{ channelId: "other-channel", channelSlug: "otherchannel" }}
+      />
+    );
+
+    expect(screen.getByTestId("moderator-chat-highlight")).toBeInTheDocument();
+    expect(screen.getByText("Moderator")).toBeInTheDocument();
+    expect(screen.getByAltText("moderator")).toBeInTheDocument();
   });
 
   it("renders deleted-message placeholder when isDeleted", () => {
@@ -262,12 +333,15 @@ describe("ChatMessage", () => {
     render(<ChatMessage message={msg} onReply={onReply} />);
 
     const button = screen.getByRole("button", { name: "Click to reply" });
-    expect(button.className).toContain("rounded-full");
     expect(button.className).toContain("h-8");
     expect(button.className).toContain("w-8");
-    expect(button.className).toContain("min-h-8");
-    expect(button.className).toContain("min-w-8");
-    expect(button.className).toContain("bg-neutral-900");
+    expect(button.className).toContain("rounded-[9000px]");
+    expect(button.className).not.toContain("min-h-8");
+    expect(button.className).not.toContain("min-w-8");
+    expect(button.className).toContain("cursor-pointer");
+    expect(button.className).toContain("bg-[#18181b]");
+    expect(button.className).toContain("hover:bg-[#34343c]");
+    expect(button.className).toContain("active:bg-[#393940]");
     expect(button.className).toContain("text-white");
     expect(button.querySelector("svg")?.getAttribute("class")).toContain("h-5 w-5");
     expect(button.querySelector("path")?.getAttribute("d")).toBe(
@@ -278,10 +352,54 @@ describe("ChatMessage", () => {
     const tooltip = document.querySelector('[data-side="top"]');
     expect(tooltip).not.toBeNull();
     expect(tooltip?.className).toContain("text-sm");
-    expect(tooltip?.className).toContain("font-bold");
+    expect(tooltip?.className).toContain("font-semibold");
+    expect(tooltip?.className).toContain("leading-[1.4]");
+    expect(tooltip?.className).toContain("!rounded-[4px]");
+    expect(tooltip?.getAttribute("data-align")).toBe("end");
+    expect(tooltip?.className).toContain("text-left");
+    expect(tooltip?.className).toContain("!bg-white");
+    expect(tooltip?.className).toContain("!text-[#0e0e10]");
+    expect(tooltip?.querySelector("svg")?.className.baseVal).toContain("!fill-white");
 
     fireEvent.click(button);
     expect(onReply).toHaveBeenCalledWith(msg);
+  });
+
+  it("positions reply and pin hover actions half off the row with Twitch spacing", () => {
+    render(<ChatMessage message={baseMessage()} onReply={vi.fn()} onPin={vi.fn()} />);
+
+    const replyButton = screen.getByRole("button", { name: "Click to reply" });
+    const pinButton = screen.getByRole("button", { name: /pin this message/i });
+    const actionCluster = screen.getByTestId("chat-message-hover-actions");
+
+    expect(actionCluster.className).toContain("absolute");
+    expect(actionCluster.className).toContain("top-[-15px]");
+    expect(actionCluster.className).toContain("right-1.5");
+    expect(actionCluster.className).toContain("z-10");
+    expect(actionCluster.className).toContain("h-8");
+    expect(actionCluster.className).toContain("pl-[5px]");
+    expect(actionCluster.className).toContain("gap-[5px]");
+    expect(actionCluster.className).toContain("group-hover:!opacity-100");
+    expect(actionCluster.className).toContain("focus-within:!opacity-100");
+    expect(actionCluster.className).not.toContain("top-1/2");
+    expect(actionCluster.className).not.toContain("-translate-y-1/2");
+    expect([...actionCluster.querySelectorAll("button")]).toEqual([pinButton, replyButton]);
+    expect(replyButton.className).not.toContain("top-1/2");
+    expect(replyButton.className).not.toContain("-translate-y-1/2");
+    expect(replyButton.className).toContain("h-8");
+    expect(replyButton.className).toContain("w-8");
+    expect(replyButton.className).toContain("rounded-[9000px]");
+    expect(replyButton.className).toContain(
+      "shadow-[0_1px_2px_0_rgba(0,0,0,0.9),0_0_2px_0_rgba(0,0,0,0.9)]"
+    );
+    expect(pinButton.className).not.toContain("top-1/2");
+    expect(pinButton.className).not.toContain("-translate-y-1/2");
+    expect(pinButton.className).toContain("h-8");
+    expect(pinButton.className).toContain("w-8");
+    expect(pinButton.className).toContain("rounded-[9000px]");
+    expect(pinButton.className).toContain(
+      "shadow-[0_1px_2px_0_rgba(0,0,0,0.9),0_0_2px_0_rgba(0,0,0,0.9)]"
+    );
   });
 
   it("renders Twitch reply metadata above the message content", () => {
@@ -339,11 +457,31 @@ describe("ChatMessage chatDisplay appearance (U2)", () => {
     expect(row.style.fontSize).toBe("18px");
   });
 
-  it("uses Kick-compact cozy padding/line-height by default", () => {
+  it("uses Twitch cozy padding/line-height by default", () => {
     const { container } = render(<ChatMessage message={baseMessage()} />);
     const row = container.querySelector(".group") as HTMLElement;
-    expect(row.className).toContain("py-0.5");
-    expect(row.className).toContain("leading-[1.35]");
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.density).toBe("cozy");
+    expect(row.className).toContain("px-4");
+    expect(row.className).toContain("py-1");
+    expect(row.className).toContain("leading-[22px]");
+    expect(row.className).not.toContain("hover:bg-[rgba(255,255,255,0.16)]");
+  });
+
+  it("does not apply the message row hover background while hovering the username", () => {
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector(".group") as HTMLElement;
+    const username = screen.getByText("Ninja");
+    const messageText = screen.getByText("hello world");
+
+    fireEvent.mouseEnter(row, { target: row });
+    fireEvent.mouseMove(username);
+    expect(row.className).not.toContain("bg-[rgba(255,255,255,0.16)]");
+
+    fireEvent.mouseMove(messageText);
+    expect(row.className).toContain("bg-[rgba(255,255,255,0.16)]");
+
+    fireEvent.mouseLeave(row);
+    expect(row.className).not.toContain("bg-[rgba(255,255,255,0.16)]");
   });
 
   it("uses tighter padding/line-height when density is compact", () => {
@@ -352,10 +490,10 @@ describe("ChatMessage chatDisplay appearance (U2)", () => {
     const row = container.querySelector(".group") as HTMLElement;
     expect(row.className).toContain("py-0");
     expect(row.className).toContain("leading-[1.2]");
-    expect(row.className).not.toContain("leading-[1.35]");
+    expect(row.className).not.toContain("leading-[22px]");
   });
 
-  it("does not add cozy row padding around an emote-only Kick message", () => {
+  it("uses Twitch cozy row padding around an emote-heavy Kick message", () => {
     const { container } = render(
       <ChatMessage
         message={baseMessage({
@@ -376,8 +514,8 @@ describe("ChatMessage chatDisplay appearance (U2)", () => {
     );
 
     const row = container.querySelector(".group") as HTMLElement;
-    expect(row.className).toContain("py-0.5");
-    expect(row.className).not.toContain("py-1");
+    expect(row.className).toContain("py-1");
+    expect(row.className).toContain("leading-[22px]");
     expect(screen.getByAltText("KICKMIA")).toBeInTheDocument();
     expect(screen.getByText("KICK MIA")).toBeInTheDocument();
   });
@@ -535,6 +673,75 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     expect(screen.queryByTestId("moderator-chat-highlight")).toBeNull();
   });
 
+  it("wraps paid highlighted messages in the highlighted-message banner", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          isHighlighted: true,
+          highlightKind: "highlighted-message",
+          content: [{ type: "text", content: "read this one" }],
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("highlighted-message-highlight")).toBeInTheDocument();
+    expect(screen.getByText("Highlighted Message")).toBeInTheDocument();
+    expect(screen.queryByTestId("first-time-chat-highlight")).toBeNull();
+    expect(screen.getByText("read this one")).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "subscription",
+      "subscription-highlight",
+      "Subscription",
+      "ImJustAGhostt subscribed with Prime.",
+    ],
+    ["resub", "resub-highlight", "Resub", "They have subscribed for 38 months!"],
+    ["gifted-sub", "gifted-sub-highlight", "Gifted Sub", "Anon gifted 5 subscriptions!"],
+    ["bits", "bits-highlight", "Bits", "Bits badge unlocked!"],
+  ] as const)("wraps %s system events in their own banner without a System username", (highlightKind, testId, label, text) => {
+    const { container } = render(
+      <ChatMessage
+        message={baseMessage({
+          type: "system",
+          platform: "twitch",
+          username: "System",
+          displayName: "System",
+          isHighlighted: true,
+          highlightKind,
+          content: [{ type: "text", content: text }],
+        })}
+      />
+    );
+
+    const card = screen.getByTestId(testId);
+    expect(card).toBeInTheDocument();
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.queryByText("System")).toBeNull();
+    expect(container.querySelector(".group")).toBeNull();
+    expect(card.style.borderLeft).toMatch(/^1px solid/);
+  });
+
+  it("wraps Twitch bits chat messages as cheer highlights", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          type: "bits",
+          bits: 100,
+          highlightKind: "cheer",
+          content: [{ type: "text", content: "cheer100 lets go" }],
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("cheer-highlight")).toBeInTheDocument();
+    expect(screen.getByText("Cheer")).toBeInTheDocument();
+    expect(screen.getByText("Ninja")).toBeInTheDocument();
+    expect(screen.getByText("cheer100 lets go")).toBeInTheDocument();
+  });
+
   it("removes the highlight on a chat message when firstMsgHighlight is false", () => {
     setChatDisplay({ firstMsgHighlight: false });
     const { container } = render(<ChatMessage message={baseMessage({ isHighlighted: true })} />);
@@ -622,10 +829,31 @@ describe("ChatMessage mod toolbar (U10)", () => {
     render(<ChatMessage message={baseMessage()} {...cbs} />);
     expect(screen.getByRole("button", { name: /timeout user/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /warn user/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^ban user$/i })).toBeInTheDocument();
+    const banButton = screen.getByRole("button", { name: /^ban user$/i });
+    expect(banButton).toBeInTheDocument();
+    expect(banButton.className).toContain("cursor-pointer");
+    expect(banButton.className).toContain("hover:bg-[rgba(83,83,95,0.48)]");
+    expect(banButton.className).toContain("active:bg-[rgba(83,83,95,0.55)]");
     expect(screen.getByRole("button", { name: /unban user/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /delete message/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /pin this message/i })).toBeInTheDocument();
+  });
+
+  it("uses Twitch-style white tooltips for inline mod buttons", async () => {
+    const cbs = allCallbacks();
+    render(<ChatMessage message={baseMessage()} {...cbs} />);
+
+    fireEvent.focus(screen.getByRole("button", { name: /^ban user$/i }));
+
+    expect(await screen.findAllByText("Ban user")).not.toHaveLength(0);
+    const tooltip = document.querySelector('[data-side="top"]');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.className).toContain("!bg-white");
+    expect(tooltip?.className).toContain("!text-[#0e0e10]");
+    expect(tooltip?.className).toContain("font-semibold");
+    expect(tooltip?.className).toContain("leading-[1.4]");
+    expect(tooltip?.className).toContain("!rounded-[4px]");
+    expect(tooltip?.querySelector("svg")?.className.baseVal).toContain("!fill-white");
   });
 
   it("renders badges to the right of inline mod toolbar buttons", () => {
@@ -635,9 +863,7 @@ describe("ChatMessage mod toolbar (U10)", () => {
     const banButton = screen.getByRole("button", { name: /^ban user$/i });
     const badgeImage = screen.getByAltText("vip");
 
-    expect(banButton.compareDocumentPosition(badgeImage)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
+    expect(banButton.compareDocumentPosition(badgeImage)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("renders only the Pin button when only onPin is passed", () => {
@@ -670,19 +896,22 @@ describe("ChatMessage mod toolbar (U10)", () => {
     expect(screen.queryByRole("button", { name: /pin this message/i })).toBeNull();
   });
 
-  it("shows toolbar on own message even when sender has moderator badge (AE2)", () => {
+  it.each([
+    "twitch",
+    "kick",
+  ] as const)("shows only the inline delete mod button on the signed-in user's own %s message", (platform) => {
     const cbs = allCallbacks();
     render(
       <ChatMessage
-        message={baseMessage({ userId: "self", badges: [badge("moderator")] })}
+        message={baseMessage({ platform, userId: "self", badges: [badge("moderator")] })}
         selfUserId="self"
         {...cbs}
       />
     );
-    expect(screen.getByRole("button", { name: /timeout user/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /warn user/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^ban user$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /unban user/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /timeout user/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /warn user/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^ban user$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /unban user/i })).toBeNull();
     expect(screen.getByRole("button", { name: /delete message/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /pin this message/i })).toBeInTheDocument();
   });
@@ -759,12 +988,15 @@ describe("ChatMessage mod toolbar (U10)", () => {
     const msg = baseMessage();
     render(<ChatMessage message={msg} {...cbs} />);
     const button = screen.getByRole("button", { name: /pin this message/i });
-    expect(button.className).toContain("rounded-full");
     expect(button.className).toContain("h-8");
     expect(button.className).toContain("w-8");
-    expect(button.className).toContain("min-h-8");
-    expect(button.className).toContain("min-w-8");
-    expect(button.className).toContain("bg-neutral-900");
+    expect(button.className).toContain("rounded-[9000px]");
+    expect(button.className).not.toContain("min-h-8");
+    expect(button.className).not.toContain("min-w-8");
+    expect(button.className).toContain("cursor-pointer");
+    expect(button.className).toContain("bg-[#18181b]");
+    expect(button.className).toContain("hover:bg-[#34343c]");
+    expect(button.className).toContain("active:bg-[#393940]");
     expect(button.className).toContain("text-white");
     expect(button.querySelector("svg")?.getAttribute("class")).toContain("h-5 w-5");
     expect(button.querySelectorAll("path")[0]?.getAttribute("d")).toBe(
@@ -776,7 +1008,14 @@ describe("ChatMessage mod toolbar (U10)", () => {
     const tooltip = document.querySelector('[data-side="top"]');
     expect(tooltip).not.toBeNull();
     expect(tooltip?.className).toContain("text-sm");
-    expect(tooltip?.className).toContain("font-bold");
+    expect(tooltip?.className).toContain("font-semibold");
+    expect(tooltip?.className).toContain("leading-[1.4]");
+    expect(tooltip?.className).toContain("!rounded-[4px]");
+    expect(tooltip?.getAttribute("data-align")).toBe("end");
+    expect(tooltip?.className).toContain("text-left");
+    expect(tooltip?.className).toContain("!bg-white");
+    expect(tooltip?.className).toContain("!text-[#0e0e10]");
+    expect(tooltip?.querySelector("svg")?.className.baseVal).toContain("!fill-white");
     fireEvent.click(button);
     expect(cbs.onPin).toHaveBeenCalledTimes(1);
     expect(cbs.onPin).toHaveBeenCalledWith(msg);

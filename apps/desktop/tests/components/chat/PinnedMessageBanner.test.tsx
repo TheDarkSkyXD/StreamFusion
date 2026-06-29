@@ -1,6 +1,6 @@
-import { act, fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import type React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PinnedMessageBanner } from "@/components/chat/PinnedMessageBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -32,12 +32,15 @@ function makePin(overrides: Partial<NormalizedPinnedMessage> = {}): NormalizedPi
 }
 
 // Guards: pin metadata empty paths (pinnedBy=null → "Pinned message" fallback; sentAt=null → timestamp omitted; no badges → header still renders) must never throw — the banner is rendered eagerly while the GQL pin poller resolves
-// Guards: viewer vs mod role gating — mods see Unpin (with two-step confirm) and never see "Hide for yourself"; viewers see "Hide for yourself" only when expanded
-// Guards: AE3 unpin confirm flow — first click arms, second click within 5s fires onUnpin, auto-reverts otherwise. Guards regression cfb0033-area where an accidental unpin must require a second click
+// Guards: viewer vs mod role gating — mods see Unpin with the same eye-off icon as viewer hide and never see "Hide for yourself"; viewers see "Hide for yourself" only when expanded
+// Guards: Unpin is a direct action and never swaps to a separate confirmation button
 // Guards: long-content paths (truncate-safe usernames, break-words body, break-all on link fragments) — the banner must not push siblings off-screen at multistream's ~280px slot floor
 // Exempt: no async branch in source — pin data is delivered via prop from the upstream Twitch GQL pin poller / Kick Pusher event. Loading/error live in the poller; the empty state ("no pinned message") is "parent omits the banner entirely", validated at PinnedMessageBanner's consumer (TwitchChat / KickChat).
 // Guards: mention fragments render as @username in pinned-message bodies without duplicating an existing @ prefix
 // Guards: pinned-message cards use the same neutral-800 surface as the global search input across platforms
+// Guards: pinned-by usernames render every visible badge the user has instead of only the highest-priority role badge
+// Guards: pinned-message banner floats over the chat list instead of consuming scroll layout space
+// Guards: pinned-message usernames stay keyboard/click accessible so they can open the user popout when chat provides channel context
 describe("PinnedMessageBanner", () => {
   it("renders pinnedBy label and content (no author prefix on body — Twitch-faithful)", () => {
     render(
@@ -47,7 +50,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     expect(screen.getByText(/Pinned by/)).toBeInTheDocument();
     expect(screen.getByText("modbot")).toBeInTheDocument();
@@ -72,7 +75,7 @@ describe("PinnedMessageBanner", () => {
         viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
-      />,
+      />
     );
 
     expect(screen.getByText("@alice")).toBeInTheDocument();
@@ -80,7 +83,55 @@ describe("PinnedMessageBanner", () => {
     expect(screen.queryByText("@@bob")).not.toBeInTheDocument();
   });
 
-  it("shows broadcaster plus partner badges next to a partner broadcaster pinnedBy username", () => {
+  it("floats as an overlay while only the card captures pointer events", () => {
+    render(
+      <PinnedMessageBanner
+        pin={makePin()}
+        viewerRole="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+      />
+    );
+
+    const banner = screen.getByTestId("pinned-message-banner");
+    expect(banner.className).toContain("absolute");
+    expect(banner.className).toContain("z-20");
+    expect(banner.className).toContain("pointer-events-none");
+    expect(banner.firstElementChild).toHaveClass("pointer-events-auto");
+  });
+
+  it("renders pinnedBy and pinned author usernames as clickable username controls", () => {
+    render(
+      <PinnedMessageBanner
+        pin={makePin({
+          author: {
+            userId: "author-1",
+            username: "alice",
+            displayName: "Alice",
+            color: "#FF7F50",
+            badges: [],
+          },
+          pinnedBy: {
+            userId: "mod-1",
+            username: "modbot",
+            color: "#FF6F61",
+            badges: [],
+          },
+        })}
+        viewerRole="viewer"
+        isExpanded={true}
+        onExpandToggle={() => {}}
+        currentChannelContext={{ channelId: "channel-1", channelSlug: "fitzbro" }}
+      />
+    );
+
+    const pinnedByUsername = screen.getByRole("button", { name: "modbot" });
+    const authorUsername = screen.getByRole("button", { name: "Alice" });
+    expect(pinnedByUsername).toHaveClass("cursor-pointer");
+    expect(authorUsername).toHaveClass("cursor-pointer");
+  });
+
+  it("shows every visible badge next to the pinnedBy username", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({
@@ -88,27 +139,41 @@ describe("PinnedMessageBanner", () => {
             username: "fitzbro",
             color: "#008000",
             badges: [
-              // Highest-priority role badge — should be the one rendered
-              { setId: "broadcaster", version: "1", imageUrl: "https://example/b/1", title: "Broadcaster" },
-              { setId: "subscriber", version: "12", imageUrl: "https://example/s/1", title: "1-Year Sub" },
-              { setId: "verified", version: "1", imageUrl: "https://example/v/1", title: "Verified" },
+              {
+                setId: "broadcaster",
+                version: "1",
+                imageUrl: "https://example/b/1",
+                title: "Broadcaster",
+              },
+              {
+                setId: "subscriber",
+                version: "12",
+                imageUrl: "https://example/s/1",
+                title: "1-Year Sub",
+              },
+              {
+                setId: "verified",
+                version: "1",
+                imageUrl: "https://example/v/1",
+                title: "Verified",
+              },
             ],
           },
         })}
         viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
-      />,
+      />
     );
-    // Only one badge image — the Broadcaster — should appear in the header.
     const header = screen.getByTestId("pinned-message-header");
     const headerImgs = header.querySelectorAll("img");
-    expect(headerImgs.length).toBe(2);
+    expect(headerImgs.length).toBe(3);
     expect(headerImgs[0].getAttribute("alt")).toBe("Broadcaster");
-    expect(headerImgs[1].getAttribute("alt")).toBe("Verified");
+    expect(headerImgs[1].getAttribute("alt")).toBe("1-Year Sub");
+    expect(headerImgs[2].getAttribute("alt")).toBe("Verified");
   });
 
-  it("also treats Twitch partner as the partner badge for broadcaster pinners", () => {
+  it("renders all Twitch pinnedBy badges in their payload order", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({
@@ -117,7 +182,12 @@ describe("PinnedMessageBanner", () => {
             username: "fitzbro",
             color: "#008000",
             badges: [
-              { setId: "broadcaster", version: "1", imageUrl: "https://example/b/1", title: "Broadcaster" },
+              {
+                setId: "broadcaster",
+                version: "1",
+                imageUrl: "https://example/b/1",
+                title: "Broadcaster",
+              },
               { setId: "partner", version: "1", imageUrl: "https://example/p/1", title: "Partner" },
             ],
           },
@@ -125,7 +195,7 @@ describe("PinnedMessageBanner", () => {
         viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
-      />,
+      />
     );
 
     const header = screen.getByTestId("pinned-message-header");
@@ -135,7 +205,7 @@ describe("PinnedMessageBanner", () => {
     expect(headerImgs[1].getAttribute("alt")).toBe("Partner");
   });
 
-  it("falls back to the lowest priority badge when no role badge is present", () => {
+  it("renders all pinnedBy badges when no role badge is present", () => {
     render(
       <PinnedMessageBanner
         pin={makePin({
@@ -143,21 +213,31 @@ describe("PinnedMessageBanner", () => {
             username: "alice",
             color: "#FF7F50",
             badges: [
-              { setId: "subscriber", version: "12", imageUrl: "https://example/s/1", title: "1-Year Sub" },
-              { setId: "unknown_set", version: "1", imageUrl: "https://example/u/1", title: "Unknown" },
+              {
+                setId: "subscriber",
+                version: "12",
+                imageUrl: "https://example/s/1",
+                title: "1-Year Sub",
+              },
+              {
+                setId: "unknown_set",
+                version: "1",
+                imageUrl: "https://example/u/1",
+                title: "Unknown",
+              },
             ],
           },
         })}
         viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
-      />,
+      />
     );
-    // Subscriber is in the priority list (lowest) — picked because no higher
-    // role-badge exists in the user's set.
     const header = screen.getByTestId("pinned-message-header");
-    expect(header.querySelectorAll("img").length).toBe(1);
-    expect(header.querySelector("img")?.getAttribute("alt")).toBe("1-Year Sub");
+    const headerImgs = header.querySelectorAll("img");
+    expect(headerImgs.length).toBe(2);
+    expect(headerImgs[0].getAttribute("alt")).toBe("1-Year Sub");
+    expect(headerImgs[1].getAttribute("alt")).toBe("Unknown");
   });
 
   it("renders the sender-attribution row only when expanded, with badges + timestamp", () => {
@@ -169,7 +249,12 @@ describe("PinnedMessageBanner", () => {
             displayName: "Smokey",
             color: "#FF7F50",
             badges: [
-              { setId: "partner", version: "1", imageUrl: "https://example/p/1", title: "Verified" },
+              {
+                setId: "partner",
+                version: "1",
+                imageUrl: "https://example/p/1",
+                title: "Verified",
+              },
             ],
           },
           sentAt: "2026-05-18T01:54:00.000Z",
@@ -177,7 +262,7 @@ describe("PinnedMessageBanner", () => {
         viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
-      />,
+      />
     );
     // Collapsed: no sender row.
     expect(screen.queryByTestId("pinned-message-sender-row")).not.toBeInTheDocument();
@@ -190,7 +275,12 @@ describe("PinnedMessageBanner", () => {
             displayName: "Smokey",
             color: "#FF7F50",
             badges: [
-              { setId: "partner", version: "1", imageUrl: "https://example/p/1", title: "Verified" },
+              {
+                setId: "partner",
+                version: "1",
+                imageUrl: "https://example/p/1",
+                title: "Verified",
+              },
             ],
           },
           sentAt: "2026-05-18T01:54:00.000Z",
@@ -198,13 +288,13 @@ describe("PinnedMessageBanner", () => {
         viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
-      />,
+      />
     );
     // One combined row at the bottom: [badges] username sent at HH:MM PM.
     const senderRow = screen.getByTestId("pinned-message-sender-row");
     expect(senderRow).toBeInTheDocument();
     expect(senderRow.querySelector('img[alt="Verified"]')).toBeInTheDocument();
-    expect(senderRow).toHaveTextContent("smokey");
+    expect(senderRow).toHaveTextContent("Smokey");
     // Timestamp lives inside the same sender row, after the username.
     expect(senderRow).toHaveTextContent(/sent at/);
     const timestamp = screen.getByTestId("pinned-message-timestamp");
@@ -221,13 +311,13 @@ describe("PinnedMessageBanner", () => {
         viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
-      />,
+      />
     );
     const content = screen.getByTestId("pinned-message-content");
     const senderRow = screen.getByTestId("pinned-message-sender-row");
     // DOM order: bottom attribution row follows the message body.
     expect(content.compareDocumentPosition(senderRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
+      Node.DOCUMENT_POSITION_FOLLOWING
     );
   });
 
@@ -238,7 +328,7 @@ describe("PinnedMessageBanner", () => {
         viewerRole="viewer"
         isExpanded={true}
         onExpandToggle={() => {}}
-      />,
+      />
     );
     // Bottom attribution row still renders for badges + username.
     expect(screen.getByTestId("pinned-message-sender-row")).toBeInTheDocument();
@@ -266,7 +356,7 @@ describe("PinnedMessageBanner", () => {
         viewerRole="viewer"
         isExpanded={false}
         onExpandToggle={() => {}}
-      />,
+      />
     );
     const badgeImg = screen.getByAltText("Broadcaster");
     expect(badgeImg).toBeInTheDocument();
@@ -284,7 +374,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     expect(screen.getByText("Pinned message")).toBeInTheDocument();
     expect(screen.queryByText(/Pinned by/)).not.toBeInTheDocument();
@@ -298,7 +388,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const kickBanner = screen.getByTestId("pinned-message-banner");
     expect(kickBanner.getAttribute("data-platform")).toBe("kick");
@@ -311,7 +401,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const twitchBanner = screen.getByTestId("pinned-message-banner");
     expect(twitchBanner.getAttribute("data-platform")).toBe("twitch");
@@ -327,7 +417,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const kickCard = screen.getByTestId("pinned-message-banner").firstElementChild;
     expect(kickCard).toHaveClass("bg-neutral-800");
@@ -342,7 +432,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const twitchCard = screen.getByTestId("pinned-message-banner").firstElementChild;
     expect(twitchCard).toHaveClass("bg-neutral-800");
@@ -357,7 +447,7 @@ describe("PinnedMessageBanner", () => {
         onExpandToggle={() => {}}
         onDismiss={() => {}}
         onUnpin={() => {}}
-      />,
+      />
     );
     // Twitch's collapsed pin card has only the Expand chevron — the
     // "Hide for yourself" button appears only after expanding.
@@ -374,7 +464,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     expect(screen.getByLabelText("Hide for yourself")).toBeInTheDocument();
   });
@@ -388,9 +478,16 @@ describe("PinnedMessageBanner", () => {
         onExpandToggle={() => {}}
         onUnpin={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
-    expect(screen.getByLabelText("Unpin")).toBeInTheDocument();
+    const unpinButton = screen.getByLabelText("Unpin");
+    expect(unpinButton).toBeInTheDocument();
+    expect(unpinButton).toHaveTextContent("");
+    expect(unpinButton).not.toHaveAttribute("title");
+    const icon = unpinButton.querySelector("svg");
+    expect(icon).toBeInTheDocument();
+    expect(icon?.getAttribute("viewBox")).toBe("0 0 24 24");
+    expect(icon?.querySelector("path")?.getAttribute("d")).toContain("m2.293 3.707");
     expect(screen.queryByLabelText("Hide for yourself")).not.toBeInTheDocument();
   });
 
@@ -403,7 +500,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={onDismiss}
-      />,
+      />
     );
     fireEvent.click(screen.getByLabelText("Hide for yourself"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -418,21 +515,14 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={onExpandToggle}
         onDismiss={() => {}}
-      />,
+      />
     );
     fireEvent.click(screen.getByLabelText("Expand pinned message"));
     expect(onExpandToggle).toHaveBeenCalledTimes(1);
   });
 
-  describe("AE3: Unpin confirm flow", () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it("first click arms the confirm step without firing onUnpin", () => {
+  describe("Unpin direct action", () => {
+    it("clicking Unpin fires onUnpin immediately", () => {
       const onUnpin = vi.fn();
       render(
         <PinnedMessageBanner
@@ -441,30 +531,13 @@ describe("PinnedMessageBanner", () => {
           isExpanded={false}
           onExpandToggle={() => {}}
           onUnpin={onUnpin}
-        />,
+        />
       );
       fireEvent.click(screen.getByLabelText("Unpin"));
-      expect(onUnpin).not.toHaveBeenCalled();
-      expect(screen.getByLabelText("Confirm unpin")).toBeInTheDocument();
-    });
-
-    it("second click within the window fires onUnpin", () => {
-      const onUnpin = vi.fn();
-      render(
-        <PinnedMessageBanner
-          pin={makePin()}
-          viewerRole="mod"
-          isExpanded={false}
-          onExpandToggle={() => {}}
-          onUnpin={onUnpin}
-        />,
-      );
-      fireEvent.click(screen.getByLabelText("Unpin"));
-      fireEvent.click(screen.getByLabelText("Confirm unpin"));
       expect(onUnpin).toHaveBeenCalledTimes(1);
     });
 
-    it("auto-reverts after 5s without a second click", () => {
+    it("never renders a Confirm unpin button", () => {
       const onUnpin = vi.fn();
       render(
         <PinnedMessageBanner
@@ -473,15 +546,11 @@ describe("PinnedMessageBanner", () => {
           isExpanded={false}
           onExpandToggle={() => {}}
           onUnpin={onUnpin}
-        />,
+        />
       );
+      expect(screen.queryByLabelText("Confirm unpin")).not.toBeInTheDocument();
       fireEvent.click(screen.getByLabelText("Unpin"));
-      expect(screen.getByLabelText("Confirm unpin")).toBeInTheDocument();
-      act(() => {
-        vi.advanceTimersByTime(5000);
-      });
-      expect(screen.getByLabelText("Unpin")).toBeInTheDocument();
-      expect(onUnpin).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Confirm unpin")).not.toBeInTheDocument();
     });
   });
 
@@ -495,7 +564,7 @@ describe("PinnedMessageBanner", () => {
         onExpandToggle={() => {}}
         onDismiss={() => {}}
         onReply={onReply}
-      />,
+      />
     );
     expect(screen.queryByLabelText("Reply to pinned message")).not.toBeInTheDocument();
 
@@ -507,7 +576,7 @@ describe("PinnedMessageBanner", () => {
         onExpandToggle={() => {}}
         onDismiss={() => {}}
         onReply={onReply}
-      />,
+      />
     );
     const replyButton = screen.getByLabelText("Reply to pinned message");
     fireEvent.click(replyButton);
@@ -522,7 +591,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     expect(screen.queryByLabelText("Reply to pinned message")).not.toBeInTheDocument();
   });
@@ -535,7 +604,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const bannerBefore = screen.getByTestId("pinned-message-banner");
     expect(screen.getByTestId("pinned-message-content")).toHaveTextContent("first pin");
@@ -547,7 +616,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const bannerAfter = screen.getByTestId("pinned-message-banner");
     expect(bannerAfter).toBe(bannerBefore); // same DOM node
@@ -566,7 +635,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const content = screen.getByTestId("pinned-message-content");
     expect(content.className).toContain("break-words");
@@ -583,7 +652,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={true}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     // Same wrap class after expansion — the chevron is metadata-only, not a
     // wrap toggle.
@@ -605,7 +674,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     const content = screen.getByTestId("pinned-message-content");
     const anchor = content.querySelector("a");
@@ -642,7 +711,7 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onDismiss={() => {}}
-      />,
+      />
     );
     // Username span is the only piece allowed to give up width — it truncates
     // and shrinks below its content.
@@ -658,7 +727,7 @@ describe("PinnedMessageBanner", () => {
     expect(badgeWrapper?.className).toContain("flex-shrink-0");
   });
 
-  it("resets the unpin confirm-armed state when the pin changes", () => {
+  it("keeps the direct Unpin button when the pin changes", () => {
     const onUnpin = vi.fn();
     const { rerender } = render(
       <PinnedMessageBanner
@@ -667,10 +736,10 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onUnpin={onUnpin}
-      />,
+      />
     );
     fireEvent.click(screen.getByLabelText("Unpin"));
-    expect(screen.getByLabelText("Confirm unpin")).toBeInTheDocument();
+    expect(onUnpin).toHaveBeenCalledTimes(1);
 
     rerender(
       <PinnedMessageBanner
@@ -679,9 +748,8 @@ describe("PinnedMessageBanner", () => {
         isExpanded={false}
         onExpandToggle={() => {}}
         onUnpin={onUnpin}
-      />,
+      />
     );
-    // New pin: armed state cleared so a single click would NOT immediately unpin.
     expect(screen.getByLabelText("Unpin")).toBeInTheDocument();
     expect(screen.queryByLabelText("Confirm unpin")).not.toBeInTheDocument();
   });

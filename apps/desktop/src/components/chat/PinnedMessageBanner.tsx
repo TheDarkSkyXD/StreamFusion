@@ -9,17 +9,12 @@
  *
  * The close control is viewer-role-aware:
  *   - viewerRole="viewer" -> Dismiss (X icon), local-only via `onDismiss`
- *   - viewerRole="mod"    -> Unpin (text button), two-step confirm via `onUnpin`
- *
- * The confirm step swaps the button label to "Confirm unpin" for 5 seconds
- * after the first click; a second click within the window fires `onUnpin`,
- * otherwise the button auto-reverts.
+ *   - viewerRole="mod"    -> Unpin (eye-off icon), server-side via `onUnpin`
  */
 
 import type React from "react";
-import { memo, useState } from "react";
+import { memo, useMemo } from "react";
 import { BsChevronDown, BsReplyFill } from "react-icons/bs";
-import { useTimeout } from "@/hooks/useTimeout";
 import type {
   ChatBadge as ChatBadgeType,
   ContentFragment,
@@ -29,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";
 import { formatMentionLabel } from "./mention-label";
+import { Username, type UsernameChannelContext } from "./Username";
 
 /**
  * Inline pin SVG — verbatim path from Twitch's own .pinned-chat__highlight-card
@@ -89,69 +85,32 @@ const ICON_BUTTON_CLASS =
   "inline-flex items-center justify-center w-8 h-8 rounded-full text-[#EFEFF1] " +
   "hover:bg-white/10 active:bg-white/15 transition-colors";
 
-/**
- * For a normal pinner, show one badge before their
- * username — the user's highest-priority role badge. Pick that one badge
- * unless they are a partner broadcaster; that pair is handled below.
- * If no priority sets match, the first available badge is shown.
- */
-const PRIMARY_BADGE_PRIORITY = [
-  "broadcaster",
-  "moderator",
-  "staff",
-  "admin",
-  "global_mod",
-  "vip",
-  "founder",
-  "premium",
-  "partner",
-  "verified",
-  "subscriber",
-] as const;
+const KICK_GIFT_BADGE_SET_IDS = new Set([
+  "sub_gifter",
+  "subgifter",
+  "subgifter5",
+  "subgifter25",
+  "subgifter50",
+  "subgifter100",
+  "subgifter200",
+]);
 
-function indexBadgesBySet(badges: ReadonlyArray<ChatBadgeType>): Map<string, ChatBadgeType> {
-  const badgeBySet = new Map<string, ChatBadgeType>();
-  for (const badge of badges) {
-    if (!badgeBySet.has(badge.setId)) badgeBySet.set(badge.setId, badge);
-  }
-  return badgeBySet;
+function isKickGiftBadge(setId: string | undefined): boolean {
+  return setId ? KICK_GIFT_BADGE_SET_IDS.has(setId) : false;
 }
 
-function pickPrimaryBadge(badgeBySet: ReadonlyMap<string, ChatBadgeType>): ChatBadgeType | null {
-  for (const set of PRIMARY_BADGE_PRIORITY) {
-    const badge = badgeBySet.get(set);
-    if (badge) return badge;
-  }
-  // No match in the priority list — fall back to the first available badge
-  // The caller falls back to the first badge rather than rendering nothing.
-  return null;
-}
+function orderRenderableUsernameBadges(
+  badges: ReadonlyArray<ChatBadgeType>,
+  platform: NormalizedPinnedMessage["platform"]
+): ChatBadgeType[] {
+  const renderableBadges = badges.filter((badge) => badge.imageUrl);
+  if (platform !== "kick") return renderableBadges;
 
-const PARTNER_BADGE_PRIORITY = ["partner", "verified"] as const;
-
-function findBadgeBySet(
-  badgeBySet: ReadonlyMap<string, ChatBadgeType>,
-  setIds: ReadonlyArray<string>
-): ChatBadgeType | null {
-  for (const setId of setIds) {
-    const badge = badgeBySet.get(setId);
-    if (badge) return badge;
-  }
-  return null;
-}
-
-function pickHeaderBadges(badges: ReadonlyArray<ChatBadgeType> | undefined): ChatBadgeType[] {
-  if (!badges || badges.length === 0) return [];
-
-  const badgeBySet = indexBadgesBySet(badges);
-  const broadcasterBadge = findBadgeBySet(badgeBySet, ["broadcaster"]);
-  const partnerBadge = findBadgeBySet(badgeBySet, PARTNER_BADGE_PRIORITY);
-  if (broadcasterBadge && partnerBadge && broadcasterBadge.setId !== partnerBadge.setId) {
-    return [broadcasterBadge, partnerBadge];
-  }
-
-  const primary = pickPrimaryBadge(badgeBySet);
-  return primary ? [primary] : [badges[0]];
+  return renderableBadges.toSorted((a, b) => {
+    if (isKickGiftBadge(a.setId) && b.setId === "subscriber") return -1;
+    if (a.setId === "subscriber" && isKickGiftBadge(b.setId)) return 1;
+    return 0;
+  });
 }
 
 /** Format an ISO timestamp as "HH:MM AM/PM" — same shape Twitch uses in the
@@ -167,8 +126,6 @@ function formatSentAt(iso: string | null): string {
   });
 }
 
-const UNPIN_CONFIRM_WINDOW_MS = 5000;
-
 export interface PinnedMessageBannerProps {
   pin: NormalizedPinnedMessage;
   /** Determines which close control is rendered. */
@@ -177,10 +134,12 @@ export interface PinnedMessageBannerProps {
   onExpandToggle: () => void;
   /** Viewer-only local dismiss. */
   onDismiss?: () => void;
-  /** Mod-only server-side unpin (called after the confirm step). */
+  /** Mod-only server-side unpin. */
   onUnpin?: () => void;
   /** Optional reply-to-pinned-author action. Only rendered when expanded. */
   onReply?: () => void;
+  /** Channel scope used by clickable usernames to open the user popout. */
+  currentChannelContext?: UsernameChannelContext;
 }
 
 const PinnedFragment: React.FC<{ fragment: ContentFragment; platform: "twitch" | "kick" }> = memo(
@@ -240,23 +199,16 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   onDismiss,
   onUnpin,
   onReply,
+  currentChannelContext,
 }) => {
-  // Store the messageId the confirm step was armed for instead of a boolean.
-  // A new pin (different messageId) automatically reads as not-armed, so no
-  // reset effect is needed when the pin changes out from under us.
-  const [armedForMessageId, setArmedForMessageId] = useState<string | null>(null);
-  const unpinArmed = armedForMessageId === pin.messageId;
-  useTimeout(() => setArmedForMessageId(null), unpinArmed ? UNPIN_CONFIRM_WINDOW_MS : null);
-
-  const handleUnpinClick = () => {
-    if (!onUnpin) return;
-    if (unpinArmed) {
-      setArmedForMessageId(null);
-      onUnpin();
-    } else {
-      setArmedForMessageId(pin.messageId);
-    }
-  };
+  const renderableAuthorBadges = useMemo(
+    () => orderRenderableUsernameBadges(pin.author.badges, pin.platform),
+    [pin.author.badges, pin.platform]
+  );
+  const renderablePinnedByBadges = useMemo(
+    () => orderRenderableUsernameBadges(pin.pinnedBy?.badges ?? [], pin.platform),
+    [pin.pinnedBy?.badges, pin.platform]
+  );
 
   const accentColor = pin.author.color || (pin.platform === "kick" ? "#53FC18" : "#9146FF");
   const pinnedByColor = pin.pinnedBy?.color || accentColor;
@@ -272,7 +224,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
       data-testid="pinned-message-banner"
       data-role={viewerRole}
       data-platform={pin.platform}
-      className="px-2 pt-2 pb-1"
+      className="pointer-events-none absolute inset-x-0 top-0 z-20 px-2 pt-2 pb-1"
     >
       {/* Sizes / colors / line-heights mirror Twitch's native .highlight card:
        *   inner card 1px solid rgba(83,83,95,0.48), 6px radius, 8px padding
@@ -281,7 +233,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
        * Captured live from twitch.tv/fitzbro on 2026-05-18.
        */}
       <div
-        className="border border-[var(--color-border,rgba(83,83,95,0.48))] rounded-md bg-neutral-800 p-2"
+        className="pointer-events-auto border border-[var(--color-border,rgba(83,83,95,0.48))] rounded-md bg-neutral-800 p-2"
         style={cardStyle}
       >
         {/* Header row: pin icon + "Pinned by [badges] X" + controls.
@@ -309,24 +261,24 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                 data-testid="pinned-message-header"
               >
                 <span className="flex-shrink-0">Pinned by</span>
-                {(() => {
-                  // Render broadcaster + partner/verified together when both
-                  // in the header — the user's highest-priority role badge.
-                  const headerBadges = pickHeaderBadges(pin.pinnedBy.badges);
-                  if (headerBadges.length === 0) return null;
-                  return headerBadges.map((badge) => (
-                    <span
-                      key={`${badge.setId}-${badge.version}`}
-                      className="inline-flex flex-shrink-0"
-                      style={{ marginBottom: "1.5px" }}
-                    >
-                      <ChatBadge badge={badge} platform={pin.platform} />
-                    </span>
-                  ));
-                })()}
-                <span className="font-semibold truncate min-w-0" style={{ color: pinnedByColor }}>
-                  {pin.pinnedBy.username}
-                </span>
+                {renderablePinnedByBadges.map((badge, i) => (
+                  <span
+                    key={`${badge.setId}-${badge.version}-${i}`}
+                    className="inline-flex flex-shrink-0"
+                    style={{ marginBottom: "1.5px" }}
+                  >
+                    <ChatBadge badge={badge} platform={pin.platform} />
+                  </span>
+                ))}
+                <Username
+                  userId={pin.pinnedBy.userId ?? pin.pinnedBy.username}
+                  username={pin.pinnedBy.username}
+                  displayName={pin.pinnedBy.username}
+                  color={pinnedByColor}
+                  platform={pin.platform}
+                  className="font-semibold truncate min-w-0"
+                  currentChannelContext={currentChannelContext}
+                />
               </div>
             ) : (
               <div className="text-sm text-[#EFEFF1] truncate leading-snug">Pinned message</div>
@@ -353,19 +305,20 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
               </Tooltip>
             ) : null}
             {viewerRole === "mod" && onUnpin ? (
-              <button
-                type="button"
-                onClick={handleUnpinClick}
-                className={`px-2 h-8 inline-flex items-center text-xs rounded-full transition-colors ${
-                  unpinArmed
-                    ? "bg-red-600 text-white hover:bg-red-500"
-                    : "text-[#EFEFF1] hover:bg-white/10"
-                }`}
-                title={unpinArmed ? "Click again to confirm unpin" : "Unpin"}
-                aria-label={unpinArmed ? "Confirm unpin" : "Unpin"}
-              >
-                {unpinArmed ? "Confirm unpin" : "Unpin"}
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={onUnpin}
+                    className={ICON_BUTTON_CLASS}
+                    aria-label="Unpin"
+                    data-testid="pinned-message-unpin-button"
+                  >
+                    <EyeOffIcon />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Unpin</TooltipContent>
+              </Tooltip>
             ) : null}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -425,7 +378,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
             style={{ gap: "3px" }}
             data-testid="pinned-message-sender-row"
           >
-            {pin.author.badges.map((badge, i) => (
+            {renderableAuthorBadges.map((badge, i) => (
               <span
                 key={`${badge.setId}-${badge.version}-${i}`}
                 className="inline-flex"
@@ -434,9 +387,15 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                 <ChatBadge badge={badge} platform={pin.platform} />
               </span>
             ))}
-            <span className="font-semibold" style={{ color: accentColor }}>
-              {pin.author.username}
-            </span>
+            <Username
+              userId={pin.author.userId ?? pin.author.username}
+              username={pin.author.username}
+              displayName={pin.author.displayName || pin.author.username}
+              color={accentColor}
+              platform={pin.platform}
+              className="font-semibold"
+              currentChannelContext={currentChannelContext}
+            />
             {pin.sentAt ? (
               <span className="text-[#E6E6E6]" data-testid="pinned-message-timestamp">
                 sent at {formatSentAt(pin.sentAt)}
@@ -448,16 +407,20 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
         {/* Expanded-only actions row */}
         {isExpanded && onReply ? (
           <div className="mt-1 flex justify-end">
-            <button
-              type="button"
-              onClick={onReply}
-              className="flex items-center gap-1 text-xs text-neutral-400 hover:text-white px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
-              title="Reply to pinned message"
-              aria-label="Reply to pinned message"
-            >
-              <BsReplyFill size={10} />
-              Reply
-            </button>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onReply}
+                  className="flex items-center gap-1 text-xs text-neutral-400 hover:text-white px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
+                  aria-label="Reply to pinned message"
+                >
+                  <BsReplyFill size={10} />
+                  Reply
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Reply to pinned message</TooltipContent>
+            </Tooltip>
           </div>
         ) : null}
       </div>

@@ -75,6 +75,17 @@ export type MessageType =
   | "bits"
   | "ban";
 
+export type ChatHighlightKind =
+  | "first-time-chat"
+  | "highlighted-message"
+  | "subscription"
+  | "resub"
+  | "gifted-sub"
+  | "raid"
+  | "ritual"
+  | "bits"
+  | "cheer";
+
 /** A fragment of message content */
 export type ContentFragment =
   | { type: "text"; content: string }
@@ -137,6 +148,8 @@ export interface ChatMessage {
   isDeleted: boolean;
   /** Whether this is a highlighted message (first-time chatter, etc.) */
   isHighlighted: boolean;
+  /** Specific visual treatment for chat event/highlight rows. */
+  highlightKind?: ChatHighlightKind;
   /** Whether this is a /me action message */
   isAction: boolean;
   /** True for messages seeded from the v2 history endpoint on join — rendered dimmer than live chat. */
@@ -460,6 +473,16 @@ export interface RoomStatePatchEvent {
   reason: "ws" | "fetch";
 }
 
+export interface ModeratorStateEvent {
+  platform: "twitch";
+  /** Channel login, sans leading #. */
+  channel: string;
+  /** Twitch broadcaster user id. */
+  channelId: string;
+  isModerator: boolean;
+  reason: "ws";
+}
+
 export type SubscriberEligibilityResult =
   | { status: "subscribed" }
   | { status: "notSubscribed" }
@@ -486,4 +509,5 @@ export interface ChatServiceEvents {
   pollUpdate: (poll: KickPoll) => void;
   predictionUpdate: (prediction: UnifiedPrediction) => void;
   roomState: (event: RoomStatePatchEvent) => void;
+  moderatorState: (event: ModeratorStateEvent) => void;
 }
