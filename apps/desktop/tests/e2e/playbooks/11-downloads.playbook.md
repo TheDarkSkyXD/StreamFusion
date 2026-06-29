@@ -25,7 +25,7 @@ Confirm Downloads page renders heading and the (currently placeholder) Active + 
    /Epic Win Moment|Full Stream VOD|Funny Fail Compilation/.test(document.body.innerText)
    ```
 
-4. **Screenshot** → `downloads.png`.
+4. **Screenshot** → `.scratch/images/downloads.png`.
 
 ## Pass criteria
 - [ ] Heading and both sections render.

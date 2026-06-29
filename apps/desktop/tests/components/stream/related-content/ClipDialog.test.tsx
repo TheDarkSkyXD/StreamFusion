@@ -9,7 +9,11 @@ const addToHistory = vi.hoisted(() => vi.fn());
 
 // Mock child components
 vi.mock("@/components/ui/platform-avatar", () => ({
-  PlatformAvatar: ({ alt }: { alt: string }) => <div data-testid="platform-avatar">{alt}</div>,
+  PlatformAvatar: ({ alt, src }: { alt: string; src?: string }) => (
+    <div data-testid="platform-avatar" data-src={src}>
+      {alt}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/ui/follow-button", () => ({
@@ -33,11 +37,8 @@ vi.mock("@/components/player/kick", () => ({
   KickVodPlayer: () => <div data-testid="kick-vod-player">Kick Player</div>,
 }));
 
-vi.mock("@/store/history-store", () => ({
-  useHistoryStore: (selector?: any) => {
-    const state = { addToHistory };
-    return typeof selector === "function" ? selector(state) : state;
-  },
+vi.mock("@/hooks/queries/useHistoryQuery", () => ({
+  useHistoryActions: () => ({ addToHistory }),
 }));
 
 // Mock router
@@ -71,6 +72,7 @@ describe("[Unit] ClipDialog", () => {
     url: "http://clip.url",
     embedUrl: "http://embed.url",
     gameName: "Just Chatting",
+    creatorName: "Clipper",
     views: "100",
     date: "2023-01-01",
     isLive: false,
@@ -257,9 +259,87 @@ describe("[Unit] ClipDialog", () => {
           channelName: "coolstreamer",
           channelDisplayName: "CoolStreamer",
           channelAvatar: "avatar.jpg",
+          channelFollowerCount: 1000,
+          clipViews: "100",
+          clipCreatorName: "Clipper",
+          clipCategory: "Just Chatting",
         })
       );
     });
+  });
+
+  it("should render real clip and channel metadata instead of hidden placeholders", () => {
+    render(
+      <ClipDialog
+        selectedClip={mockClip}
+        onClose={mockOnClose}
+        clipLoading={false}
+        clipError={null}
+        clipPlaybackUrl="http://video.url"
+        platform="twitch"
+        channelName="coolstreamer"
+        channelData={mockChannelData}
+        onPlaybackError={mockOnPlaybackError}
+      />
+    );
+
+    expect(screen.getByText("Just Chatting")).toBeInTheDocument();
+    expect(screen.getByText("Clipped by @Clipper")).toBeInTheDocument();
+    expect(screen.getByText("100 views")).toBeInTheDocument();
+    expect(screen.getByText("1K followers")).toBeInTheDocument();
+    expect(screen.queryByText("Followers hidden")).not.toBeInTheDocument();
+    expect(screen.getByTestId("platform-avatar")).toHaveAttribute("data-src", "avatar.jpg");
+  });
+
+  it("should render category and view count when clip payload uses viewCount", () => {
+    render(
+      <ClipDialog
+        selectedClip={{
+          ...mockClip,
+          views: "",
+          viewCount: 12345,
+          category: "Fortnite",
+          gameName: "Ignored fallback",
+        }}
+        onClose={mockOnClose}
+        clipLoading={false}
+        clipError={null}
+        clipPlaybackUrl="http://video.url"
+        platform="twitch"
+        channelName="coolstreamer"
+        channelData={mockChannelData}
+        onPlaybackError={mockOnPlaybackError}
+      />
+    );
+
+    expect(screen.getByText("Fortnite")).toBeInTheDocument();
+    expect(screen.getByText("12.3K views")).toBeInTheDocument();
+    expect(screen.queryByText("Ignored fallback")).not.toBeInTheDocument();
+  });
+
+  it("should fall back to real clip channel metadata while channel lookup is unavailable", () => {
+    render(
+      <ClipDialog
+        selectedClip={{
+          ...mockClip,
+          channelName: "Clip Channel",
+          channelAvatar: "clip-avatar.jpg",
+          channelFollowerCount: 2500,
+        }}
+        onClose={mockOnClose}
+        clipLoading={false}
+        clipError={null}
+        clipPlaybackUrl="http://video.url"
+        platform="twitch"
+        channelName="coolstreamer"
+        channelData={null}
+        onPlaybackError={mockOnPlaybackError}
+      />
+    );
+
+    expect(screen.getAllByText("Clip Channel").length).toBeGreaterThan(0);
+    expect(screen.getByText("2.5K followers")).toBeInTheDocument();
+    expect(screen.getByTestId("platform-avatar")).toHaveAttribute("data-src", "clip-avatar.jpg");
   });
 
   it("should not embed or record a Twitch clip when direct playback url is unavailable", () => {

@@ -43,7 +43,7 @@ Confirm the Electron app launches, exposes a main window, reports a sensible tit
    - Grep for `Uncaught`, `TypeError`, or `Error:` in the last ~50 lines. Tolerate known dev-warnings (React DevTools nag, source-map warnings).
 
 6. **Capture state**
-   - `mcp__debug-electron-mcp__take_screenshot` → save as `app-launch.png`.
+   - `mcp__debug-electron-mcp__take_screenshot` → save as `.scratch/images/app-launch.png`.
 
 ## Pass criteria
 - [ ] At least one electron window is listed.

@@ -24,6 +24,8 @@ The `dev:mcp` script lives in `apps/desktop/package.json`:
 
 Once `npm run dev:mcp` is running, Claude can connect via either MCP server (see below) and drive the app.
 
+Screenshots captured by either Electron MCP server must be written under the repo-root `.scratch/images/` directory. That directory is gitignored, so use explicit paths such as `<repo-root>/.scratch/images/home.png` for `outputPath` (or the equivalent screenshot path argument your MCP server exposes).
+
 ---
 
 ## MCP playbooks

@@ -12,6 +12,16 @@ export interface HistoryItem {
   channelName: string;
   channelDisplayName?: string;
   channelAvatar?: string | null;
+  channelFollowerCount?: number;
+  clipDuration?: string;
+  clipViews?: string;
+  clipDate?: string;
+  clipCreatedAt?: string;
+  clipCreatorName?: string;
+  clipGameName?: string;
+  clipCategory?: string;
+  clipVodId?: string;
+  clipLanguage?: string;
   timestamp: number;
 }
 

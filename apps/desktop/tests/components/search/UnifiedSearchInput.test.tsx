@@ -167,6 +167,42 @@ describe("UnifiedSearchInput", () => {
     expect(screen.queryByRole("tablist", { name: "Search type" })).not.toBeInTheDocument();
   });
 
+  it("filters channel-only picker suggestions to live channels when requested", () => {
+    searchMockState.channelsData = {
+      pages: [
+        {
+          data: [
+            {
+              ...makeChannels(1, "offline")[0],
+              displayName: "OfflineMatch",
+              username: "offline",
+              isLive: false,
+            },
+            {
+              ...makeChannels(1, "live")[0],
+              displayName: "LiveMatch",
+              username: "live",
+              isLive: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    renderWithProviders(
+      <UnifiedSearchInput
+        initialValue="match"
+        platform="twitch"
+        showCategories={false}
+        liveOnlyChannels
+      />
+    );
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    expect(screen.getByText("LiveMatch")).toBeInTheDocument();
+    expect(screen.queryByText("OfflineMatch")).not.toBeInTheDocument();
+  });
+
   it("shows history for the selected search tab", () => {
     historyMockState.historyByScope = {
       channels: ["ninja"],

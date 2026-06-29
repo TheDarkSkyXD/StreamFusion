@@ -4,6 +4,9 @@ import type { UnifiedCategory } from "../../backend/api/unified/platform-types";
 import { getEquivalentCategoryName, normalizeCategoryName, pickWinner } from "../../lib/utils";
 import type { Platform } from "../../shared/auth-types";
 
+import { useQueryCachePerformance } from "./cache-performance";
+import { getQueryCacheOptions } from "./cache-policy";
+
 // Minimal interface for stream data needed for category aggregation
 interface StreamSummary {
   categoryId?: string;
@@ -35,8 +38,9 @@ export interface CategoryMetadata {
  * /private/v1/categories fetch, so this hook short-circuits for them.
  */
 export function useCategoryMetadata(category: UnifiedCategory) {
-  return useQuery({
-    queryKey: CATEGORY_KEYS.metadata(category.id, category.platform),
+  const queryKey = CATEGORY_KEYS.metadata(category.id, category.platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async (): Promise<CategoryMetadata> => {
       const response = await window.electronAPI.categories.getMetadata({
         platform: category.platform,
@@ -49,15 +53,23 @@ export function useCategoryMetadata(category: UnifiedCategory) {
       return (response.data as CategoryMetadata) ?? { tags: undefined };
     },
     enabled: category.platform === "twitch",
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
+    ...getQueryCacheOptions("categoryReference"),
     refetchOnWindowFocus: false,
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: category.platform === "twitch",
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "category-detail",
+  });
+  return query;
 }
 
 export function useTopCategories(platform?: Platform, options: { enabled?: boolean } = {}) {
-  return useQuery({
-    queryKey: CATEGORY_KEYS.top(platform),
+  const queryKey = CATEGORY_KEYS.top(platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       // OPTIMIZATION: Fetch categories AND streams in PARALLEL instead of sequentially
       // This cuts loading time roughly in half since both requests run concurrently
@@ -158,21 +170,19 @@ export function useTopCategories(platform?: Platform, options: { enabled?: boole
         (a, b) => (b.viewerCount || 0) - (a.viewerCount || 0)
       );
     },
-    // PERFORMANCE: Categories list is expensive to fetch (1500+ items)
-    // Cache for 5 minutes since the category set itself rarely changes
-    staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh on remount
-    gcTime: 15 * 60 * 1000, // 15 minutes - keep in cache for quick return
-    // Show previous data instantly while refetching in background
-    placeholderData: (previousData) => previousData,
-    // Poll every 30s so card viewer counts update in real time — counts are
-    // derived from the top-streams aggregation above, so the query has to
-    // re-run to refresh them. Matches useStreamByChannel's 30s cadence.
-    refetchInterval: 30000,
-    refetchIntervalInBackground: false, // pause polling when window is hidden
+    ...getQueryCacheOptions("categories"),
     // Refetch when window regains focus (user may have been away)
     refetchOnWindowFocus: true,
     enabled: options.enabled,
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: options.enabled,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "categories",
+  });
+  return query;
 }
 
 /**
@@ -211,8 +221,9 @@ export function useUnifiedCategoryLink(
 
   // Cold path: search the other platform for a name match. Disabled when the
   // warm path already resolved or when we have nothing to look up.
-  const { data: searched } = useQuery({
-    queryKey: ["category-match", key, otherPlatform],
+  const queryKey = ["category-match", key, otherPlatform] as const;
+  const { data: searched, fetchStatus } = useQuery({
+    queryKey,
     queryFn: async () => {
       const searchQuery = (key && getEquivalentCategoryName(key, otherPlatform)) ?? categoryName;
       const response = await window.electronAPI.categories.search({
@@ -224,7 +235,14 @@ export function useUnifiedCategoryLink(
       return candidates.find((c) => normalizeCategoryName(c.name) === key) || null;
     },
     enabled: !!key && !!categoryId && !cachedEntry,
-    staleTime: 1000 * 60 * 5,
+    ...getQueryCacheOptions("categoryReference"),
+  });
+  useQueryCachePerformance({
+    data: searched,
+    enabled: !!key && !!categoryId && !cachedEntry,
+    fetchStatus,
+    queryKey,
+    surface: "category-detail",
   });
 
   if (!categoryId || key === null) {
@@ -251,8 +269,9 @@ export function useUnifiedCategoryLink(
 }
 
 export function useCategoryById(categoryId: string, platform: Platform) {
-  return useQuery({
-    queryKey: CATEGORY_KEYS.byId(categoryId, platform),
+  const queryKey = CATEGORY_KEYS.byId(categoryId, platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.categories.getById({ categoryId, platform });
       if (response.error) {
@@ -261,5 +280,14 @@ export function useCategoryById(categoryId: string, platform: Platform) {
       return response.data as UnifiedCategory;
     },
     enabled: !!categoryId && !!platform,
+    ...getQueryCacheOptions("categoryReference"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: !!categoryId && !!platform,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "category-detail",
+  });
+  return query;
 }

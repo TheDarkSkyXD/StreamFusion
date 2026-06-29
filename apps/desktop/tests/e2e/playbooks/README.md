@@ -9,6 +9,8 @@ The playbooks **do not run on CI** — CI runs the vitest unit suite only (see `
 - Validating new pages/features before committing.
 - Visual evidence (screenshots) of UI changes for PR descriptions.
 
+Save every screenshot to the repo-root `.scratch/images/` directory, for example `<repo-root>/.scratch/images/home.png`.
+
 ## MCP toolset used
 
 All playbooks call these tools (the `debug-electron-mcp` namespace):
@@ -36,7 +38,7 @@ Every playbook follows this skeleton:
 4. Pass criteria: bullets that must all be true at end
 ```
 
-When you ask Claude to "run the home playbook," Claude reads the corresponding file, executes each MCP call in order, and reports pass/fail against the criteria. If any step fails, Claude takes a screenshot, dumps recent logs, and stops.
+When you ask Claude to "run the home playbook," Claude reads the corresponding file, executes each MCP call in order, and reports pass/fail against the criteria. If any step fails, Claude takes a screenshot in `.scratch/images/`, dumps recent logs, and stops.
 
 ## Playbook index
 

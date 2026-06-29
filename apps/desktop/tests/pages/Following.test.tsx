@@ -130,6 +130,10 @@ vi.mock("@/components/stream/related-content/ClipDialog", () => ({
 }));
 
 import { useTopCategories } from "@/hooks/queries/useCategories";
+import {
+  getCachePerformanceSamples,
+  resetCachePerformanceSamples,
+} from "@/hooks/queries/cache-performance";
 import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
 import {
   useFollowedClipPlayback,
@@ -214,6 +218,7 @@ describe("FollowingPage", () => {
     storeState.localFollows = [];
     storeState.currentStream = null;
     storeState.repairFollowMetadataFromChannel.mockReset();
+    resetCachePerformanceSamples();
     useFollowedChannelsMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
       typeof useFollowedChannels
     >);
@@ -251,6 +256,29 @@ describe("FollowingPage", () => {
     expect(screen.getByRole("button", { name: /^all$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /twitch/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /kick/i })).toBeInTheDocument();
+  });
+
+  it("manual refresh dispatch is measured without showing global refresh copy", async () => {
+    const refetchFollowedStreams = vi.fn().mockResolvedValue({ isError: false, status: "success" });
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: refetchFollowedStreams,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /refresh following data/i }));
+
+    await waitFor(() => {
+      expect(refetchFollowedStreams).toHaveBeenCalledTimes(1);
+    });
+    expect(getCachePerformanceSamples("cache-invalidation")).toEqual([
+      expect.objectContaining({
+        surface: "manual-refresh:following",
+        withinBudget: true,
+      }),
+    ]);
+    expect(screen.queryByText(/refreshing cache|refreshing data/i)).not.toBeInTheDocument();
   });
 
   it("shows empty-state when there are no follows", () => {

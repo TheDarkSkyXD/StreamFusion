@@ -2,7 +2,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuClapperboard, LuHeart, LuPlay, LuRadio, LuSearch, LuTag, LuUsers } from "react-icons/lu";
+import {
+  LuClapperboard,
+  LuHeart,
+  LuPlay,
+  LuRadio,
+  LuRefreshCw,
+  LuSearch,
+  LuTag,
+  LuUsers,
+} from "react-icons/lu";
 
 import type {
   UnifiedCategory,
@@ -26,12 +35,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { invalidateFollowCachesAfterMutation } from "@/hooks/queries/cache-invalidation";
+import { measureCacheInvalidationDispatch } from "@/hooks/queries/cache-performance";
 import { useTopCategories } from "@/hooks/queries/useCategories";
-import {
-  CHANNEL_KEYS,
-  useChannelByUsername,
-  useFollowedChannels,
-} from "@/hooks/queries/useChannels";
+import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
 import {
   type FollowedClipTimeRange,
   type FollowedContentItem,
@@ -98,6 +105,14 @@ function preloadCategoryThumbnail(url: string) {
   preloadedCategoryThumbnails.set(url, image);
 }
 
+function manualRefreshResultFailed(result: PromiseSettledResult<unknown>) {
+  if (result.status === "rejected") return true;
+  const value = result.value;
+  if (typeof value !== "object" || value === null) return false;
+  const queryResult = value as { isError?: boolean; status?: unknown };
+  return queryResult.isError === true || queryResult.status === "error";
+}
+
 export function FollowingPage() {
   const canRenderContent = useAfterFirstPaint();
   const [activeTab, setActiveTab] = useState<FollowingTab>("live");
@@ -108,6 +123,8 @@ export function FollowingPage() {
   const [clipTimeRange, setClipTimeRange] = useState<FollowedClipTimeRange>("all");
   const [visibleVideoCount, setVisibleVideoCount] = useState(CONTENT_PAGE_SIZE);
   const [visibleClipCount, setVisibleClipCount] = useState(CONTENT_PAGE_SIZE);
+  const [manualRefreshPending, setManualRefreshPending] = useState(false);
+  const [manualRefreshFailed, setManualRefreshFailed] = useState(false);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const videoLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const clipLoadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -126,16 +143,28 @@ export function FollowingPage() {
 
   // 2. Remote follows
   // Only fetch if connected to respective platform
-  const { data: twitchFollows, isLoading: isLoadingTwitch } = useFollowedChannels("twitch", {
+  const {
+    data: twitchFollows,
+    isLoading: isLoadingTwitch,
+    refetch: refetchTwitchFollows,
+  } = useFollowedChannels("twitch", {
     enabled: twitchConnected,
   });
-  const { data: kickFollows, isLoading: isLoadingKick } = useFollowedChannels("kick", {
+  const {
+    data: kickFollows,
+    isLoading: isLoadingKick,
+    refetch: refetchKickFollows,
+  } = useFollowedChannels("kick", {
     enabled: kickConnected,
   });
 
   // 3. Live streams (All platforms)
   // Backend now handles fetching streams for local follows even if disconnected
-  const { data: liveStreams, isLoading: isLoadingStreams } = useFollowedStreams();
+  const {
+    data: liveStreams,
+    isLoading: isLoadingStreams,
+    refetch: refetchFollowedStreams,
+  } = useFollowedStreams();
   const currentStream = usePipStore((state) => state.currentStream);
 
   // Combine channels logic
@@ -292,7 +321,7 @@ export function FollowingPage() {
 
     void Promise.resolve(repairFollowMetadataFromChannel(searchedKickChannel)).then((repaired) => {
       if (repaired) {
-        void queryClient.invalidateQueries({ queryKey: CHANNEL_KEYS.followed("kick") });
+        invalidateFollowCachesAfterMutation(queryClient, "kick");
       }
     });
   }, [
@@ -305,10 +334,13 @@ export function FollowingPage() {
   const shouldLoadFollowedCategories =
     canRenderContent &&
     (activeTab === "categories" || liveChannels.some((stream) => Boolean(stream.categoryName)));
-  const { data: topCategories, isLoading: isLoadingTopCategories } = useTopCategories(
-    filter === "all" ? undefined : filter,
-    { enabled: shouldLoadFollowedCategories }
-  );
+  const {
+    data: topCategories,
+    isLoading: isLoadingTopCategories,
+    refetch: refetchTopCategories,
+  } = useTopCategories(filter === "all" ? undefined : filter, {
+    enabled: shouldLoadFollowedCategories,
+  });
 
   const channelLookup = useMemo(() => {
     const lookup = new Map<string, UnifiedChannel>();
@@ -322,14 +354,23 @@ export function FollowingPage() {
     return lookup;
   }, [followedChannelList]);
 
-  const { data: followedVideos = [], isLoading: isLoadingVideos } = useFollowedVideos(
-    followedChannelList,
-    { enabled: activeTab === "videos", sort: videoSort }
-  );
-  const { data: followedClips = [], isLoading: isLoadingClips } = useFollowedClips(
-    followedChannelList,
-    { enabled: activeTab === "clips", sort: clipSort, timeRange: clipTimeRange }
-  );
+  const {
+    data: followedVideos = [],
+    isLoading: isLoadingVideos,
+    refetch: refetchFollowedVideos,
+  } = useFollowedVideos(followedChannelList, {
+    enabled: activeTab === "videos",
+    sort: videoSort,
+  });
+  const {
+    data: followedClips = [],
+    isLoading: isLoadingClips,
+    refetch: refetchFollowedClips,
+  } = useFollowedClips(followedChannelList, {
+    enabled: activeTab === "clips",
+    sort: clipSort,
+    timeRange: clipTimeRange,
+  });
   const visibleVideos = useMemo(
     () => getVisibleContent(followedVideos, visibleVideoCount),
     [followedVideos, visibleVideoCount]
@@ -352,6 +393,43 @@ export function FollowingPage() {
   const revealMoreClips = useCallback(() => {
     setVisibleClipCount((count) => Math.min(count + CONTENT_PAGE_SIZE, followedClips.length));
   }, [followedClips.length]);
+
+  const refreshFollowingData = useCallback(async () => {
+    if (manualRefreshPending) return;
+
+    setManualRefreshPending(true);
+    setManualRefreshFailed(false);
+    try {
+      const refreshes: Array<Promise<unknown>> = [refetchFollowedStreams()];
+      if (twitchConnected && filter !== "kick") refreshes.push(refetchTwitchFollows());
+      if (kickConnected && filter !== "twitch") refreshes.push(refetchKickFollows());
+      if (activeTab === "categories" || shouldLoadFollowedCategories) {
+        refreshes.push(refetchTopCategories());
+      }
+      if (activeTab === "videos") refreshes.push(refetchFollowedVideos());
+      if (activeTab === "clips") refreshes.push(refetchFollowedClips());
+
+      const results = await measureCacheInvalidationDispatch("manual-refresh:following", () =>
+        Promise.allSettled(refreshes)
+      );
+      setManualRefreshFailed(results.some(manualRefreshResultFailed));
+    } finally {
+      setManualRefreshPending(false);
+    }
+  }, [
+    activeTab,
+    filter,
+    kickConnected,
+    manualRefreshPending,
+    refetchFollowedClips,
+    refetchFollowedStreams,
+    refetchFollowedVideos,
+    refetchKickFollows,
+    refetchTopCategories,
+    refetchTwitchFollows,
+    shouldLoadFollowedCategories,
+    twitchConnected,
+  ]);
 
   useEffect(() => {
     if (
@@ -694,19 +772,44 @@ export function FollowingPage() {
             </Button>
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-foreground-muted)]" />
-            <input
-              type="text"
-              placeholder="Search followed channels..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setVisibleVideoCount(CONTENT_PAGE_SIZE);
-                setVisibleClipCount(CONTENT_PAGE_SIZE);
-              }}
-              className="w-full h-9 pl-9 pr-4 rounded-md bg-[var(--color-background-tertiary)] border border-[var(--color-border)] text-sm focus:outline-none focus:ring-2 focus:ring-white transition-all placeholder:text-[var(--color-foreground-muted)]"
-            />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative min-w-0 flex-1 sm:w-64">
+              <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-foreground-muted)]" />
+              <input
+                type="text"
+                placeholder="Search followed channels..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setVisibleVideoCount(CONTENT_PAGE_SIZE);
+                  setVisibleClipCount(CONTENT_PAGE_SIZE);
+                }}
+                className="w-full h-9 pl-9 pr-4 rounded-md bg-[var(--color-background-tertiary)] border border-[var(--color-border)] text-sm focus:outline-none focus:ring-2 focus:ring-white transition-all placeholder:text-[var(--color-foreground-muted)]"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="icon"
+              className={cn(
+                "h-9 w-9 shrink-0",
+                manualRefreshFailed && "border-red-500/40 text-red-200 hover:text-red-100"
+              )}
+              onClick={() => void refreshFollowingData()}
+              disabled={manualRefreshPending}
+              aria-label={
+                manualRefreshFailed ? "Retry refreshing following data" : "Refresh following data"
+              }
+              title={
+                manualRefreshFailed
+                  ? "Some data failed to refresh. Try again."
+                  : "Refresh following data"
+              }
+            >
+              <LuRefreshCw
+                className={cn("h-4 w-4", manualRefreshPending && "animate-spin")}
+                aria-hidden="true"
+              />
+            </Button>
           </div>
         </div>
 

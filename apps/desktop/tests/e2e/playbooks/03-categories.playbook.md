@@ -28,7 +28,7 @@ Confirm Categories page loads categories from the unified backend, the heading +
    document.body.innerText.includes('No categories matching "zzz-categories-miss"')
    ```
 
-5. **Screenshot** → `categories.png`.
+5. **Screenshot** → `.scratch/images/categories.png`.
 
 ## Pass criteria
 - [ ] Heading "Categories" present.

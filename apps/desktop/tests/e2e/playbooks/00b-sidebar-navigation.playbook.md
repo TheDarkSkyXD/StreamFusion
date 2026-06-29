@@ -13,16 +13,16 @@ For each row in the table below:
 
 1. Click the sidebar link (or fall back to hash navigation if the click selector is unstable).
 2. Wait for the page sentinel to appear.
-3. Take a screenshot named per `Screenshot`.
+3. Take a screenshot under `.scratch/images/` named per `Screenshot`.
 
 | Order | Sidebar label | Hash route fallback | Sentinel (visible text or selector) | Screenshot |
 |------:|---------------|---------------------|--------------------------------------|------------|
-| 1 | "Home" | `#/` | Text "Browse All Categories" | `nav-01-home.png` |
-| 2 | "Following" | `#/following` | Heading matching `/following/i` | `nav-02-following.png` |
-| 3 | "Categories" | `#/categories` | Heading matching `/categories/i` | `nav-03-categories.png` |
-| 4 | "History" | `#/history` | Heading matching `/watch history/i` | `nav-04-history.png` |
-| 5 | "Downloads" | `#/downloads` | Heading matching `/downloads/i` | `nav-05-downloads.png` |
-| 6 | "MultiStream" | `#/multistream` | Button with name `/add stream/i` | `nav-06-multistream.png` |
+| 1 | "Home" | `#/` | Text "Browse All Categories" | `.scratch/images/nav-01-home.png` |
+| 2 | "Following" | `#/following` | Heading matching `/following/i` | `.scratch/images/nav-02-following.png` |
+| 3 | "Categories" | `#/categories` | Heading matching `/categories/i` | `.scratch/images/nav-03-categories.png` |
+| 4 | "History" | `#/history` | Heading matching `/watch history/i` | `.scratch/images/nav-04-history.png` |
+| 5 | "Downloads" | `#/downloads` | Heading matching `/downloads/i` | `.scratch/images/nav-05-downloads.png` |
+| 6 | "MultiStream" | `#/multistream` | Button with name `/add stream/i` | `.scratch/images/nav-06-multistream.png` |
 
 ### Click-first navigation (preferred)
 

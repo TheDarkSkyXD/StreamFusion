@@ -26,7 +26,7 @@ Confirm a VOD route mounts with metadata passed via search params and a VOD play
    !!document.querySelector('video, [class*="vod-player"], [class*="player"]')
    ```
 
-4. **Screenshot** → `video.png`.
+4. **Screenshot** → `.scratch/images/video.png`.
 
 ## Pass criteria
 - [ ] Passed `title` from URL is visible in the DOM.

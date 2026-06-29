@@ -35,6 +35,7 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
   const openExternal = useOpenExternal();
   const kickConnected = useAuthStore((state) => state.kickConnected);
   const [isHovering, setIsHovering] = useState(false);
+  const [isPending, setIsPending] = useState(false);
 
   const platform = channel.platform as Platform;
   // Platform-tagged rows (source = "kick" or "twitch") represent follows
@@ -47,9 +48,11 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
   const isManagedByTwitch = platform === "twitch" && followSource === platform;
   const isManagedByKick = platform === "kick" && followSource === platform;
 
-  const handleClick = (e: MouseEvent) => {
+  const handleClick = async (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (isPending) return;
 
     if (isManagedByTwitch && channel.username) {
       const url = buildTwitchChannelUrl(channel.username);
@@ -87,7 +90,16 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
       return;
     }
 
-    toggleFollow(channel);
+    setIsPending(true);
+    try {
+      await toggleFollow(channel);
+    } catch {
+      toast("Couldn't update follow", {
+        description: `Your follow list was restored. Try ${channel.displayName || channel.username} again.`,
+      });
+    } finally {
+      setIsPending(false);
+    }
   };
 
   const getButtonStyles = () => {
@@ -105,27 +117,34 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
     <Button
       className={cn(
         "rounded-full font-bold transition-all gap-2 shadow-sm",
-        isFollowing ? "w-10 h-10 p-0" : "min-w-[100px] px-4",
+        isFollowing && !isPending ? "w-10 h-10 p-0" : "min-w-[100px] px-4",
         getButtonStyles(),
         className
       )}
       size={size}
       onClick={handleClick}
+      disabled={isPending}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       title={
-        isManagedByTwitch
-          ? "Followed via your Twitch account — click to manage on twitch.tv"
-          : isManagedByKick
-            ? "Followed via your Kick account — click to manage on kick.com"
-            : !isFollowing && platform === "kick" && kickConnected
-              ? "Open on kick.com to follow with your Kick account"
-              : isFollowing
-                ? "Unfollow"
-                : "Follow"
+        isPending
+          ? isFollowing
+            ? "Unfollowing..."
+            : "Following..."
+          : isManagedByTwitch
+            ? "Followed via your Twitch account — click to manage on twitch.tv"
+            : isManagedByKick
+              ? "Followed via your Kick account — click to manage on kick.com"
+              : !isFollowing && platform === "kick" && kickConnected
+                ? "Open on kick.com to follow with your Kick account"
+                : isFollowing
+                  ? "Unfollow"
+                  : "Follow"
       }
     >
-      {isFollowing ? (
+      {isPending ? (
+        <span>{isFollowing ? "Unfollowing..." : "Following..."}</span>
+      ) : isFollowing ? (
         isHovering ? (
           <LuHeartCrack className="w-5 h-5 text-red-500" strokeWidth={3} />
         ) : (

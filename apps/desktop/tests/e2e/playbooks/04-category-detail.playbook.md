@@ -31,7 +31,7 @@ Confirm clicking into a specific category mounts the detail page with a back-lin
    t.includes("No active streams") || !!document.querySelector('[data-testid*="stream"], .stream-card, h1')
    ```
 
-5. **Screenshot** → `category-detail.png`.
+5. **Screenshot** → `.scratch/images/category-detail.png`.
 
 ## Pass criteria
 - [ ] URL hash matches `#/categories/<platform>/<id>`.

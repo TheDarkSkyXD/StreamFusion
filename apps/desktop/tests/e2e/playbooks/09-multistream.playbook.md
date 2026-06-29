@@ -33,7 +33,7 @@ Confirm MultiStream toolbar renders, the focus-layout button is disabled when em
    /Add Stream to Layout/i.test(document.body.innerText)
    ```
 
-6. **Screenshot** → `multistream.png`.
+6. **Screenshot** → `.scratch/images/multistream.png`.
 
 ## Pass criteria
 - [ ] Toolbar present with "MultiStream" label.

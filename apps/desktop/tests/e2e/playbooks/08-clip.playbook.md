@@ -28,7 +28,7 @@ page route.
    !window.location.hash.startsWith("#/clip/");
    ```
 
-5. **Screenshot** -> `clip-dialog.png`.
+5. **Screenshot** -> `.scratch/images/clip-dialog.png`.
 
 ## Pass Criteria
 - [ ] Clip dialog opens from a clip card.

@@ -171,6 +171,7 @@ export function SearchPage() {
       views: (selectedClip.viewCount || 0).toString(),
       date: selectedClip.createdAt,
       created_at: selectedClip.createdAt,
+      creatorName: selectedClip.creatorName,
       thumbnailUrl: selectedClip.thumbnailUrl,
       embedUrl: selectedClip.embedUrl || selectedClip.clipUrl,
       url: selectedClip.clipUrl,

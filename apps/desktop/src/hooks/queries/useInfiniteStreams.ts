@@ -3,11 +3,14 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import type { UnifiedStream } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
+import { useQueryCachePerformance } from "./cache-performance";
+import { getQueryCacheOptions } from "./cache-policy";
 import { STREAM_KEYS } from "./useStreams";
 
 function useInfiniteTopStreams(platform?: Platform, limit: number = 20) {
-  return useInfiniteQuery({
-    queryKey: [...STREAM_KEYS.top(platform, limit), "infinite"],
+  const queryKey = [...STREAM_KEYS.top(platform, limit), "infinite"] as const;
+  const query = useInfiniteQuery({
+    queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await window.electronAPI.streams.getTop({
@@ -26,7 +29,15 @@ function useInfiniteTopStreams(platform?: Platform, limit: number = 20) {
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    ...getQueryCacheOptions("streamList"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "stream-list",
+  });
+  return query;
 }
 
 export function useInfiniteStreamsByCategory(
@@ -36,8 +47,15 @@ export function useInfiniteStreamsByCategory(
   categoryName?: string,
   language?: string
 ) {
-  return useInfiniteQuery({
-    queryKey: [...STREAM_KEYS.byCategory(categoryId, platform), "infinite", categoryName, language],
+  const queryKey = [
+    ...STREAM_KEYS.byCategory(categoryId, platform),
+    "infinite",
+    categoryName,
+    language,
+  ] as const;
+  const enabled = !!categoryId || !!categoryName;
+  const query = useInfiniteQuery({
+    queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await window.electronAPI.streams.getByCategory({
@@ -61,13 +79,23 @@ export function useInfiniteStreamsByCategory(
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     // categoryName lets the Kick path slug-guess when the numeric id is unknown,
     // so enable the query when either a real id OR a name is available.
-    enabled: !!categoryId || !!categoryName,
+    enabled,
+    ...getQueryCacheOptions("streamList"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "category-detail",
+  });
+  return query;
 }
 
 function useInfiniteFollowedStreams(platform?: Platform, limit: number = 20) {
-  return useInfiniteQuery({
-    queryKey: [...STREAM_KEYS.followed(platform), "infinite"],
+  const queryKey = [...STREAM_KEYS.followed(platform), "infinite"] as const;
+  const query = useInfiniteQuery({
+    queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await window.electronAPI.streams.getFollowed({
@@ -86,5 +114,13 @@ function useInfiniteFollowedStreams(platform?: Platform, limit: number = 20) {
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    ...getQueryCacheOptions("followedStreamStatus"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "following",
+  });
+  return query;
 }

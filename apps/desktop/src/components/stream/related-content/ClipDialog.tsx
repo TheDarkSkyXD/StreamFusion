@@ -1,5 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import type { IconType } from "react-icons";
+import { LuCalendarClock, LuEye, LuGamepad2, LuScissors } from "react-icons/lu";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickVodPlayer } from "@/components/player/kick";
@@ -10,11 +12,12 @@ import { FollowButton } from "@/components/ui/follow-button";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
+import { useHistoryActions } from "@/hooks/queries/useHistoryQuery";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
-import { useHistoryStore } from "@/store/history-store";
 
 import type { VideoOrClip } from "./types";
+import { formatTimeAgo, formatViews } from "./utils";
 
 interface ClipDialogProps {
   selectedClip: VideoOrClip | null;
@@ -27,6 +30,27 @@ interface ClipDialogProps {
   channelName: string;
   channelData: UnifiedChannel | null | undefined;
   onPlaybackError: () => void;
+}
+
+type ClipMetadataItem = {
+  key: string;
+  label: string;
+  Icon: IconType;
+};
+
+function normalizeMetadataNumber(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value.toString() : null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function firstMetadataNumber(...values: Array<string | number | null | undefined>): string | null {
+  for (const value of values) {
+    const normalized = normalizeMetadataNumber(value);
+    if (normalized !== null) return normalized;
+  }
+  return null;
 }
 
 export function ClipDialog({
@@ -42,10 +66,37 @@ export function ClipDialog({
   onPlaybackError,
 }: ClipDialogProps) {
   const navigate = useNavigate();
-  const addToHistory = useHistoryStore((state) => state.addToHistory);
+  const { addToHistory } = useHistoryActions();
   const [vodLookupLoading, setVodLookupLoading] = useState(false);
   const [vodLookupError, setVodLookupError] = useState<string | null>(null);
   const clipPlatform = selectedClip?.platform ?? platform;
+  const channelDisplayName = channelData?.displayName || selectedClip?.channelName || channelName;
+  const channelAvatar = channelData?.avatarUrl || selectedClip?.channelAvatar || "";
+  const followerCount = channelData?.followerCount ?? selectedClip?.channelFollowerCount;
+  const clipCategory = selectedClip?.category || selectedClip?.gameName;
+  const clipCreatorName = selectedClip?.creatorName?.trim();
+  const clipViews = firstMetadataNumber(
+    selectedClip?.views,
+    selectedClip?.viewCount,
+    selectedClip?.view_count
+  );
+  const clipMetadata: Array<ClipMetadataItem | null> = [
+    clipCreatorName
+      ? { key: "creator", label: `Clipped by @${clipCreatorName}`, Icon: LuScissors }
+      : null,
+    clipCategory ? { key: "category", label: clipCategory, Icon: LuGamepad2 } : null,
+    clipViews ? { key: "views", label: `${formatViews(clipViews)} views`, Icon: LuEye } : null,
+    selectedClip?.created_at || selectedClip?.date
+      ? {
+          key: "date",
+          label: formatTimeAgo(selectedClip.created_at || selectedClip.date),
+          Icon: LuCalendarClock,
+        }
+      : null,
+  ];
+  const visibleClipMetadata = clipMetadata.filter((value): value is ClipMetadataItem =>
+    Boolean(value)
+  );
 
   useEffect(() => {
     if (!selectedClip || clipLoading) return;
@@ -61,7 +112,17 @@ export function ClipDialog({
       type: "clip",
       channelName: selectedClip.channelSlug || channelName,
       channelDisplayName: channelData?.displayName || selectedClip.channelName || channelName,
-      channelAvatar: selectedClip.channelAvatar || channelData?.avatarUrl || null,
+      channelAvatar: channelData?.avatarUrl || selectedClip.channelAvatar || null,
+      channelFollowerCount: channelData?.followerCount ?? selectedClip.channelFollowerCount,
+      clipDuration: selectedClip.duration,
+      clipViews: clipViews ?? selectedClip.views,
+      clipDate: selectedClip.date,
+      clipCreatedAt: selectedClip.created_at,
+      clipCreatorName,
+      clipGameName: selectedClip.gameName,
+      clipCategory,
+      clipVodId: selectedClip.vodId,
+      clipLanguage: selectedClip.language,
     });
   }, [
     selectedClip,
@@ -69,8 +130,11 @@ export function ClipDialog({
     clipError,
     clipPlaybackUrl,
     clipPlatform,
+    clipCategory,
+    clipCreatorName,
     channelName,
     channelData,
+    clipViews,
     addToHistory,
   ]);
 
@@ -186,12 +250,25 @@ export function ClipDialog({
             <div className="w-[350px] bg-[var(--color-background-secondary)] shrink-0 border-l border-[var(--color-border)] p-6 flex flex-col gap-6 overflow-y-auto">
               <div className="mt-8">
                 <h2 className="text-xl font-bold text-white line-clamp-2">{selectedClip.title}</h2>
-                <div className="flex items-center gap-2 text-sm text-[var(--color-foreground-secondary)] mt-1">
-                  <span>{selectedClip.gameName}</span>
-                  <span>•</span>
-                  <span>{selectedClip.views} views</span>
-                  <span>•</span>
-                  <span>{selectedClip.date}</span>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {visibleClipMetadata.length > 0 ? (
+                    visibleClipMetadata.map(({ key, label, Icon }) => (
+                      <span
+                        key={key}
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-2.5 py-1 text-xs font-semibold text-[var(--color-foreground-secondary)]"
+                      >
+                        <Icon
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5 shrink-0 text-[var(--color-foreground-muted)]"
+                        />
+                        <span className="min-w-0 truncate">{label}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-[var(--color-foreground-muted)]">
+                      Clip metadata unavailable
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -200,18 +277,20 @@ export function ClipDialog({
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
                   <PlatformAvatar
-                    src={channelData?.avatarUrl || ""}
-                    alt={channelData?.displayName || channelName || ""}
+                    src={channelAvatar}
+                    alt={channelDisplayName || ""}
                     platform={(clipPlatform as Platform) || "twitch"}
                     size="w-12 h-12"
                     className="bg-neutral-800"
                   />
                   <div className="flex flex-col">
                     <span className="font-bold text-lg hover:underline decoration-2 underline-offset-4 decoration-[var(--color-primary)] cursor-pointer">
-                      {channelData?.displayName || channelName}
+                      {channelDisplayName}
                     </span>
                     <span className="text-[var(--color-foreground-muted)] text-sm">
-                      Followers hidden
+                      {typeof followerCount === "number"
+                        ? `${formatViews(followerCount)} followers`
+                        : "Followers unavailable"}
                     </span>
                   </div>
                 </div>

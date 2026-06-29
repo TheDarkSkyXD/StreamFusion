@@ -28,11 +28,24 @@ import { logger } from "@/renderer/logging/logger";
 
 type PlaylistLoaderConstructor = new (config: HlsConfig) => Loader<PlaylistLoaderContext>;
 
+const KICK_CLIP_SEGMENT_CACHE_BUST = "sf_clip_nocache=1";
+
 export function isKickClipPlaylistUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   if (!url.includes(".m3u8")) return false;
   if (!/kick\.com/i.test(url)) return false;
   return /\/clips?\//i.test(url);
+}
+
+function appendKickClipSegmentCacheBust(uri: string): string {
+  if (uri.includes(KICK_CLIP_SEGMENT_CACHE_BUST)) return uri;
+
+  const hashIndex = uri.indexOf("#");
+  const beforeHash = hashIndex === -1 ? uri : uri.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? "" : uri.slice(hashIndex);
+  const separator = beforeHash.includes("?") ? "&" : "?";
+
+  return `${beforeHash}${separator}${KICK_CLIP_SEGMENT_CACHE_BUST}${hash}`;
 }
 
 /**
@@ -46,10 +59,18 @@ function dropFirstSegment(text: string): string {
   const lines = text.replace(/\r/g, "").split("\n");
   const out: string[] = [];
   let droppedFirstSegment = false;
+  let awaitingSegmentUri = false;
   let i = 0;
 
   while (i < lines.length) {
     const line = lines[i];
+
+    if (awaitingSegmentUri && line && !line.startsWith("#")) {
+      out.push(appendKickClipSegmentCacheBust(line));
+      awaitingSegmentUri = false;
+      i++;
+      continue;
+    }
 
     if (line.startsWith("#EXT-X-MEDIA-SEQUENCE:")) {
       const match = line.match(/^#EXT-X-MEDIA-SEQUENCE:(\d+)/);
@@ -73,6 +94,9 @@ function dropFirstSegment(text: string): string {
     }
 
     out.push(line);
+    if (line.startsWith("#EXTINF:")) {
+      awaitingSegmentUri = true;
+    }
     i++;
   }
 

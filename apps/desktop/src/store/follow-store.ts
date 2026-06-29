@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { invalidateFollowCachesAfterMutation } from "@/hooks/queries/cache-invalidation";
+import { queryClient } from "@/providers/query-provider";
 import { logger } from "@/renderer/logging/logger";
 import type { UnifiedChannel } from "../backend/api/unified/platform-types";
 import { channelsMatch } from "../lib/id-utils";
@@ -48,13 +50,13 @@ interface FollowState {
    * server is `storageService.getActiveFollowsByPlatform`.
    */
   sourceByKey: Map<string, FollowSource>;
-  followChannel: (channel: UnifiedChannel) => void;
-  unfollowChannel: (channel: UnifiedChannel) => void;
+  followChannel: (channel: UnifiedChannel) => Promise<void>;
+  unfollowChannel: (channel: UnifiedChannel) => Promise<void>;
   isFollowing: (channel: UnifiedChannel) => boolean;
   /** Returns null when the channel isn't followed (anywhere). */
   getFollowSource: (channel: UnifiedChannel) => FollowSource | null;
   repairFollowMetadataFromChannel: (channel: UnifiedChannel) => Promise<boolean>;
-  toggleFollow: (channel: UnifiedChannel) => void;
+  toggleFollow: (channel: UnifiedChannel) => Promise<void>;
   upgradeFollowIfNeeded: (channel: UnifiedChannel) => Promise<void>;
   hydrate: () => Promise<void>;
 }
@@ -103,6 +105,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
             return { sourceByKey: merged };
           });
         }
+        invalidateFollowCachesAfterMutation(queryClient, channel.platform);
       } catch (err) {
         logger.error("Store:Follow", "failed to save follow to backend", {
           error:
@@ -111,6 +114,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
               : String(err),
         });
         set({ localFollows: currentFollows, sourceByKey: currentSources });
+        throw err;
       }
     } finally {
       inFlight.delete(key);
@@ -156,6 +160,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
         for (const m of matches) {
           await window.electronAPI.follows.remove(m.id);
         }
+        invalidateFollowCachesAfterMutation(queryClient, followToRemove.platform);
       } catch (err) {
         logger.error("Store:Follow", "failed to remove follow from backend", {
           error:
@@ -167,6 +172,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
         // what actually got deleted. Re-sync from DB truth rather than guessing
         // which rows still exist.
         await get().hydrate();
+        throw err;
       }
     } finally {
       inFlight.delete(key);
@@ -246,10 +252,9 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
   toggleFollow: (channel) => {
     const { isFollowing, followChannel, unfollowChannel } = get();
     if (isFollowing(channel)) {
-      unfollowChannel(channel);
-    } else {
-      followChannel(channel);
+      return unfollowChannel(channel);
     }
+    return followChannel(channel);
   },
 
   // When a canonical channel arrives for a row previously written with an
@@ -307,6 +312,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
             return { sourceByKey: merged };
           });
         }
+        invalidateFollowCachesAfterMutation(queryClient, channel.platform);
       } catch (err) {
         logger.error("Store:Follow", "failed to upgrade follow to canonical id", {
           error:

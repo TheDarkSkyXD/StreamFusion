@@ -7,6 +7,7 @@ import type { UnifiedCategory } from "@/backend/api/unified/platform-types";
 import { CategoryFilterBar } from "@/components/discovery/category-filter-bar";
 import { StreamGrid } from "@/components/stream/stream-grid";
 import { ProxiedImage } from "@/components/ui/proxied-image";
+import { getQueryCacheOptions } from "@/hooks/queries/cache-policy";
 import { useCategoryById } from "@/hooks/queries/useCategories";
 import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
@@ -71,7 +72,7 @@ export function CategoryDetailPage() {
       return candidates.find((c) => normalizeCategoryName(c.name) === normalizedKey) || null;
     },
     enabled: !!category?.name && !otherId,
-    staleTime: 1000 * 60 * 5, // Cache for 5 mins
+    ...getQueryCacheOptions("categoryReference"),
   });
 
   const otherCategoryId = otherId ?? otherCategoryFromSearch?.id ?? "";

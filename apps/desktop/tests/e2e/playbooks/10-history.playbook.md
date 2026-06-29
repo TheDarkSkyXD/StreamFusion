@@ -23,7 +23,7 @@ Confirm Watch History page mounts. If history is empty, the empty state shows; o
    ({ isEmpty, hasClear })
    ```
 
-4. **Screenshot** → `history.png`.
+4. **Screenshot** → `.scratch/images/history.png`.
 
 ## Pass criteria
 - [ ] Heading "Watch History" present.

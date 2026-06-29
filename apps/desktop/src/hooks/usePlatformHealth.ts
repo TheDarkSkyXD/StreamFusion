@@ -7,6 +7,8 @@
 import { useEffect, useState } from "react";
 
 import type { PlatformHealth, StatusPageDetail } from "@/backend/api/unified/platform-health";
+import { invalidatePlatformRecoveryCaches } from "@/hooks/queries/cache-invalidation";
+import { queryClient } from "@/providers/query-provider";
 
 interface PlatformHealthState {
   kick: PlatformHealth;
@@ -53,6 +55,10 @@ export function usePlatformHealth(): PlatformHealthState {
     });
 
     const unsubscribe = bridge.onChange((event) => {
+      if (event.status === "healthy") {
+        invalidatePlatformRecoveryCaches(queryClient, event.platform);
+      }
+
       setState((prev) => {
         const next = { kick: prev.kick, twitch: prev.twitch };
         next[event.platform] = event.status;

@@ -17,8 +17,9 @@ vi.mock('@tanstack/react-router', () => routerMock({
 }));
 
 const addToHistory = vi.fn();
-vi.mock('@/store/history-store', () => ({
-  useHistoryStore: () => ({ addToHistory }),
+const removeFromHistory = vi.fn();
+vi.mock('@/hooks/queries/useHistoryQuery', () => ({
+  useHistoryActions: () => ({ addToHistory, removeFromHistory }),
 }));
 
 vi.mock('@/store/follow-store', () => ({
@@ -53,6 +54,7 @@ import { VideoPage } from '@/pages/Video';
 describe('VideoPage', () => {
   beforeEach(() => {
     addToHistory.mockReset();
+    removeFromHistory.mockReset();
   });
 
   it('renders the VOD title passed via search params', () => {

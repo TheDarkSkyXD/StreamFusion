@@ -9,7 +9,10 @@ import type {
 } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
-const SEARCH_KEYS = {
+import { useQueryCachePerformance } from "./cache-performance";
+import { getQueryCacheOptions } from "./cache-policy";
+
+export const SEARCH_KEYS = {
   all: ["search"] as const,
   channels: (query: string, platform?: Platform, limit?: number) =>
     [...SEARCH_KEYS.all, "channels", query, platform, limit] as const,
@@ -20,8 +23,6 @@ const SEARCH_KEYS = {
 };
 
 const MIN_REMOTE_SEARCH_LENGTH = 1;
-const SEARCH_STALE_TIME_MS = 5 * 60_000;
-const SEARCH_GC_TIME_MS = 10 * 60_000;
 
 // Electron IPC has no native AbortSignal propagation — the backend will still
 // finish the work, but the renderer ignores stale results so a fast typer
@@ -34,9 +35,10 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 
 export function useSearchChannels(query: string, platform?: Platform, limit: number = 50) {
   const normalizedQuery = query.trim();
+  const queryKey = SEARCH_KEYS.channels(normalizedQuery, platform, limit);
 
-  return useInfiniteQuery({
-    queryKey: SEARCH_KEYS.channels(normalizedQuery, platform, limit),
+  const result = useInfiniteQuery({
+    queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.search.channels({
@@ -58,16 +60,24 @@ export function useSearchChannels(query: string, platform?: Platform, limit: num
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
     enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
-    staleTime: SEARCH_STALE_TIME_MS,
-    gcTime: SEARCH_GC_TIME_MS,
+    ...getQueryCacheOptions("searchResults"),
   });
+  useQueryCachePerformance({
+    data: result.data,
+    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    fetchStatus: result.fetchStatus,
+    queryKey,
+    surface: "search",
+  });
+  return result;
 }
 
 export function useSearchCategories(query: string, platform?: Platform, limit: number = 20) {
   const normalizedQuery = query.trim();
+  const queryKey = SEARCH_KEYS.categories(normalizedQuery, platform, limit);
 
-  return useInfiniteQuery({
-    queryKey: SEARCH_KEYS.categories(normalizedQuery, platform, limit),
+  const result = useInfiniteQuery({
+    queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.categories.search({
@@ -90,9 +100,16 @@ export function useSearchCategories(query: string, platform?: Platform, limit: n
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
     enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
-    staleTime: SEARCH_STALE_TIME_MS,
-    gcTime: SEARCH_GC_TIME_MS,
+    ...getQueryCacheOptions("searchResults"),
   });
+  useQueryCachePerformance({
+    data: result.data,
+    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    fetchStatus: result.fetchStatus,
+    queryKey,
+    surface: "search",
+  });
+  return result;
 }
 
 export interface SearchAllResponse {
@@ -105,9 +122,10 @@ export interface SearchAllResponse {
 
 export function useSearchAll(query: string, platform?: Platform, limit: number = 5) {
   const normalizedQuery = query.trim();
+  const queryKey = SEARCH_KEYS.everything(normalizedQuery, platform, limit);
 
-  return useQuery({
-    queryKey: SEARCH_KEYS.everything(normalizedQuery, platform, limit),
+  const result = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.search.all({
         query: normalizedQuery,
@@ -120,8 +138,14 @@ export function useSearchAll(query: string, platform?: Platform, limit: number =
       return response.data as SearchAllResponse;
     },
     enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
-    staleTime: SEARCH_STALE_TIME_MS,
-    gcTime: SEARCH_GC_TIME_MS,
-    placeholderData: (previousData) => previousData,
+    ...getQueryCacheOptions("searchResults"),
   });
+  useQueryCachePerformance({
+    data: result.data,
+    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    fetchStatus: result.fetchStatus,
+    queryKey,
+    surface: "search",
+  });
+  return result;
 }

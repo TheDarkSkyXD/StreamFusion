@@ -7,6 +7,7 @@ import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
+import { getQueryCacheOptions } from "@/hooks/queries/cache-policy";
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -78,7 +79,7 @@ export const StreamCard = React.memo(
             if (response.error) throw new Error(response.error);
             return response.data;
           },
-          staleTime: 1000 * 60 * 5,
+          ...getQueryCacheOptions("followedChannelList"),
         });
 
         queryClient.prefetchQuery({
@@ -91,6 +92,7 @@ export const StreamCard = React.memo(
             if (response.error) throw new Error(response.error);
             return response.data;
           },
+          ...getQueryCacheOptions("streamChannelDetail"),
         });
       }, [queryClient, stream.channelName, stream.platform])
     );

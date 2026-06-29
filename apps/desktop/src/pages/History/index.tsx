@@ -6,7 +6,9 @@ import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
 import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { Button } from "@/components/ui/button";
-import { type HistoryItem, useHistoryStore } from "@/store/history-store";
+import { useChannelByUsername } from "@/hooks/queries/useChannels";
+import { useHistoryActions, useHistoryQuery } from "@/hooks/queries/useHistoryQuery";
+import type { HistoryItem } from "@/store/history-store";
 
 const HistoryItemLink = ({
   item,
@@ -54,12 +56,18 @@ const HistoryItemLink = ({
 
 export function HistoryPage() {
   const navigate = useNavigate();
-  const { history, clearHistory, removeFromHistory } = useHistoryStore();
+  const { data: history = [] } = useHistoryQuery();
+  const { clearHistory, removeFromHistory } = useHistoryActions();
   const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
   const [selectedClip, setSelectedClip] = useState<VideoOrClip | null>(null);
   const [clipPlaybackUrl, setClipPlaybackUrl] = useState<string | null>(null);
   const [clipError, setClipError] = useState<string | null>(null);
   const [clipLoading, setClipLoading] = useState(false);
+  const selectedClipChannelName = selectedClip?.channelSlug || selectedClip?.channelName || "";
+  const { data: selectedClipChannelData } = useChannelByUsername(
+    selectedClipChannelName,
+    selectedClip?.platform || "twitch"
+  );
 
   const handleClearHistory = () => {
     if (confirm("Are you sure you want to clear your watch history?")) {
@@ -79,17 +87,45 @@ export function HistoryPage() {
   const toClipDialogItem = (item: HistoryItem): VideoOrClip => ({
     id: item.originalId,
     title: item.title || "Untitled clip",
-    duration: "",
-    views: "",
-    date: new Date(item.timestamp).toISOString(),
+    duration: item.clipDuration || "",
+    views: item.clipViews || "",
+    date: item.clipDate || new Date(item.timestamp).toISOString(),
+    created_at: item.clipCreatedAt,
+    creatorName: item.clipCreatorName,
     thumbnailUrl: item.thumbnail || "",
     url: item.playbackUrl,
     embedUrl: item.playbackUrl,
     channelSlug: item.channelName,
     channelName: item.channelDisplayName || item.channelName,
     channelAvatar: item.channelAvatar || null,
+    channelFollowerCount: item.channelFollowerCount,
+    gameName: item.clipGameName,
+    category: item.clipCategory,
+    vodId: item.clipVodId,
+    language: item.clipLanguage,
     platform: item.platform,
   });
+
+  const findRealClipMetadata = async (item: HistoryItem): Promise<VideoOrClip | null> => {
+    const api = (window as any).electronAPI;
+    if (!api?.clips?.getByChannel || !item.channelName) return null;
+
+    let result;
+    try {
+      result = await api.clips.getByChannel({
+        platform: item.platform,
+        channelName: item.channelName,
+        limit: 100,
+        sort: "date",
+        timeRange: "all",
+      });
+    } catch (_error) {
+      return null;
+    }
+
+    const clips = result?.success && Array.isArray(result.data) ? result.data : [];
+    return clips.find((clip: VideoOrClip) => clip.id === item.originalId) || null;
+  };
 
   const verifyVideo = async (item: HistoryItem) => {
     if (item.platform !== "twitch" && item.playbackUrl) return true;
@@ -133,13 +169,25 @@ export function HistoryPage() {
 
       setClipLoading(true);
       setClipError(null);
-      setSelectedClip(toClipDialogItem(item));
+      const baseClip = toClipDialogItem(item);
+      setSelectedClip(baseClip);
+      const realClip = await findRealClipMetadata(item);
+      const dialogClip = realClip
+        ? {
+            ...baseClip,
+            ...realClip,
+            channelSlug: realClip.channelSlug || baseClip.channelSlug,
+            channelName: realClip.channelName || baseClip.channelName,
+            channelAvatar: realClip.channelAvatar || baseClip.channelAvatar,
+          }
+        : baseClip;
+      setSelectedClip(dialogClip);
       const api = (window as any).electronAPI;
       const result = await api?.clips?.getPlaybackUrl?.({
         platform: item.platform,
         clipId: item.originalId,
-        clipUrl: item.playbackUrl,
-        thumbnailUrl: item.thumbnail,
+        clipUrl: dialogClip.embedUrl || dialogClip.url || item.playbackUrl,
+        thumbnailUrl: dialogClip.thumbnailUrl || item.thumbnail,
       });
 
       if (result?.success && result?.data?.url) {
@@ -303,7 +351,7 @@ export function HistoryPage() {
         clipPlaybackUrl={clipPlaybackUrl}
         platform={selectedClip?.platform || "twitch"}
         channelName={selectedClip?.channelSlug || selectedClip?.channelName || ""}
-        channelData={null}
+        channelData={selectedClipChannelData}
         onPlaybackError={() => {
           setClipError("Failed to play clip");
           if (selectedClip) {

@@ -42,6 +42,12 @@ interface UnifiedSearchInputProps {
    */
   showSearchTabs?: boolean;
   /**
+   * Whether channel suggestions should include only currently live channels.
+   * Useful for stream pickers where offline channels cannot be added.
+   * @default false
+   */
+  liveOnlyChannels?: boolean;
+  /**
    * Placeholder text for the input.
    */
   placeholder?: string;
@@ -224,6 +230,7 @@ export function UnifiedSearchInput({
   onSearch,
   showCategories = true,
   showSearchTabs = showCategories,
+  liveOnlyChannels = false,
   placeholder = "Search streams, channels, categories...",
   className,
   inputClassName,
@@ -444,7 +451,11 @@ export function UnifiedSearchInput({
 
     // Pre-sort channels to ensure we keep the "best" version when deduplicating
     // Priority: Live > Exact Match > Has Avatar
-    const sortedChannels = [...channels].sort((a, b) => {
+    const candidateChannels = liveOnlyChannels
+      ? channels.filter((channel) => channel.isLive)
+      : channels;
+
+    const sortedChannels = [...candidateChannels].sort((a, b) => {
       // 1. Live status
       if (a.isLive && !b.isLive) return -1;
       if (!a.isLive && b.isLive) return 1;
@@ -501,14 +512,15 @@ export function UnifiedSearchInput({
     others.sort(sortByLive);
 
     return { topMatches: top, otherMatches: others };
-  }, [channels, searchQuery]);
+  }, [channels, liveOnlyChannels, searchQuery]);
 
   // Apply the active tab to derived results. Streams are represented by live
   // channel matches in the existing search API.
-  const filteredTopMatches =
-    showSearchTabs && activeTab === "streams" ? topMatches.filter((c) => c.isLive) : topMatches;
-  const filteredOtherMatches =
-    showSearchTabs && activeTab === "streams" ? otherMatches.filter((c) => c.isLive) : otherMatches;
+  const shouldShowLiveOnly = liveOnlyChannels || (showSearchTabs && activeTab === "streams");
+  const filteredTopMatches = shouldShowLiveOnly ? topMatches.filter((c) => c.isLive) : topMatches;
+  const filteredOtherMatches = shouldShowLiveOnly
+    ? otherMatches.filter((c) => c.isLive)
+    : otherMatches;
   const showChannelResults = !showSearchTabs || activeTab === "channels" || activeTab === "streams";
   const showCategoryResults = showCategories && (!showSearchTabs || activeTab === "categories");
 

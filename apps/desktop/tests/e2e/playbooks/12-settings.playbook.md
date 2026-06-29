@@ -27,7 +27,7 @@ Confirm Settings mounts the AccountConnect block, exposes a version string, and 
    ({ clicked: !!sw, stateAfter: sw?.getAttribute("data-state") })
    ```
 
-5. **Screenshot** → `settings.png`.
+5. **Screenshot** → `.scratch/images/settings.png`.
 
 ## Pass criteria
 - [ ] Version string visible.

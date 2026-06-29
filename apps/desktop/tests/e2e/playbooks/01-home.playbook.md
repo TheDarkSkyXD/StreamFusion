@@ -27,7 +27,7 @@ Confirm the Home page renders the featured area, Live Now section, and the "Brow
    - Stop after at most ~5 seconds.
 
 4. **Capture state**
-   - `mcp__debug-electron-mcp__take_screenshot` → save as `home.png`.
+   - `mcp__debug-electron-mcp__take_screenshot` → save as `.scratch/images/home.png`.
    - `mcp__debug-electron-mcp__read_electron_logs` → grep for `error` lines from the renderer.
 
 ## Pass criteria

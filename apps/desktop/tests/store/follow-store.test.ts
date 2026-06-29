@@ -45,7 +45,7 @@ beforeEach(() => {
   mockApi.update.mockReset();
   // @ts-expect-error — test-only stub of window.electronAPI surface
   globalThis.window.electronAPI = { follows: mockApi };
-  useFollowStore.setState({ localFollows: [] });
+  useFollowStore.setState({ localFollows: [], sourceByKey: new Map() });
 });
 
 afterEach(() => {
@@ -144,7 +144,9 @@ describe("follow-store followChannel", () => {
     useFollowStore.setState({ localFollows: [existing] });
     mockApi.add.mockRejectedValueOnce(new Error("backend down"));
 
-    await useFollowStore.getState().followChannel(makeChannel());
+    await expect(useFollowStore.getState().followChannel(makeChannel())).rejects.toThrow(
+      "backend down"
+    );
 
     // Optimistic update must have happened (otherwise this test passes against a
     // no-op implementation), and rollback must restore exactly the seeded state.
@@ -194,6 +196,26 @@ describe("follow-store followChannel", () => {
     const sources = useFollowStore.getState().sourceByKey;
     expect(sources.get("kick:411439")).toBe("kick");
     expect(sources.get("kick:999")).toBe("kick");
+  });
+});
+
+describe("follow-store toggleFollow", () => {
+  it("returns the in-flight mutation promise so callers can wait for confirmed action state", async () => {
+    let resolveAdd: (value: LocalFollow) => void = () => {};
+    mockApi.add.mockReturnValueOnce(
+      new Promise<LocalFollow>((resolve) => {
+        resolveAdd = resolve;
+      })
+    );
+
+    const channel = makeChannel();
+    const result = useFollowStore.getState().toggleFollow(channel);
+
+    expect(result).toBeInstanceOf(Promise);
+    expect(useFollowStore.getState().localFollows).toEqual([channel]);
+
+    resolveAdd(makeRow({ channelId: channel.id, channelName: channel.username }));
+    await result;
   });
 });
 

@@ -55,9 +55,46 @@ async function main() {
   );
   assert(Array.isArray(channel?.data), "/kick/channels response did not include a data array");
   assert(channel.data.length > 0, `/kick/channels returned no rows for ${probeSlug}`);
+  const probeChannel = channel.data.find(
+    (row) => row?.slug?.toLowerCase() === probeSlug.toLowerCase()
+  );
   assert(
-    channel.data.some((row) => row?.slug?.toLowerCase() === probeSlug.toLowerCase()),
+    probeChannel,
     `/kick/channels did not include slug ${probeSlug}`
+  );
+  assert(
+    Number.isSafeInteger(probeChannel.broadcaster_user_id),
+    `/kick/channels row for ${probeSlug} did not include a numeric broadcaster_user_id`
+  );
+
+  const broadcasterUrl = new URL("/kick/channels", baseUrl);
+  broadcasterUrl.searchParams.append(
+    "broadcaster_user_id[]",
+    probeChannel.broadcaster_user_id.toString()
+  );
+  const broadcasterResponse = await fetch(broadcasterUrl, {
+    headers: {
+      Accept: "application/json",
+      "X-StreamFusion-Auth": "app",
+    },
+  });
+  const broadcasterChannel = await readJson(broadcasterResponse);
+
+  assert(
+    broadcasterResponse.status === 200,
+    `/kick/channels by broadcaster_user_id returned ${broadcasterResponse.status}; expected 200. Body: ${JSON.stringify(
+      broadcasterChannel
+    )}`
+  );
+  assert(
+    Array.isArray(broadcasterChannel?.data),
+    "/kick/channels by broadcaster_user_id response did not include a data array"
+  );
+  assert(
+    broadcasterChannel.data.some(
+      (row) => row?.broadcaster_user_id === probeChannel.broadcaster_user_id
+    ),
+    `/kick/channels by broadcaster_user_id did not include ${probeChannel.broadcaster_user_id}`
   );
 
   console.log(
@@ -68,6 +105,8 @@ async function main() {
         health_status: health.status,
         kick_probe_status: health.kick_official_api.http_status,
         channel_rows: channel.data.length,
+        broadcaster_id: probeChannel.broadcaster_user_id,
+        broadcaster_rows: broadcasterChannel.data.length,
       },
       null,
       2

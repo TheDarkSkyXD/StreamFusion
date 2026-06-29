@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fireEvent, renderWithProviders, routerMock, screen } from "../test-utils";
+import { fireEvent, renderWithProviders, routerMock, screen, waitFor } from "../test-utils";
 
 const removeFromHistory = vi.fn();
 const clearHistory = vi.fn();
@@ -16,6 +16,16 @@ let mockHistory: Array<{
   channelName: string;
   channelDisplayName?: string;
   channelAvatar?: string | null;
+  channelFollowerCount?: number;
+  clipDuration?: string;
+  clipViews?: string;
+  clipDate?: string;
+  clipCreatedAt?: string;
+  clipCreatorName?: string;
+  clipGameName?: string;
+  clipCategory?: string;
+  clipVodId?: string;
+  clipLanguage?: string;
   timestamp: number;
 }> = [];
 
@@ -24,13 +34,33 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
 }));
 
-vi.mock("@/store/history-store", () => ({
-  useHistoryStore: () => ({ history: mockHistory, removeFromHistory, clearHistory }),
+vi.mock("@/hooks/queries/useHistoryQuery", () => ({
+  useHistoryActions: () => ({ clearHistory, removeFromHistory }),
+  useHistoryQuery: () => ({ data: mockHistory }),
 }));
 
 vi.mock("@/components/stream/related-content/ClipDialog", () => ({
-  ClipDialog: ({ selectedClip }: { selectedClip: { title: string } | null }) =>
-    selectedClip ? <div data-testid="history-clip-dialog">{selectedClip.title}</div> : null,
+  ClipDialog: ({ selectedClip, channelData }: { selectedClip: any; channelData: any }) =>
+    selectedClip ? (
+      <div data-testid="history-clip-dialog">
+        <span>{selectedClip.title}</span>
+        <span>
+          {selectedClip.views || selectedClip.viewCount || selectedClip.view_count
+            ? `${selectedClip.views || selectedClip.viewCount || selectedClip.view_count} views`
+            : "no views"}
+        </span>
+        <span>{selectedClip.category || selectedClip.gameName || "no category"}</span>
+        <span>
+          {selectedClip.creatorName ? `Clipped by @${selectedClip.creatorName}` : "no creator"}
+        </span>
+        <span>{selectedClip.channelAvatar || channelData?.avatarUrl || "no avatar"}</span>
+        <span>
+          {typeof channelData?.followerCount === "number"
+            ? `${channelData.followerCount} followers`
+            : "no followers"}
+        </span>
+      </div>
+    ) : null,
 }));
 
 import { HistoryPage } from "@/pages/History";
@@ -48,7 +78,23 @@ describe("HistoryPage", () => {
         getPlaybackUrl: vi.fn().mockResolvedValue({ success: true, data: { url: "vod.m3u8" } }),
       },
       clips: {
+        getByChannel: vi.fn().mockResolvedValue({ success: true, data: [] }),
         getPlaybackUrl: vi.fn().mockResolvedValue({ success: true, data: { url: "clip.m3u8" } }),
+      },
+      channels: {
+        getByUsername: vi.fn().mockResolvedValue({
+          data: {
+            id: "channel-1",
+            platform: "kick",
+            username: "xqc",
+            displayName: "xQc",
+            avatarUrl: "real-channel-avatar.jpg",
+            followerCount: 1000,
+            isLive: false,
+            isVerified: false,
+            isPartner: false,
+          },
+        }),
       },
     };
   });
@@ -89,6 +135,28 @@ describe("HistoryPage", () => {
   });
 
   it("opens playable clip history items in the clip dialog", async () => {
+    (window as any).electronAPI.clips.getByChannel.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: "c1",
+          title: "Insane clip",
+          duration: "0:30",
+          viewCount: 12345,
+          category: "Fortnite",
+          creatorName: "clipmaster",
+          date: "2026-06-01T00:00:00.000Z",
+          created_at: "2026-06-01T00:00:00.000Z",
+          thumbnailUrl: "real-thumb.jpg",
+          embedUrl: "https://clips.example/real.m3u8",
+          url: "https://kick.com/xqc/clips/c1",
+          channelSlug: "xqc",
+          channelName: "xQc",
+          channelAvatar: "real-clip-avatar.jpg",
+          platform: "kick",
+        },
+      ],
+    });
     mockHistory = [
       {
         id: "2",
@@ -106,14 +174,29 @@ describe("HistoryPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Insane clip" }));
 
-    expect((window as any).electronAPI.clips.getPlaybackUrl).toHaveBeenCalledWith(
+    expect((window as any).electronAPI.clips.getByChannel).toHaveBeenCalledWith(
       expect.objectContaining({
         platform: "kick",
-        clipId: "c1",
-        clipUrl: "https://clips.example/clip.m3u8",
+        channelName: "xqc",
+        sort: "date",
+        timeRange: "all",
       })
     );
+    await waitFor(() => {
+      expect((window as any).electronAPI.clips.getPlaybackUrl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: "kick",
+          clipId: "c1",
+          clipUrl: "https://clips.example/real.m3u8",
+        })
+      );
+    });
     expect(await screen.findByTestId("history-clip-dialog")).toHaveTextContent("Insane clip");
+    expect(await screen.findByText("12345 views")).toBeInTheDocument();
+    expect(await screen.findByText("Fortnite")).toBeInTheDocument();
+    expect(await screen.findByText("Clipped by @clipmaster")).toBeInTheDocument();
+    expect(await screen.findByText("real-clip-avatar.jpg")).toBeInTheDocument();
+    expect(await screen.findByText("1000 followers")).toBeInTheDocument();
   });
 
   it("removes a clip history item when playback verification fails", async () => {

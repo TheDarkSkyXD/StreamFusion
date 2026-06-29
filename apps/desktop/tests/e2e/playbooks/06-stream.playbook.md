@@ -28,7 +28,7 @@ Confirm navigating to a live stream URL mounts the player container, chat panel,
    /chat/i.test(document.body.innerText) || !!document.querySelector('[class*="chat"]')
    ```
 
-5. **Screenshot** → `stream.png`.
+5. **Screenshot** → `.scratch/images/stream.png`.
 
 ## Pass criteria
 - [ ] Page mounted at `#/stream/twitch/ninja`.

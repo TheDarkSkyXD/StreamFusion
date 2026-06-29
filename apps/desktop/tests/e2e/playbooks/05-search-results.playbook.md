@@ -30,7 +30,7 @@ Confirm typing in the top-bar search and pressing Enter navigates to `/search?q=
    /channels|streams|videos|clips|categories/i.test(document.body.innerText)
    ```
 
-5. **Screenshot** → `search-results.png`.
+5. **Screenshot** → `.scratch/images/search-results.png`.
 
 ## Pass criteria
 - [ ] URL hash navigated to `/search?q=ninja`.

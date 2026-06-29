@@ -5,8 +5,11 @@ export interface VideoOrClip {
   title: string;
   duration: string;
   views: string;
+  viewCount?: string | number;
+  view_count?: string | number;
   date: string;
   created_at?: string; // ISO timestamp for more accurate time-ago calculation
+  creatorName?: string;
   thumbnailUrl: string;
   embedUrl?: string; // For clips
   url?: string; // For clips
@@ -18,6 +21,7 @@ export interface VideoOrClip {
   channelSlug?: string;
   channelName?: string;
   channelAvatar?: string | null;
+  channelFollowerCount?: number;
   category?: string;
   // Stream tags
   tags?: string[];

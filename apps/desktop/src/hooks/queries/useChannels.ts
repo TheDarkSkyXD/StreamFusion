@@ -5,6 +5,9 @@ import { logger } from "@/renderer/logging/logger";
 import type { UnifiedChannel } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
+import { useQueryCachePerformance } from "./cache-performance";
+import { getQueryCacheOptions } from "./cache-policy";
+
 export const CHANNEL_KEYS = {
   all: ["channels"] as const,
   byId: (id: string, platform: Platform) => [...CHANNEL_KEYS.all, "id", platform, id] as const,
@@ -14,8 +17,9 @@ export const CHANNEL_KEYS = {
 };
 
 export function useFollowedChannels(platform: Platform, options: { enabled?: boolean } = {}) {
-  return useQuery({
-    queryKey: CHANNEL_KEYS.followed(platform),
+  const queryKey = CHANNEL_KEYS.followed(platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.channels.getFollowed({ platform });
       if (response.error) {
@@ -28,14 +32,23 @@ export function useFollowedChannels(platform: Platform, options: { enabled?: boo
       return response.data as UnifiedChannel[];
     },
     retry: 1,
-    staleTime: 1000 * 60 * 5, // 5 minutes
     enabled: options.enabled,
+    ...getQueryCacheOptions("followedChannelList"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: options.enabled,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "following",
+  });
+  return query;
 }
 
 export function useChannelByUsername(username: string, platform: Platform) {
-  return useQuery({
-    queryKey: CHANNEL_KEYS.byUsername(username, platform),
+  const queryKey = CHANNEL_KEYS.byUsername(username, platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.channels.getByUsername({ username, platform });
       if (response.error) {
@@ -44,6 +57,14 @@ export function useChannelByUsername(username: string, platform: Platform) {
       return response.data as UnifiedChannel;
     },
     enabled: !!username && !!platform,
-    staleTime: 1000 * 60 * 5,
+    ...getQueryCacheOptions("followedChannelList"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: !!username && !!platform,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "stream-detail",
+  });
+  return query;
 }

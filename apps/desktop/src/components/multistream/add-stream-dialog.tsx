@@ -124,6 +124,7 @@ export function AddStreamDialog() {
                   }
                 }}
                 showCategories={false}
+                liveOnlyChannels
                 placeholder={`Search for ${platform === "twitch" ? "Twitch" : "Kick"} channels...`}
                 inputClassName="h-12 rounded-lg border-[var(--color-border)] bg-[#0F0F12] px-4 text-base font-medium text-white focus:ring-2 focus:ring-[var(--color-storm-primary)] focus:border-transparent shadow-inner"
                 className="w-full"
@@ -132,7 +133,7 @@ export function AddStreamDialog() {
             </div>
             <p className="text-xs text-[var(--color-foreground-muted)] flex items-center gap-1.5 px-1">
               <span className="w-1 h-1 rounded-full bg-[var(--color-storm-primary)]" />
-              Type to search or enter an exact username
+              Search live channels or enter an exact username
             </p>
           </div>
         </div>

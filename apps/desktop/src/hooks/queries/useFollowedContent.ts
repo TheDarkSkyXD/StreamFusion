@@ -5,6 +5,9 @@ import { formatDuration } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 
+import { useQueryCachePerformance } from "./cache-performance";
+import { getQueryCacheOptions } from "./cache-policy";
+
 const FOLLOWED_CONTENT_CHANNEL_LIMIT = 30;
 const FOLLOWED_CONTENT_PER_CHANNEL = 4;
 
@@ -244,35 +247,53 @@ export function useFollowedVideos(
 ) {
   const limitPerChannel = options.limitPerChannel ?? FOLLOWED_CONTENT_PER_CHANNEL;
   const sort = options.sort ?? "recent";
+  const queryKey = FOLLOWED_CONTENT_KEYS.videos(channels, limitPerChannel, sort);
+  const enabled = (options.enabled ?? true) && channels.length > 0;
 
-  return useQuery({
-    queryKey: FOLLOWED_CONTENT_KEYS.videos(channels, limitPerChannel, sort),
+  const query = useQuery({
+    queryKey,
     queryFn: () => fetchFollowedContent(channels, "video", limitPerChannel, sort),
-    enabled: (options.enabled ?? true) && channels.length > 0,
-    staleTime: 1000 * 60 * 2,
-    gcTime: 1000 * 60 * 10,
-    placeholderData: (previousData) => previousData,
+    enabled,
+    ...getQueryCacheOptions("followedContent"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "following",
+  });
+  return query;
 }
 
 export function useFollowedClips(channels: UnifiedChannel[], options: FollowedContentOptions = {}) {
   const limitPerChannel = options.limitPerChannel ?? FOLLOWED_CONTENT_PER_CHANNEL;
   const sort = options.sort ?? "recent";
   const timeRange = options.timeRange ?? "all";
+  const queryKey = FOLLOWED_CONTENT_KEYS.clips(channels, limitPerChannel, sort, timeRange);
+  const enabled = (options.enabled ?? true) && channels.length > 0;
 
-  return useQuery({
-    queryKey: FOLLOWED_CONTENT_KEYS.clips(channels, limitPerChannel, sort, timeRange),
+  const query = useQuery({
+    queryKey,
     queryFn: () => fetchFollowedContent(channels, "clip", limitPerChannel, sort, timeRange),
-    enabled: (options.enabled ?? true) && channels.length > 0,
-    staleTime: 1000 * 60 * 2,
-    gcTime: 1000 * 60 * 10,
-    placeholderData: (previousData) => previousData,
+    enabled,
+    ...getQueryCacheOptions("followedContent"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "following",
+  });
+  return query;
 }
 
 export function useFollowedClipPlayback(clip: FollowedContentItem | null) {
-  return useQuery({
-    queryKey: FOLLOWED_CONTENT_KEYS.clipPlayback(clip),
+  const queryKey = FOLLOWED_CONTENT_KEYS.clipPlayback(clip);
+  const enabled = !!clip?.id && !!clip.platform;
+  const query = useQuery({
+    queryKey,
     queryFn: async (): Promise<{
       url: string | null;
       qualities?: { quality: string; url: string }[];
@@ -303,8 +324,16 @@ export function useFollowedClipPlayback(clip: FollowedContentItem | null) {
 
       throw new Error(response.error || "Failed to load clip");
     },
-    enabled: !!clip?.id && !!clip.platform,
+    enabled,
     retry: false,
-    staleTime: 1000 * 60 * 5,
+    ...getQueryCacheOptions("searchResults"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "following",
+  });
+  return query;
 }

@@ -40,7 +40,7 @@ Confirm the Following page renders heading, platform filters, search input, and 
    document.body.innerText.includes('No matches for "zzz-no-match-12345"')
    ```
 
-5. **Screenshot** → `following.png`.
+5. **Screenshot** → `.scratch/images/following.png`.
 
 ## Pass criteria
 - [ ] `h1` "Following" present.

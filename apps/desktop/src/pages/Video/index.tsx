@@ -10,10 +10,10 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
+import { useHistoryActions } from "@/hooks/queries/useHistoryQuery";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 import { useFollowStore } from "@/store/follow-store";
-import { useHistoryStore } from "@/store/history-store";
 
 interface VideoMetadata {
   id: string;
@@ -237,7 +237,7 @@ export function VideoPage() {
   const channelAvatar = videoMetadata?.channelAvatar || passedChannelAvatar;
 
   // Save to history
-  const { addToHistory, removeFromHistory } = useHistoryStore();
+  const { addToHistory, removeFromHistory } = useHistoryActions();
   const historyItemId = `${platform}-video-${videoId}`;
   const historyPlaybackUrl =
     platform === "kick" ? directSourceUrl || streamUrl || undefined : undefined;

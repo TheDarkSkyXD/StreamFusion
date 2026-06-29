@@ -19,10 +19,10 @@ vi.mock("hls.js", () => {
   }
   DefaultLoader.prototype.load = mockSuperLoad;
 
-  class FakeHls {
-    static isSupported() { return true; }
-    static DefaultConfig = { loader: DefaultLoader };
-  }
+  const FakeHls = {
+    isSupported: () => true,
+    DefaultConfig: { loader: DefaultLoader },
+  };
   return { default: FakeHls };
 });
 
@@ -43,6 +43,7 @@ function invokeWrappedOnSuccess(loader: any, context: any, response: any) {
   return { wrappedOnSuccess, passedCallbacks };
 }
 
+// Guards: Kick clip HLS URLs get the clip-only playlist workaround while other playback URLs pass through.
 describe("isKickClipPlaylistUrl", () => {
   it("returns false for null/undefined", () => {
     expect(isKickClipPlaylistUrl(null)).toBe(false);
@@ -77,6 +78,7 @@ describe("isKickClipPlaylistUrl", () => {
   });
 });
 
+// Guards: Kick clip media playlists must skip the first bad segment and avoid Electron cache failures on remaining segment requests.
 describe("createKickClipPlaylistLoader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -146,6 +148,36 @@ https://cdn.kick.com/clip/seg-2.ts
     expect(passedData).not.toContain("seg-0.ts");
     expect(passedData).toContain("seg-1.ts");
     expect(passedData).toContain("seg-2.ts");
+  });
+
+  it("adds cache busting to remaining media segment URLs", () => {
+    const LoaderClass = createKickClipPlaylistLoader();
+    const loader = new LoaderClass({} as any);
+
+    const originalOnSuccess = vi.fn();
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
+    const callbacks = { onSuccess: originalOnSuccess } as any;
+
+    loader.load(context, {} as any, callbacks);
+
+    const passedCallbacks = mockSuperLoad.mock.calls[0][2];
+
+    const mediaPlaylist = `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:0
+#EXTINF:4.000,
+https://clips.kick.com/clips/abc/seg-0.ts
+#EXTINF:4.000,
+https://clips.kick.com/clips/abc/seg-1.ts
+#EXTINF:4.000,
+5533.ts?token=abc#frag
+#EXT-X-ENDLIST`;
+
+    passedCallbacks.onSuccess({ data: mediaPlaylist }, {}, context, null);
+
+    const passedData = originalOnSuccess.mock.calls[0][0].data as string;
+    expect(passedData).not.toContain("seg-0.ts");
+    expect(passedData).toContain("https://clips.kick.com/clips/abc/seg-1.ts?sf_clip_nocache=1");
+    expect(passedData).toContain("5533.ts?token=abc&sf_clip_nocache=1#frag");
   });
 
   it("bumps EXT-X-MEDIA-SEQUENCE when dropping first segment", () => {

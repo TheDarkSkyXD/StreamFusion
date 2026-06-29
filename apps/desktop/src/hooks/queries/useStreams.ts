@@ -5,6 +5,9 @@ import { logger } from "@/renderer/logging/logger";
 import type { UnifiedStream } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
+import { useQueryCachePerformance } from "./cache-performance";
+import { getQueryCacheOptions } from "./cache-policy";
+
 export const STREAM_KEYS = {
   all: ["streams"] as const,
   top: (platform?: Platform, limit?: number) =>
@@ -17,8 +20,9 @@ export const STREAM_KEYS = {
 };
 
 export function useTopStreams(platform?: Platform, limit: number = 20) {
-  return useQuery({
-    queryKey: STREAM_KEYS.top(platform, limit),
+  const queryKey = STREAM_KEYS.top(platform, limit);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getTop({ platform, limit });
       if (response.error) {
@@ -26,12 +30,21 @@ export function useTopStreams(platform?: Platform, limit: number = 20) {
       }
       return response.data as UnifiedStream[];
     },
+    ...getQueryCacheOptions("streamList"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "stream-list",
+  });
+  return query;
 }
 
 function useStreamsByCategory(categoryId: string, platform?: Platform, limit: number = 20) {
-  return useQuery({
-    queryKey: STREAM_KEYS.byCategory(categoryId, platform),
+  const queryKey = STREAM_KEYS.byCategory(categoryId, platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getByCategory({
         categoryId,
@@ -44,7 +57,16 @@ function useStreamsByCategory(categoryId: string, platform?: Platform, limit: nu
       return response.data as UnifiedStream[];
     },
     enabled: !!categoryId,
+    ...getQueryCacheOptions("streamList"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: !!categoryId,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "category-detail",
+  });
+  return query;
 }
 
 export function useFollowedStreams(
@@ -52,8 +74,9 @@ export function useFollowedStreams(
   limit: number = 20,
   options: { enabled?: boolean } = {}
 ) {
-  return useQuery({
-    queryKey: STREAM_KEYS.followed(platform),
+  const queryKey = STREAM_KEYS.followed(platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getFollowed({ platform, limit });
       if (response.error) {
@@ -67,20 +90,22 @@ export function useFollowedStreams(
       return response.data as UnifiedStream[];
     },
     enabled: options.enabled,
-    // Auto-refresh every 60 seconds to detect new live streams
-    refetchInterval: 60000,
-    // Keep refetching in background so data stays fresh
-    refetchIntervalInBackground: false,
-    // Consider data stale after 30 seconds (triggers refetch on window focus)
-    staleTime: 30000,
-    // Keep cached data while refetching (prevents loading spinner on refresh)
-    placeholderData: (previousData) => previousData,
+    ...getQueryCacheOptions("followedStreamStatus"),
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: options.enabled,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "following",
+  });
+  return query;
 }
 
 export function useStreamByChannel(username: string, platform: Platform) {
-  return useQuery({
-    queryKey: STREAM_KEYS.byChannel(username, platform),
+  const queryKey = STREAM_KEYS.byChannel(username, platform);
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getByChannel({ username, platform });
       if (response.error) {
@@ -89,8 +114,15 @@ export function useStreamByChannel(username: string, platform: Platform) {
       return response.data as UnifiedStream;
     },
     enabled: !!username && !!platform,
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time viewer count updates
-    refetchIntervalInBackground: false, // Don't refetch when tab is not active
+    ...getQueryCacheOptions("streamChannelDetail"),
     retry: false, // Don't retry - stream might simply be offline
   });
+  useQueryCachePerformance({
+    data: query.data,
+    enabled: !!username && !!platform,
+    fetchStatus: query.fetchStatus,
+    queryKey,
+    surface: "stream-detail",
+  });
+  return query;
 }
