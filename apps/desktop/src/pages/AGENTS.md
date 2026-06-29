@@ -20,7 +20,7 @@ route which provides the `AppLayout` (sidebar, navbar).
 | `Video/`        | `/video/$platform/$videoId`                | VOD viewer. Fetches HLS URL via IPC (`videos.getPlaybackUrl`); accepts metadata via search params for fast load. Shows `KickVodPlayer`/`TwitchVodPlayer`, follow button, related-videos grid. |
 | `MultiStream/`  | `/multistream`                             | Simultaneous multi-stream layout. Toolbar with grid/focus layout toggle and add-stream dialog; docked resizable chat panel (tied to one active stream). Uses `useMultiStreamStore`. |
 | `Downloads/`    | `/downloads`                               | Download manager UI. Currently mock-only (no real IPC). Active and completed download sections with progress bars. |
-| `History/`      | `/history`                                 | Watch history from `useHistoryStore`. Card grid with type-aware links (stream/video/clip). Clear-all and per-item remove. |
+| `History/`      | `/history`                                 | Watch history from `useHistoryQuery` (TanStack Query backed, persisted via the history store). Card grid with type-aware links (stream/video/clip). Clear-all and per-item remove. |
 | `Settings/`     | `/settings?tab=`                           | Full-app settings hub. Sidebar-nav with 11 tabs: playback, player-controls, buffer, chat, adblock, proxy, predictions, integrations, api-tokens, updates, about. Deep-link via `?tab=`. |
 | `Mod/`          | `/mod`, `/mod/$platform/$channel`          | Moderation admin console. Has its own `AGENTS.md` — see `Mod/AGENTS.md`. |
 
@@ -37,7 +37,7 @@ route which provides the `AppLayout` (sidebar, navbar).
 **Stores accessed by pages:**
 - `useAuthStore` — preferences, platform connection state, `updatePreferences`
 - `useFollowStore` — local follow list, `upgradeFollowIfNeeded`
-- `useHistoryStore` — watch history (read/write on Stream, Video, Clip, History pages)
+- `useHistoryQuery` / `useHistoryActions` — watch history read/write surface (TanStack Query cache backed, persisted via `useHistoryStore`)
 - `useMultiStreamStore` — stream list and layout state for MultiStream
 - `useAdBlockStore` — ad-block toggle (Settings)
 - `useAppStore` — theater mode (`isTheaterModeActive`)

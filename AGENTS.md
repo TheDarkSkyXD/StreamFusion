@@ -69,6 +69,13 @@ Before implementing:
 - Never assume your changes simply work, always test!
 - If the project does not have any testing tools, scripts, MCP tools, skills, etc. available for testing, ask the user whether testing should be skipped.
 
+## SCRATCH HYGIENE
+
+- Keep `.scratch/` top level for issue tracker files, grill notes, and intentional proof artifacts.
+- Put screenshots captured by Electron MCP tools under `.scratch/images/`.
+- Put transient logs, runtime dumps, traces, HAR files, and ad-hoc command output under `.scratch/logs/`.
+- Put runtime scratch files under `.scratch/logs/runtime/`, not `.scratch/runtime/`.
+
 ## ISSUE WORKFLOW
 
 A complete issue lifecycle is five stages. Don't skip stages or merge them — each one has a distinct purpose.
