@@ -16,6 +16,7 @@
  */
 
 import { logger } from "@/renderer/logging/logger";
+import { badgeResolver } from "../../../backend/services/chat/badge-resolver";
 import { parseRawTwitchIrcLine } from "../../../backend/services/chat/twitch-irc-parser";
 import { parseTwitchMessage } from "../../../backend/services/chat/twitch-parser";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
@@ -26,6 +27,8 @@ import { buildChannelKey } from "../../../store/chat-store";
 export interface SeedTwitchChatHistoryParams {
   /** Channel login (slug) — recent-messages.robotty.de takes the login, not the broadcaster id. */
   channel: string;
+  /** Broadcaster ID for resolving channel-specific Twitch badges. */
+  broadcasterId?: string;
   /** Returns false once the host effect has been torn down — checked between awaits. */
   isMounted: () => boolean;
   /** Insert these parsed messages at the front of the store. */
@@ -38,7 +41,7 @@ export interface SeedTwitchChatHistoryParams {
  * throwing, so the caller can fall back to live-only.
  */
 export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams): Promise<void> {
-  const { channel, isMounted, prependMessages } = params;
+  const { channel, broadcasterId, isMounted, prependMessages } = params;
 
   // U5 — viewer can disable history-on-join entirely, or cap how many recent
   // messages seed. Read prefs imperatively (this is a module function, not a
@@ -72,6 +75,9 @@ export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams)
 
       if (line.command === "PRIVMSG") {
         const message = parseTwitchMessage(line.channel, line.tags, line.message, false);
+        if (broadcasterId) {
+          message.badges = badgeResolver.resolveBadges(message.badges, broadcasterId);
+        }
         // parseTwitchMessage stamps `new Date()` — fine for live messages but
         // wrong for history; override with the server-side send time.
         message.timestamp = timestamp;

@@ -106,6 +106,7 @@ type PendingTwitchModAction =
     };
 
 const DEFAULT_TWITCH_PIN_DURATION_SECONDS = 30 * 60;
+const TWITCH_BADGE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 /** Human-readable timeout duration (toast label). Mirrors the small helper
  *  in ChatMessage.tsx; inlined here rather than exported to keep U11's
@@ -417,15 +418,19 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           addMessage(createConnectionStatusMessage(channel, "connecting"));
         }
 
-        const joinAndSeed = async (target: string, userId?: string): Promise<void> => {
+        const joinAndSeed = async (target: string, broadcasterId?: string): Promise<void> => {
+          await twitchChatService.loadChannelBadges(target, broadcasterId);
+          if (!isMounted) return;
+
           await seedTwitchChatHistory({
             channel: target,
+            broadcasterId,
             isMounted: () => isMounted,
             prependMessages,
           });
           if (!isMounted) return;
 
-          await twitchChatService.joinChannel(target, userId);
+          await twitchChatService.joinChannel(target, broadcasterId);
           if (!isMounted) return;
 
           addMessage(createConnectionStatusMessage(target, "connected"));
@@ -481,7 +486,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           // Join channel
           // If channel provided, join it. Else join own channel.
           const target = channel || twitchUser.login;
-          await joinAndSeed(target, twitchUser.id);
+          const targetBroadcasterId = channel ? channelId : twitchUser.id;
+          await joinAndSeed(target, targetBroadcasterId);
         } else {
           // Anonymous
           if (channel) {
@@ -498,7 +504,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               return;
             }
 
-            await joinAndSeed(channel);
+            await joinAndSeed(channel, channelId);
           }
         }
       } catch (error) {
@@ -540,6 +546,21 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     loadGlobalEmotes,
     setActiveChannel,
   ]);
+
+  // Channel IDs can arrive after chat has already mounted. Loading badges here
+  // avoids a reconnect while still fixing future subscriber badge resolution.
+  useEffect(() => {
+    if (!channel || !channelId) return;
+    void twitchChatService.loadChannelBadges(channel, channelId, { forceRefresh: true });
+  }, [channel, channelId]);
+
+  useInterval(
+    () => {
+      if (!channel || !channelId) return;
+      void twitchChatService.loadChannelBadges(channel, channelId, { forceRefresh: true });
+    },
+    channel && channelId ? TWITCH_BADGE_REFRESH_INTERVAL_MS : null
+  );
 
   // Separate effect for loading channel emotes without triggering reconnection
   // This is intentionally separate from the connection effect to prevent channelId changes
@@ -671,6 +692,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   useEffect(() => {
     const handleMessage = (message: ChatMessage) => {
       if (message.platform === "twitch") {
+        if (message.channel.toLowerCase() !== channel.toLowerCase()) return;
+
         // Substitute emote NAMES inside text fragments with emote fragments.
         // `includeNative: true` because tmi.js's synthetic self-echo arrives
         // without IRC emote tags (we run with `skipUpdatingEmotesets: true`)
@@ -706,7 +729,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         userId: notice.userId || notice.username || "system",
         username: notice.username || notice.displayName || "system",
         displayName: notice.displayName || notice.username || "System",
-        color: "#a970ff",
+        color: notice.color ?? "",
         badges: [],
         content: [{ type: "text", content: notice.systemMessage }],
         rawContent: notice.systemMessage,

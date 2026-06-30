@@ -36,6 +36,10 @@ const RelatedContent = lazy(() =>
   }))
 );
 
+function normalizeChannelLogin(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
 interface OfflineOverlayProps {
   platform: Platform;
   channelName: string;
@@ -157,8 +161,13 @@ export function StreamPage() {
   // rendered, so there's no socket to tear down — the safe path per the
   // websocket-connecting-state learning. The toggle that SETS this lives in U6.
   const isChatHidden = useAuthStore((s) => s.preferences?.chat?.position === "hidden");
+  const channelDataMatchesRoute =
+    channelData?.platform === routePlatform &&
+    normalizeChannelLogin(channelData.username) === normalizeChannelLogin(channelName);
   const canMountChatPanel =
-    routePlatform !== "kick" || Boolean(channelData?.id && channelData?.chatroomId);
+    routePlatform === "kick"
+      ? Boolean(channelDataMatchesRoute && channelData?.id && channelData?.chatroomId)
+      : Boolean(channelDataMatchesRoute && channelData?.id);
 
   // Theater Mode Logic - synced with app store for sidebar auto-collapse
   const { isTheaterModeActive: isTheater, setTheaterModeActive } = useAppStore();

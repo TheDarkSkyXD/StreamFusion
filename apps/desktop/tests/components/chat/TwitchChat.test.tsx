@@ -1,9 +1,8 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import { installElectronAPIMock, renderWithProviders as render } from "../../test-utils";
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage, NormalizedPinnedMessage } from "@/shared/chat-types";
+import { installElectronAPIMock, renderWithProviders as render } from "../../test-utils";
 
 // U11 — capture the latest ChatMessageList props so tests can simulate a
 // toolbar click without rendering the full message virtuoso.
@@ -122,6 +121,7 @@ vi.mock("@/backend/services/chat/twitch-chat", () => ({
     // getConnectionStatus call. The platform-scoped loadGlobalEmotes assertion
     // below depends on the effect reaching past this check.
     getConnectionStatus: vi.fn(() => ({ state: "connected" })),
+    loadChannelBadges: vi.fn(async () => true),
     joinChannel: vi.fn(async () => true),
   },
 }));
@@ -188,7 +188,9 @@ vi.mock("@/store/emote-store", () => {
     applyProviderPrefs: vi.fn(),
   };
   const useEmoteStore = ((selector?: (s: typeof state) => unknown) =>
-    selector ? selector(state) : state) as ((selector?: (s: typeof state) => unknown) => unknown) & {
+    selector ? selector(state) : state) as ((
+    selector?: (s: typeof state) => unknown
+  ) => unknown) & {
     getState: () => typeof state;
   };
   useEmoteStore.getState = () => state;
@@ -241,9 +243,9 @@ vi.mock("@/components/chat/PredictionBanner", () => ({
   PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
 }));
 
+import { getModeratedChannels } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { initializeTwitchEmotes } from "@/backend/services/emotes";
-import { getModeratedChannels } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
 import { TwitchChat } from "@/components/chat/twitch/TwitchChat";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
@@ -271,6 +273,9 @@ const fakePrediction = {
 // Guards: empty messages — message list still renders (see ChatMessageList tests); chat input + chat-settings gear render in viewer single-tab path (U7) so the chrome doesn't disappear under the tab-shell refactor
 // Guards: U5 prefs — sub/raid notice + chat-cleared notice + prediction banner each suppress when their visibility pref is false. clearMessages('twitch:ninja') still runs even when its notice is suppressed (moderation action is real, only the notice text is hidden)
 // Guards: U11 — Ban toolbar click opens ModActionConfirmDialog; confirm fires banUser with the broadcaster/moderator/user ids assembled from the page route
+// Guards: Twitch chat loads badges with the watched channel id, not the signed-in user's id, so channel subscriber badges resolve for other broadcasters.
+// Guards: Twitch singleton message events from a previous channel are ignored after route-switch so old channel badges/messages cannot leak into the new channel bucket.
+// Guards: Twitch chat force-refreshes the active channel's badge catalog so custom subscriber badge updates appear without restarting the app.
 describe("TwitchChat", () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
@@ -298,11 +303,14 @@ describe("TwitchChat", () => {
     mockModScopes.loading = false;
     promptReconnectMock.mockReset();
     vi.mocked(twitchChatService.connect).mockClear();
+    vi.mocked(twitchChatService.loadChannelBadges).mockClear();
+    vi.mocked(twitchChatService.joinChannel).mockClear();
     loadGlobalEmotesMock.mockReset();
     loadChannelEmotesMock.mockReset();
     vi.mocked(initializeTwitchEmotes).mockReset();
     getModeratedChannelsMock.mockReset();
     storeState.addMessage = vi.fn();
+    storeState.addMessageBatched = vi.fn();
     storeState.clearMessages = vi.fn();
     storeState.deleteMessagesByUser = vi.fn();
     setMockChatDisplay({});
@@ -320,6 +328,84 @@ describe("TwitchChat", () => {
   it("passes the per-channel key to ChatMessageList", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(lastListProps.channelKey).toBe("twitch:ninja");
+  });
+
+  it("loads Twitch channel badges with the watched channel id", async () => {
+    const api = installElectronAPIMock();
+    api.auth.getValidTwitchToken = vi.fn(async () => "tok");
+    api.auth.getTwitchUser = vi.fn(async () => ({
+      id: "mod-1",
+      login: "modder",
+      displayName: "Modder",
+    }));
+    api.chat.getTwitchHistory = vi.fn(async () => ({ success: true, data: { rawMessages: [] } }));
+
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() => expect(twitchChatService.loadChannelBadges).toHaveBeenCalled());
+    expect(twitchChatService.loadChannelBadges).toHaveBeenCalledWith("ninja", "ninja-id");
+    expect(twitchChatService.loadChannelBadges).not.toHaveBeenCalledWith("ninja", "mod-1");
+  });
+
+  it("force-refreshes active Twitch channel badges on an interval", () => {
+    vi.useFakeTimers();
+    try {
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+      expect(twitchChatService.loadChannelBadges).toHaveBeenCalledWith("ninja", "ninja-id", {
+        forceRefresh: true,
+      });
+      const callsBeforeInterval = vi.mocked(twitchChatService.loadChannelBadges).mock.calls.length;
+
+      act(() => {
+        vi.advanceTimersByTime(5 * 60 * 1000);
+      });
+
+      expect(vi.mocked(twitchChatService.loadChannelBadges).mock.calls.length).toBeGreaterThan(
+        callsBeforeInterval
+      );
+      expect(twitchChatService.loadChannelBadges).toHaveBeenLastCalledWith("ninja", "ninja-id", {
+        forceRefresh: true,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores Twitch messages from another channel after switching routes", () => {
+    render(<TwitchChat channel="cinna" channelId="cinna-id" />);
+    expect(mockServiceHandlers.message).toBeTypeOf("function");
+
+    const makeMessage = (messageChannel: string): ChatMessage => ({
+      id: `msg-${messageChannel}`,
+      platform: "twitch",
+      type: "message",
+      channel: messageChannel,
+      userId: "user-1",
+      username: "viewer",
+      displayName: "Viewer",
+      color: "#9146ff",
+      badges: [{ setId: "subscriber", version: "3", imageUrl: "badge.png", title: "Subscriber" }],
+      content: [{ type: "text", content: "hello" }],
+      rawContent: "hello",
+      timestamp: new Date(),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    });
+
+    act(() => {
+      mockServiceHandlers.message?.(makeMessage("extraemily"));
+    });
+    expect(storeState.addMessageBatched).not.toHaveBeenCalled();
+
+    act(() => {
+      mockServiceHandlers.message?.(makeMessage("cinna"));
+    });
+    expect(storeState.addMessageBatched).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "cinna" }),
+      "twitch:cinna"
+    );
   });
 
   it("shows the connecting row before Twitch token/network setup resolves", async () => {
@@ -661,6 +747,7 @@ describe("TwitchChat", () => {
     userId: "u-sub",
     username: "subber",
     displayName: "Subber",
+    color: "#c084fc",
     systemMessage: "Subber subscribed!",
     timestamp: new Date(),
   };
@@ -686,6 +773,7 @@ describe("TwitchChat", () => {
       expect.objectContaining({
         username: "subber",
         displayName: "Subber",
+        color: "#c084fc",
         highlightKind: "subscription",
       })
     );

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // vi.mock is hoisted above imports, so the client constructor it references must
 // be created via vi.hoisted (same pattern as follow-endpoints.test.ts).
@@ -56,22 +56,26 @@ function seedTwitchBucket(channel: string): string {
 // success, so the test drives completion by emitting "connected".
 let fakeClient: EventEmitter & {
   connect: ReturnType<typeof vi.fn>;
+  join: ReturnType<typeof vi.fn>;
   say: ReturnType<typeof vi.fn>;
 };
+
+function makeFakeTmiClient(): typeof fakeClient {
+  return fakeClient;
+}
 
 // Guards: Twitch community gift USERNOTICE events emit an aggregate notice so the gifted-sub banner appears before recipient rows.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
       connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      join: vi.fn(() => Promise.resolve(["#xqc"])),
       say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
     });
     ClientCtor.mockReset();
     // Arrow functions cannot be used with `new`; use a regular function so that
     // `new tmi.Client(options)` in createClient() returns fakeClient correctly.
-    ClientCtor.mockImplementation(function () {
-      return fakeClient;
-    });
+    ClientCtor.mockImplementation(makeFakeTmiClient);
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "debug").mockImplementation(() => {});
     vi.spyOn(console, "info").mockImplementation(() => {});
@@ -222,6 +226,62 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(service.isModeratorIn("ninja")).toBe(false);
   });
 
+  it("keeps new auth credentials when already connected so channel subscriber badges can load", async () => {
+    const service = new TwitchChatService();
+
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            set_id: "subscriber",
+            versions: [
+              {
+                id: "3",
+                image_url_1x: "https://static-cdn.jtvnw.net/badges/v1/custom-3/1",
+                image_url_2x: "https://static-cdn.jtvnw.net/badges/v1/custom-3/2",
+                image_url_4x: "https://static-cdn.jtvnw.net/badges/v1/custom-3/3",
+                title: "3-Month Subscriber",
+                description: "3-Month Subscriber",
+                click_action: null,
+                click_url: null,
+              },
+            ],
+          },
+        ],
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await service.connect({
+      accessToken: "tok",
+      clientId: "client-id",
+      user: {
+        id: "mod-1",
+        login: "modder",
+        displayName: "Modder",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    await service.joinChannel("extraemily", "517475551");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.twitch.tv/helix/chat/badges?broadcaster_id=517475551",
+      expect.objectContaining({
+        headers: {
+          Authorization: "Bearer tok",
+          "Client-Id": "client-id",
+        },
+      })
+    );
+  });
+
   it("applies live moderator status to immediate self-echo badges", async () => {
     const service = new TwitchChatService();
     const internals = service as unknown as ServiceInternals;
@@ -272,6 +332,7 @@ describe("TwitchChatService connect() single-flight", () => {
         id: "gift-100",
         "user-id": "gifter-1",
         "display-name": "marshnman001",
+        color: "#c084fc",
         "system-msg": "marshnman001 gifted 100 Tier 1 Subs to the channel!",
         "msg-param-mass-gift-count": "100",
       }
@@ -286,6 +347,7 @@ describe("TwitchChatService connect() single-flight", () => {
         userId: "gifter-1",
         username: "marshnman001",
         displayName: "marshnman001",
+        color: "#c084fc",
         systemMessage: "marshnman001 gifted 100 Tier 1 Subs to the channel!",
         giftCount: 100,
       }),

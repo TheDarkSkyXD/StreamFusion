@@ -218,6 +218,8 @@ export interface UserNotice {
   userId: string;
   username: string;
   displayName: string;
+  /** Username color from the platform notice payload, when supplied. */
+  color?: string;
   message?: string;
   systemMessage: string;
   timestamp: Date;

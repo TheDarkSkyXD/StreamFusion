@@ -33,9 +33,49 @@ interface TwitchBadgesResponse {
   data: TwitchBadgeSet[];
 }
 
+interface TwitchGqlResponse<T> {
+  data?: T;
+  errors?: Array<{ message?: string }>;
+}
+
+interface TwitchGqlBroadcastBadgesData {
+  user?: {
+    broadcastBadges?: Array<TwitchGqlBroadcastBadge | null>;
+  } | null;
+}
+
+interface TwitchGqlBroadcastBadge {
+  setID?: string | null;
+  version?: string | null;
+  imageURL?: string | null;
+  title?: string | null;
+}
+
+interface TwitchGqlChatBadgesData {
+  badges?: Array<TwitchGqlChatBadge | null>;
+}
+
+interface TwitchGqlChatBadge {
+  setID?: string | null;
+  version?: string | null;
+  image1x?: string | null;
+  image2x?: string | null;
+  image4x?: string | null;
+  title?: string | null;
+}
+
+interface LoadChannelBadgesOptions {
+  forceRefresh?: boolean;
+}
+
 // ========== Constants ==========
 
 const TWITCH_API_BASE = "https://api.twitch.tv/helix";
+const TWITCH_GQL_ENDPOINT = "https://gql.twitch.tv/gql";
+// Same anonymous Android-app Client-Id used by Xtra and this repo's public GQL
+// client. Twitch web Client-Id commonly requires paired integrity headers.
+const TWITCH_GQL_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
+const GQL_REQUEST_TIMEOUT_MS = 10_000;
 const BADGE_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Cap on per-channel badge entries kept in memory. Without this, broadcasters
 // watched and abandoned during a long session stay cached forever; eviction is
@@ -101,10 +141,17 @@ export class BadgeResolver {
   /**
    * Load channel-specific badges
    */
-  async loadChannelBadges(broadcasterId: string, token: string, clientId: string): Promise<void> {
+  async loadChannelBadges(
+    broadcasterId: string,
+    token: string,
+    clientId: string,
+    channelLogin?: string,
+    options: LoadChannelBadgesOptions = {}
+  ): Promise<void> {
     // Check cache validity
     const loadedAt = this.channelBadgesLoadedAt.get(broadcasterId);
     if (
+      !options.forceRefresh &&
       this.channelBadges.has(broadcasterId) &&
       loadedAt &&
       Date.now() - loadedAt < BADGE_CACHE_TTL
@@ -113,11 +160,7 @@ export class BadgeResolver {
     }
 
     try {
-      const badges = await this.fetchBadges(
-        `/chat/badges?broadcaster_id=${broadcasterId}`,
-        token,
-        clientId
-      );
+      const badges = await this.fetchChannelBadgeSets(broadcasterId, token, clientId, channelLogin);
       this.channelBadges.set(broadcasterId, this.transformBadges(badges));
       this.channelBadgesLoadedAt.set(broadcasterId, Date.now());
       while (this.channelBadges.size > MAX_CHANNEL_BADGES) {
@@ -249,6 +292,143 @@ export class BadgeResolver {
   /**
    * Fetch badges from Twitch API
    */
+  private async fetchChannelBadgeSets(
+    broadcasterId: string,
+    token: string,
+    clientId: string,
+    channelLogin?: string
+  ): Promise<TwitchBadgeSet[]> {
+    try {
+      const badges = await this.fetchBroadcastBadgesFromGql(broadcasterId, channelLogin);
+      if (badges.length > 0) return badges;
+    } catch (error) {
+      logger.debug("Chat:Badges", "Twitch broadcastBadges GQL lookup failed; falling back", {
+        broadcasterId,
+        channelLogin,
+        error:
+          error instanceof Error ? { name: error.name, message: error.message } : String(error),
+      });
+    }
+
+    if (channelLogin) {
+      try {
+        const badges = await this.fetchChatListBadgesFromGql(channelLogin);
+        if (badges.length > 0) return badges;
+      } catch (error) {
+        logger.debug("Chat:Badges", "Twitch ChatList_Badges GQL lookup failed; falling back", {
+          broadcasterId,
+          channelLogin,
+          error:
+            error instanceof Error ? { name: error.name, message: error.message } : String(error),
+        });
+      }
+    }
+
+    return this.fetchBadges(`/chat/badges?broadcaster_id=${broadcasterId}`, token, clientId);
+  }
+
+  /**
+   * Xtra uses `user.broadcastBadges` as the primary source for channel badge
+   * images. That source reflects the custom subscriber badges Twitch web chat
+   * renders for the broadcaster.
+   */
+  private async fetchBroadcastBadgesFromGql(
+    broadcasterId: string,
+    channelLogin?: string
+  ): Promise<TwitchBadgeSet[]> {
+    const variables: { id?: string; login?: string; quality: "QUADRUPLE" } = {
+      quality: "QUADRUPLE",
+    };
+    if (broadcasterId) {
+      variables.id = broadcasterId;
+    } else if (channelLogin) {
+      variables.login = channelLogin;
+    }
+
+    const response = await this.fetchGql<TwitchGqlBroadcastBadgesData>({
+      operationName: "UserBadges",
+      variables,
+      query: `query UserBadges($id: ID, $login: String, $quality: BadgeImageSize) {
+        user(id: $id, login: $login, lookupType: ALL) {
+          broadcastBadges {
+            imageURL(size: $quality)
+            setID
+            title
+            version
+          }
+        }
+      }`,
+    });
+
+    return this.transformFlatBadges(
+      response.data?.user?.broadcastBadges?.map((badge) =>
+        badge
+          ? {
+              setId: badge.setID,
+              version: badge.version,
+              imageUrl1x: badge.imageURL,
+              imageUrl2x: badge.imageURL,
+              imageUrl4x: badge.imageURL,
+              title: badge.title,
+            }
+          : null
+      ) ?? []
+    );
+  }
+
+  /**
+   * Persisted-query fallback mirrored from Xtra's `ChatList_Badges` path.
+   */
+  private async fetchChatListBadgesFromGql(channelLogin: string): Promise<TwitchBadgeSet[]> {
+    const response = await this.fetchGql<TwitchGqlChatBadgesData>({
+      operationName: "ChatList_Badges",
+      variables: { channelLogin },
+      extensions: {
+        persistedQuery: {
+          sha256Hash: "dd0997370fb7ca288bc52a96a9a7e3222c75c4a9a9b03df17d779666f07f7529",
+          version: 1,
+        },
+      },
+    });
+
+    return this.transformFlatBadges(
+      response.data?.badges?.map((badge) =>
+        badge
+          ? {
+              setId: badge.setID,
+              version: badge.version,
+              imageUrl1x: badge.image1x,
+              imageUrl2x: badge.image2x,
+              imageUrl4x: badge.image4x,
+              title: badge.title,
+            }
+          : null
+      ) ?? []
+    );
+  }
+
+  private async fetchGql<T>(body: Record<string, unknown>): Promise<TwitchGqlResponse<T>> {
+    const response = await fetch(TWITCH_GQL_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Client-Id": TWITCH_GQL_CLIENT_ID,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(GQL_REQUEST_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Badge GQL error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as TwitchGqlResponse<T>;
+    if (data.errors && data.errors.length > 0) {
+      throw new Error(data.errors.map((error) => error.message ?? "unknown").join("; "));
+    }
+    return data;
+  }
+
   private async fetchBadges(
     endpoint: string,
     token: string,
@@ -271,6 +451,37 @@ export class BadgeResolver {
 
     const data = (await response.json()) as TwitchBadgesResponse;
     return data.data;
+  }
+
+  private transformFlatBadges(
+    apiBadges: Array<{
+      setId?: string | null;
+      version?: string | null;
+      imageUrl1x?: string | null;
+      imageUrl2x?: string | null;
+      imageUrl4x?: string | null;
+      title?: string | null;
+    } | null>
+  ): TwitchBadgeSet[] {
+    const badgeSets = new Map<string, TwitchBadgeVersion[]>();
+
+    for (const badge of apiBadges) {
+      if (!badge?.setId || !badge.version || !badge.imageUrl4x) continue;
+      const versions = badgeSets.get(badge.setId) ?? [];
+      versions.push({
+        id: badge.version,
+        image_url_1x: badge.imageUrl1x ?? badge.imageUrl4x,
+        image_url_2x: badge.imageUrl2x ?? badge.imageUrl4x,
+        image_url_4x: badge.imageUrl4x,
+        title: badge.title ?? badge.setId,
+        description: badge.title ?? badge.setId,
+        click_action: null,
+        click_url: null,
+      });
+      badgeSets.set(badge.setId, versions);
+    }
+
+    return Array.from(badgeSets, ([set_id, versions]) => ({ set_id, versions }));
   }
 
   /**

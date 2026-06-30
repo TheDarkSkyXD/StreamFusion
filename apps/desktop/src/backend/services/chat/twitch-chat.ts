@@ -121,6 +121,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   async connect(options: TwitchChatOptions = {}): Promise<void> {
     // Mark service as active - allows connections and reconnections
     this.isActive = true;
+    this.storeAuthOptions(options);
 
     // If already connected, just return
     if (this.client && this.connectionState === "connected") {
@@ -167,15 +168,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.debugMode = options.debug ?? false;
     this.isAnonymous = options.anonymous ?? false;
 
-    if (!this.isAnonymous) {
-      // Only overwrite when the option was explicitly provided. On reconnect
-      // the caller passes `{anonymous, debug}` without creds — preserving the
-      // existing identity keeps the chat authenticated across token rotations.
-      if (options.accessToken !== undefined) this.accessToken = options.accessToken;
-      if (options.clientId !== undefined) this.clientId = options.clientId;
-      if (options.user !== undefined) this.user = options.user;
-      if (options.tokenFetcher !== undefined) this.tokenFetcher = options.tokenFetcher;
-    }
+    this.storeAuthOptions(options);
 
     this.setConnectionState("connecting");
 
@@ -318,6 +311,31 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   }
 
   /**
+   * Load the watched channel's Twitch badge catalog before messages are parsed.
+   * The catalog includes every channel-specific subscriber badge version.
+   */
+  async loadChannelBadges(
+    channel: string,
+    broadcasterId?: string,
+    options: { forceRefresh?: boolean } = {}
+  ): Promise<void> {
+    if (!broadcasterId) return;
+
+    const normalizedChannel = this.normalizeChannel(channel);
+    this.broadcasterId.set(normalizedChannel, broadcasterId);
+
+    if (this.accessToken && this.clientId) {
+      await badgeResolver.loadChannelBadges(
+        broadcasterId,
+        this.accessToken,
+        this.clientId,
+        normalizedChannel,
+        options
+      );
+    }
+  }
+
+  /**
    * Release a reference to this service (decrement user count)
    * Call this when a component stops using the service
    * When the last user releases, the service will fully shutdown
@@ -448,16 +466,11 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     }
 
     try {
+      await this.loadChannelBadges(normalizedChannel, broadcasterId);
+
       await this.client.join(normalizedChannel);
       this.channels.add(normalizedChannel);
 
-      // Store broadcaster ID for badge resolution
-      if (broadcasterId) {
-        this.broadcasterId.set(normalizedChannel, broadcasterId);
-        if (this.accessToken && this.clientId) {
-          await badgeResolver.loadChannelBadges(broadcasterId, this.accessToken, this.clientId);
-        }
-      }
       this.refreshOwnModeratorState(normalizedChannel);
 
       this.emitConnectionStatus();
@@ -731,6 +744,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   }
 
   // ========== Private Methods ==========
+
+  private storeAuthOptions(options: TwitchChatOptions): void {
+    if (options.accessToken !== undefined) this.accessToken = options.accessToken;
+    if (options.clientId !== undefined) this.clientId = options.clientId;
+    if (options.user !== undefined) this.user = options.user;
+    if (options.tokenFetcher !== undefined) this.tokenFetcher = options.tokenFetcher;
+  }
 
   private refreshOwnModeratorState(channel: string): void {
     if (!this.client || !this.user) return;
@@ -1026,6 +1046,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       userId: (typedTags["user-id"] as string) ?? "",
       username: ((typedTags["display-name"] as string) ?? "").toLowerCase(),
       displayName: (typedTags["display-name"] as string) ?? "",
+      color: (typedTags.color as string | undefined) || undefined,
       message,
       systemMessage: (typedTags["system-msg"] as string) ?? "",
       timestamp: new Date(),
