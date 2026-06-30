@@ -28,6 +28,7 @@ const virtuosoScrollToIndexCalls = vi.hoisted<
     behavior?: "auto" | "smooth";
   }>
 >(() => []);
+const virtuosoScrollerBottomGap = vi.hoisted(() => ({ current: 900 }));
 
 vi.mock("@/components/chat/ChatMessage", () => ({
   ChatMessage: ({
@@ -60,7 +61,6 @@ vi.mock("react-virtuoso", async () => {
           itemContent,
           atBottomStateChange,
           scrollerRef,
-          totalListHeightChanged,
           initialTopMostItemIndex,
           overscan,
           increaseViewportBy,
@@ -72,7 +72,6 @@ vi.mock("react-virtuoso", async () => {
           itemContent: (i: number, m: unknown) => React.ReactNode;
           atBottomStateChange?: (atBottom: boolean) => void;
           scrollerRef?: (el: HTMLElement | null) => void;
-          totalListHeightChanged?: (height: number) => void;
           initialTopMostItemIndex?: number;
           overscan?: number;
           increaseViewportBy?: number | { top?: number; bottom?: number };
@@ -101,8 +100,12 @@ vi.mock("react-virtuoso", async () => {
         virtuosoItemContentRefs.push(itemContent);
         virtuosoLayoutProps.push({ className, style });
         const scroller = document.createElement("div");
-        Object.defineProperty(scroller, "scrollHeight", { value: 1200, configurable: true });
+        Object.defineProperty(scroller, "scrollHeight", {
+          get: () => 1200 + virtuosoScrollerBottomGap.current,
+          configurable: true,
+        });
         Object.defineProperty(scroller, "clientHeight", { value: 300, configurable: true });
+        scroller.scrollTop = 1200 - 300;
         scrollerRef?.(scroller);
         return (
           <div data-testid="virtuoso">
@@ -125,9 +128,6 @@ vi.mock("react-virtuoso", async () => {
             </button>
             <button type="button" onClick={() => atBottomStateChange?.(true)}>
               return bottom
-            </button>
-            <button type="button" onClick={() => totalListHeightChanged?.(1600)}>
-              grow content
             </button>
             {data.map((m, i) => (
               <div key={m.id}>{itemContent(i, m)}</div>
@@ -195,8 +195,7 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 // Guards: Twitch-style Pause Chat preferences add mouseover and Alt-key pause triggers without breaking scroll pause.
 // Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
 // Guards: rapid chat updates must not mutate Virtuoso's initial scroll index and flash/jump the visible list
-// Guards: live message appends get one post-measure bottom align, not the old repeated direct-scroll loop that made fast chat bounce
-// Guards: late row-height changes from images/emotes/badges realign the latest item to the bottom while follow mode is active
+// Guards: live message appends get bounded post-measure bottom alignment, not an ongoing height-change loop that makes fast chat flicker
 // Guards: click-to-reply is only exposed when the platform orchestrator opts the list into reply behavior
 // Guards: inline Unban is exposed only for senders known to be banned or timed out; missing unban state must not show it for ordinary users
 // Guards: the new-messages divider appears after seeded history and connection system rows, only when real live chat begins, with the live platform's color
@@ -210,6 +209,7 @@ describe("ChatMessageList", () => {
     virtuosoItemContentRefs.length = 0;
     virtuosoLayoutProps.length = 0;
     virtuosoScrollToIndexCalls.length = 0;
+    virtuosoScrollerBottomGap.current = 900;
   });
 
   afterEach(() => {
@@ -407,6 +407,7 @@ describe("ChatMessageList", () => {
   });
 
   it("post-measure aligns the latest live message to the bottom while unpaused", async () => {
+    vi.useFakeTimers();
     const requestAnimationFrameSpy = vi
       .spyOn(window, "requestAnimationFrame")
       .mockImplementation((callback) => {
@@ -435,6 +436,99 @@ describe("ChatMessageList", () => {
       align: "end",
       behavior: "auto",
     });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(80);
+    });
+
+    expect(virtuosoScrollToIndexCalls.filter((call) => call.index === "LAST")).toHaveLength(2);
+  });
+
+  it("keeps the delayed bottom alignment alive while fast chat keeps appending", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      return window.setTimeout(() => callback(0), 0);
+    });
+
+    act(() => {
+      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
+    });
+    render(<ChatMessageList channelKey={channelA} />);
+    virtuosoScrollToIndexCalls.length = 0;
+
+    await act(async () => {
+      useChatStore.getState().addMessage(message("fast-1", "alpha", "First fast message"));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40);
+    });
+    await act(async () => {
+      useChatStore.getState().addMessage(message("fast-2", "alpha", "Second fast message"));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(virtuosoScrollToIndexCalls.filter((call) => call.index === "LAST")).toHaveLength(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40);
+    });
+
+    expect(virtuosoScrollToIndexCalls.filter((call) => call.index === "LAST")).toHaveLength(3);
+  });
+
+  it("does not force bottom alignment when Virtuoso is already at the bottom", async () => {
+    vi.useFakeTimers();
+    virtuosoScrollerBottomGap.current = 0;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      return window.setTimeout(() => callback(0), 0);
+    });
+
+    act(() => {
+      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
+    });
+    render(<ChatMessageList channelKey={channelA} />);
+
+    await act(async () => {
+      useChatStore.getState().addMessage(message("fast-1", "alpha", "First fast message"));
+      await vi.advanceTimersByTimeAsync(80);
+    });
+
+    expect(virtuosoScrollToIndexCalls).toHaveLength(0);
+  });
+
+  it("keeps checking briefly after append when the final measured row height arrives late", async () => {
+    vi.useFakeTimers();
+    virtuosoScrollerBottomGap.current = 0;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      return window.setTimeout(() => callback(0), 0);
+    });
+
+    act(() => {
+      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
+    });
+    render(<ChatMessageList channelKey={channelA} />);
+
+    await act(async () => {
+      useChatStore.getState().addMessage(message("wrap", "alpha", "A message that wraps later"));
+      await vi.advanceTimersByTimeAsync(80);
+    });
+
+    expect(virtuosoScrollToIndexCalls).toHaveLength(0);
+
+    virtuosoScrollerBottomGap.current = 72;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(80);
+    });
+
+    expect(virtuosoScrollToIndexCalls).toContainEqual({
+      index: "LAST",
+      align: "end",
+      behavior: "auto",
+    });
   });
 
   it("scrolls to the latest message when the paused banner is clicked", async () => {
@@ -454,30 +548,6 @@ describe("ChatMessageList", () => {
       behavior: "auto",
     });
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-  });
-
-  it("realigns the latest item when the measured list height changes while following bottom", async () => {
-    const requestAnimationFrameSpy = vi
-      .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((callback) => {
-        callback(0);
-        return 1;
-      });
-
-    act(() => {
-      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
-    });
-    const { getByText } = render(<ChatMessageList channelKey={channelA} />);
-    virtuosoScrollToIndexCalls.length = 0;
-
-    fireEvent.click(getByText("grow content"));
-
-    expect(requestAnimationFrameSpy).toHaveBeenCalled();
-    expect(virtuosoScrollToIndexCalls).toContainEqual({
-      index: "LAST",
-      align: "end",
-      behavior: "auto",
-    });
   });
 
   it("keeps pause state scoped to the channel that scrolls away from bottom", async () => {

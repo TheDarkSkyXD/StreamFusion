@@ -27,6 +27,7 @@ const MemoizedChatMessage = memo(ChatMessage);
 const EMPTY_MESSAGES: ChatMessageType[] = [];
 const CHAT_LIST_OVERSCAN_PX = 150;
 const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 240, bottom: 480 };
+const BOTTOM_FOLLOW_CORRECTION_DELAYS_MS = [80, 160, 320];
 const NEW_MESSAGES_DIVIDER_COLOR: Record<ChatPlatform, string> = {
   twitch: "#a970ff",
   kick: "#53fc18",
@@ -123,6 +124,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const mouseoverPauseRef = useRef(false);
     const altPauseRef = useRef(false);
     const bottomFollowFrameRef = useRef<number | null>(null);
+    const bottomFollowTimeoutRefs = useRef<number[]>([]);
     const lastAutoFollowMessageIdRef = useRef<string | undefined>(lastMessageId);
     const pauseTimer = useManagedTimeout(
       useCallback(() => setPaused(channelKey, true), [channelKey, setPaused])
@@ -312,49 +314,82 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       bottomFollowFrameRef.current = null;
     }, []);
 
-    const scrollLastItemToBottom = useCallback(() => {
-      virtuosoRef.current?.scrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      });
+    const cancelBottomFollowTimeout = useCallback(() => {
+      for (const timeoutId of bottomFollowTimeoutRefs.current) {
+        window.clearTimeout(timeoutId);
+      }
+      bottomFollowTimeoutRefs.current = [];
     }, []);
+
+    const needsBottomCorrection = useCallback(() => {
+      const scroller = scrollerRef.current;
+      if (!scroller) return true;
+
+      const bottomGap = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      return bottomGap > 2;
+    }, []);
+
+    const scrollLastItemToBottom = useCallback(
+      (options?: { force?: boolean }) => {
+        if (!options?.force && !needsBottomCorrection()) return;
+
+        virtuosoRef.current?.scrollToIndex({
+          index: "LAST",
+          align: "end",
+          behavior: "auto",
+        });
+      },
+      [needsBottomCorrection]
+    );
+
+    const shouldAutoFollowBottom = useCallback(() => {
+      return (
+        !isPaused &&
+        !userScrolledUpRef.current &&
+        !pendingPauseRef.current &&
+        !hasActiveInputPause()
+      );
+    }, [hasActiveInputPause, isPaused]);
+
+    const correctBottomAfterMessageAppend = useCallback(() => {
+      if (bottomFollowFrameRef.current === null) {
+        bottomFollowFrameRef.current = window.requestAnimationFrame(() => {
+          bottomFollowFrameRef.current = null;
+          if (!shouldAutoFollowBottom()) return;
+          scrollLastItemToBottom();
+        });
+      }
+
+      if (bottomFollowTimeoutRefs.current.length === 0) {
+        bottomFollowTimeoutRefs.current = BOTTOM_FOLLOW_CORRECTION_DELAYS_MS.map((delay) => {
+          const timeoutId = window.setTimeout(() => {
+            bottomFollowTimeoutRefs.current = bottomFollowTimeoutRefs.current.filter(
+              (id) => id !== timeoutId
+            );
+            if (!shouldAutoFollowBottom()) return;
+            scrollLastItemToBottom();
+          }, delay);
+
+          return timeoutId;
+        });
+      }
+    }, [scrollLastItemToBottom, shouldAutoFollowBottom]);
 
     useLayoutEffect(() => {
       if (lastAutoFollowMessageIdRef.current === lastMessageId) return;
       lastAutoFollowMessageIdRef.current = lastMessageId;
       if (!lastMessageId) return;
-      if (
-        isPaused ||
-        userScrolledUpRef.current ||
-        pendingPauseRef.current ||
-        hasActiveInputPause()
-      ) {
-        return;
-      }
+      if (!shouldAutoFollowBottom()) return;
 
-      cancelBottomFollowFrame();
-      bottomFollowFrameRef.current = window.requestAnimationFrame(() => {
-        bottomFollowFrameRef.current = null;
-        if (
-          isPaused ||
-          userScrolledUpRef.current ||
-          pendingPauseRef.current ||
-          hasActiveInputPause()
-        ) {
-          return;
-        }
-        scrollLastItemToBottom();
-      });
+      correctBottomAfterMessageAppend();
+    }, [lastMessageId, shouldAutoFollowBottom, correctBottomAfterMessageAppend]);
 
-      return cancelBottomFollowFrame;
-    }, [
-      lastMessageId,
-      isPaused,
-      hasActiveInputPause,
-      cancelBottomFollowFrame,
-      scrollLastItemToBottom,
-    ]);
+    useEffect(() => {
+      return () => {
+        cancelBottomFollowFrame();
+        cancelBottomFollowTimeout();
+      };
+    }, [cancelBottomFollowFrame, cancelBottomFollowTimeout]);
 
     const itemContent = useCallback(
       (index: number, message: ChatMessageType) => (
@@ -418,31 +453,11 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       [channelKey, hasActiveInputPause, setPaused, pauseTimer]
     );
 
-    const shouldAutoFollowBottom = useCallback(() => {
-      return (
-        !isPaused &&
-        !userScrolledUpRef.current &&
-        !pendingPauseRef.current &&
-        !hasActiveInputPause()
-      );
-    }, [hasActiveInputPause, isPaused]);
-
-    const scheduleAutoscrollToBottom = useCallback(() => {
-      if (!shouldAutoFollowBottom()) return;
-
-      cancelBottomFollowFrame();
-      bottomFollowFrameRef.current = window.requestAnimationFrame(() => {
-        bottomFollowFrameRef.current = null;
-        if (!shouldAutoFollowBottom()) return;
-        scrollLastItemToBottom();
-      });
-    }, [cancelBottomFollowFrame, scrollLastItemToBottom, shouldAutoFollowBottom]);
-
     const scrollToBottom = useCallback(() => {
       userScrolledUpRef.current = false;
       pendingPauseRef.current = false;
       setPaused(channelKey, false);
-      scrollLastItemToBottom();
+      scrollLastItemToBottom({ force: true });
     }, [channelKey, setPaused, scrollLastItemToBottom]);
 
     const followOutput = useCallback(
@@ -466,7 +481,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           overscan={CHAT_LIST_OVERSCAN_PX}
           increaseViewportBy={CHAT_LIST_INCREASE_VIEWPORT_BY}
           atBottomStateChange={handleAtBottomStateChange}
-          totalListHeightChanged={scheduleAutoscrollToBottom}
           scrollerRef={scrollerCallbackRef}
           defaultItemHeight={defaultItemHeight}
           style={{
