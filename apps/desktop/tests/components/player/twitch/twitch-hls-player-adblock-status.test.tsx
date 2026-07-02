@@ -2,6 +2,8 @@ import { render } from "@testing-library/react";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AdBlockStatus } from "@/shared/adblock-types";
+
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -10,6 +12,7 @@ const {
   hlsConstructorConfigs,
   hlsInstances,
   playerCallbackState,
+  statusCallbackState,
   mockClearStreamInfo,
   mockGetAdBlockConfig,
   mockGetAdBlockHlsConfig,
@@ -31,6 +34,9 @@ const {
   playerCallbackState: {
     reload: null as null | ((reason?: string) => void),
   },
+  statusCallbackState: {
+    callback: null as null | ((status: AdBlockStatus) => void),
+  },
   mockClearStreamInfo: vi.fn((_channelName: string) => {}),
   mockGetAdBlockConfig: vi.fn(() => ({ backupPlayerTypes: [] })),
   mockGetAdBlockHlsConfig: vi.fn((_channelName: string) => ({})),
@@ -51,7 +57,9 @@ const {
   mockSetPlayerCallbacks: vi.fn((reload: (reason?: string) => void, _pauseResume: () => void) => {
     playerCallbackState.reload = reload;
   }),
-  mockSetStatusChangeCallback: vi.fn((_callback: unknown) => {}),
+  mockSetStatusChangeCallback: vi.fn((callback: (status: AdBlockStatus) => void) => {
+    statusCallbackState.callback = callback;
+  }),
   mockUpdateAdBlockConfig: vi.fn((_updates: unknown) => {}),
 }));
 
@@ -118,7 +126,8 @@ vi.mock("@/components/player/twitch/twitch-adblock-service", () => ({
   setAuthHeaders: (deviceId: string) => mockSetAuthHeaders(deviceId),
   setPlayerCallbacks: (reload: () => void, pauseResume: () => void) =>
     mockSetPlayerCallbacks(reload, pauseResume),
-  setStatusChangeCallback: (callback: unknown) => mockSetStatusChangeCallback(callback),
+  setStatusChangeCallback: (callback: (status: AdBlockStatus) => void) =>
+    mockSetStatusChangeCallback(callback),
   updateAdBlockConfig: (updates: unknown) => mockUpdateAdBlockConfig(updates),
 }));
 
@@ -133,6 +142,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     hlsConstructorConfigs.length = 0;
     hlsInstances.length = 0;
     playerCallbackState.reload = null;
+    statusCallbackState.callback = null;
     localStorage.clear();
     mockIsAdBlockEnabled.mockReturnValue(true);
     vi.useRealTimers();
@@ -307,6 +317,48 @@ describe("TwitchHlsPlayer adblock status", () => {
       })
     );
     expect(hls.destroy).toHaveBeenCalled();
+  });
+
+  it("does not report missing fragments while adblock is actively holding playback", () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        enableAdBlock
+        onError={onError}
+      />
+    );
+    const hls = hlsInstances[0];
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+
+    act(() => {
+      hls.emit("hlsManifestParsed");
+      statusCallbackState.callback?.({
+        isActive: true,
+        isShowingAd: true,
+        isMidroll: false,
+        isStrippingSegments: true,
+        numStrippedSegments: 1,
+        activePlayerType: null,
+        channelName: "sodapoppin",
+        isUsingFallbackMode: false,
+        adStartTime: Date.now(),
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(hls.destroy).not.toHaveBeenCalled();
   });
 
   it("refreshes the parent playback URL immediately when ad-block reports an ad ended", () => {

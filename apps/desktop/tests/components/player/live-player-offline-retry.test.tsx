@@ -2,11 +2,13 @@ import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerError } from "@/components/player/types";
+import type { AdBlockStatus } from "@/shared/adblock-types";
 
 const h = vi.hoisted(() => ({
   kickHlsProps: null as null | { onError?: (error: PlayerError) => void },
   twitchHlsProps: null as null | {
     onAdBlockRecoveryRefresh?: () => void;
+    onAdBlockStatusChange?: (status: AdBlockStatus) => void;
     onError?: (error: PlayerError) => void;
   },
 }));
@@ -76,6 +78,7 @@ vi.mock("@/components/player/kick/uptime-readout", () => ({
 vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
   TwitchHlsPlayer: (props: {
     onAdBlockRecoveryRefresh?: () => void;
+    onAdBlockStatusChange?: (status: AdBlockStatus) => void;
     onError?: (error: PlayerError) => void;
   }) => {
     h.twitchHlsProps = props;
@@ -156,5 +159,43 @@ describe("live player offline retry handling", () => {
     act(() => h.twitchHlsProps?.onAdBlockRecoveryRefresh?.());
 
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("Twitch suppresses refreshable playback errors while adblock is blocking ads", () => {
+    const onError = vi.fn();
+    const onRefresh = vi.fn();
+    render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"
+        channelName="xqc"
+        onError={onError}
+        onRefresh={onRefresh}
+      />
+    );
+
+    act(() =>
+      h.twitchHlsProps?.onAdBlockStatusChange?.({
+        isActive: true,
+        isShowingAd: true,
+        isMidroll: false,
+        isStrippingSegments: true,
+        numStrippedSegments: 1,
+        activePlayerType: null,
+        channelName: "xqc",
+        isUsingFallbackMode: false,
+        adStartTime: Date.now(),
+      })
+    );
+    act(() =>
+      h.twitchHlsProps?.onError?.({
+        code: "NO_FRAGMENTS",
+        message: "No video fragments received after manifest load",
+        fatal: true,
+        shouldRefresh: true,
+      })
+    );
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
   });
 });

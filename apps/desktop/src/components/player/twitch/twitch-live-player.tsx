@@ -283,6 +283,20 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
               error.shouldRefresh === true ||
               error.code === "NO_FRAGMENTS" ||
               error.code === "TOKEN_EXPIRED";
+            const isAdBlockHoldingPlayback =
+              effectiveEnableAdBlock &&
+              !!adBlockStatus &&
+              (adBlockStatus.isShowingAd ||
+                adBlockStatus.isStrippingSegments ||
+                adBlockStatus.isUsingFallbackMode);
+
+            if (isRefreshableError && isAdBlockHoldingPlayback) {
+              logger.debug("Player:Twitch:Live", "suppressing refresh while adblock is active", {
+                code: error.code,
+              });
+              setIsLoading(false);
+              return;
+            }
 
             // Check if we should auto-retry
             const canRetry =

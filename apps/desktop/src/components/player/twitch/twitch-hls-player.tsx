@@ -84,6 +84,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const lastFragLoadedTimeRef = useRef(Date.now());
     const manifestParsedTimeRef = useRef<number | null>(null);
     const hasReceivedFirstFragmentRef = useRef(false);
+    const adBlockStatusRef = useRef<AdBlockStatus | null>(null);
 
     // Delay state: null = paused, number = running. Set on MANIFEST_PARSED, cleared on teardown.
     const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
@@ -116,6 +117,19 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
       const now = Date.now();
       const timeSinceLastFrag = now - lastFragLoadedTimeRef.current;
+      const adBlockStatus = adBlockStatusRef.current;
+      const isAdBlockHoldingPlayback =
+        enableAdBlock &&
+        !!adBlockStatus &&
+        (adBlockStatus.isShowingAd ||
+          adBlockStatus.isStrippingSegments ||
+          adBlockStatus.isUsingFallbackMode);
+
+      if (isAdBlockHoldingPlayback) {
+        lastFragLoadedTimeRef.current = now;
+        manifestParsedTimeRef.current = now;
+        return;
+      }
 
       if (!hasReceivedFirstFragmentRef.current) {
         const manifestParsedTime = manifestParsedTimeRef.current;
@@ -250,6 +264,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         }
 
         setStatusChangeCallback((status) => {
+          adBlockStatusRef.current = status;
           setAdBlockStatus(status);
           onAdBlockStatusChangeRef.current?.(status);
         });
@@ -268,6 +283,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         setAuthHeaders(deviceId);
 
         const initialStatus = getAdBlockStatus(channelName);
+        adBlockStatusRef.current = initialStatus;
         setAdBlockStatus(initialStatus);
         onAdBlockStatusChangeRef.current?.(initialStatus);
 
@@ -284,6 +300,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           isUsingFallbackMode: false,
           adStartTime: null,
         };
+        adBlockStatusRef.current = inactiveStatus;
         setAdBlockStatus(inactiveStatus);
         onAdBlockStatusChangeRef.current?.(inactiveStatus);
       }
