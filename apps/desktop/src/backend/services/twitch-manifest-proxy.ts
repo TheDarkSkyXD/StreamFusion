@@ -802,7 +802,7 @@ class TwitchManifestProxyService {
    * Extract channel name from URL
    */
   private extractChannelName(url: string): string | null {
-    const match = url.match(/\/hls\/([^./]+)/);
+    const match = url.match(/\/channel\/(?:hls\/)?([^/.]+)\.m3u8/);
     return match ? match[1].toLowerCase() : null;
   }
 

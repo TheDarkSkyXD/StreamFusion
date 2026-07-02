@@ -82,6 +82,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     // Mutable heartbeat state lifted into refs so useInterval callbacks can read them
     const isEffectActiveRef = useRef(false);
     const lastFragLoadedTimeRef = useRef(Date.now());
+    const manifestParsedTimeRef = useRef<number | null>(null);
+    const hasReceivedFirstFragmentRef = useRef(false);
 
     // Delay state: null = paused, number = running. Set on MANIFEST_PARSED, cleared on teardown.
     const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
@@ -112,7 +114,28 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         return;
       }
 
-      const timeSinceLastFrag = Date.now() - lastFragLoadedTimeRef.current;
+      const now = Date.now();
+      const timeSinceLastFrag = now - lastFragLoadedTimeRef.current;
+
+      if (!hasReceivedFirstFragmentRef.current) {
+        const manifestParsedTime = manifestParsedTimeRef.current;
+        if (manifestParsedTime && now - manifestParsedTime >= LIVE_FRAGMENT_OFFLINE_GRACE_MS) {
+          logger.debug("Player:Twitch:HLS", "no fragments received after manifest", {
+            secondsSinceManifest: Math.round((now - manifestParsedTime) / 1000),
+          });
+          setHeartbeatDelay(null);
+          hls.destroy();
+          hlsRef.current = null;
+          onErrorRef.current?.({
+            code: "NO_FRAGMENTS",
+            message: "No video fragments received after manifest load",
+            fatal: true,
+            originalError: null,
+            shouldRefresh: true,
+          });
+        }
+        return;
+      }
 
       if (timeSinceLastFrag >= LIVE_FRAGMENT_OFFLINE_GRACE_MS) {
         logger.debug("Player:Twitch:HLS", "no fragments - stream appears to have ended", {
@@ -126,6 +149,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           message: "Stream ended or became unavailable",
           fatal: true,
           originalError: null,
+          shouldRefresh: true,
         });
         return;
       }
@@ -363,6 +387,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
       // Reset heartbeat mutable state for this stream
       lastFragLoadedTimeRef.current = Date.now();
+      manifestParsedTimeRef.current = null;
+      hasReceivedFirstFragmentRef.current = false;
 
       let hls: Hls | null = null;
       let handleLoadedMetadata: (() => void) | null = null;
@@ -683,12 +709,16 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         // Fragment loading tracker for offline detection
         hls.on(Hls.Events.FRAG_LOADED, () => {
           lastFragLoadedTimeRef.current = Date.now();
+          hasReceivedFirstFragmentRef.current = true;
         });
 
         // Activate heartbeat and memory cleanup via useInterval.
         // The actual interval logic lives in the useInterval hooks above.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          lastFragLoadedTimeRef.current = Date.now();
+          const now = Date.now();
+          manifestParsedTimeRef.current = now;
+          lastFragLoadedTimeRef.current = now;
+          hasReceivedFirstFragmentRef.current = false;
           setHeartbeatDelay(LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS);
           setMemoryCleanupDelay(LIVE_MEMORY_CLEANUP_INTERVAL_MS);
         });

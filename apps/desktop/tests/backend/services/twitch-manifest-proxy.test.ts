@@ -182,6 +182,13 @@ describe("TwitchManifestProxyService", () => {
       expect(result).toBe("xqc");
     });
 
+    it("extracts channel name from current usher URL shape", () => {
+      const result = proxy().extractChannelName(
+        "https://usher.ttvnw.net/api/channel/JamiePineLive.m3u8?allow_source=true"
+      );
+      expect(result).toBe("jamiepinelive");
+    });
+
     it("returns null for non-matching URL", () => {
       const result = proxy().extractChannelName(
         "https://example.com/video.mp4"

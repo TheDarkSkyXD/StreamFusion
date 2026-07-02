@@ -41,6 +41,8 @@ const streamInfos = new Map<string, StreamInfo>();
  */
 const streamInfosByUrl = new Map<string, StreamInfo>();
 
+const missingResolutionFallbackLoggedChannels = new Set<string>();
+
 /**
  * Current ad-block configuration
  */
@@ -86,6 +88,78 @@ let useV2Api = false;
  * When active, we skip heavy processing and just track ad state for UI updates
  */
 let isMainProcessProxyActive = false;
+
+function canonicalizePlaylistUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url.trim());
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
+function findStreamInfoForMediaUrl(url: string): StreamInfo | null {
+  const trimmedUrl = url.trim();
+  const exactMatch = streamInfosByUrl.get(trimmedUrl);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const canonicalUrl = canonicalizePlaylistUrl(trimmedUrl);
+  if (canonicalUrl) {
+    for (const [knownUrl, streamInfo] of streamInfosByUrl) {
+      if (canonicalizePlaylistUrl(knownUrl) === canonicalUrl) {
+        streamInfosByUrl.set(trimmedUrl, streamInfo);
+        return streamInfo;
+      }
+    }
+  }
+
+  // Twitch can mutate media playlist query strings after the master playlist is
+  // parsed. If only one stream is active, prefer processing that playlist over
+  // silently letting a detected ad through.
+  if (streamInfos.size === 1) {
+    const [streamInfo] = streamInfos.values();
+    streamInfosByUrl.set(trimmedUrl, streamInfo);
+    return streamInfo;
+  }
+
+  return null;
+}
+
+function findResolutionInfoForMediaUrl(streamInfo: StreamInfo, url: string): ResolutionInfo | null {
+  const trimmedUrl = url.trim();
+  const exactMatch = streamInfo.urls.get(trimmedUrl);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const canonicalUrl = canonicalizePlaylistUrl(trimmedUrl);
+  if (canonicalUrl) {
+    for (const [knownUrl, resolution] of streamInfo.urls) {
+      if (canonicalizePlaylistUrl(knownUrl) === canonicalUrl) {
+        streamInfo.urls.set(trimmedUrl, resolution);
+        return resolution;
+      }
+    }
+  }
+
+  if (streamInfo.urls.size === 1) {
+    const [resolution] = streamInfo.urls.values();
+    streamInfo.urls.set(trimmedUrl, resolution);
+    return resolution;
+  }
+
+  if (streamInfos.size === 1 && streamInfo.resolutionList.length > 0) {
+    const resolution = streamInfo.resolutionList[0];
+    streamInfo.urls.set(trimmedUrl, resolution);
+    return resolution;
+  }
+
+  return null;
+}
 
 // ========== Public API ==========
 
@@ -214,6 +288,7 @@ export function clearStreamInfo(channelName: string): void {
       streamInfosByUrl.delete(url);
     });
     streamInfos.delete(lowerName);
+    missingResolutionFallbackLoggedChannels.delete(lowerName);
   }
 
   // Also clear backend manifest proxy's stream info
@@ -393,7 +468,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
 
   // If main process proxy is handling ad blocking, just track ad state for UI
   if (isMainProcessProxyActive) {
-    const streamInfo = streamInfosByUrl.get(url.trim());
+    const streamInfo = findStreamInfoForMediaUrl(url);
     if (streamInfo) {
       const { hasAds } = detectAds(text, streamInfo);
       if (hasAds && !streamInfo.isShowingAd) {
@@ -413,10 +488,12 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     return text; // Proxy already processed the playlist
   }
 
-  const streamInfo = streamInfosByUrl.get(url.trim());
+  const streamInfo = findStreamInfoForMediaUrl(url);
   if (!streamInfo) {
     // Debug: Log when we can't find stream info (this was silently failing before)
-    logger.debug("Adblock:TwitchService", "no stream info found for URL, skipping processing");
+    logger.debug("Adblock:TwitchService", "no stream info found for URL, skipping processing", {
+      url,
+    });
     return text;
   }
 
@@ -448,16 +525,24 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     }
 
     // Get current resolution info
-    const currentResolution = streamInfo.urls.get(url.trim());
+    const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
     if (!currentResolution) {
-      logger.warn("Adblock:TwitchService", "missing resolution info for url", { url });
-      return text;
+      if (!missingResolutionFallbackLoggedChannels.has(streamInfo.channelName)) {
+        missingResolutionFallbackLoggedChannels.add(streamInfo.channelName);
+        logger.debug("Adblock:TwitchService", "missing resolution info; using stripping only", {
+          channelName: streamInfo.channelName,
+        });
+      }
     }
 
     // Check if we need to reload player for HEVC
-    const isHevc =
-      currentResolution.codecs.startsWith("hev") || currentResolution.codecs.startsWith("hvc");
-    if ((isHevc && !config.skipPlayerReloadOnHevc) || config.alwaysReloadPlayerOnAd) {
+    const isHevc = currentResolution
+      ? currentResolution.codecs.startsWith("hev") || currentResolution.codecs.startsWith("hvc")
+      : false;
+    if (
+      currentResolution &&
+      ((isHevc && !config.skipPlayerReloadOnHevc) || config.alwaysReloadPlayerOnAd)
+    ) {
       if (streamInfo.modifiedM3U8 && !streamInfo.isUsingModifiedM3U8) {
         streamInfo.isUsingModifiedM3U8 = true;
         streamInfo.lastPlayerReload = Date.now();
@@ -467,7 +552,9 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     }
 
     // Try to get backup stream
-    const backupResult = await tryGetBackupStream(streamInfo, currentResolution);
+    const backupResult = currentResolution
+      ? await tryGetBackupStream(streamInfo, currentResolution)
+      : null;
 
     if (backupResult) {
       text = backupResult;
@@ -786,16 +873,22 @@ function stripAdSegments(text: string, stripAllSegments: boolean, streamInfo: St
   const lines = text.replace(/\r/g, "").split("\n");
   const newAdUrl = "https://twitch.tv";
 
-  let hasProgramDateTime = false;
+  let isInsideAdRange = false;
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
 
     if (line.startsWith("#EXT-X-DISCONTINUITY")) {
-      hasProgramDateTime = false;
+      isInsideAdRange = false;
     }
-    if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME")) {
-      hasProgramDateTime = true;
+    if (
+      line.startsWith("#EXT-X-DATERANGE") &&
+      (line.includes("stitched-ad") ||
+        line.includes("twitch-stitched-ad") ||
+        line.includes("com.twitch.tv/ad") ||
+        line.includes("amazon-ad"))
+    ) {
+      isInsideAdRange = true;
     }
 
     // Remove tracking URLs
@@ -805,15 +898,11 @@ function stripAdSegments(text: string, stripAllSegments: boolean, streamInfo: St
     lines[i] = line;
 
     // Mark ad segments
-    // Check if segment is live (has explicit tag OR falls under Program Date Time scope)
-    const isLive = line.includes(",live") || hasProgramDateTime;
+    const isLive = line.includes(",live");
+    const isLikelyAdSegment =
+      stripAllSegments || isInsideAdRange || line.includes("Amazon|") || line.includes("stitched");
 
-    if (
-      i < lines.length - 1 &&
-      line.startsWith("#EXTINF") &&
-      !isLive &&
-      (true || stripAllSegments)
-    ) {
+    if (i < lines.length - 1 && line.startsWith("#EXTINF") && !isLive && isLikelyAdSegment) {
       const segmentUrl = lines[i + 1];
       if (!adSegmentCache.has(segmentUrl)) {
         streamInfo.numStrippedAdSegments++;

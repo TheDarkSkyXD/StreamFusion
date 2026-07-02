@@ -261,6 +261,49 @@ describe("TwitchHlsPlayer adblock status", () => {
       expect.objectContaining({
         code: "STREAM_OFFLINE",
         fatal: true,
+        shouldRefresh: true,
+      })
+    );
+    expect(hls.destroy).toHaveBeenCalled();
+  });
+
+  it("asks the parent to refresh when no fragments arrive after the manifest loads", () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        enableAdBlock
+        onError={onError}
+      />
+    );
+    const hls = hlsInstances[0];
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+
+    act(() => {
+      hls.emit("hlsManifestParsed");
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(onError).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "NO_FRAGMENTS",
+        fatal: true,
+        shouldRefresh: true,
       })
     );
     expect(hls.destroy).toHaveBeenCalled();

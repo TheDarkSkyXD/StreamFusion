@@ -40,8 +40,9 @@ import {
  * Extract channel name from a Twitch usher URL
  */
 function extractChannelName(url: string): string | null {
-  // Match /channel/hls/{channel}.m3u8 or /api/channel/hls/{channel}.m3u8
-  const match = url.match(/\/channel\/hls\/([^/.]+)\.m3u8/);
+  // Match Twitch's current and legacy usher shapes:
+  // /api/channel/{channel}.m3u8 and /api/channel/hls/{channel}.m3u8
+  const match = url.match(/\/channel\/(?:hls\/)?([^/.]+)\.m3u8/);
   return match?.[1]?.toLowerCase() ?? null;
 }
 
@@ -49,7 +50,7 @@ function extractChannelName(url: string): string | null {
  * Check if URL is a master playlist (usher URL)
  */
 function isMasterPlaylist(url: string): boolean {
-  return url.includes("usher.ttvnw.net") && url.includes("/channel/hls/");
+  return url.includes("usher.ttvnw.net") && /\/channel\/(?:hls\/)?[^/?#]+\.m3u8/.test(url);
 }
 
 /**

@@ -146,6 +146,37 @@ describe("twitch-adblock-loader", () => {
       );
     });
 
+    it("processes current Twitch /api/channel master playlist URLs", async () => {
+      mockProcessMasterPlaylist.mockResolvedValue("processed-master");
+
+      const LoaderClass = createAdBlockPlaylistLoader();
+      const loader = new LoaderClass({} as any);
+
+      const originalOnSuccess = vi.fn();
+      const context = {
+        url: "https://usher.ttvnw.net/api/channel/jamiepinelive.m3u8?token=abc",
+      } as any;
+      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+
+      loader.load(context, {} as any, callbacks);
+
+      const passedCallbacks = mockSuperLoad.mock.calls[0][2];
+      await passedCallbacks.onSuccess({ data: "#EXTM3U" }, {}, context, null);
+
+      expect(mockProcessMasterPlaylist).toHaveBeenCalledWith(
+        context.url,
+        "#EXTM3U",
+        "jamiepinelive"
+      );
+      expect(mockProcessMediaPlaylist).not.toHaveBeenCalled();
+      expect(originalOnSuccess).toHaveBeenCalledWith(
+        expect.objectContaining({ data: "processed-master" }),
+        {},
+        context,
+        null
+      );
+    });
+
     it("processes media playlist through adblock service on success", async () => {
       mockProcessMediaPlaylist.mockResolvedValue("processed-media");
 
@@ -230,6 +261,30 @@ describe("twitch-adblock-loader", () => {
         context.url,
         "#EXTM3U",
         "extracted_channel"
+      );
+    });
+
+    it("extracts channel name from current usher URL shape when not provided", async () => {
+      mockProcessMasterPlaylist.mockResolvedValue("processed");
+
+      const LoaderClass = createAdBlockPlaylistLoader();
+      const loader = new LoaderClass({} as any);
+
+      const originalOnSuccess = vi.fn();
+      const context = {
+        url: "https://usher.ttvnw.net/api/channel/JamiePineLive.m3u8?token=abc",
+      } as any;
+      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+
+      loader.load(context, {} as any, callbacks);
+
+      const passedCallbacks = mockSuperLoad.mock.calls[0][2];
+      await passedCallbacks.onSuccess({ data: "#EXTM3U" }, {}, context, null);
+
+      expect(mockProcessMasterPlaylist).toHaveBeenCalledWith(
+        context.url,
+        "#EXTM3U",
+        "jamiepinelive"
       );
     });
   });

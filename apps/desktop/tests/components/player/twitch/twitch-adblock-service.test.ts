@@ -58,6 +58,16 @@ const AD_MIDROLL_PLAYLIST = `#EXTM3U
 #EXTINF:2.000,
 https://video-edge.example.com/v1/segment/ad-12345.ts`;
 
+const TWITCH_STITCHED_AMAZON_AD_PLAYLIST = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:12345
+#EXT-X-DATERANGE:ID="stitched-ad-12345",CLASS="twitch-stitched-ad",START-DATE="2024-01-01T00:00:00Z",X-TV-TWITCH-AD-ROLL-TYPE="PREROLL"
+#EXT-X-PROGRAM-DATE-TIME:2024-01-01T00:00:00Z
+#EXTINF:2.000,Amazon|2474283100494
+https://video-edge.example.com/v1/segment/amazon-ad-12345.ts
+#EXT-X-TWITCH-PREFETCH:https://video-edge.example.com/v1/segment/prefetch-ad-12346.ts`;
+
 describe("twitch-adblock-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -265,6 +275,52 @@ https://video-edge.example.com/playlist.m3u8?token=abc`;
       expect(status.isShowingAd).toBe(true);
 
       clearStreamInfo("adchannel");
+    });
+
+    it("processes media playlist URLs when Twitch changes only the query string", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/querychannel.m3u8?token=abc";
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("", { status: 200 })
+      );
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "querychannel");
+
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=refreshed";
+      const result = await processMediaPlaylist(mediaUrl, TWITCH_STITCHED_AMAZON_AD_PLAYLIST);
+
+      const status = getAdBlockStatus("querychannel");
+      expect(status.isShowingAd).toBe(true);
+      expect(status.isStrippingSegments).toBe(true);
+      expect(isAdSegment("https://video-edge.example.com/v1/segment/amazon-ad-12345.ts")).toBe(
+        true
+      );
+      expect(result).not.toContain("#EXT-X-TWITCH-PREFETCH:");
+
+      clearStreamInfo("querychannel");
+    });
+
+    it("strips detected ad segments when only one active stream can own an unmapped media URL", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/fallbackchannel.m3u8?token=abc";
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("", { status: 200 })
+      );
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "fallbackchannel");
+
+      const mediaUrl = "https://unmapped.example.com/v1/playlist/source.m3u8?token=unknown";
+      const result = await processMediaPlaylist(mediaUrl, TWITCH_STITCHED_AMAZON_AD_PLAYLIST);
+
+      const status = getAdBlockStatus("fallbackchannel");
+      expect(status.isShowingAd).toBe(true);
+      expect(status.isStrippingSegments).toBe(true);
+      expect(isAdSegment("https://video-edge.example.com/v1/segment/amazon-ad-12345.ts")).toBe(
+        true
+      );
+      expect(result).not.toContain("#EXT-X-TWITCH-PREFETCH:");
+
+      clearStreamInfo("fallbackchannel");
     });
 
     it("detects midroll ads", async () => {
