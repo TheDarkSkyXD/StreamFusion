@@ -5,11 +5,13 @@ import {
   type ChatDisplayPreferences,
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
+  type NotificationPreferences,
   type PlaybackAdvancedPreferences,
   type PlayerControlsPreferences,
   type PredictionPreferences,
@@ -31,6 +33,31 @@ describe("Twitch OAuth scope constants", () => {
     for (const scope of TWITCH_MOD_ACTION_SCOPES) {
       expect(appScopes.has(scope)).toBe(true);
     }
+  });
+});
+
+// Guards: Live Notification preferences must remain notify-by-default while restart grace stays opt-in.
+describe("NotificationPreferences defaults", () => {
+  it("defaults every live-notification source on except favorites-only and restart grace", () => {
+    expect(DEFAULT_NOTIFICATION_PREFERENCES).toEqual({
+      enabled: true,
+      liveAlerts: true,
+      twitch: true,
+      kick: true,
+      guestFollows: true,
+      toastAlerts: true,
+      sound: true,
+      favoriteChannelsOnly: false,
+      restartGracePeriodMinutes: 0,
+      perChannelNotifications: {},
+    });
+    expect(DEFAULT_USER_PREFERENCES.notifications).toBe(DEFAULT_NOTIFICATION_PREFERENCES);
+  });
+
+  it("wires notifications onto the top-level UserPreferences shape", () => {
+    const prefs: UserPreferences = DEFAULT_USER_PREFERENCES;
+    const notifications: NotificationPreferences = prefs.notifications;
+    expect(notifications).toBe(DEFAULT_NOTIFICATION_PREFERENCES);
   });
 });
 

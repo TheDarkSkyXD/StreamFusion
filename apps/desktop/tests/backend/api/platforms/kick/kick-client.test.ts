@@ -93,6 +93,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/search-endpoints", () => ({
 
 vi.mock("@/backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   getStreamBySlug: vi.fn(),
+  getStreamsByBroadcasterIds: vi.fn(),
   getPublicStreamBySlug: vi.fn(),
   getTopStreams: vi.fn(),
   getPublicTopStreams: vi.fn(),
@@ -112,6 +113,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
 
 import { kickAuthService } from "@/backend/auth/kick-auth";
 import {
+  isPlatformHealthy,
   recordPlatformLocalNetError,
   recordPlatformOfficialApiAuthFailure,
 } from "@/backend/api/unified/platform-health";
@@ -135,6 +137,7 @@ describe("KickClient", () => {
     vi.mocked(kickAuthService.getAccessToken).mockReturnValue("test-token");
     vi.mocked(kickAuthService.ensureValidToken).mockResolvedValue(true);
     vi.mocked(kickAuthService.refreshToken).mockResolvedValue(null);
+    vi.mocked(isPlatformHealthy).mockReturnValue(true);
     ({ kickClient } = await import("@/backend/api/platforms/kick/kick-client"));
   });
 
@@ -164,12 +167,23 @@ describe("KickClient", () => {
     it("marks Kick degraded when the Worker app-token proxy returns 401", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 401));
 
-      await expect(kickClient.request("/channels?slug[]=hennytingzz", undefined, "app")).rejects.toThrow(
-        "401"
-      );
+      await expect(
+        kickClient.request("/channels?slug[]=hennytingzz", undefined, "app")
+      ).rejects.toThrow("401");
 
       expect(recordPlatformOfficialApiAuthFailure).toHaveBeenCalledWith("kick", 401);
       expect(kickAuthService.refreshToken).not.toHaveBeenCalled();
+    });
+
+    it("does not retry the app-token proxy while Kick is already degraded", async () => {
+      vi.mocked(isPlatformHealthy).mockReturnValue(false);
+
+      await expect(
+        kickClient.request("/channels?slug[]=already-degraded", undefined, "app")
+      ).rejects.toThrow("Kick official API app-token proxy unavailable while Kick is degraded");
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(recordPlatformOfficialApiAuthFailure).not.toHaveBeenCalled();
     });
 
     it("sends Authorization header with Bearer token", async () => {
@@ -266,9 +280,11 @@ describe("KickClient", () => {
     });
 
     it("does not retry 401 more than once (guard against double-refresh)", async () => {
-      vi.mocked(kickAuthService.refreshToken).mockReset().mockResolvedValue({
-        accessToken: "new-token",
-      } as any);
+      vi.mocked(kickAuthService.refreshToken)
+        .mockReset()
+        .mockResolvedValue({
+          accessToken: "new-token",
+        } as any);
 
       mockFetch
         .mockResolvedValueOnce(jsonResponse({}, 401))
@@ -292,9 +308,7 @@ describe("KickClient", () => {
       const { sleep } = await import("@/lib/sleep");
 
       mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({}, 429, { "retry-after": "3" })
-        )
+        .mockResolvedValueOnce(jsonResponse({}, 429, { "retry-after": "3" }))
         .mockResolvedValueOnce(jsonResponse({ result: "ok" }));
 
       await kickClient.request("/retry-after");
@@ -303,9 +317,7 @@ describe("KickClient", () => {
     });
 
     it("parses JSON response data", async () => {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ users: [{ id: 1, name: "Test" }] })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ users: [{ id: 1, name: "Test" }] }));
 
       const result = await kickClient.request<{ users: Array<{ id: number; name: string }> }>(
         "/users"
@@ -316,13 +328,9 @@ describe("KickClient", () => {
     });
 
     it("throws on unparseable JSON response", async () => {
-      mockFetch.mockResolvedValueOnce(
-        new Response("not json", { status: 200 })
-      );
+      mockFetch.mockResolvedValueOnce(new Response("not json", { status: 200 }));
 
-      await expect(kickClient.request("/bad-json")).rejects.toThrow(
-        "Failed to parse JSON"
-      );
+      await expect(kickClient.request("/bad-json")).rejects.toThrow("Failed to parse JSON");
     });
   });
 
@@ -351,9 +359,7 @@ describe("KickClient", () => {
     });
 
     it("returns null and negative-caches on HTTP 4xx errors", async () => {
-      vi.spyOn(kickClient as any, "electronRequestBinary").mockRejectedValue(
-        new Error("HTTP 403")
-      );
+      vi.spyOn(kickClient as any, "electronRequestBinary").mockRejectedValue(new Error("HTTP 403"));
 
       const result1 = await kickClient.fetchImageBytes("https://files.kick.com/denied.webp");
       expect(result1).toBeNull();
@@ -400,9 +406,7 @@ describe("KickClient", () => {
 
   describe("delegation methods", () => {
     it("getUser delegates to UserEndpoints", async () => {
-      const { getUser } = await import(
-        "@/backend/api/platforms/kick/endpoints/user-endpoints"
-      );
+      const { getUser } = await import("@/backend/api/platforms/kick/endpoints/user-endpoints");
       vi.mocked(getUser).mockResolvedValueOnce({ id: "1", username: "test" } as any);
 
       const result = await kickClient.getUser();
@@ -465,6 +469,7 @@ describe("KickClient", () => {
       );
       vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
         status: "ok",
+        canPruneAbsent: true,
         channels: [{ id: "1", username: "followed" }] as any[],
       });
 

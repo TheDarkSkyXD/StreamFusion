@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@/lib/cross-logger", () => ({
   logger: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -22,11 +22,11 @@ vi.mock("@/backend/api/platforms/twitch/twitch-gql-client", () => ({
 }));
 
 import { TwitchStreamResolver } from "@/backend/api/platforms/twitch/twitch-stream-resolver";
-import { logger } from "@/backend/logging/logger";
 import {
-  TWITCH_CLIP_MEDIA_SCHEME,
   decodeTwitchClipMediaUrl,
+  TWITCH_CLIP_MEDIA_SCHEME,
 } from "@/backend/protocols/twitch-clip-media-url";
+import { logger } from "@/lib/cross-logger";
 
 // Guards: Twitch live playback must log one-token-request timing without restoring the live-status preflight.
 describe("TwitchStreamResolver", () => {

@@ -107,7 +107,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
 
     const result = await _tryBearerFetch(TEST_TOKEN);
 
-    expect(result).toEqual({ status: "ok", channels: [] });
+    expect(result).toEqual({ status: "ok", channels: [], canPruneAbsent: true });
     expect(warnSpy).not.toHaveBeenCalled();
   });
 

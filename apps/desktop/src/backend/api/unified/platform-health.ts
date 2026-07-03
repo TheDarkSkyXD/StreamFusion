@@ -8,8 +8,8 @@
  * self-clears 3s after the last error. In-memory only.
  */
 
+import { logger } from "../../../lib/cross-logger";
 import type { Platform } from "../../../shared/auth-types";
-import { logger } from "../../logging/logger";
 
 export type PlatformHealth = "healthy" | "degraded" | "down";
 

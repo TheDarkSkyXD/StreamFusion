@@ -230,6 +230,43 @@ describe("CHANNELS_GET_FOLLOWED", () => {
     });
   });
 
+  it("dedupes duplicate Kick account follows by slug while preserving richer metadata", async () => {
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "row-1",
+        platform: "kick",
+        channelId: "channel-1",
+        channelName: "hennytingzz",
+        displayName: "hennytingzz",
+        profileImage: "",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "kick",
+      },
+      {
+        id: "row-2",
+        platform: "kick",
+        channelId: "user-21103818",
+        channelName: "Hennytingzz",
+        displayName: "Hennytingzz",
+        profileImage: "https://example.com/hennytingzz.webp",
+        followedAt: "2026-01-02T00:00:00.000Z",
+        source: "kick",
+      },
+    ]);
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
+    const result = (await handler({}, { platform: "kick" })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({
+      platform: "kick",
+      username: "Hennytingzz",
+      displayName: "Hennytingzz",
+      avatarUrl: "https://example.com/hennytingzz.webp",
+    });
+  });
+
   it("repairs renamed Kick follow slugs before returning followed channels", async () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {

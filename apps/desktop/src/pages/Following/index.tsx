@@ -12,6 +12,7 @@ import {
   LuTag,
   LuUsers,
 } from "react-icons/lu";
+import { toast } from "sonner";
 
 import type {
   UnifiedCategory,
@@ -50,7 +51,12 @@ import {
 import { useFollowedStreams } from "@/hooks/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getChannelKey, getChannelNameKey, getStreamKey } from "@/lib/id-utils";
+import {
+  dedupeChannelsByIdentity,
+  getChannelKey,
+  getChannelNameKey,
+  getStreamKey,
+} from "@/lib/id-utils";
 import { cn, normalizeCategoryName } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -113,6 +119,13 @@ function manualRefreshResultFailed(result: PromiseSettledResult<unknown>) {
   return queryResult.isError === true || queryResult.status === "error";
 }
 
+function formatFollowSyncFreshness(syncedAt: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(syncedAt));
+}
+
 export function FollowingPage() {
   const canRenderContent = useAfterFirstPaint();
   const [activeTab, setActiveTab] = useState<FollowingTab>("live");
@@ -133,7 +146,13 @@ export function FollowingPage() {
   const debouncedSearchQuery = useDebounce(searchQuery.trim(), 500);
 
   // Auth status
-  const { twitchConnected, kickConnected } = useAuthStore();
+  const {
+    twitchConnected,
+    kickConnected,
+    syncConnectedFollows,
+    followSyncInProgress,
+    followSyncLastSyncedAt,
+  } = useAuthStore();
 
   // 1. Local follows
   const { localFollows } = useFollowStore();
@@ -192,7 +211,7 @@ export function FollowingPage() {
       kickFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
     }
 
-    const allChannels = Array.from(channelMap.values());
+    const allChannels = dedupeChannelsByIdentity(Array.from(channelMap.values()));
 
     // Map live streams by platform-aware keys for flexible matching
     // Different API endpoints return different ID formats, so we match by both
@@ -400,6 +419,13 @@ export function FollowingPage() {
     setManualRefreshPending(true);
     setManualRefreshFailed(false);
     try {
+      const syncResult = await syncConnectedFollows();
+      if (syncResult.failed.length > 0) {
+        toast("Couldn't sync follows", {
+          description: `Failed to sync ${syncResult.failed.map((platform) => (platform === "twitch" ? "Twitch" : "Kick")).join(" and ")}. Existing follows were preserved.`,
+        });
+      }
+
       const refreshes: Array<Promise<unknown>> = [refetchFollowedStreams()];
       if (twitchConnected && filter !== "kick") refreshes.push(refetchTwitchFollows());
       if (kickConnected && filter !== "twitch") refreshes.push(refetchKickFollows());
@@ -419,6 +445,7 @@ export function FollowingPage() {
   }, [
     activeTab,
     filter,
+    syncConnectedFollows,
     kickConnected,
     manualRefreshPending,
     refetchFollowedClips,
@@ -430,6 +457,7 @@ export function FollowingPage() {
     shouldLoadFollowedCategories,
     twitchConnected,
   ]);
+  const manualSyncPending = manualRefreshPending || followSyncInProgress;
 
   useEffect(() => {
     if (
@@ -795,18 +823,20 @@ export function FollowingPage() {
                 manualRefreshFailed && "border-red-500/40 text-red-200 hover:text-red-100"
               )}
               onClick={() => void refreshFollowingData()}
-              disabled={manualRefreshPending}
+              disabled={manualSyncPending}
               aria-label={
-                manualRefreshFailed ? "Retry refreshing following data" : "Refresh following data"
+                manualRefreshFailed
+                  ? "Retry sync follows and refresh following data"
+                  : "Sync follows and refresh following data"
               }
               title={
                 manualRefreshFailed
-                  ? "Some data failed to refresh. Try again."
-                  : "Refresh following data"
+                  ? "Some follows or data failed to refresh. Try again."
+                  : "Sync follows and refresh following data"
               }
             >
               <LuRefreshCw
-                className={cn("h-4 w-4", manualRefreshPending && "animate-spin")}
+                className={cn("h-4 w-4", manualSyncPending && "animate-spin")}
                 aria-hidden="true"
               />
             </Button>
@@ -814,6 +844,14 @@ export function FollowingPage() {
         </div>
 
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar border-t border-[var(--color-border)] pt-3">
+          <div className="flex shrink-0 items-center gap-3 text-xs font-medium text-[var(--color-foreground-muted)]">
+            {twitchConnected && followSyncLastSyncedAt.twitch && (
+              <span>Twitch synced {formatFollowSyncFreshness(followSyncLastSyncedAt.twitch)}</span>
+            )}
+            {kickConnected && followSyncLastSyncedAt.kick && (
+              <span>Kick synced {formatFollowSyncFreshness(followSyncLastSyncedAt.kick)}</span>
+            )}
+          </div>
           {FOLLOWING_TABS.map((tab) => {
             const Icon = tab.icon;
 

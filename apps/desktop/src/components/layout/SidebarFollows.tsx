@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { LuHeart } from "react-icons/lu";
+import { LuHeart, LuRefreshCw } from "react-icons/lu";
+import { toast } from "sonner";
 
 import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
 import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
@@ -11,6 +12,7 @@ import { useFollowedStreams } from "@/hooks/queries/useStreams";
 import { prefetchStreamPlayback } from "@/hooks/useStreamPlayback";
 import { getChannelKey, getChannelNameKey, getStreamKey } from "@/lib/id-utils";
 import { cn, formatViewerCount } from "@/lib/utils";
+import type { Platform } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { usePipStore } from "@/store/pip-store";
@@ -22,6 +24,10 @@ interface SidebarFollowsProps {
 }
 
 const KICK_PLAYBACK_PREFETCH_LIMIT = 6;
+const PLATFORM_LABELS: Record<Platform, string> = {
+  twitch: "Twitch",
+  kick: "Kick",
+};
 
 function getActiveStreamRoute(pathname: string): { platform: string; channel: string } | null {
   const match = pathname.match(/^\/stream\/([^/]+)\/([^/?#]+)/);
@@ -37,6 +43,9 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   // Use individual selectors to prevent re-renders when unrelated state changes
   const twitchConnected = useAuthStore((state) => state.twitchConnected);
   const kickConnected = useAuthStore((state) => state.kickConnected);
+  const syncConnectedFollows = useAuthStore((state) => state.syncConnectedFollows);
+  const followSyncInProgress = useAuthStore((state) => state.followSyncInProgress);
+  const followSyncLastSyncedAt = useAuthStore((state) => state.followSyncLastSyncedAt);
   const localFollows = useFollowStore((state) => state.localFollows);
   const getFollowSource = useFollowStore((state) => state.getFollowSource);
   const currentPipStream = usePipStore((state) => state.currentStream);
@@ -52,6 +61,63 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
       : null;
   const hasLocalTwitchFollows = localFollows.some((follow) => follow.platform === "twitch");
   const hasLocalKickFollows = localFollows.some((follow) => follow.platform === "kick");
+  const connectedPlatforms = useMemo(
+    () =>
+      [twitchConnected ? "twitch" : null, kickConnected ? "kick" : null].filter(
+        (platform): platform is Platform => platform !== null
+      ),
+    [twitchConnected, kickConnected]
+  );
+  const hasConnectedPlatforms = connectedPlatforms.length > 0;
+  const followSyncTitle = useMemo(() => {
+    if (!hasConnectedPlatforms) return "Connect Twitch or Kick to sync follows";
+    if (followSyncInProgress) return "Syncing follows";
+
+    const oldestSynced = connectedPlatforms
+      .map((platform) => ({ platform, syncedAt: followSyncLastSyncedAt[platform] }))
+      .filter((entry): entry is { platform: Platform; syncedAt: string } => Boolean(entry.syncedAt))
+      .sort((a, b) => new Date(a.syncedAt).getTime() - new Date(b.syncedAt).getTime())[0];
+
+    if (!oldestSynced) {
+      return `Sync follows with ${connectedPlatforms.map((p) => PLATFORM_LABELS[p]).join(" and ")}`;
+    }
+
+    const syncedTime = new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(oldestSynced.syncedAt));
+    return `${PLATFORM_LABELS[oldestSynced.platform]} last synced ${syncedTime}. Sync follows`;
+  }, [connectedPlatforms, followSyncInProgress, followSyncLastSyncedAt, hasConnectedPlatforms]);
+
+  const handleSyncFollows = async () => {
+    if (!hasConnectedPlatforms || followSyncInProgress) return;
+
+    const result = await syncConnectedFollows();
+    if (result.failed.length > 0) {
+      toast("Couldn't sync follows", {
+        description: `Failed to sync ${result.failed
+          .map((platform) => PLATFORM_LABELS[platform])
+          .join(" and ")}. Existing follows were preserved.`,
+      });
+    }
+  };
+
+  const renderSyncButton = (compact: boolean) =>
+    hasConnectedPlatforms ? (
+      <button
+        type="button"
+        aria-label="Sync follows"
+        title={followSyncTitle}
+        disabled={followSyncInProgress}
+        onClick={handleSyncFollows}
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center rounded-md text-[var(--color-foreground-muted)] transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-60",
+          compact ? "w-8 h-8" : "w-7 h-7"
+        )}
+      >
+        <LuRefreshCw className={cn("w-4 h-4", followSyncInProgress && "animate-spin")} />
+      </button>
+    ) : null;
 
   // Fetch data
   const { data: twitchFollows } = useFollowedChannels("twitch", { enabled: twitchConnected });
@@ -248,30 +314,66 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   }
 
   if (allItems.length === 0) {
-    if (collapsed) return null;
+    if (collapsed) {
+      if (!hasConnectedPlatforms) return null;
+
+      return (
+        <div className="flex w-16 justify-center p-2" data-testid="sidebar-follows">
+          {renderSyncButton(true)}
+        </div>
+      );
+    }
 
     return (
-      <div className="p-4 text-center text-[var(--color-foreground-muted)] text-xs">
-        <LuHeart className="w-8 h-8 mx-auto mb-2 opacity-20" />
-        <p>Follow channels to see them here</p>
+      <div
+        className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden"
+        data-testid="sidebar-follows"
+      >
+        <div className="px-3 py-2 font-bold text-white tracking-wider flex justify-between items-center">
+          <span className="text-base">Following</span>
+          <div className="flex items-center gap-1.5">
+            {renderSyncButton(false)}
+            <span className="bg-[var(--color-background-tertiary)] text-[var(--color-foreground)] px-1.5 py-0.5 rounded text-xs">
+              0
+            </span>
+          </div>
+        </div>
+        <div className="p-4 text-center text-[var(--color-foreground-muted)] text-xs">
+          <LuHeart className="w-8 h-8 mx-auto mb-2 opacity-20" />
+          <p>Follow channels to see them here</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" data-testid="sidebar-follows">
+    <div
+      className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden"
+      data-testid="sidebar-follows"
+    >
       {!collapsed && (
         <div className="px-3 py-2 font-bold text-white tracking-wider flex justify-between items-center">
           <span className="text-base">Following</span>
-          <span className="bg-[var(--color-background-tertiary)] text-[var(--color-foreground)] px-1.5 py-0.5 rounded text-xs">
-            {allItems.length}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {renderSyncButton(false)}
+            <span className="bg-[var(--color-background-tertiary)] text-[var(--color-foreground)] px-1.5 py-0.5 rounded text-xs">
+              {allItems.length}
+            </span>
+          </div>
         </div>
       )}
 
       {/* Since sidebar is a flex col, we want this list to scroll effectively */}
-      <ScrollArea className="flex-1">
-        <div className="pl-2 pr-4 pb-2 space-y-1">
+      <ScrollArea className="min-w-0 max-w-full flex-1">
+        <div
+          className={cn(
+            "box-border max-w-full overflow-hidden pb-2 space-y-1",
+            collapsed ? "w-16 px-2" : "w-56 pl-2 pr-4"
+          )}
+        >
+          {collapsed && hasConnectedPlatforms && (
+            <div className="flex justify-center pb-1">{renderSyncButton(true)}</div>
+          )}
           {visibleItems.map((item) => {
             if (item.type === "live") {
               const stream = item.data;
@@ -291,7 +393,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   params={{ platform: stream.platform, channel: stream.channelName }}
                   search={{ tab: "home" }}
                   className={cn(
-                    "flex items-center gap-3 p-1.5 rounded-md border-l-2 transition-colors group relative",
+                    "flex w-full min-w-0 max-w-full items-center gap-3 overflow-hidden p-1.5 rounded-md border-l-2 transition-colors group relative",
                     isActive
                       ? cn(
                           "bg-neutral-700/80 text-white ring-1 ring-white/10",
@@ -329,7 +431,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   </div>
 
                   {!collapsed && (
-                    <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <span className="min-w-0 truncate font-bold text-sm text-white group-hover:text-[var(--color-primary)] transition-colors">
                           {stream.channelDisplayName}
@@ -380,7 +482,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   params={{ platform: channel.platform, channel: channel.username }}
                   search={{ tab: "home" }}
                   className={cn(
-                    "flex items-center gap-3 p-1.5 rounded-md border-l-2 transition-colors group",
+                    "flex w-full min-w-0 max-w-full items-center gap-3 overflow-hidden p-1.5 rounded-md border-l-2 transition-colors group",
                     isActive
                       ? cn(
                           "bg-neutral-700/80 text-white opacity-100 ring-1 ring-white/10",
@@ -401,7 +503,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   />
 
                   {!collapsed && (
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 overflow-hidden">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <span className="min-w-0 truncate font-bold text-sm text-white group-hover:text-[var(--color-foreground)] transition-colors">
                           {channel.displayName}

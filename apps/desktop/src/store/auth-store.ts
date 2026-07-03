@@ -57,6 +57,8 @@ interface AuthState {
   // Local follows
   localFollows: LocalFollow[];
   followsLoading: boolean;
+  followSyncInProgress: boolean;
+  followSyncLastSyncedAt: Partial<Record<Platform, string>>;
 
   // Preferences
   preferences: UserPreferences | null;
@@ -82,6 +84,7 @@ interface AuthState {
   removeFollow: (id: string) => Promise<boolean>;
   updateFollow: (id: string, updates: Partial<LocalFollow>) => Promise<void>;
   isFollowing: (platform: Platform, channelId: string) => Promise<boolean>;
+  syncConnectedFollows: () => Promise<{ synced: Platform[]; failed: Platform[] }>;
 
   // Actions - Preferences
   loadPreferences: () => Promise<void>;
@@ -105,6 +108,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   localFollows: [],
   followsLoading: false,
+  followSyncInProgress: false,
+  followSyncLastSyncedAt: {},
 
   preferences: null,
 
@@ -661,6 +666,63 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             : String(error),
       });
       return false;
+    }
+  },
+
+  syncConnectedFollows: async () => {
+    if (get().followSyncInProgress) {
+      return { synced: [], failed: [] };
+    }
+
+    const platforms: Platform[] = [];
+    if (get().twitchConnected) platforms.push("twitch");
+    if (get().kickConnected) platforms.push("kick");
+
+    set({ followSyncInProgress: true });
+    const synced: Platform[] = [];
+    const failed: Platform[] = [];
+
+    try {
+      for (const platform of platforms) {
+        try {
+          const result = await window.electronAPI.auth.syncFollows(platform);
+          if (result.success) {
+            synced.push(platform);
+          } else {
+            failed.push(platform);
+          }
+        } catch (error) {
+          failed.push(platform);
+          logger.warn("Store:Auth", "manual follow sync failed", {
+            platform,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
+        }
+      }
+
+      if (synced.length > 0) {
+        const syncedAt = new Date().toISOString();
+        set((state) => ({
+          followSyncLastSyncedAt: (() => {
+            const next = { ...state.followSyncLastSyncedAt };
+            for (const platform of synced) {
+              next[platform] = syncedAt;
+            }
+            return next;
+          })(),
+        }));
+        await useFollowStore.getState().hydrate();
+        for (const platform of synced) {
+          invalidateFollowCachesAfterMutation(queryClient, platform);
+        }
+      }
+
+      return { synced, failed };
+    } finally {
+      set({ followSyncInProgress: false });
     }
   },
 

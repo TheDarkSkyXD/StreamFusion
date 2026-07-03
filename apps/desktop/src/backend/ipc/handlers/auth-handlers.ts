@@ -9,7 +9,11 @@ import type {
   Platform,
   TwitchUser,
 } from "../../../shared/auth-types";
-import { type AuthStatus, IPC_CHANNELS } from "../../../shared/ipc-channels";
+import {
+  type AuthStatus,
+  type AuthSyncFollowsResult,
+  IPC_CHANNELS,
+} from "../../../shared/ipc-channels";
 import type { FollowedChannelsResult } from "../../api/platforms/kick/endpoints/follow-endpoints";
 import { disposeSendWindow } from "../../api/platforms/kick/kick-send-window";
 import {
@@ -22,6 +26,7 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
+import { liveNotificationService } from "../../services/live-notification-service";
 import { storageService } from "../../services/storage-service";
 
 /**
@@ -35,9 +40,10 @@ import { storageService } from "../../services/storage-service";
  *   - On `{status:"error"}` from `getFollows`: returns the error WITHOUT
  *     touching storage. Guards against silent data loss when Cloudflare /
  *     Kasada / auth challenges produce a transient failure mid-session.
- *   - On `{status:"ok"}`: additively upserts kick-source rows via
- *     `upsertSyncedFollows`. The sync never removes rows; pending-unfollow
- *     tombstones in `pending_follow_writes` still block re-adoption.
+ *   - On `{status:"ok"}`: upserts kick-source rows via `upsertSyncedFollows`.
+ *     Trusted Kick results may prune absent rows; uncertain fallback results
+ *     preserve them. Pending-unfollow tombstones in `pending_follow_writes`
+ *     still block re-adoption.
  */
 export type KickSyncOutcome =
   | {
@@ -48,6 +54,8 @@ export type KickSyncOutcome =
       removedCount: number;
     }
   | { status: "error"; reason: string };
+
+type FollowSyncOutcome = KickSyncOutcome;
 
 export async function syncKickFollowsAfterLogin(
   getFollows: () => Promise<FollowedChannelsResult>,
@@ -70,7 +78,7 @@ export async function syncKickFollowsAfterLogin(
   const { accountCount, pendingCount, addedCount, removedCount } = storage.upsertSyncedFollows(
     "kick",
     kickFollows,
-    { pruneAbsent: false }
+    { pruneAbsent: result.canPruneAbsent }
   );
   return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
@@ -122,7 +130,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   async function syncFollowsOnLogin(
     platform: Platform,
     options: SyncFollowsOptions = {}
-  ): Promise<void> {
+  ): Promise<FollowSyncOutcome> {
     try {
       logger.debug("IPC:Auth", "Syncing follows", { platform });
 
@@ -178,7 +186,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
           );
           // Bail out without firing AUTH_FOLLOWS_SYNCED. The renderer's prior
           // state remains correct.
-          return;
+          return outcome;
         }
         importedCount = outcome.count;
         pendingCount = outcome.pendingCount;
@@ -204,6 +212,13 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         addedCount,
         removedCount,
       });
+      return {
+        status: "ok",
+        count: importedCount,
+        pendingCount,
+        addedCount,
+        removedCount,
+      };
     } catch (error) {
       logger.warn("IPC:Auth", "Failed to sync follows", {
         platform,
@@ -213,7 +228,17 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             : String(error),
       });
       // Don't throw — this is non-critical and should not block the login
+      return {
+        status: "error",
+        reason: error instanceof Error ? error.message : "sync-failed",
+      };
     }
+  }
+
+  function reconcileLiveNotificationsAfterFollowSync(
+    syncPromise: Promise<FollowSyncOutcome>
+  ): void {
+    void syncPromise.finally(() => liveNotificationService.reconcileSilently()).catch(() => {});
   }
 
   // ========== Background follow refresh (per platform) ==========
@@ -274,6 +299,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   // so it can prompt the user to re-authenticate.
   kickAuthService.on("session-expired", () => {
     safeSend(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED);
+    liveNotificationService.reconcileSilently();
     void disposeSendWindow();
   });
 
@@ -286,11 +312,17 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     IPC_CHANNELS.AUTH_SAVE_TOKEN,
     (_event, { platform, token }: { platform: Platform; token: AuthToken }) => {
       storageService.saveToken(platform, token);
+      if (platform === "twitch") {
+        liveNotificationService.reconcileSilently();
+      }
     }
   );
 
   ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_TOKEN, (_event, { platform }: { platform: Platform }) => {
     storageService.clearToken(platform);
+    if (platform === "twitch") {
+      liveNotificationService.reconcileSilently();
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_HAS_TOKEN, (_event, { platform }: { platform: Platform }) => {
@@ -306,6 +338,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_ALL_TOKENS, () => {
     storageService.clearAllTokens();
+    liveNotificationService.reconcileSilently();
   });
 
   // ========== Auth - User Data ==========
@@ -366,8 +399,18 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         return { success: false, error: "not-authenticated" };
       }
 
-      await syncFollowsOnLogin(platform);
-      return { success: true };
+      const result = await syncFollowsOnLogin(platform);
+      if (result.status === "error") {
+        return { success: false, error: result.reason } satisfies AuthSyncFollowsResult;
+      }
+
+      return {
+        success: true,
+        count: result.count,
+        pendingCount: result.pendingCount,
+        addedCount: result.addedCount,
+        removedCount: result.removedCount,
+      } satisfies AuthSyncFollowsResult;
     }
   );
 
@@ -472,9 +515,11 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       }
 
       // Sync local follows with account follows (background, non-blocking)
-      syncFollowsOnLogin(platform, {
-        allowKickBrowserWindowFallback: platform === "kick",
-      }).catch(() => {});
+      reconcileLiveNotificationsAfterFollowSync(
+        syncFollowsOnLogin(platform, {
+          allowKickBrowserWindowFallback: platform === "kick",
+        })
+      );
 
       // Notify renderer of successful auth
       safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
@@ -569,6 +614,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         success: true,
         loggedOut: true,
       });
+      liveNotificationService.reconcileSilently();
       return { success: true };
     } catch (error) {
       logger.error("IPC:Auth", "Twitch logout failed", {
@@ -587,6 +633,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     try {
       const token = await twitchAuthService.refreshToken();
       if (token) {
+        liveNotificationService.reconcileSilently();
         return { success: true, token };
       }
       return { success: false, error: "Token refresh failed" };
@@ -618,6 +665,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   // flips the auth-store to a "reconnect required" state.
   twitchAuthService.setAuthLostHandler(() => {
     safeSend(IPC_CHANNELS.AUTH_TWITCH_AUTH_LOST);
+    liveNotificationService.reconcileSilently();
   });
 
   // Handle fetching Twitch user info
@@ -661,6 +709,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       success: true,
       loggedOut: true,
     });
+    liveNotificationService.reconcileSilently();
     return { success: true };
   });
 
@@ -677,6 +726,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         success: true,
         loggedOut: true,
       });
+      liveNotificationService.reconcileSilently();
       return { success: true };
     } catch (error) {
       logger.error("IPC:Auth", "Kick logout failed", {
@@ -816,7 +866,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         }
 
         // Sync local follows with account follows (background, non-blocking)
-        syncFollowsOnLogin("twitch").catch(() => {});
+        reconcileLiveNotificationsAfterFollowSync(syncFollowsOnLogin("twitch"));
 
         // Notify renderer
         safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {

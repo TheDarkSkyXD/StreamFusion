@@ -11,6 +11,7 @@ const toastFn = vi.fn();
 let mockIsFollowing = false;
 let mockFollowSource: FollowSource | null = null;
 let mockKickConnected = false;
+let mockTwitchConnected = false;
 
 vi.mock('@/store/follow-store', () => ({
   useFollowStore: () => ({
@@ -21,8 +22,8 @@ vi.mock('@/store/follow-store', () => ({
 }));
 
 vi.mock('@/store/auth-store', () => ({
-  useAuthStore: (selector: (state: { kickConnected: boolean }) => unknown) =>
-    selector({ kickConnected: mockKickConnected }),
+  useAuthStore: (selector: (state: { kickConnected: boolean; twitchConnected: boolean }) => unknown) =>
+    selector({ kickConnected: mockKickConnected, twitchConnected: mockTwitchConnected }),
 }));
 
 vi.mock('@/hooks/useElectron', () => ({
@@ -44,6 +45,7 @@ describe('FollowButton', () => {
     mockIsFollowing = false;
     mockFollowSource = null;
     mockKickConnected = false;
+    mockTwitchConnected = false;
   });
 
   it('renders "Follow" label when not following', () => {
@@ -130,6 +132,22 @@ describe('FollowButton', () => {
     expect(message).toMatch(/follow.*kick/i);
     opts.action.onClick();
     expect(openExternal).toHaveBeenCalledWith('https://kick.com/summit1g');
+  });
+
+  it('routes signed-in Twitch follow clicks to twitch.tv instead of toggling locally', () => {
+    mockTwitchConnected = true;
+    renderWithProviders(
+      <FollowButton channel={fixtures.channel({ platform: 'twitch', username: 'xQc' })} />
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(toggleFollow).not.toHaveBeenCalled();
+    expect(toastFn).toHaveBeenCalledTimes(1);
+    const [message, opts] = toastFn.mock.calls[0] as [string, { action: { onClick: () => void } }];
+    expect(message).toMatch(/follow.*twitch/i);
+    opts.action.onClick();
+    expect(openExternal).toHaveBeenCalledWith('https://www.twitch.tv/xqc');
   });
 
   it('still toggles locally on a guest-source Kick row (regression guard for AE4)', () => {

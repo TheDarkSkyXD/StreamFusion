@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { dedupeChannelsByIdentity } from "@/lib/id-utils";
 import { logger } from "@/renderer/logging/logger";
 
 import type { UnifiedChannel } from "../../backend/api/unified/platform-types";
@@ -29,7 +30,7 @@ export function useFollowedChannels(platform: Platform, options: { enabled?: boo
         });
         return [];
       }
-      return response.data as UnifiedChannel[];
+      return dedupeChannelsByIdentity(response.data as UnifiedChannel[]);
     },
     retry: 1,
     enabled: options.enabled,

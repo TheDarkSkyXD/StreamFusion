@@ -34,6 +34,7 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
   const followSource = isFollowing ? getFollowSource(channel) : null;
   const openExternal = useOpenExternal();
   const kickConnected = useAuthStore((state) => state.kickConnected);
+  const twitchConnected = useAuthStore((state) => state.twitchConnected);
   const [isHovering, setIsHovering] = useState(false);
   const [isPending, setIsPending] = useState(false);
 
@@ -78,12 +79,19 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
       return;
     }
 
-    if (!isFollowing && platform === "kick" && kickConnected && channel.username) {
-      const url = buildKickChannelUrl(channel.username);
-      toast("Follow this channel on Kick", {
-        description: `Open ${channel.displayName || channel.username} on kick.com so the follow is saved to your Kick account.`,
+    const isConnectedToPlatform =
+      (platform === "twitch" && twitchConnected) || (platform === "kick" && kickConnected);
+    if (!isFollowing && isConnectedToPlatform && channel.username) {
+      const isTwitch = platform === "twitch";
+      const platformName = isTwitch ? "Twitch" : "Kick";
+      const host = isTwitch ? "twitch.tv" : "kick.com";
+      const url = isTwitch
+        ? buildTwitchChannelUrl(channel.username)
+        : buildKickChannelUrl(channel.username);
+      toast(`Follow this channel on ${platformName}`, {
+        description: `Open ${channel.displayName || channel.username} on ${host} so the follow is saved to your ${platformName} account.`,
         action: {
-          label: "Open Kick",
+          label: `Open ${platformName}`,
           onClick: () => openExternal(url),
         },
       });
@@ -135,11 +143,13 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
             ? "Followed via your Twitch account — click to manage on twitch.tv"
             : isManagedByKick
               ? "Followed via your Kick account — click to manage on kick.com"
-              : !isFollowing && platform === "kick" && kickConnected
-                ? "Open on kick.com to follow with your Kick account"
-                : isFollowing
-                  ? "Unfollow"
-                  : "Follow"
+              : !isFollowing && platform === "twitch" && twitchConnected
+                ? "Open on twitch.tv to follow with your Twitch account"
+                : !isFollowing && platform === "kick" && kickConnected
+                  ? "Open on kick.com to follow with your Kick account"
+                  : isFollowing
+                    ? "Unfollow"
+                    : "Follow"
       }
     >
       {isPending ? (

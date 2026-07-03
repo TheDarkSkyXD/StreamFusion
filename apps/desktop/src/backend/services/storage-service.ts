@@ -14,12 +14,14 @@ import { logger } from "@/lib/cross-logger";
 import {
   type AuthToken,
   type BufferPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   DEFAULT_WINDOW_BOUNDS,
   type EncryptedToken,
   type FollowSource,
   type KickUser,
   type LocalFollow,
+  type NotificationPreferences,
   type Platform,
   type StorageSchema,
   type TwitchUser,
@@ -52,7 +54,19 @@ function isLegacyLatencyFirstBufferPreferences(value: unknown): boolean {
 }
 
 function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
-  const hydrated = { ...DEFAULT_USER_PREFERENCES, ...stored };
+  const notificationPreferences: NotificationPreferences = {
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    ...(stored.notifications ?? {}),
+    perChannelNotifications: {
+      ...DEFAULT_NOTIFICATION_PREFERENCES.perChannelNotifications,
+      ...(stored.notifications?.perChannelNotifications ?? {}),
+    },
+  };
+  const hydrated = {
+    ...DEFAULT_USER_PREFERENCES,
+    ...stored,
+    notifications: notificationPreferences,
+  };
   if (isLegacyLatencyFirstBufferPreferences(hydrated.buffer)) {
     return { ...hydrated, buffer: DEFAULT_USER_PREFERENCES.buffer };
   }

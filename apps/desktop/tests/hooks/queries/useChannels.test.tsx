@@ -48,6 +48,39 @@ describe("useFollowedChannels", () => {
     expect(result.current.data![0].username).toBe("xqc");
   });
 
+  it("dedupes duplicate same-platform channels from IPC by slug", async () => {
+    api.channels.getFollowed = vi.fn(async () => ({
+      data: [
+        fixtures.channel({
+          platform: "kick",
+          id: "channel-1",
+          username: "hennytingzz",
+          displayName: "hennytingzz",
+          avatarUrl: "",
+        }),
+        fixtures.channel({
+          platform: "kick",
+          id: "user-21103818",
+          username: "Hennytingzz",
+          displayName: "Hennytingzz",
+          avatarUrl: "https://example.com/hennytingzz.webp",
+        }),
+      ],
+      error: null,
+    }));
+
+    const { result } = renderHook(
+      () => useFollowedChannels("kick", { enabled: true }),
+      { wrapper: makeWrapper() }
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toHaveLength(1);
+    expect(result.current.data![0]).toMatchObject({
+      username: "Hennytingzz",
+      avatarUrl: "https://example.com/hennytingzz.webp",
+    });
+  });
+
   it("returns empty array on error instead of throwing", async () => {
     api.channels.getFollowed = vi.fn(async () => ({ data: null, error: "auth" }));
     const { result } = renderHook(

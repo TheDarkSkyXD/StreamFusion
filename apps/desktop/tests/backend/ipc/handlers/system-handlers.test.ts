@@ -1,6 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { LiveNotificationCoverageStatus } from "@/shared/auth-types";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
+
+const liveNotificationServiceMock = vi.hoisted(() => ({
+  getCoverageStatus: vi.fn<() => LiveNotificationCoverageStatus>(() => ({
+    desktop: { supported: true, permission: "unknown" },
+    platforms: {
+      twitch: { status: "normal", issues: [] },
+      kick: { status: "normal", issues: [] },
+    },
+  })),
+}));
+
+const storageServiceMock = vi.hoisted(() => ({
+  getPreferences: vi.fn(() => ({
+    notifications: {
+      enabled: true,
+      sound: true,
+    },
+  })),
+}));
+
+const notificationMock = vi.hoisted(() => ({
+  options: [] as Array<Record<string, unknown>>,
+}));
 
 vi.mock("electron", () => {
   const _showFn = vi.fn();
@@ -10,8 +34,11 @@ vi.mock("electron", () => {
     static isSupported = _isSupportedFn;
     static _showFn = _showFn;
     static _isSupportedFn = _isSupportedFn;
+    static _options = notificationMock.options;
     show = _showFn;
-    constructor(_opts: any) {}
+    constructor(opts: Record<string, unknown>) {
+      notificationMock.options.push(opts);
+    }
   }
 
   return {
@@ -35,6 +62,14 @@ vi.mock("electron", () => {
 
 vi.mock("@/backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
+}));
+
+vi.mock("@/backend/services/live-notification-service", () => ({
+  liveNotificationService: liveNotificationServiceMock,
+}));
+
+vi.mock("@/backend/services/storage-service", () => ({
+  storageService: storageServiceMock,
 }));
 
 import { app, ipcMain, Notification, nativeTheme, shell } from "electron";
@@ -79,6 +114,7 @@ let mainWindow: ReturnType<typeof makeFakeMainWindow>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  notificationMock.options.length = 0;
   mainWindow = makeFakeMainWindow();
   registerSystemHandlers(mainWindow as unknown as Electron.BrowserWindow);
 });
@@ -270,5 +306,68 @@ describe("NOTIFICATION_SHOW", () => {
     handler({}, { title: "Test", body: "Body" });
 
     expect(showFn).not.toHaveBeenCalled();
+  });
+
+  it("does not show notification when desktop notifications are disabled", () => {
+    const isSupportedFn = (Notification as any)._isSupportedFn;
+    const showFn = (Notification as any)._showFn;
+    isSupportedFn.mockReturnValue(true);
+    storageServiceMock.getPreferences.mockReturnValueOnce({
+      notifications: { enabled: false, sound: true },
+    });
+
+    const handler = getInvokeHandler(IPC_CHANNELS.NOTIFICATION_SHOW);
+    handler({}, { title: "Test", body: "Body" });
+
+    expect(showFn).not.toHaveBeenCalled();
+  });
+
+  it("uses a silent native notification when sound is disabled", () => {
+    const isSupportedFn = (Notification as any)._isSupportedFn;
+    const showFn = (Notification as any)._showFn;
+    isSupportedFn.mockReturnValue(true);
+    storageServiceMock.getPreferences.mockReturnValueOnce({
+      notifications: { enabled: true, sound: false },
+    });
+
+    const handler = getInvokeHandler(IPC_CHANNELS.NOTIFICATION_SHOW);
+    handler({}, { title: "Test", body: "Body" });
+
+    expect(showFn).toHaveBeenCalledTimes(1);
+    expect((Notification as any)._options[0]).toMatchObject({ silent: true });
+  });
+});
+
+describe("NOTIFICATION_COVERAGE_GET", () => {
+  it("returns the live notification coverage snapshot", () => {
+    liveNotificationServiceMock.getCoverageStatus.mockReturnValueOnce({
+      desktop: { supported: false, permission: "unsupported" },
+      platforms: {
+        twitch: {
+          status: "degraded",
+          issues: [
+            {
+              platform: "twitch",
+              reason: "eventsub-failed",
+              message: "Twitch EventSub unavailable",
+              firstSeenAt: 1,
+              lastSeenAt: 1,
+            },
+          ],
+        },
+        kick: { status: "normal", issues: [] },
+      },
+    });
+
+    const handler = getInvokeHandler(IPC_CHANNELS.NOTIFICATION_COVERAGE_GET);
+    const status = handler({});
+
+    expect(status).toMatchObject({
+      desktop: { supported: false, permission: "unsupported" },
+      platforms: {
+        twitch: { status: "degraded" },
+        kick: { status: "normal" },
+      },
+    });
   });
 });

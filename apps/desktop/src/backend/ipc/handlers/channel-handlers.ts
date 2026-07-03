@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
+import { dedupeChannelsByIdentity } from "@/lib/id-utils";
 import type { KickUser, Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { UnifiedChannel } from "../../api/unified/platform-types";
@@ -164,7 +165,7 @@ export function registerChannelHandlers(): void {
           });
         }
 
-        return { success: true, data: channels };
+        return { success: true, data: dedupeChannelsByIdentity(channels) };
       } catch (error) {
         logger.error("IPC:Channel", "Failed to get followed channels", {
           error:

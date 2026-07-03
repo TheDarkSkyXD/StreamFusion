@@ -359,3 +359,118 @@ describe("auth-store account-follow startup sync", () => {
     });
   });
 });
+
+describe("auth-store manual account-follow sync", () => {
+  it("syncs both connected platforms", async () => {
+    const syncFollows = vi.fn(async () => ({ success: true }));
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: { syncFollows } },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchConnected: true,
+      kickConnected: true,
+    });
+
+    const result = await useAuthStore.getState().syncConnectedFollows();
+
+    expect(syncFollows).toHaveBeenCalledWith("twitch");
+    expect(syncFollows).toHaveBeenCalledWith("kick");
+    expect(result).toEqual({ synced: ["twitch", "kick"], failed: [] });
+  });
+
+  it("syncs only the connected platform", async () => {
+    const syncFollows = vi.fn(async () => ({ success: true }));
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: { syncFollows } },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchConnected: true,
+      kickConnected: false,
+    });
+
+    const result = await useAuthStore.getState().syncConnectedFollows();
+
+    expect(syncFollows).toHaveBeenCalledOnce();
+    expect(syncFollows).toHaveBeenCalledWith("twitch");
+    expect(result).toEqual({ synced: ["twitch"], failed: [] });
+  });
+
+  it("returns partial failures and timestamps only successful platforms", async () => {
+    const syncFollows = vi.fn(async (platform: "twitch" | "kick") => ({
+      success: platform === "twitch",
+    }));
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: { syncFollows } },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchConnected: true,
+      kickConnected: true,
+      followSyncLastSyncedAt: {},
+    });
+
+    const result = await useAuthStore.getState().syncConnectedFollows();
+
+    expect(result).toEqual({ synced: ["twitch"], failed: ["kick"] });
+    expect(useAuthStore.getState().followSyncLastSyncedAt.twitch).toEqual(expect.any(String));
+    expect(useAuthStore.getState().followSyncLastSyncedAt.kick).toBeUndefined();
+  });
+
+  it("reports full failure without hydrating follows", async () => {
+    const syncFollows = vi.fn(async () => ({ success: false }));
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: { syncFollows } },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchConnected: true,
+      kickConnected: true,
+    });
+
+    const result = await useAuthStore.getState().syncConnectedFollows();
+
+    expect(result).toEqual({ synced: [], failed: ["twitch", "kick"] });
+    expect(followStoreHydrateSpy).not.toHaveBeenCalled();
+  });
+
+  it("blocks duplicate manual sync while one is in flight", async () => {
+    const resolveFirstSync: { current?: (value: { success: true }) => void } = {};
+    const syncFollows = vi.fn(
+      () =>
+        new Promise<{ success: true }>((resolve) => {
+          resolveFirstSync.current = resolve;
+        })
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: { syncFollows } },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchConnected: true,
+      kickConnected: false,
+    });
+
+    const first = useAuthStore.getState().syncConnectedFollows();
+    expect(useAuthStore.getState().followSyncInProgress).toBe(true);
+    const second = await useAuthStore.getState().syncConnectedFollows();
+
+    expect(second).toEqual({ synced: [], failed: [] });
+    expect(syncFollows).toHaveBeenCalledOnce();
+    expect(resolveFirstSync.current).toBeDefined();
+    resolveFirstSync.current?.({ success: true });
+    await first;
+    expect(useAuthStore.getState().followSyncInProgress).toBe(false);
+  });
+});

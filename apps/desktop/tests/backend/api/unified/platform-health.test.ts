@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { logger } from "@/backend/logging/logger";
+
+vi.mock("@/lib/cross-logger", () => ({
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
+import { logger } from "@/lib/cross-logger";
 
 // State-machine tests for the per-Platform health tracker (slice 01 of the
 // platform-outage handling feature). Covers trip-to-degraded, the failure
@@ -381,9 +391,7 @@ describe("platform-health (slice 04: transition logging)", () => {
     for (let i = 0; i < 6; i++) recordPlatformFailure("kick", "timeout");
     for (let i = 0; i < 4; i++) recordPlatformSuccess("kick");
 
-    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "PlatformHealth"
-    );
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(([tag]) => tag === "PlatformHealth");
     expect(warnCalls).toHaveLength(1);
     expect(warnCalls[0][1]).toMatch(/kick degraded: \d+\/\d+ requests failed/);
   });
@@ -402,43 +410,35 @@ describe("platform-health (slice 04: transition logging)", () => {
       recordPlatformSuccess("kick");
     }
 
-    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "PlatformHealth"
-    );
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(([tag]) => tag === "PlatformHealth");
     expect(warnCalls).toHaveLength(1);
     expect(warnCalls[0][1]).toMatch(/kick recovered after 30s/);
   });
 
   it("does NOT log while staying healthy", async () => {
-    const { recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
-    );
+    const { recordPlatformSuccess } = await import("@/backend/api/unified/platform-health");
 
     for (let i = 0; i < 20; i++) recordPlatformSuccess("kick");
 
-    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "PlatformHealth"
-    );
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(([tag]) => tag === "PlatformHealth");
     expect(warnCalls).toHaveLength(0);
   });
 
   it("does NOT log while staying degraded (only the transition warn)", async () => {
-    const { recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
-    );
+    const { recordPlatformFailure } = await import("@/backend/api/unified/platform-health");
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
 
-    const warnCalls1 = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "PlatformHealth"
-    );
+    const warnCalls1 = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([tag]) => tag === "PlatformHealth");
     expect(warnCalls1).toHaveLength(1);
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
 
-    const warnCalls2 = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "PlatformHealth"
-    );
+    const warnCalls2 = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([tag]) => tag === "PlatformHealth");
     expect(warnCalls2).toHaveLength(1);
   });
 });
@@ -623,17 +623,13 @@ describe("platform-health (slice 05: down state)", () => {
   });
 
   it("logs one warn per down transition", async () => {
-    const { recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
-    );
+    const { recordPlatformLocalNetError } = await import("@/backend/api/unified/platform-health");
 
     recordPlatformLocalNetError("kick");
     recordPlatformLocalNetError("kick");
     recordPlatformLocalNetError("kick");
 
-    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(
-      ([tag]) => tag === "PlatformHealth"
-    );
+    const warnCalls = vi.mocked(logger.warn).mock.calls.filter(([tag]) => tag === "PlatformHealth");
     expect(warnCalls).toHaveLength(1);
     expect(warnCalls[0][1]).toMatch(/kick down.*local network crash/i);
   });
@@ -1045,11 +1041,9 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
   });
 
   it("recovery event includes source: 'internal' when no signal was active", async () => {
-    const {
-      onPlatformHealthChanged,
-      recordPlatformFailure,
-      recordPlatformSuccess,
-    } = await import("@/backend/api/unified/platform-health");
+    const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
+      "@/backend/api/unified/platform-health"
+    );
 
     const events: Array<{ platform: string; status: string; source?: string }> = [];
     onPlatformHealthChanged((e) => events.push(e));

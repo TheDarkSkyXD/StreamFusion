@@ -608,6 +608,27 @@ describe("channel-endpoints", () => {
   });
 
   describe("getChannel", () => {
+    it("skips official app-token channel lookup while Kick official API is degraded", async () => {
+      vi.mocked(getPlatformHealth).mockReturnValue("degraded");
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 321,
+          slug: "degraded-channel",
+          user: { username: "DegradedChannel" },
+          livestream: null,
+        })
+      );
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(new Error("Kick API error: 401")),
+      });
+
+      const result = await getChannel(client, "degraded-channel");
+
+      expect(client.request).not.toHaveBeenCalled();
+      expect(mockLoadURL).toHaveBeenCalled();
+      expect(result!.username).toBe("degraded-channel");
+    });
+
     it("prefers official app-token API result over legacy public lookup", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({

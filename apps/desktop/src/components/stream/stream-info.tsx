@@ -153,13 +153,13 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
                     to="/categories/$platform/$categoryId"
                     params={{ platform: linkPlatform, categoryId: linkCategoryId }}
                     search={otherId ? { otherId } : {}}
-                    className={`${channel.platform === "twitch" ? "text-[#9146FF] hover:text-[#9146FF]/80" : "text-[#53FC18] hover:text-[#53FC18]/80"} font-semibold hover:underline cursor-pointer transition-colors`}
+                    className={`${channel.platform === "twitch" ? "text-[#a970ff] hover:text-[#a970ff]/80" : "text-[#53FC18] hover:text-[#53FC18]/80"} font-semibold hover:underline cursor-pointer transition-colors`}
                   >
                     {displayCategory}
                   </Link>
                 ) : (
                   <span
-                    className={channel.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]"}
+                    className={channel.platform === "twitch" ? "text-[#a970ff]" : "text-[#53FC18]"}
                   >
                     {displayCategory}
                   </span>

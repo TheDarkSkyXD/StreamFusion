@@ -8,30 +8,39 @@ vi.mock("@/backend/api/unified/platform-health", () => ({
   recordPlatformFailure: (...args: unknown[]) => mockRecordPlatformFailure(...args),
 }));
 
+vi.mock("@/lib/cross-logger", () => ({
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
 import {
+  gqlFetchGamesForVideos,
+  gqlGetAllTopCategories,
+  gqlGetCategoryById,
+  gqlGetChannelByLogin,
+  gqlGetClipAccessToken,
+  gqlGetClipsByChannel,
+  gqlGetFollowerCount,
   gqlGetGameMetadata,
-  gqlGetTopStreams,
+  gqlGetPlaybackAccessToken,
   gqlGetStreamByLogin,
   gqlGetStreamsByLogins,
   gqlGetTopCategories,
-  gqlGetAllTopCategories,
-  gqlGetCategoryById,
-  gqlSearchChannels,
-  gqlSearchCategories,
-  gqlGetChannelByLogin,
-  gqlGetVideosByChannel,
-  gqlGetClipsByChannel,
-  gqlGetPlaybackAccessToken,
-  gqlGetVodAccessToken,
-  gqlGetClipAccessToken,
+  gqlGetTopStreams,
   gqlGetVideoMetadata,
+  gqlGetVideosByChannel,
+  gqlGetVodAccessToken,
   gqlIsChannelLive,
-  gqlGetFollowerCount,
-  gqlFetchGamesForVideos,
+  gqlSearchCategories,
+  gqlSearchChannels,
   type SearchChannelEdgeItem,
   type SearchGameEdgeItem,
 } from "@/backend/api/platforms/twitch/twitch-gql-client";
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@/lib/cross-logger";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -126,7 +135,10 @@ function makeDirectoryPageGameStream(overrides: Record<string, unknown> = {}) {
       slug: "valorant",
       __typename: "Game",
     },
-    previewThumbnailProperties: { blurReason: "BLUR_NOT_REQUIRED", __typename: "PreviewThumbnailProperties" },
+    previewThumbnailProperties: {
+      blurReason: "BLUR_NOT_REQUIRED",
+      __typename: "PreviewThumbnailProperties",
+    },
     __typename: "Stream",
     ...overrides,
   };
@@ -290,6 +302,7 @@ describe("gqlGetGameMetadata", () => {
 
 // ---------------------------------------------------------------------------
 
+// Guards: Twitch top-stream browse must not return unroutable streams when GQL omits broadcaster data.
 describe("gqlGetTopStreams", () => {
   let fetchMock: FetchMock;
 
@@ -396,7 +409,10 @@ describe("gqlGetTopStreams", () => {
 
   it("transforms stream fields correctly: isMature flag from blurReason", async () => {
     const matureStream = makeDirectoryPageGameStream({
-      previewThumbnailProperties: { blurReason: "MATURE_CONTENT", __typename: "PreviewThumbnailProperties" },
+      previewThumbnailProperties: {
+        blurReason: "MATURE_CONTENT",
+        __typename: "PreviewThumbnailProperties",
+      },
     });
     stubFetch(fetchMock, {
       data: {
@@ -460,7 +476,39 @@ describe("gqlGetTopStreams", () => {
     expect(body[0].variables.cursor).toBe("page2cursor");
   });
 
-  it("handles missing broadcaster fields gracefully", async () => {
+  it("recovers channel login from the preview URL when broadcaster data is missing", async () => {
+    const stream = makeDirectoryPageGameStream({
+      broadcaster: null,
+      previewImageURL:
+        "https://static-cdn.jtvnw.net/previews-ttv/live_user_recovered_login-440x248.jpg",
+    });
+    stubFetch(fetchMock, {
+      data: {
+        streams: {
+          edges: [{ cursor: "c1", node: stream, __typename: "StreamEdge" }],
+          pageInfo: { hasNextPage: false },
+        },
+      },
+    });
+    stubFetchBatch(
+      fetchMock,
+      makeStreamMetadataResponse("recovered_login"),
+      makeViewCountResponse(42000),
+      makeTagsAndLanguageResponse(["English", "Challenge Run"], "EN")
+    );
+
+    const result = await gqlGetTopStreams();
+
+    expect(result.data[0].channelId).toBe("user-1");
+    expect(result.data[0].channelName).toBe("recovered_login");
+    expect(result.data[0].channelDisplayName).toBe("recovered_login");
+    expect(result.data[0].channelAvatar).toBe("https://cdn/avatar.jpg");
+    expect(result.data[0].title).toBe("Live Stream Title");
+    expect(result.data[0].tags).toEqual(["English", "Challenge Run"]);
+    expect(result.data[0].language).toBe("en");
+  });
+
+  it("drops streams that still have no routable channel login", async () => {
     const stream = makeDirectoryPageGameStream({ broadcaster: null });
     stubFetch(fetchMock, {
       data: {
@@ -473,10 +521,7 @@ describe("gqlGetTopStreams", () => {
 
     const result = await gqlGetTopStreams();
 
-    expect(result.data[0].channelId).toBe("");
-    expect(result.data[0].channelName).toBe("");
-    expect(result.data[0].channelDisplayName).toBe("");
-    expect(result.data[0].channelAvatar).toBe("");
+    expect(result.data).toEqual([]);
   });
 
   it("handles missing freeformTags gracefully", async () => {
@@ -646,7 +691,9 @@ describe("gqlGetTopStreams — gameId path (DirectoryPage_Game persisted query)"
     const warnSpy = vi.mocked(logger.warn);
     stubFetch(fetchMock, { data: { game: null } }); // no slug
     stubFetch(fetchMock, {
-      data: { game: { id: "integrity-game", streams: { edges: [], pageInfo: { hasNextPage: false } } } },
+      data: {
+        game: { id: "integrity-game", streams: { edges: [], pageInfo: { hasNextPage: false } } },
+      },
       errors: [{ message: "failed integrity check" }],
     });
 
@@ -716,7 +763,17 @@ describe("gqlGetStreamByLogin", () => {
   it("returns null when user has no stream", async () => {
     stubFetchBatch(
       fetchMock,
-      { data: { user: { id: "u1", login: "offline", profileImageURL: "", stream: null, lastBroadcast: null } } },
+      {
+        data: {
+          user: {
+            id: "u1",
+            login: "offline",
+            profileImageURL: "",
+            stream: null,
+            lastBroadcast: null,
+          },
+        },
+      },
       makeViewCountResponse(0),
       makeTagsAndLanguageResponse([], "")
     );
@@ -1243,11 +1300,7 @@ describe("gqlGetChannelByLogin", () => {
   });
 
   it("returns null when userOrError is null", async () => {
-    stubFetchBatch(
-      fetchMock,
-      { data: { userOrError: null } },
-      { data: { user: null } }
-    );
+    stubFetchBatch(fetchMock, { data: { userOrError: null } }, { data: { user: null } });
 
     const result = await gqlGetChannelByLogin("nobody");
 
@@ -2143,9 +2196,7 @@ describe("gqlRequest — transport layer", () => {
   it("throws on HTTP 403", async () => {
     stubFetchError(fetchMock, 403, "Forbidden");
 
-    await expect(gqlIsChannelLive("ch")).rejects.toThrow(
-      "GQL request failed: 403 Forbidden"
-    );
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow("GQL request failed: 403 Forbidden");
   });
 
   it("propagates network errors from fetch", async () => {
@@ -2383,12 +2434,21 @@ describe("gqlSearchChannels — transformSearchChannel mapping", () => {
                   description: "Pro gamer",
                   stream: {
                     id: "s1",
-                    game: { id: "g1", displayName: "VALORANT", name: "valorant", __typename: "Game" },
+                    game: {
+                      id: "g1",
+                      displayName: "VALORANT",
+                      name: "valorant",
+                      __typename: "Game",
+                    },
                     __typename: "Stream",
                   },
                   followers: { totalCount: 18000000, __typename: "FollowerConnection" },
                   roles: { isPartner: true, __typename: "UserRoles" },
-                  broadcastSettings: { id: "bs1", title: "Ranked Grind", __typename: "BroadcastSettings" },
+                  broadcastSettings: {
+                    id: "bs1",
+                    title: "Ranked Grind",
+                    __typename: "BroadcastSettings",
+                  },
                 },
               },
             ],
@@ -2906,11 +2966,7 @@ describe("gqlSearchChannels — safety properties (pagination skeleton-flicker s
   });
 
   it("integrity-check guard matches case variants — 'Failed Integrity Check', 'FAILED_INTEGRITY_CHECK', 'integrity check failed' all suppress the cursor without warning", async () => {
-    const variants = [
-      "Failed Integrity Check",
-      "FAILED_INTEGRITY_CHECK",
-      "integrity check failed",
-    ];
+    const variants = ["Failed Integrity Check", "FAILED_INTEGRITY_CHECK", "integrity check failed"];
     for (const message of variants) {
       fetchMock.mockClear();
       warnSpy.mockClear();

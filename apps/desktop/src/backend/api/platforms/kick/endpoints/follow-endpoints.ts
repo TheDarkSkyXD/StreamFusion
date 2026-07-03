@@ -51,7 +51,7 @@ export const GRID_READY_PREDICATE = `(() => {
 })()`;
 
 export type FollowedChannelsResult =
-  | { status: "ok"; channels: UnifiedChannel[] }
+  | { status: "ok"; channels: UnifiedChannel[]; canPruneAbsent: boolean }
   | { status: "error"; reason: ErrorReason };
 
 export type ErrorReason =
@@ -220,7 +220,7 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
   // Empty list IS a valid outcome — user genuinely follows zero channels.
   // No warn. The caller (syncFollowsOnLogin) handles the clear+insert with
   // zero inserts as a successful sync.
-  return { status: "ok", channels };
+  return { status: "ok", channels, canPruneAbsent: true };
 }
 
 const PAGE_LOAD_TIMEOUT_MS = 10000;
@@ -563,7 +563,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       "BrowserWindow fallback SUCCESS: scraped followed channels from /following DOM",
       { channelCount: channels.length }
     );
-    return { status: "ok", channels };
+    return { status: "ok", channels, canPruneAbsent: false };
   } catch (err) {
     _warnOnce(
       "network-error",

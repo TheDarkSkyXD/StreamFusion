@@ -137,6 +137,9 @@ export const IPC_CHANNELS = {
 
   // Notifications
   NOTIFICATION_SHOW: "notification:show",
+  NOTIFICATION_LIVE_RECEIVED: "notification:live-received",
+  NOTIFICATION_OPEN_STREAM: "notification:open-stream",
+  NOTIFICATION_COVERAGE_GET: "notification:coverage-get",
 
   // ========== Discovery: Streams ==========
   STREAMS_GET_TOP: "streams:get-top",
@@ -601,6 +604,16 @@ export interface AuthStatus {
   };
   isGuest: boolean;
 }
+
+export type AuthSyncFollowsResult =
+  | {
+      success: true;
+      count?: number;
+      pendingCount?: number;
+      addedCount?: number;
+      removedCount?: number;
+    }
+  | { success: false; error: string };
 
 // ========== Version Info Types ==========
 

@@ -113,3 +113,59 @@ export function channelsMatch(
   }
   return false;
 }
+
+function channelMetadataScore(channel: UnifiedChannel): number {
+  let score = 0;
+  if (channel.id) score += 1;
+  if (channel.username) score += 1;
+  if (channel.displayName && channel.displayName !== channel.username) score += 1;
+  if (channel.avatarUrl) score += 2;
+  if (channel.bannerUrl) score += 1;
+  if (channel.bio) score += 1;
+  if (channel.isLive) score += 1;
+  if (channel.isVerified) score += 1;
+  if (channel.isPartner) score += 1;
+  return score;
+}
+
+function mergeDuplicateChannel(existing: UnifiedChannel, incoming: UnifiedChannel): UnifiedChannel {
+  const primary =
+    channelMetadataScore(incoming) > channelMetadataScore(existing) ? incoming : existing;
+  const fallback = primary === incoming ? existing : incoming;
+
+  return {
+    ...primary,
+    id: primary.id || fallback.id,
+    username: primary.username || fallback.username,
+    displayName: primary.displayName || fallback.displayName,
+    avatarUrl: primary.avatarUrl || fallback.avatarUrl,
+    bannerUrl: primary.bannerUrl || fallback.bannerUrl,
+    bio: primary.bio || fallback.bio,
+    isLive: Boolean(primary.isLive || fallback.isLive),
+    isVerified: Boolean(primary.isVerified || fallback.isVerified),
+    isPartner: Boolean(primary.isPartner || fallback.isPartner),
+    kickUserId: primary.kickUserId || fallback.kickUserId,
+  };
+}
+
+/**
+ * Dedupe followed channels by real identity, not only by current API id.
+ * Platform stays part of the match so a Twitch creator and Kick creator with
+ * the same name remain separate, while duplicate Kick rows with different
+ * internal ids collapse when their slug matches.
+ */
+export function dedupeChannelsByIdentity(channels: UnifiedChannel[]): UnifiedChannel[] {
+  const deduped: UnifiedChannel[] = [];
+
+  for (const channel of channels) {
+    const existingIndex = deduped.findIndex((candidate) => channelsMatch(candidate, channel));
+    if (existingIndex === -1) {
+      deduped.push(channel);
+      continue;
+    }
+
+    deduped[existingIndex] = mergeDuplicateChannel(deduped[existingIndex], channel);
+  }
+
+  return deduped;
+}

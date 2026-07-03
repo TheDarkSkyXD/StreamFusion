@@ -11,18 +11,8 @@ import { getQueryCacheOptions } from "@/hooks/queries/cache-policy";
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
-import { usePlatformHealth } from "@/hooks/usePlatformHealth";
 import { cn, formatLanguageLabel, formatViewerCount } from "@/lib/utils";
 import { StreamVerifiedBadge } from "./stream-verified-badge";
-
-function formatStalenessAge(startedAt: string | null): string | null {
-  if (!startedAt) return null;
-  const ms = Date.now() - new Date(startedAt).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return null;
-  const minutes = Math.floor(ms / 60_000);
-  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ago`;
-  return `${minutes}m ago`;
-}
 
 interface StreamCardProps {
   stream: UnifiedStream;
@@ -51,9 +41,6 @@ export const StreamCard = React.memo(
   ({ stream, showCategory = true, isWatching = false }: StreamCardProps) => {
     const PlatformIcon = stream.platform === "twitch" ? TwitchIcon : KickIcon;
     const platformColor = stream.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
-    const platformHealth = usePlatformHealth();
-    const isStale = platformHealth[stream.platform] !== "healthy";
-    const stalenessLabel = isStale ? formatStalenessAge(stream.startedAt) : null;
 
     const queryClient = useQueryClient();
 
@@ -192,15 +179,6 @@ export const StreamCard = React.memo(
             >
               <PlatformIcon size={14} />
             </div>
-
-            {stalenessLabel && (
-              <div
-                data-testid="staleness-badge"
-                className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/60 text-[#666666] text-xs font-semibold tracking-[0.025em] leading-[1.33]"
-              >
-                {stalenessLabel}
-              </div>
-            )}
           </div>
 
           {/* Info Section */}

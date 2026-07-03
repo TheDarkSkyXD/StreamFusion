@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, waitFor } from "@testing-library/react";
 
 import { fixtures, renderWithProviders, screen } from "../../test-utils";
 
+const toastMock = vi.hoisted(() => vi.fn());
+type TestPlatform = "twitch" | "kick";
 const storeState = vi.hoisted(() => ({
   twitchConnected: true,
   kickConnected: false,
+  followSyncInProgress: false,
+  followSyncLastSyncedAt: {} as Partial<Record<TestPlatform, string>>,
+  syncConnectedFollows: vi.fn(async () => ({
+    synced: ["twitch"] as TestPlatform[],
+    failed: [] as TestPlatform[],
+  })),
   localFollows: [] as unknown[],
   followSources: {} as Record<string, "guest" | "twitch" | "kick" | undefined>,
   currentPipStream: null as { platform: string; channelName: string } | null,
@@ -53,11 +62,18 @@ vi.mock("@/hooks/useStreamPlayback", () => ({
   prefetchStreamPlayback: vi.fn(),
 }));
 
+vi.mock("sonner", () => ({
+  toast: toastMock,
+}));
+
 vi.mock("@/store/auth-store", () => ({
   useAuthStore: (selector: (s: unknown) => unknown) =>
     selector({
       twitchConnected: storeState.twitchConnected,
       kickConnected: storeState.kickConnected,
+      followSyncInProgress: storeState.followSyncInProgress,
+      followSyncLastSyncedAt: storeState.followSyncLastSyncedAt,
+      syncConnectedFollows: storeState.syncConnectedFollows,
     }),
 }));
 
@@ -106,12 +122,130 @@ describe("SidebarFollows", () => {
     prefetchStreamPlaybackMock.mockReset();
     storeState.twitchConnected = true;
     storeState.kickConnected = false;
+    storeState.followSyncInProgress = false;
+    storeState.followSyncLastSyncedAt = {};
+    storeState.syncConnectedFollows.mockReset();
+    storeState.syncConnectedFollows.mockResolvedValue({
+      synced: ["twitch"] as TestPlatform[],
+      failed: [] as TestPlatform[],
+    });
     storeState.localFollows = [];
     storeState.followSources = {};
     storeState.currentPipStream = null;
     storeState.isPipActive = false;
     routerState.pathname = "/";
     window.localStorage.clear();
+    toastMock.mockReset();
+  });
+
+  it("expanded: shows a compact account-follow sync button and syncs connected platforms", async () => {
+    useFollowedChannelsMock.mockReturnValue({
+      data: [fixtures.channel({ id: "c-1", username: "testchannel", displayName: "TestChannel" })],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    const syncButton = screen.getByRole("button", { name: /sync follows/i });
+    fireEvent.click(syncButton);
+
+    await waitFor(() => expect(storeState.syncConnectedFollows).toHaveBeenCalledOnce());
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("expanded: shows pending progress and blocks duplicate sync clicks", () => {
+    storeState.followSyncInProgress = true;
+    useFollowedChannelsMock.mockReturnValue({
+      data: [fixtures.channel({ id: "c-1", username: "testchannel", displayName: "TestChannel" })],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    const syncButton = screen.getByRole("button", { name: /sync follows/i });
+    expect(syncButton).toBeDisabled();
+    expect(syncButton.querySelector(".animate-spin")).toBeTruthy();
+    fireEvent.click(syncButton);
+    expect(storeState.syncConnectedFollows).not.toHaveBeenCalled();
+  });
+
+  it("expanded: shows the same platform-specific failure toast", async () => {
+    storeState.twitchConnected = true;
+    storeState.kickConnected = true;
+    storeState.syncConnectedFollows.mockResolvedValue({
+      synced: ["twitch"] as TestPlatform[],
+      failed: ["kick"] as TestPlatform[],
+    });
+    useFollowedChannelsMock.mockReturnValue({
+      data: [fixtures.channel({ id: "c-1", username: "testchannel", displayName: "TestChannel" })],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /sync follows/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        "Couldn't sync follows",
+        expect.objectContaining({
+          description: expect.stringContaining("Kick"),
+        })
+      )
+    );
+  });
+
+  it("expanded: freshness title uses the oldest connected platform sync timestamp", () => {
+    storeState.twitchConnected = true;
+    storeState.kickConnected = true;
+    storeState.followSyncLastSyncedAt = {
+      twitch: "2026-07-02T18:30:00.000Z",
+      kick: "2026-07-02T17:15:00.000Z",
+    };
+    useFollowedChannelsMock.mockReturnValue({
+      data: [fixtures.channel({ id: "c-1", username: "testchannel", displayName: "TestChannel" })],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    expect(screen.getByRole("button", { name: /sync follows/i })).toHaveAttribute(
+      "title",
+      expect.stringContaining("Kick last synced")
+    );
+  });
+
+  it("collapsed: keeps the sync control icon-only with a title", () => {
+    useFollowedChannelsMock.mockReturnValue({
+      data: [fixtures.channel({ id: "c-1", username: "testchannel", displayName: "TestChannel" })],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<SidebarFollows collapsed={true} />);
+
+    const syncButton = screen.getByRole("button", { name: /sync follows/i });
+    expect(syncButton).toHaveAttribute("title", expect.stringContaining("Sync follows"));
+    expect(syncButton).toHaveClass("w-8", "h-8");
+    expect(syncButton).not.toHaveTextContent(/sync|following/i);
   });
 
   it("loading: renders skeleton placeholders while both queries resolve", () => {
@@ -353,7 +487,7 @@ describe("SidebarFollows", () => {
     expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
   });
 
-  it("empty + collapsed: returns null so the collapsed rail doesn't reserve a hint area", () => {
+  it("empty + collapsed: keeps only the compact sync affordance when connected", () => {
     useFollowedChannelsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
       typeof useFollowedChannels
     >);
@@ -361,7 +495,8 @@ describe("SidebarFollows", () => {
       typeof useFollowedStreams
     >);
     const { container } = renderWithProviders(<SidebarFollows collapsed={true} />);
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByRole("button", { name: /sync follows/i })).toHaveClass("w-8", "h-8");
+    expect(container).not.toHaveTextContent(/follow channels to see them here/i);
   });
 
   it("renders live channel avatars when followed-streams returns data", () => {

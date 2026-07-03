@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { channelsMatch } from "@/lib/id-utils";
+import { channelsMatch, dedupeChannelsByIdentity } from "@/lib/id-utils";
 
 describe("channelsMatch", () => {
   it("returns false across platforms even when id and username both match", () => {
@@ -55,5 +55,68 @@ describe("channelsMatch", () => {
         { platform: "kick", id: "999", username: "XQC" }
       )
     ).toBe(true);
+  });
+});
+
+describe("dedupeChannelsByIdentity", () => {
+  it("dedupes same-platform slug matches with different ids and keeps the richer metadata", () => {
+    const channels = dedupeChannelsByIdentity([
+      {
+        platform: "kick",
+        id: "channel-1",
+        username: "hennytingzz",
+        displayName: "hennytingzz",
+        avatarUrl: "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
+      {
+        platform: "kick",
+        id: "user-21103818",
+        username: "Hennytingzz",
+        displayName: "Hennytingzz",
+        avatarUrl: "https://example.com/hennytingzz.webp",
+        isLive: false,
+        isVerified: true,
+        isPartner: false,
+      },
+    ]);
+
+    expect(channels).toHaveLength(1);
+    expect(channels[0]).toMatchObject({
+      platform: "kick",
+      username: "Hennytingzz",
+      displayName: "Hennytingzz",
+      avatarUrl: "https://example.com/hennytingzz.webp",
+      isVerified: true,
+    });
+  });
+
+  it("does not merge matching names across Twitch and Kick", () => {
+    const channels = dedupeChannelsByIdentity([
+      {
+        platform: "twitch",
+        id: "123",
+        username: "acoprn1010",
+        displayName: "acoprn1010",
+        avatarUrl: "https://example.com/twitch.webp",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
+      {
+        platform: "kick",
+        id: "456",
+        username: "acoprn1010",
+        displayName: "acoprn1010",
+        avatarUrl: "https://example.com/kick.webp",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
+    ]);
+
+    expect(channels).toHaveLength(2);
   });
 });

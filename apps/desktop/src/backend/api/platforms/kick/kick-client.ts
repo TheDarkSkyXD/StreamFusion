@@ -376,6 +376,10 @@ class KickClient implements KickRequestor, IPlatformReader {
     options: RequestInit = {},
     authMode: KickAuthMode = "user"
   ): Promise<T> {
+    if (authMode === "app" && !isPlatformHealthy("kick")) {
+      throw new Error("Kick official API app-token proxy unavailable while Kick is degraded");
+    }
+
     let bearer = await this.getOfficialApiBearerToken(authMode);
 
     if (!bearer) {
@@ -623,6 +627,10 @@ class KickClient implements KickRequestor, IPlatformReader {
    */
   async getStreamBySlug(slug: string): Promise<UnifiedStream | null> {
     return StreamEndpoints.getStreamBySlug(this, slug);
+  }
+
+  async getStreamsByBroadcasterIds(broadcasterUserIds: number[]): Promise<UnifiedStream[]> {
+    return StreamEndpoints.getStreamsByBroadcasterIds(this, broadcasterUserIds);
   }
 
   /**

@@ -43,7 +43,7 @@ import {
   type VideoAccessTokenClipData,
   type VideoMetadataData,
 } from "twitch-gql-queries";
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@/lib/cross-logger";
 import type { PlatformFailureClass } from "../../unified/platform-health";
 import { recordPlatformFailure, recordPlatformSuccess } from "../../unified/platform-health";
 
@@ -186,6 +186,11 @@ async function sendPersistedQuery<T>(
 /**
  * Helper to transform GQL stream data → UnifiedStream
  */
+function extractLoginFromPreviewUrl(url: string): string {
+  const match = /(?:^|\/)live_user_([a-z0-9_]+)(?:-[^/?#.]*)?\.[a-z0-9]+(?:[?#].*)?$/i.exec(url);
+  return match?.[1] ?? "";
+}
+
 function transformGqlStream(
   stream: DirectoryPageGameStream,
   overrides: Partial<UnifiedStream> = {}
@@ -194,14 +199,17 @@ function transformGqlStream(
   const broadcaster = stream.broadcaster as
     | (typeof stream.broadcaster & { roles?: { isPartner?: boolean } })
     | undefined;
+  const fallbackLogin = extractLoginFromPreviewUrl(thumbnailUrl);
+  const channelName = broadcaster?.login || fallbackLogin;
+  const channelDisplayName = broadcaster?.displayName || channelName;
 
   return {
     id: stream.id,
     platform: "twitch",
-    channelId: stream.broadcaster?.id || "",
-    channelName: stream.broadcaster?.login || "",
-    channelDisplayName: stream.broadcaster?.displayName || "",
-    channelAvatar: stream.broadcaster?.profileImageURL || "",
+    channelId: broadcaster?.id || "",
+    channelName,
+    channelDisplayName,
+    channelAvatar: broadcaster?.profileImageURL || "",
     channelIsVerified: !!broadcaster?.roles?.isPartner,
     title: stream.title,
     viewerCount: stream.viewersCount,
@@ -215,6 +223,48 @@ function transformGqlStream(
     categoryName: stream.game?.displayName || stream.game?.name,
     ...overrides,
   };
+}
+
+function onlyRoutableStreams(streams: UnifiedStream[]): UnifiedStream[] {
+  return streams.filter((stream) => stream.channelName.trim().length > 0);
+}
+
+async function enrichRecoveredStreamMetadata(streams: UnifiedStream[]): Promise<UnifiedStream[]> {
+  const enriched = await Promise.all(
+    streams.map(async (stream): Promise<UnifiedStream | null> => {
+      if (stream.channelId || !stream.channelName) return stream;
+
+      try {
+        const details = await gqlGetStreamByLogin(stream.channelName);
+        if (!details) return null;
+
+        return {
+          ...stream,
+          channelId: details.channelId || stream.channelId,
+          channelDisplayName: details.channelDisplayName || stream.channelDisplayName,
+          channelAvatar: details.channelAvatar || stream.channelAvatar,
+          channelIsVerified: details.channelIsVerified ?? stream.channelIsVerified,
+          title: details.title || stream.title,
+          startedAt: details.startedAt || stream.startedAt,
+          language: details.language || stream.language,
+          tags: details.tags.length > 0 ? details.tags : stream.tags,
+          categoryId: details.categoryId || stream.categoryId,
+          categoryName: details.categoryName || stream.categoryName,
+        };
+      } catch (err) {
+        logger.warn("Twitch:GQL", "failed to hydrate recovered stream metadata", {
+          channelName: stream.channelName,
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
+        return null;
+      }
+    })
+  );
+
+  return enriched.filter((stream): stream is UnifiedStream => stream !== null);
 }
 
 // ============================================================
@@ -341,7 +391,9 @@ async function gqlGetGameStreamsBySlug(
   const conn = res.data?.game?.streams;
   if (!conn) return { data: [] };
 
-  const streams = conn.edges.map((e) => transformGqlStream(e.node));
+  const streams = await enrichRecoveredStreamMetadata(
+    onlyRoutableStreams(conn.edges.map((e) => transformGqlStream(e.node)))
+  );
   const lastCursor = conn.edges[conn.edges.length - 1]?.cursor;
   return {
     data: streams,
@@ -474,7 +526,9 @@ async function gqlGetStreamsByGameIdRaw(
   const streamsConn = response.data?.game?.streams;
   if (!streamsConn) return { data: [] };
 
-  const streams = streamsConn.edges.map((edge) => transformGqlStream(edge.node));
+  const streams = await enrichRecoveredStreamMetadata(
+    onlyRoutableStreams(streamsConn.edges.map((edge) => transformGqlStream(edge.node)))
+  );
   const lastCursor = streamsConn.edges[streamsConn.edges.length - 1]?.cursor;
   const cursor = streamsConn.pageInfo.hasNextPage ? lastCursor || undefined : undefined;
   return { data: streams, cursor };
@@ -572,7 +626,9 @@ export async function gqlGetTopStreams(
   const data = response.data;
   if (!data?.streams) return { data: [] };
 
-  const streams = data.streams.edges.map((edge) => transformGqlStream(edge.node));
+  const streams = await enrichRecoveredStreamMetadata(
+    onlyRoutableStreams(data.streams.edges.map((edge) => transformGqlStream(edge.node)))
+  );
 
   const lastCursor = data.streams.edges[data.streams.edges.length - 1]?.cursor;
   return {

@@ -124,6 +124,57 @@ export interface LocalFollow {
   source?: FollowSource;
 }
 
+export interface LiveNotificationPayload {
+  id: string;
+  platform: Platform;
+  channelId: string;
+  channelName: string;
+  channelDisplayName: string;
+  title: string;
+  createdAt: number;
+  channelAvatar?: string | null;
+}
+
+export type DesktopNotificationPermissionStatus =
+  | "granted"
+  | "denied"
+  | "default"
+  | "unsupported"
+  | "unknown";
+
+export type LiveNotificationCoverageIssueReason =
+  | "eventsub-failed"
+  | "subscription-limit"
+  | "subscription-revoked"
+  | "polling-failed"
+  | "polling-limited"
+  | "platform-health"
+  | "many-follows";
+
+export interface LiveNotificationCoverageIssue {
+  platform: Platform;
+  reason: LiveNotificationCoverageIssueReason;
+  message: string;
+  safeContext?: Record<string, string | number | boolean | null>;
+  firstSeenAt: number;
+  lastSeenAt: number;
+}
+
+export interface PlatformLiveNotificationCoverage {
+  status: "normal" | "degraded";
+  issues: LiveNotificationCoverageIssue[];
+}
+
+export interface DesktopNotificationCoverageStatus {
+  supported: boolean;
+  permission: DesktopNotificationPermissionStatus;
+}
+
+export interface LiveNotificationCoverageStatus {
+  desktop: DesktopNotificationCoverageStatus;
+  platforms: Record<Platform, PlatformLiveNotificationCoverage>;
+}
+
 export interface TwitchFollow {
   userId: string;
   userLogin: string;
@@ -148,8 +199,14 @@ export type ChatSize = "small" | "medium" | "large";
 export interface NotificationPreferences {
   enabled: boolean;
   liveAlerts: boolean;
+  twitch: boolean;
+  kick: boolean;
+  guestFollows: boolean;
+  toastAlerts: boolean;
   sound: boolean;
   favoriteChannelsOnly: boolean;
+  restartGracePeriodMinutes: 0 | 5 | 15 | 30;
+  perChannelNotifications: Record<string, boolean>;
 }
 
 export interface ChatPreferences {
@@ -505,11 +562,17 @@ export interface AuthError {
 
 // ========== Default Values ==========
 
-const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled: true,
   liveAlerts: true,
+  twitch: true,
+  kick: true,
+  guestFollows: true,
+  toastAlerts: true,
   sound: true,
   favoriteChannelsOnly: false,
+  restartGracePeriodMinutes: 0,
+  perChannelNotifications: {},
 };
 
 export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {

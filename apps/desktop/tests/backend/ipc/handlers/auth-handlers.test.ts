@@ -45,12 +45,13 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
     expect(upsertSyncedFollows).not.toHaveBeenCalled();
   });
 
-  it("on ok with channels: upserts Kick follows without pruning absent rows; surfaces pendingCount", async () => {
+  it("on trusted ok with channels: upserts Kick follows and prunes absent rows", async () => {
     const upsertSyncedFollows = vi
       .fn()
       .mockReturnValue({ accountCount: 2, pendingCount: 0, addedCount: 2, removedCount: 0 });
     const getFollows = vi.fn().mockResolvedValue({
       status: "ok",
+      canPruneAbsent: true,
       channels: [
         {
           id: "411439",
@@ -109,19 +110,19 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
           profileImage: "https://example.com/chicken.jpg",
         }),
       ],
-      { pruneAbsent: false }
+      { pruneAbsent: true }
     );
   });
 
-  it("on ok with empty channels: still uses the additive Kick sync policy", async () => {
-    // Kick's DOM scrape can be partial, so even an empty ok payload must not
-    // request pruning. The scraper normally returns an error for zero channels;
-    // this pins the lower-level sync policy.
+  it("on trusted ok with empty channels: prunes absent Kick follows", async () => {
+    // A trusted endpoint returning an empty list means the account follows no
+    // Kick channels, so stale account-source rows may be pruned.
     const upsertSyncedFollows = vi
       .fn()
       .mockReturnValue({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 0 });
     const getFollows = vi.fn().mockResolvedValue({
       status: "ok",
+      canPruneAbsent: true,
       channels: [],
     });
 
@@ -132,6 +133,32 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
     expect(outcome).toEqual({
       status: "ok",
       count: 0,
+      pendingCount: 0,
+      addedCount: 0,
+      removedCount: 0,
+    });
+    expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", [], { pruneAbsent: true });
+  });
+
+  it("on uncertain ok with empty channels: preserves absent Kick follows", async () => {
+    // A fallback scrape with zero results is ambiguous: it could mean a true
+    // empty account, auth loss, slow render, or a Kick layout change. Preserve.
+    const upsertSyncedFollows = vi
+      .fn()
+      .mockReturnValue({ accountCount: 3, pendingCount: 0, addedCount: 0, removedCount: 0 });
+    const getFollows = vi.fn().mockResolvedValue({
+      status: "ok",
+      canPruneAbsent: false,
+      channels: [],
+    });
+
+    const outcome = await syncKickFollowsAfterLogin(getFollows, {
+      upsertSyncedFollows,
+    });
+
+    expect(outcome).toEqual({
+      status: "ok",
+      count: 3,
       pendingCount: 0,
       addedCount: 0,
       removedCount: 0,
@@ -147,6 +174,7 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       .mockReturnValue({ accountCount: 3, pendingCount: 1, addedCount: 0, removedCount: 0 });
     const getFollows = vi.fn().mockResolvedValue({
       status: "ok",
+      canPruneAbsent: true,
       channels: [],
     });
 
@@ -173,6 +201,7 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       .mockReturnValue({ accountCount: 5, pendingCount: 0, addedCount: 1, removedCount: 2 });
     const getFollows = vi.fn().mockResolvedValue({
       status: "ok",
+      canPruneAbsent: true,
       channels: [],
     });
 

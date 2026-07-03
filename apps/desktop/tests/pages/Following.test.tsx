@@ -16,6 +16,9 @@ const storeState = vi.hoisted(() => ({
   localFollows: [] as unknown[],
   currentStream: null as { platform: string; channelName: string } | null,
   repairFollowMetadataFromChannel: vi.fn(),
+  syncConnectedFollows: vi.fn(async () => ({ synced: [] as string[], failed: [] as string[] })),
+  followSyncInProgress: false,
+  followSyncLastSyncedAt: {} as Partial<Record<"twitch" | "kick", string>>,
 }));
 
 vi.mock("@tanstack/react-router", () => routerMock());
@@ -45,6 +48,9 @@ vi.mock("@/store/auth-store", () => ({
   useAuthStore: () => ({
     twitchConnected: storeState.twitchConnected,
     kickConnected: storeState.kickConnected,
+    syncConnectedFollows: storeState.syncConnectedFollows,
+    followSyncInProgress: storeState.followSyncInProgress,
+    followSyncLastSyncedAt: storeState.followSyncLastSyncedAt,
   }),
 }));
 
@@ -127,6 +133,12 @@ vi.mock("@/components/stream/related-content/ClipCard", () => ({
 vi.mock("@/components/stream/related-content/ClipDialog", () => ({
   ClipDialog: ({ selectedClip }: { selectedClip: { title: string } | null }) =>
     selectedClip ? <div data-testid="clip-dialog">{selectedClip.title}</div> : null,
+}));
+
+const toastFn = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({
+  toast: (...args: unknown[]) => toastFn(...args),
 }));
 
 import { useTopCategories } from "@/hooks/queries/useCategories";
@@ -218,16 +230,25 @@ describe("FollowingPage", () => {
     storeState.localFollows = [];
     storeState.currentStream = null;
     storeState.repairFollowMetadataFromChannel.mockReset();
+    storeState.syncConnectedFollows.mockReset();
+    storeState.syncConnectedFollows.mockResolvedValue({ synced: [], failed: [] });
+    storeState.followSyncInProgress = false;
+    storeState.followSyncLastSyncedAt = {};
+    toastFn.mockReset();
     resetCachePerformanceSamples();
-    useFollowedChannelsMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
-      typeof useFollowedChannels
-    >);
+    useFollowedChannelsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedChannels>);
     useChannelByUsernameMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
       typeof useChannelByUsername
     >);
-    useFollowedStreamsMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
-      typeof useFollowedStreams
-    >);
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedStreams>);
     useTopCategoriesMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
       typeof useTopCategories
     >);
@@ -279,6 +300,59 @@ describe("FollowingPage", () => {
       }),
     ]);
     expect(screen.queryByText(/refreshing cache|refreshing data/i)).not.toBeInTheDocument();
+  });
+
+  it("manual refresh syncs all connected account follows before refreshing page data", async () => {
+    storeState.twitchConnected = true;
+    storeState.kickConnected = true;
+    storeState.syncConnectedFollows.mockResolvedValue({ synced: ["twitch", "kick"], failed: [] });
+    const refetchFollowedStreams = vi.fn().mockResolvedValue({ isError: false, status: "success" });
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: refetchFollowedStreams,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /sync follows/i }));
+
+    await waitFor(() => {
+      expect(storeState.syncConnectedFollows).toHaveBeenCalledTimes(1);
+    });
+    expect(refetchFollowedStreams).toHaveBeenCalled();
+    expect(toastFn).not.toHaveBeenCalled();
+  });
+
+  it("shows per-platform follow-sync freshness", () => {
+    storeState.twitchConnected = true;
+    storeState.kickConnected = true;
+    storeState.followSyncLastSyncedAt = {
+      twitch: "2026-07-02T15:00:00.000Z",
+      kick: "2026-07-02T15:05:00.000Z",
+    };
+
+    renderWithProviders(<FollowingPage />);
+
+    expect(screen.getByText(/twitch synced/i)).toBeInTheDocument();
+    expect(screen.getByText(/kick synced/i)).toBeInTheDocument();
+  });
+
+  it("shows a platform-specific toast when manual follow sync partially fails", async () => {
+    storeState.twitchConnected = true;
+    storeState.kickConnected = true;
+    storeState.syncConnectedFollows.mockResolvedValue({ synced: ["twitch"], failed: ["kick"] });
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /sync follows/i }));
+
+    await waitFor(() => {
+      expect(toastFn).toHaveBeenCalledWith(
+        "Couldn't sync follows",
+        expect.objectContaining({
+          description: expect.stringMatching(/Kick/),
+        })
+      );
+    });
   });
 
   it("shows empty-state when there are no follows", () => {
@@ -342,6 +416,44 @@ describe("FollowingPage", () => {
         })
       );
     });
+  });
+
+  it("dedupes duplicate Kick channel rows with the same slug on the Channels tab", () => {
+    storeState.localFollows = [
+      {
+        id: "channel-1",
+        platform: "kick",
+        username: "hennytingzz",
+        displayName: "hennytingzz",
+        avatarUrl: "",
+        bannerUrl: "",
+        bio: "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
+      {
+        id: "user-21103818",
+        platform: "kick",
+        username: "Hennytingzz",
+        displayName: "Hennytingzz",
+        avatarUrl: "https://example.com/hennytingzz.webp",
+        bannerUrl: "",
+        bio: "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
+    ];
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
+      target: { value: "henny" },
+    });
+
+    expect(screen.getByText(/\(1\)/)).toBeInTheDocument();
+    expect(screen.getAllByTestId("avatar")).toHaveLength(1);
   });
 
   it('loading: forwards isLoading to the streams grid so skeletons render instead of "no followed channels"', () => {

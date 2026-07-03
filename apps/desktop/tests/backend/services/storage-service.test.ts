@@ -38,7 +38,11 @@ vi.mock("@/backend/services/database-service", () => ({
 
 import { dbService } from "@/backend/services/database-service";
 import { storageService } from "@/backend/services/storage-service";
-import { DEFAULT_BUFFER_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import {
+  DEFAULT_BUFFER_PREFERENCES,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  DEFAULT_USER_PREFERENCES,
+} from "@/shared/auth-types";
 
 const kickPlatformRows = [
   { id: "r1", platform: "kick", channelId: "411439", channelName: "summit1g", source: "kick" },
@@ -213,5 +217,26 @@ describe("storageService.getPreferences - buffer defaults migration", () => {
     });
 
     expect(storageService.getPreferences().buffer).toEqual(customBuffer);
+  });
+});
+
+describe("storageService.getPreferences - notification defaults migration", () => {
+  it("hydrates new nested notification fields for installs with the legacy notification group", () => {
+    storageService.set("preferences", {
+      ...DEFAULT_USER_PREFERENCES,
+      notifications: {
+        enabled: false,
+        liveAlerts: true,
+        sound: false,
+        favoriteChannelsOnly: true,
+      },
+    } as typeof DEFAULT_USER_PREFERENCES);
+
+    expect(storageService.getPreferences().notifications).toEqual({
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      enabled: false,
+      sound: false,
+      favoriteChannelsOnly: true,
+    });
   });
 });

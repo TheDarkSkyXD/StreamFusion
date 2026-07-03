@@ -148,63 +148,65 @@ export async function getChannel(
     return cached.channel;
   }
 
-  try {
-    const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-      `/channels?slug[]=${encodeURIComponent(slug)}`,
-      undefined,
-      "app"
-    );
+  if (!isKickOfficialApiUnavailable()) {
+    try {
+      const response = await client.request<KickApiResponse<KickApiChannel[]>>(
+        `/channels?slug[]=${encodeURIComponent(slug)}`,
+        undefined,
+        "app"
+      );
 
-    if (response.data && response.data.length > 0) {
-      const apiChannel = response.data[0];
+      if (response.data && response.data.length > 0) {
+        const apiChannel = response.data[0];
 
-      // CRITICAL: Multi-field validation to ensure we got the correct channel
-      // Check both slug AND that it's not empty/null
-      if (!apiChannel.slug || apiChannel.slug.toLowerCase() !== normalizedSlug) {
-        logger.debug(
-          "Kick:Endpoints:Channel",
-          "API identity mismatch; rejecting response (Kick API bug)",
-          {
-            requestedSlug: slug,
-            returnedSlug: apiChannel.slug || "null",
-          }
-        );
-        return null;
+        // CRITICAL: Multi-field validation to ensure we got the correct channel
+        // Check both slug AND that it's not empty/null
+        if (!apiChannel.slug || apiChannel.slug.toLowerCase() !== normalizedSlug) {
+          logger.debug(
+            "Kick:Endpoints:Channel",
+            "API identity mismatch; rejecting response (Kick API bug)",
+            {
+              requestedSlug: slug,
+              returnedSlug: apiChannel.slug || "null",
+            }
+          );
+          return null;
+        }
+
+        const channel = transformKickChannel(apiChannel);
+
+        // Validate transformed channel data
+        if (channel.username.toLowerCase() !== normalizedSlug) {
+          logger.warn(
+            "Kick:Endpoints:Channel",
+            "Post-transform validation failed; channel username does not match requested slug; rejecting",
+            {
+              channelUsername: channel.username,
+              requestedSlug: slug,
+            }
+          );
+          return null;
+        }
+
+        const enrichedChannel = await enrichChannelWithKickUser(client, channel, channel.id, slug);
+
+        // Cache successful result
+        _channelCache.set(normalizedSlug, {
+          channel: enrichedChannel,
+          timestamp: Date.now(),
+        });
+
+        return enrichedChannel;
       }
-
-      const channel = transformKickChannel(apiChannel);
-
-      // Validate transformed channel data
-      if (channel.username.toLowerCase() !== normalizedSlug) {
-        logger.warn(
-          "Kick:Endpoints:Channel",
-          "Post-transform validation failed; channel username does not match requested slug; rejecting",
-          {
-            channelUsername: channel.username,
-            requestedSlug: slug,
-          }
-        );
-        return null;
-      }
-
-      const enrichedChannel = await enrichChannelWithKickUser(client, channel, channel.id, slug);
-
-      // Cache successful result
-      _channelCache.set(normalizedSlug, {
-        channel: enrichedChannel,
-        timestamp: Date.now(),
+    } catch (error) {
+      logger.warn("Kick:Endpoints:Channel", "Official channel API failed", {
+        slug,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
       });
-
-      return enrichedChannel;
     }
-  } catch (error) {
-    logger.warn("Kick:Endpoints:Channel", "Official channel API failed", {
-      slug,
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message, stack: error.stack }
-          : String(error),
-    });
   }
 
   try {
