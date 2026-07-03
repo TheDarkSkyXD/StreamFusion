@@ -2,7 +2,9 @@ import { useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 import {
+  LuBell,
   LuBug,
+  LuChevronDown,
   LuCircleAlert,
   LuCircleCheck,
   LuCircleHelp,
@@ -50,6 +52,11 @@ import { Switch } from "@/components/ui/switch";
 import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useAuthError } from "@/hooks/useAuth";
+import {
+  getNotificationPreferences,
+  isPerChannelNotificationEnabled,
+  setPerChannelNotificationPreference,
+} from "@/lib/live-notification-preferences";
 import { notifySettingsSaved } from "@/lib/settings-toast";
 import { cn } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
@@ -61,6 +68,8 @@ import {
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
+  type LiveNotificationCoverageStatus,
+  type NotificationPreferences,
   type PlaybackAdvancedPlayerType,
   type PlaybackAdvancedPreferences,
   type PlayerControlsPreferences,
@@ -75,6 +84,7 @@ import {
   useAppStore,
 } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
+import { useFollowStore } from "@/store/follow-store";
 import {
   type BackgroundQuality,
   MULTIVIEW_CAP_MAX,
@@ -84,6 +94,7 @@ import {
 
 const SETTINGS_TABS = [
   "playback",
+  "notifications",
   "player-controls",
   "buffer",
   "multiview",
@@ -179,12 +190,65 @@ const PLAYBACK_ADVANCED_PLAYER_TYPES: { value: PlaybackAdvancedPlayerType; label
   { value: "thunderdome", label: "thunderdome" },
 ];
 
+const NOTIFICATION_TOGGLES: {
+  field: Exclude<
+    keyof NotificationPreferences,
+    "restartGracePeriodMinutes" | "perChannelNotifications"
+  >;
+  label: string;
+  description: string;
+}[] = [
+  {
+    field: "enabled",
+    label: "Desktop notifications",
+    description: "Show native OS notifications when followed streams go live.",
+  },
+  {
+    field: "liveAlerts",
+    label: "Live Notifications",
+    description: "Keep live-stream alerts in the app notification history.",
+  },
+  { field: "twitch", label: "Twitch", description: "Allow live notifications from Twitch." },
+  { field: "kick", label: "Kick", description: "Allow live notifications from Kick." },
+  {
+    field: "guestFollows",
+    label: "Guest Follow notifications",
+    description: "Notify for channels followed while signed out.",
+  },
+  {
+    field: "toastAlerts",
+    label: "Toast notifications",
+    description: "Show in-app toast banners when followed streams go live.",
+  },
+  { field: "sound", label: "Sound", description: "Play a notification sound." },
+  {
+    field: "favoriteChannelsOnly",
+    label: "Favorites-only",
+    description: "Only notify for followed channels with per-channel notifications enabled.",
+  },
+];
+
+const RESTART_GRACE_OPTIONS: {
+  value: NotificationPreferences["restartGracePeriodMinutes"];
+  label: string;
+}[] = [
+  { value: 0, label: "Off" },
+  { value: 5, label: "5 minutes" },
+  { value: 15, label: "15 minutes" },
+  { value: 30, label: "30 minutes" },
+];
+
 // Per-tab metadata (sidebar label, description, icon). Single source of truth
 // for the sidebar render + the settings-search haystack, so adding a tab only
 // needs editing in one place.
 type TabKey = (typeof SETTINGS_TABS)[number];
 const TAB_META: Record<TabKey, { label: string; description: string; icon: typeof LuMonitor }> = {
   playback: { label: "Playback", description: "Stream quality & preferences", icon: LuMonitor },
+  notifications: {
+    label: "Notifications",
+    description: "Live alerts & desktop notices",
+    icon: LuBell,
+  },
   "player-controls": {
     label: "Player controls",
     description: "Show or hide player buttons",
@@ -264,6 +328,57 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
     label: "Stream device ID",
     description: "Identifier sent with the ad-block stream token",
     keywords: ["randomize", "device", "advanced"],
+  },
+  {
+    tab: "notifications",
+    label: "Desktop notifications",
+    description: "Allow native desktop notifications when followed streams go live",
+    keywords: ["native", "system", "toast"],
+  },
+  {
+    tab: "notifications",
+    label: "Live Notifications",
+    description: "Create Live Notification history entries when followed streams go live",
+    keywords: ["stream", "live", "history"],
+  },
+  { tab: "notifications", label: "Twitch", description: "Allow Twitch live notifications" },
+  { tab: "notifications", label: "Kick", description: "Allow Kick live notifications" },
+  {
+    tab: "notifications",
+    label: "Guest Follow notifications",
+    description: "Notify for channels followed while signed out",
+    keywords: ["guest", "signed out", "local follows"],
+  },
+  {
+    tab: "notifications",
+    label: "Toast notifications",
+    description: "Show in-app toast banners when followed streams go live",
+    keywords: ["toast", "banner", "in-app"],
+  },
+  { tab: "notifications", label: "Sound", description: "Play a sound with notifications" },
+  {
+    tab: "notifications",
+    label: "Favorites-only",
+    description: "Only notify for followed channels with per-channel notifications enabled",
+    keywords: ["favorites", "followed channels"],
+  },
+  {
+    tab: "notifications",
+    label: "Restart grace",
+    description: "Cooldown before repeat notifications after stream restarts",
+    keywords: ["cooldown", "restarts", "grace"],
+  },
+  {
+    tab: "notifications",
+    label: "Per-channel notifications",
+    description: "Choose which followed channels are eligible when favorites-only is enabled",
+    keywords: ["favorites", "followed channels"],
+  },
+  {
+    tab: "notifications",
+    label: "Notification coverage",
+    description: "Status for desktop support and degraded live-source coverage",
+    keywords: ["support", "degraded", "status"],
   },
   // Player controls — array entries (one per toggle in PLAYER_CONTROL_TOGGLES).
   { tab: "player-controls", label: "Quality", description: "Stream quality selector menu item." },
@@ -493,6 +608,7 @@ export function SettingsPage() {
   const { error, clearError } = useAuthError();
   const preferences = useAuthStore((state) => state.preferences);
   const updatePreferences = useAuthStore((state) => state.updatePreferences);
+  const followedChannels = useFollowStore((state) => state.localFollows);
 
   // Ad-block state
   const enableAdBlock = useAdBlockStore((state) => state.enableAdBlock);
@@ -594,6 +710,66 @@ export function SettingsPage() {
 
   const playerControls = preferences?.playerControls ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
   const buffer = preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES;
+  const notifications = getNotificationPreferences(preferences?.notifications);
+
+  const handleNotificationChange = async (
+    field: Exclude<keyof NotificationPreferences, "perChannelNotifications">,
+    value: boolean | NotificationPreferences["restartGracePeriodMinutes"]
+  ) => {
+    await updatePreferences({
+      notifications: {
+        ...notifications,
+        [field]: value,
+      },
+    });
+    notifySettingsSaved();
+  };
+
+  const handlePerChannelNotificationChange = async (
+    channel: (typeof followedChannels)[number],
+    value: boolean
+  ) => {
+    await updatePreferences({
+      notifications: setPerChannelNotificationPreference(notifications, channel, value),
+    });
+    notifySettingsSaved();
+  };
+  const desktopNotificationsSupported = typeof window !== "undefined" && "Notification" in window;
+  const desktopNotificationPermission = desktopNotificationsSupported
+    ? window.Notification.permission
+    : "unsupported";
+  const [notificationCoverage, setNotificationCoverage] =
+    useState<LiveNotificationCoverageStatus | null>(null);
+  const [followedChannelSearch, setFollowedChannelSearch] = useState("");
+  const [followedChannelNotificationsExpanded, setFollowedChannelNotificationsExpanded] =
+    useState(true);
+
+  const filteredFollowedChannels = useMemo(() => {
+    const query = followedChannelSearch.trim().toLowerCase();
+    if (!query) return followedChannels;
+    return followedChannels.filter((channel) =>
+      [channel.displayName, channel.username, channel.platform]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [followedChannels, followedChannelSearch]);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI?.notifications
+      ?.getCoverageStatus?.()
+      .then((status) => {
+        if (!cancelled) setNotificationCoverage(status);
+      })
+      .catch(() => {
+        if (!cancelled) setNotificationCoverage(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleBufferChange = async (field: keyof BufferPreferences, value: number | boolean) => {
     await updatePreferences({
@@ -1071,6 +1247,263 @@ export function SettingsPage() {
                             </Button>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Notifications Tab */}
+              {activeTab === "notifications" && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-1">Notifications</h2>
+                    <p className="text-zinc-400">
+                      Control live-stream alerts, desktop notices, restart cooldowns, and followed
+                      channel eligibility.
+                    </p>
+                  </div>
+
+                  {(() => {
+                    const visibleToggles = NOTIFICATION_TOGGLES.filter(({ label }) =>
+                      isRowVisible(label)
+                    );
+                    const showRestartGrace = isRowVisible("Restart grace");
+                    if (!visibleToggles.length && !showRestartGrace) return null;
+
+                    return (
+                      <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+                          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                            Live notification preferences
+                          </h3>
+                        </div>
+
+                        <div className="px-6 py-2 divide-y divide-[#27272a]/60">
+                          {visibleToggles.map(({ field, label, description }) => (
+                            <div
+                              key={field}
+                              className="flex items-center justify-between gap-4 py-3"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-zinc-200">{label}</p>
+                                <p className="text-sm text-zinc-500 mt-0.5">{description}</p>
+                              </div>
+                              <Switch
+                                checked={Boolean(notifications[field])}
+                                onCheckedChange={(v) => handleNotificationChange(field, v)}
+                              />
+                            </div>
+                          ))}
+
+                          {showRestartGrace && (
+                            <div className="flex items-center justify-between gap-4 py-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-zinc-200">Restart grace</p>
+                                <p className="text-sm text-zinc-500 mt-0.5">
+                                  Suppress repeat alerts when a stream restarts inside the selected
+                                  cooldown.
+                                </p>
+                              </div>
+                              <Select
+                                value={String(notifications.restartGracePeriodMinutes)}
+                                onValueChange={(value) =>
+                                  handleNotificationChange(
+                                    "restartGracePeriodMinutes",
+                                    Number(
+                                      value
+                                    ) as NotificationPreferences["restartGracePeriodMinutes"]
+                                  )
+                                }
+                              >
+                                <SelectTrigger
+                                  aria-label="Restart grace"
+                                  className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
+                                >
+                                  <SelectValue placeholder="Restart grace" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
+                                  {RESTART_GRACE_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={String(option.value)}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {isRowVisible("Per-channel notifications") && (
+                    <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+                        <div>
+                          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                            Followed channels
+                          </h3>
+                          <p className="text-sm text-zinc-500 mt-1">
+                            New follows are enabled by default. Favorites-only uses these switches
+                            to decide which channels can alert.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          aria-expanded={followedChannelNotificationsExpanded}
+                          aria-label={
+                            followedChannelNotificationsExpanded
+                              ? "Hide followed channels"
+                              : "Show followed channels"
+                          }
+                          onClick={() =>
+                            setFollowedChannelNotificationsExpanded((expanded) => !expanded)
+                          }
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#27272a] bg-[#18181b] text-zinc-400 transition-colors hover:bg-[#27272a] hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
+                        >
+                          <LuChevronDown
+                            className={cn(
+                              "h-4 w-4 transition-transform duration-200",
+                              !followedChannelNotificationsExpanded && "-rotate-90"
+                            )}
+                            aria-hidden
+                          />
+                        </button>
+                      </div>
+
+                      {followedChannelNotificationsExpanded && (
+                        <>
+                          {followedChannels.length > 0 && (
+                            <div className="border-b border-[#27272a] px-6 py-4">
+                              <div className="relative">
+                                <LuSearch
+                                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                                  aria-hidden
+                                />
+                                <input
+                                  type="text"
+                                  value={followedChannelSearch}
+                                  onChange={(e) => setFollowedChannelSearch(e.target.value)}
+                                  placeholder="Search followed channels"
+                                  aria-label="Search followed channels"
+                                  autoComplete="off"
+                                  spellCheck={false}
+                                  className="w-full rounded-lg border border-[#27272a] bg-[#18181b] py-2 pl-9 pr-9 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500/40 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
+                                />
+                                {followedChannelSearch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFollowedChannelSearch("")}
+                                    aria-label="Clear followed channel search"
+                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 hover:bg-[#27272a] hover:text-zinc-200"
+                                  >
+                                    <LuX className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {followedChannels.length === 0 ? (
+                            <div className="px-6 py-8 text-sm text-zinc-500">
+                              No followed channels yet.
+                            </div>
+                          ) : filteredFollowedChannels.length === 0 ? (
+                            <div className="px-6 py-8 text-sm text-zinc-500">
+                              No followed channels match "{followedChannelSearch}".
+                            </div>
+                          ) : (
+                            <div className="px-6 py-2 divide-y divide-[#27272a]/60">
+                              {filteredFollowedChannels.map((channel) => (
+                                <div
+                                  key={`${channel.platform}:${channel.id || channel.username}`}
+                                  className="flex items-center justify-between gap-4 py-3"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-zinc-200 truncate">
+                                      {channel.displayName || channel.username}
+                                    </p>
+                                    <p className="text-sm text-zinc-500 mt-0.5 capitalize">
+                                      {channel.platform}
+                                    </p>
+                                  </div>
+                                  <Switch
+                                    aria-label={`Notifications for ${
+                                      channel.displayName || channel.username
+                                    }`}
+                                    checked={isPerChannelNotificationEnabled(
+                                      notifications,
+                                      channel
+                                    )}
+                                    onCheckedChange={(value) =>
+                                      handlePerChannelNotificationChange(channel, value)
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {isRowVisible("Notification coverage") && (
+                    <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+                      <div className="px-6 py-4 border-b border-[#27272a]">
+                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                          Notification coverage
+                        </h3>
+                      </div>
+                      <div className="px-6 py-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-[#27272a] bg-[#18181b] p-4">
+                          <p className="text-sm font-medium text-zinc-200">
+                            Desktop notification support
+                          </p>
+                          <p className="text-sm text-zinc-500 mt-1">
+                            {formatDesktopNotificationStatus(
+                              notificationCoverage?.desktop.supported ??
+                                desktopNotificationsSupported,
+                              desktopNotificationPermission
+                            )}
+                          </p>
+                        </div>
+                        {(["twitch", "kick"] as const).map((platform) => {
+                          const platformCoverage = notificationCoverage?.platforms[platform];
+                          const isDegraded = platformCoverage?.status === "degraded";
+                          const statusLabel = platformCoverage
+                            ? isDegraded
+                              ? "degraded"
+                              : "normal"
+                            : "status unavailable";
+                          return (
+                            <div
+                              key={platform}
+                              className="rounded-lg border border-[#27272a] bg-[#18181b] p-4"
+                            >
+                              <p className="text-sm font-medium text-zinc-200">
+                                {formatPlatformLabel(platform)} coverage {statusLabel}
+                              </p>
+                              {platformCoverage?.issues.length ? (
+                                <div className="mt-2 space-y-1">
+                                  {platformCoverage.issues.map((issue) => (
+                                    <p
+                                      key={`${issue.platform}:${issue.reason}`}
+                                      className="text-sm text-zinc-500"
+                                    >
+                                      {issue.message}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-zinc-500 mt-1">
+                                  Live notifications are monitoring normally.
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -2050,6 +2483,26 @@ function SidebarItem({
       </div>
     </button>
   );
+}
+
+function formatDesktopNotificationStatus(supported: boolean, permission: string): string {
+  if (!supported || permission === "unsupported") {
+    return "Desktop notifications unsupported";
+  }
+  if (permission === "denied") {
+    return "Desktop notifications blocked";
+  }
+  if (permission === "granted") {
+    return "Desktop notifications allowed";
+  }
+  if (permission === "default") {
+    return "Desktop notifications not allowed yet";
+  }
+  return "Desktop notification support available";
+}
+
+function formatPlatformLabel(platform: Platform): string {
+  return platform === "twitch" ? "Twitch" : "Kick";
 }
 
 function formatCarouselIntervalLabel(seconds: number): string {

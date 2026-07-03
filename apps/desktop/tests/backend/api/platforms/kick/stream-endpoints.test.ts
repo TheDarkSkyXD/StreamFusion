@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/backend/logging/logger";
 
+// Guards: followed Kick stream live status can use the official broadcaster-ID livestream API instead of fan-out legacy slug checks.
 // Guards: successful Kick stream metadata fetch seeds live playback cache so stream opens can resolve from memory.
 // Guards: Kick public-stream-cache + fan-out 4-part contract (regressions cb0b7b6 + 6d3606d, refactored in 640870a).
 // Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
@@ -199,6 +200,53 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
 
     expect(second?.id).toBe("999");
     expect(mockState.state.netRequestCalls).toHaveLength(4);
+  });
+});
+
+describe("getStreamsByBroadcasterIds", () => {
+  it("calls the official livestreams endpoint with repeated broadcaster_user_id params", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    const { getStreamsByBroadcasterIds } = await import(
+      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
+    );
+    const client = {
+      request: vi.fn().mockResolvedValue({
+        data: [
+          {
+            broadcaster_user_id: 123,
+            channel_id: 456,
+            slug: "new-slug",
+            broadcaster_display_name: "New Slug",
+            stream_title: "Live now",
+            language: "en",
+            has_mature_content: false,
+            viewer_count: 42,
+            thumbnail: "https://example.com/thumb.webp",
+            profile_picture: "https://example.com/avatar.webp",
+            started_at: "2026-06-29T12:00:00Z",
+            custom_tags: ["chatting"],
+            category: { id: 15, name: "Just Chatting", thumbnail: "" },
+          },
+        ],
+      }),
+    };
+
+    const result = await getStreamsByBroadcasterIds(client as any, [123, 123, 789]);
+
+    expect(client.request).toHaveBeenCalledWith(
+      "/livestreams?broadcaster_user_id=123&broadcaster_user_id=789",
+      undefined,
+      "app"
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        channelId: "123",
+        channelName: "new-slug",
+        channelDisplayName: "New Slug",
+        isLive: true,
+      }),
+    ]);
   });
 });
 

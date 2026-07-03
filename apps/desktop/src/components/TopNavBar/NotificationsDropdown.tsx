@@ -1,66 +1,33 @@
+import { useNavigate } from "@tanstack/react-router";
 import React from "react";
-import { LuBell, LuX } from "react-icons/lu";
+import { LuBell, LuCheckCheck, LuX } from "react-icons/lu";
+
+import { PlatformAvatar } from "@/components/ui/platform-avatar";
+import { useNotificationStore } from "@/store/notification-store";
+
+function formatRelativeTime(timestamp: number): string {
+  const elapsedMs = Math.max(0, Date.now() - timestamp);
+  const elapsedMinutes = Math.floor(elapsedMs / 60_000);
+
+  if (elapsedMinutes < 1) return "Just now";
+  if (elapsedMinutes < 60) return `${elapsedMinutes} min ago`;
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return elapsedHours === 1 ? "1 hour ago" : `${elapsedHours} hours ago`;
+
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  return elapsedDays === 1 ? "1 day ago" : `${elapsedDays} days ago`;
+}
 
 export function NotificationsDropdown() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
-
-  const [notifications, setNotifications] = React.useState([
-    {
-      id: 1,
-      user: "Ninja",
-      platform: "twitch",
-      action: "is live",
-      title: "Fortnite Customs!",
-      time: "2 min ago",
-      color: "bg-indigo-500",
-    },
-    {
-      id: 2,
-      user: "xQc",
-      platform: "kick",
-      action: "is live",
-      title: "GAMBA & DRAMA",
-      time: "15 min ago",
-      color: "bg-green-500",
-    },
-    {
-      id: 3,
-      user: "shroud",
-      platform: "twitch",
-      action: "is live",
-      title: "VALORANT GRIND",
-      time: "1 hour ago",
-      color: "bg-cyan-600",
-    },
-    {
-      id: 4,
-      user: "KaiCenat",
-      platform: "twitch",
-      action: "is live",
-      title: "MAFIATHON DAY 15",
-      time: "2 hours ago",
-      color: "bg-orange-500",
-    },
-    {
-      id: 5,
-      user: "AdinRoss",
-      platform: "kick",
-      action: "is live",
-      title: "E-DATING W/ 20 GIRLS",
-      time: "3 hours ago",
-      color: "bg-emerald-600",
-    },
-    {
-      id: 6,
-      user: "Summit1g",
-      platform: "twitch",
-      action: "is live",
-      title: "DayZ Adventure",
-      time: "4 hours ago",
-      color: "bg-blue-600",
-    },
-  ]);
+  const notifications = useNotificationStore((state) => state.notifications);
+  const markAllRead = useNotificationStore((state) => state.markAllRead);
+  const dismissNotification = useNotificationStore((state) => state.dismissNotification);
+  const clearNotifications = useNotificationStore((state) => state.clearNotifications);
+  const unreadCount = notifications.filter((notification) => !notification.readAt).length;
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -72,6 +39,20 @@ export function NotificationsDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const openNotification = React.useCallback(
+    (notification: (typeof notifications)[number]) => {
+      setIsOpen(false);
+      void navigate({
+        to: "/stream/$platform/$channel",
+        params: {
+          platform: notification.platform,
+          channel: notification.channelName,
+        },
+      });
+    },
+    [navigate]
+  );
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -80,17 +61,27 @@ export function NotificationsDropdown() {
         title="Notifications"
       >
         <LuBell size={24} strokeWidth={3} className="text-white" />
-        {notifications.length > 0 && (
+        {unreadCount > 0 && (
           <span className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-700 text-sm font-bold text-white ring-2 ring-[var(--color-background)]">
-            {notifications.length > 99 ? "99+" : notifications.length}
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
         <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="px-3 py-2 border-b border-[var(--color-border)] mb-1 flex justify-center items-center bg-[var(--color-background-elevated)] sticky top-0 z-10">
+          <div className="px-3 py-2 border-b border-[var(--color-border)] mb-1 flex items-center justify-between gap-2 bg-[var(--color-background-elevated)] sticky top-0 z-10">
             <span className="text-sm font-semibold text-white">Notifications</span>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--color-foreground-secondary)] transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
+                onClick={markAllRead}
+              >
+                <LuCheckCheck size={14} />
+                Mark all read
+              </button>
+            )}
           </div>
           <div className="max-h-[300px] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-white [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
             {notifications.length === 0 ? (
@@ -107,29 +98,34 @@ export function NotificationsDropdown() {
               notifications.map((notif) => (
                 <div
                   key={notif.id}
+                  onClick={() => openNotification(notif)}
                   className="group px-3 py-3 hover:bg-[var(--color-background-tertiary)] transition-colors cursor-pointer flex gap-3 border-b border-[var(--color-border)] last:border-0 relative"
                 >
-                  <div
-                    className={`w-10 h-10 rounded-full shrink-0 ${notif.color} flex items-center justify-center text-white font-bold ring-2 ring-offset-1 ring-offset-[var(--color-background-elevated)] ${notif.platform === "twitch" ? "ring-[#9146FF]" : "ring-[#53FC18]"}`}
-                  >
-                    {notif.user[0].toUpperCase()}
-                  </div>
+                  <PlatformAvatar
+                    src={notif.channelAvatar}
+                    alt={notif.channelDisplayName}
+                    platform={notif.platform}
+                    size="w-10 h-10"
+                    className="ring-offset-1 ring-offset-[var(--color-background-elevated)]"
+                  />
                   <div className="flex-1 min-w-0 pr-6">
                     <p className="text-sm text-white">
                       <span
                         className={`font-bold transition-colors ${notif.platform === "twitch" ? "hover:text-[#9146FF]" : "hover:text-[#53FC18]"}`}
                       >
-                        {notif.user}
+                        {notif.channelDisplayName}
                       </span>{" "}
-                      {notif.action}
+                      is live
                     </p>
                     <div className="text-xs text-white truncate font-medium">{notif.title}</div>
-                    <p className="text-[10px] text-white mt-1">{notif.time}</p>
+                    <p className="text-[10px] text-white mt-1">
+                      {formatRelativeTime(notif.createdAt)}
+                    </p>
                   </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
+                      dismissNotification(notif.id);
                     }}
                     className="absolute top-2 right-2 text-white hover:bg-[var(--color-background-elevated)] rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Dismiss"
@@ -140,14 +136,16 @@ export function NotificationsDropdown() {
               ))
             )}
           </div>
-          <div className="p-2 border-t border-[var(--color-border)] bg-[var(--color-background-elevated)]">
-            <button
-              className="w-full text-xs text-center py-1.5 text-[var(--color-foreground-secondary)] hover:text-white hover:bg-[var(--color-background-tertiary)] rounded transition-colors"
-              onClick={() => setNotifications([])}
-            >
-              Clear all notifications
-            </button>
-          </div>
+          {notifications.length > 0 && (
+            <div className="p-2 border-t border-[var(--color-border)] bg-[var(--color-background-elevated)]">
+              <button
+                className="w-full text-xs text-center py-1.5 text-[var(--color-foreground-secondary)] hover:text-white hover:bg-[var(--color-background-tertiary)] rounded transition-colors"
+                onClick={clearNotifications}
+              >
+                Clear all notifications
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

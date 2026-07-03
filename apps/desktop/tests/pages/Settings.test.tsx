@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_BUFFER_PREFERENCES,
+  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
@@ -11,6 +12,7 @@ import {
   HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
   useAppStore,
 } from '@/store/app-store';
+import { useFollowStore } from '@/store/follow-store';
 
 import {
   installElectronAPIMock,
@@ -79,6 +81,10 @@ const proxy = { ...DEFAULT_PROXY_PREFERENCES, hasCredentials: true };
 // playbackAdvanced carries a non-default sibling (allowHevc:true) so the U13
 // spread-preservation assertion has something to prove.
 const playbackAdvanced = { ...DEFAULT_PLAYBACK_ADVANCED_PREFERENCES, allowHevc: true };
+const notificationPreferences = {
+  ...DEFAULT_NOTIFICATION_PREFERENCES,
+  twitch: false,
+};
 // Login actions for the API/Tokens "Reconnect" buttons (U14).
 const loginTwitch = vi.fn();
 const loginKick = vi.fn();
@@ -91,6 +97,7 @@ vi.mock('@/store/auth-store', () => ({
         buffer,
         proxy,
         playbackAdvanced,
+        notifications: notificationPreferences,
       },
       updatePreferences,
       loginTwitch,
@@ -270,6 +277,260 @@ describe('SettingsPage — Buffer tab (U10)', () => {
   it('states that changes apply on the next stream load', async () => {
     await openBufferTab();
     expect(screen.getByText(/changes apply when the stream next loads/i)).toBeInTheDocument();
+  });
+});
+
+// Guards: Settings must expose a dedicated Notifications tab with the global Live Notification controls users need before any live-source service runs.
+describe('SettingsPage — Notifications tab', () => {
+  beforeEach(() => {
+    updatePreferences.mockReset();
+    notificationPreferences.perChannelNotifications = {};
+    useFollowStore.setState({ localFollows: [], sourceByKey: new Map() });
+  });
+
+  async function openNotificationsTab() {
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByText('Notifications'));
+    return user;
+  }
+
+  it('renders the Notifications tab and global notification toggles', async () => {
+    await openNotificationsTab();
+
+    expect(screen.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument();
+    expect(screen.getByText('Desktop notifications')).toBeInTheDocument();
+    expect(screen.getByText('Live Notifications')).toBeInTheDocument();
+    expect(screen.getByText('Twitch')).toBeInTheDocument();
+    expect(screen.getByText('Kick')).toBeInTheDocument();
+    expect(screen.getByText('Guest Follow notifications')).toBeInTheDocument();
+    expect(screen.getByText('Toast notifications')).toBeInTheDocument();
+    expect(screen.getByText('Sound')).toBeInTheDocument();
+    expect(screen.getByText('Favorites-only')).toBeInTheDocument();
+    expect(screen.getByText('Restart grace')).toBeInTheDocument();
+  });
+
+  it('toggling a platform preserves the rest of the notification preference group', async () => {
+    const user = await openNotificationsTab();
+
+    const row = screen.getByText('Kick').closest('div');
+    const toggle = row?.parentElement?.querySelector('[role="switch"]');
+    expect(toggle).toBeTruthy();
+    await user.click(toggle as Element);
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        kick: false,
+      },
+    });
+    const arg = updatePreferences.mock.calls[0][0] as {
+      notifications: typeof notificationPreferences;
+    };
+    expect(arg.notifications.twitch).toBe(false);
+  });
+
+  it('persists desktop and sound notification toggles to the live notification preference group', async () => {
+    const user = await openNotificationsTab();
+
+    const desktopRow = screen.getByText('Desktop notifications').closest('div');
+    const desktopToggle = desktopRow?.parentElement?.querySelector('[role="switch"]');
+    expect(desktopToggle).toBeTruthy();
+    await user.click(desktopToggle as Element);
+
+    const soundRow = screen.getByText('Sound').closest('div');
+    const soundToggle = soundRow?.parentElement?.querySelector('[role="switch"]');
+    expect(soundToggle).toBeTruthy();
+    await user.click(soundToggle as Element);
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        enabled: false,
+      },
+    });
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        sound: false,
+      },
+    });
+  });
+
+  it('persists toast notification toggles independently from bell history', async () => {
+    const user = await openNotificationsTab();
+
+    const toastRow = screen.getByText('Toast notifications').closest('div');
+    const toastToggle = toastRow?.parentElement?.querySelector('[role="switch"]');
+    expect(toastToggle).toBeTruthy();
+    await user.click(toastToggle as Element);
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        toastAlerts: false,
+      },
+    });
+  });
+
+  it('persists Guest Follow notification and favorites-only toggles', async () => {
+    const user = await openNotificationsTab();
+
+    const guestRow = screen.getByText('Guest Follow notifications').closest('div');
+    const guestToggle = guestRow?.parentElement?.querySelector('[role="switch"]');
+    expect(guestToggle).toBeTruthy();
+    await user.click(guestToggle as Element);
+
+    const favoritesRow = screen.getByText('Favorites-only').closest('div');
+    const favoritesToggle = favoritesRow?.parentElement?.querySelector('[role="switch"]');
+    expect(favoritesToggle).toBeTruthy();
+    await user.click(favoritesToggle as Element);
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        guestFollows: false,
+      },
+    });
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        favoriteChannelsOnly: true,
+      },
+    });
+  });
+
+  it('persists restart grace selections', async () => {
+    const user = await openNotificationsTab();
+
+    await user.click(screen.getByLabelText('Restart grace'));
+    await user.click(screen.getByRole('option', { name: '15 minutes' }));
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        restartGracePeriodMinutes: 15,
+      },
+    });
+  });
+
+  it('renders followed-channel notification controls and persists per-channel changes', async () => {
+    useFollowStore.setState({
+      localFollows: [
+        {
+          id: 'chan-1',
+          platform: 'twitch',
+          username: 'proofstreamer',
+          displayName: 'ProofStreamer',
+          avatarUrl: '',
+          bannerUrl: '',
+          bio: '',
+          isLive: false,
+          isVerified: false,
+          isPartner: false,
+        },
+      ],
+      sourceByKey: new Map([['twitch:chan-1', 'guest']]),
+    });
+
+    const user = await openNotificationsTab();
+
+    expect(screen.getByText('ProofStreamer')).toBeInTheDocument();
+    const toggle = screen.getByLabelText('Notifications for ProofStreamer');
+    await user.click(toggle);
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      notifications: {
+        ...notificationPreferences,
+        perChannelNotifications: {
+          'twitch:chan-1': false,
+        },
+      },
+    });
+  });
+
+  it('filters followed-channel notification rows and collapses the list', async () => {
+    useFollowStore.setState({
+      localFollows: [
+        {
+          id: 'chan-1',
+          platform: 'twitch',
+          username: 'proofstreamer',
+          displayName: 'ProofStreamer',
+          avatarUrl: '',
+          bannerUrl: '',
+          bio: '',
+          isLive: false,
+          isVerified: false,
+          isPartner: false,
+        },
+        {
+          id: 'chan-2',
+          platform: 'kick',
+          username: 'quietcaster',
+          displayName: 'QuietCaster',
+          avatarUrl: '',
+          bannerUrl: '',
+          bio: '',
+          isLive: false,
+          isVerified: false,
+          isPartner: false,
+        },
+      ],
+      sourceByKey: new Map([
+        ['twitch:chan-1', 'guest'],
+        ['kick:chan-2', 'guest'],
+      ]),
+    });
+
+    const user = await openNotificationsTab();
+
+    await user.type(screen.getByLabelText('Search followed channels'), 'quiet');
+    expect(screen.queryByText('ProofStreamer')).not.toBeInTheDocument();
+    expect(screen.getByText('QuietCaster')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Hide followed channels' }));
+    expect(screen.queryByLabelText('Search followed channels')).not.toBeInTheDocument();
+    expect(screen.queryByText('QuietCaster')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Show followed channels' }));
+    expect(screen.getByLabelText('Search followed channels')).toBeInTheDocument();
+    expect(screen.getByText('QuietCaster')).toBeInTheDocument();
+  });
+
+  it('renders desktop notification fallback status and degraded source coverage', async () => {
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: { permission: 'denied' },
+    });
+    const api = installElectronAPIMock();
+    api.notifications.getCoverageStatus = vi.fn(async () => ({
+      desktop: { supported: true, permission: 'unknown' },
+      platforms: {
+        twitch: {
+          status: 'degraded',
+          issues: [
+            {
+              platform: 'twitch',
+              reason: 'eventsub-failed',
+              message: 'Twitch EventSub unavailable',
+              safeContext: { channelId: '123' },
+              firstSeenAt: 1_000,
+              lastSeenAt: 1_000,
+            },
+          ],
+        },
+        kick: { status: 'normal', issues: [] },
+      },
+    }));
+
+    await openNotificationsTab();
+
+    await waitFor(() => expect(api.notifications.getCoverageStatus).toHaveBeenCalled());
+    expect(screen.getByText('Desktop notifications blocked')).toBeInTheDocument();
+    expect(screen.getByText('Twitch coverage degraded')).toBeInTheDocument();
+    expect(screen.getByText('Twitch EventSub unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Kick coverage normal')).toBeInTheDocument();
   });
 });
 

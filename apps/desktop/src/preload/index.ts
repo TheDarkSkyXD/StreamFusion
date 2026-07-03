@@ -26,6 +26,8 @@ import type {
 import type {
   AuthToken,
   KickUser,
+  LiveNotificationCoverageStatus,
+  LiveNotificationPayload,
   LocalFollow,
   Platform,
   TwitchUser,
@@ -38,6 +40,7 @@ import type {
 import {
   type AppEnvironment,
   type AuthStatus,
+  type AuthSyncFollowsResult,
   type BugReportResult,
   type CheckFrequency,
   IPC_CHANNELS,
@@ -244,7 +247,7 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT_KICK),
     fetchKickUser: (): Promise<{ success: boolean; user?: KickUser; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_FETCH_KICK_USER),
-    syncFollows: (platform: Platform): Promise<{ success: boolean; error?: string }> =>
+    syncFollows: (platform: Platform): Promise<AuthSyncFollowsResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_SYNC_FOLLOWS, { platform }),
 
     // Listen for Kick session expiry pushed from the main process
@@ -346,6 +349,26 @@ const electronAPI = {
   // ========== Notifications ==========
   showNotification: (title: string, body: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATION_SHOW, { title, body }),
+  notifications: {
+    getCoverageStatus: (): Promise<LiveNotificationCoverageStatus> =>
+      ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATION_COVERAGE_GET),
+    onLiveNotification: (
+      callback: (notification: LiveNotificationPayload) => void
+    ): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, notification: LiveNotificationPayload) =>
+        callback(notification);
+      ipcRenderer.on(IPC_CHANNELS.NOTIFICATION_LIVE_RECEIVED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.NOTIFICATION_LIVE_RECEIVED, handler);
+    },
+    onOpenLiveNotification: (
+      callback: (notification: LiveNotificationPayload) => void
+    ): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, notification: LiveNotificationPayload) =>
+        callback(notification);
+      ipcRenderer.on(IPC_CHANNELS.NOTIFICATION_OPEN_STREAM, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.NOTIFICATION_OPEN_STREAM, handler);
+    },
+  },
 
   // ========== Discovery: Streams ==========
   streams: {

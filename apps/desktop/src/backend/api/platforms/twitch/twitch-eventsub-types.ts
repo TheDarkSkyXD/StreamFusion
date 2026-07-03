@@ -16,7 +16,7 @@
 // Event types we subscribe to
 // ---------------------------------------------------------------------------
 
-export type TwitchEventSubEventType = "channel.moderate";
+export type TwitchEventSubEventType = "channel.moderate" | "stream.online" | "stream.offline";
 
 // ---------------------------------------------------------------------------
 // Connection state
@@ -145,4 +145,27 @@ export interface ChannelModerateEvent {
   };
   /** Catch-all for action-specific sub-objects we don't model yet. */
   [extra: string]: unknown;
+}
+
+/**
+ * `stream.online` v1 event payload.
+ * Each event represents a broadcaster starting a stream.
+ */
+export interface StreamOnlineEvent {
+  id: string;
+  broadcaster_user_id: string;
+  broadcaster_user_login: string;
+  broadcaster_user_name: string;
+  type: string;
+  started_at: string;
+}
+
+/**
+ * `stream.offline` v1 event payload.
+ * Each event represents a broadcaster stopping a stream.
+ */
+export interface StreamOfflineEvent {
+  broadcaster_user_id: string;
+  broadcaster_user_login: string;
+  broadcaster_user_name: string;
 }

@@ -65,6 +65,7 @@ import {
   startKickFollowMetadataRefresh,
   stopKickFollowMetadataRefresh,
 } from "./backend/services/kick-follow-metadata-refresh";
+import { liveNotificationService } from "./backend/services/live-notification-service";
 import { networkAdBlockService } from "./backend/services/network-adblock-service";
 import { storageService } from "./backend/services/storage-service";
 import {
@@ -566,6 +567,7 @@ app.on("ready", async () => {
   cosmeticInjectionService.injectIntoWindow(mainWindow);
 
   registerIpcHandlers(mainWindow);
+  liveNotificationService.start(mainWindow);
 
   // Global force-quit shortcut: runs in main process, so it works even when
   // the renderer is at 100% CPU and can't dispatch its own X-button click.
@@ -593,6 +595,7 @@ app.on("activate", () => {
     installRendererCrashRecovery({ webContents: mainWindow.webContents });
     cosmeticInjectionService.injectIntoWindow(mainWindow);
     registerIpcHandlers(mainWindow);
+    liveNotificationService.start(mainWindow);
   }
 });
 
@@ -612,6 +615,7 @@ app.on("before-quit", (event) => {
     stopProcessMonitor = null;
   }
   stopKickFollowMetadataRefresh();
+  liveNotificationService.stop();
   // `use-resume-playback.ts` saves position every 30s and on pause; chat is
   // ephemeral; window state saves synchronously in mainWindow.on('close').
   // Worst-case loss from this path is the last 30s of playback position.

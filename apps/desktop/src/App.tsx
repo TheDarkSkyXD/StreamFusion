@@ -4,6 +4,7 @@ import { DebugPanel } from "@/components/dev/DebugPanel";
 import { ToastRoot } from "@/components/ToastRoot";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAppShutdown } from "@/hooks/use-app-shutdown";
+import { useLiveNotificationBridge } from "@/hooks/use-live-notification-bridge";
 import { QueryProvider } from "@/providers/query-provider";
 import { router } from "@/routes/router";
 
@@ -14,6 +15,7 @@ function App() {
   // Wire fast renderer teardown on `app:before-quit` so the close path doesn't
   // wait on graceful chat-socket teardowns.
   useAppShutdown();
+  useLiveNotificationBridge();
 
   return (
     <QueryProvider>

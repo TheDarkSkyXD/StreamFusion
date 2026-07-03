@@ -21,7 +21,7 @@ import {
   type PaginatedResult,
   type PaginationOptions,
 } from "../kick-types";
-import { getChannel } from "./channel-endpoints";
+import { getChannelsBySlugs } from "./channel-endpoints";
 import { getUsersById } from "./user-endpoints";
 
 let _topStreamsCache: { data: UnifiedStream[]; timestamp: number } | null = null;
@@ -571,7 +571,8 @@ async function _doFetchPublicStreamBySlug(
 /**
  * Get livestream by channel slug
  *
- * ROBUST FIX: Uses public API first to avoid authenticated API identity mismatch bugs
+ * Uses the official Kick API live-status path first, with the legacy kick.com
+ * channel payload as a compatibility fallback for no-auth/API-degraded cases.
  */
 export async function getStreamBySlug(
   client: KickRequestor,
@@ -579,35 +580,10 @@ export async function getStreamBySlug(
 ): Promise<UnifiedStream | null> {
   const normalizedSlug = slug.toLowerCase().trim();
 
-  // STRATEGY: Use public API first as it's more reliable for single-channel lookups
-  // The authenticated API has known bugs with identity mismatches
   try {
-    const publicStream = await getPublicStreamBySlug(slug);
-    if (publicStream) {
-      // Validate the returned stream matches what we requested
-      if (publicStream.channelName.toLowerCase() === normalizedSlug) {
-        return publicStream;
-      } else {
-        logger.warn(
-          "Kick:Endpoints:Stream",
-          "Public stream API mismatch; trying authenticated API",
-          {
-            requestedSlug: slug,
-            returnedChannelName: publicStream.channelName,
-          }
-        );
-      }
-    }
-  } catch (e) {
-    logger.debug("Kick:Endpoints:Stream", "Public stream API failed; trying authenticated API", {
-      slug,
-      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
-    });
-  }
-
-  // Fallback to official API if public API fails or returns mismatched data
-  try {
-    const channel = await getChannel(client, slug);
+    const channel = (await getChannelsBySlugs(client, [slug])).find(
+      (candidate) => candidate.username.toLowerCase() === normalizedSlug
+    );
 
     // Validate channel matches requested slug
     if (channel && channel.username.toLowerCase() !== normalizedSlug) {
@@ -623,42 +599,21 @@ export async function getStreamBySlug(
     }
 
     if (channel?.isLive) {
-      // Need to get full stream data from livestreams endpoint
       try {
         const channelIdNum = parseInt(channel.id, 10);
         if (Number.isNaN(channelIdNum)) {
-          logger.warn("Kick:Endpoints:Stream", "Invalid channel ID for stream", {
+          logger.warn("Kick:Endpoints:Stream", "Invalid channel ID for stream; trying legacy", {
             channelId: channel.id,
             slug,
           });
-          return null;
+          throw new Error("Invalid channel ID for stream");
         }
 
-        const response = await client.request<KickApiResponse<KickApiLivestream[]>>(
-          `/livestreams?broadcaster_user_id=${channelIdNum}`,
-          undefined,
-          "app"
+        const stream = (await getStreamsByBroadcasterIds(client, [channelIdNum])).find(
+          (candidate) => candidate.channelId === channel.id
         );
 
-        if (response.data && response.data.length > 0) {
-          const apiStream = response.data[0];
-
-          // CRITICAL: Validate the stream's broadcaster ID matches the channel ID we queried
-          if (apiStream.broadcaster_user_id !== channelIdNum) {
-            logger.warn(
-              "Kick:Endpoints:Stream",
-              "Stream broadcaster ID mismatch; rejecting to prevent identity confusion",
-              {
-                queriedChannelId: channelIdNum,
-                returnedBroadcasterId: apiStream.broadcaster_user_id,
-              }
-            );
-            return null;
-          }
-
-          const stream = transformKickLivestream(apiStream);
-
-          // Final validation: ensure stream channel matches requested slug
+        if (stream) {
           if (stream.channelName.toLowerCase() !== normalizedSlug) {
             logger.warn("Kick:Endpoints:Stream", "Stream channel name mismatch; rejecting", {
               requestedSlug: slug,
@@ -675,51 +630,10 @@ export async function getStreamBySlug(
             stream.channelAvatar = channel.avatarUrl;
           }
 
-          // Enrich with user avatar and name from fresh user fetch (with defensive checks)
-          try {
-            const streamChannelIdNum = parseInt(stream.channelId, 10);
-            if (!Number.isNaN(streamChannelIdNum)) {
-              const users = await getUsersById(client, [streamChannelIdNum]);
-              if (users.length > 0) {
-                const user = users[0];
-
-                // CRITICAL: Verify ID match to prevent incorrect user data
-                if (user.user_id.toString() === stream.channelId) {
-                  if (user.profile_picture) {
-                    stream.channelAvatar = user.profile_picture;
-                  }
-                  if (user.name) {
-                    stream.channelDisplayName = user.name;
-                  }
-                  stream.channelIsVerified ||= isKickChannelVerified(user);
-                } else {
-                  logger.warn(
-                    "Kick:Endpoints:Stream",
-                    "User ID mismatch for stream; skipping user data enrichment",
-                    {
-                      slug,
-                      fetchedUserId: user.user_id,
-                      expectedChannelId: stream.channelId,
-                    }
-                  );
-                }
-              }
-            }
-          } catch (e) {
-            logger.debug("Kick:Endpoints:Stream", "Failed to enrich user info for stream", {
-              slug,
-              error:
-                e instanceof Error
-                  ? { name: e.name, message: e.message, stack: e.stack }
-                  : String(e),
-            });
-            // Not critical - stream data is still valid without user enrichment
-          }
-
           return stream;
         }
       } catch (error) {
-        logger.warn("Kick:Endpoints:Stream", "Failed to fetch Kick stream details", {
+        logger.warn("Kick:Endpoints:Stream", "Official stream details failed; trying legacy", {
           slug,
           error:
             error instanceof Error
@@ -727,16 +641,80 @@ export async function getStreamBySlug(
               : String(error),
         });
       }
+    } else if (channel) {
+      return null;
     }
   } catch (e) {
-    logger.warn("Kick:Endpoints:Stream", "Authenticated stream API failed", {
+    logger.warn("Kick:Endpoints:Stream", "Official stream API failed; trying legacy", {
       slug,
       error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
     });
   }
 
-  // All methods failed
+  try {
+    const publicStream = await getPublicStreamBySlug(slug);
+    if (!publicStream) return null;
+
+    if (publicStream.channelName.toLowerCase() === normalizedSlug) {
+      return publicStream;
+    }
+
+    logger.warn("Kick:Endpoints:Stream", "Public stream API mismatch; rejecting", {
+      requestedSlug: slug,
+      returnedChannelName: publicStream.channelName,
+    });
+  } catch (e) {
+    logger.debug("Kick:Endpoints:Stream", "Legacy public stream API failed", {
+      slug,
+      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+    });
+  }
+
   return null;
+}
+
+/**
+ * Get live streams by stable Kick broadcaster user IDs.
+ * https://docs.kick.com/apis/livestreams - GET /public/v1/livestreams?broadcaster_user_id=:id
+ */
+export async function getStreamsByBroadcasterIds(
+  client: KickRequestor,
+  broadcasterUserIds: number[]
+): Promise<UnifiedStream[]> {
+  const uniqueIds = [
+    ...new Set(broadcasterUserIds.filter((id) => Number.isSafeInteger(id) && id > 0)),
+  ];
+  if (uniqueIds.length === 0) return [];
+
+  const streams: UnifiedStream[] = [];
+
+  for (let i = 0; i < uniqueIds.length; i += 50) {
+    const ids = uniqueIds.slice(i, i + 50);
+    const params = new URLSearchParams();
+    for (const id of ids) {
+      params.append("broadcaster_user_id", id.toString());
+    }
+
+    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(
+      `/livestreams?${params.toString()}`,
+      undefined,
+      "app"
+    );
+    const requested = new Set(ids);
+
+    for (const apiStream of response.data || []) {
+      if (!requested.has(apiStream.broadcaster_user_id)) {
+        logger.warn("Kick:Endpoints:Stream", "Ignoring livestream with unexpected broadcaster ID", {
+          requestedIds: ids,
+          returnedBroadcasterId: apiStream.broadcaster_user_id,
+        });
+        continue;
+      }
+      streams.push(transformKickLivestream(apiStream));
+    }
+  }
+
+  return streams;
 }
 
 /**

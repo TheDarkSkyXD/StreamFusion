@@ -26,7 +26,7 @@
  *     `keepalive_timeout_seconds`, force-close and reconnect.
  */
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@/lib/cross-logger";
 import { sleep } from "@/lib/sleep";
 
 import { attachEventSubHealthBridge } from "./eventsub-health-bridge";
@@ -75,6 +75,7 @@ export interface TwitchEventSubClientOptions {
   wsEndpoint?: string;
   webSocketCtor?: typeof WebSocket;
   clientId?: string;
+  tokenFetcher?: () => Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +85,25 @@ export interface TwitchEventSubClientOptions {
 /** Key used by both the local routing map and the refcount map. */
 function pairKey(eventType: TwitchEventSubEventType, channelId: string): string {
   return `${eventType}::${channelId}`;
+}
+
+function subscriptionVersion(eventType: TwitchEventSubEventType): string {
+  return eventType === "channel.moderate" ? "2" : "1";
+}
+
+function subscriptionCondition(
+  eventType: TwitchEventSubEventType,
+  channelId: string,
+  broadcasterUserId: string
+): Record<string, string> {
+  if (eventType === "channel.moderate") {
+    return {
+      broadcaster_user_id: channelId,
+      moderator_user_id: broadcasterUserId,
+    };
+  }
+
+  return { broadcaster_user_id: channelId };
 }
 
 type SubEntry = {
@@ -98,16 +118,31 @@ type SubEntry = {
   posting: boolean;
 };
 
+function getDefaultTwitchTokenFetcher(): (() => Promise<string | null>) | null {
+  const bridge = (globalThis as { window?: unknown }).window as
+    | {
+        electronAPI?: {
+          auth?: {
+            getValidTwitchToken?: () => Promise<string | null>;
+          };
+        };
+      }
+    | undefined;
+
+  return bridge?.electronAPI?.auth?.getValidTwitchToken ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Client implementation
 // ---------------------------------------------------------------------------
 
 class TwitchEventSubClientImpl implements TwitchEventSubClient {
-  private readonly accessToken: string;
+  private accessToken: string;
   private readonly broadcasterUserId: string;
   private readonly wsEndpoint: string;
   private readonly webSocketCtor: typeof WebSocket;
   private readonly clientId: string;
+  private readonly tokenFetcher: (() => Promise<string | null>) | null;
 
   /** (eventType, channelId) → SubEntry. */
   private readonly subs = new Map<string, SubEntry>();
@@ -142,6 +177,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       (globalThis.WebSocket as typeof WebSocket | undefined) ??
       (undefined as unknown as typeof WebSocket);
     this.clientId = options?.clientId ?? DEFAULT_HELIX_CLIENT_ID;
+    this.tokenFetcher = options?.tokenFetcher ?? getDefaultTwitchTokenFetcher();
     this.healthBridgeCleanup = attachEventSubHealthBridge(this);
   }
 
@@ -548,29 +584,27 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     if (!this.sessionId) return;
     if (entry.posting || entry.subscriptionId) return;
     entry.posting = true;
-    const version = "2";
+    const version = subscriptionVersion(entry.eventType);
     const body = {
       type: entry.eventType,
       version,
-      condition: {
-        broadcaster_user_id: entry.channelId,
-        moderator_user_id: this.broadcasterUserId,
-      },
+      condition: subscriptionCondition(entry.eventType, entry.channelId, this.broadcasterUserId),
       transport: {
         method: "websocket" as const,
         session_id: this.sessionId,
       },
     };
     try {
-      const res = await fetch(HELIX_SUBSCRIPTIONS_URL, {
-        method: "POST",
-        headers: {
-          "Client-Id": this.clientId,
-          Authorization: `Bearer ${this.accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
+      const accessToken = await this.getSubscriptionAccessToken();
+      let res = await this.postSubscriptionRequest(body, accessToken);
+      if (res.status === 401) {
+        const freshToken = await this.tokenFetcher?.();
+        if (freshToken && freshToken !== this.accessToken) {
+          this.accessToken = freshToken;
+          res = await this.postSubscriptionRequest(body, freshToken);
+        }
+      }
+
       if (!res.ok) {
         logger.warn("Twitch:EventSub", "subscription POST failed", {
           status: res.status,
@@ -603,6 +637,35 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     }
   }
 
+  private async getSubscriptionAccessToken(): Promise<string> {
+    if (!this.tokenFetcher) return this.accessToken;
+
+    try {
+      const freshToken = await this.tokenFetcher();
+      if (freshToken) {
+        this.accessToken = freshToken;
+      }
+    } catch (err) {
+      logger.warn("Twitch:EventSub", "fresh token lookup before subscription POST failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    return this.accessToken;
+  }
+
+  private postSubscriptionRequest(body: unknown, accessToken: string): Promise<Response> {
+    return fetch(HELIX_SUBSCRIPTIONS_URL, {
+      method: "POST",
+      headers: {
+        "Client-Id": this.clientId,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
   private async deleteSubscription(subscriptionId: string): Promise<void> {
     try {
       await fetch(`${HELIX_SUBSCRIPTIONS_URL}?id=${encodeURIComponent(subscriptionId)}`, {
@@ -629,8 +692,8 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
 const clientCache = new Map<string, TwitchEventSubClientImpl>();
 
-function cacheKey(accessToken: string, broadcasterUserId: string): string {
-  return `${accessToken}::${broadcasterUserId}`;
+function cacheKey(accessToken: string, broadcasterUserId: string, clientId: string): string {
+  return `${accessToken}::${broadcasterUserId}::${clientId}`;
 }
 
 export function getTwitchEventSubClient(
@@ -638,7 +701,8 @@ export function getTwitchEventSubClient(
   broadcasterUserId: string,
   options?: TwitchEventSubClientOptions
 ): TwitchEventSubClient {
-  const key = cacheKey(accessToken, broadcasterUserId);
+  const clientId = options?.clientId ?? DEFAULT_HELIX_CLIENT_ID;
+  const key = cacheKey(accessToken, broadcasterUserId, clientId);
   const existing = clientCache.get(key);
   if (existing) return existing;
   const client = new TwitchEventSubClientImpl(accessToken, broadcasterUserId, options);

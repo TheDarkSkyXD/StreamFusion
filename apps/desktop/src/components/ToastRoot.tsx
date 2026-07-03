@@ -10,6 +10,10 @@ import { CircleCheck, CircleX, Info, TriangleAlert } from "lucide-react";
 import { Toaster } from "sonner";
 
 const toastIconClass = "h-4 w-4";
+const toastViewportOffset = {
+  top: "calc(1.75rem + 3.5rem + 1rem)",
+  right: "1rem",
+};
 
 const toastClassNames = {
   toast:
@@ -31,7 +35,9 @@ const toastClassNames = {
 export function ToastRoot() {
   return (
     <Toaster
-      position="bottom-right"
+      position="top-right"
+      offset={toastViewportOffset}
+      mobileOffset={toastViewportOffset}
       closeButton
       duration={5000}
       theme="dark"

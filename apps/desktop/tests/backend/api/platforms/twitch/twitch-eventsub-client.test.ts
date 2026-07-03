@@ -19,6 +19,7 @@ import {
 import type {
   NotificationPayload,
   TwitchEventSubConnectionState,
+  TwitchEventSubEventType,
 } from "@/backend/api/platforms/twitch/twitch-eventsub-types";
 
 // ---------------------------------------------------------------------------
@@ -182,26 +183,32 @@ function reconnectEnvelope(reconnectUrl: string, sessionId = "sess-1") {
 
 function notificationEnvelope(
   subscriptionId: string,
-  type: "channel.moderate",
+  type: TwitchEventSubEventType,
   channelId: string,
   event: Record<string, unknown>,
 ) {
+  const version = type === "channel.moderate" ? "2" : "1";
+  const condition =
+    type === "channel.moderate"
+      ? { broadcaster_user_id: channelId, moderator_user_id: SELF_ID }
+      : { broadcaster_user_id: channelId };
+
   return {
     metadata: {
       message_id: `notif-${subscriptionId}`,
       message_type: "notification",
       message_timestamp: "2026-05-18T00:00:00Z",
       subscription_type: type,
-      subscription_version: "2",
+      subscription_version: version,
     },
     payload: {
       subscription: {
         id: subscriptionId,
         type,
-        version: "2",
+        version,
         status: "enabled",
         cost: 0,
-        condition: { broadcaster_user_id: channelId, moderator_user_id: SELF_ID },
+        condition,
         transport: { method: "websocket", session_id: "sess-1" },
         created_at: "2026-05-18T00:00:00Z",
       },
@@ -236,10 +243,11 @@ function revocationEnvelope(
   };
 }
 
-function getClient(opts?: { url?: string }) {
+function getClient(opts?: { url?: string; tokenFetcher?: () => Promise<string | null> }) {
   return getTwitchEventSubClient(TOKEN, SELF_ID, {
     wsEndpoint: opts?.url ?? WS_URL,
     webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
+    tokenFetcher: opts?.tokenFetcher,
   });
 }
 
@@ -307,6 +315,109 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     });
     expect(call.headers.Authorization).toBe(`Bearer ${TOKEN}`);
     expect(call.headers["Client-Id"]).toBeTruthy();
+  });
+
+  it("uses the configured client id for subscription POSTs", async () => {
+    const client = getTwitchEventSubClient(TOKEN, SELF_ID, {
+      wsEndpoint: WS_URL,
+      webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
+      clientId: "configured-client-id",
+    });
+    client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-configured-client", 10));
+    await flushMicrotasks();
+
+    const posts = fetchCalls.filter((call) => call.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.headers["Client-Id"]).toBe("configured-client-id");
+  });
+
+  it("retries subscription POST once with a fresh token after a 401", async () => {
+    const tokenFetcher = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValueOnce(TOKEN)
+      .mockResolvedValueOnce("tok-2");
+    let postCount = 0;
+    fetchOverride = (call) => {
+      if (call.method !== "POST") return new Response(null, { status: 204 });
+      postCount += 1;
+      if (postCount === 1) {
+        return new Response(JSON.stringify({ error: "Unauthorized", status: 401 }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ data: [{ id: "sub-refreshed" }] }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const client = getClient({ tokenFetcher });
+    const listener = vi.fn();
+    client.subscribe<Record<string, unknown>>("stream.online", "chan-1", listener);
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-refresh", 10));
+    await flushMicrotasks();
+
+    const posts = fetchCalls.filter((call) => call.method === "POST");
+    expect(posts).toHaveLength(2);
+    expect(posts[0]!.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(posts[1]!.headers.Authorization).toBe("Bearer tok-2");
+    expect(tokenFetcher).toHaveBeenCalledTimes(2);
+
+    ws._emit(
+      notificationEnvelope("sub-refreshed", "stream.online", "chan-1", {
+        broadcaster_user_login: "alpha",
+      })
+    );
+
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses a fresh token before the first subscription POST when a token fetcher is available", async () => {
+    const tokenFetcher = vi.fn(async () => "tok-fresh");
+
+    const client = getClient({ tokenFetcher });
+    client.subscribe<Record<string, unknown>>("stream.online", "chan-1", vi.fn());
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-preflight", 10));
+    await flushMicrotasks();
+
+    const posts = fetchCalls.filter((call) => call.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.headers.Authorization).toBe("Bearer tok-fresh");
+    expect(tokenFetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses stream EventSub v1 conditions without moderator_user_id", async () => {
+    const client = getClient();
+    client.subscribe("stream.online", "chan-1", () => {});
+    client.subscribe("stream.offline", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-stream", 10));
+    await flushMicrotasks();
+
+    expect(fetchCalls.map((call) => call.body)).toEqual([
+      {
+        type: "stream.online",
+        version: "1",
+        condition: { broadcaster_user_id: "chan-1" },
+        transport: { method: "websocket", session_id: "sess-stream" },
+      },
+      {
+        type: "stream.offline",
+        version: "1",
+        condition: { broadcaster_user_id: "chan-1" },
+        transport: { method: "websocket", session_id: "sess-stream" },
+      },
+    ]);
   });
 
   it("multiple subscribers to the same (eventType, channelId) reuse one upstream sub", async () => {
@@ -508,6 +619,33 @@ describe("TwitchEventSubClient — dispatch + observability", () => {
     expect(arg.event).toEqual({ kind: "ban" });
   });
 
+  it("stream.online notifications dispatch to stream listeners", async () => {
+    const client = getClient();
+    const listener = vi.fn();
+    client.subscribe<Record<string, unknown>>("stream.online", "chan-1", listener);
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope());
+    await flushMicrotasks();
+
+    ws._emit(
+      notificationEnvelope("sub-1", "stream.online", "chan-1", {
+        id: "stream-1",
+        broadcaster_user_id: "chan-1",
+        broadcaster_user_login: "alpha",
+        broadcaster_user_name: "Alpha",
+        type: "live",
+        started_at: "2026-07-01T00:00:00.000Z",
+      })
+    );
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({ broadcaster_user_login: "alpha" }),
+      })
+    );
+  });
+
   it("revocation drops local tracking so a fresh subscribe re-POSTs", async () => {
     const client = getClient();
     const unsub = client.subscribe("channel.moderate", "chan-1", () => {});
@@ -597,6 +735,21 @@ describe("TwitchEventSubClient — dispatch + observability", () => {
       webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
     });
     expect(other).not.toBe(a);
+  });
+
+  it("getTwitchEventSubClient keeps separate clients for different client ids", () => {
+    const a = getTwitchEventSubClient(TOKEN, SELF_ID, {
+      wsEndpoint: WS_URL,
+      webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
+      clientId: "client-a",
+    });
+    const b = getTwitchEventSubClient(TOKEN, SELF_ID, {
+      wsEndpoint: WS_URL,
+      webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
+      clientId: "client-b",
+    });
+
+    expect(b).not.toBe(a);
   });
 
   it("unknown message_type is logged but does not crash dispatch", async () => {
