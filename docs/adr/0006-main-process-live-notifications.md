@@ -1,0 +1,3 @@
+# Main Process Live Notifications
+
+StreamFusion live notifications will be owned by an app-lifetime main-process service instead of renderer pages so notifications continue while the app is open and independent of the `/following` route. Twitch should use EventSub `stream.online`/`stream.offline` with polling fallback; Kick should use bounded polling in the first build because its live-status events are webhook-based and require a public relay that a desktop-only app does not have yet. A future hosted Kick relay can plug into the same notification pipeline without replacing the user-facing model.

@@ -69,6 +69,12 @@ Before implementing:
 - Never assume your changes simply work, always test!
 - If the project does not have any testing tools, scripts, MCP tools, skills, etc. available for testing, ask the user whether testing should be skipped.
 
+## APP INTERACTION
+
+- When interacting with the running StreamFusion desktop app, use Electron MCP tools only.
+- Do not use browser automation, Chrome control, desktop automation, screenshots from non-Electron tools, or manual OS-level clicking to inspect, test, or operate the app.
+- If Electron MCP is unavailable or cannot perform the needed interaction, stop and ask the user before using any fallback.
+
 ## SCRATCH HYGIENE
 
 - Keep `.scratch/` top level for issue tracker files, grill notes, and intentional proof artifacts.
@@ -104,7 +110,7 @@ A complete issue lifecycle is five stages. Don't skip stages or merge them — e
 - All tests MUST pass with zero errors.
 - Run `/deslop` on the diff (already mandated by Change/Edit Mode, repeated here for the issue lifecycle).
 - Lint, type-check, and build all pass.
-- UI/frontend issues: verified manually in a browser. Type-checking and tests are not sufficient for UI work.
+- UI/frontend issues: verify the running Electron app with Electron MCP only. Type-checking and tests are not sufficient for UI work.
 
 ### 5. Close the issue
 

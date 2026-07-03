@@ -52,6 +52,14 @@ _Avoid_: visibility (CSS-overloaded), mode, focus.
 The authenticated user's persistent relationship to a Channel. Distinct from a moderator relationship.
 _Avoid_: Subscription (subscription is a paid Twitch-only concept), bookmark.
 
+**Guest Follow**:
+A local Follow created while the user is not authenticated to that Follow's Platform. It remains separate from account Follows after sign-in and can still drive StreamFusion experiences such as followed-channel browsing and live notifications.
+_Avoid_: Bookmark, local subscription.
+
+**Live Notification**:
+An app alert that a followed Channel's Stream has started. It applies to both authenticated Follows and Guest Follows.
+_Avoid_: Mock notification, live badge, system message.
+
 ### Cross-platform plumbing
 
 **ChannelRef**:
