@@ -76,7 +76,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Sidebar */}
         <aside
           className={cn(
-            "flex flex-col border-r border-[var(--color-border)] bg-[var(--color-background-secondary)] transition-[width] duration-300 ease-out",
+            "flex flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-background-secondary)] transition-[width] duration-300 ease-out",
             sidebarCollapsed ? "w-16" : "w-56",
             isTheaterModeActive && "hidden"
           )}

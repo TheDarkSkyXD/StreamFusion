@@ -7,6 +7,8 @@ import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPredicti
 import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { UnifiedPrediction } from "@/shared/chat-types";
+import { getTwitchEventSubClient } from "../../../backend/api/platforms/twitch/twitch-eventsub-client";
+import type { ChannelModerateEvent } from "../../../backend/api/platforms/twitch/twitch-eventsub-types";
 import {
   pinChatMessage,
   unpinChatMessage,
@@ -42,6 +44,7 @@ import type {
   ChatConnectionStatus,
   ChatHighlightKind,
   ChatMessage,
+  ChatUserPresentation,
   ClearChat,
   KickPoll,
   MessageDeletion,
@@ -290,6 +293,27 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // as the `moderator_id` query param. Pulled from the auth store rather than
   // re-fetched per call.
   const twitchUser = useAuthStore((state) => state.twitchUser);
+
+  const currentModeratorPresentation = useCallback((): ChatUserPresentation | undefined => {
+    if (!twitchUser?.id || !twitchUser.login) return undefined;
+    return {
+      userId: twitchUser.id,
+      username: twitchUser.login,
+      displayName: twitchUser.displayName || twitchUser.login,
+      badges: [],
+    };
+  }, [twitchUser?.displayName, twitchUser?.id, twitchUser?.login]);
+
+  const markMessageDeletedByModerator = useCallback(
+    (messageId: string, moderator: ChatUserPresentation | undefined, deletedAt = new Date()) => {
+      deleteMessage(channelKey, messageId, {
+        deletedAt,
+        ...(moderator ? { deletedByUser: moderator, deletedByUsername: moderator.username } : {}),
+      });
+    },
+    [channelKey, deleteMessage]
+  );
+
   useEffect(() => {
     if (!channelId || !twitchUser?.id) return;
     if (twitchUser.id === channelId) return;
@@ -312,6 +336,68 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       cancelled = true;
     };
   }, [channelId, twitchUser?.id, hydrateModeratedChannels, isModeratedChannelsStale]);
+
+  useEffect(() => {
+    if (!channelId || !twitchUser?.id || !isMod || !hasModScopes || modScopesLoading) return;
+
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    void (async () => {
+      try {
+        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+        if (!clientId) return;
+
+        const accessToken = await window.electronAPI.auth.getValidTwitchToken();
+        if (cancelled || !accessToken) return;
+
+        const client = getTwitchEventSubClient(accessToken, twitchUser.id, {
+          clientId,
+          tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
+        });
+        unsubscribe = client.subscribe<ChannelModerateEvent>(
+          "channel.moderate",
+          channelId,
+          (payload) => {
+            const event = payload.event;
+            if (event.action !== "delete") return;
+            if (event.broadcaster_user_id && event.broadcaster_user_id !== channelId) return;
+
+            const deleted = event.delete;
+            if (!deleted?.message_id) return;
+
+            const moderatorUsername = event.moderator_user_login?.trim() || event.moderator_user_id;
+            const moderator: ChatUserPresentation | undefined = moderatorUsername
+              ? {
+                  userId: event.moderator_user_id || moderatorUsername,
+                  username: moderatorUsername,
+                  displayName: event.moderator_user_name?.trim() || moderatorUsername,
+                  badges: [],
+                }
+              : undefined;
+
+            markMessageDeletedByModerator(deleted.message_id, moderator);
+          }
+        );
+      } catch (error) {
+        logger.warn("UI:Chat:Twitch", "twitch moderation EventSub subscribe failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [
+    channelId,
+    hasModScopes,
+    isMod,
+    markMessageDeletedByModerator,
+    modScopesLoading,
+    twitchUser?.id,
+  ]);
 
   const handleDeleteMessage = useCallback(
     async (message: ChatMessage) => {
@@ -341,6 +427,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
         const result = await runDelete(token.accessToken);
         if (result.ok) {
+          markMessageDeletedByModerator(message.id, currentModeratorPresentation());
           showModActionSuccessToast("Deleted message");
           return;
         }
@@ -355,6 +442,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               if (!fresh?.accessToken) return;
               const retry = await runDelete(fresh.accessToken);
               if (retry.ok) {
+                markMessageDeletedByModerator(message.id, currentModeratorPresentation());
                 showModActionSuccessToast("Deleted message");
               } else {
                 toast.error("Couldn't delete message", {
@@ -385,7 +473,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         });
       }
     },
-    [channelId, promptReconnect, twitchUser?.id]
+    [
+      channelId,
+      currentModeratorPresentation,
+      markMessageDeletedByModerator,
+      promptReconnect,
+      twitchUser?.id,
+    ]
   );
 
   // Track current channel for cleanup
@@ -867,9 +961,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     const handleMessageDeleted = (deletion: MessageDeletion) => {
       if (deletion.channel !== channel) return;
-      deleteMessage(buildChannelKey("twitch", deletion.channel), deletion.messageId, {
-        deletedAt: deletion.timestamp,
-      });
+      markMessageDeletedByModerator(deletion.messageId, undefined, deletion.timestamp);
     };
 
     const handleError = (error: Error) => {
@@ -952,11 +1044,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     addMessageBatched,
     updateConnectionStatus,
     clearMessages,
-    deleteMessage,
     deleteMessagesByUser,
     channelKey,
     channel,
     channelId,
+    markMessageDeletedByModerator,
     markUserUnbannable,
     predictionDismissGate,
     pollTimer,
@@ -1792,6 +1884,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                             markUserUnbanned(action.message.userId);
                             toast.success(`Unbanned ${username}`);
                           } else if (action.actionType === "delete") {
+                            markMessageDeletedByModerator(
+                              action.message.id,
+                              currentModeratorPresentation()
+                            );
                             showModActionSuccessToast("Deleted message");
                           } else {
                             markUserUnbannable(action.message.userId);

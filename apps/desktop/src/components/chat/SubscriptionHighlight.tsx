@@ -14,7 +14,8 @@ export const SubscriptionHighlight: React.FC<SubscriptionHighlightProps> = memo(
   ({ children, platform, style }) => (
     <ChatEventHighlightCard
       accentColor="#f5c451"
-      icon={<Star aria-hidden="true" className="h-5 w-5" fill="currentColor" strokeWidth={2.25} />}
+      accentWidth={3}
+      icon={<Star aria-hidden="true" className="h-4 w-4" fill="currentColor" strokeWidth={2.25} />}
       label="Subscription"
       platform={platform}
       style={style}

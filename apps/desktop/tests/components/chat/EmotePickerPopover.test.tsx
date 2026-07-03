@@ -1324,6 +1324,65 @@ describe("EmotePickerPopover", () => {
     expect(within(stvSection).queryByLabelText("channelEmote0")).not.toBeInTheDocument();
   });
 
+  it("resets the windowed channel-emote slice when reopened", async () => {
+    const channelEmotes = Array.from({ length: 500 }, (_, i) =>
+      makeEmote({ id: `reopen-channel-${i}`, name: `reopenChannel${i}`, provider: "7tv" })
+    );
+    const globalEmotes = Array.from({ length: 20 }, (_, i) =>
+      makeEmote({
+        id: `reopen-global-${i}`,
+        name: `reopenGlobal${i}`,
+        provider: "7tv",
+        isGlobal: true,
+      })
+    );
+    mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
+      ["7tv", [...channelEmotes, ...globalEmotes]],
+    ]);
+
+    const anchor = document.createElement("button");
+    document.body.appendChild(anchor);
+    const anchorRef = { current: anchor } as React.RefObject<HTMLElement>;
+    const baseProps: IntendedEmotePickerPopoverProps = {
+      isOpen: true,
+      onClose: vi.fn(),
+      onSelect: vi.fn(),
+      anchorRef,
+      scope: "thirdParty",
+      platform: "kick",
+      channelId: "chatroom-1",
+    };
+    const renderUi = (isOpen: boolean) => (
+      <TooltipProvider>
+        <EmotePickerPopover {...baseProps} isOpen={isOpen} />
+      </TooltipProvider>
+    );
+    const { rerender } = render(renderUi(true));
+
+    expect(screen.getByLabelText("reopenChannel0")).toBeInTheDocument();
+
+    const scrollRoot = document.querySelector(
+      '[data-testid="emote-picker-popover"] .overflow-y-auto'
+    ) as HTMLElement;
+    expect(scrollRoot).not.toBeNull();
+    Object.defineProperty(scrollRoot, "scrollTop", {
+      configurable: true,
+      value: 2400,
+    });
+    fireEvent.scroll(scrollRoot);
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(screen.queryByLabelText("reopenChannel0")).not.toBeInTheDocument();
+
+    rerender(renderUi(false));
+    rerender(renderUi(true));
+
+    expect(screen.getByLabelText("reopenChannel0")).toBeInTheDocument();
+  });
+
   it("preloads the next visible native section before slow scrolling reaches it", async () => {
     const globalEmotes = Array.from({ length: 100 }, (_, i) =>
       makeEmote({

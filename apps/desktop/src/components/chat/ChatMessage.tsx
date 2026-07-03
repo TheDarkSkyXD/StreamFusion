@@ -103,6 +103,13 @@ const KICK_GIFT_BADGE_SET_IDS = new Set([
   "subgifter200",
 ]);
 
+const USER_ATTRIBUTED_EVENT_KINDS = new Set<ChatHighlightKind>([
+  "subscription",
+  "resub",
+  "gifted-sub",
+  "raid",
+]);
+
 function isKickGiftBadge(setId: string | undefined): boolean {
   return setId ? KICK_GIFT_BADGE_SET_IDS.has(setId) : false;
 }
@@ -240,6 +247,30 @@ function getEventHighlightKind(message: ChatMessageType): ChatHighlightKind | un
   return undefined;
 }
 
+function splitLeadingEventUsername(
+  content: string,
+  displayName: string,
+  username: string
+): string | null {
+  const candidates = [displayName, username]
+    .map((name) => name.trim())
+    .filter((name, index, names) => name.length > 0 && names.indexOf(name) === index)
+    .sort((a, b) => b.length - a.length);
+  const lowerContent = content.toLowerCase();
+
+  for (const candidate of candidates) {
+    if (!lowerContent.startsWith(candidate.toLowerCase())) continue;
+    return content.slice(candidate.length);
+  }
+
+  return null;
+}
+
+function capitalizeEventAction(content: string): string {
+  const trimmed = content.trimStart();
+  return trimmed ? `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}` : "";
+}
+
 function EventHighlight({
   children,
   kind,
@@ -304,6 +335,96 @@ function EventHighlight({
 
   const exhaustive: never = kind;
   return exhaustive;
+}
+
+function EventSystemContent({
+  currentChannelContext,
+  message,
+  renderEmotesAsText,
+  viewerMentionUsername,
+}: {
+  currentChannelContext?: UsernameChannelContext;
+  message: ChatMessageType;
+  renderEmotesAsText: boolean;
+  viewerMentionUsername?: string | null;
+}) {
+  const firstFragment = message.content[0];
+
+  if (
+    !firstFragment ||
+    firstFragment.type !== "text" ||
+    !message.highlightKind ||
+    !USER_ATTRIBUTED_EVENT_KINDS.has(message.highlightKind)
+  ) {
+    return (
+      <>
+        {message.content.map((fragment, index) => (
+          <MessageFragment
+            key={fragmentKey(fragment, index)}
+            fragment={fragment}
+            platform={message.platform}
+            renderEmotesAsText={renderEmotesAsText}
+            viewerMentionUsername={viewerMentionUsername}
+          />
+        ))}
+      </>
+    );
+  }
+
+  const actionText = splitLeadingEventUsername(
+    firstFragment.content,
+    message.displayName,
+    message.username
+  );
+
+  if (actionText === null) {
+    return (
+      <>
+        {message.content.map((fragment, index) => (
+          <MessageFragment
+            key={fragmentKey(fragment, index)}
+            fragment={fragment}
+            platform={message.platform}
+            renderEmotesAsText={renderEmotesAsText}
+            viewerMentionUsername={viewerMentionUsername}
+          />
+        ))}
+      </>
+    );
+  }
+
+  const actionFragments = [
+    { ...firstFragment, content: capitalizeEventAction(actionText) },
+    ...message.content.slice(1),
+  ].filter((fragment) => fragment.type !== "text" || fragment.content.length > 0);
+
+  return (
+    <span className="flex min-w-0 flex-col items-start">
+      <Username
+        userId={message.userId || message.username}
+        username={message.username}
+        displayName={message.displayName}
+        color={message.color}
+        platform={message.platform}
+        className="align-baseline text-sm leading-[18px]"
+        currentChannelContext={currentChannelContext}
+        noWrap
+      />
+      {actionFragments.length > 0 && (
+        <span className="min-w-0 break-words text-sm font-bold leading-[18px] text-white [overflow-wrap:anywhere]">
+          {actionFragments.map((fragment, index) => (
+            <MessageFragment
+              key={fragmentKey(fragment, index)}
+              fragment={fragment}
+              platform={message.platform}
+              renderEmotesAsText={renderEmotesAsText}
+              viewerMentionUsername={viewerMentionUsername}
+            />
+          ))}
+        </span>
+      )}
+    </span>
+  );
 }
 
 /**
@@ -428,6 +549,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
               platform={message.platform}
               className="align-middle"
               currentChannelContext={currentChannelContext}
+              noWrap
             />
           </span>
           <span className="font-bold text-white"> {actionPhrase}</span>
@@ -443,6 +565,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                 platform={message.platform}
                 className="align-middle"
                 currentChannelContext={currentChannelContext}
+                noWrap
               />
             </span>
           ) : (
@@ -463,7 +586,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                   );
                   return (
                     <li
-                      className="min-w-0 break-words align-bottom text-xs font-normal leading-snug text-white [overflow-wrap:anywhere]"
+                      className="min-w-0 break-words align-bottom text-base font-normal leading-[22px] text-white [overflow-wrap:anywhere]"
                       key={deletedMessage.id}
                     >
                       <span className="inline-flex min-w-0 max-w-full items-end gap-1 align-bottom">
@@ -497,7 +620,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                 })
               : visibleDeletedMessages.map((deletedMessage) => (
                   <li
-                    className="min-w-0 break-words align-bottom text-xs font-normal leading-snug text-white [overflow-wrap:anywhere]"
+                    className="min-w-0 break-words align-bottom text-base font-normal leading-[22px] text-white [overflow-wrap:anywhere]"
                     key={deletedMessage}
                   >
                     <span className="inline-flex min-w-0 max-w-full items-end gap-1 align-bottom">
@@ -634,15 +757,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     if (framedEventHighlightKind && message.type === "system") {
       return (
         <EventHighlight kind={framedEventHighlightKind} platform={message.platform} style={style}>
-          {message.content.map((fragment, index) => (
-            <MessageFragment
-              key={fragmentKey(fragment, index)}
-              fragment={fragment}
-              platform={message.platform}
-              renderEmotesAsText={renderEmotesAsText}
-              viewerMentionUsername={viewerMentionUsername}
-            />
-          ))}
+          <EventSystemContent
+            currentChannelContext={currentChannelContext}
+            message={message}
+            renderEmotesAsText={renderEmotesAsText}
+            viewerMentionUsername={viewerMentionUsername}
+          />
         </EventHighlight>
       );
     }

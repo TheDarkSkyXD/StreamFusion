@@ -658,8 +658,58 @@ describe("ChatInput — basics", () => {
     expect(editor).toHaveTextContent("reply draft");
   });
 
-  // Guards: Kick replies keep Kick's wire mention while the local echo carries ReplyInfo for Twitch-style rendering.
-  it("sends Kick replies with reply metadata for the optimistic echo", async () => {
+  // Guards: reply sends must include the visible @username in both the wire message and optimistic echo; otherwise it only appears after chat refresh.
+  it("sends Twitch replies with the parent username visible in the message", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const ref = createRef<ChatInputHandle>();
+    renderWithTooltipProvider(
+      <ChatInput
+        ref={ref}
+        channel="ninja"
+        platform="twitch"
+        channelId="12345"
+        canSend
+        isAuthenticated
+      />
+    );
+    const msg: ChatMessage = {
+      id: "m1",
+      platform: "twitch",
+      type: "message",
+      channel: "ninja",
+      userId: "u1",
+      username: "alice",
+      displayName: "Alice",
+      color: "#fff",
+      badges: [],
+      content: [{ type: "text", content: "hello" }],
+      rawContent: "hello there",
+      timestamp: new Date(),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    };
+    act(() => ref.current?.replyTo(msg));
+    const editor = getEditor();
+    typeInEditor(editor, "reply draft");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(twitchChatService.sendReply).toHaveBeenCalledWith(
+      "ninja",
+      "m1",
+      "@alice reply draft",
+      [
+        { type: "mention", username: "alice" },
+        { type: "text", content: " reply draft" },
+      ]
+    );
+  });
+
+  // Guards: reply sends must include the visible @username in both the wire message and optimistic echo; otherwise it only appears after chat refresh.
+  it("sends Kick replies with reply metadata and the parent username visible in the optimistic echo", async () => {
     infoBannerImpl.mockReturnValue(null);
     const ref = createRef<ChatInputHandle>();
     renderWithTooltipProvider(
@@ -701,7 +751,10 @@ describe("ChatInput — basics", () => {
       "ninja",
       "@alice reply draft",
       undefined,
-      [{ type: "text", content: "reply draft" }],
+      [
+        { type: "mention", username: "alice" },
+        { type: "text", content: " reply draft" },
+      ],
       {
         parentMessageId: "m1",
         parentUserId: "u1",

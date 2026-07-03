@@ -95,6 +95,14 @@ const COLLAPSED_CONTENT_STYLE: React.CSSProperties = {
   WebkitMaskImage: "linear-gradient(to bottom, #000 72%, transparent)",
   maskImage: "linear-gradient(to bottom, #000 72%, transparent)",
 };
+const EXPANDED_SCROLL_AREA_STYLE: React.CSSProperties = {
+  maxHeight: "200px",
+  marginInlineEnd: "-10px",
+  overflowX: "hidden",
+  overflowY: "scroll",
+  position: "relative",
+  scrollbarColor: "rgba(255, 255, 255, 0.4) transparent",
+};
 const TWITCH_PIN_DURATION_OPTIONS = [
   { label: "1 minute", value: 60 },
   { label: "5 minutes", value: 5 * 60 },
@@ -350,6 +358,8 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
 
   const accentColor = pin.author.color || (pin.platform === "kick" ? "#53FC18" : "#9146FF");
   const pinnedByColor = pin.pinnedBy?.color || accentColor;
+  const pinnedByDisplayName = pin.pinnedBy?.displayName || pin.pinnedBy?.username || "";
+  const shouldClipPinnedByUsername = pinnedByDisplayName.length > 20;
   const cardStyle =
     pin.platform === "kick"
       ? {
@@ -419,356 +429,371 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
         className="pointer-events-auto cursor-pointer border border-[var(--color-border,rgba(83,83,95,0.48))] rounded-md bg-neutral-800 p-2"
         style={cardStyle}
       >
-        {/* Header row: pin icon + "Pinned by [badges] X" + controls.
-         * Mirrors Twitch's native layout: 16px pin SVG, then a 14px label
-         * that includes any inline badges (e.g. Broadcaster) sandwiched
-         * between "Pinned by " and the colored username. */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 flex items-center gap-1.5">
-            <PinIcon className="flex-shrink-0 text-[#EFEFF1]" />
-            {pin.pinnedBy ? (
-              // Twitch renders this as inline text with the badge as an
-              // inline-block child carrying `margin: 0 3px 1.5px 0` —
-              // 3px after the badge (badge-to-username gap), 1.5px below
-              // (lifts it above the text baseline). We mirror that with
-              // explicit gap-[3px] + a custom translate so flex doesn't
-              // center the badge perfectly on the cap height.
-              <div
-                // [&_img]:!mr-0 strips ChatBadge's baked-in `mr-1` (4px) so
-                // our flex `gap: 3px` is the only thing controlling spacing
-                // — matching Twitch's 3px badge-margin-right exactly.
-                // min-w-0 lets this flex item shrink below its content width
-                // so the username span's `truncate` can fire when long.
-                className="text-sm text-[#EFEFF1] leading-snug flex items-center min-w-0 [&_img]:!mr-0"
-                style={{ gap: "3px" }}
-                data-testid="pinned-message-header"
-              >
-                <span className="flex-shrink-0">Pinned by</span>
-                {renderablePinnedByBadges.map((badge, i) => (
+        <div
+          className="pinned-message-scrollbar relative"
+          data-testid="pinned-message-scroll-area"
+          data-expanded={isExpanded ? "true" : "false"}
+          style={isExpanded ? EXPANDED_SCROLL_AREA_STYLE : undefined}
+        >
+          {/* Header row: pin icon + "Pinned by [badges] X" + controls.
+           * Mirrors Twitch's native layout: 16px pin SVG, then a 14px label
+           * that includes any inline badges (e.g. Broadcaster) sandwiched
+           * between "Pinned by " and the colored username. */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1 flex items-center gap-1.5">
+              <PinIcon className="flex-shrink-0 text-[#EFEFF1]" />
+              {pin.pinnedBy ? (
+                // Twitch renders this as inline text with the badge as an
+                // inline-block child carrying `margin: 0 3px 1.5px 0` —
+                // 3px after the badge (badge-to-username gap), 1.5px below
+                // (lifts it above the text baseline). We mirror that with
+                // explicit gap-[3px] + a custom translate so flex doesn't
+                // center the badge perfectly on the cap height.
+                <div
+                  // [&_img]:!mr-0 strips ChatBadge's baked-in `mr-1` (4px) so
+                  // our flex `gap: 3px` is the only thing controlling spacing
+                  // — matching Twitch's 3px badge-margin-right exactly.
+                  // min-w-0 lets this flex item shrink below its content width
+                  // so the username span's `truncate` can fire when long.
+                  className="text-sm text-[#EFEFF1] leading-snug flex items-center min-w-0 [&_img]:!mr-0"
+                  style={{ gap: "3px" }}
+                  data-testid="pinned-message-header"
+                >
+                  <span className="flex-shrink-0">Pinned by</span>
+                  {renderablePinnedByBadges.map((badge, i) => (
+                    <span
+                      key={`${badge.setId}-${badge.version}-${i}`}
+                      className="inline-flex flex-shrink-0"
+                      style={{ marginBottom: "1.5px" }}
+                    >
+                      <ChatBadge badge={badge} platform={pin.platform} />
+                    </span>
+                  ))}
                   <span
-                    key={`${badge.setId}-${badge.version}-${i}`}
-                    className="inline-flex flex-shrink-0"
-                    style={{ marginBottom: "1.5px" }}
+                    className={`min-w-0 ${shouldClipPinnedByUsername ? "overflow-hidden" : ""}`}
+                    data-testid="pinned-message-header-username"
                   >
-                    <ChatBadge badge={badge} platform={pin.platform} />
+                    <Username
+                      userId={pin.pinnedBy.userId ?? pin.pinnedBy.username}
+                      username={pin.pinnedBy.username}
+                      displayName={pinnedByDisplayName}
+                      color={pinnedByColor}
+                      platform={pin.platform}
+                      className={`font-semibold ${
+                        shouldClipPinnedByUsername ? "block max-w-full truncate" : ""
+                      }`}
+                      currentChannelContext={currentChannelContext}
+                      noWrap
+                    />
                   </span>
-                ))}
-                <Username
-                  userId={pin.pinnedBy.userId ?? pin.pinnedBy.username}
-                  username={pin.pinnedBy.username}
-                  displayName={pin.pinnedBy.displayName || pin.pinnedBy.username}
-                  color={pinnedByColor}
-                  platform={pin.platform}
-                  className="font-semibold truncate min-w-0"
-                  currentChannelContext={currentChannelContext}
-                />
-              </div>
-            ) : (
-              <div className="text-sm text-[#EFEFF1] truncate leading-snug">Pinned message</div>
-            )}
-          </div>
-          {/* Control order matches twitch.tv's expanded card layout:
-           *   [Hide (eye-off)] [Collapse chevron]
-           * Hide is only rendered when expanded; Twitch's collapsed state has
-           * only the Expand chevron. Mod role replaces Hide with Unpin. */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {viewerRole === "viewer" && isExpanded && onDismiss ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+                </div>
+              ) : (
+                <div className="text-sm text-[#EFEFF1] truncate leading-snug">Pinned message</div>
+              )}
+            </div>
+            {/* Control order matches twitch.tv's expanded card layout:
+             *   [Hide (eye-off)] [Collapse chevron]
+             * Hide is only rendered when expanded; Twitch's collapsed state has
+             * only the Expand chevron. Mod role replaces Hide with Unpin. */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {viewerRole === "viewer" && isExpanded && onDismiss ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={onDismiss}
+                      className={ICON_BUTTON_CLASS}
+                      aria-label="Hide for yourself"
+                    >
+                      <EyeOffIcon />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+                    arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+                  >
+                    Hide for yourself
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {viewerRole === "mod" && onUnpin && !showTwitchModMenu ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={onUnpin}
+                      className={ICON_BUTTON_CLASS}
+                      aria-label="Unpin"
+                      data-testid="pinned-message-unpin-button"
+                    >
+                      <EyeOffIcon />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+                    arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+                  >
+                    Unpin
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {showTwitchModMenu ? (
+                <div ref={menuRef} className="relative">
                   <button
                     type="button"
-                    onClick={onDismiss}
+                    onClick={() => setIsMenuOpen((open) => !open)}
                     className={ICON_BUTTON_CLASS}
-                    aria-label="Hide for yourself"
-                  >
-                    <EyeOffIcon />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
-                  arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
-                >
-                  Hide for yourself
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-            {viewerRole === "mod" && onUnpin && !showTwitchModMenu ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={onUnpin}
-                    className={ICON_BUTTON_CLASS}
-                    aria-label="Unpin"
-                    data-testid="pinned-message-unpin-button"
-                  >
-                    <EyeOffIcon />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
-                  arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
-                >
-                  Unpin
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-            {showTwitchModMenu ? (
-              <div ref={menuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsMenuOpen((open) => !open)}
-                  className={ICON_BUTTON_CLASS}
-                  aria-label="Pinned message options"
-                  aria-expanded={isMenuOpen}
-                  data-testid="pinned-message-options-button"
-                >
-                  <MoreVertical size={20} strokeWidth={2.5} />
-                </button>
-                {isMenuOpen ? (
-                  <div
-                    role="menu"
                     aria-label="Pinned message options"
-                    className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-[rgba(83,83,95,0.72)] bg-[#18181b] py-2 text-sm text-[#EFEFF1] shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
-                    data-testid="pinned-message-options-menu"
+                    aria-expanded={isMenuOpen}
+                    data-testid="pinned-message-options-button"
                   >
-                    {onUpdateDuration ? (
-                      <div className="px-2">
-                        <div className="px-2 pb-1 text-xs font-semibold uppercase text-[#adadb8]">
-                          Duration
-                        </div>
-                        <fieldset className="space-y-0.5">
-                          {TWITCH_PIN_DURATION_OPTIONS.map((option) => (
-                            <label
-                              key={option.label}
-                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10"
-                            >
+                    <MoreVertical size={20} strokeWidth={2.5} />
+                  </button>
+                  {isMenuOpen ? (
+                    <div
+                      role="menu"
+                      aria-label="Pinned message options"
+                      className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-[rgba(83,83,95,0.72)] bg-[#18181b] py-2 text-sm text-[#EFEFF1] shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+                      data-testid="pinned-message-options-menu"
+                    >
+                      {onUpdateDuration ? (
+                        <div className="px-2">
+                          <div className="px-2 pb-1 text-xs font-semibold uppercase text-[#adadb8]">
+                            Duration
+                          </div>
+                          <fieldset className="space-y-0.5">
+                            {TWITCH_PIN_DURATION_OPTIONS.map((option) => (
+                              <label
+                                key={option.label}
+                                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10"
+                              >
+                                <input
+                                  type="radio"
+                                  name="pinned-message-duration"
+                                  checked={selectedDuration === option.value}
+                                  onChange={() => setSelectedDuration(option.value)}
+                                  className="cursor-pointer accent-[#9146FF]"
+                                  disabled={pinActionBusy}
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            ))}
+                            <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10">
                               <input
                                 type="radio"
                                 name="pinned-message-duration"
-                                checked={selectedDuration === option.value}
-                                onChange={() => setSelectedDuration(option.value)}
+                                checked={selectedDuration === CUSTOM_TWITCH_PIN_DURATION}
+                                onChange={() => setSelectedDuration(CUSTOM_TWITCH_PIN_DURATION)}
                                 className="cursor-pointer accent-[#9146FF]"
                                 disabled={pinActionBusy}
                               />
-                              <span>{option.label}</span>
+                              <span>Custom</span>
                             </label>
-                          ))}
-                          <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10">
-                            <input
-                              type="radio"
-                              name="pinned-message-duration"
-                              checked={selectedDuration === CUSTOM_TWITCH_PIN_DURATION}
-                              onChange={() => setSelectedDuration(CUSTOM_TWITCH_PIN_DURATION)}
-                              className="cursor-pointer accent-[#9146FF]"
-                              disabled={pinActionBusy}
-                            />
-                            <span>Custom</span>
-                          </label>
-                        </fieldset>
-                        {selectedDuration === CUSTOM_TWITCH_PIN_DURATION ? (
-                          <div className="mt-2 flex items-center gap-2 px-2">
-                            <input
-                              type="number"
-                              min={1}
-                              step={1}
-                              inputMode="numeric"
-                              aria-label="Custom pin duration"
-                              value={customDurationAmount}
-                              onChange={(event) => setCustomDurationAmount(event.target.value)}
-                              onFocus={() => setSelectedDuration(CUSTOM_TWITCH_PIN_DURATION)}
-                              disabled={pinActionBusy}
-                              className="h-8 min-w-0 flex-1 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
-                            />
-                            <select
-                              aria-label="Custom pin duration unit"
-                              value={customDurationUnit}
-                              onChange={(event) =>
-                                setCustomDurationUnit(event.target.value as TwitchPinDurationUnit)
-                              }
-                              disabled={pinActionBusy}
-                              className="h-8 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <option value="seconds">secs</option>
-                              <option value="minutes">mins</option>
-                            </select>
-                          </div>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={handleApplyDuration}
-                          disabled={pinActionBusy || !canApplyDuration}
-                          className="mt-2 flex h-8 w-full items-center justify-center rounded bg-[#9146FF] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#772ce8] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {pinActionBusy ? "Applying..." : "Apply"}
-                        </button>
-                      </div>
-                    ) : null}
-                    {onUpdateDuration && (onDismiss || onUnpin) ? (
-                      <div className="my-2 h-px bg-[rgba(83,83,95,0.72)]" />
-                    ) : null}
-                    {onDismiss ? (
-                      <div className="px-2">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            onDismiss();
-                          }}
-                          disabled={pinActionBusy}
-                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#EFEFF1] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
-                          <span>Hide for yourself</span>
-                        </button>
-                      </div>
-                    ) : null}
-                    {onDismiss && onUnpin ? (
-                      <div className="my-2 h-px bg-[rgba(83,83,95,0.72)]" />
-                    ) : null}
-                    {onUnpin ? (
-                      <div className="px-2">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            onUnpin();
-                          }}
-                          disabled={pinActionBusy}
-                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#ff8280] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
-                          <span>Unpin message</span>
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <button
-              type="button"
-              onClick={onExpandToggle}
-              className={ICON_BUTTON_CLASS}
-              aria-label={isExpanded ? "Collapse pinned message" : "Expand pinned message"}
-            >
-              <BsChevronDown
-                data-testid="pinned-message-expand-icon"
-                size={22}
-                style={{
-                  stroke: "currentColor",
-                  strokeWidth: 1.35,
-                  transform: isExpanded ? "rotate(180deg)" : "none",
-                  transition: "transform 0.2s",
-                }}
-              />
-            </button>
+                          </fieldset>
+                          {selectedDuration === CUSTOM_TWITCH_PIN_DURATION ? (
+                            <div className="mt-2 flex items-center gap-2 px-2">
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                inputMode="numeric"
+                                aria-label="Custom pin duration"
+                                value={customDurationAmount}
+                                onChange={(event) => setCustomDurationAmount(event.target.value)}
+                                onFocus={() => setSelectedDuration(CUSTOM_TWITCH_PIN_DURATION)}
+                                disabled={pinActionBusy}
+                                className="h-8 min-w-0 flex-1 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
+                              />
+                              <select
+                                aria-label="Custom pin duration unit"
+                                value={customDurationUnit}
+                                onChange={(event) =>
+                                  setCustomDurationUnit(event.target.value as TwitchPinDurationUnit)
+                                }
+                                disabled={pinActionBusy}
+                                className="h-8 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <option value="seconds">secs</option>
+                                <option value="minutes">mins</option>
+                              </select>
+                            </div>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={handleApplyDuration}
+                            disabled={pinActionBusy || !canApplyDuration}
+                            className="mt-2 flex h-8 w-full items-center justify-center rounded bg-[#9146FF] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#772ce8] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {pinActionBusy ? "Applying..." : "Apply"}
+                          </button>
+                        </div>
+                      ) : null}
+                      {onUpdateDuration && (onDismiss || onUnpin) ? (
+                        <div className="my-2 h-px bg-[rgba(83,83,95,0.72)]" />
+                      ) : null}
+                      {onDismiss ? (
+                        <div className="px-2">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setIsMenuOpen(false);
+                              onDismiss();
+                            }}
+                            disabled={pinActionBusy}
+                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#EFEFF1] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
+                            <span>Hide for yourself</span>
+                          </button>
+                        </div>
+                      ) : null}
+                      {onDismiss && onUnpin ? (
+                        <div className="my-2 h-px bg-[rgba(83,83,95,0.72)]" />
+                      ) : null}
+                      {onUnpin ? (
+                        <div className="px-2">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setIsMenuOpen(false);
+                              onUnpin();
+                            }}
+                            disabled={pinActionBusy}
+                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#ff8280] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
+                            <span>Unpin message</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={onExpandToggle}
+                className={ICON_BUTTON_CLASS}
+                aria-label={isExpanded ? "Collapse pinned message" : "Expand pinned message"}
+              >
+                <BsChevronDown
+                  data-testid="pinned-message-expand-icon"
+                  size={22}
+                  style={{
+                    stroke: "currentColor",
+                    strokeWidth: 1.35,
+                    transform: isExpanded ? "rotate(180deg)" : "none",
+                    transition: "transform 0.2s",
+                  }}
+                />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Message body: just the content. Twitch's native card omits the
-         * sender entirely in collapsed state — the "Pinned by X" header is
-         * the only attribution. 18px / weight 500 / 1.3 line-height.
-         *
-         * Collapsed body shows a short preview so long pins do not cover the
-         * chat. Expanded body removes the cap and wraps fully; long URLs fall
-         * back to `break-all` on the link fragment itself. */}
-        <div
-          className={`mt-0.5 text-lg font-medium leading-snug text-[#EFEFF1] break-words ${
-            isExpanded ? "" : "overflow-hidden"
-          }`}
-          data-testid="pinned-message-content"
-          data-expanded={isExpanded ? "true" : "false"}
-          style={isExpanded ? undefined : COLLAPSED_CONTENT_STYLE}
-        >
-          {pin.content.map((fragment, i) => (
-            <PinnedFragment
-              key={`${fragment.type}-${i}`}
-              fragment={fragment}
-              platform={pin.platform}
-            />
-          ))}
-        </div>
-
-        {/* Bottom attribution row (expanded only). One inline row matching
-         * the format from the reference screenshot:
-         *   [author badges] username sent at HH:MM PM
-         * Same 14px text-sm size as the "Pinned by" header so the visual
-         * weight is consistent. Badge spacing mirrors Twitch's: 3px between
-         * each element, with each badge lifted 1.5px above baseline so it
-         * aligns with the text x-height the way twitch.tv does. */}
-        {isExpanded && pin.author.username && pin.author.username !== "unknown" ? (
+          {/* Message body: just the content. Twitch's native card omits the
+           * sender entirely in collapsed state — the "Pinned by X" header is
+           * the only attribution. 18px / weight 500 / 1.3 line-height.
+           *
+           * Collapsed body shows a short preview so long pins do not cover the
+           * chat. Expanded body removes the cap and wraps fully; long URLs fall
+           * back to `break-all` on the link fragment itself. */}
           <div
-            // Same `[&_img]:!mr-0` reset as the header — strips ChatBadge's
-            // baked-in mr-1 so our flex gap is the only spacing.
-            className="mt-2 flex items-center text-sm text-[#EFEFF1] flex-wrap leading-snug [&_img]:!mr-0"
-            style={{ gap: "3px" }}
-            data-testid="pinned-message-sender-row"
+            className={`mt-0.5 text-lg font-medium leading-snug text-[#EFEFF1] break-words ${
+              isExpanded ? "" : "overflow-hidden"
+            }`}
+            data-testid="pinned-message-content"
+            data-expanded={isExpanded ? "true" : "false"}
+            style={isExpanded ? undefined : COLLAPSED_CONTENT_STYLE}
           >
-            {renderableAuthorBadges.map((badge, i) => (
-              <span
-                key={`${badge.setId}-${badge.version}-${i}`}
-                className="inline-flex"
-                style={{ marginBottom: "1.5px" }}
-              >
-                <ChatBadge badge={badge} platform={pin.platform} />
-              </span>
+            {pin.content.map((fragment, i) => (
+              <PinnedFragment
+                key={`${fragment.type}-${i}`}
+                fragment={fragment}
+                platform={pin.platform}
+              />
             ))}
-            <Username
-              userId={pin.author.userId ?? pin.author.username}
-              username={pin.author.username}
-              displayName={pin.author.displayName || pin.author.username}
-              color={accentColor}
-              platform={pin.platform}
-              className="font-semibold"
-              currentChannelContext={currentChannelContext}
-            />
-            {pin.sentAt ? (
-              <span className="text-[#E6E6E6]" data-testid="pinned-message-timestamp">
-                sent at {formatSentAt(pin.sentAt)}
-              </span>
-            ) : null}
           </div>
-        ) : null}
 
-        {isExpanded && progressWidth && progressState ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <div
-                className="group mt-2 h-5 cursor-pointer py-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
-                data-testid="pinned-message-duration-progress-slot"
-                tabIndex={0}
-              >
+          {/* Bottom attribution row (expanded only). One inline row matching
+           * the format from the reference screenshot:
+           *   [author badges] username sent at HH:MM PM
+           * Same 14px text-sm size as the "Pinned by" header so the visual
+           * weight is consistent. Badge spacing mirrors Twitch's: 3px between
+           * each element, with each badge lifted 1.5px above baseline so it
+           * aligns with the text x-height the way twitch.tv does. */}
+          {isExpanded && pin.author.username && pin.author.username !== "unknown" ? (
+            <div
+              // Same `[&_img]:!mr-0` reset as the header — strips ChatBadge's
+              // baked-in mr-1 so our flex gap is the only spacing.
+              className="mt-2 flex items-center text-sm text-[#EFEFF1] flex-wrap leading-snug [&_img]:!mr-0"
+              style={{ gap: "3px" }}
+              data-testid="pinned-message-sender-row"
+            >
+              {renderableAuthorBadges.map((badge, i) => (
+                <span
+                  key={`${badge.setId}-${badge.version}-${i}`}
+                  className="inline-flex"
+                  style={{ marginBottom: "1.5px" }}
+                >
+                  <ChatBadge badge={badge} platform={pin.platform} />
+                </span>
+              ))}
+              <Username
+                userId={pin.author.userId ?? pin.author.username}
+                username={pin.author.username}
+                displayName={pin.author.displayName || pin.author.username}
+                color={accentColor}
+                platform={pin.platform}
+                className="font-semibold"
+                currentChannelContext={currentChannelContext}
+              />
+              {pin.sentAt ? (
+                <span className="text-[#E6E6E6]" data-testid="pinned-message-timestamp">
+                  sent at {formatSentAt(pin.sentAt)}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isExpanded && progressWidth && progressState ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
                 <div
-                  role="progressbar"
-                  aria-label="Pinned message duration"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={progressAriaValue}
-                  aria-valuetext={progressState.timeLeftLabel}
-                  className="h-1 w-full overflow-hidden rounded-[9000px] bg-[rgba(83,83,95,0.55)] transition-colors duration-150 group-hover:bg-[rgba(83,83,95,0.78)] group-focus-visible:bg-[rgba(83,83,95,0.78)]"
-                  data-testid="pinned-message-duration-progress"
+                  className="group mt-2 h-5 cursor-pointer py-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
+                  data-testid="pinned-message-duration-progress-slot"
+                  tabIndex={0}
                 >
                   <div
-                    className={`h-full bg-[#A970FF] transition-[width,background-color] duration-[250ms] ease-linear group-hover:bg-[#BF94FF] group-focus-visible:bg-[#BF94FF] ${
-                      progressAriaValue === 100 ? "rounded-[9000px]" : "rounded-l-[9000px]"
-                    }`}
-                    data-testid="pinned-message-duration-progress-fill"
-                    style={{ width: progressWidth }}
-                  />
+                    role="progressbar"
+                    aria-label="Pinned message duration"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progressAriaValue}
+                    aria-valuetext={progressState.timeLeftLabel}
+                    className="h-1 w-full overflow-hidden rounded-[9000px] bg-[rgba(83,83,95,0.55)] transition-colors duration-150 group-hover:bg-[rgba(83,83,95,0.78)] group-focus-visible:bg-[rgba(83,83,95,0.78)]"
+                    data-testid="pinned-message-duration-progress"
+                  >
+                    <div
+                      className={`h-full bg-[#A970FF] transition-[width,background-color] duration-[250ms] ease-linear group-hover:bg-[#BF94FF] group-focus-visible:bg-[#BF94FF] ${
+                        progressAriaValue === 100 ? "rounded-[9000px]" : "rounded-l-[9000px]"
+                      }`}
+                      data-testid="pinned-message-duration-progress-fill"
+                      style={{ width: progressWidth }}
+                    />
+                  </div>
                 </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent
-              className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
-              arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
-            >
-              {progressState.timeLeftLabel}
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
+              </TooltipTrigger>
+              <TooltipContent
+                className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
+                arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
+              >
+                {progressState.timeLeftLabel}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
       </div>
     </div>
   );

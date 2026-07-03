@@ -800,7 +800,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         userId: notice.userId || notice.username || "system",
         username: notice.username || notice.displayName || "system",
         displayName: notice.displayName || notice.username || "System",
-        color: "#53fc18",
+        color: notice.color ?? "",
         badges: [],
         content: [{ type: "text", content: notice.systemMessage }],
         rawContent: notice.systemMessage,

@@ -68,6 +68,7 @@ function UserAttribution({
         platform={platform}
         className="align-bottom"
         currentChannelContext={currentChannelContext}
+        noWrap
       />
     </span>
   );

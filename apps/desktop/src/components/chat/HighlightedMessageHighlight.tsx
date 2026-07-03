@@ -14,6 +14,7 @@ export const HighlightedMessageHighlight: React.FC<HighlightedMessageHighlightPr
   ({ children, platform, style }) => (
     <ChatEventHighlightCard
       accentColor={platform === "kick" ? "#53fc18" : "#9146ff"}
+      accentWidth={3}
       icon={<MessageSquareText aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} />}
       label="Highlighted Message"
       platform={platform}

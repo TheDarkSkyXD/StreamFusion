@@ -50,7 +50,7 @@ function makePin(overrides: Partial<NormalizedPinnedMessage> = {}): NormalizedPi
 // Guards: pin metadata empty paths (pinnedBy=null → "Pinned message" fallback; sentAt=null → timestamp omitted; no badges → header still renders) must never throw — the banner is rendered eagerly while the GQL pin poller resolves
 // Guards: viewer vs mod role gating — viewers see the expanded hide-eye button, while Twitch mods get Hide for yourself and Unpin message inside the options menu
 // Guards: Unpin is a direct action and never swaps to a separate confirmation button
-// Guards: long-content paths (truncate-safe usernames, collapsed preview, expanded full body, break-all on link fragments) — the banner must not push siblings off-screen at multistream's ~280px slot floor
+// Guards: long-content paths (truncate-safe usernames, collapsed preview, expanded Twitch-style scroll area, break-all on link fragments) — the banner must not push siblings off-screen at multistream's ~280px slot floor
 // Exempt: no async branch in source — pin data is delivered via prop from the upstream Twitch GQL pin poller / Kick Pusher event. Loading/error live in the poller; the empty state ("no pinned message") is "parent omits the banner entirely", validated at PinnedMessageBanner's consumer (TwitchChat / KickChat).
 // Guards: mention fragments render as @username in pinned-message bodies without duplicating an existing @ prefix
 // Guards: pinned-message cards use the same neutral-800 surface as the global search input across platforms
@@ -949,9 +949,7 @@ describe("PinnedMessageBanner", () => {
     const unpinButton = screen.getByText("Unpin message");
     expect(applyButton.compareDocumentPosition(hideButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(hideButton.compareDocumentPosition(unpinButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(applyButton.compareDocumentPosition(unpinButton)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
+    expect(applyButton.compareDocumentPosition(unpinButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(unpinButton.closest("button")?.querySelector("svg")).toBeInTheDocument();
 
     fireEvent.click(hideButton);
@@ -1055,6 +1053,44 @@ describe("PinnedMessageBanner", () => {
     expect(expandedContent.getAttribute("style") ?? "").not.toContain("max-height");
   });
 
+  it("caps expanded pins in a Twitch-style scroll area", () => {
+    const longText = "expanded pinned message ".repeat(80);
+    const { rerender } = render(
+      <PinnedMessageBanner
+        pin={makePin({ content: [{ type: "text", content: longText }] })}
+        viewerRole="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />
+    );
+
+    const collapsedScrollArea = screen.getByTestId("pinned-message-scroll-area");
+    expect(collapsedScrollArea).toHaveAttribute("data-expanded", "false");
+    expect(collapsedScrollArea.getAttribute("style") ?? "").not.toContain("overflow");
+    expect(collapsedScrollArea.getAttribute("style") ?? "").not.toContain("max-height");
+
+    rerender(
+      <PinnedMessageBanner
+        pin={makePin({ content: [{ type: "text", content: longText }] })}
+        viewerRole="viewer"
+        isExpanded={true}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />
+    );
+
+    const expandedScrollArea = screen.getByTestId("pinned-message-scroll-area");
+    expect(expandedScrollArea).toHaveAttribute("data-expanded", "true");
+    expect(expandedScrollArea.getAttribute("style")).toContain("max-height: 200px");
+    expect(expandedScrollArea.getAttribute("style")).toContain("overflow-x: hidden");
+    expect(expandedScrollArea.getAttribute("style")).toContain("overflow-y: scroll");
+    expect(expandedScrollArea.getAttribute("style")).toContain("margin-inline-end: -10px");
+    expect(expandedScrollArea.getAttribute("style")).toContain("scrollbar-color:");
+    expect(expandedScrollArea.getAttribute("style")).not.toContain("mask-image:");
+    expect(expandedScrollArea.className).toContain("pinned-message-scrollbar");
+  });
+
   it("collapsed state keeps long URLs clickable inside the preview", () => {
     // The preview clips overall height, but link fragments still keep their
     // own break-all behavior so the visible URL text remains usable.
@@ -1080,9 +1116,33 @@ describe("PinnedMessageBanner", () => {
     expect(content).toHaveAttribute("data-expanded", "false");
   });
 
-  it("truncates a long 'Pinned by' username so it can't overflow the header", () => {
+  it("only clips 'Pinned by' usernames longer than 20 characters", () => {
     const longUsername = "bobfarrfuturepopsuperstar";
-    render(
+    const { rerender } = render(
+      <PinnedMessageBanner
+        pin={makePin({
+          pinnedBy: {
+            username: "exactlytwentychars!!",
+            color: "#FF6F61",
+            badges: [],
+          },
+        })}
+        viewerRole="viewer"
+        isExpanded={false}
+        onExpandToggle={() => {}}
+        onDismiss={() => {}}
+      />
+    );
+
+    let usernameWrapper = screen.getByTestId("pinned-message-header-username");
+    expect(usernameWrapper.className).not.toContain("overflow-hidden");
+    let usernameEl = screen.getByText("exactlytwentychars!!");
+    expect(usernameEl.className).not.toContain("truncate");
+    expect(usernameEl.closest(".chat-line__username-container")?.className).toContain(
+      "whitespace-nowrap"
+    );
+
+    rerender(
       <PinnedMessageBanner
         pin={makePin({
           pinnedBy: {
@@ -1107,11 +1167,18 @@ describe("PinnedMessageBanner", () => {
         onDismiss={() => {}}
       />
     );
-    // Username span is the only piece allowed to give up width — it truncates
-    // and shrinks below its content.
-    const usernameEl = screen.getByText(longUsername);
+    // Username wrapper is the only piece allowed to give up width. It clips
+    // the clickable Username component so the inner text ellipsis can fire.
+    usernameWrapper = screen.getByTestId("pinned-message-header-username");
+    expect(usernameWrapper.className).toContain("min-w-0");
+    expect(usernameWrapper.className).toContain("overflow-hidden");
+    usernameEl = screen.getByText(longUsername);
     expect(usernameEl.className).toContain("truncate");
-    expect(usernameEl.className).toContain("min-w-0");
+    expect(usernameEl.className).toContain("block");
+    expect(usernameEl.className).toContain("max-w-full");
+    expect(usernameEl.closest(".chat-line__username-container")?.className).toContain(
+      "whitespace-nowrap"
+    );
     // The "Pinned by" label and badge wrapper must NOT shrink — if either
     // absorbs the shrink budget, the username's truncate is bypassed and
     // overflow returns.

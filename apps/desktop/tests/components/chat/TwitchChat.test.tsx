@@ -22,6 +22,8 @@ const unbanUserMock = vi.fn();
 const deleteChatMessageMock = vi.fn();
 const pinChatMessageMock = vi.fn();
 const updatePinnedChatMessageMock = vi.fn();
+const eventSubUnsubscribeMock = vi.fn();
+const eventSubModerateHandlers: Array<(payload: unknown) => void> = [];
 
 vi.mock("@/backend/api/platforms/twitch/twitch-gql-pin-mutations", () => ({
   pinChatMessage: (...args: unknown[]) => pinChatMessageMock(...args),
@@ -38,6 +40,17 @@ vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation-mutations", () =
 
 vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
   getModeratedChannels: vi.fn(),
+}));
+
+vi.mock("@/backend/api/platforms/twitch/twitch-eventsub-client", () => ({
+  getTwitchEventSubClient: vi.fn(() => ({
+    subscribe: vi.fn((eventType: string, channelId: string, handler: (payload: unknown) => void) => {
+      if (eventType === "channel.moderate" && channelId === "ninja-id") {
+        eventSubModerateHandlers.push(handler);
+      }
+      return eventSubUnsubscribeMock;
+    }),
+  })),
 }));
 
 const promptReconnectMock = vi.fn();
@@ -244,6 +257,7 @@ vi.mock("@/components/chat/PredictionBanner", () => ({
 }));
 
 import { getModeratedChannels } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+import { getTwitchEventSubClient } from "@/backend/api/platforms/twitch/twitch-eventsub-client";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { initializeTwitchEmotes } from "@/backend/services/emotes";
 import { TwitchChat } from "@/components/chat/twitch/TwitchChat";
@@ -276,8 +290,10 @@ const fakePrediction = {
 // Guards: Twitch chat loads badges with the watched channel id, not the signed-in user's id, so channel subscriber badges resolve for other broadcasters.
 // Guards: Twitch singleton message events from a previous channel are ignored after route-switch so old channel badges/messages cannot leak into the new channel bucket.
 // Guards: Twitch chat force-refreshes the active channel's badge catalog so custom subscriber badge updates appear without restarting the app.
+// Guards: Twitch channel.moderate delete notifications attach the deleting moderator to retained deleted-message rows; IRC CLEARMSG alone cannot provide that actor.
 describe("TwitchChat", () => {
   beforeEach(() => {
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
     const api = installElectronAPIMock();
     // Provide a Twitch token so the U11 onConfirm path doesn't early-out.
     api.auth.getToken = vi.fn(async () => ({ accessToken: "tok", scope: [] }));
@@ -298,6 +314,8 @@ describe("TwitchChat", () => {
     deleteChatMessageMock.mockReset();
     pinChatMessageMock.mockReset();
     updatePinnedChatMessageMock.mockReset();
+    eventSubUnsubscribeMock.mockReset();
+    eventSubModerateHandlers.length = 0;
     lastPinnedBannerProps.onUpdateDuration = undefined;
     mockModScopes.hasModScopes = true;
     mockModScopes.loading = false;
@@ -305,6 +323,7 @@ describe("TwitchChat", () => {
     vi.mocked(twitchChatService.connect).mockClear();
     vi.mocked(twitchChatService.loadChannelBadges).mockClear();
     vi.mocked(twitchChatService.joinChannel).mockClear();
+    vi.mocked(getTwitchEventSubClient).mockClear();
     loadGlobalEmotesMock.mockReset();
     loadChannelEmotesMock.mockReset();
     vi.mocked(initializeTwitchEmotes).mockReset();
@@ -975,6 +994,85 @@ describe("TwitchChat", () => {
     expect(storeState.deleteMessage).toHaveBeenCalledWith("twitch:ninja", "msg-1", {
       deletedAt,
     });
+  });
+
+  it("marks Twitch EventSub delete notifications with the deleting moderator", async () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() => expect(eventSubModerateHandlers).toHaveLength(1));
+    act(() => {
+      eventSubModerateHandlers[0]?.({
+        subscription: {
+          id: "sub-1",
+          type: "channel.moderate",
+          version: "2",
+          status: "enabled",
+          cost: 0,
+          condition: { broadcaster_user_id: "ninja-id", moderator_user_id: "mod-1" },
+          transport: { method: "websocket", session_id: "session-1" },
+          created_at: "2026-07-02T23:00:00Z",
+        },
+        event: {
+          broadcaster_user_id: "ninja-id",
+          broadcaster_user_login: "ninja",
+          broadcaster_user_name: "Ninja",
+          moderator_user_id: "mod-2",
+          moderator_user_login: "OtherMod",
+          moderator_user_name: "OtherMod",
+          action: "delete",
+          delete: {
+            user_id: "target-1",
+            user_login: "spammer",
+            user_name: "Spammer",
+            message_id: "msg-1",
+            message_body: "bad message",
+          },
+        },
+      });
+    });
+
+    expect(storeState.deleteMessage).toHaveBeenCalledWith(
+      "twitch:ninja",
+      "msg-1",
+      expect.objectContaining({
+        deletedByUsername: "OtherMod",
+        deletedByUser: expect.objectContaining({
+          userId: "mod-2",
+          username: "OtherMod",
+          displayName: "OtherMod",
+        }),
+      })
+    );
+  });
+
+  it("creates Twitch EventSub subscriptions with a fresh token and a refresh callback", async () => {
+    const api = installElectronAPIMock();
+    api.auth.getToken = vi.fn(async () => ({ accessToken: "stored-token", scope: [] }));
+    api.auth.getValidTwitchToken = vi.fn(async () => "fresh-eventsub-token");
+    vi.stubEnv("VITE_TWITCH_CLIENT_ID", "configured-eventsub-client");
+
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() =>
+      expect(getTwitchEventSubClient).toHaveBeenCalledWith(
+        "fresh-eventsub-token",
+        "mod-1",
+        expect.objectContaining({
+          clientId: "configured-eventsub-client",
+          tokenFetcher: expect.any(Function),
+        })
+      )
+    );
+  });
+
+  it("does not create channel.moderate EventSub subscriptions for non-mod viewers", async () => {
+    mockIsTwitchMod.value = false;
+
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() => expect(twitchChatService.loadChannelBadges).toHaveBeenCalled());
+    expect(getTwitchEventSubClient).not.toHaveBeenCalled();
+    expect(eventSubModerateHandlers).toHaveLength(0);
   });
 
   it("renders the prediction banner when a prediction arrives (showPredictions true)", () => {

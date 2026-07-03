@@ -223,6 +223,56 @@ function serializeFragments(message: string, slots: Emote[]): ContentFragment[] 
   return out;
 }
 
+function normalizeReplyMentionUsername(username: string): string {
+  return username.trim().replace(/^@+/, "");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function startsWithReplyMention(message: string, username: string): boolean {
+  const normalizedUsername = normalizeReplyMentionUsername(username);
+  if (!normalizedUsername) return false;
+
+  return new RegExp(`^@${escapeRegExp(normalizedUsername)}(?:\\s|$)`, "i").test(message);
+}
+
+function withReplyMention(
+  username: string,
+  message: string,
+  fragments: ContentFragment[]
+): { message: string; fragments: ContentFragment[] } {
+  const normalizedUsername = normalizeReplyMentionUsername(username);
+  if (!normalizedUsername || startsWithReplyMention(message, normalizedUsername)) {
+    return { message, fragments };
+  }
+
+  const prefixedMessage = `@${normalizedUsername} ${message}`;
+  const mentionFragment: ContentFragment = { type: "mention", username: normalizedUsername };
+  const [firstFragment, ...restFragments] = fragments;
+
+  if (!firstFragment) {
+    return { message: prefixedMessage, fragments: [mentionFragment] };
+  }
+
+  if (firstFragment.type === "text") {
+    return {
+      message: prefixedMessage,
+      fragments: [
+        mentionFragment,
+        { ...firstFragment, content: ` ${firstFragment.content}` },
+        ...restFragments,
+      ],
+    };
+  }
+
+  return {
+    message: prefixedMessage,
+    fragments: [mentionFragment, { type: "text", content: " " }, ...fragments],
+  };
+}
+
 /** Convert the editor's placeholder-bearing value into the actual chat-server
  *  string. Native Kick emotes serialize as `[emote:id:name]` so the Kick chat
  *  server broadcasts them with that markup — without it, kick.com renders our
@@ -1225,12 +1275,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const sendChatPayload = useCallback(
       async (trimmedMessage: string, localFragments: ContentFragment[]) => {
         if (reply) {
+          const replyPayload = withReplyMention(reply.username, trimmedMessage, localFragments);
           if (platform === "twitch") {
             await twitchChatService.sendReply(
               channel,
               reply.messageId,
-              trimmedMessage,
-              localFragments
+              replyPayload.message,
+              replyPayload.fragments
             );
           } else {
             const localReplyTo: ReplyInfo = {
@@ -1242,9 +1293,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             };
             await kickChatService.sendMessage(
               channel,
-              `@${reply.username} ${trimmedMessage}`,
+              replyPayload.message,
               kickUser ?? undefined,
-              localFragments,
+              replyPayload.fragments,
               localReplyTo
             );
           }

@@ -741,6 +741,43 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     expect(highlight).not.toHaveAccessibleName("Twitch Timeout notice");
   });
 
+  it("keeps timeout and ban summary usernames on one line", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          type: "ban",
+          banInfo: {
+            bannedUsername: "juice94",
+            bannedByUsername: "ModBot",
+            bannedUser: {
+              userId: "u-juice94",
+              username: "juice94",
+              displayName: "juice94",
+              color: "#1ba6ff",
+              badges: [],
+            },
+            bannedByUser: {
+              userId: "u-modbot",
+              username: "ModBot",
+              displayName: "ModBot",
+              color: "#ffb454",
+              badges: [],
+            },
+            duration: 3600,
+          },
+        })}
+      />
+    );
+
+    const highlightedNames = screen
+      .getByTestId("moderation-action-highlight")
+      .querySelectorAll(".chat-line__username-container");
+    expect(highlightedNames).toHaveLength(2);
+    highlightedNames.forEach((name) => {
+      expect(name.className).toContain("whitespace-nowrap");
+    });
+  });
+
   it("bottom-aligns deleted-message text inside Cozy timeout/ban highlights", () => {
     setChatDisplay({ moderationHighlightStyle: "cozy" });
     render(
@@ -782,6 +819,8 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     const firstRow = deletedMessages.querySelector("li");
     expect(deletedMessages.className).toContain("[&_li>span:first-child]:items-end");
     expect(firstRow?.children[0]?.className).toContain("items-end");
+    expect(firstRow?.className).toContain("text-base");
+    expect(firstRow?.className).toContain("leading-[22px]");
     expect(firstRow?.querySelector(".chat-line__username-container")?.className).toContain(
       "whitespace-nowrap"
     );
@@ -864,6 +903,8 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     expect(screen.getAllByAltText("subscriber")).toHaveLength(3);
     const firstRow = deletedMessages.querySelector("li");
     expect(firstRow?.className).toContain("text-white");
+    expect(firstRow?.className).toContain("text-base");
+    expect(firstRow?.className).toContain("leading-[22px]");
     expect(firstRow?.className).toContain("align-bottom");
     expect(firstRow?.children[0]?.className).toContain("items-end");
     expect(firstRow?.querySelector(".chat-line__username-container")?.className).toContain(
@@ -963,6 +1004,32 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     expect(deletedAt.parentElement?.className).toContain("align-bottom");
   });
 
+  it("keeps deleted-message highlight attribution usernames on one line", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          isDeleted: true,
+          deletedAt: new Date("2026-06-29T17:45:00"),
+          deletedByUser: {
+            userId: "u-modbot",
+            username: "ModBot",
+            displayName: "ModBot",
+            color: "#ffb454",
+            badges: [],
+          },
+        })}
+      />
+    );
+
+    const highlightedNames = screen
+      .getByTestId("deleted-message-highlight")
+      .querySelectorAll(".chat-line__username-container");
+    expect(highlightedNames).toHaveLength(2);
+    highlightedNames.forEach((name) => {
+      expect(name.className).toContain("whitespace-nowrap");
+    });
+  });
+
   it("renders deleted-message highlights with the framed Cozy style when selected", () => {
     setChatDisplay({ moderationHighlightStyle: "cozy" });
     render(<ChatMessage message={baseMessage({ isDeleted: true })} />);
@@ -1056,9 +1123,9 @@ describe("ChatMessage event/notice visibility (U5)", () => {
       />
     );
 
-    expect(screen.getByTestId("highlighted-message-highlight")).toHaveAccessibleName(
-      "Twitch Highlighted Message notice"
-    );
+    const card = screen.getByTestId("highlighted-message-highlight");
+    expect(card).toHaveAccessibleName("Twitch Highlighted Message notice");
+    expect(card.style.borderLeft).toMatch(/^3px solid/);
     expect(screen.queryByTestId("first-time-chat-highlight")).toBeNull();
     expect(screen.getByText("read this one")).toBeInTheDocument();
   });
@@ -1101,7 +1168,36 @@ describe("ChatMessage event/notice visibility (U5)", () => {
     expect(screen.queryByText("Twitch")).toBeNull();
     expect(screen.queryByText("System")).toBeNull();
     expect(container.querySelector(".group")).toBeNull();
-    expect(card.style.borderLeft).toMatch(/^1px solid/);
+    expect(card.style.borderLeft).toMatch(/^3px solid/);
+  });
+
+  it("renders subscription event usernames with their color and profile affordance", () => {
+    render(
+      <ChatMessage
+        currentChannelContext={{ channelId: "channel-1", channelSlug: "streamer" }}
+        message={baseMessage({
+          type: "system",
+          platform: "twitch",
+          userId: "subber-id",
+          username: "ssquirrrellll",
+          displayName: "Ssquirrrellll",
+          color: "#c084fc",
+          isHighlighted: true,
+          highlightKind: "subscription",
+          content: [{ type: "text", content: "Ssquirrrellll subscribed at Tier 1" }],
+          rawContent: "Ssquirrrellll subscribed at Tier 1",
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("subscription-highlight")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ssquirrrellll" })).toBeInTheDocument();
+    expect(screen.getByText("Ssquirrrellll")).toHaveStyle({ color: "rgb(192, 132, 252)" });
+    expect(screen.getByText("Ssquirrrellll").closest(".flex-col")?.className).toContain(
+      "items-start"
+    );
+    expect(screen.getByTestId("subscription-highlight").style.borderLeft).toMatch(/^3px solid/);
+    expect(screen.getByText("Subscribed at Tier 1")).toBeInTheDocument();
   });
 
   it("wraps Twitch bits chat messages as cheer highlights", () => {

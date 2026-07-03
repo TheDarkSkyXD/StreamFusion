@@ -933,6 +933,18 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     return clearProgrammaticScrollTarget;
   }, [isOpen, clearProgrammaticScrollTarget]);
 
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const scrollRoot = scrollRef.current;
+    if (scrollRoot) {
+      scrollRoot.scrollTop = 0;
+    }
+    setScrollSnapshot({
+      top: 0,
+      height: scrollRoot?.clientHeight || DEFAULT_PICKER_VIEWPORT_PX,
+    });
+  }, [isOpen]);
+
   useEffect(() => {
     const pendingTarget = programmaticScrollTargetRef.current;
     if (pendingTarget && !subSections.some((sub) => sub.id === pendingTarget)) {

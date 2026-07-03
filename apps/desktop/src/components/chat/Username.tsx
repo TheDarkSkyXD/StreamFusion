@@ -77,6 +77,8 @@ interface UsernameProps {
   suffix?: React.ReactNode;
   /** Keep suffix punctuation visually attached to the username in compact highlight rows. */
   keepSuffixAttached?: boolean;
+  /** Prevent compact attribution usernames from breaking across lines. */
+  noWrap?: boolean;
 }
 
 export const Username: React.FC<UsernameProps> = ({
@@ -90,6 +92,7 @@ export const Username: React.FC<UsernameProps> = ({
   currentChannelContext,
   suffix,
   keepSuffixAttached = false,
+  noWrap = false,
 }) => {
   const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const platformDefaultColor = platform === "kick" ? "#53fc18" : "#9146ff";
@@ -132,7 +135,7 @@ export const Username: React.FC<UsernameProps> = ({
 
   return (
     <span
-      className={`chat-line__username-container chat-line__username-container--hoverable -mx-0.5 inline-block max-w-full break-words rounded-[4px] px-0.5 [overflow-wrap:anywhere] transition-colors duration-100 hover:bg-[rgba(255,255,255,0.16)] active:bg-[rgba(255,255,255,0.16)] focus-within:bg-[rgba(255,255,255,0.16)] ${keepSuffixAttached ? "whitespace-nowrap" : ""}`}
+      className={`chat-line__username-container chat-line__username-container--hoverable -mx-0.5 inline-block max-w-full break-words rounded-[4px] px-0.5 [overflow-wrap:anywhere] transition-colors duration-100 hover:bg-[rgba(255,255,255,0.16)] active:bg-[rgba(255,255,255,0.16)] focus-within:bg-[rgba(255,255,255,0.16)] ${keepSuffixAttached || noWrap ? "whitespace-nowrap" : ""}`}
     >
       <span
         className="chat-line__username max-w-full cursor-pointer break-words no-underline [overflow-wrap:anywhere] hover:no-underline focus:outline-none focus-visible:ring-1 focus-visible:ring-white"

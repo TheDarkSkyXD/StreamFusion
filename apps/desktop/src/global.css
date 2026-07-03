@@ -294,3 +294,33 @@ body {
   border-radius: 2px;
   background-clip: content-box;
 }
+
+.pinned-message-scrollbar {
+  scrollbar-color: #90909077 transparent;
+  scrollbar-width: thin;
+}
+
+.pinned-message-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.pinned-message-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pinned-message-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #90909077;
+  border-radius: 2px;
+  background-clip: content-box;
+}
+
+.pinned-message-scrollbar::-webkit-scrollbar-button,
+.pinned-message-scrollbar::-webkit-scrollbar-button:single-button,
+.pinned-message-scrollbar::-webkit-scrollbar-button:vertical:start:decrement,
+.pinned-message-scrollbar::-webkit-scrollbar-button:vertical:end:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  -webkit-appearance: none;
+}
