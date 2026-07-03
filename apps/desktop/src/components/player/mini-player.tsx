@@ -25,9 +25,7 @@ import { useVolume } from "./hooks/use-volume";
 const MINI_PLAYER_WIDTH = 400;
 const MINI_PLAYER_HEIGHT = 225;
 const PADDING = 16;
-// Max URL-refresh attempts before giving up and closing PiP
 const MAX_REFRESH_ATTEMPTS = 2;
-
 export function MiniPlayer() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,12 +42,9 @@ export function MiniPlayer() {
   const isViewingStreamRoute = location.pathname.startsWith("/stream/");
   const shouldHideForStreamPage = isOnStreamPage || isViewingStreamRoute;
 
-  // Fetch a fresh playback URL for the mini player. The URL stored in the pip
-  // store is a snapshot from when the user was on the stream page; its JWT
-  // token expires after ~30-90 minutes. We refetch independently so the mini
-  // player can survive past that expiry. When the mini player is hidden (no
-  // currentStream, or user is on the stream page) we pass an empty channel
-  // name which short-circuits the fetch.
+  // Resolve playback when the mini player is visible. When hidden (no
+  // currentStream, or user is on the stream page) pass an empty channel name
+  // which short-circuits the fetch.
   const platform = (currentStream?.platform ?? "kick") as Platform;
   const channelName = !shouldHideForStreamPage && currentStream ? currentStream.channelName : "";
   const {
@@ -104,7 +99,7 @@ export function MiniPlayer() {
     return () => window.removeEventListener("resize", updatePosition);
   }, []);
 
-  // Reset error state whenever a fresh URL arrives (e.g. after a reload())
+  // Reset error state whenever playback becomes available again.
   useEffect(() => {
     if (streamUrl) setHasError(false);
   }, [streamUrl]);
@@ -223,17 +218,11 @@ export function MiniPlayer() {
 
   const handleError = useCallback(
     (error: PlayerError) => {
-      // Treat 403/404/token-expired errors as a stale URL first: ask the
-      // backend for a fresh playback URL and let HlsPlayer re-init. Only after
-      // MAX_REFRESH_ATTEMPTS exhausted do we assume the stream is truly gone.
-      const isRefreshable =
-        error.code === "STREAM_OFFLINE" ||
-        error.code === "TOKEN_EXPIRED" ||
-        error.code === "NO_FRAGMENTS" ||
-        error.shouldRefresh === true;
+      const shouldRefreshForLiveTwitchError =
+        isTwitchStream && (error.shouldRefresh === true || error.code === "TOKEN_EXPIRED");
 
-      if (isRefreshable && reloadAttempts < MAX_REFRESH_ATTEMPTS) {
-        logger.debug("Player:Mini", "refreshing URL after refreshable error", {
+      if (shouldRefreshForLiveTwitchError && reloadAttempts < MAX_REFRESH_ATTEMPTS) {
+        logger.debug("Player:Mini", "refreshing URL after live twitch error", {
           code: error.code,
           attempt: reloadAttempts + 1,
           maxAttempts: MAX_REFRESH_ATTEMPTS,
@@ -242,13 +231,13 @@ export function MiniPlayer() {
         return;
       }
 
-      logger.error("Player:Mini", "error (refresh exhausted)", { error });
+      logger.error("Player:Mini", "player error", { error });
       setHasError(true);
       if (error.code === "STREAM_OFFLINE") {
         closePip();
       }
     },
-    [closePip, reload, reloadAttempts]
+    [closePip, isTwitchStream, reload, reloadAttempts]
   );
 
   // Don't render if not active or no stream
@@ -290,6 +279,7 @@ export function MiniPlayer() {
             autoPlay={true}
             currentLevel="auto"
             onError={handleError}
+            onAdBlockRecoveryRefresh={reload}
             className="w-full h-full object-contain"
             controls={false}
           />

@@ -19,9 +19,7 @@ import { TwitchHlsPlayer } from "./twitch-hls-player";
 import { TwitchLivePlayerControls } from "./twitch-live-player-controls";
 import { VideoStatsOverlay } from "./video-stats-overlay";
 
-// Maximum auto-retry attempts before showing error to user
 const MAX_AUTO_RETRY_ATTEMPTS = 2;
-// Delay between retry attempts (exponential backoff base)
 const RETRY_DELAY_BASE_MS = 1500;
 
 export interface TwitchLivePlayerProps {
@@ -39,7 +37,7 @@ export interface TwitchLivePlayerProps {
   isTheater?: boolean;
   onToggleTheater?: () => void;
   enableAdBlock?: boolean;
-  // Auto-refresh callback - called when player needs a fresh URL (token expired, etc.)
+  // Error/ad-block recovery refresh callback.
   onRefresh?: () => void;
 }
 
@@ -101,7 +99,6 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
   const [hasError, setHasError] = useState(false);
   const [showVideoStats, setShowVideoStats] = useState(false);
 
-  // Auto-retry state for handling stale tokens/URLs
   const autoRetryCountRef = useRef(0);
   const isRetryingRef = useRef(false);
 
@@ -124,9 +121,8 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
     setIsReady(false);
   }, []);
 
-  // Reset auto-retry state when streamUrl changes (new stream)
   useEffect(() => {
-    void streamUrl; // Used as dependency trigger
+    void streamUrl;
     autoRetryCountRef.current = 0;
     isRetryingRef.current = false;
   }, [streamUrl]);
@@ -279,10 +275,9 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
           onAdBlockRecoveryRefresh={onRefresh}
           onError={(error: PlayerError) => {
             // Determine if this error is recoverable via URL refresh
-            const isRefreshableError =
-              error.shouldRefresh === true ||
-              error.code === "NO_FRAGMENTS" ||
-              error.code === "TOKEN_EXPIRED";
+            const isRefreshableError = error.code === "TOKEN_EXPIRED";
+            const isAdBlockHoldablePlaybackError =
+              error.code === "NO_FRAGMENTS" || error.code === "STREAM_OFFLINE";
             const isAdBlockHoldingPlayback =
               effectiveEnableAdBlock &&
               !!adBlockStatus &&
@@ -290,7 +285,10 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
                 adBlockStatus.isStrippingSegments ||
                 adBlockStatus.isUsingFallbackMode);
 
-            if (isRefreshableError && isAdBlockHoldingPlayback) {
+            if (
+              (isRefreshableError || isAdBlockHoldablePlaybackError) &&
+              isAdBlockHoldingPlayback
+            ) {
               logger.debug("Player:Twitch:Live", "suppressing refresh while adblock is active", {
                 code: error.code,
               });
@@ -298,7 +296,6 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
               return;
             }
 
-            // Check if we should auto-retry
             const canRetry =
               isRefreshableError &&
               onRefresh &&
@@ -306,36 +303,33 @@ export function TwitchLivePlayer(props: TwitchLivePlayerProps) {
               !isRetryingRef.current;
 
             if (canRetry) {
-              // Mark as retrying to prevent concurrent retries
               isRetryingRef.current = true;
               autoRetryCountRef.current += 1;
 
               const attemptNum = autoRetryCountRef.current;
-              const delay = RETRY_DELAY_BASE_MS * attemptNum; // Exponential backoff: 1.5s, 3s
+              const delay = RETRY_DELAY_BASE_MS * attemptNum;
 
-              logger.debug("Player:Twitch:Live", "error detected, auto-retrying", {
+              logger.debug("Player:Twitch:Live", "twitch error detected, auto-refreshing", {
                 code: error.code,
                 attempt: attemptNum,
                 maxAttempts: MAX_AUTO_RETRY_ATTEMPTS,
                 delayMs: delay,
               });
 
-              // Show loading state during retry
               setIsLoading(true);
 
-              // Wait before retrying (gives CDN time to update, prevents hammering)
               void sleep(delay).then(() => {
                 if (isRetryingRef.current) {
                   isRetryingRef.current = false;
-                  onRefresh(); // Request fresh playback URL from parent
+                  onRefresh();
                 }
               });
 
-              return; // Don't show error to user yet
+              return;
             }
 
-            // Either not a refreshable error, or retries exhausted - show error to user
             logger.error("Player:Twitch:Live", "player error", {
+              refreshable: isRefreshableError,
               retries: autoRetryCountRef.current,
               error,
             });

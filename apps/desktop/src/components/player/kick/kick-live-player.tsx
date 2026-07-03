@@ -3,7 +3,6 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRenderCount } from "@/components/dev/use-render-count";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
-import { sleep } from "@/lib/sleep";
 import { logger } from "@/renderer/logging/logger";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
@@ -18,11 +17,6 @@ import { KickHlsPlayer } from "./kick-hls-player";
 import { KickLivePlayerControls } from "./kick-live-player-controls";
 import type { KickProgressBarHandle } from "./kick-progress-bar";
 import { UptimeReadout } from "./uptime-readout";
-
-// Maximum auto-retry attempts before showing error to user
-const MAX_AUTO_RETRY_ATTEMPTS = 2;
-// Delay between retry attempts (exponential backoff base)
-const RETRY_DELAY_BASE_MS = 1500;
 
 export interface KickLivePlayerProps {
   streamUrl: string;
@@ -41,7 +35,7 @@ export interface KickLivePlayerProps {
   title?: string;
   thumbnail?: string;
   startedAt?: string | null; // Stream start time for uptime calculation, or null if unknown
-  // Auto-refresh callback - called when player needs a fresh URL (token expired, etc.)
+  // Optional manual refresh callback retained for page-level compatibility.
   onRefresh?: () => void;
 }
 
@@ -63,7 +57,6 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
     title,
     thumbnail,
     startedAt,
-    onRefresh,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,10 +100,6 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [hasError, setHasError] = useState(false);
 
-  // Auto-retry state for handling stale tokens/URLs
-  const autoRetryCountRef = useRef(0);
-  const isRetryingRef = useRef(false);
-
   // Apply user's default quality preference
   useDefaultQuality(availableQualities, currentQualityId, setCurrentQualityId);
 
@@ -119,13 +108,6 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
     setHasError(false);
     setIsReady(false);
   }, []);
-
-  // Reset auto-retry state when streamUrl changes (new stream)
-  useEffect(() => {
-    void streamUrl; // Used as dependency trigger
-    autoRetryCountRef.current = 0;
-    isRetryingRef.current = false;
-  }, [streamUrl]);
 
   // Resume playback if Chromium auto-paused the video when the window was minimized
   useEffect(() => {
@@ -324,56 +306,9 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
           currentLevel={currentQualityId}
           onQualityLevels={handleQualityLevels}
           onError={(error) => {
-            // Determine if this error is recoverable via URL refresh
-            const isRefreshableError =
-              error.shouldRefresh === true ||
-              error.code === "NO_FRAGMENTS" ||
-              error.code === "TOKEN_EXPIRED";
-
-            // Check if we should auto-retry
-            const canRetry =
-              isRefreshableError &&
-              onRefresh &&
-              autoRetryCountRef.current < MAX_AUTO_RETRY_ATTEMPTS &&
-              !isRetryingRef.current;
-
-            if (canRetry) {
-              // Mark as retrying to prevent concurrent retries
-              isRetryingRef.current = true;
-              autoRetryCountRef.current += 1;
-
-              const attemptNum = autoRetryCountRef.current;
-              const delay = RETRY_DELAY_BASE_MS * attemptNum; // Exponential backoff: 1.5s, 3s
-
-              logger.debug("Player:Kick:Live", "error detected, auto-retrying", {
-                code: error.code,
-                attempt: attemptNum,
-                maxAttempts: MAX_AUTO_RETRY_ATTEMPTS,
-                delayMs: delay,
-              });
-
-              // Show loading state during retry
-              setIsLoading(true);
-
-              // Wait before retrying (gives CDN time to update, prevents hammering)
-              void sleep(delay).then(() => {
-                if (isRetryingRef.current) {
-                  isRetryingRef.current = false;
-                  onRefresh(); // Request fresh playback URL from parent
-                }
-              });
-
-              return; // Don't show error to user yet
-            }
-
-            // Either not a refreshable error, or retries exhausted - show error to user
-            logger.error("Player:Kick:Live", "player error", {
-              retries: autoRetryCountRef.current,
-              error,
-            });
+            logger.error("Player:Kick:Live", "player error", { error });
             setHasError(true);
             setIsLoading(false);
-            isRetryingRef.current = false;
             onError?.(error);
           }}
           onHlsInstance={handleHlsInstance}
@@ -426,7 +361,6 @@ export function KickLivePlayer(props: KickLivePlayerProps) {
           progressBarRef={progressBarRef}
           playbackRate={playbackRate}
           onPlaybackRateChange={handlePlaybackRateChange}
-          onRefresh={onRefresh}
         />
       )}
     </div>

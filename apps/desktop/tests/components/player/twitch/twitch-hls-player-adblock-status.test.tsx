@@ -135,7 +135,7 @@ import { TwitchHlsPlayer } from "@/components/player/twitch/twitch-hls-player";
 
 // Guards: Twitch players publish adblock status during startup so controls can render the shield before any ad playlist event arrives.
 // Guards: Twitch live playback uses the stability-first default HLS buffer config so random CDN jitter is less likely to stall playback.
-// Guards: when Twitch ad-block reports an ad has ended, the player uses the same parent refresh path as the visible refresh button.
+// Guards: fragment watchdog stalls only trigger local HLS recovery, never page-visible errors or parent URL refresh; only ad-block completion can ask the parent for a fresh URL.
 describe("TwitchHlsPlayer adblock status", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -234,7 +234,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(hls.startLoad).toHaveBeenCalledWith(-1);
   });
 
-  it("reports offline within three seconds after live fragments stop arriving", () => {
+  it("locally restarts HLS loading after live fragments stop arriving without reporting an error", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
 
@@ -259,7 +259,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(2999);
+      vi.advanceTimersByTime(19_999);
     });
     expect(onError).not.toHaveBeenCalled();
 
@@ -267,17 +267,12 @@ describe("TwitchHlsPlayer adblock status", () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: "STREAM_OFFLINE",
-        fatal: true,
-        shouldRefresh: true,
-      })
-    );
-    expect(hls.destroy).toHaveBeenCalled();
+    expect(hls.startLoad).toHaveBeenCalledWith(-1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(hls.destroy).not.toHaveBeenCalled();
   });
 
-  it("asks the parent to refresh when no fragments arrive after the manifest loads", () => {
+  it("locally restarts HLS loading after missing startup fragments without reporting an error", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
 
@@ -301,7 +296,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(2999);
+      vi.advanceTimersByTime(19_999);
     });
     expect(onError).not.toHaveBeenCalled();
 
@@ -309,14 +304,9 @@ describe("TwitchHlsPlayer adblock status", () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: "NO_FRAGMENTS",
-        fatal: true,
-        shouldRefresh: true,
-      })
-    );
-    expect(hls.destroy).toHaveBeenCalled();
+    expect(hls.startLoad).toHaveBeenCalledWith(-1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(hls.destroy).not.toHaveBeenCalled();
   });
 
   it("does not report missing fragments while adblock is actively holding playback", () => {

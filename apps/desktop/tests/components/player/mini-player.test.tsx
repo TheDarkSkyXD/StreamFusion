@@ -1,11 +1,20 @@
+import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PlayerError } from "@/components/player/types";
 import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
 
 const routerState = vi.hoisted(() => ({
   pathname: "/",
 }));
 const mockNavigate = vi.hoisted(() => vi.fn());
+const playerProps = vi.hoisted(() => ({
+  kick: null as null | { onError?: (error: PlayerError) => void },
+  twitch: null as null | {
+    onAdBlockRecoveryRefresh?: () => void;
+    onError?: (error: PlayerError) => void;
+  },
+}));
 
 const streamPlaybackMock = vi.hoisted(() => ({
   useStreamPlayback: vi.fn(() => ({
@@ -25,13 +34,21 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/hooks/useStreamPlayback", () => streamPlaybackMock);
 
 vi.mock("@/components/player/hls-player", () => ({
-  HlsPlayer: ({ src }: { src: string }) => <div data-testid="hls-player">{src}</div>,
+  HlsPlayer: (props: { src: string; onError?: (error: PlayerError) => void }) => {
+    playerProps.kick = props;
+    return <div data-testid="hls-player">{props.src}</div>;
+  },
 }));
 
 vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
-  TwitchHlsPlayer: ({ src }: { src: string }) => (
-    <div data-testid="twitch-hls-player">{src}</div>
-  ),
+  TwitchHlsPlayer: (props: {
+    src: string;
+    onAdBlockRecoveryRefresh?: () => void;
+    onError?: (error: PlayerError) => void;
+  }) => {
+    playerProps.twitch = props;
+    return <div data-testid="twitch-hls-player">{props.src}</div>;
+  },
 }));
 
 vi.mock("@/components/player/hooks/use-volume", () => ({
@@ -66,6 +83,8 @@ function primePipStore() {
 describe("MiniPlayer playback routing", () => {
   beforeEach(() => {
     routerState.pathname = "/";
+    playerProps.kick = null;
+    playerProps.twitch = null;
     streamPlaybackMock.useStreamPlayback.mockReset();
     streamPlaybackMock.useStreamPlayback.mockReturnValue({
       playback: null,
@@ -119,7 +138,134 @@ describe("MiniPlayer playback routing", () => {
     expect(screen.getByTestId("hls-player")).toHaveTextContent(
       "https://fresh.example.test/live.m3u8"
     );
-    expect(screen.getByTestId("hls-player")).not.toHaveTextContent("https://example.test/live.m3u8");
+    expect(screen.getByTestId("hls-player")).not.toHaveTextContent(
+      "https://example.test/live.m3u8"
+    );
+  });
+
+  it("does not reload Kick playback when mini-player HLS asks for a refresh", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    primePipStore();
+
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.kick?.onError?.({
+        code: "NO_FRAGMENTS",
+        message: "No video fragments received after manifest load",
+        fatal: true,
+        shouldRefresh: true,
+      });
+    });
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("does not reload Twitch playback when mini-player HLS asks for a refresh", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    usePipStore.setState({
+      currentStream: {
+        platform: "twitch",
+        channelName: "xqc",
+        channelDisplayName: "xQc",
+        streamUrl: "https://stale.example.test/live.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.twitch?.onError?.({
+        code: "NO_FRAGMENTS",
+        message: "No video fragments received after manifest load",
+        fatal: true,
+      });
+    });
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("reloads Twitch playback when mini-player HLS reports a recoverable error", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    usePipStore.setState({
+      currentStream: {
+        platform: "twitch",
+        channelName: "xqc",
+        channelDisplayName: "xQc",
+        streamUrl: "https://stale.example.test/live.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.twitch?.onError?.({
+        code: "TOKEN_EXPIRED",
+        message: "Playback token expired",
+        fatal: true,
+        shouldRefresh: true,
+      });
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("reloads Twitch mini-player playback when adblock recovery completes", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    usePipStore.setState({
+      currentStream: {
+        platform: "twitch",
+        channelName: "xqc",
+        channelDisplayName: "xQc",
+        streamUrl: "https://stale.example.test/live.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.twitch?.onAdBlockRecoveryRefresh?.();
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
   it("closes PiP instead of showing the mini-player when fresh playback says offline", async () => {

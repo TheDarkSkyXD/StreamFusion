@@ -1,5 +1,5 @@
 import { useParams } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PlayerError } from "@/components/player/types";
 import { StreamInfo } from "@/components/stream/stream-info";
@@ -174,6 +174,11 @@ export function StreamPage() {
 
   // Player error state (e.g., stream offline even though URL was provided)
   const [playerError, setPlayerError] = useState<PlayerError | null>(null);
+  const [blockedPlaybackRevision, setBlockedPlaybackRevision] = useState<number | null>(null);
+  const livePlaybackRecheckRef = useRef<{
+    streamIdentity: string;
+    playbackRevision: number;
+  } | null>(null);
 
   // Track clip dialog state to mute main player
   const [isClipDialogOpen, setIsClipDialogOpen] = useState(false);
@@ -181,12 +186,60 @@ export function StreamPage() {
   // Determine if stream is truly live - allow playback if URL exists (optimistic) or confirmed live
   // This allows the player to start buffering while metadata is still fetching
   const isStreamLive = Boolean(streamData?.startedAt || channelData?.isLive);
+  const isStreamMetadataSettled = !isChannelLoading && !isStreamLoading;
+  const hasConfirmedOfflineMetadata = isStreamMetadataSettled && !isStreamLive;
+  const hasConfirmedLiveMetadata = isStreamMetadataSettled && isStreamLive;
+  const streamIdentity = `${routePlatform}:${normalizeChannelLogin(channelName)}`;
+  const playbackIdentity = `${streamIdentity}:${playbackRevision}`;
+  const confirmedOfflineStreamRef = useRef<string | null>(null);
+  const lastPlaybackIdentityRef = useRef(playbackIdentity);
+
+  useEffect(() => {
+    if (lastPlaybackIdentityRef.current === playbackIdentity) return;
+    lastPlaybackIdentityRef.current = playbackIdentity;
+    setBlockedPlaybackRevision(null);
+  }, [playbackIdentity]);
 
   // Helper to trigger proxy fallback
   const triggerProxyFallback = useCallback(() => {
     logger.debug("Page:Stream", "triggering fallback to direct stream");
     retryWithoutProxy();
   }, [retryWithoutProxy]);
+
+  const recheckLivePlayback = useCallback(
+    (reason: { code: string; message?: string }) => {
+      const lastRecheck = livePlaybackRecheckRef.current;
+      setBlockedPlaybackRevision(playbackRevision);
+
+      if (
+        lastRecheck?.streamIdentity === streamIdentity &&
+        lastRecheck.playbackRevision === playbackRevision
+      ) {
+        logger.debug("Page:Stream", "live playback recheck already attempted for revision", {
+          platform: routePlatform,
+          channelName,
+          code: reason.code,
+          playbackRevision,
+        });
+        return;
+      }
+
+      livePlaybackRecheckRef.current = {
+        streamIdentity,
+        playbackRevision,
+      };
+
+      logger.debug("Page:Stream", "rechecking live playback", {
+        platform: routePlatform,
+        channelName,
+        code: reason.code,
+        message: reason.message,
+        playbackRevision,
+      });
+      reloadPlayback();
+    },
+    [channelName, playbackRevision, reloadPlayback, routePlatform, streamIdentity]
+  );
 
   const handlePlayerError = useCallback(
     (error: PlayerError) => {
@@ -198,27 +251,30 @@ export function StreamPage() {
         shouldRefresh: error.shouldRefresh,
       });
 
-      // Handle errors that suggest we need a fresh playback URL
-      // TOKEN_EXPIRED: Playback token expired, need new URL
-      // NO_FRAGMENTS: No video data received after manifest - likely stale URL or offline
-      // STREAM_OFFLINE with shouldRefresh: Stale URL (404/403) but API says live
-      if (error.shouldRefresh || error.code === "TOKEN_EXPIRED" || error.code === "NO_FRAGMENTS") {
-        // Check if we haven't hit the max retries yet (3)
-        if (reloadAttempts < 3) {
-          logger.debug("Page:Stream", "attempting automatic refresh", {
-            code: error.code,
-            attempt: reloadAttempts + 1,
-            maxAttempts: 3,
-          });
+      const isTwitchWatchdogSignal =
+        routePlatform === "twitch" &&
+        (error.code === "NO_FRAGMENTS" ||
+          error.code === "STREAM_OFFLINE" ||
+          error.code === "DECODER_STALL");
+      if (isStreamLive && isTwitchWatchdogSignal) {
+        logger.debug("Page:Stream", "ignoring Twitch watchdog signal while metadata is live", {
+          code: error.code,
+          channelName,
+        });
+        return;
+      }
 
-          reloadPlayback(); // Fetch fresh playback URL
-
-          return; // Don't show error, let refresh attempt
-        } else {
-          logger.debug("Page:Stream", "max reload attempts reached, showing error", {
-            code: error.code,
-          });
-        }
+      const shouldRecheckLivePlayback =
+        isStreamLive &&
+        (error.code === "TOKEN_EXPIRED" ||
+          (routePlatform === "kick" &&
+            (error.shouldRefresh === true ||
+              error.code === "NO_FRAGMENTS" ||
+              error.code === "STREAM_OFFLINE" ||
+              error.code === "DECODER_STALL")));
+      if (shouldRecheckLivePlayback) {
+        recheckLivePlayback({ code: error.code, message: error.message });
+        return;
       }
 
       // PROXY_ERROR is specific to proxy server failures (500 errors)
@@ -230,19 +286,6 @@ export function StreamPage() {
       // STREAM_OFFLINE is expected when a stream ends - use debug logging
       if (error.code === "STREAM_OFFLINE") {
         logger.debug("Page:Stream", "stream ended or went offline");
-
-        if (isStreamLive && reloadAttempts < 3) {
-          logger.debug(
-            "Page:Stream",
-            "refreshing playback after offline signal while metadata is live",
-            {
-              attempt: reloadAttempts + 1,
-              maxAttempts: 3,
-            }
-          );
-          reloadPlayback();
-          return;
-        }
 
         // If we were using proxy and got a network/offline error, try fallback to direct
         if (isUsingProxy && routePlatform === "twitch") {
@@ -267,31 +310,88 @@ export function StreamPage() {
       setPlayerError(error);
     },
     [
+      channelName,
       isUsingProxy,
       isStreamLive,
       routePlatform,
       triggerProxyFallback,
       setTheaterModeActive,
-      reloadPlayback,
-      reloadAttempts,
+      recheckLivePlayback,
     ]
   );
 
   const hasPlayback = Boolean(playback?.url);
-  const effectiveStreamUrl = playback?.url || (isStreamLive && playback?.url ? playback.url : "");
+  const shouldHoldLivePlayback =
+    hasConfirmedLiveMetadata && blockedPlaybackRevision === playbackRevision;
+  const shouldSuppressPlayback = hasConfirmedOfflineMetadata || shouldHoldLivePlayback;
+  const effectiveStreamUrl = shouldSuppressPlayback
+    ? ""
+    : playback?.url || (isStreamLive && playback?.url ? playback.url : "");
+  const hasEffectiveStreamUrl = Boolean(effectiveStreamUrl);
   const offlineCategoryName = channelData?.categoryName || streamData?.categoryName;
   const offlineStreamTitle = channelData?.lastStreamTitle || streamData?.title;
+  const shouldShowPlayerErrorOverlay = Boolean(playerError) && hasConfirmedOfflineMetadata;
   const shouldShowOfflineOverlay =
     !isPlaybackLoading &&
-    !hasPlayback &&
+    !hasEffectiveStreamUrl &&
     !playerError &&
-    (Boolean(playbackError) || (!isChannelLoading && !isStreamLoading && !isStreamLive));
+    (hasConfirmedOfflineMetadata || shouldHoldLivePlayback);
+  const shouldMountLivePlayer =
+    canMountHeavyContent &&
+    hasEffectiveStreamUrl &&
+    !shouldShowPlayerErrorOverlay &&
+    !shouldShowOfflineOverlay;
 
   // Reset player error when playback changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: the URL is the recovery boundary for stale player errors.
   useEffect(() => {
     setPlayerError(null);
   }, [effectiveStreamUrl, playbackRevision]);
+
+  useEffect(() => {
+    if (
+      !hasConfirmedLiveMetadata ||
+      !playbackError ||
+      isPlaybackLoading ||
+      hasPlayback ||
+      reloadAttempts >= 3
+    ) {
+      return;
+    }
+
+    recheckLivePlayback({ code: "PLAYBACK_URL_ERROR", message: playbackError.message });
+  }, [
+    hasConfirmedLiveMetadata,
+    hasPlayback,
+    isPlaybackLoading,
+    playbackError,
+    reloadAttempts,
+    recheckLivePlayback,
+  ]);
+
+  useEffect(() => {
+    if (hasConfirmedOfflineMetadata) {
+      confirmedOfflineStreamRef.current = streamIdentity;
+      return;
+    }
+
+    if (!hasConfirmedLiveMetadata || confirmedOfflineStreamRef.current !== streamIdentity) return;
+
+    confirmedOfflineStreamRef.current = null;
+    logger.debug("Page:Stream", "stream returned online, refreshing playback", {
+      platform: routePlatform,
+      channelName,
+    });
+    setPlayerError(null);
+    reloadPlayback();
+  }, [
+    channelName,
+    hasConfirmedLiveMetadata,
+    hasConfirmedOfflineMetadata,
+    reloadPlayback,
+    routePlatform,
+    streamIdentity,
+  ]);
 
   // PiP Store Integration - Track when viewing a live stream
   const { setCurrentStream, setIsOnStreamPage } = usePipStore();
@@ -353,10 +453,17 @@ export function StreamPage() {
       return;
     }
 
-    if (playerError || shouldShowOfflineOverlay) {
+    if (shouldShowPlayerErrorOverlay || shouldShowOfflineOverlay) {
       setCurrentStream(null);
     }
-  }, [effectiveStreamUrl, pipStreamInfo, playerError, setCurrentStream, shouldShowOfflineOverlay]);
+  }, [
+    effectiveStreamUrl,
+    pipStreamInfo,
+    playerError,
+    setCurrentStream,
+    shouldShowOfflineOverlay,
+    shouldShowPlayerErrorOverlay,
+  ]);
 
   return (
     <div className="h-full flex overflow-hidden">
@@ -370,7 +477,7 @@ export function StreamPage() {
             className={`${isTheater ? "h-full aspect-video max-w-full" : "aspect-video shrink-0 w-full"} bg-black relative`}
           >
             {/* Platform-specific live stream players */}
-            {canMountHeavyContent && (
+            {shouldMountLivePlayer && (
               <Suspense fallback={null}>
                 {routePlatform === "kick" ? (
                   <KickLivePlayer
@@ -414,7 +521,7 @@ export function StreamPage() {
                 </div>
               )}
 
-            {playerError && (
+            {shouldShowPlayerErrorOverlay && (
               <OfflineOverlay
                 platform={routePlatform}
                 channelName={channelName}
@@ -429,11 +536,9 @@ export function StreamPage() {
                 }}
               />
             )}
-            {/* Show offline screen only when we have NO working playback URL.
-                The metadata fetch (streamData) can time out independently of the
-                playback fetch; if HLS is loaded and playing, trust that signal —
-                the HLS player will surface a `playerError` if the stream actually
-                ends mid-watch, which triggers the dedicated overlay above. */}
+            {/* Show offline only after metadata confirms the stream is offline.
+                Playback URL/HLS failures can be transient while the channel is
+                still live, so those paths recheck instead of showing offline. */}
             {shouldShowOfflineOverlay && (
               <OfflineOverlay
                 platform={routePlatform}

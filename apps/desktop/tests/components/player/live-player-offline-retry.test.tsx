@@ -119,13 +119,40 @@ describe("live player offline retry handling", () => {
     const onError = vi.fn();
     const onRefresh = vi.fn();
     render(
-      <KickLivePlayer streamUrl="https://example.test/kick.m3u8" onError={onError} onRefresh={onRefresh} />
+      <KickLivePlayer
+        streamUrl="https://example.test/kick.m3u8"
+        onError={onError}
+        onRefresh={onRefresh}
+      />
     );
 
     act(() => h.kickHlsProps?.onError?.(offlineError));
 
     expect(onRefresh).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith(offlineError);
+  });
+
+  it("Kick refreshable HLS errors call onError without auto-refreshing", () => {
+    const onError = vi.fn();
+    const onRefresh = vi.fn();
+    const refreshableError: PlayerError = {
+      code: "NO_FRAGMENTS",
+      message: "No video fragments received after manifest load",
+      fatal: true,
+      shouldRefresh: true,
+    };
+    render(
+      <KickLivePlayer
+        streamUrl="https://example.test/kick.m3u8"
+        onError={onError}
+        onRefresh={onRefresh}
+      />
+    );
+
+    act(() => h.kickHlsProps?.onError?.(refreshableError));
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(refreshableError);
   });
 
   it("Twitch STREAM_OFFLINE calls onError without auto-refreshing", () => {
@@ -144,6 +171,85 @@ describe("live player offline retry handling", () => {
 
     expect(onRefresh).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith(offlineError);
+  });
+
+  it("Twitch recoverable errors auto-refresh playback", async () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+    const onRefresh = vi.fn();
+    const refreshableError: PlayerError = {
+      code: "TOKEN_EXPIRED",
+      message: "Playback token expired",
+      fatal: true,
+      shouldRefresh: true,
+    };
+    render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"
+        channelName="xqc"
+        onError={onError}
+        onRefresh={onRefresh}
+      />
+    );
+
+    act(() => h.twitchHlsProps?.onError?.(refreshableError));
+    expect(onError).not.toHaveBeenCalled();
+    expect(onRefresh).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("Twitch watchdog-only missing fragments call onError without auto-refreshing", () => {
+    const onError = vi.fn();
+    const onRefresh = vi.fn();
+    const watchdogError: PlayerError = {
+      code: "NO_FRAGMENTS",
+      message: "No video fragments received after manifest load",
+      fatal: true,
+    };
+    render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"
+        channelName="xqc"
+        onError={onError}
+        onRefresh={onRefresh}
+      />
+    );
+
+    act(() => h.twitchHlsProps?.onError?.(watchdogError));
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(watchdogError);
+  });
+
+  it("Twitch refreshable missing-fragment watchdog errors call onError without auto-refreshing", () => {
+    const onError = vi.fn();
+    const onRefresh = vi.fn();
+    const watchdogError: PlayerError = {
+      code: "NO_FRAGMENTS",
+      message: "No video fragments received after manifest load",
+      fatal: true,
+      shouldRefresh: true,
+    };
+    render(
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"
+        channelName="xqc"
+        onError={onError}
+        onRefresh={onRefresh}
+      />
+    );
+
+    act(() => h.twitchHlsProps?.onError?.(watchdogError));
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(watchdogError);
   });
 
   it("Twitch passes the page refresh callback into adblock recovery", () => {

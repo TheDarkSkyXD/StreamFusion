@@ -51,7 +51,7 @@ export interface TwitchHlsPlayerProps
 
 const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
 const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
-const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 3000;
+const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 20_000;
 
 export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps>(
   (
@@ -137,16 +137,13 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           logger.debug("Player:Twitch:HLS", "no fragments received after manifest", {
             secondsSinceManifest: Math.round((now - manifestParsedTime) / 1000),
           });
-          setHeartbeatDelay(null);
-          hls.destroy();
-          hlsRef.current = null;
-          onErrorRef.current?.({
-            code: "NO_FRAGMENTS",
-            message: "No video fragments received after manifest load",
-            fatal: true,
-            originalError: null,
-            shouldRefresh: true,
-          });
+          try {
+            hls.startLoad(-1);
+          } catch (error) {
+            logger.debug("Player:Twitch:HLS", "fragment watchdog recovery failed", { error });
+          }
+          manifestParsedTimeRef.current = now;
+          lastFragLoadedTimeRef.current = now;
         }
         return;
       }
@@ -155,16 +152,12 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         logger.debug("Player:Twitch:HLS", "no fragments - stream appears to have ended", {
           secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
         });
-        setHeartbeatDelay(null);
-        hls.destroy();
-        hlsRef.current = null;
-        onErrorRef.current?.({
-          code: "STREAM_OFFLINE",
-          message: "Stream ended or became unavailable",
-          fatal: true,
-          originalError: null,
-          shouldRefresh: true,
-        });
+        try {
+          hls.startLoad(-1);
+        } catch (error) {
+          logger.debug("Player:Twitch:HLS", "fragment watchdog recovery failed", { error });
+        }
+        lastFragLoadedTimeRef.current = now;
         return;
       }
     }, heartbeatDelay);

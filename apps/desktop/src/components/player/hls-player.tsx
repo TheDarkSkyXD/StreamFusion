@@ -35,7 +35,9 @@ export interface HlsPlayerProps
 const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
 const VOD_MEMORY_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
-const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 3000;
+// Keep this above HLS.js's live fragLoadingTimeOut (15s). A 3s grace made
+// ordinary Kick CDN jitter look like an ended stream, forcing refresh loops.
+const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 20_000;
 
 function isKickLiveCdnUrl(url: string | undefined): boolean {
   if (!url) return false;

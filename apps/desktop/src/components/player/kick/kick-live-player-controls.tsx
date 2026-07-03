@@ -1,9 +1,8 @@
 import type React from "react";
-import { LuRadio, LuRefreshCw } from "react-icons/lu";
+import { LuRadio } from "react-icons/lu";
 
 import { useRenderCount } from "../../dev/use-render-count";
 import { Button } from "../../ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { PlayerControls, type PlayerControlsProps } from "../player-controls";
 
 import { KickProgressBar, type KickProgressBarHandle } from "./kick-progress-bar";
@@ -12,7 +11,6 @@ interface KickLivePlayerControlsProps extends PlayerControlsProps {
   onGoLive?: () => void;
   /** Imperative handle the parent forwards to `UptimeReadout` for DOM updates. */
   progressBarRef?: React.Ref<KickProgressBarHandle>;
-  onRefresh?: () => void;
 }
 
 const KICK_GREEN = "#53fc18";
@@ -20,7 +18,7 @@ const KICK_GREEN = "#53fc18";
 export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
   useRenderCount("KickLivePlayerControls");
 
-  const { onSeek, onGoLive, progressBarRef, onRefresh, ...controlsProps } = props;
+  const { onSeek, onGoLive, progressBarRef, ...controlsProps } = props;
   const isAtLiveEdge = true;
   const isBehindLive = false;
 
@@ -48,24 +46,6 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
       </Button>
     ) : null;
 
-  const refreshButton = onRefresh ? (
-    <Tooltip delayDuration={0}>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-white hover:bg-white/20 cursor-pointer"
-          onClick={onRefresh}
-        >
-          <LuRefreshCw className="w-6 h-6" strokeWidth={3} />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>Refresh stream</p>
-      </TooltipContent>
-    </Tooltip>
-  ) : null;
-
   return (
     <PlayerControls
       {...controlsProps}
@@ -74,7 +54,6 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
       theaterActiveColor={KICK_GREEN}
       liveBadge={liveBadge}
       leftAddon={goLiveButton}
-      rightAddon={refreshButton}
       progressBar={
         onSeek ? (
           <KickProgressBar ref={progressBarRef} onSeek={onSeek} isLive={isAtLiveEdge} />

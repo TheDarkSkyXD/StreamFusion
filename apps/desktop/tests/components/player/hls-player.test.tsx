@@ -137,7 +137,7 @@ describe("HlsPlayer", () => {
     );
   });
 
-  it("live: reports offline within three seconds after fragments stop arriving", () => {
+  it("live: tolerates a short gap between fragments without refreshing", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
     const { container } = render(
@@ -155,7 +155,32 @@ describe("HlsPlayer", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(2999);
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(h.instances[0].destroy).not.toHaveBeenCalled();
+  });
+
+  it("live: reports offline after the fragment watchdog grace expires", () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+    const { container } = render(
+      <HlsPlayer src="https://x.test/playlist.m3u8" isLive onError={onError} />
+    );
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+
+    act(() => {
+      h.instances[0].emit("hlsManifestParsed", { levels: [] });
+      h.instances[0].emit("hlsFragLoaded", {});
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(19999);
     });
     expect(onError).not.toHaveBeenCalled();
 

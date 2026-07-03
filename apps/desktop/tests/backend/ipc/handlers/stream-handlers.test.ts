@@ -25,6 +25,7 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
     getFollowedStreams: vi.fn(),
     getPublicStreamBySlug: vi.fn(),
     getChannelsByBroadcasterIds: vi.fn(),
+    getStreamsByBroadcasterIds: vi.fn(),
   },
 }));
 
@@ -93,6 +94,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
+  vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([]);
   registerStreamHandlers();
 });
 
@@ -342,8 +344,17 @@ describe("STREAMS_GET_FOLLOWED", () => {
         avatarUrl: "https://example.com/new.jpg",
       },
     ] as any);
+    vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([
+      {
+        id: "stream-123",
+        channelId: "123",
+        channelName: "new-slug",
+        platform: "kick",
+        viewerCount: 42,
+      },
+    ] as any);
     vi.mocked(kickClient.getPublicStreamBySlug).mockResolvedValue({
-      id: "stream-123",
+      id: "legacy-stream-123",
       viewerCount: 42,
     } as any);
 
@@ -353,21 +364,13 @@ describe("STREAMS_GET_FOLLOWED", () => {
     expect(result.success).toBe(true);
     expect(result.data).toEqual([expect.objectContaining({ id: "stream-123" })]);
     expect(kickClient.getChannelsByBroadcasterIds).toHaveBeenCalledWith([123]);
+    expect(kickClient.getStreamsByBroadcasterIds).toHaveBeenCalledWith([123]);
     expect(storageService.updateLocalFollow).toHaveBeenCalledWith("follow-1", {
       channelName: "new-slug",
       displayName: "New Slug",
       profileImage: "https://example.com/new.jpg",
     });
-    expect(kickClient.getPublicStreamBySlug).toHaveBeenCalledWith(
-      "new-slug",
-      0,
-      expect.any(AbortSignal)
-    );
-    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalledWith(
-      "old-slug",
-      expect.anything(),
-      expect.anything()
-    );
+    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
   });
 
   it("does not let a concurrent Kick followed-stream scan abort an already visible scan", async () => {

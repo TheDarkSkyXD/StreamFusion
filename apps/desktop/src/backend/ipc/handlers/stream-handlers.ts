@@ -6,7 +6,11 @@ import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
 import { clients } from "../../api/unified/registry";
 import { storageService } from "../../services/storage-service";
-import { getKickFollowScanSlugs, resolveKickFollowPlaybackSlug } from "./kick-follow-repair";
+import {
+  getKickFollowScanSlugs,
+  parseKickBroadcasterUserId,
+  resolveKickFollowPlaybackSlug,
+} from "./kick-follow-repair";
 
 export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 0;
 
@@ -331,6 +335,50 @@ export function registerStreamHandlers(): void {
           } else if (localKick.length > 0) {
             const scanStartedAt = Date.now();
             const uniqueSlugs = await getKickFollowScanSlugs(kickClient, localKick);
+            const stableBroadcasterIds = [
+              ...new Set(
+                localKick
+                  .map((follow) => parseKickBroadcasterUserId(follow.channelId))
+                  .filter((id): id is number => id !== null)
+              ),
+            ];
+            let officialLiveLookupSucceeded = stableBroadcasterIds.length === 0;
+
+            if (stableBroadcasterIds.length > 0) {
+              try {
+                const liveStreams =
+                  await kickClient.getStreamsByBroadcasterIds(stableBroadcasterIds);
+                for (const stream of liveStreams) {
+                  if (!seenIds.has(stream.id)) {
+                    kickStreams.push(stream);
+                    seenIds.add(stream.id);
+                  }
+                }
+                officialLiveLookupSucceeded = true;
+              } catch (err) {
+                logger.warn(
+                  "IPC:Stream",
+                  "Failed to fetch Kick live status via official livestreams API; falling back to slug scan",
+                  {
+                    error:
+                      err instanceof Error
+                        ? { name: err.name, message: err.message, stack: err.stack }
+                        : String(err),
+                  }
+                );
+              }
+            }
+
+            const slugsToScan = officialLiveLookupSucceeded
+              ? [
+                  ...new Set(
+                    localKick
+                      .filter((follow) => parseKickBroadcasterUserId(follow.channelId) === null)
+                      .map((follow) => follow.channelName)
+                      .filter(Boolean)
+                  ),
+                ]
+              : uniqueSlugs;
 
             // Stagger by 60ms each so N parallel /channels/{slug} fetches don't
             // fan-out on the same JS tick. The actual sleep lives inside
@@ -343,7 +391,7 @@ export function registerStreamHandlers(): void {
 
             const fanOutStaggerMs = 60;
             const settled = await Promise.allSettled(
-              uniqueSlugs.map((slug, i) =>
+              slugsToScan.map((slug, i) =>
                 kickClient.getPublicStreamBySlug(slug, i * fanOutStaggerMs, abort.signal)
               )
             );
@@ -370,7 +418,8 @@ export function registerStreamHandlers(): void {
 
             logger.info("IPC:Stream", "Completed Kick followed-stream scan", {
               followCount: localKick.length,
-              scannedCount: uniqueSlugs.length,
+              officialIdCount: stableBroadcasterIds.length,
+              scannedCount: slugsToScan.length,
               liveCount: kickStreams.length,
               durationMs: Date.now() - scanStartedAt,
             });
