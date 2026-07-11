@@ -9,6 +9,7 @@
  */
 
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,6 +104,7 @@ const emoteStoreState = vi.hoisted(() => ({
   isLoading: false,
   getProviderEmotes: () => [],
   getEmotesByProvider: () => new Map(),
+  getEmotesByProviderForChannel: (_channelId: string) => new Map(),
   getAllEmotes: () => [],
   addRecentEmote: vi.fn(),
   toggleFavorite: vi.fn(),
@@ -216,20 +218,6 @@ vi.mock("@/components/chat/ChatQuickSettingsPopover", () => ({
   },
 }));
 
-vi.mock("@/components/chat/EmoteAutocomplete", () => {
-  const ctl = {
-    isActive: false,
-    openAutocomplete: vi.fn(),
-    closeAutocomplete: vi.fn(),
-    deactivate: vi.fn(),
-    checkTrigger: vi.fn(),
-  };
-  return {
-    EmoteAutocomplete: () => null,
-    useEmoteAutocomplete: () => ctl,
-  };
-});
-
 // Both emote buttons now look up the channel avatar for the picker's
 // channel-tab thumbnail. Stub the hook so we don't need a QueryClientProvider
 // in this shell-focused suite.
@@ -265,6 +253,7 @@ beforeEach(() => {
   emoteStoreState.favoriteEmotes = [];
   emoteStoreState.recentEmotes = [];
   emoteStoreState.getEmotesByProvider = () => new Map();
+  emoteStoreState.getEmotesByProviderForChannel = () => new Map();
   emoteStoreState.getAllEmotes = () => [];
   emoteStoreState.addRecentEmote.mockClear();
   emoteStoreState.toggleFavorite.mockClear();
@@ -313,6 +302,7 @@ function makeQuickEmote(
       url2x: `https://example.test/${partial.id}/2x.webp`,
     },
     kickSection: partial.kickSection,
+    subscribersOnly: partial.subscribersOnly,
   };
 }
 
@@ -1693,6 +1683,124 @@ describe("ChatInput — quick emote action bar", () => {
       );
     });
     expect(emoteStoreState.addRecentEmote).toHaveBeenCalledWith(kickEmote);
+  });
+});
+
+// Guards: the contextual colon row replaces quick-send, inserts into the draft without sending, then a later Enter sends.
+describe("ChatInput — contextual emote row", () => {
+  // Guards: Frosty-style ordinary word typing opens results from the first character using real keyboard events.
+  it("opens contextual results while a user types an ordinary current word", async () => {
+    const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProviderForChannel = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
+    const user = userEvent.setup();
+
+    renderInput();
+    const editor = getEditor();
+    await user.click(editor);
+    await user.keyboard("K");
+
+    expect(editor).toHaveTextContent("K");
+    expect(screen.getByTestId("contextual-emote-row")).toBeInTheDocument();
+  });
+
+  // Guards: real printable keydown/keyup sequencing keeps the caret-local colon query active.
+  it("opens contextual results when a user types a colon query", async () => {
+    const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProviderForChannel = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
+    const user = userEvent.setup();
+
+    renderInput();
+    const editor = getEditor();
+    await user.click(editor);
+    await user.type(editor, ":Ka");
+
+    expect(editor).toHaveTextContent(":Ka");
+    expect(screen.getByTestId("contextual-emote-row")).toBeInTheDocument();
+    expect(screen.queryByTestId("quick-emote-action-bar")).not.toBeInTheDocument();
+  });
+
+  // Guards: a lagging DOM selection reported on printable keyup cannot collapse the state-driven query caret.
+  it("keeps the query active when printable keyup reports the previous DOM caret", async () => {
+    const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProviderForChannel = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
+    const user = userEvent.setup();
+
+    renderInput();
+    const editor = getEditor();
+    await user.click(editor);
+    await user.keyboard(":K");
+    selectEditorText(editor, 1, 1);
+    fireEvent.keyUp(editor, { key: "K" });
+
+    expect(editor).toHaveTextContent(":K");
+    expect(screen.getByTestId("contextual-emote-row")).toBeInTheDocument();
+  });
+
+  it("replaces the colon query and requires a subsequent Enter to send", async () => {
+    const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProviderForChannel = (channelId: string) =>
+      channelId === "12345"
+        ? new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]])
+        : new Map();
+    emoteStoreState.getEmotesByProvider = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
+
+    renderInput();
+    const editor = getEditor();
+    fireEvent.focus(editor);
+    typeInEditor(editor, ":K");
+
+    expect(screen.getByTestId("contextual-emote-row")).toBeInTheDocument();
+    expect(screen.queryByTestId("quick-emote-action-bar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("option", { name: "Insert Kappa from Twitch" }));
+
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+    expect(editor.querySelector("[data-emote-name='Kappa']")).toBeInTheDocument();
+    expect(screen.getByTestId("quick-emote-action-bar")).toBeInTheDocument();
+
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(twitchChatService.sendMessage).toHaveBeenCalledWith(
+        "ninja",
+        "Kappa",
+        expect.arrayContaining([
+          expect.objectContaining({ type: "emote", id: "25", name: "Kappa" }),
+        ])
+      );
+    });
+  });
+
+  // Guards: Kick contextual insertion retains native wire markup and optimistic emote fragments.
+  it("preserves Kick native serialization after contextual insertion", async () => {
+    const kickEmote = makeQuickEmote({ id: "1730762", name: "KEKW", provider: "kick" });
+    emoteStoreState.getEmotesByProviderForChannel = () =>
+      new Map<EmoteProvider, Emote[]>([["kick", [kickEmote]]]);
+
+    renderInput({ platform: "kick" });
+    const editor = getEditor();
+    fireEvent.focus(editor);
+    typeInEditor(editor, ":K");
+
+    fireEvent.click(screen.getByRole("option", { name: "Insert KEKW from Kick" }));
+    expect(kickChatService.sendMessage).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(kickChatService.sendMessage).toHaveBeenCalledWith(
+        "ninja",
+        "[emote:1730762:KEKW]",
+        undefined,
+        expect.arrayContaining([
+          expect.objectContaining({ type: "emote", id: "1730762", name: "KEKW" }),
+        ])
+      );
+    });
   });
 });
 

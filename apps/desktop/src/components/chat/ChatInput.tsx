@@ -2,7 +2,7 @@
  * ChatInput Component
  *
  * Full-featured chat input with:
- * - Emote autocomplete (triggered by `:`)
+ * - Current-word emote typeahead with backward-compatible `:` syntax
  * - Mention autocomplete (triggered by `@`)
  * - Chat commands (`/me`, `/clear`, `/timeout`, `/ban`, etc.)
  * - Reply functionality with preview banner
@@ -53,7 +53,11 @@ import {
 } from "./ChatMessageActionStyles";
 import { ChatQuickSettingsPopover } from "./ChatQuickSettingsPopover";
 import { ChatComposerReplyPreview } from "./ChatReply";
-import { EmoteAutocomplete, useEmoteAutocomplete } from "./EmoteAutocomplete";
+import {
+  ContextualEmoteRow,
+  getContextualEmoteMatch,
+  useContextualEmoteMode,
+} from "./ContextualEmoteRow";
 import { InfoBanner } from "./InfoBanner";
 import { NativeEmoteButton } from "./input/NativeEmoteButton";
 import { QuickEmoteActionBar } from "./input/QuickEmoteActionBar";
@@ -736,6 +740,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [showChatSettings, setShowChatSettings] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [isEditorFocused, setIsEditorFocused] = useState(false);
+    const [contextualEmoteResultCount, setContextualEmoteResultCount] = useState(0);
     const [showAuthBlocker, setShowAuthBlocker] = useState(false);
     const [activeRoomBlocker, setActiveRoomBlocker] = useState<RoomSendBlockerKind | null>(null);
     const [activeBlockerCopy, setActiveBlockerCopy] = useState<SendBlockerCopy | null>(null);
@@ -841,13 +846,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       !showAuthBlocker && viewerIsAuthenticated && roomBlockerCopy && !roomModeCoveredByInfoBanner;
 
     // Autocomplete hooks
-    const emoteAutocomplete = useEmoteAutocomplete();
+    const emoteAutocomplete = useContextualEmoteMode();
     const mentionAutocomplete = useMentionAutocomplete();
     const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
     const { checkTrigger: checkEmoteAutocompleteTrigger, isActive: isEmoteAutocompleteActive } =
       emoteAutocomplete;
     const { checkTrigger: checkMentionAutocompleteTrigger, isActive: isMentionAutocompleteActive } =
       mentionAutocomplete;
+    const contextualEmoteMatch = getContextualEmoteMatch(message, cursorPosition);
+    const showContextualEmoteRow =
+      channelId !== null &&
+      emoteAutocomplete.isActive &&
+      !mentionAutocomplete.isActive &&
+      contextualEmoteMatch !== null;
 
     useLayoutEffect(() => {
       const editor = editorRef.current;
@@ -907,24 +918,37 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       mentionAutocomplete.checkTrigger(parsed.message, nextCursorPosition);
     }, [emoteAutocomplete, mentionAutocomplete]);
 
-    const updateCursorFromSelection = useCallback(() => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      const selection = getEditorSelectionRange(editor);
-      if (selection.start !== selection.end) {
-        cursorPositionRef.current = selection.start;
-        return;
-      }
-      const nextPosition =
-        selection.start === 0 &&
-        selection.end === 0 &&
-        cursorPositionRef.current > 0 &&
-        messageRef.current.length > 0
-          ? cursorPositionRef.current
-          : selection.start;
-      cursorPositionRef.current = nextPosition;
-      setCursorPosition(nextPosition);
-    }, []);
+    const updateCursorFromSelection = useCallback(
+      (event: React.KeyboardEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        const selection = getEditorSelectionRange(editor);
+        if (selection.start !== selection.end) {
+          cursorPositionRef.current = selection.start;
+          return;
+        }
+        const isPrintableKeyUp =
+          event.type === "keyup" &&
+          "key" in event &&
+          event.key.length === 1 &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey;
+        if (isPrintableKeyUp && selection.start !== cursorPositionRef.current) {
+          return;
+        }
+        const nextPosition =
+          selection.start === 0 &&
+          selection.end === 0 &&
+          cursorPositionRef.current > 0 &&
+          messageRef.current.length > 0
+            ? cursorPositionRef.current
+            : selection.start;
+        cursorPositionRef.current = nextPosition;
+        setCursorPosition(nextPosition);
+      },
+      []
+    );
 
     const handleEditorFocus = useCallback(() => {
       setIsEditorFocused(true);
@@ -1615,7 +1639,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           }
         }
 
-        if (isEmoteAutocompleteActive || isMentionAutocompleteActive) {
+        if (
+          isMentionAutocompleteActive ||
+          (isEmoteAutocompleteActive &&
+            (contextualEmoteMatch?.explicit || contextualEmoteResultCount > 0))
+        ) {
           return;
         }
 
@@ -1641,6 +1669,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         handleSend,
         isEmoteAutocompleteActive,
         isMentionAutocompleteActive,
+        contextualEmoteMatch,
+        contextualEmoteResultCount,
         replaceSelection,
         reply,
         clearReply,
@@ -1670,14 +1700,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       setActiveDialog((cur) => (cur === "thirdParty" ? null : "thirdParty"));
     }, []);
 
-    // viewerIsSubscribed for the Kick-native dialog: the viewer's own
-    // subscriber badge isn't surfaced through any chat-state path reachable
-    // from here today (KickChat threads `subscriberBadges` for *rendering*
-    // other users' badges, not the viewer's own status). Per U8/U9 design,
-    // `undefined` means "unknown" and disables the lock overlay — Kick will
-    // server-side reject any subscriber-only emote the viewer can't use, so
-    // there's no regression relative to today. Plumbing a viewer-subscription
-    // signal is deferred as a follow-up.
+    // The viewer's own subscription status is not surfaced to this composer.
+    // Unknown eligibility therefore fails closed in contextual matching,
+    // while the full picker keeps subscriber-only emotes discoverable as locked.
     const viewerIsSubscribed: boolean | undefined = undefined;
 
     // Character count tracks the SERIALIZED message (emote names + delimiters)
@@ -1723,11 +1748,34 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           />
         )}
 
-        <QuickEmoteActionBar
-          platform={platform}
-          onSelect={handleQuickEmoteSend}
-          disabled={disabled || isSending}
-        />
+        <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
+          {showContextualEmoteRow ? (
+            <ContextualEmoteRow
+              inputValue={message}
+              cursorPosition={cursorPosition}
+              platform={platform}
+              channelId={channelId}
+              viewerIsSubscribed={viewerIsSubscribed}
+              keyboardActive={isEditorFocused}
+              onResultCountChange={setContextualEmoteResultCount}
+              onSelect={handleEmoteSelect}
+              onClose={emoteAutocomplete.deactivate}
+              fallback={
+                <QuickEmoteActionBar
+                  platform={platform}
+                  onSelect={handleQuickEmoteSend}
+                  disabled={disabled || isSending}
+                />
+              }
+            />
+          ) : (
+            <QuickEmoteActionBar
+              platform={platform}
+              onSelect={handleQuickEmoteSend}
+              disabled={disabled || isSending}
+            />
+          )}
+        </div>
 
         {/* InfoBanner — renders null when no chat-room modes are active. */}
         <InfoBanner
@@ -1810,14 +1858,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onPaste={handlePaste}
                 className="no-scrollbar relative min-h-6 max-h-[120px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-sm leading-[1.5] text-white caret-white focus:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                 style={{ wordBreak: "break-word" }}
-              />
-
-              <EmoteAutocomplete
-                inputValue={message}
-                cursorPosition={cursorPosition}
-                onSelect={(emote, start, end) => handleEmoteSelect(emote, start, end)}
-                onClose={emoteAutocomplete.deactivate}
-                isActive={emoteAutocomplete.isActive}
               />
             </div>
 

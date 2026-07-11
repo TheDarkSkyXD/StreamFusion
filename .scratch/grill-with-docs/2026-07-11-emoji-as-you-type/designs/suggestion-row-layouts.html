@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamFusion Emote Typeahead Layouts</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --divider: #333333;
+      --text: #ffffff;
+      --secondary: #a0a0a0;
+      --muted: #666666;
+      --purple: #9146ff;
+      --focus: rgba(255,255,255,.9);
+    }
+    body {
+      min-height: 100vh;
+      background: var(--void);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 36px;
+    }
+    header { max-width: 780px; margin-bottom: 28px; }
+    .eyebrow { color: var(--secondary); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin-top: 8px; font-size: 26px; line-height: 1.15; letter-spacing: -.025em; }
+    header p { margin-top: 10px; color: var(--secondary); font-size: 14px; line-height: 1.55; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 18px; max-width: 1100px; }
+    .choice {
+      position: relative;
+      border: 1px solid var(--divider);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .choice.recommended { border-color: #666; }
+    .choice-head { min-height: 112px; padding: 18px 18px 15px; border-bottom: 1px solid var(--divider); }
+    .choice-id { display: flex; align-items: center; gap: 8px; }
+    .letter { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--mid); color: var(--secondary); font-size: 12px; font-weight: 800; }
+    .recommended .letter { background: white; color: var(--void); }
+    .badge { padding: 3px 7px; border-radius: 999px; background: var(--mid); color: var(--secondary); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    h2 { margin-top: 12px; font-size: 15px; }
+    .choice-head p { margin-top: 5px; color: var(--secondary); font-size: 12px; line-height: 1.45; }
+    .stage { min-height: 440px; padding: 18px; background: #141414; display: flex; align-items: flex-end; }
+    .chat { width: 100%; border: 1px solid var(--divider); border-radius: 10px; overflow: hidden; background: var(--surface); }
+    .messages { height: 188px; padding: 13px 12px; background: var(--void); display: flex; flex-direction: column; justify-content: flex-end; gap: 9px; }
+    .message { color: #d8d8d8; font-size: 11px; line-height: 1.35; }
+    .name { color: #b894ff; font-weight: 700; }
+    .name.green { color: #7aff4d; }
+    .emote-word { display: inline-grid; place-items: center; width: 29px; height: 22px; margin: 0 2px; border-radius: 5px; background: #432a64; color: #fff; font-size: 8px; font-weight: 800; vertical-align: middle; transform: rotate(-2deg); }
+    .compose { border-top: 1px solid var(--divider); background: var(--surface); padding: 8px; }
+    .row-label { display: flex; align-items: center; justify-content: space-between; min-height: 18px; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .row-label strong { color: var(--secondary); }
+    .emote-row { height: 38px; display: flex; align-items: center; gap: 4px; overflow: hidden; padding: 2px 3px; }
+    .tile { flex: 0 0 31px; width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 4px; color: #fff; font-size: 8px; font-weight: 800; }
+    .tile:nth-child(4n+1) { background: #4d326c; }
+    .tile:nth-child(4n+2) { background: #314a3a; }
+    .tile:nth-child(4n+3) { background: #5a392d; }
+    .tile:nth-child(4n+4) { background: #34445c; }
+    .tile.selected { border-color: var(--focus); background: var(--raised); outline: 1px solid white; outline-offset: 1px; }
+    .input-shell { margin-top: 5px; min-height: 44px; border: 1px solid #5a5a5a; border-radius: 8px; background: var(--surface); display: flex; align-items: center; gap: 6px; padding: 6px 7px 6px 10px; }
+    .draft { flex: 1; min-width: 0; font-size: 12px; }
+    .query { color: white; }
+    .caret { display: inline-block; width: 1px; height: 14px; margin-left: 1px; background: white; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+    .icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: var(--secondary); background: var(--mid); font-size: 13px; }
+    .send { width: 42px; color: var(--void); background: white; font-size: 10px; font-weight: 800; }
+    .stacked .compose { padding-top: 6px; }
+    .stacked .emote-row { border-bottom: 1px solid rgba(255,255,255,.05); }
+    .popover-wrap { position: relative; padding-top: 48px; }
+    .popover {
+      position: absolute; left: 8px; right: 8px; top: 3px; height: 48px;
+      display: flex; align-items: center; gap: 4px; padding: 6px;
+      background: var(--raised); border: 1px solid #464646; border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4), 0 1px 4px rgba(0,0,0,.3);
+    }
+    .pros { padding: 15px 18px 18px; border-top: 1px solid var(--divider); color: var(--secondary); font-size: 11px; line-height: 1.5; }
+    .pros strong { color: white; }
+    @keyframes blink { 50% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+    @media (max-width: 900px) { body { padding: 22px; } .grid { grid-template-columns: 1fr; } .stage { min-height: 360px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Grill Q5 · contextual row behavior</div>
+    <h1>Where should matching emotes appear?</h1>
+    <p>The draft is <strong>ka</strong>. Each option preserves the existing quick-emote actions differently while typeahead is active.</p>
+  </header>
+
+  <main class="grid">
+    <section class="choice recommended">
+      <div class="choice-head">
+        <div class="choice-id"><span class="letter">A</span><span class="badge">Recommended</span></div>
+        <h2>One row, contextual swap</h2>
+        <p>The quick-send row becomes matching suggestions only while the user is typing a match.</p>
+      </div>
+      <div class="stage">
+        <div class="chat">
+          <div class="messages">
+            <div class="message"><span class="name">lunarbyte:</span> that timing was perfect</div>
+            <div class="message"><span class="name green">pixelpilot:</span> <span class="emote-word">GG</span> again?</div>
+            <div class="message"><span class="name">mira:</span> one more run</div>
+          </div>
+          <div class="compose">
+            <div class="row-label"><strong>Matches for “ka”</strong><span>5 results</span></div>
+            <div class="emote-row">
+              <span class="tile selected">Kappa</span><span class="tile">KappaP</span><span class="tile">Kanna</span><span class="tile">Kappu</span><span class="tile">KaRave</span>
+            </div>
+            <div class="input-shell"><div class="draft"><span class="query">ka</span><span class="caret"></span></div><span class="icon">◉</span><span class="icon send">Chat</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="pros"><strong>Cleanest:</strong> no layout growth, one visual target, quick emotes return as soon as matching ends.</div>
+    </section>
+
+    <section class="choice stacked">
+      <div class="choice-head">
+        <div class="choice-id"><span class="letter">B</span></div>
+        <h2>Stack both rows</h2>
+        <p>Matching suggestions appear below the permanent quick-send row.</p>
+      </div>
+      <div class="stage">
+        <div class="chat">
+          <div class="messages">
+            <div class="message"><span class="name">lunarbyte:</span> that timing was perfect</div>
+            <div class="message"><span class="name green">pixelpilot:</span> <span class="emote-word">GG</span> again?</div>
+            <div class="message"><span class="name">mira:</span> one more run</div>
+          </div>
+          <div class="compose">
+            <div class="row-label"><span>Quick send</span><span>always visible</span></div>
+            <div class="emote-row"><span class="tile">GG</span><span class="tile">LUL</span><span class="tile">EZ</span><span class="tile">Clap</span><span class="tile">Hi</span></div>
+            <div class="row-label"><strong>Matches for “ka”</strong><span>5 results</span></div>
+            <div class="emote-row"><span class="tile selected">Kappa</span><span class="tile">KappaP</span><span class="tile">Kanna</span><span class="tile">Kappu</span><span class="tile">KaRave</span></div>
+            <div class="input-shell"><div class="draft"><span class="query">ka</span><span class="caret"></span></div><span class="icon">◉</span><span class="icon send">Chat</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="pros"><strong>Most persistent:</strong> every action remains visible, but chat loses vertical space whenever matches appear.</div>
+    </section>
+
+    <section class="choice">
+      <div class="choice-head">
+        <div class="choice-id"><span class="letter">C</span></div>
+        <h2>Floating suggestion popover</h2>
+        <p>Keep quick-send in place and float matches above it without resizing the composer.</p>
+      </div>
+      <div class="stage">
+        <div class="chat">
+          <div class="messages">
+            <div class="message"><span class="name">lunarbyte:</span> that timing was perfect</div>
+            <div class="message"><span class="name green">pixelpilot:</span> <span class="emote-word">GG</span> again?</div>
+            <div class="message"><span class="name">mira:</span> one more run</div>
+          </div>
+          <div class="compose popover-wrap">
+            <div class="popover"><span class="tile selected">Kappa</span><span class="tile">KappaP</span><span class="tile">Kanna</span><span class="tile">Kappu</span><span class="tile">KaRave</span></div>
+            <div class="row-label"><span>Quick send</span><span>always visible</span></div>
+            <div class="emote-row"><span class="tile">GG</span><span class="tile">LUL</span><span class="tile">EZ</span><span class="tile">Clap</span><span class="tile">Hi</span></div>
+            <div class="input-shell"><div class="draft"><span class="query">ka</span><span class="caret"></span></div><span class="icon">◉</span><span class="icon send">Chat</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="pros"><strong>Most compact:</strong> keeps both functions, but temporarily covers the newest chat messages.</div>
+    </section>
+  </main>
+</body>
+</html>

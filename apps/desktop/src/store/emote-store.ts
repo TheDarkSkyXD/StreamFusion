@@ -81,6 +81,7 @@ interface EmoteState {
   isFavorite: (emoteId: string) => boolean;
   searchEmotes: (query: string, limit?: number) => Emote[];
   getEmotesByProvider: () => Map<EmoteProvider, Emote[]>;
+  getEmotesByProviderForChannel: (channelId: string) => Map<EmoteProvider, Emote[]>;
   getAllEmotes: () => Emote[];
   getEmoteNameMap: () => Map<string, Emote>;
 }
@@ -280,6 +281,14 @@ export const useEmoteStore = create<EmoteState>()(
       getEmotesByProvider: () => {
         const state = get();
         return emoteManager.getEmotesByProvider(state.activeChannelId || undefined);
+      },
+
+      getEmotesByProviderForChannel: (channelId) => {
+        return new Map(
+          [...emoteManager.getEmotesByProvider(channelId)].filter(([provider]) =>
+            emoteManager.isProviderEnabled(provider)
+          )
+        );
       },
 
       getAllEmotes: () => {

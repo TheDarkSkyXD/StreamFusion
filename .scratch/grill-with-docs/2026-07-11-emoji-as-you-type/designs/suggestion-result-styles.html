@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamFusion Typeahead Result Styles</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --void:#0f0f0f; --surface:#1a1a1a; --mid:#252525; --raised:#2d2d2d; --line:#333; --text:#fff; --secondary:#a0a0a0; --muted:#666; }
+    body { min-height:100vh; padding:36px; background:var(--void); color:var(--text); font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    header { max-width:760px; margin-bottom:26px; }
+    .eyebrow { color:var(--secondary); font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1 { margin-top:8px; font-size:26px; letter-spacing:-.025em; }
+    header p { margin-top:10px; color:var(--secondary); font-size:14px; line-height:1.55; }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(270px,1fr)); gap:18px; max-width:1120px; }
+    .choice { overflow:hidden; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+    .choice.recommended { border-color:#666; }
+    .head { min-height:120px; padding:18px; border-bottom:1px solid var(--line); }
+    .id { display:flex; gap:8px; align-items:center; }
+    .letter { display:grid; place-items:center; width:24px; height:24px; border-radius:6px; background:var(--mid); color:var(--secondary); font-size:12px; font-weight:800; }
+    .recommended .letter { background:#fff; color:var(--void); }
+    .tag { padding:3px 7px; border-radius:999px; background:var(--mid); color:var(--secondary); font-size:9px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    h2 { margin-top:12px; font-size:15px; }
+    .head p { margin-top:5px; color:var(--secondary); font-size:12px; line-height:1.45; }
+    .stage { min-height:320px; display:flex; align-items:center; padding:18px; background:#141414; }
+    .chat { width:100%; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
+    .messages { height:145px; padding:13px; display:flex; flex-direction:column; justify-content:flex-end; gap:8px; background:var(--void); color:#ddd; font-size:11px; }
+    .name { color:#b894ff; font-weight:700; }
+    .compose { padding:8px; border-top:1px solid var(--line); }
+    .row { height:42px; display:flex; align-items:center; gap:5px; overflow:hidden; }
+    .face { position:relative; display:grid; place-items:center; flex:0 0 auto; height:34px; border:1px solid transparent; border-radius:6px; background:var(--mid); color:#fff; font-size:9px; font-weight:800; }
+    .face::before { content:"◕‿◕"; font-size:12px; color:#d7b7ff; }
+    .face.selected { border-color:#fff; outline:1px solid #fff; outline-offset:1px; background:var(--raised); }
+    .square { width:34px; }
+    .provider-dot { position:absolute; right:-3px; bottom:-3px; display:grid; place-items:center; width:13px; height:13px; border-radius:4px; border:1px solid var(--surface); background:#4c3971; color:#fff; font-size:6px; font-weight:900; }
+    .pill { min-width:82px; padding:0 8px 0 5px; grid-template-columns:27px 1fr; column-gap:5px; }
+    .pill::before { grid-column:1; }
+    .pill span { grid-column:2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; }
+    .detail { min-width:118px; padding:0 8px 0 5px; display:grid; grid-template-columns:28px 1fr; grid-template-rows:17px 13px; column-gap:6px; text-align:left; }
+    .detail::before { grid-row:1 / 3; }
+    .detail strong { align-self:end; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; }
+    .detail small { color:var(--secondary); font-size:7px; font-weight:700; text-transform:uppercase; }
+    .input { height:42px; margin-top:5px; padding:0 9px; display:flex; align-items:center; justify-content:space-between; border:1px solid #565656; border-radius:8px; color:#fff; font-size:12px; }
+    .cursor { display:inline-block; width:1px; height:14px; margin-left:1px; background:#fff; vertical-align:-2px; animation:blink 1s steps(1) infinite; }
+    .shortcut { color:var(--muted); font-size:9px; }
+    .foot { min-height:82px; padding:15px 18px; border-top:1px solid var(--line); color:var(--secondary); font-size:11px; line-height:1.5; }
+    .foot strong { color:#fff; }
+    @keyframes blink { 50% { opacity:0; } }
+    @media (prefers-reduced-motion:reduce) { .cursor { animation:none; } }
+    @media (max-width:900px) { body { padding:22px; } .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Grill Q14 · result readability</div>
+    <h1>How much identity should each match show?</h1>
+    <p>The query <strong>kap</strong> returns duplicates from Twitch and 7TV. Every option keeps the shared row at a fixed 42px, so chat does not jump.</p>
+  </header>
+  <main class="grid">
+    <section class="choice">
+      <div class="head"><div class="id"><span class="letter">A</span></div><h2>Images only</h2><p>Maximum density, with tiny provider marks only when names collide.</p></div>
+      <div class="stage"><div class="chat"><div class="messages"><div><span class="name">nightowl:</span> one more?</div><div><span class="name">arcadefox:</span> absolutely</div></div><div class="compose"><div class="row"><span class="face square selected"><i class="provider-dot">T</i></span><span class="face square"><i class="provider-dot">7</i></span><span class="face square"></span><span class="face square"></span><span class="face square"></span><span class="face square"></span></div><div class="input"><span>kap<span class="cursor"></span></span><span class="shortcut">← → · Enter</span></div></div></div></div>
+      <div class="foot"><strong>Fastest to scan visually.</strong> Names rely on hover tooltips and screen-reader labels.</div>
+    </section>
+    <section class="choice recommended">
+      <div class="head"><div class="id"><span class="letter">B</span><span class="tag">Recommended</span></div><h2>Compact image + name</h2><p>Readable names in a dense pill; provider mark appears only for duplicates.</p></div>
+      <div class="stage"><div class="chat"><div class="messages"><div><span class="name">nightowl:</span> one more?</div><div><span class="name">arcadefox:</span> absolutely</div></div><div class="compose"><div class="row"><span class="face pill selected"><span>Kappa</span><i class="provider-dot">T</i></span><span class="face pill"><span>Kappa</span><i class="provider-dot">7</i></span><span class="face pill"><span>KappaPride</span></span><span class="face pill"><span>Kappu</span></span></div><div class="input"><span>kap<span class="cursor"></span></span><span class="shortcut">← → · Enter</span></div></div></div></div>
+      <div class="foot"><strong>Best balance.</strong> Clear keyboard target and duplicate identity without increasing row height.</div>
+    </section>
+    <section class="choice">
+      <div class="head"><div class="id"><span class="letter">C</span></div><h2>Detailed provider cards</h2><p>Always show both the canonical emote name and provider name.</p></div>
+      <div class="stage"><div class="chat"><div class="messages"><div><span class="name">nightowl:</span> one more?</div><div><span class="name">arcadefox:</span> absolutely</div></div><div class="compose"><div class="row"><span class="face detail selected"><strong>Kappa</strong><small>Twitch</small></span><span class="face detail"><strong>Kappa</strong><small>7TV</small></span><span class="face detail"><strong>KappaPride</strong><small>Twitch</small></span></div><div class="input"><span>kap<span class="cursor"></span></span><span class="shortcut">← → · Enter</span></div></div></div></div>
+      <div class="foot"><strong>Most explicit.</strong> Fewer results fit in view and provider labels add repeated visual noise.</div>
+    </section>
+  </main>
+</body>
+</html>

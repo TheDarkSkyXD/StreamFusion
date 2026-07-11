@@ -127,7 +127,7 @@ export const QuickEmoteActionBar: React.FC<QuickEmoteActionBarProps> = memo(
     return (
       <div
         data-testid="quick-emote-action-bar"
-        className="mb-1 flex min-h-8 items-center gap-1 overflow-hidden px-1"
+        className="flex h-8 min-h-8 items-center gap-1 overflow-hidden px-1"
         aria-label="Quick emotes"
       >
         {quickEmotes.map((emote, index) => {
