@@ -13,6 +13,7 @@ vi.mock("@/backend/auth/kick-auth", () => ({
 import { getUser, getUsersById } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 import { kickAuthService } from "@/backend/auth/kick-auth";
+import { logger } from "@/lib/cross-logger";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
@@ -24,6 +25,10 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
 }
 
 describe("user-endpoints", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -70,7 +75,7 @@ describe("user-endpoints", () => {
       expect(client.request).not.toHaveBeenCalled();
     });
 
-    it("fetches users by IDs with correct query format", async () => {
+    it("uses user auth for user enrichment when the viewer is authenticated", async () => {
       const mockUsers = [
         { user_id: 1, name: "User1", profile_picture: null },
         { user_id: 2, name: "User2", profile_picture: "https://example.com/2.webp" },
@@ -81,7 +86,7 @@ describe("user-endpoints", () => {
 
       const result = await getUsersById(client, [1, 2]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id[]=1&id[]=2", undefined, "app");
+      expect(client.request).toHaveBeenCalledWith("/users?id[]=1&id[]=2", undefined, "user");
       expect(result).toEqual(mockUsers);
     });
 
@@ -92,7 +97,7 @@ describe("user-endpoints", () => {
 
       await getUsersById(client, [1, 1, 1]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id[]=1", undefined, "app");
+      expect(client.request).toHaveBeenCalledWith("/users?id[]=1", undefined, "user");
     });
 
     it("returns empty array when response.data is null", async () => {
@@ -113,6 +118,26 @@ describe("user-endpoints", () => {
       const result = await getUsersById(client, [1, 2]);
 
       expect(result).toEqual([]);
+    });
+
+    it("logs an expected official API circuit-open failure at debug level", async () => {
+      const error = new Error(
+        "Kick official API app-token proxy unavailable while Kick is degraded"
+      );
+      const client = createMockClient({
+        isAuthenticated: vi.fn(() => false),
+        request: vi.fn().mockRejectedValueOnce(error),
+      });
+
+      const result = await getUsersById(client, [1]);
+
+      expect(result).toEqual([]);
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Kick:Endpoints:User",
+        "Failed to fetch Kick users",
+        expect.objectContaining({ error: expect.objectContaining({ message: error.message }) })
+      );
+      expect(logger.error).not.toHaveBeenCalled();
     });
   });
 });

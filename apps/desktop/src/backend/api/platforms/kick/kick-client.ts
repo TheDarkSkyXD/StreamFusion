@@ -119,12 +119,17 @@ export interface KickImageBytes {
 const _imageInFlight = new Map<string, Promise<KickImageBytes | null>>();
 const _imageNegativeCache = new Map<string, number>();
 const _IMAGE_NEG_CACHE_TTL_MS = 10 * 60 * 1000;
+const _APP_TOKEN_PROXY_401_COOLDOWN_MS = 5 * 60 * 1000;
+const _APP_TOKEN_PROXY_DEGRADED_ERROR =
+  "Kick official API app-token proxy unavailable while Kick is degraded";
 
 // ========== Kick API Client Class ==========
 
 class KickClient implements KickRequestor, IPlatformReader {
   readonly platform: Platform = "kick";
   readonly baseUrl = `${WORKER_BASE_URL}/kick`;
+  private appTokenProxyUnavailableUntil = 0;
+  private appTokenRecoveryProbeInFlight = false;
 
   /**
    * Make an authenticated request to the official Kick Public API v1
@@ -371,18 +376,44 @@ class KickClient implements KickRequestor, IPlatformReader {
     return null;
   }
 
+  private finishAppTokenRecoveryProbe(isRecoveryProbe: boolean, succeeded: boolean): void {
+    if (!isRecoveryProbe) {
+      return;
+    }
+
+    this.appTokenProxyUnavailableUntil = succeeded
+      ? 0
+      : Date.now() + _APP_TOKEN_PROXY_401_COOLDOWN_MS;
+    this.appTokenRecoveryProbeInFlight = false;
+  }
+
   async request<T>(
     endpoint: string,
     options: RequestInit = {},
     authMode: KickAuthMode = "user"
   ): Promise<T> {
-    if (authMode === "app" && !isPlatformHealthy("kick")) {
-      throw new Error("Kick official API app-token proxy unavailable while Kick is degraded");
+    let isAppTokenRecoveryProbe = false;
+    if (authMode === "app") {
+      const now = Date.now();
+      if (now < this.appTokenProxyUnavailableUntil) {
+        throw new Error(_APP_TOKEN_PROXY_DEGRADED_ERROR);
+      }
+      if (!isPlatformHealthy("kick")) {
+        throw new Error(_APP_TOKEN_PROXY_DEGRADED_ERROR);
+      }
+      if (this.appTokenProxyUnavailableUntil !== 0) {
+        if (this.appTokenRecoveryProbeInFlight) {
+          throw new Error(_APP_TOKEN_PROXY_DEGRADED_ERROR);
+        }
+        this.appTokenRecoveryProbeInFlight = true;
+        isAppTokenRecoveryProbe = true;
+      }
     }
 
     let bearer = await this.getOfficialApiBearerToken(authMode);
 
     if (!bearer) {
+      this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, false);
       throw new Error(`No Kick ${authMode} token is available.`);
     }
 
@@ -479,6 +510,7 @@ class KickClient implements KickRequestor, IPlatformReader {
           }
 
           if (response.statusCode === 401 && bearer.kind === "app") {
+            this.appTokenProxyUnavailableUntil = Date.now() + _APP_TOKEN_PROXY_401_COOLDOWN_MS;
             recordPlatformOfficialApiAuthFailure("kick", response.statusCode);
             logger.warn(
               "Kick:Client",
@@ -508,8 +540,10 @@ class KickClient implements KickRequestor, IPlatformReader {
           throw new Error(`Kick API error: ${response.statusCode}`);
         }
 
+        this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, true);
         return response.data;
       } catch (error: any) {
+        this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, false);
         // If it's a 429 error we deliberately threw above, re-throw it
         if (error.message?.includes("429")) {
           throw error;
@@ -538,6 +572,7 @@ class KickClient implements KickRequestor, IPlatformReader {
       }
     }
 
+    this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, false);
     throw new Error("Kick API request failed after retries");
   }
 
