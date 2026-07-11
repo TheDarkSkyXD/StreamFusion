@@ -90,6 +90,10 @@ async function enrichChannelWithKickUser(
     return channel;
   }
 
+  if (isKickOfficialApiUnavailable() && !client.isAuthenticated()) {
+    return channel;
+  }
+
   try {
     const users = await getUsersById(client, [userIdNum]);
     const user = users.find((candidate) => candidate.user_id.toString() === userId);

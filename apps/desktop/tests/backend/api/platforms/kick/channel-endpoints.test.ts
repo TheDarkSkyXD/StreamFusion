@@ -608,25 +608,59 @@ describe("channel-endpoints", () => {
   });
 
   describe("getChannel", () => {
-    it("skips official app-token channel lookup while Kick official API is degraded", async () => {
+    it("preserves the public avatar without official user enrichment for an anonymous degraded session", async () => {
       vi.mocked(getPlatformHealth).mockReturnValue("degraded");
       mockExecuteJavaScript.mockResolvedValueOnce(
         JSON.stringify({
           id: 321,
           slug: "degraded-channel",
-          user: { username: "DegradedChannel" },
+          user: {
+            username: "DegradedChannel",
+            profile_pic: "https://kick.com/img/degraded-channel.webp",
+          },
           livestream: null,
         })
       );
       const client = createMockClient({
+        isAuthenticated: vi.fn(() => false),
         request: vi.fn().mockRejectedValueOnce(new Error("Kick API error: 401")),
       });
 
       const result = await getChannel(client, "degraded-channel");
 
       expect(client.request).not.toHaveBeenCalled();
+      expect(getUsersByIdMock).not.toHaveBeenCalled();
       expect(mockLoadURL).toHaveBeenCalled();
       expect(result!.username).toBe("degraded-channel");
+      expect(result!.avatarUrl).toBe("https://kick.com/img/degraded-channel.webp");
+    });
+
+    it("uses official user enrichment for an authenticated degraded session", async () => {
+      vi.mocked(getPlatformHealth).mockReturnValue("degraded");
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 654,
+          user_id: 987,
+          slug: "authenticated-degraded",
+          user: { username: "authenticated-degraded" },
+          livestream: null,
+        })
+      );
+      const client = createMockClient({
+        isAuthenticated: vi.fn(() => true),
+      });
+      getUsersByIdMock.mockResolvedValueOnce([
+        {
+          user_id: 987,
+          name: "AuthenticatedDegraded",
+          profile_picture: "https://kick.com/img/authenticated-degraded.webp",
+        },
+      ]);
+
+      const result = await getChannel(client, "authenticated-degraded");
+
+      expect(getUsersByIdMock).toHaveBeenCalledWith(client, [987]);
+      expect(result!.avatarUrl).toBe("https://kick.com/img/authenticated-degraded.webp");
     });
 
     it("prefers official app-token API result over legacy public lookup", async () => {

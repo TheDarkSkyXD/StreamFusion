@@ -10,6 +10,13 @@ import { acquireBrowserWindowSlot } from "./channel-endpoints";
 
 const PUBLIC_USER_PROFILE_LOAD_TIMEOUT_MS = 10000;
 
+function isExpectedOfficialApiCircuitOpen(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message === "Kick official API app-token proxy unavailable while Kick is degraded"
+  );
+}
+
 export interface KickPublicChannelUserProfile {
   userId: string;
   username: string;
@@ -43,12 +50,13 @@ export async function getUsersById(client: KickRequestor, ids: number[]): Promis
     const response = await client.request<KickApiResponse<KickApiUser[]>>(
       `/users?${queryString}`,
       undefined,
-      "app"
+      client.isAuthenticated() ? "user" : "app"
     );
 
     return response.data || [];
   } catch (error) {
-    logger.error("Kick:Endpoints:User", "Failed to fetch Kick users", {
+    const log = isExpectedOfficialApiCircuitOpen(error) ? logger.debug : logger.error;
+    log("Kick:Endpoints:User", "Failed to fetch Kick users", {
       error:
         error instanceof Error
           ? { name: error.name, message: error.message, stack: error.stack }
