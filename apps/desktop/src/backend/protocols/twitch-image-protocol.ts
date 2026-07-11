@@ -65,6 +65,47 @@ function placeholderResponse(): Response {
   });
 }
 
+function sniffImageContentType(bytes: Uint8Array): string | null {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    bytes[0] === 0x47 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x38 &&
+    (bytes[4] === 0x37 || bytes[4] === 0x39) &&
+    bytes[5] === 0x61
+  ) {
+    return "image/gif";
+  }
+  if (
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
 export function registerTwitchImageProtocol(): void {
   protocol.handle(TWITCH_IMAGE_SCHEME, async (request) => {
     const url = new URL(request.url);
@@ -89,17 +130,23 @@ export function registerTwitchImageProtocol(): void {
       if (!upstream.ok) return placeholderResponse();
 
       const contentType = upstream.headers.get("Content-Type") || "";
+      const bytes = new Uint8Array(await upstream.arrayBuffer());
+      const sniffedContentType = sniffImageContentType(bytes);
+      const effectiveContentType = contentType.startsWith("image/")
+        ? contentType
+        : sniffedContentType;
       // Pass-through guard: Twitch's 403 responses come back with
       // Content-Type: text/html. Refuse to forward anything that isn't
-      // declared as an image — the renderer's <img> would either fail or
-      // (worse) succeed-with-zero-dimensions and confuse the 1×1 detection.
-      if (!contentType.startsWith("image/")) return placeholderResponse();
+      // declared as an image or recognizable from its magic bytes. Some valid
+      // Twitch avatars are served as binary/octet-stream.
+      if (!effectiveContentType) {
+        return placeholderResponse();
+      }
 
-      const bytes = new Uint8Array(await upstream.arrayBuffer());
       return new Response(bytes, {
         status: 200,
         headers: {
-          "Content-Type": contentType,
+          "Content-Type": effectiveContentType,
           "Cache-Control": "public, max-age=3600",
         },
       });
