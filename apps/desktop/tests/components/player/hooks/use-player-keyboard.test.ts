@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { usePlayerKeyboard } from "@/components/player/hooks/use-player-keyboard";
 
@@ -15,6 +15,7 @@ function fireKey(key: string, target?: HTMLElement) {
   window.dispatchEvent(event);
 }
 
+// Guards: player shortcuts ignore interactive controls so their Space/K behavior cannot also toggle playback.
 describe("usePlayerKeyboard", () => {
   const callbacks = {
     onTogglePlay: vi.fn(),
@@ -85,6 +86,14 @@ describe("usePlayerKeyboard", () => {
     renderHook(() => usePlayerKeyboard(callbacks));
     const input = document.createElement("input");
     fireKey("k", input);
+    expect(callbacks.onTogglePlay).not.toHaveBeenCalled();
+  });
+
+  it("does not toggle playback when Space or K originates from an unrelated interactive control", () => {
+    renderHook(() => usePlayerKeyboard(callbacks));
+    const button = document.createElement("button");
+    fireKey(" ", button);
+    fireKey("k", button);
     expect(callbacks.onTogglePlay).not.toHaveBeenCalled();
   });
 

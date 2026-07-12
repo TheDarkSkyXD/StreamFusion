@@ -137,11 +137,6 @@ export function PlayerControls(props: PlayerControlsProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const hideTimer = useManagedTimeout(() => setIsVisible(false));
-  const clickPendingRef = useRef(false);
-  const clickTimer = useManagedTimeout(() => {
-    clickPendingRef.current = false;
-    onTogglePlay();
-  });
 
   // Start idle timeout
   const startIdleTimeout = useCallback(() => {
@@ -197,23 +192,9 @@ export function PlayerControls(props: PlayerControlsProps) {
     [hideTimer, startIdleTimeout]
   );
 
-  const handleOverlayClick = useCallback(() => {
-    if (clickPendingRef.current) {
-      clickTimer.clear();
-      clickPendingRef.current = false;
-      return;
-    }
-    clickPendingRef.current = true;
-    clickTimer.start(250);
-  }, [clickTimer]);
-
   const handleOverlayDoubleClick = useCallback(() => {
-    clickTimer.clear();
-    // The 2nd click of a double-click already resets this via handleOverlayClick,
-    // but reset here too so the handler is self-contained regardless of event order.
-    clickPendingRef.current = false;
     onToggleFullscreen();
-  }, [clickTimer, onToggleFullscreen]);
+  }, [onToggleFullscreen]);
 
   // Reset when playing state changes
   useEffect(() => {
@@ -235,7 +216,6 @@ export function PlayerControls(props: PlayerControlsProps) {
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={handleOverlayClick}
       onDoubleClick={handleOverlayDoubleClick}
     >
       {/* Controls bar at the bottom */}

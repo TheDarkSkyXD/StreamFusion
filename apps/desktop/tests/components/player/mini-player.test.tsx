@@ -33,23 +33,45 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/hooks/useStreamPlayback", () => streamPlaybackMock);
 
-vi.mock("@/components/player/hls-player", () => ({
-  HlsPlayer: (props: { src: string; onError?: (error: PlayerError) => void }) => {
-    playerProps.kick = props;
-    return <div data-testid="hls-player">{props.src}</div>;
-  },
-}));
+vi.mock("@/components/player/hls-player", async () => {
+  const { forwardRef } = await import("react");
+  return {
+    HlsPlayer: forwardRef<
+      HTMLVideoElement,
+      { src: string; onError?: (error: PlayerError) => void }
+    >((props, ref) => {
+      playerProps.kick = props;
+      return (
+        <div data-testid="hls-player">
+          <video ref={ref} />
+          {props.src}
+        </div>
+      );
+    }),
+  };
+});
 
-vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
-  TwitchHlsPlayer: (props: {
-    src: string;
-    onAdBlockRecoveryRefresh?: () => void;
-    onError?: (error: PlayerError) => void;
-  }) => {
-    playerProps.twitch = props;
-    return <div data-testid="twitch-hls-player">{props.src}</div>;
-  },
-}));
+vi.mock("@/components/player/twitch/twitch-hls-player", async () => {
+  const { forwardRef } = await import("react");
+  return {
+    TwitchHlsPlayer: forwardRef<
+      HTMLVideoElement,
+      {
+        src: string;
+        onAdBlockRecoveryRefresh?: () => void;
+        onError?: (error: PlayerError) => void;
+      }
+    >((props, ref) => {
+      playerProps.twitch = props;
+      return (
+        <div data-testid="twitch-hls-player">
+          <video ref={ref} />
+          {props.src}
+        </div>
+      );
+    }),
+  };
+});
 
 vi.mock("@/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
@@ -80,6 +102,7 @@ function primePipStore() {
 // Guards: mini-player must synchronously idle on /stream routes so the main player does not share startup with a duplicate playback subscriber.
 // Guards: mini-player must not mount HLS from the persisted stream snapshot while a fresh playback URL is still resolving; stale Kick live-video tokens 403 when Following activates PiP.
 // Guards: mini-player closes stale PiP state when its fresh playback lookup reports the stream unavailable, preventing an offline stream from showing as LIVE.
+// Guards: mini-player playback remains exclusive to its accessible Play/Pause button; its surface and unrelated controls cannot toggle media.
 describe("MiniPlayer playback routing", () => {
   beforeEach(() => {
     routerState.pathname = "/";
@@ -141,6 +164,52 @@ describe("MiniPlayer playback routing", () => {
     expect(screen.getByTestId("hls-player")).not.toHaveTextContent(
       "https://example.test/live.m3u8"
     );
+  });
+
+  it("labels its playback button dynamically and changes media only from that button", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    primePipStore();
+
+    renderWithProviders(<MiniPlayer />);
+    const mediaRoot = screen.getByTestId("hls-player");
+    const video = mediaRoot.querySelector("video") as HTMLVideoElement;
+    let paused = false;
+    const play = vi.fn().mockImplementation(() => {
+      paused = false;
+      return Promise.resolve();
+    });
+    const pause = vi.fn().mockImplementation(() => {
+      paused = true;
+    });
+    Object.defineProperties(video, {
+      paused: { get: () => paused, configurable: true },
+      play: { value: play, configurable: true },
+      pause: { value: pause, configurable: true },
+    });
+
+    const controls = screen.getAllByRole("button");
+    fireEvent.click(mediaRoot);
+    fireEvent.click(controls[0]);
+    fireEvent.click(controls[3]);
+    expect(play).not.toHaveBeenCalled();
+    expect(pause).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(play).not.toHaveBeenCalled();
+    expect(pause).toHaveBeenCalledTimes(1);
+
+    fireEvent.pause(video);
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    fireEvent.click(controls[1]);
+    expect(play).not.toHaveBeenCalled();
+    expect(pause).toHaveBeenCalledTimes(1);
   });
 
   it("does not reload Kick playback when mini-player HLS asks for a refresh", () => {

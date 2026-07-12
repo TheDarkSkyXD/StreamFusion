@@ -379,6 +379,7 @@ export function MiniPlayer() {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
+                    aria-label={isPlaying ? "Pause" : "Play"}
                     onClick={togglePlay}
                     className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
                   >

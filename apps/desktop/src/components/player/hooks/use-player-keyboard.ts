@@ -23,10 +23,15 @@ export function usePlayerKeyboard({
     if (disabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
-      // Ignore if typing in an input
-      const target = e.target as HTMLElement;
-      if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable) {
+      const target = e.target;
+      const targetElement = target instanceof Element ? target : null;
+      const isInteractiveTarget = targetElement?.closest(
+        'input, textarea, select, button, a[href], [role="button"], [role="link"], [contenteditable="true"]'
+      );
+      if (
+        isInteractiveTarget ||
+        (targetElement instanceof HTMLElement && targetElement.isContentEditable)
+      ) {
         return;
       }
 
