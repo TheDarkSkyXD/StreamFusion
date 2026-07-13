@@ -1,0 +1,33 @@
+{
+  "data": {
+    "video": {
+      "id": "video-redacted-001",
+      "comments": {
+        "edges": [
+          {
+            "cursor": "cursor-redacted-001",
+            "node": {
+              "id": "message-redacted-001",
+              "contentOffsetSeconds": 16,
+              "commenter": {
+                "id": "sender-redacted-001",
+                "login": "viewer_redacted_001",
+                "displayName": "Viewer Redacted 001"
+              },
+              "message": {
+                "fragments": [
+                  { "text": "Synthetic fixture message ", "emote": null },
+                  { "text": "SyntheticEmote", "emote": { "emoteID": "emote-redacted-001" } }
+                ],
+                "userBadges": [
+                  { "id": "badge-redacted-001", "setID": "subscriber", "version": "1" }
+                ]
+              }
+            }
+          }
+        ],
+        "pageInfo": { "hasNextPage": true }
+      }
+    }
+  }
+}

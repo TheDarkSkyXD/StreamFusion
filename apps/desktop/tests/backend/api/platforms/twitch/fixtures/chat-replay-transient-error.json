@@ -1,0 +1,4 @@
+{
+  "errors": [{ "message": "service error" }],
+  "data": { "video": { "id": "video-redacted-expired", "comments": null } }
+}
