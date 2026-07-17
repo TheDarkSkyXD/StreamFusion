@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Category Tabs: Placement Options</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      color-scheme: dark;
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --border: #333333;
+      --text: #ffffff;
+      --secondary: #a0a0a0;
+      --muted: #666666;
+      --live: #dc143c;
+      --focus: #ffffff;
+    }
+    body {
+      min-width: 980px;
+      padding: 28px;
+      background: var(--void);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    header { max-width: 1440px; margin: 0 auto 24px; }
+    h1 { font-size: 24px; line-height: 1.2; margin-bottom: 8px; }
+    .intro { color: var(--secondary); font-size: 14px; }
+    .options {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+    .option {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .option.recommended { border-color: #777; }
+    .option-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 62px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--mid);
+    }
+    .letter {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--raised);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .option-title { font-size: 14px; font-weight: 700; }
+    .recommendation {
+      margin-left: auto;
+      padding: 3px 7px;
+      border-radius: 999px;
+      color: var(--void);
+      background: var(--text);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+    .window { background: var(--void); }
+    .back {
+      padding: 13px 16px 0;
+      color: var(--secondary);
+      font-size: 11px;
+    }
+    .category-header {
+      display: flex;
+      align-items: end;
+      gap: 14px;
+      padding: 14px 16px 18px;
+    }
+    .cover {
+      width: 72px;
+      aspect-ratio: 3 / 4;
+      display: grid;
+      place-items: center;
+      flex: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: linear-gradient(145deg, #40352d, #182238);
+      color: #d8d8d8;
+      font-size: 10px;
+      text-align: center;
+    }
+    .category-copy { min-width: 0; padding-bottom: 3px; }
+    .category-copy h2 { font-size: 19px; line-height: 1.15; margin-bottom: 7px; }
+    .viewers { color: var(--secondary); font-size: 11px; }
+    .viewers strong { color: var(--text); }
+    .tabs {
+      display: flex;
+      align-items: end;
+      gap: 22px;
+      min-height: 44px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--void);
+    }
+    .tab {
+      position: relative;
+      padding: 13px 0 11px;
+      color: var(--secondary);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tab.active { color: var(--text); }
+    .tab.active::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: -1px;
+      left: 0;
+      height: 2px;
+      background: var(--text);
+    }
+    .header-tabs {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      align-self: end;
+    }
+    .header-tab {
+      padding: 7px 9px;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--secondary);
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .header-tab.active { color: var(--text); background: var(--mid); }
+    .controls {
+      display: flex;
+      gap: 7px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .control {
+      padding: 7px 9px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--secondary);
+      background: var(--surface);
+      font-size: 10px;
+    }
+    .content {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px 16px 18px;
+    }
+    .stream-card { min-width: 0; }
+    .thumb {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #292929, #4b4b4b);
+      overflow: hidden;
+    }
+    .live-badge {
+      position: absolute;
+      top: 7px;
+      left: 7px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--live);
+      font-size: 8px;
+      font-weight: 700;
+    }
+    .stream-card h3 {
+      overflow: hidden;
+      margin-top: 7px;
+      font-size: 11px;
+      line-height: 1.3;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .meta { margin-top: 3px; color: var(--secondary); font-size: 9px; }
+    .caption {
+      padding: 14px 16px 16px;
+      border-top: 1px solid var(--border);
+      color: var(--secondary);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .caption strong { color: var(--text); }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Where should Category tabs live?</h1>
+    <p class="intro">Each option uses the StreamFusion Dark Theater system. The active state is neutral, not Twitch purple or Kick green.</p>
+  </header>
+
+  <main class="options">
+    <section class="option recommended">
+      <div class="option-heading">
+        <div class="letter">A</div>
+        <div class="option-title">Header, then tabs</div>
+        <div class="recommendation">Recommended</div>
+      </div>
+      <div class="window">
+        <div class="back">‹ Back to Categories</div>
+        <div class="category-header">
+          <div class="cover">CATEGORY<br>ART</div>
+          <div class="category-copy">
+            <h2>Grand Theft Auto V</h2>
+            <div class="viewers"><strong>214K</strong> viewers now</div>
+          </div>
+        </div>
+        <nav class="tabs" aria-label="Category content">
+          <div class="tab active">Live Streams</div>
+          <div class="tab">Clips</div>
+          <div class="tab">Videos</div>
+        </nav>
+        <div class="controls">
+          <div class="control">All languages</div>
+          <div class="control">Filter tags</div>
+          <div class="control">Most viewers</div>
+        </div>
+        <div class="content">
+          <article class="stream-card"><div class="thumb"><span class="live-badge">LIVE</span></div><h3>Chaos in Los Santos</h3><div class="meta">Twitch · 18.2K viewers</div></article>
+          <article class="stream-card"><div class="thumb"><span class="live-badge">LIVE</span></div><h3>Roleplay night shift</h3><div class="meta">Kick · 11.7K viewers</div></article>
+        </div>
+      </div>
+      <p class="caption"><strong>Clear hierarchy.</strong> Category identity stays stable while tabs switch the content and controls underneath.</p>
+    </section>
+
+    <section class="option">
+      <div class="option-heading">
+        <div class="letter">B</div>
+        <div class="option-title">Tabs before header</div>
+      </div>
+      <div class="window">
+        <div class="back">‹ Back to Categories</div>
+        <nav class="tabs" aria-label="Category content">
+          <div class="tab active">Live Streams</div>
+          <div class="tab">Clips</div>
+          <div class="tab">Videos</div>
+        </nav>
+        <div class="category-header">
+          <div class="cover">CATEGORY<br>ART</div>
+          <div class="category-copy">
+            <h2>Grand Theft Auto V</h2>
+            <div class="viewers"><strong>214K</strong> viewers now</div>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="control">All languages</div>
+          <div class="control">Filter tags</div>
+          <div class="control">Most viewers</div>
+        </div>
+        <div class="content">
+          <article class="stream-card"><div class="thumb"><span class="live-badge">LIVE</span></div><h3>Chaos in Los Santos</h3><div class="meta">Twitch · 18.2K viewers</div></article>
+          <article class="stream-card"><div class="thumb"><span class="live-badge">LIVE</span></div><h3>Roleplay night shift</h3><div class="meta">Kick · 11.7K viewers</div></article>
+        </div>
+      </div>
+      <p class="caption"><strong>Fast access.</strong> Tabs appear sooner, but they visually detach from the Category they control.</p>
+    </section>
+
+    <section class="option">
+      <div class="option-heading">
+        <div class="letter">C</div>
+        <div class="option-title">Compact header tabs</div>
+      </div>
+      <div class="window">
+        <div class="back">‹ Back to Categories</div>
+        <div class="category-header">
+          <div class="cover">CATEGORY<br>ART</div>
+          <div class="category-copy">
+            <h2>Grand Theft Auto V</h2>
+            <div class="viewers"><strong>214K</strong> viewers now</div>
+          </div>
+          <div class="header-tabs">
+            <div class="header-tab active">Live</div>
+            <div class="header-tab">Clips</div>
+            <div class="header-tab">Videos</div>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="control">All languages</div>
+          <div class="control">Filter tags</div>
+          <div class="control">Most viewers</div>
+        </div>
+        <div class="content">
+          <article class="stream-card"><div class="thumb"><span class="live-badge">LIVE</span></div><h3>Chaos in Los Santos</h3><div class="meta">Twitch · 18.2K viewers</div></article>
+          <article class="stream-card"><div class="thumb"><span class="live-badge">LIVE</span></div><h3>Roleplay night shift</h3><div class="meta">Kick · 11.7K viewers</div></article>
+        </div>
+      </div>
+      <p class="caption"><strong>Space efficient.</strong> Useful on wide screens, but crowded beside long Category titles and weaker on smaller windows.</p>
+    </section>
+  </main>
+</body>
+</html>

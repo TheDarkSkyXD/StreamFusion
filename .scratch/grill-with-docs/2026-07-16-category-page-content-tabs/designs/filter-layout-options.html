@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Category Tabs: Filter Layout Options</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { color-scheme: dark; --void:#0f0f0f; --surface:#1a1a1a; --mid:#252525; --raised:#2d2d2d; --border:#333; --text:#fff; --secondary:#a0a0a0; }
+    body { min-width: 1040px; padding: 28px; background:var(--void); color:var(--text); font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    header { max-width:1460px; margin:0 auto 24px; }
+    h1 { margin-bottom:8px; font-size:24px; }
+    .intro { color:var(--secondary); font-size:14px; }
+    .options { max-width:1460px; margin:0 auto; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; align-items:start; }
+    .option { overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+    .option.recommended { border-color:#777; }
+    .option-heading { min-height:64px; padding:14px 16px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); background:var(--mid); }
+    .letter { width:28px; height:28px; flex:none; display:grid; place-items:center; border-radius:8px; background:var(--raised); font-size:13px; font-weight:700; }
+    .title { font-size:14px; font-weight:700; }
+    .recommended-label { margin-left:auto; padding:3px 7px; border-radius:999px; color:var(--void); background:var(--text); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+    .screen { background:var(--void); }
+    .category { padding:18px 16px; display:flex; align-items:end; gap:13px; }
+    .art { width:54px; aspect-ratio:3/4; display:grid; place-items:center; border:1px solid var(--border); border-radius:8px; background:linear-gradient(145deg,#40352d,#182238); color:#ccc; font-size:8px; text-align:center; }
+    .category h2 { margin-bottom:5px; font-size:17px; }
+    .live-count { color:var(--secondary); font-size:10px; }
+    .live-count strong { color:var(--text); }
+    .tabs { min-height:43px; padding:0 16px; display:flex; gap:22px; align-items:end; border-bottom:1px solid var(--border); }
+    .tab { position:relative; padding:13px 0 11px; color:var(--secondary); font-size:11px; font-weight:600; }
+    .tab.active { color:var(--text); }
+    .tab.active::after { content:""; position:absolute; right:0; bottom:-1px; left:0; height:2px; background:var(--text); }
+    .tabs.with-platform { align-items:center; }
+    .tabs.with-platform .platform { margin-left:auto; }
+    .toolbar { min-height:64px; padding:12px 16px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--border); }
+    .toolbar.split { justify-content:space-between; }
+    .group { display:flex; gap:8px; align-items:center; }
+    .label { color:var(--secondary); font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+    .platform { padding:3px; display:flex; gap:2px; border:1px solid var(--border); border-radius:9px; background:var(--surface); }
+    .segment { padding:6px 8px; border-radius:6px; color:var(--secondary); font-size:9px; font-weight:600; }
+    .segment.active { color:var(--text); background:var(--raised); }
+    .select { min-width:86px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface); font-size:10px; font-weight:600; }
+    .platform-select { min-width:112px; }
+    .grid { padding:14px 16px 18px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .thumb { aspect-ratio:16/9; border-radius:8px; background:linear-gradient(135deg,#292929,#4b4b4b); }
+    .card h3 { margin-top:7px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+    .meta { margin-top:3px; color:var(--secondary); font-size:9px; }
+    .caption { min-height:78px; padding:14px 16px 16px; border-top:1px solid var(--border); color:var(--secondary); font-size:11px; line-height:1.45; }
+    .caption strong { color:var(--text); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>How should Category filters be arranged?</h1>
+    <p class="intro">Shown on the Clips tab. Videos would omit Time Range; Live Streams would substitute its language, tag, and viewer controls.</p>
+  </header>
+  <main class="options">
+    <section class="option recommended">
+      <div class="option-heading"><div class="letter">A</div><div class="title">Platform left, content controls right</div><div class="recommended-label">Recommended</div></div>
+      <div class="screen">
+        <div class="category"><div class="art">CATEGORY<br>ART</div><div><h2>Grand Theft Auto V</h2><div class="live-count"><strong>214K</strong> watching live</div></div></div>
+        <nav class="tabs"><div class="tab">Live Streams</div><div class="tab active">Clips</div><div class="tab">Videos</div></nav>
+        <div class="toolbar split">
+          <div class="group"><span class="label">Platform</span><div class="platform"><div class="segment active">All</div><div class="segment">Twitch</div><div class="segment">Kick</div></div></div>
+          <div class="group"><div class="select">All Time⌄</div><div class="select">Views⌄</div></div>
+        </div>
+        <div class="grid"><div class="card"><div class="thumb"></div><h3>Perfect getaway timing</h3><div class="meta">1.2M views · Twitch</div></div><div class="card"><div class="thumb"></div><h3>The plan immediately fails</h3><div class="meta">826K views · Kick</div></div></div>
+      </div>
+      <p class="caption"><strong>Strongest hierarchy.</strong> Platform scope stays in one predictable place while tab-specific controls remain grouped together.</p>
+    </section>
+
+    <section class="option">
+      <div class="option-heading"><div class="letter">B</div><div class="title">All controls in one cluster</div></div>
+      <div class="screen">
+        <div class="category"><div class="art">CATEGORY<br>ART</div><div><h2>Grand Theft Auto V</h2><div class="live-count"><strong>214K</strong> watching live</div></div></div>
+        <nav class="tabs"><div class="tab">Live Streams</div><div class="tab active">Clips</div><div class="tab">Videos</div></nav>
+        <div class="toolbar">
+          <div class="select platform-select">All Platforms⌄</div><div class="select">All Time⌄</div><div class="select">Views⌄</div>
+        </div>
+        <div class="grid"><div class="card"><div class="thumb"></div><h3>Perfect getaway timing</h3><div class="meta">1.2M views · Twitch</div></div><div class="card"><div class="thumb"></div><h3>The plan immediately fails</h3><div class="meta">826K views · Kick</div></div></div>
+      </div>
+      <p class="caption"><strong>Compact and familiar.</strong> Easy to implement, but Platform scope looks like just another sorting detail.</p>
+    </section>
+
+    <section class="option">
+      <div class="option-heading"><div class="letter">C</div><div class="title">Platform beside the tabs</div></div>
+      <div class="screen">
+        <div class="category"><div class="art">CATEGORY<br>ART</div><div><h2>Grand Theft Auto V</h2><div class="live-count"><strong>214K</strong> watching live</div></div></div>
+        <nav class="tabs with-platform"><div class="tab">Live Streams</div><div class="tab active">Clips</div><div class="tab">Videos</div><div class="platform"><div class="segment active">All</div><div class="segment">Twitch</div><div class="segment">Kick</div></div></nav>
+        <div class="toolbar"><div class="select">All Time⌄</div><div class="select">Views⌄</div></div>
+        <div class="grid"><div class="card"><div class="thumb"></div><h3>Perfect getaway timing</h3><div class="meta">1.2M views · Twitch</div></div><div class="card"><div class="thumb"></div><h3>The plan immediately fails</h3><div class="meta">826K views · Kick</div></div></div>
+      </div>
+      <p class="caption"><strong>Always visible.</strong> Saves toolbar space, but mixes content navigation with filtering and crowds narrow windows.</p>
+    </section>
+  </main>
+</body>
+</html>
