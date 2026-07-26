@@ -1,0 +1,15 @@
+html,
+body,
+#storybook-root {
+  min-height: 100%;
+}
+
+html,
+body {
+  overflow: auto;
+  color-scheme: dark;
+}
+
+.sb-show-main.sb-main-padded {
+  min-height: 100vh;
+}

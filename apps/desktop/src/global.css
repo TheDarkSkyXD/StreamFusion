@@ -54,7 +54,7 @@
   --color-card-foreground: var(--color-foreground);
   --color-popover: var(--color-background-elevated);
   --color-popover-foreground: var(--color-foreground);
-  --color-destructive: #ef4444;
+  --color-destructive: var(--color-storm-accent);
   --color-destructive-foreground: #ffffff;
   --color-input: var(--color-border);
   --radius: 0.5rem;

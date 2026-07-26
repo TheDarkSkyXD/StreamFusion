@@ -28,6 +28,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "storybook:coverage": "node scripts/check-storybook-coverage.mjs",
     "bundle:analyze": "cross-env ANALYZE=true npm run build"
   },
   "build": {
@@ -79,6 +82,9 @@
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
     "@electron/rebuild": "^4.0.3",
+    "@storybook/addon-a11y": "10.2.9",
+    "@storybook/addon-docs": "10.2.9",
+    "@storybook/react-vite": "10.2.9",
     "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query-devtools": "^5.91.3",
@@ -104,6 +110,7 @@
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.6",
     "rollup-plugin-visualizer": "^6.0.5",
+    "storybook": "10.2.9",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",

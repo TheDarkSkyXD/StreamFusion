@@ -18,7 +18,8 @@ const buttonVariants = cva(
         ghost: "hover:bg-[var(--color-background-secondary)]",
         twitch: "bg-[var(--color-twitch)] text-white hover:bg-[var(--color-twitch-dark)]",
         kick: "bg-[var(--color-kick)] text-black hover:bg-[var(--color-kick-dark)]",
-        destructive: "bg-red-500 text-white hover:bg-red-600",
+        destructive:
+          "bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] hover:bg-[var(--color-destructive)]/90",
         link: "text-[var(--color-storm-primary)] underline-offset-4 hover:underline",
       },
       size: {
