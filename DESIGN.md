@@ -23,7 +23,7 @@ colors:
   tag-surface-hover: "#5a5d66"
   tag-text: "#efeff1"
   divider: "#333333"
-  danger: "#ef4444"
+  danger: "#dc143c"
   live-red: "#dc2626"
 typography:
   display:
@@ -219,7 +219,7 @@ Tactile and responsive. Every button shifts color immediately on hover; the tran
 - **Ghost:** Transparent at rest. Hover reveals Dark Surface (#1a1a1a).
 - **Outline:** 1px border (Divider #333333), transparent background. Hover fills with Dark Surface.
 - **Platform variants:** Twitch Purple and Kick Green backgrounds, used only for platform-specific actions (connect account, follow on platform). Never as general buttons.
-- **Destructive:** Danger Red (#ef4444) background, white text.
+- **Destructive:** Danger Red (#dc143c) background, white text.
 
 ### Chips / Tags
 

@@ -95,6 +95,9 @@ typings/
 # Vite
 .vite/
 
+# Storybook
+/apps/desktop/storybook-static/
+
 # Electron-Forge
 out/
 

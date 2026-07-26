@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "exclusions": {
+    "auth/AuthProvider.tsx": "Application lifecycle and authentication bootstrap wrapper that only passes through children; it has no standalone visual state.",
+    "chat/mod/UserPopout/UserPopoutProvider.tsx": "Context and dispatcher wiring with no standalone surface; its conditional UI is the separately storyable UserPopout component.",
+    "player/kick/uptime-readout.tsx": "Imperative one-second media clock coordinator that always returns null and only updates a progress-bar ref; it has no rendered state to catalog.",
+    "stream/related-content.tsx": "Backward-compatibility re-export shim with no component implementation; the real RelatedContent surface lives in related-content/index.tsx."
+  }
+}

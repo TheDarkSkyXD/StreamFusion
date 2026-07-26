@@ -26,8 +26,8 @@ export const DEBUG_TOKENS = {
   successSoft: "rgba(74, 222, 128, 0.15)",
   warning: "rgb(250, 204, 21)", // yellow-400
   warningSoft: "rgba(250, 204, 21, 0.15)",
-  danger: "#ef4444", // --color-destructive
-  dangerSoft: "rgba(239, 68, 68, 0.15)",
+  danger: "#dc143c", // --color-destructive
+  dangerSoft: "rgba(220, 20, 60, 0.15)",
   fontUi: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   fontMono: '"JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace',
   shadow: "0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.35)",
