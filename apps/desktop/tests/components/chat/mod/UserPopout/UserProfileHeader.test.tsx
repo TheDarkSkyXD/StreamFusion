@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { UserProfileHeader } from "@/components/chat/mod/UserPopout/UserProfileHeader";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { AccountCreatedFieldState } from "@/shared/user-profile-types";
 
 const identity = {
   state: "known" as const,
@@ -91,11 +92,12 @@ describe("UserProfileHeader field states", () => {
     expect((await screen.findAllByText(/years ago|months ago|days ago/)).length).toBeGreaterThan(0);
   });
 
-  it("renders stale reconnect-required follow state as retryable unavailable", () => {
+  it("renders reconnect-required follow state distinctly from unavailable and failed", () => {
     const retry = vi.fn();
     render(
       <TooltipProvider>
         <UserProfileHeader
+          platform="kick"
           fallbackUsername="alice"
           identity={identity}
           accountCreated={accountCreated}
@@ -106,11 +108,19 @@ describe("UserProfileHeader field states", () => {
           retryIdentity={vi.fn()}
           retryAccountCreated={vi.fn()}
           retryFollow={retry}
+          reconnect={retry}
         />
       </TooltipProvider>
     );
-    expect(screen.queryByText("Reconnect Twitch")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Unavailable · Retry" }));
+    const reconnect = screen.getByRole("button", { name: "Reconnect Kick · Retry" });
+    expect(reconnect).toHaveAttribute("data-profile-state", "reconnect-required");
+    fireEvent.click(reconnect);
     expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("excludes negative account-created states from the component contract", () => {
+    type NegativeAccountCreatedState = Extract<AccountCreatedFieldState, { state: "negative" }>;
+
+    expectTypeOf<NegativeAccountCreatedState>().toEqualTypeOf<never>();
   });
 });

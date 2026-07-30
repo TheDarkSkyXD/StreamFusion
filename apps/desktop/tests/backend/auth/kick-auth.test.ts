@@ -4,7 +4,9 @@ vi.mock("@/lib/cross-logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-const mockCookiesGet = vi.fn(async (_filter: { domain?: string; name?: string }) => [] as unknown[]);
+const mockCookiesGet = vi.fn(
+  async (_filter: { domain?: string; name?: string }) => [] as unknown[]
+);
 const mockCookiesRemove = vi.fn(async (_url: string, _name: string) => undefined);
 
 vi.mock("electron", () => ({
@@ -61,6 +63,13 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
 
 const { kickAuthService } = await import("@/backend/auth/kick-auth");
 const { storageService } = await import("@/backend/services/storage-service");
+const canonicalScopes = [
+  "user:read",
+  "channel:read",
+  "moderation:chat_message:manage",
+  "moderation:ban",
+  "events:subscribe",
+];
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -68,6 +77,7 @@ beforeEach(() => {
   storageState.token = null;
   storageState.kickUser = null;
   vi.clearAllMocks();
+  refreshTokenMock.mockReset();
 });
 
 afterEach(() => {
@@ -81,12 +91,12 @@ describe("isAuthenticated", () => {
   });
 
   it("returns false when token but no user", () => {
-    storageState.token = { accessToken: "at" };
+    storageState.token = { accessToken: "at", scope: canonicalScopes };
     expect(kickAuthService.isAuthenticated()).toBe(false);
   });
 
   it("returns true when both token and user exist", () => {
-    storageState.token = { accessToken: "at" };
+    storageState.token = { accessToken: "at", scope: canonicalScopes };
     storageState.kickUser = { id: 1, username: "u" };
     expect(kickAuthService.isAuthenticated()).toBe(true);
   });
@@ -103,13 +113,25 @@ describe("getAccessToken", () => {
   });
 
   it("returns access token when valid", () => {
-    storageState.token = { accessToken: "at", expiresAt: Date.now() + 60_000 };
+    storageState.token = {
+      accessToken: "at",
+      expiresAt: Date.now() + 60_000,
+      scope: canonicalScopes,
+    };
     expect(kickAuthService.getAccessToken()).toBe("at");
   });
 
   it("returns access token when expiresAt is absent", () => {
-    storageState.token = { accessToken: "at" };
+    storageState.token = { accessToken: "at", scope: canonicalScopes };
     expect(kickAuthService.getAccessToken()).toBe("at");
+  });
+
+  it("does not authenticate or expose a token with incomplete legacy scopes", () => {
+    storageState.token = { accessToken: "legacy", scope: ["user:read"] };
+    storageState.kickUser = { id: 1, username: "u" };
+
+    expect(kickAuthService.isAuthenticated()).toBe(false);
+    expect(kickAuthService.getAccessToken()).toBeNull();
   });
 });
 
@@ -132,14 +154,52 @@ describe("refreshToken", () => {
   });
 
   it("refreshes and saves new token on success", async () => {
-    storageState.token = { accessToken: "old", refreshToken: "rt" };
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "rt",
+      scope: canonicalScopes,
+    };
     const newToken = { accessToken: "new", refreshToken: "rt2", expiresAt: Date.now() + 3600_000 };
     refreshTokenMock.mockResolvedValueOnce(newToken);
 
     const result = await kickAuthService.refreshToken();
 
-    expect(result).toEqual(newToken);
-    expect(storageService.saveToken).toHaveBeenCalledWith("kick", newToken);
+    expect(result).toEqual({ ...newToken, scope: canonicalScopes });
+    expect(storageService.saveToken).toHaveBeenCalledWith("kick", {
+      ...newToken,
+      scope: canonicalScopes,
+    });
+  });
+
+  it("preserves the canonical granted scopes when refresh omits scope", async () => {
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "rt",
+      scope: canonicalScopes,
+    };
+    refreshTokenMock.mockResolvedValueOnce({ accessToken: "new", refreshToken: "rt2" });
+
+    await expect(kickAuthService.refreshToken()).resolves.toMatchObject({
+      accessToken: "new",
+      scope: canonicalScopes,
+    });
+  });
+
+  it("rejects and does not persist an explicitly incomplete refreshed scope set", async () => {
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "rt",
+      scope: canonicalScopes,
+    };
+    refreshTokenMock.mockResolvedValueOnce({
+      accessToken: "new",
+      refreshToken: "rt2",
+      scope: [],
+    });
+
+    await expect(kickAuthService.refreshToken()).resolves.toBeNull();
+    expect(storageService.saveToken).not.toHaveBeenCalled();
+    expect(storageService.clearToken).toHaveBeenCalledWith("kick");
   });
 
   it("clears auth state and emits session-expired on failure", async () => {
@@ -161,7 +221,7 @@ describe("refreshToken", () => {
   });
 
   it("deduplicates concurrent refresh calls", async () => {
-    storageState.token = { accessToken: "at", refreshToken: "rt" };
+    storageState.token = { accessToken: "at", refreshToken: "rt", scope: canonicalScopes };
     let resolver: ((v: any) => void) | null = null;
     refreshTokenMock.mockReturnValueOnce(
       new Promise((r) => {
@@ -180,16 +240,16 @@ describe("refreshToken", () => {
   });
 
   it("clears the in-flight promise after failure so next call retries", async () => {
-    storageState.token = { accessToken: "at", refreshToken: "rt" };
+    storageState.token = { accessToken: "at", refreshToken: "rt", scope: canonicalScopes };
     refreshTokenMock.mockRejectedValueOnce(new Error("fail"));
 
     await kickAuthService.refreshToken();
 
-    storageState.token = { accessToken: "at2", refreshToken: "rt2" };
+    storageState.token = { accessToken: "at2", refreshToken: "rt2", scope: canonicalScopes };
     refreshTokenMock.mockResolvedValueOnce({ accessToken: "ok" });
 
     const result = await kickAuthService.refreshToken();
-    expect(result).toEqual({ accessToken: "ok" });
+    expect(result).toMatchObject({ accessToken: "ok", refreshToken: "rt2" });
     expect(refreshTokenMock).toHaveBeenCalledTimes(2);
   });
 });
@@ -200,12 +260,21 @@ describe("ensureValidToken", () => {
   });
 
   it("returns true when token is not expiring soon", async () => {
-    storageState.token = { accessToken: "at", expiresAt: Date.now() + 3600_000 };
+    storageState.token = {
+      accessToken: "at",
+      expiresAt: Date.now() + 3600_000,
+      scope: canonicalScopes,
+    };
     expect(await kickAuthService.ensureValidToken()).toBe(true);
   });
 
   it("refreshes when token is expiring within 5 minutes", async () => {
-    storageState.token = { accessToken: "at", refreshToken: "rt", expiresAt: Date.now() + 60_000 };
+    storageState.token = {
+      accessToken: "at",
+      refreshToken: "rt",
+      expiresAt: Date.now() + 60_000,
+      scope: canonicalScopes,
+    };
     refreshTokenMock.mockResolvedValueOnce({ accessToken: "new" });
 
     expect(await kickAuthService.ensureValidToken()).toBe(true);
@@ -220,7 +289,7 @@ describe("ensureValidToken", () => {
   });
 
   it("returns true when expiresAt is 0 (treats as no-expiry)", async () => {
-    storageState.token = { accessToken: "at", expiresAt: 0 };
+    storageState.token = { accessToken: "at", expiresAt: 0, scope: canonicalScopes };
     expect(await kickAuthService.ensureValidToken()).toBe(true);
   });
 });
@@ -377,7 +446,11 @@ describe("fetchCurrentUser", () => {
   });
 
   it("attempts refresh on 401 and retries", async () => {
-    storageState.token = { accessToken: "old", refreshToken: "rt" };
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "rt",
+      scope: canonicalScopes,
+    };
     refreshTokenMock.mockResolvedValueOnce({
       accessToken: "new-at",
       refreshToken: "rt2",

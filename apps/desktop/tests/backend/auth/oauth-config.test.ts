@@ -22,7 +22,9 @@ describe("WORKER_BASE_URL", () => {
     const config = await import("@/backend/auth/oauth-config");
 
     expect(config.WORKER_BASE_URL).toBe("http://localhost:8787");
-    expect(config.TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe("http://localhost:8787/auth/twitch/token");
+    expect(config.TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe(
+      "http://localhost:8787/auth/twitch/token"
+    );
     expect(config.KICK_OAUTH_CONFIG.tokenEndpoint).toBe("http://localhost:8787/auth/kick/token");
   });
 });
@@ -149,9 +151,17 @@ describe("KICK_OAUTH_CONFIG scopes (chat send)", () => {
   });
 
   it("preserves the prior base scopes (user:read + channel:read)", () => {
-    expect(KICK_OAUTH_CONFIG.scopes).toEqual(
-      expect.arrayContaining(["user:read", "channel:read"]),
-    );
+    expect(KICK_OAUTH_CONFIG.scopes).toEqual(expect.arrayContaining(["user:read", "channel:read"]));
+  });
+
+  it("uses the exact canonical Kick scope set including event subscriptions", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toEqual([
+      "user:read",
+      "channel:read",
+      "moderation:chat_message:manage",
+      "moderation:ban",
+      "events:subscribe",
+    ]);
   });
 
   it("requests chat-message moderation so Kick mods and owners can delete chat messages", () => {

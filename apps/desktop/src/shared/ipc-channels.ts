@@ -17,6 +17,10 @@ import type {
 import type { SubscriberEligibilityRequest } from "./chat-types";
 import type { SlotQualityMode } from "./slot-types";
 import type {
+  KickAccountCreatedRequest,
+  KickChannelRequest,
+  KickFollowRequest,
+  KickIdentityRequest,
   TwitchAccountCreatedRequest,
   TwitchChannelRequest,
   TwitchFollowRequest,
@@ -111,6 +115,10 @@ export const IPC_CHANNELS = {
   USER_PROFILE_TWITCH_ACCOUNT_CREATED: "user-profile:twitch-account-created",
   USER_PROFILE_TWITCH_FOLLOW: "user-profile:twitch-follow",
   USER_PROFILE_TWITCH_CHANNEL: "user-profile:twitch-channel",
+  USER_PROFILE_KICK_IDENTITY: "user-profile:kick-identity",
+  USER_PROFILE_KICK_ACCOUNT_CREATED: "user-profile:kick-account-created",
+  USER_PROFILE_KICK_FOLLOW: "user-profile:kick-follow",
+  USER_PROFILE_KICK_CHANNEL: "user-profile:kick-channel",
 
   // Auth - Session Events (main → renderer push)
   AUTH_KICK_SESSION_EXPIRED: "auth:kick-session-expired",
@@ -373,6 +381,10 @@ export interface IpcPayloads {
   [IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED]: TwitchAccountCreatedRequest;
   [IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW]: TwitchFollowRequest;
   [IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL]: TwitchChannelRequest;
+  [IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY]: KickIdentityRequest;
+  [IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED]: KickAccountCreatedRequest;
+  [IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW]: KickFollowRequest;
+  [IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL]: KickChannelRequest;
 
   // User data
   [IPC_CHANNELS.AUTH_SAVE_TWITCH_USER]: { user: TwitchUser };

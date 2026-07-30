@@ -20,7 +20,16 @@ import { logger } from "@/backend/logging/logger";
 // kick-transformers.test.ts) — empty `id` on a slug-only row is accepted, but
 // `user_id` is NEVER mapped to UnifiedChannel.id.
 
-const mockToken = vi.hoisted(() => ({ accessToken: "test-token-123" }));
+const mockToken = vi.hoisted(() => ({
+  accessToken: "test-token-123",
+  scope: [
+    "user:read",
+    "channel:read",
+    "moderation:chat_message:manage",
+    "moderation:ban",
+    "events:subscribe",
+  ],
+}));
 
 vi.mock("../../../../../src/backend/services/storage-service", () => ({
   storageService: {

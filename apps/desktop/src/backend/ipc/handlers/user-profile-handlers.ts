@@ -3,6 +3,12 @@ import { app, type IpcMainInvokeEvent, ipcMain } from "electron";
 import { getUserProfileFixture } from "../../../dev-relay/user-profile-fixtures";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type {
+  KickAccountCreatedRequest,
+  KickChannelRequest,
+  KickFollowRequest,
+  KickIdentityRequest,
+  KickPublicIdentity,
+  KickResolvedChannel,
   ProfileFieldState,
   TwitchAccountCreatedRequest,
   TwitchChannelRequest,
@@ -43,6 +49,60 @@ export function registerUserProfileHandlers(): void {
             "../../api/platforms/twitch/twitch-public-profile-reader"
           );
           return getTwitchPublicIdentity(request.userId, request.username);
+        }
+      )
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY,
+    async (event, request: KickIdentityRequest) =>
+      readWithDevelopmentFixture<KickPublicIdentity>(
+        event,
+        ["userProfiles", "getKickIdentity"],
+        async () => {
+          const { getKickPublicIdentity } = await import(
+            "../../api/platforms/kick/kick-public-profile-reader"
+          );
+          return getKickPublicIdentity(request.userId, request.username, request.channelSlug);
+        }
+      )
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED,
+    async (event, request: KickAccountCreatedRequest) =>
+      readWithDevelopmentFixture<string>(
+        event,
+        ["userProfiles", "getKickAccountCreated"],
+        async () => {
+          const { getKickAccountCreated } = await import(
+            "../../api/platforms/kick/kick-public-profile-reader"
+          );
+          return getKickAccountCreated(request.userId, request.username, request.channelSlug);
+        }
+      )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW, async (event, request: KickFollowRequest) =>
+    readWithDevelopmentFixture<string>(event, ["userProfiles", "getKickFollow"], async () => {
+      const { getKickFollowRelationship } = await import(
+        "../../api/platforms/kick/kick-public-profile-reader"
+      );
+      return getKickFollowRelationship(request.userId, request.username, request.channelSlug);
+    })
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL,
+    async (event, request: KickChannelRequest) =>
+      readWithDevelopmentFixture<KickResolvedChannel>(
+        event,
+        ["userProfiles", "resolveKickChannel"],
+        async () => {
+          const { resolveKickPublicChannel } = await import(
+            "../../api/platforms/kick/kick-public-profile-reader"
+          );
+          return resolveKickPublicChannel(request.username);
         }
       )
   );

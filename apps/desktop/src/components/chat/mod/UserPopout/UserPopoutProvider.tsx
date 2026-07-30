@@ -28,6 +28,8 @@ import { UserPopout } from "./UserPopout";
 export interface OpenUserPopoutPayload {
   userId: string;
   username: string;
+  displayName?: string;
+  avatarUrl?: string;
   platform: "twitch" | "kick";
   channelId: string;
   channelSlug: string;
@@ -91,6 +93,8 @@ export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
           key={`${current.platform}:${current.userId}`}
           userId={current.userId}
           username={current.username}
+          displayName={current.displayName}
+          avatarUrl={current.avatarUrl}
           platform={current.platform}
           channelId={current.channelId}
           channelSlug={current.channelSlug}

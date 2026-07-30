@@ -22,6 +22,7 @@ import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile"
 import { Username } from "@/components/chat/Username";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+// Guards: chat-known Kick display name and avatar survive the username-click boundary into the dialog.
 describe("Username user-popout wiring", () => {
   it("passes the clicked chatter identity separately from the current channel", () => {
     render(
@@ -48,5 +49,27 @@ describe("Username user-popout wiring", () => {
       "alice",
       "streamer"
     );
+  });
+
+  it("opens a Kick dialog immediately with chat-known display name and avatar", () => {
+    render(
+      <TooltipProvider>
+        <UserPopoutProvider>
+          <Username
+            userId="kick-user"
+            username="alice"
+            displayName="Alice"
+            avatarUrl="https://files.kick.com/images/user/123/profile_image/conversion/abc-fullsize.webp"
+            platform="kick"
+            currentChannelContext={{ channelId: "stream-id", channelSlug: "streamer" }}
+          />
+        </UserPopoutProvider>
+      </TooltipProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Alice" }));
+
+    expect(screen.getByRole("heading", { name: "Alice" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Alice avatar" })).toBeInTheDocument();
   });
 });

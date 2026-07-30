@@ -1,9 +1,10 @@
 import { useQueries } from "@tanstack/react-query";
 
 import type {
+  AccountCreatedFieldState,
   ProfileFieldState,
-  TwitchPublicIdentity,
-  TwitchResolvedChannel,
+  PublicResolvedChannel,
+  PublicUserIdentity,
 } from "@/shared/user-profile-types";
 
 export interface UserProfile {
@@ -28,17 +29,17 @@ export interface UserProfile {
 const PROFILE_TTL_MS = 5 * 60 * 1000;
 const loadingState = { state: "loading" } as const;
 const unavailableState = { state: "unavailable", message: "Unavailable" } as const;
-
 export type RenderFieldState<T> = ProfileFieldState<T> | typeof loadingState;
+export type RenderAccountCreatedState = AccountCreatedFieldState | typeof loadingState;
 
 export interface UseUserProfileResult {
   profile: UserProfile | null;
   loading: boolean;
   error: string | null;
-  identity: RenderFieldState<TwitchPublicIdentity>;
-  accountCreated: RenderFieldState<string>;
+  identity: RenderFieldState<PublicUserIdentity>;
+  accountCreated: RenderAccountCreatedState;
   follow: RenderFieldState<string>;
-  channel: RenderFieldState<TwitchResolvedChannel>;
+  channel: RenderFieldState<PublicResolvedChannel>;
   retryIdentity: () => void;
   retryAccountCreated: () => void;
   retryFollow: () => void;
@@ -50,49 +51,69 @@ export function useUserProfile(
   platform: "twitch" | "kick",
   channelId: string | null,
   username?: string,
-  _channelSlug?: string
+  channelSlug?: string
 ): UseUserProfileResult {
-  const enabled = platform === "twitch" && Boolean(userId && channelId && username);
+  const enabled = Boolean(userId && channelId && username && (platform !== "kick" || channelSlug));
   const [identityQuery, accountCreatedQuery, followQuery, channelQuery] = useQueries({
     queries: [
       {
-        queryKey: ["userProfile", "twitch", "identity", userId, username],
+        queryKey: ["userProfile", platform, "identity", userId, username, channelSlug],
         queryFn: () =>
-          window.electronAPI.userProfiles.getTwitchIdentity({
-            userId: userId!,
-            username: username!,
-          }),
+          platform === "twitch"
+            ? window.electronAPI.userProfiles.getTwitchIdentity({
+                userId: userId!,
+                username: username!,
+              })
+            : window.electronAPI.userProfiles.getKickIdentity({
+                userId: userId!,
+                username: username!,
+                channelSlug: channelSlug!,
+              }),
         enabled,
         staleTime: PROFILE_TTL_MS,
         retry: false,
       },
       {
-        queryKey: ["userProfile", "twitch", "account-created", userId, username],
+        queryKey: ["userProfile", platform, "account-created", userId, username, channelSlug],
         queryFn: () =>
-          window.electronAPI.userProfiles.getTwitchAccountCreated({
-            userId: userId!,
-            username: username!,
-          }),
+          platform === "twitch"
+            ? window.electronAPI.userProfiles.getTwitchAccountCreated({
+                userId: userId!,
+                username: username!,
+              })
+            : window.electronAPI.userProfiles.getKickAccountCreated({
+                userId: userId!,
+                username: username!,
+                channelSlug: channelSlug!,
+              }),
         enabled,
         staleTime: PROFILE_TTL_MS,
         retry: false,
       },
       {
-        queryKey: ["userProfile", "twitch", "follow", channelId, userId],
+        queryKey: ["userProfile", platform, "follow", channelId, userId, channelSlug],
         queryFn: () =>
-          window.electronAPI.userProfiles.getTwitchFollow({
-            broadcasterId: channelId!,
-            userId: userId!,
-            username: username!,
-          }),
+          platform === "twitch"
+            ? window.electronAPI.userProfiles.getTwitchFollow({
+                broadcasterId: channelId!,
+                userId: userId!,
+                username: username!,
+              })
+            : window.electronAPI.userProfiles.getKickFollow({
+                userId: userId!,
+                username: username!,
+                channelSlug: channelSlug!,
+              }),
         enabled,
         staleTime: PROFILE_TTL_MS,
         retry: false,
       },
       {
-        queryKey: ["userProfile", "twitch", "channel", username],
+        queryKey: ["userProfile", platform, "channel", username],
         queryFn: () =>
-          window.electronAPI.userProfiles.resolveTwitchChannel({ username: username! }),
+          platform === "twitch"
+            ? window.electronAPI.userProfiles.resolveTwitchChannel({ username: username! })
+            : window.electronAPI.userProfiles.resolveKickChannel({ username: username! }),
         enabled,
         staleTime: PROFILE_TTL_MS,
         retry: false,
@@ -100,28 +121,22 @@ export function useUserProfile(
     ],
   });
 
-  const identity: RenderFieldState<TwitchPublicIdentity> =
-    platform === "kick"
-      ? unavailableState
-      : (identityQuery.data ??
-        (identityQuery.error ? { state: "failed", message: "Couldn’t verify" } : loadingState));
-  const follow: RenderFieldState<string> =
-    platform === "kick"
-      ? unavailableState
-      : (followQuery.data ??
-        (followQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
-  const channel: RenderFieldState<TwitchResolvedChannel> =
-    platform === "kick"
-      ? unavailableState
-      : (channelQuery.data ??
-        (channelQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
-  const accountCreated: RenderFieldState<string> =
-    platform === "kick"
-      ? unavailableState
-      : (accountCreatedQuery.data ??
-        (accountCreatedQuery.error
-          ? { state: "failed", message: "Couldn’t verify" }
-          : loadingState));
+  const identity: RenderFieldState<PublicUserIdentity> = !enabled
+    ? unavailableState
+    : (identityQuery.data ??
+      (identityQuery.error ? { state: "failed", message: "Couldn’t verify" } : loadingState));
+  const follow: RenderFieldState<string> = !enabled
+    ? unavailableState
+    : (followQuery.data ??
+      (followQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
+  const channel: RenderFieldState<PublicResolvedChannel> = !enabled
+    ? unavailableState
+    : (channelQuery.data ??
+      (channelQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
+  const accountCreated: RenderAccountCreatedState = !enabled
+    ? unavailableState
+    : (accountCreatedQuery.data ??
+      (accountCreatedQuery.error ? { state: "failed", message: "Couldn’t verify" } : loadingState));
 
   const knownIdentity = identity.state === "known" ? identity.value : null;
   const profile = knownIdentity
@@ -148,16 +163,16 @@ export function useUserProfile(
     follow,
     channel,
     retryIdentity: () => {
-      if (platform === "twitch") void identityQuery.refetch();
+      void identityQuery.refetch();
     },
     retryAccountCreated: () => {
-      if (platform === "twitch") void accountCreatedQuery.refetch();
+      void accountCreatedQuery.refetch();
     },
     retryFollow: () => {
-      if (platform === "twitch") void followQuery.refetch();
+      void followQuery.refetch();
     },
     retryChannel: () => {
-      if (platform === "twitch") void channelQuery.refetch();
+      void channelQuery.refetch();
     },
   };
 }

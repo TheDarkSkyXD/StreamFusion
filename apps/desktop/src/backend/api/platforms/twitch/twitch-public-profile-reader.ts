@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type {
+  AccountCreatedFieldState,
   ProfileFieldState,
   TwitchPublicIdentity,
   TwitchResolvedChannel,
@@ -122,7 +123,7 @@ export async function getTwitchPublicIdentity(
 export async function getTwitchAccountCreated(
   userId: string,
   username: string
-): Promise<ProfileFieldState<string>> {
+): Promise<AccountCreatedFieldState> {
   if (twitchClient.isAuthenticated()) {
     try {
       const user = (await twitchClient.getUsersById([userId]))[0];

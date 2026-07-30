@@ -600,6 +600,10 @@ class KickClient implements KickRequestor, IPlatformReader {
     return UserEndpoints.getUsersById(this, ids);
   }
 
+  async getUsersByIdStrict(ids: number[]): Promise<KickApiUser[]> {
+    return UserEndpoints.getUsersByIdStrict(this, ids);
+  }
+
   /**
    * Get a channel-scoped public user profile using Kick's legacy/internal v2 web endpoint.
    */

@@ -61,7 +61,10 @@ describe("getTokenStatus — Twitch (/validate)", () => {
   });
 
   it("non-200 from /validate → invalid", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({}, false, 401)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({}, false, 401))
+    );
 
     const report = await tokenExchangeService.getTokenStatus("twitch", {
       accessToken: "stale",
@@ -81,7 +84,13 @@ describe("getTokenStatus — Kick (current-user re-fetch)", () => {
 
     const report = await tokenExchangeService.getTokenStatus("kick", {
       accessToken: "kick-access",
-      scope: ["chat:write"],
+      scope: [
+        "user:read",
+        "channel:read",
+        "moderation:chat_message:manage",
+        "moderation:ban",
+        "events:subscribe",
+      ],
       expiresAt: 1_777_000_000_000,
     });
 
@@ -90,13 +99,32 @@ describe("getTokenStatus — Kick (current-user re-fetch)", () => {
     // The Kick OAuth user_id (676), per the dual-id learning.
     expect(report.userId).toBe("676");
     // Scopes come from the stored token (the API surface returns none).
-    expect(report.scopes).toEqual(["chat:write"]);
+    expect(report.scopes).toContain("events:subscribe");
     // No expiry from Kick → falls back to the stored token's expiresAt.
     expect(report.expiresAt).toBe(1_777_000_000_000);
   });
 
+  it("active-looking stored Kick token with incomplete scopes is invalid", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const report = await tokenExchangeService.getTokenStatus("kick", {
+      accessToken: "legacy",
+      scope: ["user:read", "channel:read"],
+    });
+
+    expect(report).toEqual({
+      valid: false,
+      scopes: ["user:read", "channel:read"],
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("non-200 from current-user → invalid", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({}, false, 403)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({}, false, 403))
+    );
 
     const report = await tokenExchangeService.getTokenStatus("kick", {
       accessToken: "kick-access",

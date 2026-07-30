@@ -56,6 +56,23 @@ export interface KickChatMessageEvent {
   };
 }
 
+export interface KickOfficialChatMessageSentEvent {
+  message_id: string;
+  broadcaster_user_id: number;
+  channel_slug: string;
+  content: string;
+  created_at: string;
+  sender: {
+    user_id: number;
+    username: string;
+    profile_picture?: string | null;
+    identity?: {
+      color?: string | null;
+      badges?: KickBadge[];
+    };
+  };
+}
+
 /** Kick badge structure */
 export interface KickBadge {
   type: string; // 'subscriber', 'moderator', 'broadcaster', 'vip', 'og', 'founder', 'verified'
@@ -471,6 +488,33 @@ function parseTextFragment(text: string): ContentFragment[] {
 }
 
 // ========== Main Parsers ==========
+
+export function parseKickOfficialChatMessageSent(
+  event: KickOfficialChatMessageSentEvent,
+  subscriberBadges?: SubscriberBadge[]
+): ChatMessage {
+  return parseKickChatMessage(
+    {
+      id: event.message_id,
+      chatroom_id: event.broadcaster_user_id,
+      content: event.content,
+      type: "message",
+      created_at: event.created_at,
+      sender: {
+        id: event.sender.user_id,
+        username: event.sender.username,
+        slug: event.sender.username.toLowerCase(),
+        profile_picture: event.sender.profile_picture,
+        identity: {
+          color: event.sender.identity?.color ?? "",
+          badges: event.sender.identity?.badges ?? [],
+        },
+      },
+    },
+    event.channel_slug,
+    subscriberBadges
+  );
+}
 
 /**
  * Parse a Kick chat message event into our unified ChatMessage format

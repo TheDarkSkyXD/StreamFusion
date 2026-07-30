@@ -16,6 +16,7 @@ import {
   parseKickHostRaid,
   parseKickMessageContent,
   parseKickMessageDeleted,
+  parseKickOfficialChatMessageSent,
   parseKickSubscription,
   parseKickUserBanned,
   type SubscriberBadge,
@@ -42,6 +43,34 @@ function makeKickMessage(overrides: Partial<KickChatMessageEvent> = {}): KickCha
     ...overrides,
   };
 }
+
+describe("documented Kick chat.message.sent event", () => {
+  it("adapts official sender identity and avatar without using message time as profile data", () => {
+    const message = parseKickOfficialChatMessageSent({
+      message_id: "official-1",
+      broadcaster_user_id: 99,
+      channel_slug: "streamer",
+      content: "Hello",
+      created_at: "2026-07-29T12:00:00Z",
+      sender: {
+        user_id: 123,
+        username: "Alice",
+        profile_picture: "https://files.kick.com/alice.webp",
+        identity: { color: "#53FC18", badges: [] },
+      },
+    });
+
+    expect(message).toMatchObject({
+      id: "official-1",
+      channel: "streamer",
+      userId: "123",
+      username: "alice",
+      displayName: "Alice",
+      avatarUrl: "https://files.kick.com/alice.webp",
+    });
+    expect(message.timestamp.toISOString()).toBe("2026-07-29T12:00:00.000Z");
+  });
+});
 
 // ========== Badge Parsing ==========
 

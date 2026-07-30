@@ -69,12 +69,18 @@ function makeMessage(id: string, channel: string, rawContent: string): ChatMessa
   };
 }
 
-function renderPopout(open = true, platform: "twitch" | "kick" = "twitch") {
+function renderPopout(
+  open = true,
+  platform: "twitch" | "kick" = "twitch",
+  avatarUrl?: string,
+  username = "alice"
+) {
   return render(
     <TooltipProvider>
       <UserPopout
         userId="u1"
-        username="alice"
+        username={username}
+        avatarUrl={avatarUrl}
         platform={platform}
         channelId="c1"
         channelSlug="streamer"
@@ -292,6 +298,46 @@ describe("UserPopout", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    "unavailable",
+    "failed",
+  ] as const)("keeps the chat-known Kick profile link available when channel enrichment is %s", (channelState) => {
+    mockedUseUserProfile.mockReturnValue({
+      ...pendingProfileState(),
+      channel: { state: channelState, message: "Unavailable" },
+    });
+
+    renderPopout(true, "kick", undefined, "AntithesisOfSpace");
+    fireEvent.click(screen.getByRole("button", { name: "Open AntithesisOfSpace on Kick" }));
+
+    expect(window.electronAPI.openExternal).toHaveBeenCalledWith(
+      "https://kick.com/antithesisofspace"
+    );
+    expect(screen.getByRole("button", { name: "Channel unavailable · Retry" })).toBeEnabled();
+  });
+
+  it("preserves a chat-event Kick avatar when official enrichment has no avatar", () => {
+    mockedUseUserProfile.mockReturnValue({
+      ...pendingProfileState(),
+      loading: false,
+      identity: {
+        state: "known",
+        source: "official",
+        value: {
+          userId: "u1",
+          username: "alice",
+          displayName: "Alice",
+          avatarUrl: "",
+        },
+      },
+    });
+
+    renderPopout(true, "kick", "https://files.kick.com/chat-avatar.webp");
+
+    expect(screen.getByRole("img", { name: "Alice avatar" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Alice avatar unavailable" })).toBeNull();
+  });
+
   it("announces failed remote fields politely", () => {
     mockedUseUserProfile.mockReturnValue({
       ...pendingProfileState(),
@@ -304,8 +350,7 @@ describe("UserPopout", () => {
 
     const liveRegion = document.querySelector("[aria-live='polite']");
     expect(liveRegion).toHaveTextContent("Account creation date could not be verified.");
-    expect(liveRegion).toHaveTextContent("Follow relationship is unavailable.");
-    expect(liveRegion).not.toHaveTextContent("Reconnect Twitch");
+    expect(liveRegion).toHaveTextContent("Reconnect Twitch to verify the follow relationship.");
     expect(liveRegion).toHaveTextContent("Channel is unavailable.");
   });
 

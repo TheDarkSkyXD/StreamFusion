@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
+  persistInitialAuthToken,
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
 } from "@/backend/ipc/handlers/auth-handlers";
+import { KICK_APP_SCOPES } from "@/shared/auth-types";
 
 // Guards the A1 fix: a transient Cloudflare/Kasada/auth failure must NOT
 // trigger an account-follows clear, because that would silently wipe the
@@ -242,5 +244,41 @@ describe("shouldDeferKickStartupFollowRefresh", () => {
         1000
       )
     ).toBe(false);
+  });
+});
+
+// Guards: an omitted initial Kick scope list represents the requested canonical grant.
+// Guards: explicit empty or incomplete Kick grants are rejected before persistence.
+// Guards: Twitch token persistence remains unchanged by Kick-specific normalization.
+describe("persistInitialAuthToken", () => {
+  it("persists the canonical requested Kick grant when the callback omits scope", () => {
+    const saveToken = vi.fn();
+
+    persistInitialAuthToken("kick", { accessToken: "at" }, { saveToken });
+
+    expect(saveToken).toHaveBeenCalledWith("kick", {
+      accessToken: "at",
+      scope: [...KICK_APP_SCOPES],
+    });
+  });
+
+  it.each([
+    ["explicitly empty", []],
+    ["explicitly incomplete", ["user:read", "channel:read"]],
+  ])("rejects an %s Kick grant without persisting it", (_label, scope) => {
+    const saveToken = vi.fn();
+
+    expect(() =>
+      persistInitialAuthToken("kick", { accessToken: "at", scope }, { saveToken })
+    ).toThrow("Kick token is missing required application scopes");
+    expect(saveToken).not.toHaveBeenCalled();
+  });
+
+  it("persists Twitch tokens unchanged", () => {
+    const saveToken = vi.fn();
+    const token = { accessToken: "twitch-at" };
+
+    expect(persistInitialAuthToken("twitch", token, { saveToken })).toBe(token);
+    expect(saveToken).toHaveBeenCalledWith("twitch", token);
   });
 });

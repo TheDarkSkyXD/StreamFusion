@@ -66,6 +66,16 @@ export const TWITCH_APP_SCOPES = [
 
 export type TwitchAppScope = (typeof TWITCH_APP_SCOPES)[number];
 
+export const KICK_APP_SCOPES = [
+  "user:read",
+  "channel:read",
+  "moderation:chat_message:manage",
+  "moderation:ban",
+  "events:subscribe",
+] as const;
+
+export type KickAppScope = (typeof KICK_APP_SCOPES)[number];
+
 export const TWITCH_MOD_ACTION_SCOPES = [
   "user:read:moderated_channels",
   "moderator:manage:chat_messages",

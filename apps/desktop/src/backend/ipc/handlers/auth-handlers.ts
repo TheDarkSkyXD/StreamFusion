@@ -2,12 +2,13 @@ import { type BrowserWindow, ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "../../../lib/managed-interval";
-import type {
-  AuthToken,
-  KickUser,
-  LocalFollow,
-  Platform,
-  TwitchUser,
+import {
+  type AuthToken,
+  KICK_APP_SCOPES,
+  type KickUser,
+  type LocalFollow,
+  type Platform,
+  type TwitchUser,
 } from "../../../shared/auth-types";
 import {
   type AuthStatus,
@@ -26,6 +27,7 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
+import { hasCanonicalKickScopes } from "../../auth/kick-scope-validation";
 import { liveNotificationService } from "../../services/live-notification-service";
 import { storageService } from "../../services/storage-service";
 
@@ -97,6 +99,22 @@ export function shouldDeferKickStartupFollowRefresh(
 
 interface SyncFollowsOptions {
   allowKickBrowserWindowFallback?: boolean;
+}
+
+export function persistInitialAuthToken(
+  platform: Platform,
+  token: AuthToken,
+  storage: Pick<typeof storageService, "saveToken"> = storageService
+): AuthToken {
+  const tokenToSave =
+    platform === "kick" && token.scope === undefined
+      ? { ...token, scope: [...KICK_APP_SCOPES] }
+      : token;
+  if (platform === "kick" && !hasCanonicalKickScopes(tokenToSave.scope)) {
+    throw new Error("Kick token is missing required application scopes");
+  }
+  storage.saveToken(platform, tokenToSave);
+  return tokenToSave;
 }
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
@@ -311,7 +329,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(
     IPC_CHANNELS.AUTH_SAVE_TOKEN,
     (_event, { platform, token }: { platform: Platform; token: AuthToken }) => {
-      storageService.saveToken(platform, token);
+      persistInitialAuthToken(platform, token);
       if (platform === "twitch") {
         liveNotificationService.reconcileSilently();
       }
@@ -373,7 +391,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     const twitchHasToken = storageService.hasToken("twitch");
     const kickHasToken = storageService.hasToken("kick");
     const twitchExpired = storageService.isTokenExpired("twitch");
-    const kickExpired = storageService.isTokenExpired("kick");
+    const kickToken = storageService.getToken("kick");
+    const kickExpired =
+      storageService.isTokenExpired("kick") ||
+      (kickHasToken && !hasCanonicalKickScopes(kickToken?.scope));
 
     return {
       twitch: {
@@ -395,7 +416,11 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(
     IPC_CHANNELS.AUTH_SYNC_FOLLOWS,
     async (_event, { platform }: { platform: Platform }) => {
-      if (!storageService.hasToken(platform) || storageService.isTokenExpired(platform)) {
+      const isAuthenticated =
+        platform === "kick"
+          ? await kickAuthService.ensureValidToken()
+          : storageService.hasToken(platform) && !storageService.isTokenExpired(platform);
+      if (!isAuthenticated) {
         return { success: false, error: "not-authenticated" };
       }
 
@@ -475,7 +500,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       });
 
       // Save the token
-      storageService.saveToken(platform, token);
+      persistInitialAuthToken(platform, token);
 
       logger.debug("IPC:Auth", "Successfully authenticated", { platform });
 

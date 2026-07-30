@@ -6,9 +6,9 @@
  */
 
 import { logger } from "@/lib/cross-logger";
-import type { AuthToken, Platform } from "../../shared/auth-types";
+import { type AuthToken, KICK_APP_SCOPES, type Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
-
+import { hasCanonicalKickScopes } from "./kick-scope-validation";
 import { getOAuthConfig, type PkceChallenge } from "./oauth-config";
 
 // ========== Types ==========
@@ -149,6 +149,9 @@ class TokenExchangeService {
 
       const data = (await response.json()) as TokenResponse;
       const token = this.parseTokenResponse(data);
+      if (params.platform === "kick" && token.scope === undefined) {
+        token.scope = [...KICK_APP_SCOPES];
+      }
 
       logger.debug("Auth:TokenExchange", "Token obtained", { platform: params.platform });
       return token;
@@ -343,11 +346,11 @@ class TokenExchangeService {
     }
 
     // Parse scope if provided - handle both array and string formats
-    if (data.scope) {
+    if (data.scope !== undefined) {
       if (Array.isArray(data.scope)) {
         token.scope = data.scope;
       } else if (typeof data.scope === "string") {
-        token.scope = data.scope.split(" ");
+        token.scope = data.scope.split(/\s+/).filter(Boolean);
       }
     }
 
@@ -451,6 +454,9 @@ class TokenExchangeService {
   }
 
   private async getKickTokenStatus(token: AuthToken): Promise<TokenStatusReport> {
+    if (!hasCanonicalKickScopes(token.scope)) {
+      return { valid: false, scopes: token.scope ?? [] };
+    }
     // Kick has no /validate; GET /users (no IDs) returns the current user when
     // the bearer token is valid. Non-200 → invalid.
     const response = await fetch(`${KICK_API_BASE}/users`, {
@@ -485,12 +491,12 @@ class TokenExchangeService {
 
   /**
    * Validate a Kick token using the official token introspection endpoint
-   * POST /public/v1/token/introspect
+   * POST /oauth/token/introspect
    */
   private async validateKickToken(accessToken: string): Promise<boolean> {
     try {
       // Official Kick token introspection endpoint
-      const response = await fetch("https://api.kick.com/public/v1/token/introspect", {
+      const response = await fetch("https://id.kick.com/oauth/token/introspect", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -502,9 +508,14 @@ class TokenExchangeService {
         return false;
       }
 
-      // Response format: { data: { active: true/false, ... }, message: "..." }
-      const data = (await response.json()) as { data: { active: boolean } };
-      return data?.data?.active === true;
+      const data = (await response.json()) as {
+        active?: boolean;
+        scope?: string;
+        data?: { active?: boolean; scope?: string };
+      };
+      const active = data.active === true || data.data?.active === true;
+      const scope = data.scope ?? data.data?.scope;
+      return active && hasCanonicalKickScopes(scope?.split(/\s+/).filter(Boolean));
     } catch {
       return false;
     }

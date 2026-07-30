@@ -12,6 +12,10 @@ const readerMocks = vi.hoisted(() => ({
   getTwitchAccountCreated: vi.fn(),
   getTwitchFollowRelationship: vi.fn(),
   resolveTwitchPublicChannel: vi.fn(),
+  getKickPublicIdentity: vi.fn(),
+  getKickAccountCreated: vi.fn(),
+  getKickFollowRelationship: vi.fn(),
+  resolveKickPublicChannel: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -20,6 +24,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("@/backend/api/platforms/twitch/twitch-public-profile-reader", () => readerMocks);
+vi.mock("@/backend/api/platforms/kick/kick-public-profile-reader", () => readerMocks);
 
 import { registerUserProfileHandlers } from "@/backend/ipc/handlers/user-profile-handlers";
 
@@ -172,5 +177,37 @@ describe("user-profile IPC fixture routing", () => {
       })
     ).resolves.toEqual(realResult);
     expect(readerMocks.getTwitchPublicIdentity).toHaveBeenCalledWith("real-user", "alice");
+  });
+
+  it("routes every Kick profile field through the typed platform boundary", async () => {
+    const identity = {
+      state: "known",
+      source: "official",
+      value: { userId: "123", username: "alice", displayName: "Alice", avatarUrl: "" },
+    };
+    const unavailable = { state: "unavailable", message: "Unavailable" };
+    const channel = {
+      state: "known",
+      source: "official",
+      value: { id: "123", username: "alice", displayName: "Alice" },
+    };
+    readerMocks.getKickPublicIdentity.mockResolvedValue(identity);
+    readerMocks.getKickAccountCreated.mockResolvedValue(unavailable);
+    readerMocks.getKickFollowRelationship.mockResolvedValue(unavailable);
+    readerMocks.resolveKickPublicChannel.mockResolvedValue(channel);
+    const request = { userId: "123", username: "alice", channelSlug: "streamer" };
+
+    await expect(getHandler(IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY)({}, request)).resolves.toEqual(
+      identity
+    );
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED)({}, request)
+    ).resolves.toEqual(unavailable);
+    await expect(getHandler(IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW)({}, request)).resolves.toEqual(
+      unavailable
+    );
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL)({}, { username: "alice" })
+    ).resolves.toEqual(channel);
   });
 });

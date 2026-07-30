@@ -67,6 +67,7 @@ interface UsernameProps {
   userId: string;
   username: string;
   displayName: string;
+  avatarUrl?: string;
   color?: string;
   platform: ChatPlatform;
   className?: string;
@@ -85,6 +86,7 @@ export const Username: React.FC<UsernameProps> = ({
   userId,
   username,
   displayName,
+  avatarUrl,
   color,
   platform,
   className,
@@ -121,6 +123,8 @@ export const Username: React.FC<UsernameProps> = ({
       openUserPopout({
         userId,
         username,
+        displayName,
+        avatarUrl,
         platform,
         channelId: currentChannelContext.channelId,
         channelSlug: currentChannelContext.channelSlug,

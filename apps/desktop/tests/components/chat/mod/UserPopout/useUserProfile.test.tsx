@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 // Guards: public profile reads stay behind the typed preload bridge so Electron and browser development use the same privileged implementation.
-// Guards: Kick profile fields settle as explicitly unavailable until the Issue 02 reader exists.
+// Guards: Kick profile fields use the same typed bridge and independent retry behavior.
 describe("useUserProfile", () => {
   it("resolves Twitch fields through the privileged profile bridge without renderer fetches", async () => {
     const api = installElectronAPIMock();
@@ -127,21 +127,44 @@ describe("useUserProfile", () => {
     expect(api.userProfiles.getTwitchIdentity).toHaveBeenCalledTimes(1);
   });
 
-  it("settles unsupported Kick profile fields instead of leaving the dialog loading forever", () => {
+  it("resolves Kick identity while unsupported dates settle independently", async () => {
     const api = installElectronAPIMock();
+    api.userProfiles.getKickIdentity = vi.fn(async () => ({
+      state: "known" as const,
+      source: "official" as const,
+      value: {
+        userId: "123",
+        username: "alice",
+        displayName: "Alice",
+        avatarUrl: "https://files.kick.com/alice.webp",
+      },
+    }));
+    api.userProfiles.getKickAccountCreated = vi.fn(async () => ({
+      state: "unavailable" as const,
+      message: "Unavailable",
+    }));
+    api.userProfiles.getKickFollow = vi.fn(async () => ({
+      state: "unavailable" as const,
+      message: "Unavailable",
+    }));
+    api.userProfiles.resolveKickChannel = vi.fn(async () => ({
+      state: "known" as const,
+      source: "official" as const,
+      value: { id: "123", username: "alice", displayName: "Alice" },
+    }));
 
     const { result } = renderHook(() => useUserProfile("u1", "kick", "c1", "alice", "streamer"), {
       wrapper,
     });
 
+    await waitFor(() => expect(result.current.identity.state).toBe("known"));
     expect(result.current.loading).toBe(false);
-    expect(result.current.identity).toEqual({ state: "unavailable", message: "Unavailable" });
     expect(result.current.accountCreated).toEqual({
       state: "unavailable",
       message: "Unavailable",
     });
     expect(result.current.follow).toEqual({ state: "unavailable", message: "Unavailable" });
-    expect(result.current.channel).toEqual({ state: "unavailable", message: "Unavailable" });
+    expect(result.current.channel.state).toBe("known");
 
     act(() => {
       result.current.retryIdentity();
@@ -150,6 +173,14 @@ describe("useUserProfile", () => {
       result.current.retryChannel();
     });
 
+    expect(api.userProfiles.getKickIdentity).toHaveBeenCalledWith({
+      userId: "u1",
+      username: "alice",
+      channelSlug: "streamer",
+    });
+    expect(api.userProfiles.getKickAccountCreated).toHaveBeenCalledTimes(2);
+    expect(api.userProfiles.getKickFollow).toHaveBeenCalledTimes(2);
+    expect(api.userProfiles.resolveKickChannel).toHaveBeenCalledTimes(2);
     expect(api.userProfiles.getTwitchIdentity).not.toHaveBeenCalled();
     expect(api.userProfiles.getTwitchAccountCreated).not.toHaveBeenCalled();
     expect(api.userProfiles.getTwitchFollow).not.toHaveBeenCalled();

@@ -870,6 +870,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
               userId={message.userId}
               username={message.username}
               displayName={message.displayName}
+              avatarUrl={message.avatarUrl}
               color={message.color}
               platform={message.platform}
               className="align-middle"

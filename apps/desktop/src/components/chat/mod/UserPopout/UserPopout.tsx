@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChatMessage } from "@/shared/chat-types";
+import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 import { UserProfileHeader } from "./UserProfileHeader";
@@ -20,6 +21,8 @@ import { useUserProfile } from "./useUserProfile";
 export interface UserPopoutProps {
   userId: string;
   username: string;
+  displayName?: string;
+  avatarUrl?: string;
   platform: "twitch" | "kick";
   channelId: string;
   channelSlug: string;
@@ -46,6 +49,8 @@ function useCompactDialog(): boolean {
 export function UserPopout({
   userId,
   username,
+  displayName,
+  avatarUrl,
   platform,
   channelId,
   channelSlug,
@@ -53,8 +58,31 @@ export function UserPopout({
   onOpenChange,
 }: UserPopoutProps) {
   const profileState = useUserProfile(userId, platform, channelId, username, channelSlug);
+  const loginTwitch = useAuthStore((state) => state.loginTwitch);
+  const loginKick = useAuthStore((state) => state.loginKick);
   const compact = useCompactDialog();
   const { identity, accountCreated, follow, channel } = profileState;
+  const renderedIdentity =
+    identity.state === "known" && platform === "kick"
+      ? {
+          ...identity,
+          value: {
+            ...identity.value,
+            avatarUrl: identity.value.avatarUrl || avatarUrl || "",
+          },
+        }
+      : identity.state === "known" || platform !== "kick"
+        ? identity
+        : {
+            state: "known" as const,
+            source: "chat-event" as const,
+            value: {
+              userId,
+              username,
+              displayName: displayName ?? username,
+              avatarUrl: avatarUrl ?? "",
+            },
+          };
   const channelKey = buildChannelKey(platform, channelSlug);
   const messages = useChatStore((state) => state.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
   const recentMessages = useMemo(
@@ -76,12 +104,12 @@ export function UserPopout({
   const platformLabel = platform === "kick" ? "Kick" : "Twitch";
   const externalUrl =
     platform === "kick"
-      ? `https://kick.com/${externalUsername}`
+      ? `https://kick.com/${externalUsername.trim().replace(/^@+/, "").toLowerCase()}`
       : `https://www.twitch.tv/${externalUsername}`;
   const liveAnnouncement = [
-    identity.state === "failed"
+    renderedIdentity.state === "failed"
       ? "Profile identity could not be verified."
-      : identity.state === "unavailable"
+      : renderedIdentity.state === "unavailable"
         ? "Profile identity is unavailable."
         : "",
     accountCreated.state === "failed"
@@ -89,11 +117,13 @@ export function UserPopout({
       : accountCreated.state === "unavailable"
         ? "Account creation date is unavailable."
         : "",
-    follow.state === "reconnect-required" ||
-    follow.state === "failed" ||
-    follow.state === "unavailable"
-      ? "Follow relationship is unavailable."
-      : "",
+    follow.state === "reconnect-required"
+      ? `Reconnect ${platformLabel} to verify the follow relationship.`
+      : follow.state === "failed"
+        ? "Follow relationship could not be verified."
+        : follow.state === "unavailable"
+          ? "Follow relationship is unavailable."
+          : "",
     channel.state === "failed" || channel.state === "unavailable" ? "Channel is unavailable." : "",
   ]
     .filter(Boolean)
@@ -115,13 +145,15 @@ export function UserPopout({
             Public {platformLabel} profile and recent messages for @{username}.
           </DialogDescription>
           <UserProfileHeader
+            platform={platform}
             fallbackUsername={username}
-            identity={identity}
+            identity={renderedIdentity}
             accountCreated={accountCreated}
             follow={follow}
             retryIdentity={profileState.retryIdentity}
             retryAccountCreated={profileState.retryAccountCreated}
             retryFollow={profileState.retryFollow}
+            reconnect={() => void (platform === "kick" ? loginKick() : loginTwitch())}
           />
           <Tooltip>
             <TooltipTrigger asChild>

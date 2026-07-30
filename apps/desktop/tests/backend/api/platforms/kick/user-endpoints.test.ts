@@ -1,5 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const electronMocks = vi.hoisted(() => ({
+  loadURL: vi.fn(),
+  executeJavaScript: vi.fn(),
+  destroy: vi.fn(),
+  releaseSlot: vi.fn(),
+}));
+
+vi.mock("electron", () => ({
+  BrowserWindow: vi.fn(function BrowserWindowMock() {
+    return {
+      loadURL: electronMocks.loadURL,
+      webContents: { executeJavaScript: electronMocks.executeJavaScript },
+      isDestroyed: () => false,
+      destroy: electronMocks.destroy,
+    };
+  }),
+}));
+
 vi.mock("@/lib/cross-logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -10,7 +28,19 @@ vi.mock("@/backend/auth/kick-auth", () => ({
   },
 }));
 
-import { getUser, getUsersById } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
+vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
+  acquireBrowserWindowSlot: vi.fn(async () => electronMocks.releaseSlot),
+}));
+
+vi.mock("@/backend/api/unified/platform-health", () => ({
+  getPlatformHealth: vi.fn(() => "healthy"),
+}));
+
+import {
+  getPublicChannelUserProfile,
+  getUser,
+  getUsersById,
+} from "@/backend/api/platforms/kick/endpoints/user-endpoints";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 import { kickAuthService } from "@/backend/auth/kick-auth";
 import { logger } from "@/lib/cross-logger";
@@ -27,6 +57,7 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
 describe("user-endpoints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    electronMocks.loadURL.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -138,6 +169,48 @@ describe("user-endpoints", () => {
         expect.objectContaining({ error: expect.objectContaining({ message: error.message }) })
       );
       expect(logger.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getPublicChannelUserProfile", () => {
+    it("rejects first-party schema drift instead of inventing identity from the request", async () => {
+      electronMocks.executeJavaScript.mockResolvedValue(
+        JSON.stringify({
+          profile_pic: "https://files.kick.com/alice.webp",
+          following_since: "2020-01-01T00:00:00Z",
+        })
+      );
+
+      await expect(getPublicChannelUserProfile("streamer", "alice")).resolves.toBeNull();
+    });
+
+    it("retains only strict exact ISO follow timestamps", async () => {
+      electronMocks.executeJavaScript
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 123,
+            slug: "alice",
+            username: "Alice",
+            following_since: "1",
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 123,
+            slug: "alice",
+            username: "Alice",
+            following_since: "2024-05-01T12:30:00Z",
+          })
+        );
+
+      await expect(getPublicChannelUserProfile("streamer", "alice")).resolves.toMatchObject({
+        userId: "123",
+        username: "alice",
+        followingSince: undefined,
+      });
+      await expect(getPublicChannelUserProfile("streamer", "alice")).resolves.toMatchObject({
+        followingSince: "2024-05-01T12:30:00Z",
+      });
     });
   });
 });

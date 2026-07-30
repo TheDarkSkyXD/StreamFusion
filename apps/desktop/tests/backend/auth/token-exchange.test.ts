@@ -28,13 +28,20 @@ vi.mock("@/backend/auth/oauth-config", () => ({
       clientSecret: "",
       tokenEndpoint: "https://worker.test/auth/kick/token",
       revokeEndpoint: "https://id.kick.com/oauth/revoke",
-      scopes: ["user:read"],
+      scopes: [
+        "user:read",
+        "channel:read",
+        "moderation:chat_message:manage",
+        "moderation:ban",
+        "events:subscribe",
+      ],
       usesPkce: true,
     };
   }),
 }));
 
 import { TokenRefreshError, tokenExchangeService } from "@/backend/auth/token-exchange";
+import { KICK_APP_SCOPES } from "@/shared/auth-types";
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return {
@@ -197,6 +204,38 @@ describe("exchangeCodeForToken", () => {
     });
 
     expect(token.scope).toBeUndefined();
+  });
+
+  it("uses the canonical requested Kick grant when the code exchange omits scope", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ access_token: "at", token_type: "bearer" }))
+    );
+
+    const token = await tokenExchangeService.exchangeCodeForToken({
+      platform: "kick",
+      code: "code",
+      redirectUri: "http://localhost:8765/auth/kick/callback",
+      pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
+    });
+
+    expect(token.scope).toEqual([...KICK_APP_SCOPES]);
+  });
+
+  it("preserves an explicitly empty scope response as an empty grant", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ access_token: "at", token_type: "bearer", scope: "" }))
+    );
+
+    const token = await tokenExchangeService.exchangeCodeForToken({
+      platform: "kick",
+      code: "code",
+      redirectUri: "http://localhost:8765/auth/kick/callback",
+      pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
+    });
+
+    expect(token.scope).toEqual([]);
   });
 
   it("leaves expiresAt undefined when expires_in is not in response", async () => {
@@ -437,14 +476,31 @@ describe("validateToken", () => {
   });
 
   it("validates Kick token via introspect endpoint", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ data: { active: true } }))
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        active: true,
+        scope:
+          "user:read channel:read moderation:chat_message:manage moderation:ban events:subscribe",
+      })
     );
+    vi.stubGlobal("fetch", fetchMock);
 
     const result = await tokenExchangeService.validateToken("kick", "at");
 
     expect(result).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://id.kick.com/oauth/token/introspect",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("rejects an active Kick token whose introspected scopes are incomplete", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ active: true, scope: "user:read channel:read" }))
+    );
+
+    await expect(tokenExchangeService.validateToken("kick", "legacy")).resolves.toBe(false);
   });
 
   it("returns false for inactive Kick token", async () => {

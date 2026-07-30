@@ -2,18 +2,20 @@ import { CalendarDays, Radio, UserRound } from "lucide-react";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { TwitchPublicIdentity } from "@/shared/user-profile-types";
+import type { PublicUserIdentity } from "@/shared/user-profile-types";
 
-import type { RenderFieldState } from "./useUserProfile";
+import type { RenderAccountCreatedState, RenderFieldState } from "./useUserProfile";
 
 interface UserProfileHeaderProps {
+  platform?: "twitch" | "kick";
   fallbackUsername: string;
-  identity: RenderFieldState<TwitchPublicIdentity>;
-  accountCreated: RenderFieldState<string>;
+  identity: RenderFieldState<PublicUserIdentity>;
+  accountCreated: RenderAccountCreatedState;
   follow: RenderFieldState<string>;
   retryIdentity: () => void;
   retryAccountCreated: () => void;
   retryFollow: () => void;
+  reconnect?: () => void;
 }
 
 const ABSOLUTE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
@@ -38,10 +40,19 @@ function formatRelativeDate(iso: string): string {
   return `${months} month${months === 1 ? "" : "s"} ago`;
 }
 
-function RetryValue({ label, onRetry }: { label: string; onRetry: () => void }) {
+function RetryValue({
+  label,
+  state,
+  onRetry,
+}: {
+  label: string;
+  state?: string;
+  onRetry: () => void;
+}) {
   return (
     <button
       type="button"
+      data-profile-state={state}
       className="rounded text-left text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       onClick={onRetry}
     >
@@ -65,19 +76,29 @@ function AvatarFallback({ displayName }: { displayName: string }) {
 function DateValue({
   field,
   kind,
+  platform,
   onRetry,
+  onReconnect,
 }: {
   field: RenderFieldState<string>;
   kind: "account" | "follow";
+  platform: "twitch" | "kick";
   onRetry: () => void;
+  onReconnect: () => void;
 }) {
-  if (field.state === "loading") return <span aria-label="Loading">Loading…</span>;
+  if (field.state === "loading")
+    return (
+      <span aria-label="Loading" data-profile-state="loading">
+        Loading…
+      </span>
+    );
   if (field.state === "known") {
     const absolute = formatAbsoluteDate(field.value);
     if (!absolute) {
       return (
         <RetryValue
           label={kind === "account" ? "Couldn’t verify" : "Unavailable"}
+          state="failed"
           onRetry={onRetry}
         />
       );
@@ -85,7 +106,7 @@ function DateValue({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <time dateTime={field.value} tabIndex={0}>
+          <time dateTime={field.value} tabIndex={0} data-profile-state="known">
             {absolute}
           </time>
         </TooltipTrigger>
@@ -93,13 +114,27 @@ function DateValue({
       </Tooltip>
     );
   }
-  if (field.state === "negative") return <span>Not following</span>;
-  return (
-    <RetryValue label={kind === "account" ? "Couldn’t verify" : "Unavailable"} onRetry={onRetry} />
-  );
+  if (field.state === "negative")
+    return kind === "follow" ? (
+      <span data-profile-state="negative">Not following</span>
+    ) : (
+      <RetryValue label="Couldn’t verify" state="failed" onRetry={onRetry} />
+    );
+  if (field.state === "reconnect-required")
+    return (
+      <RetryValue
+        label={`Reconnect ${platform === "kick" ? "Kick" : "Twitch"}`}
+        state={field.state}
+        onRetry={onReconnect}
+      />
+    );
+  if (field.state === "unavailable")
+    return <RetryValue label="Unavailable" state={field.state} onRetry={onRetry} />;
+  return <RetryValue label="Couldn’t verify" state="failed" onRetry={onRetry} />;
 }
 
 export function UserProfileHeader({
+  platform = "twitch",
   fallbackUsername,
   identity,
   accountCreated,
@@ -107,6 +142,7 @@ export function UserProfileHeader({
   retryIdentity,
   retryAccountCreated,
   retryFollow,
+  reconnect = retryFollow,
 }: UserProfileHeaderProps) {
   const knownIdentity = identity.state === "known" ? identity.value : null;
   const username = knownIdentity?.username ?? fallbackUsername;
@@ -141,14 +177,26 @@ export function UserProfileHeader({
             Account created
           </dt>
           <dd className="text-white">
-            <DateValue field={accountCreated} kind="account" onRetry={retryAccountCreated} />
+            <DateValue
+              field={accountCreated}
+              kind="account"
+              platform={platform}
+              onRetry={retryAccountCreated}
+              onReconnect={reconnect}
+            />
           </dd>
           <dt className="flex items-center gap-1.5 text-[var(--color-foreground-muted)]">
             <Radio className="h-3.5 w-3.5" aria-hidden />
             Following since
           </dt>
           <dd className="text-white">
-            <DateValue field={follow} kind="follow" onRetry={retryFollow} />
+            <DateValue
+              field={follow}
+              kind="follow"
+              platform={platform}
+              onRetry={retryFollow}
+              onReconnect={reconnect}
+            />
           </dd>
         </dl>
       </div>

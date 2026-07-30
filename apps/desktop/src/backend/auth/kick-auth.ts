@@ -17,7 +17,7 @@ import { logger } from "@/lib/cross-logger";
 import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { storageService } from "../services/storage-service";
-
+import { hasCanonicalKickScopes } from "./kick-scope-validation";
 import { tokenExchangeService } from "./token-exchange";
 
 // Cookie names that hold Cloudflare WAF clearance state. These belong to
@@ -110,9 +110,17 @@ class KickAuthService extends EventEmitter {
         refreshToken: currentToken.refreshToken,
       });
 
-      storageService.saveToken(this.platform, newToken);
+      const refreshedToken: AuthToken = {
+        ...newToken,
+        refreshToken: newToken.refreshToken ?? currentToken.refreshToken,
+        scope: newToken.scope ?? currentToken.scope,
+      };
+      if (!hasCanonicalKickScopes(refreshedToken.scope)) {
+        throw new Error("Kick token is missing required application scopes");
+      }
+      storageService.saveToken(this.platform, refreshedToken);
       logger.debug("Auth:Kick", "Kick token refreshed successfully");
-      return newToken;
+      return refreshedToken;
     } catch (error) {
       logger.error("Auth:Kick", "Kick token refresh failed", {
         error:
@@ -156,6 +164,9 @@ class KickAuthService extends EventEmitter {
     const token = storageService.getToken(this.platform);
 
     if (!token) {
+      return false;
+    }
+    if (!hasCanonicalKickScopes(token.scope)) {
       return false;
     }
 
@@ -297,7 +308,7 @@ class KickAuthService extends EventEmitter {
   isAuthenticated(): boolean {
     const token = storageService.getToken(this.platform);
     const user = storageService.getKickUser();
-    return !!token && !!user;
+    return !!token && hasCanonicalKickScopes(token.scope) && !!user;
   }
 
   /**
@@ -312,7 +323,7 @@ class KickAuthService extends EventEmitter {
    */
   getAccessToken(): string | null {
     const token = storageService.getToken(this.platform);
-    if (!token) return null;
+    if (!token || !hasCanonicalKickScopes(token.scope)) return null;
 
     // Check if expired
     if (token.expiresAt && Date.now() >= token.expiresAt) {

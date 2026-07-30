@@ -20,6 +20,7 @@
 
 import { BrowserWindow, session } from "electron";
 import { logger } from "@/backend/logging/logger";
+import { hasCanonicalKickScopes } from "../../../../auth/kick-scope-validation";
 import { storageService } from "../../../../services/storage-service";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
 import type { UnifiedChannel } from "../../../unified/platform-types";
@@ -95,7 +96,8 @@ export async function getAllFollowedChannels(
 }
 
 async function _doFetch(options: FollowedChannelsOptions): Promise<FollowedChannelsResult> {
-  const token = storageService.getToken("kick")?.accessToken;
+  const storedToken = storageService.getToken("kick");
+  const token = hasCanonicalKickScopes(storedToken?.scope) ? storedToken?.accessToken : null;
   if (!token) {
     // No token = user not signed in. syncFollowsOnLogin guards this upstream,
     // but defending here lets callers reuse the function without that assumption.

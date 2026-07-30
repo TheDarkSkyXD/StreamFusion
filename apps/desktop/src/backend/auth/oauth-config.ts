@@ -7,7 +7,7 @@
 
 import crypto from "node:crypto";
 
-import { type Platform, TWITCH_APP_SCOPES } from "../../shared/auth-types";
+import { KICK_APP_SCOPES, type Platform, TWITCH_APP_SCOPES } from "../../shared/auth-types";
 
 // ========== Environment Variables ==========
 // These should be set in .env file
@@ -90,10 +90,7 @@ export const KICK_OAUTH_CONFIG: OAuthConfig = {
   tokenEndpoint: `${WORKER_BASE_URL}/auth/kick/token`, // Worker endpoint
   revokeEndpoint: "https://id.kick.com/oauth/revoke",
   scopes: [
-    "user:read", // View user information (username, streamer ID, etc.)
-    "channel:read", // View channel information (description, category, etc.)
-    "moderation:chat_message:manage", // Delete chat messages as a moderator or broadcaster
-    "moderation:ban", // Ban, timeout, unban, and remove timeouts as a moderator or broadcaster
+    ...KICK_APP_SCOPES,
     // chat:write removed 2026-05-29: chat send moved to
     // kick.com/api/v2/messages/send/{chatroomId} via page-context fetch
     // (see kick-send-window.ts). The public-API path is gated behind
@@ -101,9 +98,6 @@ export const KICK_OAUTH_CONFIG: OAuthConfig = {
     // tokens carrying chat:write are NOT invalidated — Kick's OAuth
     // server doesn't revoke server-side when we stop requesting; the
     // scope becomes unused on the next refresh.
-    //
-    // Future scopes:
-    // 'events:subscribe', // Subscribe to channel events
   ],
   usesPkce: true,
 };
