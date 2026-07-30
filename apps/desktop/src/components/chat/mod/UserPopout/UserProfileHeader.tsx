@@ -1,103 +1,156 @@
-/**
- * UserProfileHeader (U16)
- *
- * Top section of the user popout: avatar, display name, account creation
- * date, follow-since timestamp, and a row of badges (sub / VIP / mod /
- * founder / verified). Missing fields render as em-dash rather than
- * suppressing the row entirely so the layout stays stable.
- */
-
-import { LuBadgeCheck, LuCrown, LuShieldCheck, LuStar } from "react-icons/lu";
+import { CalendarDays, Radio, UserRound } from "lucide-react";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { TwitchPublicIdentity } from "@/shared/user-profile-types";
 
-import type { UserProfile } from "./useUserProfile";
+import type { RenderFieldState } from "./useUserProfile";
 
 interface UserProfileHeaderProps {
-  profile: UserProfile;
-  platform: "twitch" | "kick";
+  fallbackUsername: string;
+  identity: RenderFieldState<TwitchPublicIdentity>;
+  accountCreated: RenderFieldState<string>;
+  follow: RenderFieldState<string>;
+  retryIdentity: () => void;
+  retryAccountCreated: () => void;
+  retryFollow: () => void;
 }
 
-function formatDate(iso: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const ABSOLUTE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+function formatAbsoluteDate(iso: string): string | null {
+  const date = new Date(iso);
+  return Number.isFinite(date.getTime()) ? ABSOLUTE_DATE_FORMATTER.format(date) : null;
 }
 
-const TIER_LABEL: Record<string, string> = {
-  "1000": "Tier 1",
-  "2000": "Tier 2",
-  "3000": "Tier 3",
-};
+function formatRelativeDate(iso: string): string {
+  const days = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+  if (days < 1) return "Today";
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const years = Math.floor(days / 365);
+  if (years >= 1) return `${years} year${years === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months === 1 ? "" : "s"} ago`;
+}
 
-export function UserProfileHeader({ profile, platform }: UserProfileHeaderProps) {
-  const fallbackColor = platform === "kick" ? "#53fc18" : "#9146ff";
+function RetryValue({ label, onRetry }: { label: string; onRetry: () => void }) {
   return (
-    <div className="flex gap-4 items-start">
-      <div
-        className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 bg-white/10 border border-white/10"
-        aria-hidden
-      >
-        {profile.avatarUrl ? (
+    <button
+      type="button"
+      className="rounded text-left text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      onClick={onRetry}
+    >
+      {label} · Retry
+    </button>
+  );
+}
+
+function AvatarFallback({ displayName }: { displayName: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={`${displayName} avatar unavailable`}
+      className="flex h-full w-full items-center justify-center"
+    >
+      <UserRound className="h-8 w-8 text-white/60" aria-hidden />
+    </span>
+  );
+}
+
+function DateValue({
+  field,
+  kind,
+  onRetry,
+}: {
+  field: RenderFieldState<string>;
+  kind: "account" | "follow";
+  onRetry: () => void;
+}) {
+  if (field.state === "loading") return <span aria-label="Loading">Loading…</span>;
+  if (field.state === "known") {
+    const absolute = formatAbsoluteDate(field.value);
+    if (!absolute) {
+      return (
+        <RetryValue
+          label={kind === "account" ? "Couldn’t verify" : "Unavailable"}
+          onRetry={onRetry}
+        />
+      );
+    }
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <time dateTime={field.value} tabIndex={0}>
+            {absolute}
+          </time>
+        </TooltipTrigger>
+        <TooltipContent>{formatRelativeDate(field.value)}</TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (field.state === "negative") return <span>Not following</span>;
+  return (
+    <RetryValue label={kind === "account" ? "Couldn’t verify" : "Unavailable"} onRetry={onRetry} />
+  );
+}
+
+export function UserProfileHeader({
+  fallbackUsername,
+  identity,
+  accountCreated,
+  follow,
+  retryIdentity,
+  retryAccountCreated,
+  retryFollow,
+}: UserProfileHeaderProps) {
+  const knownIdentity = identity.state === "known" ? identity.value : null;
+  const username = knownIdentity?.username ?? fallbackUsername;
+  const displayName = knownIdentity?.displayName ?? fallbackUsername;
+  return (
+    <div className="flex gap-4">
+      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/10">
+        {knownIdentity?.avatarUrl ? (
           <ProxiedImage
-            src={profile.avatarUrl}
-            alt=""
-            className="w-full h-full object-cover"
-            fallback={<div className="w-full h-full" style={{ backgroundColor: fallbackColor }} />}
+            src={knownIdentity.avatarUrl}
+            alt={`${displayName} avatar`}
+            className="h-full w-full object-cover"
+            fallback={<AvatarFallback displayName={displayName} />}
           />
         ) : (
-          <div className="w-full h-full" style={{ backgroundColor: fallbackColor }} />
+          <AvatarFallback displayName={displayName} />
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <div className="text-lg font-semibold truncate" style={{ color: fallbackColor }}>
-            {profile.displayName}
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate text-lg font-semibold text-white">{displayName}</h2>
+        <p className="mt-0.5 truncate text-xs text-[var(--color-foreground-muted)]">@{username}</p>
+        {identity.state === "loading" ? (
+          <p className="mt-1 text-xs text-[var(--color-foreground-muted)]">Profile loading…</p>
+        ) : identity.state !== "known" ? (
+          <div className="mt-1 text-xs">
+            <RetryValue label="Profile unavailable" onRetry={retryIdentity} />
           </div>
-          {profile.verified ? (
-            <LuBadgeCheck className="w-4 h-4 text-sky-400" aria-label="Verified" />
-          ) : null}
-        </div>
-        <div className="text-xs text-[var(--color-foreground-muted)] mt-0.5">
-          @{profile.username}
-        </div>
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-          <dt className="text-[var(--color-foreground-muted)]">Account created</dt>
-          <dd className="text-white">{formatDate(profile.createdAt)}</dd>
-          <dt className="text-[var(--color-foreground-muted)]">Following since</dt>
-          <dd className="text-white">{formatDate(profile.followSince ?? "")}</dd>
+        ) : null}
+        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
+          <dt className="flex items-center gap-1.5 text-[var(--color-foreground-muted)]">
+            <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+            Account created
+          </dt>
+          <dd className="text-white">
+            <DateValue field={accountCreated} kind="account" onRetry={retryAccountCreated} />
+          </dd>
+          <dt className="flex items-center gap-1.5 text-[var(--color-foreground-muted)]">
+            <Radio className="h-3.5 w-3.5" aria-hidden />
+            Following since
+          </dt>
+          <dd className="text-white">
+            <DateValue field={follow} kind="follow" onRetry={retryFollow} />
+          </dd>
         </dl>
-        <div className="mt-3 flex flex-wrap gap-1.5" data-testid="user-profile-badges">
-          {profile.subscription ? (
-            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
-              <LuStar className="w-3 h-3" />
-              {TIER_LABEL[profile.subscription.tier ?? ""] ?? "Sub"}
-              {profile.subscription.isGift ? " (gift)" : ""}
-            </span>
-          ) : null}
-          {profile.isFounder ? (
-            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-              <LuCrown className="w-3 h-3" />
-              Founder
-            </span>
-          ) : null}
-          {profile.isVip ? (
-            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
-              VIP
-            </span>
-          ) : null}
-          {profile.isMod ? (
-            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-              <LuShieldCheck className="w-3 h-3" />
-              Mod
-            </span>
-          ) : null}
-        </div>
       </div>
     </div>
   );

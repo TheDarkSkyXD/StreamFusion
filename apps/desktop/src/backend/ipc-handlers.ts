@@ -31,6 +31,7 @@ import { registerStreamHandlers } from "./ipc/handlers/stream-handlers";
 import { registerSystemHandlers } from "./ipc/handlers/system-handlers";
 import { registerTokenStatusHandlers } from "./ipc/handlers/token-status-handlers";
 import { registerUpdateHandlers } from "./ipc/handlers/update-handlers";
+import { registerUserProfileHandlers } from "./ipc/handlers/user-profile-handlers";
 import { registerVideoHandlers } from "./ipc/handlers/video-handlers";
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
@@ -63,6 +64,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   }
   registerSlotControllerHandlers(mainWindow);
   registerTokenStatusHandlers();
+  registerUserProfileHandlers();
   registerLogHandlers();
   registerBugReportHandlers(getBugReportsDir());
 

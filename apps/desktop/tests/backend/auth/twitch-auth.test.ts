@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
 
 vi.mock("@/backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -153,8 +154,40 @@ describe("ensureValidToken", () => {
     expect(result).toBe(false);
   });
 
+  it("requires a reconnect when a validated token has an explicitly incomplete scope set", async () => {
+    storageState.token = {
+      accessToken: "at",
+      expiresAt: Date.now() + 3600_000,
+      scope: ["chat:read"],
+    };
+    const authLost = vi.fn();
+    twitchAuthService.setAuthLostHandler(authLost);
+
+    await expect(twitchAuthService.ensureValidToken()).resolves.toBe(false);
+    expect(validateTokenMock).not.toHaveBeenCalled();
+    expect(authLost).toHaveBeenCalledOnce();
+  });
+
+  it("requires a reconnect when a stored token omits its scope set", async () => {
+    storageState.token = {
+      accessToken: "at",
+      expiresAt: Date.now() + 3600_000,
+    };
+    const authLost = vi.fn();
+    twitchAuthService.setAuthLostHandler(authLost);
+
+    await expect(twitchAuthService.ensureValidToken()).resolves.toBe(false);
+    expect(validateTokenMock).not.toHaveBeenCalled();
+    expect(authLost).toHaveBeenCalledOnce();
+  });
+
   it("refreshes when token is expired and returns true on success", async () => {
-    storageState.token = { accessToken: "old", refreshToken: "rt", expiresAt: Date.now() - 1000 };
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "rt",
+      expiresAt: Date.now() - 1000,
+      scope: [...TWITCH_APP_SCOPES],
+    };
     refreshTokenMock.mockResolvedValueOnce({
       accessToken: "new",
       refreshToken: "rt2",
@@ -167,7 +200,12 @@ describe("ensureValidToken", () => {
   });
 
   it("refreshes when token expires within 5 minutes", async () => {
-    storageState.token = { accessToken: "old", refreshToken: "rt", expiresAt: Date.now() + 60_000 };
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "rt",
+      expiresAt: Date.now() + 60_000,
+      scope: [...TWITCH_APP_SCOPES],
+    };
     refreshTokenMock.mockResolvedValueOnce({
       accessToken: "new",
       refreshToken: "rt2",
@@ -181,7 +219,11 @@ describe("ensureValidToken", () => {
   });
 
   it("validates with Twitch if token is not expiring soon", async () => {
-    storageState.token = { accessToken: "at", expiresAt: Date.now() + 3600_000 };
+    storageState.token = {
+      accessToken: "at",
+      expiresAt: Date.now() + 3600_000,
+      scope: [...TWITCH_APP_SCOPES],
+    };
     validateTokenMock.mockResolvedValueOnce(true);
 
     const result = await twitchAuthService.ensureValidToken();
@@ -195,6 +237,7 @@ describe("ensureValidToken", () => {
       accessToken: "at",
       refreshToken: "rt",
       expiresAt: Date.now() + 3600_000,
+      scope: [...TWITCH_APP_SCOPES],
     };
     validateTokenMock.mockResolvedValueOnce(false);
     refreshTokenMock.mockResolvedValueOnce(null);
@@ -212,7 +255,11 @@ describe("getValidAccessToken", () => {
   });
 
   it("returns access token after ensuring validity", async () => {
-    storageState.token = { accessToken: "valid-at", expiresAt: Date.now() + 3600_000 };
+    storageState.token = {
+      accessToken: "valid-at",
+      expiresAt: Date.now() + 3600_000,
+      scope: [...TWITCH_APP_SCOPES],
+    };
     validateTokenMock.mockResolvedValueOnce(true);
 
     const result = await twitchAuthService.getValidAccessToken();
@@ -338,7 +385,11 @@ describe("fetchCurrentUser", () => {
   });
 
   it("attempts refresh on 401 and retries with new token", async () => {
-    storageState.token = { accessToken: "old-at", refreshToken: "rt" };
+    storageState.token = {
+      accessToken: "old-at",
+      refreshToken: "rt",
+      scope: [...TWITCH_APP_SCOPES],
+    };
     refreshTokenMock.mockResolvedValueOnce({
       accessToken: "new-at",
       refreshToken: "rt2",

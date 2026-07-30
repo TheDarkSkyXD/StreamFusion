@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TokenRefreshError } from "@/backend/auth/token-exchange";
+import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
 
 // Guards: Twitch token-refresh flow — 401 → refresh → retry, refresh-failure → clearToken + signed-out state, expired-token detection. Module-level mocks for storageService and tokenExchangeService keep the refresh-decision logic isolated from disk/network so the chain can be driven deterministically. Drift on the singleton's lookup-then-decide ordering (e.g. caching a stale token in memory across a refresh) surfaces here.
 
@@ -8,7 +9,14 @@ import { TokenRefreshError } from "@/backend/auth/token-exchange";
 // module-load time. Both are mocked below so the tests don't touch disk or
 // the network and can drive the refresh chain deterministically.
 vi.mock("@/backend/services/storage-service", () => {
-  const state: { token: { accessToken: string; refreshToken?: string; expiresAt?: number } | null } = {
+  const state: {
+    token: {
+      accessToken: string;
+      refreshToken?: string;
+      expiresAt?: number;
+      scope?: string[];
+    } | null;
+  } = {
     token: null,
   };
   return {
@@ -57,6 +65,7 @@ function setStoredToken(expiresInSec: number): void {
     accessToken: "old-access",
     refreshToken: "rt-1",
     expiresAt: Date.now() + expiresInSec * 1000,
+    scope: [...TWITCH_APP_SCOPES],
   };
 }
 
@@ -107,6 +116,45 @@ describe("TokenRefreshError.isPermanent", () => {
 });
 
 describe("twitchAuthService refresh chain", () => {
+  it("preserves a previously complete scope set when Twitch omits scopes on refresh", async () => {
+    storageModule.__state.token = {
+      accessToken: "old-access",
+      refreshToken: "rt-1",
+      expiresAt: Date.now() + 3600_000,
+      scope: [...TWITCH_APP_SCOPES],
+    };
+    refreshTokenMock.mockResolvedValueOnce({
+      accessToken: "new-access",
+      refreshToken: "rt-2",
+      expiresAt: Date.now() + 4 * 60 * 60 * 1000,
+    });
+
+    await expect(twitchAuthService.refreshToken()).resolves.toMatchObject({
+      accessToken: "new-access",
+      scope: [...TWITCH_APP_SCOPES],
+    });
+    expect(storageModule.storageService.saveToken).toHaveBeenCalledWith(
+      "twitch",
+      expect.objectContaining({ scope: [...TWITCH_APP_SCOPES] })
+    );
+  });
+
+  it("does not persist a refreshed token whose explicit scope set is incomplete", async () => {
+    setStoredToken(60 * 60);
+    const authLost = vi.fn();
+    twitchAuthService.setAuthLostHandler(authLost);
+    refreshTokenMock.mockResolvedValueOnce({
+      accessToken: "new-access",
+      refreshToken: "rt-2",
+      expiresAt: Date.now() + 4 * 60 * 60 * 1000,
+      scope: ["chat:read"],
+    });
+
+    await expect(twitchAuthService.refreshToken()).resolves.toBeNull();
+    expect(storageModule.storageService.saveToken).not.toHaveBeenCalled();
+    expect(authLost).toHaveBeenCalledOnce();
+  });
+
   it("schedules the next refresh after a successful refresh and resets failure counter", async () => {
     setStoredToken(/* 1h until expiry */ 60 * 60);
     refreshTokenMock.mockResolvedValueOnce({

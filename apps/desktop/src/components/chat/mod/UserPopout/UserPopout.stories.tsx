@@ -5,7 +5,6 @@ import { fn } from "storybook/test";
 import { useChatStore } from "@/store/chat-store";
 import { makeChatMessage, TWITCH_CHANNEL, TWITCH_CHANNEL_KEY } from "../../chat-story-fixtures";
 import {
-  CHAT_STORY_MOD_LOG,
   CHAT_STORY_PROFILE,
   seedChatSubsystemStoryStores,
 } from "../../chat-subsystem-story-fixtures";
@@ -14,14 +13,31 @@ import { UserPopout } from "./UserPopout";
 const client = new QueryClient({
   defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
 });
-client.setQueryData(
-  ["userProfile", "twitch", "user-mira", "storybook-channel", "miramakes", TWITCH_CHANNEL],
-  CHAT_STORY_PROFILE
-);
-client.setQueryData(
-  ["modLog", "storybook-channel", "user-mira", undefined, undefined, 50, 0],
-  CHAT_STORY_MOD_LOG
-);
+client.setQueryData(["userProfile", "twitch", "identity", "user-mira", "miramakes"], {
+  state: "known",
+  source: "official",
+  value: {
+    userId: "user-mira",
+    username: "miramakes",
+    displayName: CHAT_STORY_PROFILE.displayName,
+    avatarUrl: CHAT_STORY_PROFILE.avatarUrl,
+  },
+});
+client.setQueryData(["userProfile", "twitch", "account-created", "user-mira", "miramakes"], {
+  state: "known",
+  source: "first-party-fallback",
+  value: CHAT_STORY_PROFILE.createdAt,
+});
+client.setQueryData(["userProfile", "twitch", "follow", "storybook-channel", "user-mira"], {
+  state: "known",
+  source: "official",
+  value: CHAT_STORY_PROFILE.followSince,
+});
+client.setQueryData(["userProfile", "twitch", "channel", "miramakes"], {
+  state: "known",
+  source: "official",
+  value: { id: "storybook-channel", username: TWITCH_CHANNEL, displayName: "Story Channel" },
+});
 
 seedChatSubsystemStoryStores();
 useChatStore.setState((state) => ({
@@ -69,10 +85,3 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const TwitchUser: Story = {};
-
-export const NotFound: Story = {
-  args: {
-    userId: "missing-user",
-    username: "missing_user",
-  },
-};

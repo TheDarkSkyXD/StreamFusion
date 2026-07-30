@@ -58,6 +58,15 @@ import type {
   SlotQualityConfig,
   SlotQualityMode,
 } from "../shared/slot-types";
+import type {
+  ProfileFieldState,
+  TwitchAccountCreatedRequest,
+  TwitchChannelRequest,
+  TwitchFollowRequest,
+  TwitchIdentityRequest,
+  TwitchPublicIdentity,
+  TwitchResolvedChannel,
+} from "../shared/user-profile-types";
 
 // Define the API exposed to the renderer
 const electronAPI = {
@@ -485,6 +494,23 @@ const electronAPI = {
       platform: Platform;
     }): Promise<{ success: boolean; data?: any[]; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.CHANNELS_GET_FOLLOWED, params),
+  },
+
+  userProfiles: {
+    getTwitchIdentity: (
+      request: TwitchIdentityRequest
+    ): Promise<ProfileFieldState<TwitchPublicIdentity>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY, request),
+    getTwitchAccountCreated: (
+      request: TwitchAccountCreatedRequest
+    ): Promise<ProfileFieldState<string>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED, request),
+    getTwitchFollow: (request: TwitchFollowRequest): Promise<ProfileFieldState<string>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW, request),
+    resolveTwitchChannel: (
+      request: TwitchChannelRequest
+    ): Promise<ProfileFieldState<TwitchResolvedChannel>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL, request),
   },
 
   // ========== Discovery: Videos & Clips ==========

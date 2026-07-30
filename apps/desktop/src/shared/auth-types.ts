@@ -42,6 +42,11 @@ export const TWITCH_APP_SCOPES = [
   "chat:edit",
   // Mod-channel discovery and chat message moderation.
   "user:read:moderated_channels",
+  "moderator:read:followers",
+  "moderator:read:blocked_terms",
+  "moderator:read:chat_settings",
+  "moderator:read:moderators",
+  "moderator:read:vips",
   "moderator:manage:chat_messages",
   // Channel-management console actions.
   "moderator:manage:banned_users",

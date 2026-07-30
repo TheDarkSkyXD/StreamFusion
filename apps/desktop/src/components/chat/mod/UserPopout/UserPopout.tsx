@@ -1,44 +1,28 @@
-/**
- * UserPopout (U16 + U17)
- *
- * Centered modal opened when an operator clicks a username anywhere in chat.
- * Composes:
- *   - `UserProfileHeader` (avatar, name, badges, dates)
- *   - Recent-messages section (last 10 messages from chat-store)
- *   - `UserModHistory` (scoped mod-log entries)
- *   - `UserPopoutFooter` (Timeout / Ban / Unban / Delete + broadcaster controls)
- *
- * Stays open through action confirms — operators commonly chain actions.
- * Click-outside / Esc behavior is Radix Dialog's default (closes).
- */
-
-import { useMemo, useState } from "react";
+import { ExternalLink, MessageSquareText, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChatMessage } from "@/shared/chat-types";
-import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
-import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
-import { UserModHistory } from "./UserModHistory";
-import { UserPopoutFooter } from "./UserPopoutFooter";
 import { UserProfileHeader } from "./UserProfileHeader";
 import { useUserProfile } from "./useUserProfile";
 
 export interface UserPopoutProps {
   userId: string;
-  /** Fallback display while the profile loads or 404s. */
   username: string;
   platform: "twitch" | "kick";
   channelId: string;
   channelSlug: string;
-  /** Kick chatroom id — required for Kick message delete. Twitch ignores. */
   kickChatroomId?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,140 +31,180 @@ export interface UserPopoutProps {
 const RECENT_MESSAGE_LIMIT = 10;
 const EMPTY_MESSAGES: ChatMessage[] = [];
 
+function useCompactDialog(): boolean {
+  const [compact, setCompact] = useState(
+    () => window.innerWidth <= 640 || window.innerHeight <= 600
+  );
+  useEffect(() => {
+    const update = () => setCompact(window.innerWidth <= 640 || window.innerHeight <= 600);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return compact;
+}
+
 export function UserPopout({
   userId,
   username,
   platform,
   channelId,
   channelSlug,
-  kickChatroomId,
   open,
   onOpenChange,
 }: UserPopoutProps) {
-  const { profile, loading, error } = useUserProfile(
-    userId,
-    platform,
-    channelId,
-    username,
-    channelSlug
-  );
-
+  const profileState = useUserProfile(userId, platform, channelId, username, channelSlug);
+  const compact = useCompactDialog();
+  const { identity, accountCreated, follow, channel } = profileState;
   const channelKey = buildChannelKey(platform, channelSlug);
-  const messages = useChatStore((s) => s.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
-  const recentMessages = useMemo(() => {
-    return messages
-      .filter(
-        (m) =>
-          m.type === "message" &&
-          (m.userId === userId ||
-            (!m.userId && m.username.toLowerCase() === username.toLowerCase()))
-      )
-      .slice(-RECENT_MESSAGE_LIMIT)
-      .reverse();
-  }, [messages, userId, username]);
-
-  const latestMessageId = recentMessages[0]?.id ?? null;
-
-  const twitchUser = useAuthStore((s) => s.twitchUser);
-  const forceBroadcasterIdentity = useDevModOverrideStore((s) => s.forceBroadcasterIdentity);
-  const isBroadcaster =
-    platform === "twitch" &&
-    (forceBroadcasterIdentity || Boolean(twitchUser && twitchUser.id === channelId));
-
-  // U17 — bump to force the mod-history list to re-query after an action.
-  const [refreshCounter, setRefreshCounter] = useState(0);
+  const messages = useChatStore((state) => state.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
+  const recentMessages = useMemo(
+    () =>
+      messages
+        .filter(
+          (message) =>
+            message.type === "message" &&
+            (message.userId === userId ||
+              (!message.userId && message.username.toLowerCase() === username.toLowerCase()))
+        )
+        .slice(-RECENT_MESSAGE_LIMIT)
+        .reverse(),
+    [messages, userId, username]
+  );
+  const resolvedChannel = channel.state === "known" ? channel.value : null;
+  const externalUsername = resolvedChannel?.username ?? username;
+  const externalDisplayName = resolvedChannel?.displayName ?? username;
+  const platformLabel = platform === "kick" ? "Kick" : "Twitch";
+  const externalUrl =
+    platform === "kick"
+      ? `https://kick.com/${externalUsername}`
+      : `https://www.twitch.tv/${externalUsername}`;
+  const liveAnnouncement = [
+    identity.state === "failed"
+      ? "Profile identity could not be verified."
+      : identity.state === "unavailable"
+        ? "Profile identity is unavailable."
+        : "",
+    accountCreated.state === "failed"
+      ? "Account creation date could not be verified."
+      : accountCreated.state === "unavailable"
+        ? "Account creation date is unavailable."
+        : "",
+    follow.state === "reconnect-required" ||
+    follow.state === "failed" ||
+    follow.state === "unavailable"
+      ? "Follow relationship is unavailable."
+      : "",
+    channel.state === "failed" || channel.state === "unavailable" ? "Channel is unavailable." : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[480px] bg-[#0F0F12] border-[var(--color-border)] p-6 shadow-2xl"
+        hideCloseButton
+        className={`flex w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 overflow-hidden border-[var(--color-border)] bg-[#0f0f0f] p-0 shadow-2xl ${
+          compact ? "max-h-[calc(100vh-1rem)]" : "max-h-[80vh]"
+        }`}
         data-testid="user-popout"
+        data-compact={compact ? "true" : "false"}
       >
-        <DialogHeader className="pb-2">
+        <DialogHeader className="shrink-0 border-b border-[var(--color-border)] px-5 py-5 pr-14 text-left">
           <DialogTitle className="sr-only">User profile: {username}</DialogTitle>
           <DialogDescription className="sr-only">
-            Profile, recent messages, mod history, and moderation actions for @{username}.
+            Public {platformLabel} profile and recent messages for @{username}.
           </DialogDescription>
+          <UserProfileHeader
+            fallbackUsername={username}
+            identity={identity}
+            accountCreated={accountCreated}
+            follow={follow}
+            retryIdentity={profileState.retryIdentity}
+            retryAccountCreated={profileState.retryAccountCreated}
+            retryFollow={profileState.retryFollow}
+          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogClose className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                <X className="h-5 w-5" aria-hidden />
+                <span className="sr-only">Close</span>
+              </DialogClose>
+            </TooltipTrigger>
+            <TooltipContent>Close</TooltipContent>
+          </Tooltip>
         </DialogHeader>
 
-        {loading && !profile ? (
-          <div data-testid="user-popout-skeleton" className="space-y-3">
-            <div className="flex gap-4 items-start">
-              <div className="w-16 h-16 rounded-full bg-white/10 animate-pulse" />
-              <div className="flex-1 space-y-2">
-                <div className="h-5 w-32 bg-white/10 rounded animate-pulse" />
-                <div className="h-3 w-20 bg-white/10 rounded animate-pulse" />
-                <div className="h-3 w-40 bg-white/10 rounded animate-pulse" />
-              </div>
-            </div>
-            <div className="h-12 bg-white/5 rounded animate-pulse" />
-            <div className="h-20 bg-white/5 rounded animate-pulse" />
-          </div>
-        ) : error === "not-found" || (!profile && !loading) ? (
-          <div
-            className="py-8 text-center text-sm text-[var(--color-foreground-muted)]"
-            data-testid="user-popout-not-found"
-          >
-            User not found
-          </div>
-        ) : profile ? (
-          <div className="space-y-4">
-            <UserProfileHeader profile={profile} platform={platform} />
+        <div className="sr-only" aria-live="polite" aria-atomic="true">
+          {liveAnnouncement}
+        </div>
 
-            <section>
-              <h3 className="text-xs uppercase tracking-wide text-[var(--color-foreground-muted)] mb-1.5">
-                Recent messages
-              </h3>
-              {recentMessages.length === 0 ? (
-                <div
-                  className="text-xs text-[var(--color-foreground-muted)]"
-                  data-testid="user-popout-no-recent-messages"
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="user-popout-body">
+          <section aria-labelledby="recent-chat-messages-heading">
+            <h3
+              id="recent-chat-messages-heading"
+              className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
+            >
+              <MessageSquareText className="h-4 w-4" aria-hidden />
+              Recent messages
+            </h3>
+            {recentMessages.length === 0 ? (
+              <p
+                className="text-xs text-[var(--color-foreground-muted)]"
+                data-testid="user-popout-no-recent-messages"
+              >
+                No recent messages
+              </p>
+            ) : (
+              <ul className="space-y-1" data-testid="user-popout-recent-messages">
+                {recentMessages.map((message) => (
+                  <li
+                    key={message.id}
+                    className="break-words rounded border border-white/5 bg-white/5 px-2 py-1 text-xs"
+                  >
+                    {message.rawContent || ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <DialogFooter className="shrink-0 flex-row items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
+          <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  aria-label={`Open ${externalDisplayName} on ${platformLabel}`}
+                  onClick={() => void window.electronAPI.openExternal(externalUrl)}
                 >
-                  No recent messages
-                </div>
-              ) : (
-                <ul
-                  className="space-y-1 max-h-32 overflow-y-auto no-scrollbar"
-                  data-testid="user-popout-recent-messages"
-                >
-                  {recentMessages.map((m) => (
-                    <li
-                      key={m.id}
-                      className="text-xs px-2 py-1 rounded bg-white/5 border border-white/5 line-clamp-2 break-words"
-                    >
-                      {m.rawContent || ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section>
-              <h3 className="text-xs uppercase tracking-wide text-[var(--color-foreground-muted)] mb-1.5">
-                Mod history
-              </h3>
-              <UserModHistory
-                channelId={channelId}
-                targetUserId={userId}
-                refreshCounter={refreshCounter}
-              />
-            </section>
-
-            <section className="pt-3 border-t border-white/10">
-              <UserPopoutFooter
-                userId={userId}
-                username={profile.username || username}
-                platform={platform}
-                channelId={channelId}
-                channelSlug={channelSlug}
-                isBroadcaster={isBroadcaster}
-                latestMessageId={latestMessageId}
-                kickChatroomId={kickChatroomId}
-                onActionSuccess={() => setRefreshCounter((n) => n + 1)}
-              />
-            </section>
+                  <ExternalLink className="h-4 w-4" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Open on {platformLabel}</TooltipContent>
+            </Tooltip>
+            {channel.state === "loading" ? (
+              <span className="text-xs text-[var(--color-foreground-muted)]">Channel loading…</span>
+            ) : channel.state !== "known" ? (
+              <button
+                type="button"
+                className="rounded text-xs text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                onClick={profileState.retryChannel}
+              >
+                Channel unavailable · Retry
+              </button>
+            ) : null}
           </div>
-        ) : null}
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="h-9 rounded-md bg-[var(--color-background-tertiary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-background-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              Close
+            </button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

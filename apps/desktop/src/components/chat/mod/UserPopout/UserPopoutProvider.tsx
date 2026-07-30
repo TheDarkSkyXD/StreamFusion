@@ -49,12 +49,33 @@ export interface UserPopoutProviderProps {
 
 export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
   const [current, setCurrent] = useState<OpenUserPopoutPayload | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
 
   const openUserPopout = useCallback((payload: OpenUserPopoutPayload) => {
+    openerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setCurrent(payload);
   }, []);
 
-  const close = useCallback(() => setCurrent(null), []);
+  const close = useCallback(() => {
+    const opener = openerRef.current;
+    setCurrent(null);
+    window.setTimeout(() => {
+      const target =
+        opener?.isConnected === true
+          ? opener
+          : document.querySelector<HTMLElement>(
+              "[data-chat-scroll-container], [data-testid='chat-message-list'], [role='log']"
+            );
+      if (target) {
+        if (!target.matches("button, a, input, select, textarea, [tabindex]")) {
+          target.tabIndex = -1;
+        }
+        target.focus();
+      }
+      openerRef.current = null;
+    }, 0);
+  }, []);
 
   const value = useMemo<UserPopoutContextValue>(
     () => ({ openUserPopout, current, close }),
@@ -66,8 +87,7 @@ export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
       {children}
       {current ? (
         <UserPopout
-          // Re-key on userId so swapping users forces the inner state
-          // (profile fetch, dialog, refresh counter) to reset cleanly.
+          // Re-key so switching users resets the dialog's profile state.
           key={`${current.platform}:${current.userId}`}
           userId={current.userId}
           username={current.username}

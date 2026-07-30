@@ -1,41 +1,57 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
 
-import { CHAT_STORY_PROFILE } from "../../chat-subsystem-story-fixtures";
 import { UserProfileHeader } from "./UserProfileHeader";
 
+const knownIdentity = {
+  state: "known" as const,
+  source: "official" as const,
+  value: {
+    userId: "user-mira",
+    username: "miramakes",
+    displayName: "MiraMakes",
+    avatarUrl: "https://static-cdn.jtvnw.net/jtv_user_pictures/mira.png",
+  },
+};
+
 const meta = {
-  title: "Components/Chat/Moderation/User Popout/Profile Header",
+  title: "Components/Chat/User Info/Profile Header",
   component: UserProfileHeader,
   parameters: { layout: "centered" },
   decorators: [
     (Story) => (
-      <div className="w-[440px] rounded-lg bg-[#0f0f12] p-5 text-white">
+      <div className="w-[540px] rounded-lg bg-[#0f0f0f] p-5 text-white">
         <Story />
       </div>
     ),
   ],
   args: {
-    profile: CHAT_STORY_PROFILE,
-    platform: "twitch",
+    fallbackUsername: "miramakes",
+    identity: knownIdentity,
+    accountCreated: {
+      state: "known",
+      source: "first-party-fallback",
+      value: "2013-04-17T00:00:00Z",
+    },
+    follow: {
+      state: "known",
+      source: "official",
+      value: "2021-07-08T00:00:00Z",
+    },
+    retryIdentity: fn(),
+    retryAccountCreated: fn(),
+    retryFollow: fn(),
   },
 } satisfies Meta<typeof UserProfileHeader>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const TwitchModerator: Story = {};
+export const Loaded: Story = {};
 
-export const KickViewer: Story = {
+export const Unavailable: Story = {
   args: {
-    platform: "kick",
-    profile: {
-      ...CHAT_STORY_PROFILE,
-      username: "pixelnomad",
-      displayName: "PixelNomad",
-      subscription: null,
-      isFounder: false,
-      isVip: false,
-      isMod: false,
-    },
+    accountCreated: { state: "failed", message: "Couldn’t verify" },
+    follow: { state: "failed", message: "Unavailable" },
   },
 };

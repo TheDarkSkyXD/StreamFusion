@@ -16,6 +16,12 @@ import type {
 } from "./auth-types";
 import type { SubscriberEligibilityRequest } from "./chat-types";
 import type { SlotQualityMode } from "./slot-types";
+import type {
+  TwitchAccountCreatedRequest,
+  TwitchChannelRequest,
+  TwitchFollowRequest,
+  TwitchIdentityRequest,
+} from "./user-profile-types";
 
 export const IPC_CHANNELS = {
   // App lifecycle
@@ -99,6 +105,12 @@ export const IPC_CHANNELS = {
    * checks `event.senderFrame.url` like the other privileged channels.
    */
   AUTH_TOKEN_STATUS: "auth:token-status",
+
+  // Public user profile reads (main-process Platform boundary)
+  USER_PROFILE_TWITCH_IDENTITY: "user-profile:twitch-identity",
+  USER_PROFILE_TWITCH_ACCOUNT_CREATED: "user-profile:twitch-account-created",
+  USER_PROFILE_TWITCH_FOLLOW: "user-profile:twitch-follow",
+  USER_PROFILE_TWITCH_CHANNEL: "user-profile:twitch-channel",
 
   // Auth - Session Events (main → renderer push)
   AUTH_KICK_SESSION_EXPIRED: "auth:kick-session-expired",
@@ -357,6 +369,10 @@ export interface IpcPayloads {
   [IPC_CHANNELS.AUTH_HAS_TOKEN]: { platform: Platform };
   [IPC_CHANNELS.AUTH_IS_TOKEN_EXPIRED]: { platform: Platform };
   [IPC_CHANNELS.AUTH_SYNC_FOLLOWS]: { platform: Platform };
+  [IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY]: TwitchIdentityRequest;
+  [IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED]: TwitchAccountCreatedRequest;
+  [IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW]: TwitchFollowRequest;
+  [IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL]: TwitchChannelRequest;
 
   // User data
   [IPC_CHANNELS.AUTH_SAVE_TWITCH_USER]: { user: TwitchUser };

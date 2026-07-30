@@ -24,6 +24,18 @@ import {
 // Guards: Twitch OAuth scope constants are the canonical connect/reconnect list,
 // so duplicates or a mod subset outside the app set would cause repeated consent prompts.
 describe("Twitch OAuth scope constants", () => {
+  it("contains every canonical read permission used by profile and moderation surfaces", () => {
+    expect(TWITCH_APP_SCOPES).toEqual(
+      expect.arrayContaining([
+        "moderator:read:followers",
+        "moderator:read:blocked_terms",
+        "moderator:read:chat_settings",
+        "moderator:read:moderators",
+        "moderator:read:vips",
+      ])
+    );
+  });
+
   it("contains no duplicate app scopes", () => {
     expect(new Set(TWITCH_APP_SCOPES).size).toBe(TWITCH_APP_SCOPES.length);
   });

@@ -1,27 +1,17 @@
-/**
- * useUserProfile (U16)
- *
- * Fetches profile data for the user popout — display name, avatar,
- * account-creation date, follow-since, badges, subscription info. Twitch
- * uses three Helix endpoints (`/users`, `/channels/followed`,
- * `/subscriptions/user`); Kick uses the v2 channel-users endpoint with a
- * graceful fallback. Auxiliary fetches that 401 are treated as
- * "not following / not subscribed" so the popout always opens.
- *
- * Results are session-cached at 5-minute TTL via React Query's queryCache.
- * Cache hits skip the network entirely.
- */
+import { useQueries } from "@tanstack/react-query";
 
-import { useQuery } from "@tanstack/react-query";
+import type {
+  ProfileFieldState,
+  TwitchPublicIdentity,
+  TwitchResolvedChannel,
+} from "@/shared/user-profile-types";
 
 export interface UserProfile {
   userId: string;
   username: string;
   displayName: string;
   avatarUrl: string;
-  /** ISO timestamp — when the platform account was created. */
   createdAt: string;
-  /** ISO timestamp — when the viewer started following this channel. */
   followSince: string | null;
   subscription: {
     tier: "1000" | "2000" | "3000" | null;
@@ -31,159 +21,28 @@ export interface UserProfile {
   isFounder: boolean;
   isVip: boolean;
   isMod: boolean;
-  // Kick-only:
   bio?: string;
   verified?: boolean;
 }
 
-const HELIX_BASE = "https://api.twitch.tv/helix";
 const PROFILE_TTL_MS = 5 * 60 * 1000;
+const loadingState = { state: "loading" } as const;
+const unavailableState = { state: "unavailable", message: "Unavailable" } as const;
 
-interface HelixUser {
-  id: string;
-  login: string;
-  display_name: string;
-  profile_image_url: string;
-  created_at: string;
-}
-
-interface HelixFollow {
-  broadcaster_id: string;
-  followed_at: string;
-}
-
-interface HelixSubscription {
-  tier: string;
-  is_gift: boolean;
-}
-
-async function fetchTwitchProfile(
-  userId: string,
-  channelId: string,
-  accessToken: string,
-  clientId: string
-): Promise<UserProfile | null> {
-  const headers: Record<string, string> = {
-    "Client-Id": clientId,
-    Authorization: `Bearer ${accessToken}`,
-  };
-
-  const userRes = await fetch(`${HELIX_BASE}/users?id=${userId}`, { headers });
-  if (!userRes.ok) return null;
-  const userBody = (await userRes.json()) as { data: HelixUser[] };
-  const u = userBody.data?.[0];
-  if (!u) return null;
-
-  // Aux fetches — treat 401 / failures as "no data" rather than failing.
-  let followSince: string | null = null;
-  let subscription: UserProfile["subscription"] = null;
-  try {
-    const followRes = await fetch(
-      `${HELIX_BASE}/channels/followed?user_id=${userId}&broadcaster_id=${channelId}`,
-      { headers }
-    );
-    if (followRes.ok) {
-      const body = (await followRes.json()) as { data: HelixFollow[] };
-      followSince = body.data?.[0]?.followed_at ?? null;
-    }
-  } catch {
-    // Silent — defaults to null.
-  }
-  try {
-    const subRes = await fetch(
-      `${HELIX_BASE}/subscriptions/user?broadcaster_id=${channelId}&user_id=${userId}`,
-      { headers }
-    );
-    if (subRes.ok) {
-      const body = (await subRes.json()) as { data: HelixSubscription[] };
-      const s = body.data?.[0];
-      if (s) {
-        subscription = {
-          tier: (s.tier as "1000" | "2000" | "3000") ?? null,
-          months: null,
-          isGift: Boolean(s.is_gift),
-        };
-      }
-    }
-  } catch {
-    // Silent — defaults to null.
-  }
-
-  return {
-    userId: u.id,
-    username: u.login,
-    displayName: u.display_name,
-    avatarUrl: u.profile_image_url,
-    createdAt: u.created_at,
-    followSince,
-    subscription,
-    isFounder: false,
-    isVip: false,
-    isMod: false,
-  };
-}
-
-interface KickUserApi {
-  id: number;
-  username: string;
-  slug?: string;
-  profile_pic?: string;
-  created_at?: string;
-  bio?: string;
-  verified?: boolean | { id: number };
-}
-
-async function fetchKickProfile(
-  userId: string,
-  username: string,
-  channelSlug: string
-): Promise<UserProfile | null> {
-  // Try the public channel-user endpoint first.
-  try {
-    const res = await fetch(
-      `https://kick.com/api/v2/channels/${encodeURIComponent(
-        channelSlug
-      )}/users/${encodeURIComponent(username)}`
-    );
-    if (res.ok) {
-      const body = (await res.json()) as KickUserApi;
-      return {
-        userId: String(body.id ?? userId),
-        username: body.username ?? username,
-        displayName: body.username ?? username,
-        avatarUrl: body.profile_pic ?? "",
-        createdAt: body.created_at ?? "",
-        followSince: null,
-        subscription: null,
-        isFounder: false,
-        isVip: false,
-        isMod: false,
-        bio: body.bio,
-        verified: typeof body.verified === "boolean" ? body.verified : Boolean(body.verified),
-      };
-    }
-  } catch {
-    // Fall through.
-  }
-  // Minimal fallback so the popout still renders something.
-  return {
-    userId,
-    username,
-    displayName: username,
-    avatarUrl: "",
-    createdAt: "",
-    followSince: null,
-    subscription: null,
-    isFounder: false,
-    isVip: false,
-    isMod: false,
-  };
-}
+export type RenderFieldState<T> = ProfileFieldState<T> | typeof loadingState;
 
 export interface UseUserProfileResult {
   profile: UserProfile | null;
   loading: boolean;
   error: string | null;
+  identity: RenderFieldState<TwitchPublicIdentity>;
+  accountCreated: RenderFieldState<string>;
+  follow: RenderFieldState<string>;
+  channel: RenderFieldState<TwitchResolvedChannel>;
+  retryIdentity: () => void;
+  retryAccountCreated: () => void;
+  retryFollow: () => void;
+  retryChannel: () => void;
 }
 
 export function useUserProfile(
@@ -191,42 +50,114 @@ export function useUserProfile(
   platform: "twitch" | "kick",
   channelId: string | null,
   username?: string,
-  channelSlug?: string
+  _channelSlug?: string
 ): UseUserProfileResult {
-  const query = useQuery<UserProfile, Error>({
-    queryKey: ["userProfile", platform, userId, channelId, username, channelSlug],
-    queryFn: async () => {
-      let next: UserProfile | null;
-      if (platform === "twitch") {
-        let accessToken: string | null = null;
-        try {
-          accessToken = await window.electronAPI.auth.getValidTwitchToken();
-        } catch {
-          accessToken = null;
-        }
-        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-        // userId / channelId are guaranteed non-null here — `enabled` gates on them.
-        next =
-          accessToken && clientId
-            ? await fetchTwitchProfile(userId!, channelId!, accessToken, clientId)
-            : null;
-      } else {
-        next = await fetchKickProfile(userId!, username ?? userId!, channelSlug ?? "");
-      }
-      if (!next) throw new Error("not-found");
-      return next;
-    },
-    enabled: !!userId && !!channelId,
-    staleTime: PROFILE_TTL_MS,
-    retry: false,
+  const enabled = platform === "twitch" && Boolean(userId && channelId && username);
+  const [identityQuery, accountCreatedQuery, followQuery, channelQuery] = useQueries({
+    queries: [
+      {
+        queryKey: ["userProfile", "twitch", "identity", userId, username],
+        queryFn: () =>
+          window.electronAPI.userProfiles.getTwitchIdentity({
+            userId: userId!,
+            username: username!,
+          }),
+        enabled,
+        staleTime: PROFILE_TTL_MS,
+        retry: false,
+      },
+      {
+        queryKey: ["userProfile", "twitch", "account-created", userId, username],
+        queryFn: () =>
+          window.electronAPI.userProfiles.getTwitchAccountCreated({
+            userId: userId!,
+            username: username!,
+          }),
+        enabled,
+        staleTime: PROFILE_TTL_MS,
+        retry: false,
+      },
+      {
+        queryKey: ["userProfile", "twitch", "follow", channelId, userId],
+        queryFn: () =>
+          window.electronAPI.userProfiles.getTwitchFollow({
+            broadcasterId: channelId!,
+            userId: userId!,
+            username: username!,
+          }),
+        enabled,
+        staleTime: PROFILE_TTL_MS,
+        retry: false,
+      },
+      {
+        queryKey: ["userProfile", "twitch", "channel", username],
+        queryFn: () =>
+          window.electronAPI.userProfiles.resolveTwitchChannel({ username: username! }),
+        enabled,
+        staleTime: PROFILE_TTL_MS,
+        retry: false,
+      },
+    ],
   });
 
-  if (!userId || !channelId) {
-    return { profile: null, loading: false, error: null };
-  }
+  const identity: RenderFieldState<TwitchPublicIdentity> =
+    platform === "kick"
+      ? unavailableState
+      : (identityQuery.data ??
+        (identityQuery.error ? { state: "failed", message: "Couldn’t verify" } : loadingState));
+  const follow: RenderFieldState<string> =
+    platform === "kick"
+      ? unavailableState
+      : (followQuery.data ??
+        (followQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
+  const channel: RenderFieldState<TwitchResolvedChannel> =
+    platform === "kick"
+      ? unavailableState
+      : (channelQuery.data ??
+        (channelQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
+  const accountCreated: RenderFieldState<string> =
+    platform === "kick"
+      ? unavailableState
+      : (accountCreatedQuery.data ??
+        (accountCreatedQuery.error
+          ? { state: "failed", message: "Couldn’t verify" }
+          : loadingState));
+
+  const knownIdentity = identity.state === "known" ? identity.value : null;
+  const profile = knownIdentity
+    ? {
+        userId: knownIdentity.userId,
+        username: knownIdentity.username,
+        displayName: knownIdentity.displayName,
+        avatarUrl: knownIdentity.avatarUrl,
+        createdAt: accountCreated.state === "known" ? accountCreated.value : "",
+        followSince: follow.state === "known" ? follow.value : null,
+        subscription: null,
+        isFounder: false,
+        isVip: false,
+        isMod: false,
+      }
+    : null;
+
   return {
-    profile: query.data ?? null,
-    loading: query.isPending,
-    error: query.error?.message ?? null,
+    profile,
+    loading: enabled && identity.state === "loading",
+    error: identity.state === "failed" ? identity.message : null,
+    identity,
+    accountCreated,
+    follow,
+    channel,
+    retryIdentity: () => {
+      if (platform === "twitch") void identityQuery.refetch();
+    },
+    retryAccountCreated: () => {
+      if (platform === "twitch") void accountCreatedQuery.refetch();
+    },
+    retryFollow: () => {
+      if (platform === "twitch") void followQuery.refetch();
+    },
+    retryChannel: () => {
+      if (platform === "twitch") void channelQuery.refetch();
+    },
   };
 }

@@ -1,23 +1,34 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
   useUserProfile: vi.fn(() => ({
-    profile: {
-      userId: "u1",
-      username: "alice",
-      displayName: "Alice",
-      avatarUrl: "",
-      createdAt: "2020-01-01T00:00:00Z",
-      followSince: null,
-      subscription: null,
-      isFounder: false,
-      isVip: false,
-      isMod: false,
-    },
+    profile: null,
     loading: false,
     error: null,
+    identity: {
+      state: "known",
+      source: "official",
+      value: {
+        userId: "u1",
+        username: "alice",
+        displayName: "Alice",
+        avatarUrl: "",
+      },
+    },
+    accountCreated: {
+      state: "known",
+      source: "official",
+      value: "2020-01-01T00:00:00Z",
+    },
+    follow: { state: "negative", source: "official" },
+    channel: { state: "unavailable", message: "Unavailable" },
+    retryIdentity: vi.fn(),
+    retryAccountCreated: vi.fn(),
+    retryFollow: vi.fn(),
+    retryChannel: vi.fn(),
   })),
 }));
 vi.mock("@/hooks/useModLog", () => ({
@@ -77,37 +88,104 @@ describe("UserPopoutProvider", () => {
     expect(screen.getByText("Alice")).toBeInTheDocument();
   });
 
-  it("calling openUserPopout again with a different user swaps the rendered content", () => {
-    mockedUseUserProfile.mockImplementation((userId) => ({
-      profile:
-        userId === "u2"
-          ? {
-              userId: "u2",
-              username: "bob",
-              displayName: "Bob",
-              avatarUrl: "",
-              createdAt: "2021-01-01T00:00:00Z",
-              followSince: null,
-              subscription: null,
-              isFounder: false,
-              isVip: false,
-              isMod: false,
-            }
-          : {
+  it("restores focus to the control that opened the dialog", async () => {
+    render(
+      <TooltipProvider>
+        <UserPopoutProvider>
+          <Opener
+            label="Alice"
+            payload={{
               userId: "u1",
               username: "alice",
-              displayName: "Alice",
-              avatarUrl: "",
-              createdAt: "2020-01-01T00:00:00Z",
-              followSince: null,
-              subscription: null,
-              isFounder: false,
-              isVip: false,
-              isMod: false,
-            },
-      loading: false,
-      error: null,
-    }));
+              platform: "twitch",
+              channelId: "c1",
+              channelSlug: "streamer",
+            }}
+          />
+        </UserPopoutProvider>
+      </TooltipProvider>
+    );
+    const opener = screen.getByRole("button", { name: "Alice" });
+    opener.focus();
+    fireEvent.click(opener);
+    fireEvent.click(screen.getAllByRole("button", { name: "Close" }).at(-1)!);
+    await vi.waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it("restores focus to a virtualized chat fallback when the opener unmounts", async () => {
+    function VirtualizedOpener() {
+      const open = useOpenUserPopout();
+      const [showOpener, setShowOpener] = useState(true);
+      return (
+        <>
+          {showOpener ? (
+            <button
+              type="button"
+              onClick={() => {
+                open({
+                  userId: "u1",
+                  username: "alice",
+                  platform: "twitch",
+                  channelId: "c1",
+                  channelSlug: "streamer",
+                });
+                setShowOpener(false);
+              }}
+            >
+              Alice
+            </button>
+          ) : null}
+          <div data-testid="chat-message-list" />
+        </>
+      );
+    }
+
+    render(
+      <TooltipProvider>
+        <UserPopoutProvider>
+          <VirtualizedOpener />
+        </UserPopoutProvider>
+      </TooltipProvider>
+    );
+    const opener = screen.getByRole("button", { name: "Alice" });
+    opener.focus();
+    fireEvent.click(opener);
+    fireEvent.click(screen.getAllByRole("button", { name: "Close" }).at(-1)!);
+
+    await vi.waitFor(() => expect(screen.getByTestId("chat-message-list")).toHaveFocus());
+    expect(screen.getByTestId("chat-message-list")).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("calling openUserPopout again with a different user swaps the rendered content", () => {
+    mockedUseUserProfile.mockImplementation((userId) => {
+      const isBob = userId === "u2";
+      return {
+        profile: null,
+        loading: false,
+        error: null,
+        identity: {
+          state: "known",
+          source: "official",
+          value: {
+            userId: isBob ? "u2" : "u1",
+            username: isBob ? "bob" : "alice",
+            displayName: isBob ? "Bob" : "Alice",
+            avatarUrl: "",
+          },
+        },
+        accountCreated: {
+          state: "known",
+          source: "official",
+          value: isBob ? "2021-01-01T00:00:00Z" : "2020-01-01T00:00:00Z",
+        },
+        follow: { state: "negative", source: "official" },
+        channel: { state: "unavailable", message: "Unavailable" },
+        retryIdentity: vi.fn(),
+        retryAccountCreated: vi.fn(),
+        retryFollow: vi.fn(),
+        retryChannel: vi.fn(),
+      };
+    });
 
     // Use a single trigger that switches its payload — Radix Dialog traps
     // focus while open, so two adjacent triggers aren't both reachable. The
