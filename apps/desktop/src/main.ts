@@ -384,8 +384,19 @@ function setupRequestInterceptors(): void {
 
 // App lifecycle events
 let stopProcessMonitor: (() => void) | null = null;
+let devRelayServer: { close(): Promise<void> } | null = null;
 
 app.on("ready", async () => {
+  if (process.env.STREAMFUSION_BROWSER_DEV === "1") {
+    const { startConfiguredDevRelay } = await import("./backend/dev-relay/dev-relay-runtime");
+    devRelayServer = await startConfiguredDevRelay({
+      isPackaged: app.isPackaged,
+      environment: process.env,
+      rendererUrl: process.env.ELECTRON_RENDERER_URL,
+      fetchMedia: (input, init) => fetch(input, init),
+    });
+  }
+
   // Custom frameless window uses its own titlebar UI, but we still need a
   // minimal application menu so OS-standard shortcuts (Copy/Paste, Reload,
   // DevTools, Quit) keep working and the Help menu's log-folder/log-path
@@ -625,6 +636,12 @@ app.on("before-quit", (event) => {
   // synchronously, so the awaits are short-lived; we still gate `app.exit`
   // on them so the trailing "Debug closed" header makes it to disk.
   const finalize = async (): Promise<void> => {
+    try {
+      await devRelayServer?.close();
+      devRelayServer = null;
+    } catch {
+      // Best-effort — a closing development relay must never block app exit.
+    }
     try {
       await shutdownLogger();
     } catch {

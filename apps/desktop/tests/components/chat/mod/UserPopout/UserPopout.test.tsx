@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -18,7 +18,9 @@ vi.mock("@/hooks/useModLog", () => ({
 
 import { UserPopout } from "@/components/chat/mod/UserPopout/UserPopout";
 import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
+import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 const mockedUseUserProfile = vi.mocked(useUserProfile);
@@ -42,6 +44,12 @@ function pendingProfileState() {
 beforeEach(() => {
   mockedUseUserProfile.mockReset();
   useChatStore.setState({ messagesByChannel: {} });
+  useAuthStore.setState((state) => ({
+    preferences: {
+      ...(state.preferences ?? {}),
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES },
+    } as typeof state.preferences,
+  }));
   // Stub the electronAPI for openExternal usage inside the footer.
   (globalThis as any).window.electronAPI = {
     openExternal: vi.fn(),
@@ -73,7 +81,13 @@ function renderPopout(
   open = true,
   platform: "twitch" | "kick" = "twitch",
   avatarUrl?: string,
-  username = "alice"
+  username = "alice",
+  openingMessage?: ChatMessage,
+  badgeCatalog?: {
+    state: "loading" | "ready" | "failed";
+    sourceLabel: string;
+    retry: () => void;
+  }
 ) {
   return render(
     <TooltipProvider>
@@ -84,6 +98,8 @@ function renderPopout(
         platform={platform}
         channelId="c1"
         channelSlug="streamer"
+        openingMessage={openingMessage}
+        badgeCatalog={badgeCatalog}
         open={open}
         onOpenChange={() => {}}
       />
@@ -94,7 +110,221 @@ function renderPopout(
 // Guards: failed remote identity keeps chat-known identity visible and exposes a field-level retry.
 // Guards: identity loading remains visible without delaying the dialog shell.
 // Guards: Kick user dialogs keep Kick-specific accessible copy and external profile navigation.
+// Guards: Recent chat stays channel-scoped, rich, author-truthful, and capped at four row badges.
+// Guards: Exact selected-message targets survive live insertion/pruning and change only deliberately.
+// Guards: Live matching inserts respect reduced motion and badge catalog states stay independently truthful.
 describe("UserPopout", () => {
+  it("keeps the verified-empty current-chat section visible with exact copy", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [],
+      },
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", undefined, {
+      state: "failed",
+      sourceLabel: "Twitch · Live chat",
+      retry: vi.fn(),
+    });
+
+    expect(screen.getByRole("heading", { name: "Recent in this chat" })).toBeInTheDocument();
+    expect(screen.getByText("No recent messages in this chat")).toBeInTheDocument();
+    expect(screen.getByText("No badges on the latest message")).toBeInTheDocument();
+  });
+
+  it("uses the normal rich renderer, preserves reply authors, and caps row badges at four", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    const authored = {
+      ...makeMessage("authored", "streamer", "hello Kappa"),
+      badges: Array.from({ length: 6 }, (_, index) => ({
+        setId: `badge-${index}`,
+        version: "1",
+        imageUrl: `https://example.com/badge-${index}.png`,
+        title: `Badge ${index}`,
+      })),
+      content: [
+        { type: "text" as const, content: "hello " },
+        {
+          type: "emote" as const,
+          id: "25",
+          name: "Kappa",
+          url: "https://example.com/kappa.png",
+        },
+      ],
+    };
+    const reply = {
+      ...makeMessage("reply", "streamer", "reply from Bob"),
+      userId: "u2",
+      username: "bob",
+      displayName: "Bob",
+      replyTo: {
+        parentMessageId: authored.id,
+        parentUserId: "u1",
+        parentUsername: "alice",
+        parentDisplayName: "Alice",
+        parentMessageBody: authored.rawContent,
+      },
+    };
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [authored, reply],
+      },
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", undefined, {
+      state: "failed",
+      sourceLabel: "Twitch · Live chat",
+      retry: vi.fn(),
+    });
+
+    const rows = within(screen.getByTestId("user-popout-recent-messages"));
+    expect(rows.getByText("Alice")).toBeInTheDocument();
+    expect(rows.getByText("Bob")).toBeInTheDocument();
+    expect(rows.getByTestId("chat-message-reply-preview")).toHaveTextContent(
+      "Replying to @Alice: hello Kappa"
+    );
+    expect(rows.getByRole("button", { name: "Show Kappa emote details" })).toBeInTheDocument();
+    expect(rows.getAllByRole("img", { name: /^Badge / })).toHaveLength(4);
+    expect(
+      within(screen.getByTestId("user-profile-badges")).getAllByRole("img", {
+        name: /^Badge \d$/,
+      })
+    ).toHaveLength(6);
+  });
+
+  it("keeps badge-source failure distinct and Retry requests a real channel reconnect", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    const retry = vi.fn();
+
+    renderPopout(true, "twitch", undefined, "alice", undefined, {
+      state: "failed",
+      sourceLabel: "Twitch · Live chat",
+      retry,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Couldn’t load badges · Retry" }));
+
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("renders retained deleted rows with the viewer's selected deleted-message preference", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useAuthStore.setState((state) => ({
+      preferences: {
+        ...(state.preferences ?? {}),
+        chatDisplay: {
+          ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+          deletedMessageDisplay: "audit",
+        },
+      } as typeof state.preferences,
+    }));
+    const deleted = {
+      ...makeMessage("deleted", "streamer", "retained deleted content"),
+      isDeleted: true,
+      deletedByUsername: "modbot",
+    };
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [deleted],
+      },
+    });
+
+    renderPopout();
+
+    expect(screen.getByTestId("deleted-message-highlight")).toBeInTheDocument();
+    expect(screen.getByText("retained deleted content")).toBeInTheDocument();
+    expect(screen.getByText(/Twitch - id deleted/)).toBeInTheDocument();
+  });
+
+  it("keeps a deliberately selected exact message pinned through live insertion and pruning", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    const openingMessage = makeMessage("opening", "streamer", "opening message");
+    const reply = {
+      ...makeMessage("reply", "streamer", "reply from Bob"),
+      userId: "u2",
+      username: "bob",
+      displayName: "Bob",
+      replyTo: {
+        parentMessageId: openingMessage.id,
+        parentUserId: openingMessage.userId,
+        parentUsername: openingMessage.username,
+        parentDisplayName: openingMessage.displayName,
+        parentMessageBody: openingMessage.rawContent,
+      },
+    };
+    const channelKey = buildChannelKey("twitch", "streamer");
+    useChatStore.setState({
+      messagesByChannel: { [channelKey]: [openingMessage, reply] },
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", openingMessage);
+    const selectedFooter = screen.getByTestId("user-popout-selected-footer");
+    expect(selectedFooter).toHaveAttribute("data-selected-message-id", openingMessage.id);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select message from Bob: reply from Bob" })
+    );
+    expect(selectedFooter).toHaveAttribute("data-selected-message-id", reply.id);
+    expect(selectedFooter).toHaveAttribute("data-selected-author-id", reply.userId);
+    expect(selectedFooter).toHaveAttribute("data-selected-platform", reply.platform);
+    expect(selectedFooter).toHaveAttribute("data-selected-channel", reply.channel);
+
+    act(() => {
+      useChatStore.setState({
+        messagesByChannel: {
+          [channelKey]: Array.from({ length: 11 }, (_, index) =>
+            makeMessage(`new-${index}`, "streamer", `new message ${index}`)
+          ),
+        },
+      });
+    });
+
+    expect(screen.queryByText("reply from Bob")).toBeNull();
+    expect(selectedFooter).toHaveAttribute("data-selected-message-id", reply.id);
+    expect(selectedFooter).toHaveAttribute("data-selected-author-id", reply.userId);
+    expect(selectedFooter).toHaveAttribute("data-selected-platform", reply.platform);
+    expect(selectedFooter).toHaveAttribute("data-selected-channel", reply.channel);
+  });
+
+  it("selects rows by keyboard and scrolls live inserts without motion when requested", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    const channelKey = buildChannelKey("twitch", "streamer");
+    const first = makeMessage("first", "streamer", "first message");
+    const second = makeMessage("second", "streamer", "second message");
+    useChatStore.setState({ messagesByChannel: { [channelKey]: [first, second] } });
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    vi.spyOn(window, "matchMedia").mockReturnValue({
+      matches: true,
+      media: "(prefers-reduced-motion: reduce)",
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", first);
+    const selectedFooter = screen.getByTestId("user-popout-selected-footer");
+    const secondRowSelector = screen.getByRole("button", {
+      name: "Select message from Alice: second message",
+    });
+    fireEvent.keyDown(secondRowSelector, { key: "Enter" });
+    expect(selectedFooter).toHaveAttribute("data-selected-message-id", second.id);
+
+    scrollIntoView.mockClear();
+    act(() => {
+      useChatStore.setState({
+        messagesByChannel: {
+          [channelKey]: [first, second, makeMessage("third", "streamer", "third message")],
+        },
+      });
+    });
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "nearest" });
+  });
+
   it("opens immediately with chat-known identity while remote fields load", () => {
     mockedUseUserProfile.mockReturnValue(pendingProfileState());
     renderPopout();

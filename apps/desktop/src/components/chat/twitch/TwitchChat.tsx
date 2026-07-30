@@ -190,6 +190,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const deleteMessagesByUser = useChatStore((state) => state.deleteMessagesByUser);
   const channelKey = buildChannelKey("twitch", channel);
+  const [badgeCatalogStatus, setBadgeCatalogStatus] = useState<"loading" | "ready" | "failed">(
+    "loading"
+  );
+  const [badgeCatalogRevision, setBadgeCatalogRevision] = useState(0);
+  const retryBadgeCatalog = useCallback(() => {
+    setBadgeCatalogRevision((revision) => revision + 1);
+  }, []);
 
   // Emote store — actions only; no render-time data needed here.
   const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
@@ -643,10 +650,36 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
   // Channel IDs can arrive after chat has already mounted. Loading badges here
   // avoids a reconnect while still fixing future subscriber badge resolution.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the explicit user Retry signal.
   useEffect(() => {
-    if (!channel || !channelId) return;
-    void twitchChatService.loadChannelBadges(channel, channelId, { forceRefresh: true });
-  }, [channel, channelId]);
+    if (!channel || !channelId) {
+      setBadgeCatalogStatus("loading");
+      return;
+    }
+    if (!isTwitchConnected) {
+      setBadgeCatalogStatus("loading");
+      void twitchChatService.loadChannelBadges(channel, channelId, { forceRefresh: true });
+      return;
+    }
+    let active = true;
+    setBadgeCatalogStatus("loading");
+    void twitchChatService
+      .loadChannelBadges(channel, channelId, { forceRefresh: true })
+      .then((loaded) => {
+        if (!active) return;
+        if (loaded) {
+          useChatStore
+            .getState()
+            .rehydrateChannelBadges(channelKey, (badges) =>
+              twitchChatService.resolveChannelBadges(channel, badges)
+            );
+        }
+        setBadgeCatalogStatus(loaded ? "ready" : "failed");
+      });
+    return () => {
+      active = false;
+    };
+  }, [badgeCatalogRevision, channel, channelId, channelKey, isTwitchConnected]);
 
   useInterval(
     () => {
@@ -1469,7 +1502,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   );
 
   return (
-    <UserPopoutProvider>
+    <UserPopoutProvider
+      badgeCatalog={{
+        state: badgeCatalogStatus,
+        sourceLabel: "Twitch · Live chat",
+        retry: retryBadgeCatalog,
+      }}
+    >
       <div className="flex flex-col h-full w-full bg-gradient-to-b from-[#141414] to-[#171717]">
         <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
           <h2 className="font-semibold flex items-center gap-2">

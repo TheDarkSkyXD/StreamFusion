@@ -1,6 +1,6 @@
-import { ExternalLink, MessageSquareText, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-
+import { Check, ExternalLink, MessageSquareText, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChatMessage as ChatMessageRow } from "@/components/chat/ChatMessage";
 import {
   Dialog,
   DialogClose,
@@ -14,6 +14,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
+import {
+  reconcileSelectedMessage,
+  selectLatestAuthoredMessage,
+  selectRecentUserMessages,
+} from "@/store/user-popout-chat-context";
 
 import { UserProfileHeader } from "./UserProfileHeader";
 import { useUserProfile } from "./useUserProfile";
@@ -27,11 +32,16 @@ export interface UserPopoutProps {
   channelId: string;
   channelSlug: string;
   kickChatroomId?: number;
+  openingMessage?: ChatMessage;
+  badgeCatalog?: {
+    state: "loading" | "ready" | "failed";
+    sourceLabel: string;
+    retry: () => void;
+  };
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const RECENT_MESSAGE_LIMIT = 10;
 const EMPTY_MESSAGES: ChatMessage[] = [];
 
 function useCompactDialog(): boolean {
@@ -54,6 +64,8 @@ export function UserPopout({
   platform,
   channelId,
   channelSlug,
+  openingMessage,
+  badgeCatalog,
   open,
   onOpenChange,
 }: UserPopoutProps) {
@@ -84,20 +96,51 @@ export function UserPopout({
             },
           };
   const channelKey = buildChannelKey(platform, channelSlug);
-  const messages = useChatStore((state) => state.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
+  const channelMessages = useChatStore((state) => state.messagesByChannel[channelKey]);
+  const messages = channelMessages ?? EMPTY_MESSAGES;
   const recentMessages = useMemo(
-    () =>
-      messages
-        .filter(
-          (message) =>
-            message.type === "message" &&
-            (message.userId === userId ||
-              (!message.userId && message.username.toLowerCase() === username.toLowerCase()))
-        )
-        .slice(-RECENT_MESSAGE_LIMIT)
-        .reverse(),
-    [messages, userId, username]
+    () => selectRecentUserMessages({ [channelKey]: messages }, channelKey, { userId, username }),
+    [channelKey, messages, userId, username]
   );
+  const [selectedSnapshot, setSelectedSnapshot] = useState<ChatMessage | null>(
+    () => openingMessage ?? null
+  );
+  const selectedMessage = useMemo(
+    () => reconcileSelectedMessage(selectedSnapshot, messages),
+    [messages, selectedSnapshot]
+  );
+  const latestAuthoredMessage = useMemo(
+    () => selectLatestAuthoredMessage({ [channelKey]: messages }, channelKey, { userId, username }),
+    [channelKey, messages, userId, username]
+  );
+  const latestBadgesAreResolved = latestAuthoredMessage?.badges.every((badge) =>
+    Boolean(badge.imageUrl)
+  );
+  const verifiedBadgeData =
+    latestBadgesAreResolved || (channelMessages !== undefined && latestAuthoredMessage === null);
+  const headerBadges = verifiedBadgeData
+    ? {
+        state: "known" as const,
+        badges: latestAuthoredMessage?.badges ?? [],
+        sourceLabel: badgeCatalog?.sourceLabel,
+      }
+    : badgeCatalog && badgeCatalog.state !== "loading"
+      ? {
+          state: "failed" as const,
+          retry: badgeCatalog.retry,
+          sourceLabel: badgeCatalog.sourceLabel,
+        }
+      : { state: "loading" as const };
+  const newestMessageRef = useRef<HTMLLIElement>(null);
+  const newestMessageId = recentMessages[recentMessages.length - 1]?.id;
+  useEffect(() => {
+    if (!newestMessageId) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    newestMessageRef.current?.scrollIntoView?.({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "nearest",
+    });
+  }, [newestMessageId]);
   const resolvedChannel = channel.state === "known" ? channel.value : null;
   const externalUsername = resolvedChannel?.username ?? username;
   const externalDisplayName = resolvedChannel?.displayName ?? username;
@@ -150,6 +193,7 @@ export function UserPopout({
             identity={renderedIdentity}
             accountCreated={accountCreated}
             follow={follow}
+            badges={headerBadges}
             retryIdentity={profileState.retryIdentity}
             retryAccountCreated={profileState.retryAccountCreated}
             retryFollow={profileState.retryFollow}
@@ -177,23 +221,55 @@ export function UserPopout({
               className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
             >
               <MessageSquareText className="h-4 w-4" aria-hidden />
-              Recent messages
+              Recent in this chat
             </h3>
             {recentMessages.length === 0 ? (
               <p
                 className="text-xs text-[var(--color-foreground-muted)]"
                 data-testid="user-popout-no-recent-messages"
               >
-                No recent messages
+                No recent messages in this chat
               </p>
             ) : (
-              <ul className="space-y-1" data-testid="user-popout-recent-messages">
-                {recentMessages.map((message) => (
+              <ul
+                className="space-y-1"
+                data-testid="user-popout-recent-messages"
+                aria-label="Recent messages in this chat"
+              >
+                {recentMessages.map((message, index) => (
                   <li
                     key={message.id}
-                    className="break-words rounded border border-white/5 bg-white/5 px-2 py-1 text-xs"
+                    ref={index === recentMessages.length - 1 ? newestMessageRef : undefined}
+                    className={`flex items-start overflow-hidden rounded border transition-colors ${
+                      selectedMessage?.id === message.id
+                        ? "border-white/40 bg-white/10"
+                        : "border-white/5 bg-white/5 hover:bg-white/[0.08]"
+                    }`}
+                    aria-current={selectedMessage?.id === message.id ? "true" : undefined}
                   >
-                    {message.rawContent || ""}
+                    <button
+                      type="button"
+                      className="m-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-foreground-muted)] hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                      aria-label={`Select message from ${message.displayName}: ${message.rawContent}`}
+                      aria-pressed={selectedMessage?.id === message.id}
+                      onClick={() => setSelectedSnapshot(message)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedSnapshot(message);
+                        }
+                      }}
+                    >
+                      <Check
+                        className={`h-4 w-4 ${
+                          selectedMessage?.id === message.id ? "opacity-100" : "opacity-30"
+                        }`}
+                        aria-hidden
+                      />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <ChatMessageRow message={message} badgeLimit={4} embedded />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -201,7 +277,14 @@ export function UserPopout({
           </section>
         </div>
 
-        <DialogFooter className="shrink-0 flex-row items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
+        <DialogFooter
+          className="shrink-0 flex-row items-center justify-between border-t border-[var(--color-border)] px-5 py-3"
+          data-testid="user-popout-selected-footer"
+          data-selected-message-id={selectedMessage?.id}
+          data-selected-author-id={selectedMessage?.userId}
+          data-selected-platform={selectedMessage?.platform}
+          data-selected-channel={selectedMessage?.channel}
+        >
           <div className="flex items-center gap-3">
             <Tooltip>
               <TooltipTrigger asChild>

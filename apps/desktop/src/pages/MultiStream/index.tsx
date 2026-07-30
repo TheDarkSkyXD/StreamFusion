@@ -31,7 +31,12 @@ export function MultiStreamPage() {
   }, []);
 
   const activeChatStream = streams.find((s) => s.id === chatStreamId);
-  const { data: activeChatChannel } = useChannelByUsername(
+  const {
+    data: activeChatChannel,
+    isLoading: isActiveChatChannelLoading,
+    isError: isActiveChatChannelError,
+    refetch: refetchActiveChatChannel,
+  } = useChannelByUsername(
     activeChatStream?.channelName ?? "",
     activeChatStream?.platform ?? "twitch"
   );
@@ -121,6 +126,16 @@ export function MultiStreamPage() {
                     activeChatStream.platform === "kick" ? activeChatChannel?.kickUserId : undefined
                   }
                   subscriberBadges={subscriberBadges}
+                  badgeCatalogState={
+                    activeChatStream.platform !== "kick"
+                      ? undefined
+                      : isActiveChatChannelLoading
+                        ? "loading"
+                        : isActiveChatChannelError
+                          ? "failed"
+                          : "ready"
+                  }
+                  retryBadgeCatalog={() => void refetchActiveChatChannel()}
                 />
               ) : (
                 <p className="p-3 text-[var(--color-foreground-muted)] text-sm">

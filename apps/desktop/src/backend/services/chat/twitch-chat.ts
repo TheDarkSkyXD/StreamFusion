@@ -13,6 +13,7 @@ import { sleep } from "@/lib/sleep";
 import type { TwitchUser } from "../../../shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type {
+  ChatBadge,
   ChatConnectionState,
   ChatConnectionStatus,
   ChatMessage,
@@ -318,14 +319,15 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     channel: string,
     broadcasterId?: string,
     options: { forceRefresh?: boolean } = {}
-  ): Promise<void> {
-    if (!broadcasterId) return;
+  ): Promise<boolean> {
+    if (!broadcasterId) return false;
 
     const normalizedChannel = this.normalizeChannel(channel);
     this.broadcasterId.set(normalizedChannel, broadcasterId);
 
     if (this.accessToken && this.clientId) {
-      await badgeResolver.loadChannelBadges(
+      await badgeResolver.loadGlobalBadges(this.accessToken, this.clientId);
+      return badgeResolver.loadChannelBadges(
         broadcasterId,
         this.accessToken,
         this.clientId,
@@ -333,6 +335,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
         options
       );
     }
+    return false;
+  }
+
+  resolveChannelBadges(channel: string, badges: ChatBadge[]): ChatBadge[] {
+    const broadcasterId = this.broadcasterId.get(this.normalizeChannel(channel));
+    return badgeResolver.resolveBadges(badges, broadcasterId);
   }
 
   /**

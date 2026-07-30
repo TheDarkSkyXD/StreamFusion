@@ -3,6 +3,7 @@ import { subscribeWithSelector } from "zustand/middleware";
 
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../shared/auth-types";
 import type {
+  ChatBadge,
   ChatConnectionStatus,
   ChatKnownUser,
   ChatMessage,
@@ -260,6 +261,10 @@ interface ChatState {
   deleteMessage: (channelKey: string, messageId: string, metadata?: DeletionMetadata) => void;
   deleteMessagesByUser: (channelKey: string, userId: string, metadata?: DeletionMetadata) => void;
   updateConnectionStatus: (status: ChatConnectionStatus) => void;
+  rehydrateChannelBadges: (
+    channelKey: string,
+    resolve: (badges: ChatBadge[]) => ChatBadge[]
+  ) => void;
   setPaused: (channelKey: string, paused: boolean) => void;
   setBatchingEnabled: (enabled: boolean) => void;
   setBatchingInterval: (interval: number) => void;
@@ -631,6 +636,22 @@ export const useChatStore = create<ChatState>()(
             connectionStatus: {
               ...state.connectionStatus,
               [status.platform]: status,
+            },
+          };
+        });
+      },
+
+      rehydrateChannelBadges: (channelKey, resolve) => {
+        set((state) => {
+          const bucket = state.messagesByChannel[channelKey];
+          if (!bucket) return state;
+          return {
+            messagesByChannel: {
+              ...state.messagesByChannel,
+              [channelKey]: bucket.map((message) => ({
+                ...message,
+                badges: resolve(message.badges),
+              })),
             },
           };
         });

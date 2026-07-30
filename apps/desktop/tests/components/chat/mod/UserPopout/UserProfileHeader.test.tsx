@@ -50,6 +50,40 @@ afterEach(() => {
 });
 
 describe("UserProfileHeader field states", () => {
+  it("shows every badge from the newest authored message with truthful source tooltips", async () => {
+    const badges = Array.from({ length: 6 }, (_, index) => ({
+      setId: `badge-${index}`,
+      version: "1",
+      imageUrl: `https://example.com/badge-${index}.png`,
+      title: `Badge ${index}`,
+    }));
+    render(
+      <TooltipProvider>
+        <UserProfileHeader
+          platform="twitch"
+          fallbackUsername="alice"
+          identity={identity}
+          accountCreated={accountCreated}
+          follow={{ state: "failed", message: "Unavailable" }}
+          badges={{ state: "known", badges }}
+          retryIdentity={vi.fn()}
+          retryAccountCreated={vi.fn()}
+          retryFollow={vi.fn()}
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.getByText("Badges")).toBeInTheDocument();
+    const badgeButtons = screen.getAllByRole("img", {
+      name: /^Badge \d$/,
+    });
+    expect(badgeButtons).toHaveLength(6);
+    expect(badgeButtons[0]).toHaveAccessibleName("Badge 0");
+    fireEvent.focus(badgeButtons[0]);
+    expect((await screen.findAllByText("Twitch · Live chat")).length).toBeGreaterThan(0);
+    expect(badgeButtons[0]).toHaveAccessibleDescription("Twitch · Live chat");
+  });
+
   it("routes a known custom Twitch avatar through the image proxy contract", () => {
     renderHeader({ state: "failed", message: "Unavailable" }, vi.fn(), {
       ...identity,

@@ -9,6 +9,7 @@ import { Username, type UsernameChannelContext } from "./Username";
 
 interface DeletedMessageHighlightProps {
   badges: ChatMessage["badges"];
+  badgeLimit?: number;
   children: React.ReactNode;
   currentChannelContext?: UsernameChannelContext;
   deletedAt?: Date | number;
@@ -18,6 +19,7 @@ interface DeletedMessageHighlightProps {
   moderatorUser?: ChatUserPresentation;
   moderatorUsername?: string;
   style?: React.CSSProperties;
+  usernamesInteractive?: boolean;
 }
 
 function platformLabel(platform: ChatPlatform): string {
@@ -32,12 +34,17 @@ function formatDeletedAt(timestamp: Date | number | undefined): string {
   });
 }
 
-function renderUserBadges(badges: ChatUserPresentation["badges"], platform: ChatPlatform) {
-  if (badges.length === 0) return null;
+function renderUserBadges(
+  badges: ChatUserPresentation["badges"],
+  platform: ChatPlatform,
+  badgeLimit?: number
+) {
+  const visibleBadges = badgeLimit == null ? badges : badges.slice(0, badgeLimit);
+  if (visibleBadges.length === 0) return null;
 
   return (
     <span className="inline-flex shrink-0 items-end gap-1 align-bottom [&_img]:!mr-0 [&_img]:align-bottom">
-      {badges.map((badge, index) => (
+      {visibleBadges.map((badge, index) => (
         <ChatBadge
           key={`${badge.setId}-${badge.version}-${index}`}
           badge={badge}
@@ -52,14 +59,18 @@ function UserAttribution({
   currentChannelContext,
   platform,
   user,
+  badgeLimit,
+  interactive,
 }: {
+  badgeLimit?: number;
   currentChannelContext?: UsernameChannelContext;
+  interactive: boolean;
   platform: ChatPlatform;
   user: ChatUserPresentation;
 }) {
   return (
     <span className="inline-flex min-w-0 max-w-full items-end gap-1 align-bottom">
-      {renderUserBadges(user.badges, platform)}
+      {renderUserBadges(user.badges, platform, badgeLimit)}
       <Username
         userId={user.userId}
         username={user.username}
@@ -68,6 +79,7 @@ function UserAttribution({
         platform={platform}
         className="align-bottom"
         currentChannelContext={currentChannelContext}
+        interactive={interactive}
         noWrap
       />
     </span>
@@ -77,6 +89,7 @@ function UserAttribution({
 export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = memo(
   ({
     badges,
+    badgeLimit,
     children,
     currentChannelContext,
     deletedAt,
@@ -86,6 +99,7 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
     moderatorUser,
     moderatorUsername,
     style,
+    usernamesInteractive = true,
   }) => {
     const fallbackModeratorUsername = moderatorUsername?.trim();
     const moderator =
@@ -99,12 +113,15 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
           }
         : undefined);
     const deletedTime = formatDeletedAt(deletedAt);
+    const visibleSenderBadges = badgeLimit == null ? badges : badges.slice(0, badgeLimit);
+    const moderatorBadgeLimit =
+      badgeLimit == null ? undefined : Math.max(0, badgeLimit - visibleSenderBadges.length);
 
     const sender = (
       <span className="inline-flex min-w-0 max-w-full items-end gap-1 align-bottom">
-        {badges.length > 0 && (
+        {visibleSenderBadges.length > 0 && (
           <span className="inline-flex shrink-0 items-end gap-1 align-bottom [&_img]:!mr-0 [&_img]:align-bottom">
-            {badges.map((badge, index) => (
+            {visibleSenderBadges.map((badge, index) => (
               <ChatBadge
                 key={`${badge.setId}-${badge.version}-${index}`}
                 badge={badge}
@@ -121,6 +138,8 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
           platform={message.platform}
           className="align-bottom"
           currentChannelContext={currentChannelContext}
+          interactive={usernamesInteractive}
+          openingMessage={message}
           keepSuffixAttached
           suffix={<span className="align-bottom text-white">:</span>}
         />
@@ -128,7 +147,9 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
     );
     const moderatorNode = moderator ? (
       <UserAttribution
+        badgeLimit={moderatorBadgeLimit}
         currentChannelContext={currentChannelContext}
+        interactive={usernamesInteractive}
         platform={message.platform}
         user={moderator}
       />

@@ -34,6 +34,20 @@ describe('ProxiedImage', () => {
     expect(atob(b64)).toBe('https://files.kick.com/foo.png');
   });
 
+  it('routes proxied images through the same-origin relay in browser development', async () => {
+    window.__STREAMFUSION_BROWSER_DEV_CLIENT__ = true;
+    try {
+      render(<ProxiedImage src="https://files.kick.com/foo.png" alt="hello" />);
+      const img = await screen.findByRole('img', { name: 'hello' });
+
+      expect(img.getAttribute('src')).toMatch(
+        /^\/__streamfusion-dev\/media\?.*kind=kick-image/
+      );
+    } finally {
+      delete window.__STREAMFUSION_BROWSER_DEV_CLIENT__;
+    }
+  });
+
   it('routes Kick video thumbnails through the kick-image protocol without first requesting the raw 720.webp URL', async () => {
     const upstream =
       'https://images.kick.com/video_thumbnails/z7oMLoDcD3va/iBP8BzqJxpzh/720.webp';

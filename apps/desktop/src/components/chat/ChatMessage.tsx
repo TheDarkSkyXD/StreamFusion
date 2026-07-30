@@ -62,6 +62,10 @@ interface ChatMessageProps {
   /** U18 — when provided, clicking the message's Username opens the popout
    *  bound to this channel context. Surfaces without a channel omit it. */
   currentChannelContext?: UsernameChannelContext;
+  /** Cap visible sender badges without changing the underlying message snapshot. */
+  badgeLimit?: number;
+  /** Disable nested username interaction when a containing surface owns selection. */
+  embedded?: boolean;
 }
 
 /** Sender badges that protect the user from moderation actions. Toolbar is
@@ -446,6 +450,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     onDelete,
     selfUserId,
     currentChannelContext,
+    badgeLimit,
+    embedded = false,
   }) => {
     const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
     const moderationHighlightStyle =
@@ -475,10 +481,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       if (!isKickBroadcasterMessage) return message.badges;
       return message.badges.filter((badge) => badge.setId !== "moderator");
     }, [isKickBroadcasterMessage, message.badges]);
-    const renderableBadges = useMemo(
-      () => orderRenderableBadges(displayBadges, message.platform),
-      [displayBadges, message.platform]
-    );
+    const renderableBadges = useMemo(() => {
+      const orderedBadges = orderRenderableBadges(displayBadges, message.platform);
+      return badgeLimit == null ? orderedBadges : orderedBadges.slice(0, badgeLimit);
+    }, [badgeLimit, displayBadges, message.platform]);
     const mentionsViewer = useMemo(
       () =>
         message.type === "message" &&
@@ -669,6 +675,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
         return (
           <DeletedMessageHighlight
             badges={renderableBadges}
+            badgeLimit={badgeLimit}
             currentChannelContext={currentChannelContext}
             deletedAt={message.deletedAt ?? message.timestamp}
             highlightStyle={moderationHighlightStyle}
@@ -676,6 +683,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
             mode={displayMode}
             moderatorUser={message.deletedByUser}
             moderatorUsername={message.deletedByUsername}
+            usernamesInteractive={!embedded}
             style={style}
           >
             {message.content.map((fragment, index) => (
@@ -875,6 +883,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
               platform={message.platform}
               className="align-middle"
               currentChannelContext={currentChannelContext}
+              interactive={!embedded}
+              openingMessage={message}
               suffix={!message.isAction ? <span className="mr-1 align-middle">:</span> : undefined}
             />
           </span>

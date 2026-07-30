@@ -9,8 +9,7 @@
 "use strict";
 const { spawn } = require("node:child_process");
 const path = require("node:path");
-const env = { ...process.env };
-delete env.ELECTRON_RUN_AS_NODE;
+const { createStartEnvironment } = require("./start-dev-lib");
 // Resolve via package.json (which IS declared in electron-vite's `exports`
 // map) and rebuild the bin path. Calling
 // `require.resolve("electron-vite/bin/electron-vite.js")` directly throws
@@ -22,15 +21,19 @@ const electronViteBin = path.join(
   "bin",
   "electron-vite.js"
 );
-const child = spawn(
-  process.execPath,
-  [electronViteBin, "dev", ...process.argv.slice(2)],
-  {
-    env,
-    stdio: "inherit",
-  }
-);
-child.on("exit", (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exit(code ?? 0);
-});
+void createStartEnvironment(process.env)
+  .then((env) => {
+    delete env.ELECTRON_RUN_AS_NODE;
+    const child = spawn(process.execPath, [electronViteBin, "dev", ...process.argv.slice(2)], {
+      env,
+      stdio: "inherit",
+    });
+    child.on("exit", (code, signal) => {
+      if (signal) process.kill(process.pid, signal);
+      else process.exit(code ?? 0);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to prepare StreamFusion development:", error);
+    process.exit(1);
+  });

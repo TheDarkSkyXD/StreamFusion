@@ -147,7 +147,7 @@ export class BadgeResolver {
     clientId: string,
     channelLogin?: string,
     options: LoadChannelBadgesOptions = {}
-  ): Promise<void> {
+  ): Promise<boolean> {
     // Check cache validity
     const loadedAt = this.channelBadgesLoadedAt.get(broadcasterId);
     if (
@@ -156,7 +156,7 @@ export class BadgeResolver {
       loadedAt &&
       Date.now() - loadedAt < BADGE_CACHE_TTL
     ) {
-      return;
+      return true;
     }
 
     try {
@@ -175,6 +175,7 @@ export class BadgeResolver {
         broadcasterId,
         count: this.channelBadges.get(broadcasterId)?.size ?? 0,
       });
+      return true;
     } catch (error) {
       logger.error("Chat:Badges", "Failed to load channel badges", {
         broadcasterId,
@@ -183,6 +184,7 @@ export class BadgeResolver {
             ? { name: error.name, message: error.message, stack: error.stack }
             : String(error),
       });
+      return false;
     }
   }
 

@@ -22,8 +22,15 @@ import {
 } from "react";
 
 import { logger } from "@/renderer/logging/logger";
+import type { ChatMessage } from "@/shared/chat-types";
 
 import { UserPopout } from "./UserPopout";
+
+export interface BadgeCatalogContext {
+  state: "loading" | "ready" | "failed";
+  sourceLabel: string;
+  retry: () => void;
+}
 
 export interface OpenUserPopoutPayload {
   userId: string;
@@ -35,6 +42,8 @@ export interface OpenUserPopoutPayload {
   channelSlug: string;
   /** Kick chatroom id — required so the popout's footer can delete messages. */
   kickChatroomId?: number;
+  /** Immutable snapshot of the exact chat row whose username opened the dialog. */
+  openingMessage?: ChatMessage;
 }
 
 interface UserPopoutContextValue {
@@ -47,9 +56,10 @@ const UserPopoutContext = createContext<UserPopoutContextValue | null>(null);
 
 export interface UserPopoutProviderProps {
   children: ReactNode;
+  badgeCatalog?: BadgeCatalogContext;
 }
 
-export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
+export function UserPopoutProvider({ children, badgeCatalog }: UserPopoutProviderProps) {
   const [current, setCurrent] = useState<OpenUserPopoutPayload | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
@@ -90,7 +100,7 @@ export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
       {current ? (
         <UserPopout
           // Re-key so switching users resets the dialog's profile state.
-          key={`${current.platform}:${current.userId}`}
+          key={`${current.platform}:${current.userId}:${current.openingMessage?.id ?? "profile"}`}
           userId={current.userId}
           username={current.username}
           displayName={current.displayName}
@@ -99,6 +109,8 @@ export function UserPopoutProvider({ children }: UserPopoutProviderProps) {
           channelId={current.channelId}
           channelSlug={current.channelSlug}
           kickChatroomId={current.kickChatroomId}
+          openingMessage={current.openingMessage}
+          badgeCatalog={badgeCatalog}
           open={true}
           onOpenChange={(open) => {
             if (!open) close();

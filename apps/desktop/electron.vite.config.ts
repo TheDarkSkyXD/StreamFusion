@@ -5,11 +5,17 @@ import svgr from 'vite-plugin-svgr';
 import viteCompression from 'vite-plugin-compression';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { loadEnv } from 'vite';
+import { createBrowserDevelopmentConfig } from './src/dev-relay/config';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
+    const browserDevelopment = createBrowserDevelopmentConfig({
+        command,
+        mode,
+        env: { ...process.env, ...env },
+    });
 
     return {
         // ========== Main Process ==========
@@ -20,6 +26,9 @@ export default defineConfig(({ mode }) => {
                 // Secrets are no longer baked in - handled by Cloudflare Worker
                 // 'process.env.TWITCH_CLIENT_SECRET': JSON.stringify(env.TWITCH_CLIENT_SECRET || ''), 
                 'process.env.KICK_CLIENT_ID': JSON.stringify(env.KICK_CLIENT_ID || ''),
+                'process.env.STREAMFUSION_BROWSER_DEV': JSON.stringify(
+                    browserDevelopment.enabled ? '1' : ''
+                ),
                 // 'process.env.KICK_CLIENT_SECRET': JSON.stringify(env.KICK_CLIENT_SECRET || ''),
             },
             resolve: {
@@ -115,6 +124,7 @@ export default defineConfig(({ mode }) => {
         renderer: {
             // index.html lives at project root (not src/renderer/)
             root: '.',
+            server: browserDevelopment.server,
             plugins: [
                 react(),
                 svgr({
@@ -159,6 +169,11 @@ export default defineConfig(({ mode }) => {
                 rollupOptions: {
                     input: {
                         index: resolve(__dirname, 'index.html'),
+                        ...(browserDevelopment.browserEntry
+                            ? {
+                                browser: resolve(__dirname, browserDevelopment.browserEntry),
+                            }
+                            : {}),
                         // Slice 05 of renderer-OOM PRD #51: the slot WCV's own
                         // minimal video page. Vanilla TS + HLS.js, no React,
                         // no app chrome.

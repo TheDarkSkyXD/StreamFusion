@@ -40,21 +40,72 @@ client.setQueryData(["userProfile", "twitch", "channel", "miramakes"], {
 });
 
 seedChatSubsystemStoryStores();
+const storyBadgeUrls = [
+  "https://static-cdn.jtvnw.net/badges/v1/743a0f3b-84b3-450b-96a0-503d7f4a9764/1",
+  "https://static-cdn.jtvnw.net/badges/v1/743a0f3b-84b3-450b-96a0-503d7f4a9764/2",
+  "https://static-cdn.jtvnw.net/badges/v1/743a0f3b-84b3-450b-96a0-503d7f4a9764/3",
+  "https://static-cdn.jtvnw.net/badges/v1/eb4a8a4c-eacd-4f5e-b9f2-394348310442/1",
+  "https://static-cdn.jtvnw.net/badges/v1/eb4a8a4c-eacd-4f5e-b9f2-394348310442/2",
+  "https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/1",
+];
+const openingStoryMessage = makeChatMessage(22, {
+  id: "message-mira-latest",
+  platform: "twitch",
+  channel: TWITCH_CHANNEL,
+  userId: "user-mira",
+  username: "miramakes",
+  displayName: "MiraMakes",
+  badges: Array.from({ length: 6 }, (_, index) => ({
+    setId: `story-badge-${index}`,
+    version: "1",
+    imageUrl: storyBadgeUrls[index],
+    title: `Story badge ${index + 1}`,
+  })),
+  rawContent: "That clutch was unreal. One more round?",
+  content: [
+    { type: "text", content: "That clutch was unreal — " },
+    { type: "link", url: "https://twitch.tv", text: "watch it again" },
+  ],
+});
 useChatStore.setState((state) => ({
   messagesByChannel: {
     ...state.messagesByChannel,
     [TWITCH_CHANNEL_KEY]: [
       ...(state.messagesByChannel[TWITCH_CHANNEL_KEY] ?? []),
       makeChatMessage(20, {
-        id: "message-mira-latest",
+        id: "message-mira-deleted",
         platform: "twitch",
         channel: TWITCH_CHANNEL,
         userId: "user-mira",
         username: "miramakes",
         displayName: "MiraMakes",
-        rawContent: "That clutch was unreal. One more round?",
-        content: [{ type: "text", content: "That clutch was unreal. One more round?" }],
+        rawContent: "The retained deleted row still follows your chat preference.",
+        content: [
+          {
+            type: "text",
+            content: "The retained deleted row still follows your chat preference.",
+          },
+        ],
+        isDeleted: true,
       }),
+      makeChatMessage(21, {
+        id: "message-reply-to-mira",
+        platform: "twitch",
+        channel: TWITCH_CHANNEL,
+        userId: "user-jules",
+        username: "jules",
+        displayName: "Jules",
+        rawContent: "Absolutely — queue it up.",
+        content: [{ type: "text", content: "Absolutely — queue it up." }],
+        replyTo: {
+          parentMessageId: "message-mira-deleted",
+          parentUserId: "user-mira",
+          parentUsername: "miramakes",
+          parentDisplayName: "MiraMakes",
+          parentMessageBody: "One more round?",
+        },
+      }),
+      openingStoryMessage,
     ],
   },
 }));
@@ -76,6 +127,12 @@ const meta = {
     platform: "twitch",
     channelId: "storybook-channel",
     channelSlug: TWITCH_CHANNEL,
+    openingMessage: openingStoryMessage,
+    badgeCatalog: {
+      state: "ready",
+      sourceLabel: "Twitch · Live chat",
+      retry: fn(),
+    },
     open: true,
     onOpenChange: fn(),
   },

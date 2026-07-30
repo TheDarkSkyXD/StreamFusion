@@ -130,10 +130,12 @@ export function StreamPage() {
   const routePlatform = platform as Platform;
 
   // Real data fetching
-  const { data: channelData, isLoading: isChannelLoading } = useChannelByUsername(
-    channelName,
-    routePlatform
-  );
+  const {
+    data: channelData,
+    isLoading: isChannelLoading,
+    isError: isChannelError,
+    refetch: refetchChannel,
+  } = useChannelByUsername(channelName, routePlatform);
   const { data: streamData, isLoading: isStreamLoading } = useStreamByChannel(
     channelName,
     routePlatform
@@ -597,6 +599,16 @@ export function StreamPage() {
                 chatroomId={routePlatform === "kick" ? channelData?.chatroomId : undefined}
                 kickUserId={routePlatform === "kick" ? channelData?.kickUserId : undefined}
                 subscriberBadges={memoizedSubscriberBadges}
+                badgeCatalogState={
+                  routePlatform !== "kick"
+                    ? undefined
+                    : isChannelLoading
+                      ? "loading"
+                      : isChannelError
+                        ? "failed"
+                        : "ready"
+                }
+                retryBadgeCatalog={() => void refetchChannel()}
               />
             </Suspense>
           )}

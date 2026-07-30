@@ -21,6 +21,8 @@ export interface ChatPanelProps {
   kickUserId?: string;
   /** Subscriber badges for Kick (if applicable) */
   subscriberBadges?: any[];
+  badgeCatalogState?: "loading" | "ready" | "failed";
+  retryBadgeCatalog?: () => void;
 }
 
 // Memoized: combined with the narrowed connectionStatus selectors in
@@ -33,6 +35,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
   channelId,
   kickUserId,
   subscriberBadges,
+  badgeCatalogState,
+  retryBadgeCatalog,
 }) {
   useRenderCount("ChatPanel");
   // Register emote providers lazily — chat is the only consumer, so pages
@@ -52,6 +56,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
         chatroomId={chatroomId}
         kickUserId={kickUserId}
         subscriberBadges={subscriberBadges}
+        badgeCatalogState={badgeCatalogState}
+        retryBadgeCatalog={retryBadgeCatalog}
       />
     );
   }

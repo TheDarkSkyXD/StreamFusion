@@ -12,6 +12,10 @@ import {
   setKickChatMode,
 } from "../../../backend/api/platforms/kick/kick-mod-mutations";
 import { kickChatService } from "../../../backend/services/chat/kick-chat";
+import {
+  resolveKickSubscriberBadges,
+  type SubscriberBadge,
+} from "../../../backend/services/chat/kick-parser";
 import { kickPredictionsService } from "../../../backend/services/chat/kick-predictions-service";
 import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
 import { initializeKickEmotes } from "../../../backend/services/emotes";
@@ -61,6 +65,8 @@ export interface KickChatProps {
   kickUserId?: string;
   /** Subscriber badges for the channel (for badge rendering) */
   subscriberBadges?: any[];
+  badgeCatalogState?: "loading" | "ready" | "failed";
+  retryBadgeCatalog?: () => void;
 }
 
 /** U13 — Kick has no raid/commercial/shield/unique-chat. The strip only fires
@@ -210,6 +216,8 @@ export const KickChat: React.FC<KickChatProps> = ({
   chatroomId,
   kickUserId,
   subscriberBadges,
+  badgeCatalogState = subscriberBadges === undefined ? "loading" : "ready",
+  retryBadgeCatalog = () => {},
 }) => {
   useRenderCount("KickChat");
   // Chat store — subscribe only to fields read in render; actions have stable refs.
@@ -685,8 +693,13 @@ export const KickChat: React.FC<KickChatProps> = ({
     subscriberBadgesRef.current = subscriberBadges;
     if (channel && subscriberBadges && subscriberBadges.length > 0) {
       kickChatService.setChannelBadges(channel, subscriberBadges);
+      useChatStore
+        .getState()
+        .rehydrateChannelBadges(channelKey, (badges) =>
+          resolveKickSubscriberBadges(badges, subscriberBadges as SubscriberBadge[])
+        );
     }
-  }, [channel, subscriberBadges]);
+  }, [channel, channelKey, subscriberBadges]);
 
   // Mid-session auth-identity swap. The primary connect effect above runs
   // once on mount with the auth state at that moment and doesn't react to
@@ -1209,7 +1222,13 @@ export const KickChat: React.FC<KickChatProps> = ({
   );
 
   return (
-    <UserPopoutProvider>
+    <UserPopoutProvider
+      badgeCatalog={{
+        state: badgeCatalogState,
+        sourceLabel: "Kick · Live chat",
+        retry: retryBadgeCatalog,
+      }}
+    >
       <div className="flex flex-col h-full w-full bg-gradient-to-b from-[#141414] to-[#171717]">
         <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
           <h2 className="font-semibold flex items-center gap-2">

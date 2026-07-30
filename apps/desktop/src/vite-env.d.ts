@@ -4,6 +4,7 @@
 interface ImportMetaEnv {
   readonly VITE_TWITCH_CLIENT_ID: string;
   readonly VITE_KICK_CLIENT_ID: string;
+  readonly VITE_STREAMFUSION_BROWSER_DEV?: string;
   // more env variables...
 }
 

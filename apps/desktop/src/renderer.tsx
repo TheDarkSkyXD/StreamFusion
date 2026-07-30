@@ -12,6 +12,19 @@ installConsoleIntercept();
 installRendererErrorHooks();
 installNetworkMonitor();
 
+if (import.meta.env.DEV && import.meta.env.VITE_STREAMFUSION_BROWSER_DEV === "1") {
+  void import("@/dev-relay/host-bootstrap")
+    .then(({ bootstrapDevRelayHost }) =>
+      bootstrapDevRelayHost({
+        enabled: true,
+        isBrowserClient: Boolean(window.__STREAMFUSION_BROWSER_DEV_CLIENT__),
+      })
+    )
+    .catch((error) => {
+      console.error("Could not start the browser development relay host", error);
+    });
+}
+
 import React from "react";
 import { createRoot } from "react-dom/client";
 

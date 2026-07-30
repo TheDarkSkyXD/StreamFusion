@@ -20,10 +20,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  KICK_IMAGE_SCHEME,
+  resolveProxiedImageSrc,
+  TWITCH_IMAGE_SCHEME,
+} from "@/lib/proxied-image-url";
 import { cn } from "@/lib/utils";
-
-const KICK_IMAGE_SCHEME = "kick-image";
-const TWITCH_IMAGE_SCHEME = "twitch-image";
 
 // Session-level set of URLs that have already 403'd / errored. Used to skip
 // the network request on subsequent renders so the console doesn't fill up
@@ -74,7 +76,7 @@ function toBase64Url(value: string): string {
 }
 
 function resolveProxiedSrc(src: string, scheme: ProxyScheme): string {
-  return `${scheme}://image?u=${toBase64Url(src)}`;
+  return resolveProxiedImageSrc(src) ?? `${scheme}://image?u=${toBase64Url(src)}`;
 }
 
 function resolveSrc(src: string | undefined | null): string | null {

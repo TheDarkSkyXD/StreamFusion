@@ -103,6 +103,14 @@ describe("ChatMessage", () => {
     expect(screen.getByText(/hello world/)).toBeInTheDocument();
   });
 
+  it("preserves every sender badge when no badge limit is requested", () => {
+    const badges = Array.from({ length: 6 }, (_, index) => badge(`badge-${index}`));
+
+    render(<ChatMessage message={baseMessage({ badges })} />);
+
+    expect(screen.getAllByRole("img", { name: /^badge-/ })).toHaveLength(6);
+  });
+
   it("keeps the message colon attached to a long username", () => {
     const longUsername = "ExtremelyLongUsernameForTestingTheChatSeparatorWrap";
 
@@ -330,6 +338,29 @@ describe("ChatMessage", () => {
     expect(screen.getByAltText("moderator")).toBeInTheDocument();
     expect(screen.getByText("Ninja")).toHaveStyle({ color: "#ff0000" });
     expect(screen.getByText("Mod")).toHaveStyle({ color: "#5B9BD5" });
+  });
+
+  it("shares the row badge limit across a deleted message sender and moderator", () => {
+    render(
+      <ChatMessage
+        badgeLimit={4}
+        message={baseMessage({
+          badges: [badge("author-1"), badge("author-2"), badge("author-3")],
+          deletedByUser: {
+            userId: "mod-1",
+            username: "mod",
+            displayName: "Mod",
+            badges: [badge("moderator-1"), badge("moderator-2"), badge("moderator-3")],
+          },
+          deletedByUsername: "mod",
+          isDeleted: true,
+        })}
+      />
+    );
+
+    expect(
+      screen.getAllByAltText(/^(?:author|moderator)-\d$/).map((image) => image.getAttribute("alt"))
+    ).toEqual(["author-1", "author-2", "author-3", "moderator-1"]);
   });
 
   it("renders ban info for ban-type messages", () => {

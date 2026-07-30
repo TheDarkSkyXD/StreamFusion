@@ -1,7 +1,7 @@
 import type React from "react";
 import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
-import type { ChatPlatform } from "../../shared/chat-types";
+import type { ChatMessage, ChatPlatform } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { useOpenUserPopout } from "./mod/UserPopout/UserPopoutProvider";
 
@@ -74,12 +74,16 @@ interface UsernameProps {
   onClick?: (e: React.MouseEvent) => void;
   /** When provided, clicks open the user popout for this channel context. */
   currentChannelContext?: UsernameChannelContext;
+  /** Exact message whose username opened the dialog. */
+  openingMessage?: ChatMessage;
   /** Non-clickable inline content that must wrap with the username, e.g. a chat colon. */
   suffix?: React.ReactNode;
   /** Keep suffix punctuation visually attached to the username in compact highlight rows. */
   keepSuffixAttached?: boolean;
   /** Prevent compact attribution usernames from breaking across lines. */
   noWrap?: boolean;
+  /** Render as text when the containing surface owns the row interaction. */
+  interactive?: boolean;
 }
 
 export const Username: React.FC<UsernameProps> = ({
@@ -92,9 +96,11 @@ export const Username: React.FC<UsernameProps> = ({
   className,
   onClick,
   currentChannelContext,
+  openingMessage,
   suffix,
   keepSuffixAttached = false,
   noWrap = false,
+  interactive = true,
 }) => {
   const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const platformDefaultColor = platform === "kick" ? "#53fc18" : "#9146ff";
@@ -129,6 +135,7 @@ export const Username: React.FC<UsernameProps> = ({
         channelId: currentChannelContext.channelId,
         channelSlug: currentChannelContext.channelSlug,
         kickChatroomId: currentChannelContext.kickChatroomId,
+        openingMessage,
       });
       return;
     }
@@ -139,18 +146,22 @@ export const Username: React.FC<UsernameProps> = ({
 
   return (
     <span
-      className={`chat-line__username-container chat-line__username-container--hoverable -mx-0.5 inline-block max-w-full break-words rounded-[4px] px-0.5 [overflow-wrap:anywhere] transition-colors duration-100 hover:bg-[rgba(255,255,255,0.16)] active:bg-[rgba(255,255,255,0.16)] focus-within:bg-[rgba(255,255,255,0.16)] ${keepSuffixAttached || noWrap ? "whitespace-nowrap" : ""}`}
+      className={`chat-line__username-container -mx-0.5 inline-block max-w-full break-words rounded-[4px] px-0.5 [overflow-wrap:anywhere] ${interactive ? "chat-line__username-container--hoverable transition-colors duration-100 hover:bg-[rgba(255,255,255,0.16)] active:bg-[rgba(255,255,255,0.16)] focus-within:bg-[rgba(255,255,255,0.16)]" : ""} ${keepSuffixAttached || noWrap ? "whitespace-nowrap" : ""}`}
     >
       <span
-        className="chat-line__username max-w-full cursor-pointer break-words no-underline [overflow-wrap:anywhere] hover:no-underline focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
-        onClick={handleClick}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            handleClick(e as unknown as React.MouseEvent);
-          }
-        }}
+        className={`chat-line__username max-w-full break-words no-underline [overflow-wrap:anywhere] ${interactive ? "cursor-pointer hover:no-underline focus:outline-none focus-visible:ring-1 focus-visible:ring-white" : ""}`}
+        onClick={interactive ? handleClick : undefined}
+        role={interactive ? "button" : undefined}
+        tabIndex={interactive ? 0 : undefined}
+        onKeyDown={
+          interactive
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  handleClick(e as unknown as React.MouseEvent);
+                }
+              }
+            : undefined
+        }
       >
         <span>
           <span

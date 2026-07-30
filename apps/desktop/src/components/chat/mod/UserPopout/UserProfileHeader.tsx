@@ -1,7 +1,8 @@
-import { CalendarDays, Radio, UserRound } from "lucide-react";
+import { BadgeCheck, CalendarDays, Radio, UserRound } from "lucide-react";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ChatBadge } from "@/shared/chat-types";
 import type { PublicUserIdentity } from "@/shared/user-profile-types";
 
 import type { RenderAccountCreatedState, RenderFieldState } from "./useUserProfile";
@@ -16,6 +17,10 @@ interface UserProfileHeaderProps {
   retryAccountCreated: () => void;
   retryFollow: () => void;
   reconnect?: () => void;
+  badges?:
+    | { state: "loading" }
+    | { state: "known"; badges: ChatBadge[]; sourceLabel?: string }
+    | { state: "failed"; retry: () => void; sourceLabel?: string };
 }
 
 const ABSOLUTE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
@@ -70,6 +75,79 @@ function AvatarFallback({ displayName }: { displayName: string }) {
     >
       <UserRound className="h-8 w-8 text-white/60" aria-hidden />
     </span>
+  );
+}
+
+function BadgeSection({
+  badges,
+  platform,
+}: {
+  badges: NonNullable<UserProfileHeaderProps["badges"]>;
+  platform: "twitch" | "kick";
+}) {
+  const platformLabel = platform === "kick" ? "Kick" : "Twitch";
+  const sourceLabel =
+    badges.state === "loading"
+      ? `${platformLabel} · Live chat`
+      : (badges.sourceLabel ?? `${platformLabel} · Live chat`);
+  return (
+    <section className="mt-4 min-w-0" aria-labelledby="user-profile-badges-heading">
+      <h3
+        id="user-profile-badges-heading"
+        className="flex items-center gap-1.5 text-xs text-[var(--color-foreground-muted)]"
+      >
+        <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
+        Badges
+      </h3>
+      {badges.state === "loading" ? (
+        <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">Badges loading…</p>
+      ) : badges.state === "failed" ? (
+        <button
+          type="button"
+          className="mt-2 rounded text-xs text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          onClick={badges.retry}
+        >
+          Couldn’t load badges · Retry
+        </button>
+      ) : badges.badges.length === 0 ? (
+        <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">
+          No badges on the latest message
+        </p>
+      ) : (
+        <div
+          className="mt-2 flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1"
+          data-testid="user-profile-badges"
+        >
+          {badges.badges.map((badge, index) => {
+            const badgeName = badge.title || badge.setId || "Badge";
+            return (
+              <Tooltip key={`${badge.setId}-${badge.version}-${index}`}>
+                <TooltipTrigger asChild>
+                  <span
+                    role="img"
+                    tabIndex={0}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    aria-label={badgeName}
+                  >
+                    <img
+                      src={badge.imageUrl}
+                      alt=""
+                      className="h-5 w-5 object-contain"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <span aria-hidden>{badgeName} · </span>
+                  <span>{sourceLabel}</span>
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -143,6 +221,7 @@ export function UserProfileHeader({
   retryAccountCreated,
   retryFollow,
   reconnect = retryFollow,
+  badges,
 }: UserProfileHeaderProps) {
   const knownIdentity = identity.state === "known" ? identity.value : null;
   const username = knownIdentity?.username ?? fallbackUsername;
@@ -199,6 +278,7 @@ export function UserProfileHeader({
             />
           </dd>
         </dl>
+        {badges ? <BadgeSection badges={badges} platform={platform} /> : null}
       </div>
     </div>
   );

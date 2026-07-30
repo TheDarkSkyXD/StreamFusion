@@ -321,6 +321,20 @@ export function parseKickBadges(
   });
 }
 
+export function resolveKickSubscriberBadges(
+  badges: ChatBadge[],
+  subscriberBadges: SubscriberBadge[]
+): ChatBadge[] {
+  if (subscriberBadges.length === 0) return badges;
+  const ordered = subscriberBadges.toSorted((a, b) => b.months - a.months);
+  return badges.map((badge) => {
+    if (badge.setId !== "subscriber") return badge;
+    const months = Number.parseInt(badge.version, 10) || 0;
+    const match = ordered.find((candidate) => months >= candidate.months);
+    return match ? { ...badge, imageUrl: match.badge_image.src } : badge;
+  });
+}
+
 // ========== Content Parsing ==========
 
 /**
