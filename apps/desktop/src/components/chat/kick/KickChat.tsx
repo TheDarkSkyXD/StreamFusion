@@ -20,6 +20,7 @@ import {
 import { kickPredictionsService } from "../../../backend/services/chat/kick-predictions-service";
 import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
 import { initializeKickEmotes } from "../../../backend/services/emotes";
+import { modLogWriter } from "../../../backend/services/mod-log-writer";
 import { useChatRoomState } from "../../../hooks/useChatRoomState";
 import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
 import { useIsKickMod } from "../../../hooks/useIsKickMod";
@@ -293,6 +294,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   const roomState = useChatRoomState("kick", kickRoomKey || null);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
   const setKickChannelModState = useModeratedChannelsStore((s) => s.setKickChannelModState);
+  const setKickAuthorityResult = useModeratedChannelsStore((s) => s.setKickAuthorityResult);
   const markUserUnbannable = useCallback((userId: string) => {
     setUnbanUserIds((current) => {
       if (current.has(userId)) return current;
@@ -342,12 +344,47 @@ export const KickChat: React.FC<KickChatProps> = ({
       if (!channel || !kickUser) return;
       try {
         const result = await window.electronAPI.kickChat.getViewerRole(channel);
-        if (options.isCancelled?.() || !result.ok || result.isModerator === null) return;
+        if (options.isCancelled?.()) return;
+        if (!result.ok) {
+          setKickAuthorityResult(channel, {
+            state: "failed",
+            reason:
+              result.kind === "auth-expired"
+                ? "authorization"
+                : result.kind === "network"
+                  ? "network"
+                  : "invalid-response",
+            checkedAt: Date.now(),
+            source: "kick-channel-me",
+          });
+          return;
+        }
+        if (result.isModerator === null) {
+          setKickAuthorityResult(channel, {
+            state: "failed",
+            reason: "invalid-response",
+            checkedAt: Date.now(),
+            source: "kick-channel-me",
+          });
+          return;
+        }
+        setKickAuthorityResult(channel, {
+          state: "complete",
+          isModerator: result.isModerator,
+          checkedAt: Date.now(),
+          source: "kick-channel-me",
+        });
         if (!result.isModerator && signedInUserIsBroadcaster) return;
         setKickChannelModState(channel, result.isModerator);
         kickChatService.setModeratorState(channel, result.isModerator);
       } catch (error) {
         if (!options.isCancelled?.()) {
+          setKickAuthorityResult(channel, {
+            state: "failed",
+            reason: "network",
+            checkedAt: Date.now(),
+            source: "kick-channel-me",
+          });
           logger.debug("UI:Chat:Kick", "failed to load Kick viewer role", {
             channel,
             error: error instanceof Error ? error.message : String(error),
@@ -355,7 +392,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         }
       }
     },
-    [channel, kickUser, signedInUserIsBroadcaster, setKickChannelModState]
+    [channel, kickUser, signedInUserIsBroadcaster, setKickAuthorityResult, setKickChannelModState]
   );
 
   useEffect(() => {
@@ -388,6 +425,30 @@ export const KickChat: React.FC<KickChatProps> = ({
       try {
         const result = await deleteKickMessageViaKickWebSession(chatroomId, message.id);
         if (result.ok) {
+          if (channelId && kickUser) {
+            void modLogWriter
+              .record({
+                platform: "kick",
+                channelId,
+                channelSlug: channel,
+                action: "delete",
+                targetUserId: message.userId,
+                targetUsername: message.username,
+                moderatorUserId: String(kickUser.id),
+                moderatorUsername: kickUser.username,
+                durationSeconds: null,
+                reason: message.rawContent || null,
+                occurredAt: Date.now(),
+                observedAt: Date.now(),
+                providerEventId: null,
+                source: "local",
+              })
+              .catch((error) => {
+                logger.warn("UI:Chat:Kick", "confirmed delete history persistence failed", {
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              });
+          }
           showModActionSuccessToast("Deleted message");
           return;
         }
@@ -417,7 +478,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         });
       }
     },
-    [chatroomId]
+    [channel, channelId, chatroomId, kickUser]
   );
 
   const handlePinMessage = useCallback(
@@ -922,6 +983,33 @@ export const KickChat: React.FC<KickChatProps> = ({
               badges: moderatorMessage.badges,
             }
           : undefined;
+        const moderatorUsername = moderatorUser?.username || clear.bannedByUsername?.trim() || "";
+        const moderatorUserId = moderatorUser?.userId || moderatorUsername;
+        if (channelId && moderatorUserId && moderatorUsername) {
+          const occurredAt = clear.timestamp.getTime();
+          void modLogWriter
+            .record({
+              platform: "kick",
+              channelId,
+              channelSlug: channel,
+              action: clear.duration && clear.duration > 0 ? "timeout" : "ban",
+              targetUserId: clear.targetUserId,
+              targetUsername: clear.targetUsername || clear.targetUserId,
+              moderatorUserId,
+              moderatorUsername,
+              durationSeconds: clear.duration ?? null,
+              reason: null,
+              occurredAt,
+              observedAt: Date.now(),
+              providerEventId: null,
+              source: "pusher",
+            })
+            .catch((error) => {
+              logger.warn("UI:Chat:Kick", "observed moderation history persistence failed", {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+        }
         const lastDeletedMessage = deletedMessageBodies[deletedMessageBodies.length - 1];
         deleteMessagesByUser(clearChannelKey, clear.targetUserId, {
           deletedAt: clear.timestamp,
@@ -1063,8 +1151,9 @@ export const KickChat: React.FC<KickChatProps> = ({
     deleteMessage,
     deleteMessagesByUser,
     channelKey,
-    kickRoomKey,
     channel,
+    channelId,
+    kickRoomKey,
     kickUser?.id,
     setKickChannelModState,
     markUserUnbannable,
@@ -1276,7 +1365,7 @@ export const KickChat: React.FC<KickChatProps> = ({
           {{
             chat: chatBody,
             modlog: channelId ? (
-              <ModLogTab channelId={channelId} />
+              <ModLogTab platform="kick" channelId={channelId} channelSlug={channel} />
             ) : (
               <div className="p-4 text-neutral-400">No channel selected.</div>
             ),
@@ -1477,6 +1566,42 @@ export const KickChat: React.FC<KickChatProps> = ({
                         }
                         result = messageResult;
                         if (result.ok) {
+                          if (channelId && kickUser) {
+                            const durationSeconds =
+                              action.actionType === "timeout"
+                                ? ((extraData as { durationSeconds?: number } | undefined)
+                                    ?.durationSeconds ?? 600)
+                                : null;
+                            void modLogWriter
+                              .record({
+                                platform: "kick",
+                                channelId,
+                                channelSlug: channel,
+                                action: action.actionType,
+                                targetUserId: action.message.userId,
+                                targetUsername: username,
+                                moderatorUserId: String(kickUser.id),
+                                moderatorUsername: kickUser.username,
+                                durationSeconds,
+                                reason:
+                                  action.actionType === "delete"
+                                    ? action.message.rawContent || null
+                                    : null,
+                                occurredAt: Date.now(),
+                                observedAt: Date.now(),
+                                providerEventId: null,
+                                source: "local",
+                              })
+                              .catch((error) => {
+                                logger.warn(
+                                  "UI:Chat:Kick",
+                                  "confirmed moderation history persistence failed",
+                                  {
+                                    error: error instanceof Error ? error.message : String(error),
+                                  }
+                                );
+                              });
+                          }
                           setPendingModAction(null);
                           if (action.actionType === "ban") {
                             markUserUnbannable(action.message.userId);

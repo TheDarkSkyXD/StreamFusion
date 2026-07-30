@@ -82,6 +82,7 @@ export function useRequireModScopes(): UseRequireModScopesResult {
 
   const promptReconnect = (options?: PromptReconnectOptions) => {
     useReconnectDialogStore.getState().open({
+      platform: "twitch",
       missingScopes: options?.missingScopes ?? [...TWITCH_MOD_ACTION_SCOPES],
       onReconnected: options?.onReconnected,
     });

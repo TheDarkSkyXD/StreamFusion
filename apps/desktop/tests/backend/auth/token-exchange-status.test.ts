@@ -75,12 +75,13 @@ describe("getTokenStatus — Twitch (/validate)", () => {
   });
 });
 
-describe("getTokenStatus — Kick (current-user re-fetch)", () => {
-  it("200 → valid, OAuth user_id as userId, expiry from STORED token", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ data: [{ user_id: 676, name: "kickname" }] }))
-    );
+describe("getTokenStatus — Kick (official introspection + current-user re-fetch)", () => {
+  it("uses official introspection scopes instead of synthesized stored scopes", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ active: true, scope: "user:read channel:read" }))
+      .mockResolvedValueOnce(jsonResponse({ data: [{ user_id: 676, name: "kickname" }] }));
+    vi.stubGlobal("fetch", fetchMock);
 
     const report = await tokenExchangeService.getTokenStatus("kick", {
       accessToken: "kick-access",
@@ -91,6 +92,32 @@ describe("getTokenStatus — Kick (current-user re-fetch)", () => {
         "moderation:ban",
         "events:subscribe",
       ],
+    });
+
+    expect(report.valid).toBe(true);
+    expect(report.scopes).toEqual(["user:read", "channel:read"]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://id.kick.com/oauth/token/introspect");
+  });
+
+  it("200 → valid, OAuth user_id as userId, expiry from STORED token", async () => {
+    const grantedScopes = [
+      "user:read",
+      "channel:read",
+      "moderation:chat_message:manage",
+      "moderation:ban",
+      "events:subscribe",
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ active: true, scope: grantedScopes.join(" ") }))
+        .mockResolvedValueOnce(jsonResponse({ data: [{ user_id: 676, name: "kickname" }] }))
+    );
+
+    const report = await tokenExchangeService.getTokenStatus("kick", {
+      accessToken: "kick-access",
+      scope: grantedScopes,
       expiresAt: 1_777_000_000_000,
     });
 
@@ -104,8 +131,8 @@ describe("getTokenStatus — Kick (current-user re-fetch)", () => {
     expect(report.expiresAt).toBe(1_777_000_000_000);
   });
 
-  it("active-looking stored Kick token with incomplete scopes is invalid", async () => {
-    const fetchMock = vi.fn();
+  it("never treats stored Kick scopes as proof when introspection reports inactive", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ active: false, scope: "user:read" }));
     vi.stubGlobal("fetch", fetchMock);
 
     const report = await tokenExchangeService.getTokenStatus("kick", {
@@ -115,15 +142,24 @@ describe("getTokenStatus — Kick (current-user re-fetch)", () => {
 
     expect(report).toEqual({
       valid: false,
-      scopes: ["user:read", "channel:read"],
+      scopes: ["user:read"],
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("non-200 from current-user → invalid", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => jsonResponse({}, false, 403))
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            active: true,
+            scope:
+              "user:read channel:read moderation:chat_message:manage moderation:ban events:subscribe",
+          })
+        )
+        .mockResolvedValueOnce(jsonResponse({}, false, 403))
     );
 
     const report = await tokenExchangeService.getTokenStatus("kick", {

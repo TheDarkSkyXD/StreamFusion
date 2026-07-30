@@ -3,12 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
   getModeratedChannels: vi.fn(),
+  getModeratedChannelsResult: vi.fn(),
 }));
 
-import { getModeratedChannels } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+import {
+  getModeratedChannels,
+  getModeratedChannelsResult,
+} from "@/backend/api/platforms/twitch/twitch-helix-moderation";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
 const getModeratedChannelsMock = vi.mocked(getModeratedChannels);
+const getModeratedChannelsResultMock = vi.mocked(getModeratedChannelsResult);
 
 function freshStore() {
   // Reset between tests by calling clear() — store is a module singleton.
@@ -20,6 +25,11 @@ function freshStore() {
 beforeEach(() => {
   freshStore();
   getModeratedChannelsMock.mockReset();
+  getModeratedChannelsResultMock.mockReset();
+  getModeratedChannelsResultMock.mockImplementation(async (...args) => ({
+    state: "complete",
+    channels: await getModeratedChannelsMock(...args),
+  }));
 });
 
 afterEach(() => {
@@ -27,6 +37,24 @@ afterEach(() => {
 });
 
 describe("useModeratedChannelsStore", () => {
+  it("records a failed authority lookup without replacing it with a verified empty result", async () => {
+    getModeratedChannelsResultMock.mockResolvedValue({
+      state: "failed",
+      reason: "authorization",
+      channels: [],
+    });
+
+    await act(async () => {
+      await useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+    });
+
+    expect(useModeratedChannelsStore.getState().twitchAuthority).toMatchObject({
+      state: "failed",
+      reason: "authorization",
+    });
+    expect(useModeratedChannelsStore.getState().hydratedAt).toBeNull();
+  });
+
   it("starts empty and stale", () => {
     const state = useModeratedChannelsStore.getState();
     expect(state.twitchModeratedChannelIds.size).toBe(0);

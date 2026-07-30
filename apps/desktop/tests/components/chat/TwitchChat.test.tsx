@@ -24,6 +24,7 @@ const pinChatMessageMock = vi.fn();
 const updatePinnedChatMessageMock = vi.fn();
 const eventSubUnsubscribeMock = vi.fn();
 const eventSubModerateHandlers: Array<(payload: unknown) => void> = [];
+const ingestEventSubModerateMock = vi.fn(async (_payload: unknown) => undefined);
 
 vi.mock("@/backend/api/platforms/twitch/twitch-gql-pin-mutations", () => ({
   pinChatMessage: (...args: unknown[]) => pinChatMessageMock(...args),
@@ -39,7 +40,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation-mutations", () =
 }));
 
 vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
-  getModeratedChannels: vi.fn(),
+  getModeratedChannelsResult: vi.fn(),
 }));
 
 vi.mock("@/backend/api/platforms/twitch/twitch-eventsub-client", () => ({
@@ -51,6 +52,12 @@ vi.mock("@/backend/api/platforms/twitch/twitch-eventsub-client", () => ({
       return eventSubUnsubscribeMock;
     }),
   })),
+}));
+
+vi.mock("@/backend/services/mod-log-writer", () => ({
+  modLogWriter: {
+    ingestEventSubModerate: (payload: unknown) => ingestEventSubModerateMock(payload),
+  },
 }));
 
 const promptReconnectMock = vi.fn();
@@ -257,14 +264,14 @@ vi.mock("@/components/chat/PredictionBanner", () => ({
   PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
 }));
 
-import { getModeratedChannels } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+import { getModeratedChannelsResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
 import { getTwitchEventSubClient } from "@/backend/api/platforms/twitch/twitch-eventsub-client";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { initializeTwitchEmotes } from "@/backend/services/emotes";
 import { TwitchChat } from "@/components/chat/twitch/TwitchChat";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
-const getModeratedChannelsMock = vi.mocked(getModeratedChannels);
+const getModeratedChannelsMock = vi.mocked(getModeratedChannelsResult);
 
 // Minimal active prediction matching the channelId the multiview gate compares.
 const fakePrediction = {
@@ -515,9 +522,12 @@ describe("TwitchChat", () => {
 
   it("hydrates Twitch moderated channels on direct chat mount", async () => {
     vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
-    getModeratedChannelsMock.mockResolvedValue([
-      { broadcaster_id: "ninja-id", broadcaster_login: "ninja", broadcaster_name: "Ninja" },
-    ]);
+    getModeratedChannelsMock.mockResolvedValue({
+      state: "complete",
+      channels: [
+        { broadcaster_id: "ninja-id", broadcaster_login: "ninja", broadcaster_name: "Ninja" },
+      ],
+    });
 
     try {
       render(<TwitchChat channel="ninja" channelId="ninja-id" />);
@@ -1067,6 +1077,47 @@ describe("TwitchChat", () => {
         }),
       })
     );
+  });
+
+  it("persists every received channel.moderate envelope through the history writer", async () => {
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    await waitFor(() => expect(eventSubModerateHandlers).toHaveLength(1));
+    const payload = {
+      metadata: {
+        message_id: "provider-event-1",
+        message_type: "notification",
+        message_timestamp: "2026-07-02T23:00:00Z",
+      },
+      subscription: {
+        id: "sub-1",
+        type: "channel.moderate",
+        version: "2",
+        status: "enabled",
+        cost: 0,
+        condition: { broadcaster_user_id: "ninja-id", moderator_user_id: "mod-1" },
+        transport: { method: "websocket", session_id: "session-1" },
+        created_at: "2026-07-02T22:59:59Z",
+      },
+      event: {
+        broadcaster_user_id: "ninja-id",
+        broadcaster_user_login: "ninja",
+        broadcaster_user_name: "Ninja",
+        moderator_user_id: "mod-2",
+        moderator_user_login: "OtherMod",
+        moderator_user_name: "OtherMod",
+        action: "ban",
+        ban: {
+          user_id: "target-1",
+          user_login: "spammer",
+          user_name: "Spammer",
+          reason: "spam",
+        },
+      },
+    };
+
+    act(() => eventSubModerateHandlers[0]?.(payload));
+
+    expect(ingestEventSubModerateMock).toHaveBeenCalledWith(payload);
   });
 
   it("creates Twitch EventSub subscriptions with a fresh token and a refresh callback", async () => {

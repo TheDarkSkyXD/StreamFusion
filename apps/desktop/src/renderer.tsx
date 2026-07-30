@@ -4,6 +4,7 @@
  * This file bootstraps the React application in the Electron renderer process.
  */
 
+import { applyModerationBrowserFixture } from "@/dev-relay/moderation-browser-fixtures";
 import { installConsoleIntercept } from "@/renderer/logging/console-intercept";
 import { installNetworkMonitor } from "@/renderer/logging/network-monitor";
 import { installRendererErrorHooks } from "@/renderer/logging/renderer-error-hooks";
@@ -11,6 +12,10 @@ import { installRendererErrorHooks } from "@/renderer/logging/renderer-error-hoo
 installConsoleIntercept();
 installRendererErrorHooks();
 installNetworkMonitor();
+
+if (import.meta.env.DEV) {
+  applyModerationBrowserFixture(window.location.search);
+}
 
 if (import.meta.env.DEV && import.meta.env.VITE_STREAMFUSION_BROWSER_DEV === "1") {
   void import("@/dev-relay/host-bootstrap")

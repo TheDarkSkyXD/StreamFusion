@@ -13,15 +13,22 @@ vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => {
 // Mock the mod-log hook the inner UserModHistory consumes so it doesn't
 // reach into the real database singleton.
 vi.mock("@/hooks/useModLog", () => ({
-  useModLog: () => ({ entries: [], loading: false }),
+  useModLog: () => ({
+    result: { state: "verified-empty", entries: [], coverage: "complete" },
+    entries: [],
+    loading: false,
+    retry: vi.fn(),
+  }),
 }));
 
 import { UserPopout, type UserPopoutProps } from "@/components/chat/mod/UserPopout/UserPopout";
 import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, TWITCH_APP_SCOPES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
+import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
 const mockedUseUserProfile = vi.mocked(useUserProfile);
 
@@ -44,6 +51,15 @@ function pendingProfileState() {
 beforeEach(() => {
   mockedUseUserProfile.mockReset();
   useChatStore.setState({ messagesByChannel: {} });
+  useAuthStore.setState({ twitchUser: null, kickUser: null });
+  useModeratedChannelsStore.getState().clear();
+  useReconnectDialogStore.setState({
+    isOpen: false,
+    platform: "twitch",
+    phase: "idle",
+    missingScopes: [],
+    onReconnected: null,
+  });
   useAuthStore.setState((state) => ({
     preferences: {
       ...(state.preferences ?? {}),
@@ -53,7 +69,14 @@ beforeEach(() => {
   // Stub the electronAPI for openExternal usage inside the footer.
   (globalThis as any).window.electronAPI = {
     openExternal: vi.fn(),
-    auth: { getToken: vi.fn().mockResolvedValue(null) },
+    auth: {
+      getToken: vi.fn().mockResolvedValue(null),
+      tokenStatus: vi.fn().mockResolvedValue({
+        platform: "twitch",
+        connected: false,
+        valid: false,
+      }),
+    },
   };
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -120,6 +143,139 @@ function renderPopout(
 // Guards: Exact selected-message targets survive live insertion/pruning and change only deliberately.
 // Guards: Live matching inserts respect reduced motion and badge catalog states stay independently truthful.
 describe("UserPopout", () => {
+  it("shows qualified moderation history for platform-confirmed authority without using profile badges", async () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useAuthStore.setState({
+      twitchUser: {
+        id: "moderator-1",
+        login: "modbob",
+        displayName: "ModBob",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    useModeratedChannelsStore.setState({
+      twitchModeratedChannelIds: new Set(["c1"]),
+      hydratedAt: Date.now(),
+      hydrating: false,
+      twitchAuthority: { state: "complete", checkedAt: Date.now() },
+    });
+    vi.mocked(window.electronAPI.auth.tokenStatus).mockResolvedValue({
+      platform: "twitch",
+      connected: true,
+      valid: true,
+      userId: "moderator-1",
+      scopes: [...TWITCH_APP_SCOPES],
+    });
+
+    renderPopout();
+
+    expect(await screen.findByRole("heading", { name: "Moderation history" })).toBeInTheDocument();
+    expect(screen.getByText("Platform actions available to StreamFusion")).toBeInTheDocument();
+    expect(screen.getByText("No moderation actions available")).toBeInTheDocument();
+  });
+
+  it("fails stale moderator authority closed with Retry and no history", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useAuthStore.setState({
+      twitchUser: {
+        id: "moderator-1",
+        login: "modbob",
+        displayName: "ModBob",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    const checkedAt = Date.now() - 5 * 60_000 - 1;
+    useModeratedChannelsStore.setState({
+      twitchModeratedChannelIds: new Set(["c1"]),
+      hydratedAt: checkedAt,
+      hydrating: false,
+      twitchAuthority: { state: "complete", checkedAt },
+    });
+
+    renderPopout();
+
+    expect(screen.getByRole("button", { name: "Couldn’t verify · Retry" })).toBeEnabled();
+    expect(screen.queryByRole("heading", { name: "Moderation history" })).toBeNull();
+  });
+
+  it("shows one locked reconnect entry with every missing Twitch scope", async () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useAuthStore.setState({
+      twitchUser: {
+        id: "moderator-1",
+        login: "modbob",
+        displayName: "ModBob",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    const checkedAt = Date.now();
+    useModeratedChannelsStore.setState({
+      twitchModeratedChannelIds: new Set(["c1"]),
+      hydratedAt: checkedAt,
+      hydrating: false,
+      twitchAuthority: { state: "complete", checkedAt },
+    });
+    vi.mocked(window.electronAPI.auth.tokenStatus).mockResolvedValue({
+      platform: "twitch",
+      connected: true,
+      valid: true,
+      userId: "moderator-1",
+      scopes: ["chat:read"],
+    });
+
+    renderPopout();
+    const reconnect = await screen.findByRole("button", { name: "Reconnect Twitch" });
+    fireEvent.click(reconnect);
+
+    const state = useReconnectDialogStore.getState();
+    expect(state.platform).toBe("twitch");
+    expect(state.missingScopes).toEqual(TWITCH_APP_SCOPES.filter((scope) => scope !== "chat:read"));
+    expect(screen.queryByRole("heading", { name: "Moderation history" })).toBeNull();
+  });
+
+  it("does not move focus when a late Twitch authority check becomes authorized", async () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useAuthStore.setState({
+      twitchUser: {
+        id: "moderator-1",
+        login: "modbob",
+        displayName: "ModBob",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    vi.mocked(window.electronAPI.auth.tokenStatus).mockResolvedValue({
+      platform: "twitch",
+      connected: true,
+      valid: true,
+      userId: "moderator-1",
+      scopes: [...TWITCH_APP_SCOPES],
+    });
+    renderPopout();
+    const stableDialogControl = screen.getAllByRole("button", { name: "Close" })[0];
+    stableDialogControl.focus();
+
+    const checkedAt = Date.now();
+    act(() => {
+      useModeratedChannelsStore.setState({
+        twitchModeratedChannelIds: new Set(["c1"]),
+        hydratedAt: checkedAt,
+        hydrating: false,
+        twitchAuthority: { state: "complete", checkedAt },
+      });
+    });
+
+    expect(await screen.findByRole("heading", { name: "Moderation history" })).toBeInTheDocument();
+    expect(stableDialogControl).toHaveFocus();
+  });
+
   it("exposes the complete authenticated selected-message public action footer", () => {
     const openingMessage = makeMessage("selected", "streamer", "hello Kappa");
     const onReply = vi.fn();

@@ -1,5 +1,6 @@
 import { rewriteDevBrowserPlaybackValue } from "@/lib/dev-browser-media-url";
 import type { ElectronAPI } from "@/preload";
+import { getModerationBrowserFixture } from "./moderation-browser-fixtures";
 import { getUserProfileFixture } from "./user-profile-fixtures";
 
 export interface BrowserRelayClient {
@@ -48,6 +49,8 @@ function createMethodProxy(
 
       const fixture = getUserProfileFixture(path, fixtureSearch);
       if (fixture.matched) return Promise.resolve(fixture.value);
+      const moderationFixture = getModerationBrowserFixture(path, rawArgs, fixtureSearch);
+      if (moderationFixture.matched) return Promise.resolve(moderationFixture.value);
 
       const callbackIndex = rawArgs.findIndex((argument) => typeof argument === "function");
       if (callbackIndex >= 0) {

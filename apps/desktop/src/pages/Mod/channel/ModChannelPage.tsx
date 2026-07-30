@@ -15,17 +15,15 @@
  * Channel-id resolution:
  *   • Twitch — resolve `broadcaster_login` → numeric id via Helix /users.
  *     Show a loading skeleton until it lands.
- *   • Kick   — the URL slug IS effectively the channel identifier for
- *     mod_log purposes. mod_log writers haven't been wired for Kick yet
- *     (see mod-log-writer.ts comment for source "pusher"); we default to
- *     using the slug as the channel id so the retention scope and mod_log
- *     query line up with whatever Kick chat eventually writes.
+ *   • Kick   — resolve the route slug to its canonical broadcaster user id,
+ *     matching the key used by moderation-history writers.
  */
 
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { LuArrowLeft, LuRefreshCw } from "react-icons/lu";
-
+import { LuArrowLeft, LuLockKeyhole, LuRefreshCw, LuShieldAlert } from "react-icons/lu";
+import { useChannelByUsername } from "@/hooks/queries/useChannels";
+import { useModerationAuthority } from "@/hooks/useModerationAuthority";
 import { useResolveTwitchChannel } from "@/hooks/useResolveTwitchChannel";
 import type { RetentionScope } from "@/shared/mod-log-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -49,22 +47,29 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
   const [refreshCounter, setRefreshCounter] = useState(0);
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const resolvedTwitch = useResolveTwitchChannel(platform === "twitch" ? channel : null);
+  const resolvedKick = useChannelByUsername(platform === "kick" ? channel : "", "kick");
 
   const isTwitchResolving = platform === "twitch" && resolvedTwitch === undefined;
   const twitchResolveFailed = platform === "twitch" && resolvedTwitch === null;
+  const isKickResolving = platform === "kick" && resolvedKick.isPending;
+  const kickResolveFailed =
+    platform === "kick" &&
+    (resolvedKick.isError || (!resolvedKick.isPending && !resolvedKick.data));
 
   // Pick the channel-id used for mod_log queries + retention scope.
   // Twitch: numeric broadcaster_id (waits for resolution).
-  // Kick: slug — no Kick mod_log writer wires a numeric id today, so slug
-  // is what the read side will line up against.
-  const channelId = platform === "twitch" ? resolvedTwitch?.id : channel.toLowerCase();
+  // Kick: canonical broadcaster user id resolved from the route slug.
+  const channelId = platform === "twitch" ? resolvedTwitch?.id : resolvedKick.data?.id;
+  const moderationAuthority = useModerationAuthority(platform, channelId ?? "", channel);
 
   const retentionScope: RetentionScope | null =
     platform === "twitch"
       ? resolvedTwitch
         ? (`channel:${resolvedTwitch.id}` as RetentionScope)
         : null
-      : (`channel:kick:${channel.toLowerCase()}` as RetentionScope);
+      : channelId
+        ? (`channel:kick:${channelId}` as RetentionScope)
+        : null;
 
   const displayName = platform === "twitch" ? (resolvedTwitch?.displayName ?? channel) : channel;
 
@@ -111,14 +116,70 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         </button>
       </header>
 
-      {isTwitchResolving ? (
+      {isTwitchResolving || isKickResolving ? (
         <p className="text-sm text-neutral-400" data-testid="mod-channel-resolving">
           Resolving channel…
         </p>
-      ) : twitchResolveFailed ? (
+      ) : twitchResolveFailed || kickResolveFailed ? (
         <p className="text-sm text-red-300" data-testid="mod-channel-resolve-failed">
-          Couldn't resolve Twitch channel "{channel}".
+          Couldn&apos;t resolve {platform === "twitch" ? "Twitch" : "Kick"} channel "{channel}".
         </p>
+      ) : moderationAuthority.state === "checking" ? (
+        <p className="text-sm text-neutral-400" data-testid="mod-channel-authority-checking">
+          Verifying moderation access…
+        </p>
+      ) : moderationAuthority.state === "hidden" ? (
+        <section
+          className="rounded-lg border border-[var(--color-border)] bg-white/5 p-5"
+          data-testid="mod-channel-authority-hidden"
+        >
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <LuLockKeyhole aria-hidden />
+            Moderation access required
+          </h2>
+          <p className="mt-2 text-sm text-neutral-400">
+            StreamFusion could not confirm moderation authority for this channel.
+          </p>
+        </section>
+      ) : moderationAuthority.state === "unverifiable" ? (
+        <section
+          className="rounded-lg border border-amber-300/20 bg-amber-300/5 p-5"
+          data-testid="mod-channel-authority-unverifiable"
+        >
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <LuShieldAlert aria-hidden />
+            Couldn&apos;t verify moderation access
+          </h2>
+          <button
+            type="button"
+            className="mt-3 inline-flex items-center gap-2 rounded border border-white/10 px-3 py-2 text-sm text-white hover:bg-white/10"
+            onClick={moderationAuthority.retry}
+          >
+            <LuRefreshCw aria-hidden />
+            Retry
+          </button>
+        </section>
+      ) : moderationAuthority.state === "reconnect-required" ? (
+        <section
+          className="rounded-lg border border-amber-300/20 bg-amber-300/5 p-5"
+          data-testid="mod-channel-reconnect-required"
+        >
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <LuLockKeyhole aria-hidden />
+            Reconnect {platform === "twitch" ? "Twitch" : "Kick"}
+          </h2>
+          <p className="mt-2 text-sm text-neutral-400">
+            Add the missing permissions in one consent flow before loading moderation data.
+          </p>
+          <button
+            type="button"
+            className="mt-3 inline-flex items-center gap-2 rounded bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15"
+            onClick={moderationAuthority.reconnect}
+          >
+            <LuRefreshCw aria-hidden />
+            Reconnect {platform === "twitch" ? "Twitch" : "Kick"}
+          </button>
+        </section>
       ) : (
         <>
           <section data-testid="mod-channel-retention">
@@ -132,7 +193,12 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
           </section>
 
           {channelId ? (
-            <ChannelModLogFeed channelId={channelId} refreshCounter={refreshCounter} />
+            <ChannelModLogFeed
+              platform={platform}
+              channelId={channelId}
+              channelSlug={channel}
+              refreshCounter={refreshCounter}
+            />
           ) : null}
 
           {isOwnBroadcaster && resolvedTwitch ? (

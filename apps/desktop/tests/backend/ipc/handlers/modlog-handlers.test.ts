@@ -10,18 +10,26 @@ vi.mock("@/backend/services/database-service", () => ({
   dbService: {
     insertModLog: vi.fn(),
     queryModLog: vi.fn(),
+    getModLogCoverage: vi.fn(),
+    setModLogCoverage: vi.fn(),
     sweepModLogRetention: vi.fn(),
     getRetentionSetting: vi.fn(),
     setRetentionSetting: vi.fn(),
   },
 }));
 
+vi.mock("@/backend/services/moderation-history-authorization", () => ({
+  authorizeModerationHistory: vi.fn(),
+}));
+
 import { ipcMain } from "electron";
 
 import { registerModLogHandlers } from "@/backend/ipc/handlers/modlog-handlers";
 import { dbService } from "@/backend/services/database-service";
+import { authorizeModerationHistory } from "@/backend/services/moderation-history-authorization";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
+const allowedEvent = { senderFrame: { url: "http://localhost:5173/browser.html" } };
 
 function getHandler(channel: string): Handler {
   const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
@@ -32,6 +40,10 @@ function getHandler(channel: string): Handler {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(authorizeModerationHistory).mockResolvedValue({
+    state: "authorized",
+    role: "moderator",
+  });
   registerModLogHandlers();
 });
 
@@ -47,38 +59,222 @@ describe("registerModLogHandlers", () => {
 });
 
 describe("MODLOG_INSERT", () => {
-  it("passes the entry to dbService.insertModLog and returns its result", () => {
+  it("persists an authorized provider-originated entry and marks partial coverage", async () => {
     const entry = {
-      platform: "kick",
+      platform: "kick" as const,
       channelId: "123",
-      channelName: "test",
+      channelSlug: "test",
       action: "ban",
-      targetUser: "badguy",
-      moderator: "modguy",
-      timestamp: Date.now(),
+      targetUserId: "badguy",
+      targetUsername: "badguy",
+      moderatorUserId: "modguy",
+      moderatorUsername: "modguy",
+      durationSeconds: null,
+      reason: null,
+      provenance: "streamfusion-confirmed" as const,
+      providerEventId: null,
+      occurredAt: 100,
+      observedAt: 101,
     };
-    const row = { id: 1, ...entry };
-    vi.mocked(dbService.insertModLog).mockReturnValue(row as any);
+    vi.mocked(dbService.insertModLog).mockReturnValue(1);
 
     const handler = getHandler(IPC_CHANNELS.MODLOG_INSERT);
-    const result = handler({}, { entry });
+    const result = await handler(allowedEvent, { entry });
 
     expect(dbService.insertModLog).toHaveBeenCalledWith(entry);
-    expect(result).toBe(row);
+    expect(dbService.setModLogCoverage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: "kick",
+        channelId: "123",
+        coverage: "partial",
+      })
+    );
+    expect(result).toEqual({ success: true, id: 1 });
+  });
+
+  it("does not persist an action when current-channel moderator authority is unverified", async () => {
+    vi.mocked(authorizeModerationHistory).mockResolvedValue({
+      state: "denied",
+      reason: "unverified",
+    });
+    const handler = getHandler(IPC_CHANNELS.MODLOG_INSERT);
+    const result = await handler(allowedEvent, {
+      entry: {
+        platform: "kick",
+        channelId: "123",
+        channelSlug: "channel",
+        action: "ban",
+        targetUserId: "bad",
+        targetUsername: "bad",
+        moderatorUserId: "mod",
+        moderatorUsername: "mod",
+        durationSeconds: null,
+        reason: null,
+        provenance: "streamfusion-confirmed",
+        providerEventId: null,
+        occurredAt: 100,
+        observedAt: 101,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      code: "unverified",
+      retryable: true,
+    });
+    expect(dbService.insertModLog).not.toHaveBeenCalled();
   });
 });
 
 describe("MODLOG_QUERY", () => {
-  it("passes filters to dbService.queryModLog and returns its result", () => {
-    const filters = { channelId: "123", limit: 50, offset: 0 };
+  it("fails closed before reading history for a renderer outside the app origin", async () => {
+    const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
+    const result = await handler(
+      { senderFrame: { url: "https://example.com/embedded" } },
+      { filters: { platform: "twitch", channelId: "123", channelSlug: "channel" } }
+    );
+
+    expect(result).toEqual({
+      state: "error",
+      entries: [],
+      code: "forbidden",
+      retryable: false,
+    });
+    expect(dbService.queryModLog).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the platform confirms the viewer is not a moderator", async () => {
+    vi.mocked(authorizeModerationHistory).mockResolvedValue({
+      state: "denied",
+      reason: "viewer",
+    });
+    const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
+    const result = await handler(allowedEvent, {
+      filters: {
+        platform: "kick",
+        channelId: "123",
+        channelSlug: "channel",
+        targetUserId: "target",
+      },
+    });
+
+    expect(result).toEqual({
+      state: "error",
+      entries: [],
+      code: "unauthorized",
+      retryable: false,
+    });
+    expect(dbService.queryModLog).not.toHaveBeenCalled();
+  });
+
+  it("returns ready records only when persisted coverage is complete", async () => {
+    const filters = {
+      platform: "twitch" as const,
+      channelId: "123",
+      channelSlug: "channel",
+      limit: 50,
+      offset: 0,
+    };
     const rows = [{ id: 1 }, { id: 2 }];
     vi.mocked(dbService.queryModLog).mockReturnValue(rows as any);
+    vi.mocked(dbService.getModLogCoverage).mockReturnValue({
+      platform: "twitch",
+      channelId: "123",
+      coverage: "complete",
+      source: "provider-query",
+      coverageStartAt: null,
+      coverageEndAt: 200,
+      observedAt: 200,
+    });
 
     const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
-    const result = handler({}, { filters });
+    const result = await handler(allowedEvent, { filters });
 
     expect(dbService.queryModLog).toHaveBeenCalledWith(filters);
-    expect(result).toBe(rows);
+    expect(result).toEqual({ state: "ready", entries: rows, coverage: "complete" });
+  });
+
+  it("returns available records as partial when the persisted observation window is incomplete", async () => {
+    const rows = [{ id: 1, action: "ban" }];
+    vi.mocked(dbService.queryModLog).mockReturnValue(rows as any);
+    vi.mocked(dbService.getModLogCoverage).mockReturnValue({
+      platform: "twitch",
+      channelId: "123",
+      coverage: "partial",
+      source: "eventsub-observation",
+      coverageStartAt: 100,
+      coverageEndAt: 200,
+      observedAt: 200,
+    });
+
+    const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
+    const result = await handler(allowedEvent, {
+      filters: {
+        platform: "twitch",
+        channelId: "123",
+        channelSlug: "channel",
+        targetUserId: "target",
+      },
+    });
+
+    expect(result).toEqual({
+      state: "partial",
+      entries: rows,
+      coverage: "partial",
+      reason: "observation-window",
+    });
+  });
+
+  it("returns verified-empty only for an authorized complete provider query", async () => {
+    vi.mocked(dbService.queryModLog).mockReturnValue([]);
+    vi.mocked(dbService.getModLogCoverage).mockReturnValue({
+      platform: "kick",
+      channelId: "123",
+      coverage: "complete",
+      source: "provider-query",
+      coverageStartAt: null,
+      coverageEndAt: 200,
+      observedAt: 200,
+    });
+
+    const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
+    const result = await handler(allowedEvent, {
+      filters: {
+        platform: "kick",
+        channelId: "123",
+        channelSlug: "channel",
+        targetUserId: "target",
+      },
+    });
+
+    expect(result).toEqual({
+      state: "verified-empty",
+      entries: [],
+      coverage: "complete",
+    });
+  });
+
+  it("returns a retryable error instead of verified-empty when storage fails", async () => {
+    vi.mocked(dbService.queryModLog).mockImplementation(() => {
+      throw new Error("database locked");
+    });
+
+    const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
+    const result = await handler(allowedEvent, {
+      filters: {
+        platform: "twitch",
+        channelId: "123",
+        channelSlug: "channel",
+        targetUserId: "target",
+      },
+    });
+
+    expect(result).toEqual({
+      state: "error",
+      entries: [],
+      code: "query-failed",
+      retryable: true,
+    });
   });
 });
 

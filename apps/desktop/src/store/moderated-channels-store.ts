@@ -22,11 +22,30 @@
 import { create } from "zustand";
 
 import {
-  getModeratedChannels,
-  type ModeratedChannel,
+  getModeratedChannelsResult,
+  type ModeratedChannelsResult,
 } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
 
 const STALE_MS = 5 * 60_000; // 5 min
+
+export type TwitchAuthoritySnapshot =
+  | { state: "idle" }
+  | { state: "loading"; checkedAt: number }
+  | { state: "complete"; checkedAt: number }
+  | {
+      state: "partial" | "failed";
+      checkedAt: number;
+      reason: Exclude<ModeratedChannelsResult, { state: "complete" }>["reason"];
+    };
+
+export type KickAuthoritySnapshot =
+  | { state: "complete"; isModerator: boolean; checkedAt: number; source: "kick-channel-me" }
+  | {
+      state: "failed";
+      reason: "authorization" | "network" | "invalid-response";
+      checkedAt: number;
+      source: "kick-channel-me";
+    };
 
 interface ModeratedChannelsState {
   /** Set of Twitch broadcaster ids the user moderates. */
@@ -37,6 +56,10 @@ interface ModeratedChannelsState {
   hydratedAt: number | null;
   /** True while a hydrate call is in flight. */
   hydrating: boolean;
+  /** Truth status for the latest Platform-backed moderated-channel lookup. */
+  twitchAuthority: TwitchAuthoritySnapshot;
+  /** Per-channel first-party `/channels/:slug/me` authority results. */
+  kickAuthorityBySlug: Map<string, KickAuthoritySnapshot>;
 
   /** Trigger a hydrate. Safe to call repeatedly — concurrent calls dedupe. */
   hydrate: (selfUserId: string, accessToken: string, clientId: string) => Promise<void>;
@@ -44,6 +67,7 @@ interface ModeratedChannelsState {
   setTwitchChannelModState: (channelId: string, isModerator: boolean) => void;
   /** Apply a live Kick badge-derived mod/unmod update for one channel slug. */
   setKickChannelModState: (channelSlug: string, isModerator: boolean) => void;
+  setKickAuthorityResult: (channelSlug: string, result: KickAuthoritySnapshot) => void;
   /** Returns true if the cache is stale (or never hydrated). */
   isStale: () => boolean;
   /** Clear Twitch moderated-channel data without touching Kick live role state. */
@@ -59,30 +83,41 @@ export const useModeratedChannelsStore = create<ModeratedChannelsState>()((set, 
   kickModeratedChannelSlugs: new Set<string>(),
   hydratedAt: null,
   hydrating: false,
+  twitchAuthority: { state: "idle" },
+  kickAuthorityBySlug: new Map<string, KickAuthoritySnapshot>(),
 
   hydrate: async (selfUserId, accessToken, clientId) => {
     if (get().hydrating) return;
-    set({ hydrating: true });
+    set({ hydrating: true, twitchAuthority: { state: "loading", checkedAt: Date.now() } });
     try {
-      const channels: ModeratedChannel[] = await getModeratedChannels(
-        selfUserId,
-        accessToken,
-        clientId
-      );
+      const result = await getModeratedChannelsResult(selfUserId, accessToken, clientId);
+      const checkedAt = Date.now();
+      if (result.state !== "complete") {
+        set({
+          hydrating: false,
+          twitchAuthority: {
+            state: result.state,
+            reason: result.reason,
+            checkedAt,
+          },
+        });
+        return;
+      }
       // The broadcaster's OWN channel is mod-equivalent for our purposes but
       // not included by Helix. {@link useIsTwitchMod} handles the self check
       // separately; we only store the actual moderated-channels list here.
-      const ids = new Set(channels.map((c) => c.broadcaster_id));
+      const ids = new Set(result.channels.map((channel) => channel.broadcaster_id));
       set({
         twitchModeratedChannelIds: ids,
-        hydratedAt: Date.now(),
+        hydratedAt: checkedAt,
         hydrating: false,
+        twitchAuthority: { state: "complete", checkedAt },
       });
     } catch {
-      // Helix wrapper already silences 401s; any error reaching here is
-      // network-side. Leave the previous cache in place and let the next
-      // hydrate retry pick it up.
-      set({ hydrating: false });
+      set({
+        hydrating: false,
+        twitchAuthority: { state: "failed", reason: "network", checkedAt: Date.now() },
+      });
     }
   },
 
@@ -113,6 +148,14 @@ export const useModeratedChannelsStore = create<ModeratedChannelsState>()((set, 
     set({ kickModeratedChannelSlugs: next });
   },
 
+  setKickAuthorityResult: (channelSlug, result) => {
+    const normalizedSlug = channelSlug.trim().toLowerCase();
+    if (!normalizedSlug) return;
+    const next = new Map(get().kickAuthorityBySlug);
+    next.set(normalizedSlug, result);
+    set({ kickAuthorityBySlug: next });
+  },
+
   isStale: () => {
     const { hydratedAt } = get();
     return hydratedAt === null || Date.now() - hydratedAt > STALE_MS;
@@ -123,11 +166,15 @@ export const useModeratedChannelsStore = create<ModeratedChannelsState>()((set, 
       twitchModeratedChannelIds: new Set<string>(),
       hydratedAt: null,
       hydrating: false,
+      twitchAuthority: { state: "idle" },
     });
   },
 
   clearKick: () => {
-    set({ kickModeratedChannelSlugs: new Set<string>() });
+    set({
+      kickModeratedChannelSlugs: new Set<string>(),
+      kickAuthorityBySlug: new Map<string, KickAuthoritySnapshot>(),
+    });
   },
 
   clear: () => {
@@ -136,6 +183,8 @@ export const useModeratedChannelsStore = create<ModeratedChannelsState>()((set, 
       kickModeratedChannelSlugs: new Set<string>(),
       hydratedAt: null,
       hydrating: false,
+      twitchAuthority: { state: "idle" },
+      kickAuthorityBySlug: new Map<string, KickAuthoritySnapshot>(),
     });
   },
 }));

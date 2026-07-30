@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
 import { useModLog } from "@/hooks/useModLog";
+import type { Platform } from "@/shared/auth-types";
 
 import { useOpenUserPopout } from "../UserPopout/UserPopoutProvider";
 
@@ -30,7 +31,9 @@ const ACTION_OPTIONS: Array<{ value: "" | ModLogAction; label: string }> = [
 const PAGE_INCREMENT = 50;
 
 export interface ModLogTabProps {
+  platform: Platform;
   channelId: string;
+  channelSlug: string;
 }
 
 function formatTimestamp(ms: number): string {
@@ -46,7 +49,7 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${Math.floor(seconds / 86_400)}d`;
 }
 
-export function ModLogTab({ channelId }: ModLogTabProps) {
+export function ModLogTab({ platform, channelId, channelSlug }: ModLogTabProps) {
   const [actionFilter, setActionFilter] = useState<"" | ModLogAction>("");
   const [moderatorFilter, setModeratorFilter] = useState<string>("");
   const [limit, setLimit] = useState<number>(PAGE_INCREMENT);
@@ -55,8 +58,10 @@ export function ModLogTab({ channelId }: ModLogTabProps) {
 
   const trimmedModerator = moderatorFilter.trim();
 
-  const { entries, loading } = useModLog({
+  const { result, entries, retry } = useModLog({
+    platform,
     channelId,
+    channelSlug,
     action: actionFilter === "" ? undefined : actionFilter,
     moderatorUsername: trimmedModerator.length > 0 ? trimmedModerator : undefined,
     limit,
@@ -99,51 +104,63 @@ export function ModLogTab({ channelId }: ModLogTabProps) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-2">
-        {loading ? (
+        {result.state === "loading" ? (
           <div className="text-sm text-neutral-400 p-2">Loading…</div>
-        ) : entries.length === 0 ? (
+        ) : result.state === "error" ? (
+          <div className="flex items-center justify-between gap-2 p-2 text-sm text-red-300">
+            <span>Moderation history couldn&apos;t be verified.</span>
+            {result.retryable ? (
+              <button type="button" className="rounded px-2 py-1 text-white" onClick={retry}>
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : result.state === "verified-empty" ? (
           <div className="text-sm text-neutral-400 p-2">No mod-log entries.</div>
         ) : (
-          <ul className="space-y-1">
-            {entries.map((entry) => (
-              <li
-                key={entry.id}
-                data-testid="modlog-row"
-                data-action={entry.action}
-                className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
-              >
-                <span className="text-neutral-500">{formatTimestamp(entry.createdAt)}</span>
-                <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
-                <span className="text-yellow-200">{entry.action}</span>
-                <button
-                  type="button"
-                  data-testid="modlog-target-username"
-                  onClick={() =>
-                    openUserPopout({
-                      userId: entry.targetUserId,
-                      username: entry.targetUsername,
-                      // Best-effort: we don't carry platform in mod_log rows.
-                      // Default to twitch for now; popout handles both.
-                      platform: "twitch",
-                      channelId: entry.channelId,
-                      channelSlug: entry.channelSlug,
-                    })
-                  }
-                  className="text-white hover:underline"
+          <div>
+            {result.state === "partial" ? (
+              <p className="p-2 text-xs text-amber-200">Showing observed history only.</p>
+            ) : null}
+            <ul className="space-y-1">
+              {entries.map((entry) => (
+                <li
+                  key={entry.id}
+                  data-testid="modlog-row"
+                  data-action={entry.action}
+                  className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
                 >
-                  {entry.targetUsername}
-                </button>
-                {entry.durationSeconds ? (
-                  <span className="text-neutral-400">
-                    ({formatDuration(entry.durationSeconds)})
-                  </span>
-                ) : null}
-                {entry.reason ? (
-                  <span className="text-neutral-400 italic">— {entry.reason}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                  <span className="text-neutral-500">{formatTimestamp(entry.createdAt)}</span>
+                  <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
+                  <span className="text-yellow-200">{entry.action}</span>
+                  <button
+                    type="button"
+                    data-testid="modlog-target-username"
+                    onClick={() =>
+                      openUserPopout({
+                        userId: entry.targetUserId,
+                        username: entry.targetUsername,
+                        platform: entry.platform ?? platform,
+                        channelId: entry.channelId,
+                        channelSlug: entry.channelSlug,
+                      })
+                    }
+                    className="text-white hover:underline"
+                  >
+                    {entry.targetUsername}
+                  </button>
+                  {entry.durationSeconds ? (
+                    <span className="text-neutral-400">
+                      ({formatDuration(entry.durationSeconds)})
+                    </span>
+                  ) : null}
+                  {entry.reason ? (
+                    <span className="text-neutral-400 italic">— {entry.reason}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 

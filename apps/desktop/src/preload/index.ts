@@ -51,7 +51,13 @@ import {
   type TokenStatusResult,
   type VersionInfo,
 } from "../shared/ipc-channels";
-import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../shared/mod-log-types";
+import type {
+  ModerationHistoryResult,
+  ModLogInsertResult,
+  ModLogQueryFilters,
+  ModLogWriteEntry,
+  RetentionScope,
+} from "../shared/mod-log-types";
 import type {
   LoadStreamPayload,
   SlotBufferConfig,
@@ -1038,9 +1044,9 @@ const electronAPI = {
 
   // ========== Mod Log ==========
   modLog: {
-    insert: (entry: Omit<ModLogEntry, "id">): Promise<number> =>
+    insert: (entry: ModLogWriteEntry): Promise<ModLogInsertResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.MODLOG_INSERT, { entry }),
-    query: (filters: ModLogQueryFilters): Promise<ModLogEntry[]> =>
+    query: (filters: ModLogQueryFilters): Promise<ModerationHistoryResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.MODLOG_QUERY, { filters }),
     sweepRetention: (now?: number): Promise<number> =>
       ipcRenderer.invoke(IPC_CHANNELS.MODLOG_SWEEP_RETENTION, { now }),

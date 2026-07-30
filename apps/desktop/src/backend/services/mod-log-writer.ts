@@ -36,7 +36,12 @@ import type {
 // `@/backend/logging/logger` here would drag `electron-log/main` into the
 // renderer bundle and crash boot with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
-import type { ModLogEntry } from "@/shared/mod-log-types";
+import type { Platform } from "@/shared/auth-types";
+import type {
+  ModerationHistoryResult,
+  ModLogEntry,
+  ModLogInsertResult,
+} from "@/shared/mod-log-types";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -62,6 +67,7 @@ export type ModLogAction =
 export type ModLogSource = "local" | "eventsub" | "irc" | "pusher" | "bootstrap";
 
 export interface RecordModActionInput {
+  platform: Platform;
   channelId: string;
   channelSlug: string;
   action: ModLogAction;
@@ -73,6 +79,10 @@ export interface RecordModActionInput {
   reason?: string | null;
   /** When the action happened (ms epoch). Defaults to `Date.now()`. */
   occurredAt?: number;
+  /** When StreamFusion received/confirmed it. Defaults to `Date.now()`. */
+  observedAt?: number;
+  /** Platform envelope/event id when the provider supplies one. */
+  providerEventId?: string | null;
   /** Source — affects dedup. */
   source: ModLogSource;
 }
@@ -148,6 +158,7 @@ class ModLogWriter {
    */
   async record(input: RecordModActionInput): Promise<number | null> {
     const occurredAt = input.occurredAt ?? Date.now();
+    const observedAt = input.observedAt ?? Date.now();
     const key = dedupKey(input.channelId, input.action, input.targetUserId);
 
     // Prune ancient buffer entries lazily — keep memory bounded.
@@ -170,7 +181,8 @@ class ModLogWriter {
     // different source still dedups.
     this.recent.push({ key, ts: occurredAt, source: input.source });
 
-    const id = await window.electronAPI.modLog.insert({
+    const result = (await window.electronAPI.modLog.insert({
+      platform: input.platform,
       channelId: input.channelId,
       channelSlug: input.channelSlug,
       action: input.action,
@@ -180,9 +192,14 @@ class ModLogWriter {
       moderatorUsername: input.moderatorUsername,
       durationSeconds: input.durationSeconds ?? null,
       reason: input.reason ?? null,
-      createdAt: occurredAt,
-    });
-    return id;
+      provenance: provenanceFor(input.platform, input.source),
+      providerEventId: input.providerEventId ?? null,
+      occurredAt,
+      observedAt,
+    })) as number | ModLogInsertResult;
+    if (typeof result === "number") return result;
+    if (result.success) return result.id;
+    throw new Error(`Mod-log insert rejected: ${result.code}`);
   }
 
   /**
@@ -203,7 +220,12 @@ class ModLogWriter {
     const channelSlug = event.broadcaster_user_login;
     const moderatorUserId = event.moderator_user_id;
     const moderatorUsername = event.moderator_user_login;
-    const occurredAt = Date.parse(payload.subscription?.created_at ?? "") || Date.now();
+    const occurredAt =
+      Date.parse(payload.metadata?.message_timestamp ?? "") ||
+      Date.parse(payload.subscription?.created_at ?? "") ||
+      Date.now();
+    const observedAt = Date.now();
+    const providerEventId = payload.metadata?.message_id?.trim() || null;
     const action = event.action;
 
     switch (action) {
@@ -211,6 +233,7 @@ class ModLogWriter {
         const sub = event.ban;
         if (!sub) return this.warnUnknown("ban-missing-payload");
         await this.record({
+          platform: "twitch",
           channelId,
           channelSlug,
           action: "ban",
@@ -221,6 +244,8 @@ class ModLogWriter {
           durationSeconds: null,
           reason: sub.reason ?? null,
           occurredAt,
+          observedAt,
+          providerEventId,
           source: "eventsub",
         });
         return;
@@ -233,6 +258,7 @@ class ModLogWriter {
           ? Math.max(0, Math.floor((expiresMs - occurredAt) / 1000))
           : null;
         await this.record({
+          platform: "twitch",
           channelId,
           channelSlug,
           action: "timeout",
@@ -243,6 +269,8 @@ class ModLogWriter {
           durationSeconds,
           reason: sub.reason ?? null,
           occurredAt,
+          observedAt,
+          providerEventId,
           source: "eventsub",
         });
         return;
@@ -257,6 +285,7 @@ class ModLogWriter {
           return this.warnUnknown("unban-missing-payload");
         }
         await this.record({
+          platform: "twitch",
           channelId,
           channelSlug,
           action: "unban",
@@ -267,6 +296,8 @@ class ModLogWriter {
           durationSeconds: null,
           reason: null,
           occurredAt,
+          observedAt,
+          providerEventId,
           source: "eventsub",
         });
         return;
@@ -275,6 +306,7 @@ class ModLogWriter {
         const sub = event.delete;
         if (!sub) return this.warnUnknown("delete-missing-payload");
         await this.record({
+          platform: "twitch",
           channelId,
           channelSlug,
           action: "delete",
@@ -285,6 +317,8 @@ class ModLogWriter {
           durationSeconds: null,
           reason: sub.message_body ?? null,
           occurredAt,
+          observedAt,
+          providerEventId,
           source: "eventsub",
         });
         return;
@@ -373,18 +407,24 @@ class ModLogWriter {
 
         // Idempotent: skip if a row with the same (channelId, targetUserId,
         // action) already exists within ±5s of this createdAt.
-        const existing = await window.electronAPI.modLog.query({
+        const historyResult = (await window.electronAPI.modLog.query({
+          platform: "twitch",
           channelId: opts.channelId,
+          channelSlug: opts.channelSlug,
           targetUserId: row.user_id,
           action,
           limit: 50,
-        });
-        const dupe = Array.isArray(existing)
-          ? existing.some((e) => Math.abs(e.createdAt - createdAt) <= 5_000)
-          : false;
+        })) as ModLogEntry[] | ModerationHistoryResult;
+        const existing = Array.isArray(historyResult)
+          ? historyResult
+          : "entries" in historyResult
+            ? historyResult.entries
+            : [];
+        const dupe = existing.some((entry) => Math.abs(entry.occurredAt - createdAt) <= 5_000);
         if (dupe) continue;
 
-        await window.electronAPI.modLog.insert({
+        const insertResult = (await window.electronAPI.modLog.insert({
+          platform: "twitch",
           channelId: opts.channelId,
           channelSlug: opts.channelSlug,
           action,
@@ -394,8 +434,12 @@ class ModLogWriter {
           moderatorUsername: row.moderator_login,
           durationSeconds,
           reason: row.reason ?? null,
-          createdAt,
-        });
+          provenance: "twitch-helix-current-state",
+          providerEventId: null,
+          occurredAt: createdAt,
+          observedAt: now,
+        })) as number | ModLogInsertResult;
+        if (typeof insertResult !== "number" && !insertResult.success) continue;
         inserted += 1;
       }
 
@@ -423,6 +467,19 @@ class ModLogWriter {
 
 function dedupKey(channelId: string, action: string, targetUserId: string): string {
   return `${channelId}|${action}|${targetUserId}`;
+}
+
+function provenanceFor(
+  platform: Platform,
+  source: ModLogSource
+): Exclude<ModLogEntry["provenance"], "legacy-unattributed"> {
+  if (platform === "kick") {
+    return source === "local" ? "streamfusion-confirmed" : "kick-observed";
+  }
+  if (source === "eventsub") return "twitch-eventsub";
+  if (source === "bootstrap") return "twitch-helix-current-state";
+  if (source === "local") return "streamfusion-confirmed";
+  return "twitch-observed";
 }
 
 // ---------------------------------------------------------------------------

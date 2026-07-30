@@ -1,73 +1,92 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ChannelModLogFeed } from "@/pages/Mod/channel/ChannelModLogFeed";
+import { installElectronAPIMock, renderWithProviders, screen, waitFor } from "../../../test-utils";
 
-import {
-  installElectronAPIMock,
-  renderWithProviders,
-  screen,
-  waitFor,
-} from '../../../test-utils';
+const renderFeed = (channelId: string, refreshCounter?: number) => (
+  <ChannelModLogFeed
+    platform="twitch"
+    channelId={channelId}
+    channelSlug="somebody"
+    refreshCounter={refreshCounter}
+  />
+);
 
-import { ChannelModLogFeed } from '@/pages/Mod/channel/ChannelModLogFeed';
-
-describe('ChannelModLogFeed', () => {
+describe("ChannelModLogFeed", () => {
   beforeEach(() => {
     installElectronAPIMock();
   });
 
-  it('renders the empty state when mod_log returns nothing', async () => {
+  it("renders the empty state when mod_log returns nothing", async () => {
     const api = installElectronAPIMock();
-    api.modLog.query = vi.fn(async () => []);
-    renderWithProviders(<ChannelModLogFeed channelId="222" />);
-    await waitFor(() =>
-      expect(screen.getByText(/no mod-log entries/i)).toBeInTheDocument(),
-    );
+    api.modLog.query = vi.fn(async () => ({
+      state: "verified-empty" as const,
+      entries: [],
+      coverage: "complete" as const,
+    }));
+    renderWithProviders(renderFeed("222"));
+    await waitFor(() => expect(screen.getByText(/no mod-log entries/i)).toBeInTheDocument());
   });
 
-  it('renders rows returned by mod_log query', async () => {
+  it("renders rows returned by mod_log query", async () => {
     const api = installElectronAPIMock();
-    api.modLog.query = vi.fn(async () => [
-      {
-        id: 1,
-        channelId: '222',
-        channelSlug: 'somebody',
-        action: 'ban',
-        targetUserId: 'u9',
-        targetUsername: 'troll',
-        moderatorUserId: 'm1',
-        moderatorUsername: 'mod1',
-        durationSeconds: null,
-        reason: 'spam',
-        createdAt: Date.now(),
-      },
-    ]);
-    renderWithProviders(<ChannelModLogFeed channelId="222" />);
-    await waitFor(() =>
-      expect(screen.getByTestId('modlog-row')).toBeInTheDocument(),
-    );
-    expect(screen.getByTestId('modlog-target-username').textContent).toBe(
-      'troll',
-    );
+    const now = Date.now();
+    api.modLog.query = vi.fn(async () => ({
+      state: "ready" as const,
+      coverage: "complete" as const,
+      entries: [
+        {
+          id: 1,
+          platform: "twitch" as const,
+          channelId: "222",
+          channelSlug: "somebody",
+          action: "ban",
+          targetUserId: "u9",
+          targetUsername: "troll",
+          moderatorUserId: "m1",
+          moderatorUsername: "mod1",
+          durationSeconds: null,
+          reason: "spam",
+          provenance: "twitch-eventsub" as const,
+          providerEventId: "event-1",
+          occurredAt: now,
+          observedAt: now,
+          createdAt: now,
+        },
+      ],
+    }));
+    renderWithProviders(renderFeed("222"));
+    await waitFor(() => expect(screen.getByTestId("modlog-row")).toBeInTheDocument());
+    expect(screen.getByTestId("modlog-target-username").textContent).toBe("troll");
   });
 
-  it('forwards channelId to the modLog query', async () => {
+  it("forwards channelId to the modLog query", async () => {
     const api = installElectronAPIMock();
-    // biome-ignore lint/suspicious/noExplicitAny: test stub for IPC fn shape.
-    const querySpy = vi.fn(async (..._args: any[]) => []);
+    const querySpy = vi.fn(async (..._args: any[]) => ({
+      state: "verified-empty" as const,
+      entries: [],
+      coverage: "complete" as const,
+    }));
     api.modLog.query = querySpy;
-    renderWithProviders(<ChannelModLogFeed channelId="abc123" />);
+    renderWithProviders(renderFeed("abc123"));
     await waitFor(() => expect(querySpy).toHaveBeenCalled());
-    expect(querySpy.mock.calls[0][0]).toMatchObject({ channelId: 'abc123' });
+    expect(querySpy.mock.calls[0][0]).toMatchObject({
+      platform: "twitch",
+      channelId: "abc123",
+      channelSlug: "somebody",
+    });
   });
 
-  it('re-queries when refreshCounter changes', async () => {
+  it("re-queries when refreshCounter changes", async () => {
     const api = installElectronAPIMock();
-    const querySpy = vi.fn(async () => []);
+    const querySpy = vi.fn(async () => ({
+      state: "verified-empty" as const,
+      entries: [],
+      coverage: "complete" as const,
+    }));
     api.modLog.query = querySpy;
-    const { rerender } = renderWithProviders(
-      <ChannelModLogFeed channelId="x" refreshCounter={0} />,
-    );
+    const { rerender } = renderWithProviders(renderFeed("x", 0));
     await waitFor(() => expect(querySpy).toHaveBeenCalledTimes(1));
-    rerender(<ChannelModLogFeed channelId="x" refreshCounter={1} />);
+    rerender(renderFeed("x", 1));
     await waitFor(() => expect(querySpy).toHaveBeenCalledTimes(2));
   });
 });

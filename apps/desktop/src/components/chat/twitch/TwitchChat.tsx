@@ -35,6 +35,7 @@ import {
   stopTwitchPinPolling,
 } from "../../../backend/services/chat/twitch-pin-poller";
 import { initializeTwitchEmotes } from "../../../backend/services/emotes";
+import { modLogWriter } from "../../../backend/services/mod-log-writer";
 import { useChatRoomState } from "../../../hooks/useChatRoomState";
 import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
 import { useInterval } from "../../../hooks/useInterval";
@@ -76,6 +77,7 @@ import { ModLogTab } from "../mod/tabs/ModLogTab";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
+import { ModerationFixtureLauncher } from "./ModerationFixtureLauncher";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
 
@@ -368,6 +370,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           "channel.moderate",
           channelId,
           (payload) => {
+            void modLogWriter.ingestEventSubModerate(payload).catch((error) => {
+              logger.warn("UI:Chat:Twitch", "channel.moderate history persistence failed", {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
             const event = payload.event;
             if (event.action !== "delete") return;
             if (event.broadcaster_user_id && event.broadcaster_user_id !== channelId) return;
@@ -1459,6 +1466,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             currentChannelContext={currentChannelContext}
           />
         )}
+        <ModerationFixtureLauncher channel={channel} channelId={channelId} />
         <ChatMessageList
           key={`twitch-${channel}`}
           channelKey={channelKey}
@@ -1566,7 +1574,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           {{
             chat: chatBody,
             modlog: channelId ? (
-              <ModLogTab channelId={channelId} />
+              <ModLogTab platform="twitch" channelId={channelId} channelSlug={channel} />
             ) : (
               <div className="p-4 text-neutral-400">No channel selected.</div>
             ),

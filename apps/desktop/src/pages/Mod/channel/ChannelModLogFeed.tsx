@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
 import { useModLog } from "@/hooks/useModLog";
+import type { Platform } from "@/shared/auth-types";
 
 const ACTION_OPTIONS: Array<{ value: "" | ModLogAction; label: string }> = [
   { value: "", label: "All actions" },
@@ -30,7 +31,9 @@ const ACTION_OPTIONS: Array<{ value: "" | ModLogAction; label: string }> = [
 const PAGE_INCREMENT = 50;
 
 export interface ChannelModLogFeedProps {
+  platform: Platform;
   channelId: string;
+  channelSlug: string;
   /** Optional bump to force a re-fetch (refresh button). */
   refreshCounter?: number;
 }
@@ -48,15 +51,22 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${Math.floor(seconds / 86_400)}d`;
 }
 
-export function ChannelModLogFeed({ channelId, refreshCounter }: ChannelModLogFeedProps) {
+export function ChannelModLogFeed({
+  platform,
+  channelId,
+  channelSlug,
+  refreshCounter,
+}: ChannelModLogFeedProps) {
   const [actionFilter, setActionFilter] = useState<"" | ModLogAction>("");
   const [moderatorFilter, setModeratorFilter] = useState<string>("");
   const [limit, setLimit] = useState<number>(PAGE_INCREMENT);
 
   const trimmedModerator = moderatorFilter.trim();
 
-  const { entries, loading } = useModLog({
+  const { result, entries, retry } = useModLog({
+    platform,
     channelId,
+    channelSlug,
     action: actionFilter === "" ? undefined : actionFilter,
     moderatorUsername: trimmedModerator.length > 0 ? trimmedModerator : undefined,
     limit,
@@ -100,36 +110,54 @@ export function ChannelModLogFeed({ channelId, refreshCounter }: ChannelModLogFe
         </div>
 
         <div className="p-2 max-h-[400px] overflow-y-auto">
-          {loading ? (
+          {result.state === "loading" ? (
             <div className="text-sm text-neutral-400 p-2">Loading…</div>
-          ) : entries.length === 0 ? (
+          ) : result.state === "error" ? (
+            <div className="flex items-center justify-between gap-2 p-2 text-sm text-red-300">
+              <span>Moderation history couldn&apos;t be verified.</span>
+              {result.retryable ? (
+                <button
+                  type="button"
+                  className="rounded px-2 py-1 text-white hover:bg-white/10"
+                  onClick={retry}
+                >
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          ) : result.state === "verified-empty" ? (
             <div className="text-sm text-neutral-400 p-2">No mod-log entries.</div>
           ) : (
-            <ul className="space-y-1">
-              {entries.map((entry) => (
-                <li
-                  key={entry.id}
-                  data-testid="modlog-row"
-                  data-action={entry.action}
-                  className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
-                >
-                  <span className="text-neutral-500">{formatTimestamp(entry.createdAt)}</span>
-                  <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
-                  <span className="text-yellow-200">{entry.action}</span>
-                  <span className="text-white" data-testid="modlog-target-username">
-                    {entry.targetUsername}
-                  </span>
-                  {entry.durationSeconds ? (
-                    <span className="text-neutral-400">
-                      ({formatDuration(entry.durationSeconds)})
+            <div>
+              {result.state === "partial" ? (
+                <p className="p-2 text-xs text-amber-200">Showing observed history only.</p>
+              ) : null}
+              <ul className="space-y-1">
+                {entries.map((entry) => (
+                  <li
+                    key={entry.id}
+                    data-testid="modlog-row"
+                    data-action={entry.action}
+                    className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
+                  >
+                    <span className="text-neutral-500">{formatTimestamp(entry.createdAt)}</span>
+                    <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
+                    <span className="text-yellow-200">{entry.action}</span>
+                    <span className="text-white" data-testid="modlog-target-username">
+                      {entry.targetUsername}
                     </span>
-                  ) : null}
-                  {entry.reason ? (
-                    <span className="text-neutral-400 italic">— {entry.reason}</span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+                    {entry.durationSeconds ? (
+                      <span className="text-neutral-400">
+                        ({formatDuration(entry.durationSeconds)})
+                      </span>
+                    ) : null}
+                    {entry.reason ? (
+                      <span className="text-neutral-400 italic">— {entry.reason}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 

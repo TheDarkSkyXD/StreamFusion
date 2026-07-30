@@ -2,14 +2,11 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReconnectForModDialog } from "@/components/auth/ReconnectForModDialog";
-import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
+import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
-// Every Twitch scope the dialog covers — the two pin-path scopes (U7), the
-// ten channel-management console scopes (U4), and the two unban-requests
-// scopes (this batch).
-const ALL_FOURTEEN_SCOPES = [
+const TWITCH_MOD_SCOPES = [
   "user:read:moderated_channels",
   "moderator:manage:chat_messages",
   "moderator:manage:banned_users",
@@ -43,247 +40,293 @@ const EXPECTED_DESCRIPTIONS: Record<string, string> = {
   "moderator:manage:unban_requests": "Approve or deny unban requests",
 };
 
-const logoutTwitch = vi.fn(async () => undefined);
 const loginTwitch = vi.fn(async () => undefined);
+const loginKick = vi.fn(async () => undefined);
+const tokenStatus = vi.fn();
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
+}
 
 beforeEach(() => {
-  logoutTwitch.mockClear();
-  loginTwitch.mockClear();
+  loginTwitch.mockReset();
+  loginTwitch.mockResolvedValue(undefined);
+  loginKick.mockReset();
+  loginKick.mockResolvedValue(undefined);
+  tokenStatus.mockReset();
+  tokenStatus.mockImplementation(async (platform: "twitch" | "kick") => ({
+    platform,
+    connected: true,
+    valid: true,
+    scopes: platform === "twitch" ? [...TWITCH_APP_SCOPES] : [...KICK_APP_SCOPES],
+  }));
   useReconnectDialogStore.setState({
     isOpen: false,
+    platform: "twitch",
+    phase: "idle",
     missingScopes: [],
     onReconnected: null,
   });
-  // Stub the auth-store actions the dialog consumes. We only patch the bits
-  // the dialog reads — twitchLoading stays false, login/logout resolve.
   useAuthStore.setState({
     twitchLoading: false,
-    logoutTwitch,
+    kickLoading: false,
     loginTwitch,
+    loginKick,
   } as Partial<ReturnType<typeof useAuthStore.getState>> as ReturnType<
     typeof useAuthStore.getState
   >);
+  Object.assign(window, {
+    electronAPI: {
+      auth: { tokenStatus },
+    },
+  });
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Guards: every U4 scope plus U7 pin scopes + the two unban-requests scopes — adding/removing a scope here is a contract change for the entire mod console; the dialog must continue to enumerate them all
-// Guards: unknown-scope fallback — an unrecognized scope id renders as raw text (not silently dropped), so an outdated build never hides a scope it doesn't know about
-// Guards: reconnect scope-upgrade path - reconnect must run OAuth directly without logoutTwitch so Twitch can reuse the signed-in browser session and upgrade scopes without a full sign-in
-// Guards: post-reconnect full-app scope validation - the retry callback fires only after the refreshed Twitch token contains every current StreamFusion Twitch scope
-// Guards: error path - login throws: dialog must stay open and onReconnected NOT fire so the user can retry and the registered retry callback isn't burned prematurely
-// Guards: "Not now" path — closing without reconnecting preserves the registered onReconnected callback so a later successful reconnect still fires it
 describe("ReconnectForModDialog", () => {
-  beforeEach(() => {
-    Object.assign(window, {
-      electronAPI: {
-        auth: {
-          getToken: vi.fn().mockResolvedValue({
-            accessToken: "tok",
-            refreshToken: "ref",
-            expiresAt: Date.now() + 3_600_000,
-            scope: [...TWITCH_APP_SCOPES],
-          }),
-        },
-      },
-    });
-  });
-
-  it("renders nothing when isOpen=false", () => {
+  it("renders nothing when closed", () => {
     render(<ReconnectForModDialog />);
-    expect(screen.queryByText(/reconnect for mod features/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/reconnect twitch/i)).not.toBeInTheDocument();
   });
 
-  it("renders every U4 scope plus the two pin scopes and the two unban-requests scopes when opened with all 14", () => {
+  it("renders every requested Twitch moderation scope description", () => {
     render(<ReconnectForModDialog />);
     act(() => {
-      useReconnectDialogStore.getState().open({ missingScopes: ALL_FOURTEEN_SCOPES });
+      useReconnectDialogStore.getState().open({
+        platform: "twitch",
+        missingScopes: TWITCH_MOD_SCOPES,
+      });
     });
 
-    for (const scope of ALL_FOURTEEN_SCOPES) {
-      const desc = EXPECTED_DESCRIPTIONS[scope];
-      expect(screen.getByText(desc)).toBeInTheDocument();
+    for (const scope of TWITCH_MOD_SCOPES) {
+      expect(screen.getByText(EXPECTED_DESCRIPTIONS[scope])).toBeInTheDocument();
     }
   });
 
-  it("renders an unknown scope id as raw text fallback", () => {
+  it("renders an unknown scope id instead of hiding it", () => {
     render(<ReconnectForModDialog />);
     act(() => {
-      useReconnectDialogStore
-        .getState()
-        .open({ missingScopes: ["unknown:scope:thing"] });
+      useReconnectDialogStore.getState().open({
+        platform: "twitch",
+        missingScopes: ["unknown:scope:thing"],
+      });
     });
 
     expect(screen.getByText("unknown:scope:thing")).toBeInTheDocument();
   });
 
-  it("AE12: renders both descriptions when given two specific scopes", () => {
+  it("reconnects Twitch, validates official token status, refreshes, and closes", async () => {
+    const onReconnected = vi.fn(async () => undefined);
     render(<ReconnectForModDialog />);
     act(() => {
       useReconnectDialogStore.getState().open({
-        missingScopes: ["moderator:manage:banned_users", "channel:manage:raids"],
-      });
-    });
-
-    expect(screen.getByText("Time out, ban, and unban users")).toBeInTheDocument();
-    expect(screen.getByText("Start and cancel raids")).toBeInTheDocument();
-  });
-
-  it("clicking Reconnect calls loginTwitch without logout, validates scopes, then fires retry + closes", async () => {
-    const onReconnected = vi.fn();
-    render(<ReconnectForModDialog />);
-    act(() => {
-      useReconnectDialogStore.getState().open({
+        platform: "twitch",
         missingScopes: ["moderator:manage:chat_messages"],
         onReconnected,
       });
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^reconnect$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^reconnect twitch$/i }));
 
     await waitFor(() => expect(loginTwitch).toHaveBeenCalledTimes(1));
-    expect(logoutTwitch).not.toHaveBeenCalled();
-    await waitFor(() => expect(window.electronAPI.auth.getToken).toHaveBeenCalledWith("twitch"));
-    // fireReconnected fires the registered onReconnected exactly once.
+    await waitFor(() => expect(tokenStatus).toHaveBeenCalledWith("twitch"));
     await waitFor(() => expect(onReconnected).toHaveBeenCalledTimes(1));
-    // close() is observable via isOpen flipping back to false.
     await waitFor(() => expect(useReconnectDialogStore.getState().isOpen).toBe(false));
-    // After fireReconnected, the callback is nulled so a second invocation
-    // can never re-fire it.
     expect(useReconnectDialogStore.getState().onReconnected).toBeNull();
   });
 
-  it("error: login succeeds but token lacks another app scope -> callback does not fire and dialog stays open", async () => {
-    const onReconnected = vi.fn();
-    window.electronAPI.auth.getToken = vi.fn().mockResolvedValue({
-      accessToken: "tok",
-      refreshToken: "ref",
-      expiresAt: Date.now() + 3_600_000,
-      scope: TWITCH_APP_SCOPES.filter((scope) => scope !== "channel:manage:polls"),
-    });
-
+  it("uses the Kick flow and Kick scope descriptions for Kick authority", async () => {
+    const onReconnected = vi.fn(async () => undefined);
     render(<ReconnectForModDialog />);
     act(() => {
       useReconnectDialogStore.getState().open({
+        platform: "kick",
+        missingScopes: ["moderation:ban"],
+        onReconnected,
+      });
+    });
+
+    expect(screen.getByRole("heading", { name: "Reconnect Kick" })).toBeInTheDocument();
+    expect(screen.getByText("Time out, ban, and unban Kick users")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^reconnect kick$/i }));
+
+    await waitFor(() => expect(loginKick).toHaveBeenCalledTimes(1));
+    expect(loginTwitch).not.toHaveBeenCalled();
+    await waitFor(() => expect(tokenStatus).toHaveBeenCalledWith("kick"));
+    await waitFor(() => expect(onReconnected).toHaveBeenCalledTimes(1));
+  });
+
+  it("fails closed when official token status is missing any canonical scope", async () => {
+    const onReconnected = vi.fn();
+    tokenStatus.mockResolvedValue({
+      platform: "twitch",
+      connected: true,
+      valid: true,
+      scopes: TWITCH_APP_SCOPES.filter((scope) => scope !== "channel:manage:polls"),
+    });
+    render(<ReconnectForModDialog />);
+    act(() => {
+      useReconnectDialogStore.getState().open({
+        platform: "twitch",
         missingScopes: ["moderator:manage:chat_messages"],
         onReconnected,
       });
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^reconnect$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^reconnect twitch$/i }));
 
-    await waitFor(() => expect(loginTwitch).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(window.electronAPI.auth.getToken).toHaveBeenCalledWith("twitch"));
-    expect(logoutTwitch).not.toHaveBeenCalled();
+    await screen.findByText("Reconnect failed · Retry");
     expect(onReconnected).not.toHaveBeenCalled();
-    expect(useReconnectDialogStore.getState().isOpen).toBe(true);
-    expect(useReconnectDialogStore.getState().onReconnected).toBe(onReconnected);
+    expect(useReconnectDialogStore.getState()).toMatchObject({
+      isOpen: true,
+      phase: "failed",
+      onReconnected,
+    });
   });
 
-  it("error: login succeeds but token still lacks requested scopes -> callback does not fire and dialog stays open", async () => {
-    const onReconnected = vi.fn();
-    window.electronAPI.auth.getToken = vi.fn().mockResolvedValue({
-      accessToken: "tok",
-      refreshToken: "ref",
-      expiresAt: Date.now() + 3_600_000,
-      scope: ["user:read:email"],
-    });
-
+  it("locks dismissal and duplicate submission while authorization is pending", async () => {
+    const pendingLogin = deferred<undefined>();
+    loginTwitch.mockReturnValueOnce(pendingLogin.promise);
     render(<ReconnectForModDialog />);
     act(() => {
       useReconnectDialogStore.getState().open({
+        platform: "twitch",
+        missingScopes: ["moderator:manage:chat_messages"],
+      });
+    });
+
+    const reconnect = screen.getByRole("button", { name: /^reconnect twitch$/i });
+    fireEvent.click(reconnect);
+    fireEvent.click(reconnect);
+
+    await screen.findByText("Waiting for Twitch authorization…");
+    expect(loginTwitch).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /reconnecting/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /not now/i })).toBeDisabled();
+    act(() => useReconnectDialogStore.getState().close());
+    expect(useReconnectDialogStore.getState().isOpen).toBe(true);
+
+    pendingLogin.resolve(undefined);
+    await waitFor(() => expect(useReconnectDialogStore.getState().isOpen).toBe(false));
+  });
+
+  it("keeps the dialog locked through token revalidation and callback refresh", async () => {
+    const pendingStatus = deferred<{
+      platform: "twitch";
+      connected: true;
+      valid: true;
+      scopes: string[];
+    }>();
+    const pendingRefresh = deferred<void>();
+    tokenStatus.mockReturnValueOnce(pendingStatus.promise);
+    const onReconnected = vi.fn(() => pendingRefresh.promise);
+    render(<ReconnectForModDialog />);
+    act(() => {
+      useReconnectDialogStore.getState().open({
+        platform: "twitch",
         missingScopes: ["moderator:manage:chat_messages"],
         onReconnected,
       });
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^reconnect$/i }));
-
-    await waitFor(() => expect(loginTwitch).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(window.electronAPI.auth.getToken).toHaveBeenCalledWith("twitch"));
-    expect(logoutTwitch).not.toHaveBeenCalled();
-    expect(onReconnected).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^reconnect twitch$/i }));
+    await screen.findByText("Revalidating permissions and moderation access…");
+    expect(useReconnectDialogStore.getState().phase).toBe("revalidating");
+    act(() => useReconnectDialogStore.getState().close());
     expect(useReconnectDialogStore.getState().isOpen).toBe(true);
-    expect(useReconnectDialogStore.getState().onReconnected).toBe(onReconnected);
-  });
 
-  it("onReconnected callback fires exactly once via fireReconnected and never twice", () => {
-    const onReconnected = vi.fn();
-    render(<ReconnectForModDialog />);
-    act(() => {
-      useReconnectDialogStore.getState().open({
-        missingScopes: ["channel:manage:raids"],
-        onReconnected,
-      });
+    pendingStatus.resolve({
+      platform: "twitch",
+      connected: true,
+      valid: true,
+      scopes: [...TWITCH_APP_SCOPES],
     });
-
-    act(() => {
-      useReconnectDialogStore.getState().fireReconnected();
-    });
-    expect(onReconnected).toHaveBeenCalledTimes(1);
-
-    // A second fireReconnected (e.g. dialog reopened and confirmed again
-    // without re-registering) must NOT re-invoke the stale callback.
-    act(() => {
-      useReconnectDialogStore.getState().fireReconnected();
-    });
-    expect(onReconnected).toHaveBeenCalledTimes(1);
-  });
-
-  it("error: login throws after logout succeeds → onReconnected MUST NOT fire and dialog stays open", async () => {
-    const onReconnected = vi.fn();
-    // login rejects; logout still resolves.
-    loginTwitch.mockImplementationOnce(async () => {
-      throw new Error("OAuth window closed");
-    });
-    render(<ReconnectForModDialog />);
-    act(() => {
-      useReconnectDialogStore.getState().open({
-        missingScopes: ["channel:manage:raids"],
-        onReconnected,
-      });
-    });
-
-    const origOnError = window.onerror;
-    window.onerror = () => true;
-    try {
-      fireEvent.click(screen.getByRole("button", { name: /^reconnect$/i }));
-      await waitFor(() => expect(loginTwitch).toHaveBeenCalledTimes(1));
-    } finally {
-      window.onerror = origOnError;
-    }
-
-    // onReconnected must never fire when login throws — the user hasn't yet
-    // re-granted scopes, so a callback that re-runs the mod action would
-    // re-fail in exactly the same way.
-    expect(onReconnected).not.toHaveBeenCalled();
-    // The registered callback survives so the next successful reconnect still
-    // fires it.
-    expect(useReconnectDialogStore.getState().onReconnected).toBe(onReconnected);
-  });
-
-  it("clicking Not now closes without invoking logout/login or the retry callback", () => {
-    const onReconnected = vi.fn();
-    render(<ReconnectForModDialog />);
-    act(() => {
-      useReconnectDialogStore.getState().open({
-        missingScopes: ["channel:manage:raids"],
-        onReconnected,
-      });
-    });
-
+    await waitFor(() => expect(onReconnected).toHaveBeenCalledTimes(1));
     expect(useReconnectDialogStore.getState().isOpen).toBe(true);
+
+    pendingRefresh.resolve();
+    await waitFor(() => expect(useReconnectDialogStore.getState().isOpen).toBe(false));
+  });
+
+  it("keeps the callback for Retry when authorization fails", async () => {
+    const onReconnected = vi.fn();
+    loginTwitch.mockRejectedValueOnce(new Error("OAuth window closed"));
+    render(<ReconnectForModDialog />);
+    act(() => {
+      useReconnectDialogStore.getState().open({
+        platform: "twitch",
+        missingScopes: ["channel:manage:raids"],
+        onReconnected,
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^reconnect twitch$/i }));
+
+    await screen.findByText("Reconnect failed · Retry");
+    expect(onReconnected).not.toHaveBeenCalled();
+    expect(useReconnectDialogStore.getState()).toMatchObject({
+      isOpen: true,
+      phase: "failed",
+      onReconnected,
+    });
+  });
+
+  it.each([
+    "twitch",
+    "kick",
+  ] as const)("cancels the %s reconnect flow and clears its callback when the user chooses Not now", (platform) => {
+    const onReconnected = vi.fn();
+    render(<ReconnectForModDialog />);
+    act(() => {
+      useReconnectDialogStore.getState().open({
+        platform,
+        missingScopes: ["channel:manage:raids"],
+        onReconnected,
+      });
+    });
+
     fireEvent.click(screen.getByRole("button", { name: /not now/i }));
 
-    // close() flips isOpen to false. logout/login/onReconnected stay untouched.
-    expect(useReconnectDialogStore.getState().isOpen).toBe(false);
-    expect(logoutTwitch).not.toHaveBeenCalled();
+    expect(useReconnectDialogStore.getState()).toMatchObject({
+      isOpen: false,
+      phase: "idle",
+      onReconnected: null,
+    });
     expect(loginTwitch).not.toHaveBeenCalled();
+    expect(loginKick).not.toHaveBeenCalled();
     expect(onReconnected).not.toHaveBeenCalled();
-    // The registered callback survives a plain close — it only clears on a
-    // successful reconnect via fireReconnected().
-    expect(useReconnectDialogStore.getState().onReconnected).toBe(onReconnected);
+  });
+
+  it("lets a failed Kick reconnect retry and complete the preserved refresh callback", async () => {
+    const onReconnected = vi.fn(async () => undefined);
+    loginKick.mockRejectedValueOnce(new Error("OAuth window closed"));
+    render(<ReconnectForModDialog />);
+    act(() => {
+      useReconnectDialogStore.getState().open({
+        platform: "kick",
+        missingScopes: ["moderation:ban"],
+        onReconnected,
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^reconnect kick$/i }));
+    await screen.findByText(/Reconnect failed.*Retry/);
+    expect(useReconnectDialogStore.getState()).toMatchObject({
+      isOpen: true,
+      phase: "failed",
+      onReconnected,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^retry$/i }));
+    await waitFor(() => expect(loginKick).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onReconnected).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(useReconnectDialogStore.getState().isOpen).toBe(false));
   });
 });

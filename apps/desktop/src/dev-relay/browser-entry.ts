@@ -1,4 +1,5 @@
 import { createBrowserElectronApi } from "./browser-electron-api";
+import { applyModerationBrowserFixture } from "./moderation-browser-fixtures";
 import { createRelayRpcClient } from "./relay-rpc-client";
 import { createDevRelayWebSocket, waitForRelaySocket } from "./websocket";
 
@@ -10,6 +11,7 @@ declare global {
 
 async function boot(): Promise<void> {
   window.__STREAMFUSION_BROWSER_DEV_CLIENT__ = true;
+  applyModerationBrowserFixture(window.location.search);
   const socket = await waitForRelaySocket(() => createDevRelayWebSocket("browser"));
   Object.defineProperty(window, "electronAPI", {
     configurable: false,

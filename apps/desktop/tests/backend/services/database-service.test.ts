@@ -124,9 +124,134 @@ describeDb("DatabaseService schema", () => {
       expect.arrayContaining(["mod_log", "retention_settings", "pending_follow_writes"])
     );
   });
+
+  it("migrates legacy mod-log rows without inventing a platform or provider event", () => {
+    const dbPath = path.join(currentTmpDir, "streamfusion.db");
+    const old = new Database(dbPath);
+    old.exec(`
+      CREATE TABLE mod_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id TEXT NOT NULL,
+        channel_slug TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_user_id TEXT NOT NULL,
+        target_username TEXT NOT NULL,
+        moderator_user_id TEXT NOT NULL,
+        moderator_username TEXT NOT NULL,
+        duration_seconds INTEGER,
+        reason TEXT,
+        created_at INTEGER NOT NULL
+      );
+      INSERT INTO mod_log (
+        channel_id, channel_slug, action, target_user_id, target_username,
+        moderator_user_id, moderator_username, duration_seconds, reason, created_at
+      ) VALUES (
+        'c1', 'channel', 'ban', 'u1', 'alice',
+        'm1', 'mod', NULL, NULL, 1700000000000
+      );
+    `);
+    old.close();
+
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    expect(svc.queryModLog({ channelId: "c1" })[0]).toMatchObject({
+      platform: null,
+      provenance: "legacy-unattributed",
+      providerEventId: null,
+      occurredAt: 1_700_000_000_000,
+      observedAt: 1_700_000_000_000,
+    });
+    expect(svc.queryModLog({ platform: "twitch", channelId: "c1" })).toHaveLength(0);
+  });
 });
 
 describeDb("DatabaseService mod_log helpers", () => {
+  it("persists platform provenance and provider timestamps without rewriting them", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.insertModLog({
+      platform: "twitch",
+      channelId: "c1",
+      channelSlug: "chan-one",
+      action: "ban",
+      targetUserId: "u1",
+      targetUsername: "alice",
+      moderatorUserId: "m1",
+      moderatorUsername: "modA",
+      durationSeconds: null,
+      reason: "spam",
+      provenance: "twitch-eventsub",
+      providerEventId: "eventsub-message-123",
+      occurredAt: 1_700_000_000_000,
+      observedAt: 1_700_000_001_500,
+    });
+
+    expect(svc.queryModLog({ platform: "twitch", channelId: "c1" })[0]).toMatchObject({
+      platform: "twitch",
+      provenance: "twitch-eventsub",
+      providerEventId: "eventsub-message-123",
+      occurredAt: 1_700_000_000_000,
+      observedAt: 1_700_000_001_500,
+    });
+  });
+
+  it("treats a repeated provider event id as the same persisted action", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    const entry = {
+      platform: "twitch" as const,
+      channelId: "c1",
+      channelSlug: "chan-one",
+      action: "ban",
+      targetUserId: "u1",
+      targetUsername: "alice",
+      moderatorUserId: "m1",
+      moderatorUsername: "modA",
+      durationSeconds: null,
+      reason: "spam",
+      provenance: "twitch-eventsub" as const,
+      providerEventId: "eventsub-message-123",
+      occurredAt: 1_700_000_000_000,
+      observedAt: 1_700_000_001_500,
+    };
+
+    const firstId = svc.insertModLog(entry);
+    const secondId = svc.insertModLog(entry);
+
+    expect(secondId).toBe(firstId);
+    expect(svc.queryModLog({ platform: "twitch", channelId: "c1" })).toHaveLength(1);
+  });
+
+  it("round-trips and updates channel history coverage without changing its observation window", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    const partialCoverage = {
+      platform: "kick" as const,
+      channelId: "c1",
+      coverage: "partial" as const,
+      source: "kick-observed",
+      coverageStartAt: 1_700_000_000_000,
+      coverageEndAt: 1_700_000_005_000,
+      observedAt: 1_700_000_005_500,
+    };
+
+    svc.setModLogCoverage(partialCoverage);
+    expect(svc.getModLogCoverage("kick", "c1")).toEqual(partialCoverage);
+
+    svc.setModLogCoverage({
+      ...partialCoverage,
+      coverage: "complete",
+      source: "streamfusion-confirmed",
+    });
+    expect(svc.getModLogCoverage("kick", "c1")).toEqual({
+      ...partialCoverage,
+      coverage: "complete",
+      source: "streamfusion-confirmed",
+    });
+  });
+
   it("round-trips insertModLog → queryModLog with newest-first deterministic ordering", () => {
     const svc = new DatabaseService();
     svc.initialize();

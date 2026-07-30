@@ -9,7 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // instead of the intermediate client mock — same pattern the sibling
 // twitch-helix-moderation-mutations.test.ts uses.
 
-import { getModeratedChannels } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+import {
+  getModeratedChannels,
+  getModeratedChannelsResult,
+} from "@/backend/api/platforms/twitch/twitch-helix-moderation";
 
 let fetchCalls: Array<{ url: string; method: string; headers: Record<string, string> }> = [];
 let nextResponses: Array<{ status: number; body: unknown } | { throw: Error }> = [];
@@ -46,7 +49,9 @@ beforeEach(() => {
 
     const next = nextResponses.shift();
     if (!next) {
-      throw new Error(`fetch call without a queued response (call #${fetchCalls.length} url=${url})`);
+      throw new Error(
+        `fetch call without a queued response (call #${fetchCalls.length} url=${url})`
+      );
     }
     if ("throw" in next) throw next.throw;
     return new Response(JSON.stringify(next.body), {
@@ -62,6 +67,39 @@ afterEach(() => {
 });
 
 describe("getModeratedChannels", () => {
+  it("keeps authorization failure distinct from a verified empty channel list", async () => {
+    nextResponses.push({ status: 401, body: { message: "Missing scope" } });
+
+    await expect(
+      getModeratedChannelsResult("user1", "token-without-scope", "myclient")
+    ).resolves.toEqual({
+      state: "failed",
+      reason: "authorization",
+      channels: [],
+    });
+  });
+
+  it("keeps later-page failure distinct from a complete authority result", async () => {
+    const firstPageChannel = {
+      broadcaster_id: "100",
+      broadcaster_login: "streamer",
+      broadcaster_name: "Streamer",
+    };
+    nextResponses.push({
+      status: 200,
+      body: { data: [firstPageChannel], pagination: { cursor: "page-2" } },
+    });
+    nextResponses.push({ status: 403, body: { message: "Forbidden" } });
+
+    await expect(
+      getModeratedChannelsResult("user1", "expiring-token", "myclient")
+    ).resolves.toEqual({
+      state: "partial",
+      reason: "authorization",
+      channels: [firstPageChannel],
+    });
+  });
+
   it("returns channels from a single page and sends correct URL + headers", async () => {
     const channel = {
       broadcaster_id: "100",

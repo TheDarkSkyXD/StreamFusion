@@ -8,8 +8,18 @@ const client = new QueryClient({
   defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
 });
 client.setQueryData(
-  ["modLog", "storybook-channel", "user-mira", undefined, undefined, 50, 0],
-  CHAT_STORY_MOD_LOG
+  [
+    "modLog",
+    "twitch",
+    "storybook-channel",
+    "storybook-channel",
+    "user-mira",
+    undefined,
+    undefined,
+    50,
+    0,
+  ],
+  { state: "ready", entries: CHAT_STORY_MOD_LOG, coverage: "complete" }
 );
 
 const meta = {
@@ -26,7 +36,9 @@ const meta = {
     ),
   ],
   args: {
+    platform: "twitch",
     channelId: "storybook-channel",
+    channelSlug: "storybook-channel",
     targetUserId: "user-mira",
   },
 } satisfies Meta<typeof UserModHistory>;

@@ -100,6 +100,7 @@ afterEach(() => {
 
 function baseRecord(overrides: Partial<Parameters<typeof modLogWriter.record>[0]> = {}) {
   return {
+    platform: "twitch" as const,
     channelId: "c1",
     channelSlug: "chan-one",
     action: "ban" as ModLogAction,
@@ -220,6 +221,31 @@ describe("ModLogWriter.record", () => {
 });
 
 describe("ModLogWriter.ingestEventSubModerate", () => {
+  it("preserves the EventSub envelope id and message timestamp as provider provenance", async () => {
+    const payload = {
+      ...eventSubBan(),
+      metadata: {
+        message_id: "provider-event-123",
+        message_type: "notification",
+        message_timestamp: "2023-11-14T22:15:00.000Z",
+        subscription_type: "channel.moderate",
+        subscription_version: "2",
+      },
+    };
+
+    await modLogWriter.ingestEventSubModerate(payload);
+
+    expect(bridge.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: "twitch",
+        provenance: "twitch-eventsub",
+        providerEventId: "provider-event-123",
+        occurredAt: Date.parse("2023-11-14T22:15:00.000Z"),
+        observedAt: expect.any(Number),
+      })
+    );
+  });
+
   it("inserts a ban with the correct target + moderator ids", async () => {
     await modLogWriter.ingestEventSubModerate(eventSubBan());
     expect(bridge.insert).toHaveBeenCalledTimes(1);

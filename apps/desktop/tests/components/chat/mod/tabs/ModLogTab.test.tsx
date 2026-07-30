@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ModLogEntry } from "@/backend/services/database-service";
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
+import type { ModLogEntry } from "@/shared/mod-log-types";
 
 // Mock useModLog so the tab gets deterministic data without touching SQLite.
 let lastOpts: any = null;
@@ -22,13 +22,14 @@ vi.mock("@/components/chat/mod/UserPopout/UserPopoutProvider", () => ({
 import { ModLogTab } from "@/components/chat/mod/tabs/ModLogTab";
 
 const CHANNEL_ID = "ch-1";
+const renderTab = () => (
+  <ModLogTab platform="twitch" channelId={CHANNEL_ID} channelSlug="test-channel" />
+);
 
-function makeEntry(
-  i: number,
-  overrides: Partial<ModLogEntry> = {},
-): ModLogEntry {
+function makeEntry(i: number, overrides: Partial<ModLogEntry> = {}): ModLogEntry {
   return {
     id: i,
+    platform: "twitch",
     channelId: CHANNEL_ID,
     channelSlug: "test-channel",
     action: "ban" as ModLogAction,
@@ -38,6 +39,10 @@ function makeEntry(
     moderatorUsername: `mod${i}`,
     durationSeconds: null,
     reason: null,
+    provenance: "twitch-eventsub",
+    providerEventId: `event-${i}`,
+    occurredAt: Date.now() - i * 1000,
+    observedAt: Date.now() - i * 1000,
     createdAt: Date.now() - i * 1000,
     ...overrides,
   };
@@ -56,15 +61,25 @@ afterEach(() => {
 describe("ModLogTab", () => {
   it("renders entries returned by useModLog on mount with default limit 50", () => {
     const entries = Array.from({ length: 50 }, (_, i) => makeEntry(i + 1));
-    useModLogMock.mockReturnValue({ entries, loading: false });
-    render(<ModLogTab channelId={CHANNEL_ID} />);
+    useModLogMock.mockReturnValue({
+      result: { state: "ready", entries, coverage: "complete" },
+      entries,
+      loading: false,
+      retry: vi.fn(),
+    });
+    render(renderTab());
     expect(screen.getAllByTestId("modlog-row")).toHaveLength(50);
     expect(lastOpts.limit).toBe(50);
   });
 
   it("filters by action when the action select changes", () => {
-    useModLogMock.mockReturnValue({ entries: [], loading: false });
-    render(<ModLogTab channelId={CHANNEL_ID} />);
+    useModLogMock.mockReturnValue({
+      result: { state: "verified-empty", entries: [], coverage: "complete" },
+      entries: [],
+      loading: false,
+      retry: vi.fn(),
+    });
+    render(renderTab());
     fireEvent.change(screen.getByTestId("modlog-action-filter"), {
       target: { value: "ban" },
     });
@@ -72,8 +87,13 @@ describe("ModLogTab", () => {
   });
 
   it("filters by moderator username when the input changes", () => {
-    useModLogMock.mockReturnValue({ entries: [], loading: false });
-    render(<ModLogTab channelId={CHANNEL_ID} />);
+    useModLogMock.mockReturnValue({
+      result: { state: "verified-empty", entries: [], coverage: "complete" },
+      entries: [],
+      loading: false,
+      retry: vi.fn(),
+    });
+    render(renderTab());
     fireEvent.change(screen.getByTestId("modlog-moderator-filter"), {
       target: { value: "alice" },
     });
@@ -82,24 +102,35 @@ describe("ModLogTab", () => {
 
   it("clicking a target username opens the user popout", () => {
     useModLogMock.mockReturnValue({
+      result: {
+        state: "ready",
+        entries: [makeEntry(1, { targetUsername: "spammer", targetUserId: "u9" })],
+        coverage: "complete",
+      },
       entries: [makeEntry(1, { targetUsername: "spammer", targetUserId: "u9" })],
       loading: false,
+      retry: vi.fn(),
     });
-    render(<ModLogTab channelId={CHANNEL_ID} />);
+    render(renderTab());
     fireEvent.click(screen.getByTestId("modlog-target-username"));
     expect(openUserPopoutMock).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "u9",
         username: "spammer",
-      }),
+      })
     );
   });
 
   it("Load More bumps the limit by 50", () => {
     // First render: 50 entries returned → button should show.
     const fullPage = Array.from({ length: 50 }, (_, i) => makeEntry(i + 1));
-    useModLogMock.mockReturnValue({ entries: fullPage, loading: false });
-    render(<ModLogTab channelId={CHANNEL_ID} />);
+    useModLogMock.mockReturnValue({
+      result: { state: "ready", entries: fullPage, coverage: "complete" },
+      entries: fullPage,
+      loading: false,
+      retry: vi.fn(),
+    });
+    render(renderTab());
     fireEvent.click(screen.getByTestId("modlog-load-more"));
     expect(lastOpts.limit).toBe(100);
   });

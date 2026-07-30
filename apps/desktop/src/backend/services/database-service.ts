@@ -5,7 +5,13 @@ import { app } from "electron";
 
 import { logger } from "@/lib/cross-logger";
 import type { Platform } from "../../shared/auth-types";
-import type { ModLogEntry, ModLogQueryFilters, RetentionScope } from "../../shared/mod-log-types";
+import type {
+  ModLogCoverageRecord,
+  ModLogEntry,
+  ModLogQueryFilters,
+  ModLogWriteEntry,
+  RetentionScope,
+} from "../../shared/mod-log-types";
 
 /**
  * Source tag on `local_follows`. Three values:
@@ -46,9 +52,27 @@ export interface PendingFollowWrite {
   lastError: string | null;
 }
 
+/**
+ * Internal compatibility shape for callers that predate provenance tracking.
+ * These rows are intentionally persisted without invented platform/provider
+ * metadata and are marked as legacy-unattributed.
+ */
+type LegacyModLogWriteEntry = Omit<
+  ModLogEntry,
+  "id" | "platform" | "provenance" | "providerEventId" | "occurredAt" | "observedAt"
+> & {
+  createdAt: number;
+};
+
 // Re-export shared types so existing main-process imports
 // (`import { ModLogEntry } from "database-service"`) keep working.
-export type { ModLogEntry, ModLogQueryFilters, RetentionScope };
+export type {
+  ModLogCoverageRecord,
+  ModLogEntry,
+  ModLogQueryFilters,
+  ModLogWriteEntry,
+  RetentionScope,
+};
 
 export class DatabaseService {
   private db: Database.Database | null = null;
@@ -184,6 +208,7 @@ export class DatabaseService {
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS mod_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        platform TEXT,
         channel_id TEXT NOT NULL,
         channel_slug TEXT NOT NULL,
         action TEXT NOT NULL,
@@ -193,12 +218,52 @@ export class DatabaseService {
         moderator_username TEXT NOT NULL,
         duration_seconds INTEGER,
         reason TEXT,
+        provenance TEXT,
+        provider_event_id TEXT,
+        occurred_at INTEGER,
+        observed_at INTEGER,
         created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_mod_log_channel_created
         ON mod_log(channel_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_mod_log_channel_target
         ON mod_log(channel_id, target_user_id);
+    `);
+
+    const modLogColumns = new Set(
+      (this.database.pragma("table_info(mod_log)") as { name: string }[]).map(
+        (column) => column.name
+      )
+    );
+    const modLogMigrations = [
+      ["platform", "ALTER TABLE mod_log ADD COLUMN platform TEXT"],
+      ["provenance", "ALTER TABLE mod_log ADD COLUMN provenance TEXT"],
+      ["provider_event_id", "ALTER TABLE mod_log ADD COLUMN provider_event_id TEXT"],
+      ["occurred_at", "ALTER TABLE mod_log ADD COLUMN occurred_at INTEGER"],
+      ["observed_at", "ALTER TABLE mod_log ADD COLUMN observed_at INTEGER"],
+    ] as const;
+    for (const [column, sql] of modLogMigrations) {
+      if (!modLogColumns.has(column)) this.database.exec(sql);
+    }
+    this.database.exec(`
+      UPDATE mod_log
+      SET provenance = COALESCE(provenance, 'legacy-unattributed'),
+          occurred_at = COALESCE(occurred_at, created_at),
+          observed_at = COALESCE(observed_at, created_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_mod_log_provider_event
+        ON mod_log(platform, provider_event_id)
+        WHERE platform IS NOT NULL AND provider_event_id IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS mod_log_coverage (
+        platform TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        coverage TEXT NOT NULL CHECK(coverage IN ('complete', 'partial')),
+        source TEXT NOT NULL,
+        coverage_start_at INTEGER,
+        coverage_end_at INTEGER,
+        observed_at INTEGER NOT NULL,
+        PRIMARY KEY(platform, channel_id)
+      );
     `);
 
     // 4. Retention Settings
@@ -626,21 +691,38 @@ export class DatabaseService {
 
   // ========== Mod Log Operations ==========
 
-  insertModLog(entry: Omit<ModLogEntry, "id">): number {
+  insertModLog(entry: ModLogWriteEntry | LegacyModLogWriteEntry): number {
+    const occurredAt = "occurredAt" in entry ? entry.occurredAt : entry.createdAt;
+    if (!Number.isFinite(occurredAt)) {
+      throw new Error("Mod-log entry requires a valid occurredAt timestamp");
+    }
+    const observedAt =
+      "observedAt" in entry && Number.isFinite(entry.observedAt) ? entry.observedAt : Date.now();
+    const platform = "platform" in entry ? entry.platform : null;
+    const providerEventId = "providerEventId" in entry ? entry.providerEventId : null;
+    if (platform && providerEventId) {
+      const existing = this.database
+        .prepare("SELECT id FROM mod_log WHERE platform = ? AND provider_event_id = ?")
+        .get(platform, providerEventId) as { id: number } | undefined;
+      if (existing) return existing.id;
+    }
     const stmt = this.database.prepare(`
       INSERT INTO mod_log (
-        channel_id, channel_slug, action,
+        platform, channel_id, channel_slug, action,
         target_user_id, target_username,
         moderator_user_id, moderator_username,
-        duration_seconds, reason, created_at
+        duration_seconds, reason, provenance, provider_event_id,
+        occurred_at, observed_at, created_at
       ) VALUES (
-        @channelId, @channelSlug, @action,
+        @platform, @channelId, @channelSlug, @action,
         @targetUserId, @targetUsername,
         @moderatorUserId, @moderatorUsername,
-        @durationSeconds, @reason, @createdAt
+        @durationSeconds, @reason, @provenance, @providerEventId,
+        @occurredAt, @observedAt, @createdAt
       )
     `);
     const info = stmt.run({
+      platform,
       channelId: entry.channelId,
       channelSlug: entry.channelSlug,
       action: entry.action,
@@ -650,7 +732,11 @@ export class DatabaseService {
       moderatorUsername: entry.moderatorUsername,
       durationSeconds: entry.durationSeconds ?? null,
       reason: entry.reason ?? null,
-      createdAt: entry.createdAt,
+      provenance: "provenance" in entry ? entry.provenance : "legacy-unattributed",
+      providerEventId,
+      occurredAt,
+      observedAt,
+      createdAt: occurredAt,
     });
     return Number(info.lastInsertRowid);
   }
@@ -659,6 +745,10 @@ export class DatabaseService {
     const where: string[] = ["channel_id = ?"];
     const params: any[] = [filters.channelId];
 
+    if (filters.platform) {
+      where.push("platform = ?");
+      params.push(filters.platform);
+    }
     if (filters.targetUserId) {
       where.push("target_user_id = ?");
       params.push(filters.targetUserId);
@@ -678,7 +768,7 @@ export class DatabaseService {
     const sql = `
       SELECT * FROM mod_log
       WHERE ${where.join(" AND ")}
-      ORDER BY created_at DESC, id DESC
+      ORDER BY occurred_at DESC, id DESC
       LIMIT ? OFFSET ?
     `;
     params.push(limit, offset);
@@ -690,6 +780,7 @@ export class DatabaseService {
   private mapModLogFromDb(row: any): ModLogEntry {
     return {
       id: row.id,
+      platform: row.platform,
       channelId: row.channel_id,
       channelSlug: row.channel_slug,
       action: row.action,
@@ -699,7 +790,54 @@ export class DatabaseService {
       moderatorUsername: row.moderator_username,
       durationSeconds: row.duration_seconds,
       reason: row.reason,
-      createdAt: row.created_at,
+      provenance: row.provenance ?? "legacy-unattributed",
+      providerEventId: row.provider_event_id ?? null,
+      occurredAt: row.occurred_at ?? row.created_at,
+      observedAt: row.observed_at ?? row.created_at,
+      createdAt: row.occurred_at ?? row.created_at,
+    };
+  }
+
+  setModLogCoverage(record: ModLogCoverageRecord): void {
+    this.database
+      .prepare(
+        `INSERT INTO mod_log_coverage (
+           platform, channel_id, coverage, source,
+           coverage_start_at, coverage_end_at, observed_at
+         ) VALUES (
+           @platform, @channelId, @coverage, @source,
+           @coverageStartAt, @coverageEndAt, @observedAt
+         )
+         ON CONFLICT(platform, channel_id) DO UPDATE SET
+           coverage = excluded.coverage,
+           source = excluded.source,
+           coverage_start_at = excluded.coverage_start_at,
+           coverage_end_at = excluded.coverage_end_at,
+           observed_at = excluded.observed_at`
+      )
+      .run({
+        ...record,
+        coverageStartAt: record.coverageStartAt ?? null,
+        coverageEndAt: record.coverageEndAt ?? null,
+      });
+  }
+
+  getModLogCoverage(
+    platform: ModLogCoverageRecord["platform"],
+    channelId: string
+  ): ModLogCoverageRecord | null {
+    const row = this.database
+      .prepare("SELECT * FROM mod_log_coverage WHERE platform = ? AND channel_id = ?")
+      .get(platform, channelId) as any;
+    if (!row) return null;
+    return {
+      platform: row.platform,
+      channelId: row.channel_id,
+      coverage: row.coverage,
+      source: row.source,
+      coverageStartAt: row.coverage_start_at ?? null,
+      coverageEndAt: row.coverage_end_at ?? null,
+      observedAt: row.observed_at,
     };
   }
 

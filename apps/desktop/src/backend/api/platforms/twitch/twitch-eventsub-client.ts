@@ -450,7 +450,10 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         break;
       case "notification":
         this.armKeepaliveTimer();
-        this.onNotification(envelope.payload as NotificationPayload<unknown>);
+        this.onNotification({
+          ...(envelope.payload as NotificationPayload<unknown>),
+          metadata: envelope.metadata,
+        });
         break;
       case "revocation":
         this.onRevocation(envelope.payload as RevocationPayload);

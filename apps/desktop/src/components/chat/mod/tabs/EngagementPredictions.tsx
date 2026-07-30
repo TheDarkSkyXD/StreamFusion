@@ -151,6 +151,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
         return;
       }
       modLogWriter.record({
+        platform: "twitch",
         source: "local",
         channelId,
         channelSlug,
@@ -216,6 +217,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
         return;
       }
       modLogWriter.record({
+        platform: "twitch",
         source: "local",
         channelId,
         channelSlug,

@@ -19,6 +19,7 @@ import type { UserProfile } from "./mod/UserPopout/useUserProfile";
 export const CHAT_STORY_MOD_LOG: ModLogEntry[] = [
   {
     id: 101,
+    platform: "twitch",
     channelId: STORY_CHANNEL_ID,
     channelSlug: TWITCH_CHANNEL,
     action: "timeout",
@@ -28,10 +29,15 @@ export const CHAT_STORY_MOD_LOG: ModLogEntry[] = [
     moderatorUsername: "novaviewer",
     durationSeconds: 600,
     reason: "Repeated spoilers",
+    provenance: "streamfusion-confirmed",
+    providerEventId: null,
+    occurredAt: Date.UTC(2026, 6, 26, 19, 40),
+    observedAt: Date.UTC(2026, 6, 26, 19, 40),
     createdAt: Date.UTC(2026, 6, 26, 19, 40),
   },
   {
     id: 102,
+    platform: "twitch",
     channelId: STORY_CHANNEL_ID,
     channelSlug: TWITCH_CHANNEL,
     action: "delete",
@@ -40,6 +46,10 @@ export const CHAT_STORY_MOD_LOG: ModLogEntry[] = [
     moderatorUserId: "viewer-twitch",
     moderatorUsername: "novaviewer",
     reason: "Removed a duplicate message",
+    provenance: "streamfusion-confirmed",
+    providerEventId: null,
+    occurredAt: Date.UTC(2026, 6, 26, 19, 35),
+    observedAt: Date.UTC(2026, 6, 26, 19, 35),
     createdAt: Date.UTC(2026, 6, 26, 19, 35),
   },
 ];

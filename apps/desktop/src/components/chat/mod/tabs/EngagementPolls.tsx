@@ -139,6 +139,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
         return;
       }
       modLogWriter.record({
+        platform: "twitch",
         source: "local",
         channelId,
         channelSlug,
@@ -192,6 +193,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
       // "poll-start" | "poll-terminate"). Archive is a UI-only state move.
       if (pending.kind === "terminate") {
         modLogWriter.record({
+          platform: "twitch",
           source: "local",
           channelId,
           channelSlug,

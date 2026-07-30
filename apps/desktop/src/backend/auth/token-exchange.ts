@@ -6,7 +6,7 @@
  */
 
 import { logger } from "@/lib/cross-logger";
-import { type AuthToken, KICK_APP_SCOPES, type Platform } from "../../shared/auth-types";
+import type { AuthToken, Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { hasCanonicalKickScopes } from "./kick-scope-validation";
 import { getOAuthConfig, type PkceChallenge } from "./oauth-config";
@@ -149,10 +149,6 @@ class TokenExchangeService {
 
       const data = (await response.json()) as TokenResponse;
       const token = this.parseTokenResponse(data);
-      if (params.platform === "kick" && token.scope === undefined) {
-        token.scope = [...KICK_APP_SCOPES];
-      }
-
       logger.debug("Auth:TokenExchange", "Token obtained", { platform: params.platform });
       return token;
     } catch (error) {
@@ -454,8 +450,9 @@ class TokenExchangeService {
   }
 
   private async getKickTokenStatus(token: AuthToken): Promise<TokenStatusReport> {
-    if (!hasCanonicalKickScopes(token.scope)) {
-      return { valid: false, scopes: token.scope ?? [] };
+    const introspection = await this.introspectKickToken(token.accessToken);
+    if (!introspection?.active) {
+      return { valid: false, scopes: introspection?.scopes ?? [] };
     }
     // Kick has no /validate; GET /users (no IDs) returns the current user when
     // the bearer token is valid. Non-200 → invalid.
@@ -480,10 +477,9 @@ class TokenExchangeService {
       login: apiUser?.name,
       // The Kick OAuth `user_id` (NOT the channel.id) — see the dual-id learning.
       userId: apiUser?.user_id != null ? String(apiUser.user_id) : undefined,
-      // Kick's current-user endpoint returns no scopes; the stored token carries
-      // the granted scopes from the OAuth exchange. Shown honestly (a 200 here
-      // proves nothing about scope sufficiency).
-      scopes: token.scope ?? [],
+      // The current-user endpoint proves identity only. Scope truth comes from
+      // the official introspection response above.
+      scopes: introspection.scopes,
       // No expiry from the API surface — fall back to the stored token expiry.
       expiresAt: token.expiresAt ?? null,
     };
@@ -495,30 +491,40 @@ class TokenExchangeService {
    */
   private async validateKickToken(accessToken: string): Promise<boolean> {
     try {
-      // Official Kick token introspection endpoint
-      const response = await fetch("https://id.kick.com/oauth/token/introspect", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const data = (await response.json()) as {
-        active?: boolean;
-        scope?: string;
-        data?: { active?: boolean; scope?: string };
-      };
-      const active = data.active === true || data.data?.active === true;
-      const scope = data.scope ?? data.data?.scope;
-      return active && hasCanonicalKickScopes(scope?.split(/\s+/).filter(Boolean));
+      const result = await this.introspectKickToken(accessToken);
+      return result?.active === true && hasCanonicalKickScopes(result.scopes);
     } catch {
       return false;
     }
+  }
+
+  private async introspectKickToken(
+    accessToken: string
+  ): Promise<{ active: boolean; scopes: string[] } | null> {
+    const response = await fetch("https://id.kick.com/oauth/token/introspect", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as {
+      active?: boolean;
+      scope?: string | string[];
+      data?: { active?: boolean; scope?: string | string[] };
+    };
+    const rawScopes = data.scope ?? data.data?.scope;
+    const scopes = Array.isArray(rawScopes)
+      ? rawScopes.filter((scope): scope is string => typeof scope === "string")
+      : typeof rawScopes === "string"
+        ? rawScopes.split(/\s+/).filter(Boolean)
+        : [];
+    return {
+      active: data.active === true || data.data?.active === true,
+      scopes,
+    };
   }
 }
 

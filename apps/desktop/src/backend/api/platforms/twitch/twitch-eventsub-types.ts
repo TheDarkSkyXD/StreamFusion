@@ -73,6 +73,8 @@ export interface SessionReconnectPayload {
 // ---------------------------------------------------------------------------
 
 export interface NotificationPayload<E = unknown> {
+  /** Original envelope metadata, attached by the EventSub client at dispatch. */
+  metadata?: TwitchEventSubMessage["metadata"];
   subscription: {
     id: string;
     type: TwitchEventSubEventType;

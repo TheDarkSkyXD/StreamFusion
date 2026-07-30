@@ -5,10 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { UserPopout } from "@/components/chat/mod/UserPopout/UserPopout";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createBrowserElectronApi } from "@/dev-relay/browser-electron-api";
+import { applyModerationBrowserFixture } from "@/dev-relay/moderation-browser-fixtures";
 import type { ChatMessage } from "@/shared/chat-types";
+import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
+import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
 function renderFixture(search: string) {
+  applyModerationBrowserFixture(search);
   const actionState = new URLSearchParams(search).get("actionState");
   const openingMessage: ChatMessage = {
     id: "browser-fixture-message",
@@ -123,6 +127,8 @@ function renderFixture(search: string) {
 
 afterEach(() => {
   useChatStore.setState({ messagesByChannel: {} });
+  useAuthStore.setState({ twitchUser: null, twitchConnected: false, isGuest: true });
+  useDevModOverrideStore.getState().reset();
   delete window.__STREAMFUSION_BROWSER_DEV_CLIENT__;
   vi.restoreAllMocks();
 });
@@ -200,5 +206,28 @@ describe("browser user-profile fixture", () => {
     }
     expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Translate · Coming Soon" })).toBeDisabled();
+  });
+
+  it("renders five deterministic platform-originated history rows without relaying the query", async () => {
+    const relayCall = renderFixture("?moderationFixture=history");
+
+    expect(await screen.findByRole("heading", { name: "Moderation history" })).toBeInTheDocument();
+    expect(
+      (await screen.findByTestId("user-mod-history-list")).querySelectorAll("li")
+    ).toHaveLength(5);
+    expect(screen.getByText("Platform actions available to StreamFusion")).toBeInTheDocument();
+    expect(relayCall.mock.calls.some(([path]) => path.join(".") === "modLog.query")).toBe(false);
+  });
+
+  it("keeps reconnect fixture authorization and token checks inside the browser client", async () => {
+    const relayCall = renderFixture("?moderationFixture=reconnect");
+
+    expect(await screen.findByTestId("moderation-reconnect-required")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Moderation history" })).toBeNull();
+    expect(
+      relayCall.mock.calls.some(([path]) =>
+        ["auth.tokenStatus", "auth.openTwitchLogin", "modLog.query"].includes(path.join("."))
+      )
+    ).toBe(false);
   });
 });

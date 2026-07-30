@@ -6,7 +6,6 @@ import {
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
 } from "@/backend/ipc/handlers/auth-handlers";
-import { KICK_APP_SCOPES } from "@/shared/auth-types";
 
 // Guards the A1 fix: a transient Cloudflare/Kasada/auth failure must NOT
 // trigger an account-follows clear, because that would silently wipe the
@@ -247,31 +246,27 @@ describe("shouldDeferKickStartupFollowRefresh", () => {
   });
 });
 
-// Guards: an omitted initial Kick scope list represents the requested canonical grant.
-// Guards: explicit empty or incomplete Kick grants are rejected before persistence.
+// Guards: callback scope metadata is stored as observed, never upgraded to an
+// unverified canonical grant. Official introspection is the scope truth source.
 // Guards: Twitch token persistence remains unchanged by Kick-specific normalization.
 describe("persistInitialAuthToken", () => {
-  it("persists the canonical requested Kick grant when the callback omits scope", () => {
+  it("does not synthesize a Kick grant when the callback omits scope", () => {
     const saveToken = vi.fn();
 
     persistInitialAuthToken("kick", { accessToken: "at" }, { saveToken });
 
-    expect(saveToken).toHaveBeenCalledWith("kick", {
-      accessToken: "at",
-      scope: [...KICK_APP_SCOPES],
-    });
+    expect(saveToken).toHaveBeenCalledWith("kick", { accessToken: "at" });
   });
 
   it.each([
     ["explicitly empty", []],
     ["explicitly incomplete", ["user:read", "channel:read"]],
-  ])("rejects an %s Kick grant without persisting it", (_label, scope) => {
+  ])("persists an %s Kick callback grant without pretending it is complete", (_label, scope) => {
     const saveToken = vi.fn();
+    const token = { accessToken: "at", scope };
 
-    expect(() =>
-      persistInitialAuthToken("kick", { accessToken: "at", scope }, { saveToken })
-    ).toThrow("Kick token is missing required application scopes");
-    expect(saveToken).not.toHaveBeenCalled();
+    expect(persistInitialAuthToken("kick", token, { saveToken })).toBe(token);
+    expect(saveToken).toHaveBeenCalledWith("kick", token);
   });
 
   it("persists Twitch tokens unchanged", () => {

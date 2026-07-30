@@ -1,25 +1,16 @@
 /**
- * Twitch Helix — Moderation
+ * Twitch Helix moderation-channel discovery.
  *
- * Wrappers for Twitch's `/moderation/*` Helix endpoints. Used by the
- * mod-channels cache and (when scopes ship) the pin/unpin mod actions.
- *
- * Scope requirements:
- *   - `user:read:moderated_channels` for {@link getModeratedChannels}
- *
- * A 401 response (token lacks the required scope, or token is missing) is
- * treated as "no moderated channels" rather than an error — the lazy
- * re-consent dialog (U7) surfaces the scope-missing state at the action
- * boundary, not at hydration time.
+ * Permission gates consume the discriminated result so authorization,
+ * transport, malformed-response, and partial-pagination failures can never be
+ * mistaken for a verified empty moderated-channel list.
  */
 
 import { api } from "@/lib/api-client";
-// Cross-logger: this module is reached from renderer components
-// (EngagementPolls, EngagementPredictions, UserPopoutFooter). Importing the
-// backend logger here would drag electron-log into the renderer bundle.
 import { logger } from "@/lib/cross-logger";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
+const PAGE_CAP = 50;
 
 export interface ModeratedChannel {
   broadcaster_id: string;
@@ -32,31 +23,39 @@ interface HelixModeratedChannelsResponse {
   pagination?: { cursor?: string };
 }
 
+export type ModeratedChannelsResult =
+  | { state: "complete"; channels: ModeratedChannel[] }
+  | {
+      state: "partial" | "failed";
+      reason: "authorization" | "network" | "invalid-response" | "page-cap";
+      channels: ModeratedChannel[];
+    };
+
+function classifyError(error: unknown): "authorization" | "network" {
+  const status = (error as { response?: { status?: unknown } } | null)?.response?.status;
+  return status === 401 || status === 403 ? "authorization" : "network";
+}
+
 /**
- * Returns every Twitch channel the signed-in user moderates. Paginated;
- * follows the `pagination.cursor` until exhausted. Returns an empty array
- * when the token lacks `user:read:moderated_channels` (401) or when the
- * user moderates nothing.
+ * Reads all pages from `GET /helix/moderation/channels`.
  *
- * The broadcaster's OWN channel is NOT included by Twitch in this response —
- * the caller should treat `userId === self.broadcasterId` as mod-equivalent
- * separately. {@link useIsTwitchMod} handles that bridge.
+ * Twitch does not include the broadcaster's own channel in this response.
+ * Callers compare the authenticated user's id to the current broadcaster id
+ * separately.
  */
-export async function getModeratedChannels(
+export async function getModeratedChannelsResult(
   selfUserId: string,
   accessToken: string,
   clientId: string
-): Promise<ModeratedChannel[]> {
-  const all: ModeratedChannel[] = [];
+): Promise<ModeratedChannelsResult> {
+  const channels: ModeratedChannel[] = [];
   let cursor: string | undefined;
   const headers = {
     "Client-ID": clientId,
     Authorization: `Bearer ${accessToken}`,
   };
 
-  // Hard cap on pages so a Twitch hiccup can never spin forever. 50 pages
-  // x 100/page is 5000 moderated channels — far past any realistic streamer.
-  for (let page = 0; page < 50; page++) {
+  for (let page = 0; page < PAGE_CAP; page++) {
     const url = `${HELIX_BASE}/moderation/channels?user_id=${encodeURIComponent(
       selfUserId
     )}&first=100${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`;
@@ -65,9 +64,6 @@ export async function getModeratedChannels(
     try {
       body = await api.get(url, { headers }).json<HelixModeratedChannelsResponse>();
     } catch (error) {
-      // Token-side failures (401 / 403) are treated as "no moderated
-      // channels" so the rest of the app keeps working. Network failures
-      // also fall through — the next hydrate retry will pick up.
       if (process.env.NODE_ENV !== "production") {
         logger.debug("Twitch:Helix:Mod", "getModeratedChannels failed", {
           error:
@@ -76,14 +72,37 @@ export async function getModeratedChannels(
               : String(error),
         });
       }
-      return all;
+      return {
+        state: channels.length > 0 ? "partial" : "failed",
+        reason: classifyError(error),
+        channels,
+      };
     }
 
-    if (!body?.data) break;
-    all.push(...body.data);
+    if (!body || !Array.isArray(body.data)) {
+      return {
+        state: channels.length > 0 ? "partial" : "failed",
+        reason: "invalid-response",
+        channels,
+      };
+    }
+
+    channels.push(...body.data);
     cursor = body.pagination?.cursor;
-    if (!cursor) break;
+    if (!cursor) return { state: "complete", channels };
   }
 
-  return all;
+  return { state: "partial", reason: "page-cap", channels };
+}
+
+/**
+ * Compatibility projection for callers that do not gate authority. New
+ * permission surfaces must use `getModeratedChannelsResult`.
+ */
+export async function getModeratedChannels(
+  selfUserId: string,
+  accessToken: string,
+  clientId: string
+): Promise<ModeratedChannel[]> {
+  return (await getModeratedChannelsResult(selfUserId, accessToken, clientId)).channels;
 }

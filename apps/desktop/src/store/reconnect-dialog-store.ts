@@ -1,52 +1,58 @@
-/**
- * Reconnect-Dialog Store
- *
- * Tiny shared store that opens/closes the "Reconnect for mod features"
- * dialog from anywhere — used by {@link useRequireModScopes} so any mod
- * action surface can pop the dialog with one call.
- *
- * The dialog itself is mounted once at the app root (AuthProvider).
- *
- * U5 — the payload now carries the missing-scope list (so one consent
- * round-trip covers every scope the current action needs) plus an optional
- * one-shot retry callback the dialog fires on successful reconnect.
- */
-
 import { create } from "zustand";
 
+import type { Platform } from "@/shared/auth-types";
+
+export type ReconnectPhase = "idle" | "submitting" | "revalidating" | "failed";
+
 export interface ReconnectDialogPayload {
-  /** Every scope the current action needs that the token doesn't have yet. */
+  platform?: Platform;
   missingScopes: string[];
-  /** Fired exactly once after a successful reconnect, then discarded. */
-  onReconnected?: () => void;
+  onReconnected?: () => void | Promise<void>;
 }
 
 interface ReconnectDialogState {
   isOpen: boolean;
+  platform: Platform;
+  phase: ReconnectPhase;
   missingScopes: string[];
-  onReconnected: (() => void) | null;
+  onReconnected: (() => void | Promise<void>) | null;
   open: (payload: ReconnectDialogPayload) => void;
   close: () => void;
-  /** Called by the dialog when reconnect succeeds; clears payload + fires callback once. */
-  fireReconnected: () => void;
+  setPhase: (phase: ReconnectPhase) => void;
+  fireReconnected: () => Promise<void>;
+}
+
+function isLocked(phase: ReconnectPhase): boolean {
+  return phase === "submitting" || phase === "revalidating";
 }
 
 export const useReconnectDialogStore = create<ReconnectDialogState>()((set, get) => ({
   isOpen: false,
+  platform: "twitch",
+  phase: "idle",
   missingScopes: [],
   onReconnected: null,
-  open: (payload) =>
+  open: (payload) => {
+    if (isLocked(get().phase)) return;
     set({
       isOpen: true,
-      missingScopes: payload.missingScopes,
+      platform: payload.platform ?? "twitch",
+      phase: "idle",
+      missingScopes: Array.from(new Set(payload.missingScopes)),
       onReconnected: payload.onReconnected ?? null,
-    }),
-  close: () => set({ isOpen: false }),
-  fireReconnected: () => {
-    const cb = get().onReconnected;
-    // Null the callback BEFORE invoking so a re-entrant call (or a second
-    // fireReconnected after the dialog reopens) can never fire it twice.
-    set({ onReconnected: null });
-    if (cb) cb();
+    });
+  },
+  close: () => {
+    if (isLocked(get().phase)) return;
+    set({ isOpen: false, phase: "idle", missingScopes: [], onReconnected: null });
+  },
+  setPhase: (phase) => set({ phase }),
+  fireReconnected: async () => {
+    const callback = get().onReconnected;
+    if (!callback) return;
+    await callback();
+    if (get().onReconnected === callback) {
+      set({ onReconnected: null });
+    }
   },
 }));

@@ -14,13 +14,17 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
+import { getModerationDevelopmentHistoryFixture } from "@/dev-relay/moderation-browser-fixtures";
 import { logger } from "@/renderer/logging/logger";
-import type { ModLogEntry } from "@/shared/mod-log-types";
+import type { Platform } from "@/shared/auth-types";
+import type { ModerationHistoryResult, ModLogEntry } from "@/shared/mod-log-types";
 
 export type { ModLogEntry };
 
 export interface UseModLogOptions {
+  platform: Platform;
   channelId: string;
+  channelSlug: string;
   targetUserId?: string;
   action?: ModLogAction;
   moderatorUsername?: string;
@@ -30,25 +34,72 @@ export interface UseModLogOptions {
 }
 
 export function useModLog(opts: UseModLogOptions): {
+  result: ModerationHistoryResult;
   entries: ModLogEntry[];
   loading: boolean;
+  retry: () => void;
 } {
-  const { channelId, targetUserId, action, moderatorUsername, limit, refreshCounter = 0 } = opts;
+  const {
+    platform,
+    channelId,
+    channelSlug,
+    targetUserId,
+    action,
+    moderatorUsername,
+    limit,
+    refreshCounter = 0,
+  } = opts;
 
   const query = useQuery({
-    queryKey: ["modLog", channelId, targetUserId, action, moderatorUsername, limit, refreshCounter],
+    queryKey: [
+      "modLog",
+      platform,
+      channelId,
+      channelSlug,
+      targetUserId,
+      action,
+      moderatorUsername,
+      limit,
+      refreshCounter,
+    ],
     queryFn: async () => {
-      try {
-        const rows = await window.electronAPI.modLog.query({
+      const developmentFixture = getModerationDevelopmentHistoryFixture(
+        {
+          platform,
           channelId,
+          channelSlug,
+          targetUserId,
+          action,
+          moderatorUsername,
+          limit,
+        },
+        window.location.search
+      );
+      if (developmentFixture) return developmentFixture;
+      try {
+        const result = await window.electronAPI.modLog.query({
+          platform,
+          channelId,
+          channelSlug,
           targetUserId,
           action,
           moderatorUsername,
           limit,
         });
-        // Defensive: an unmocked or misconfigured bridge can return a
-        // non-array; render the empty state rather than crashing on `.map`.
-        return Array.isArray(rows) ? rows : [];
+        if (
+          result &&
+          typeof result === "object" &&
+          "state" in result &&
+          ["ready", "verified-empty", "partial", "error"].includes(result.state)
+        ) {
+          return result;
+        }
+        return {
+          state: "error",
+          entries: [],
+          code: "query-failed",
+          retryable: true,
+        } satisfies ModerationHistoryResult;
       } catch (err) {
         logger.warn("Hook:ModLog", "queryModLog failed", {
           error:
@@ -56,13 +107,31 @@ export function useModLog(opts: UseModLogOptions): {
               ? { name: err.name, message: err.message, stack: err.stack }
               : String(err),
         });
-        return [];
+        return {
+          state: "error",
+          entries: [],
+          code: "query-failed",
+          retryable: true,
+        } satisfies ModerationHistoryResult;
       }
     },
   });
 
+  const result: ModerationHistoryResult = query.isPending
+    ? { state: "loading", entries: [] }
+    : (query.data ?? {
+        state: "error",
+        entries: [],
+        code: "query-failed",
+        retryable: true,
+      });
+
   return {
-    entries: query.data ?? [],
-    loading: query.isPending,
+    result,
+    entries: result.entries,
+    loading: result.state === "loading",
+    retry: () => {
+      void query.refetch();
+    },
   };
 }

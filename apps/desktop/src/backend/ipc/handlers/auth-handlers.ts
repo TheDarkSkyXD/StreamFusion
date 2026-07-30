@@ -2,13 +2,12 @@ import { type BrowserWindow, ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "../../../lib/managed-interval";
-import {
-  type AuthToken,
-  KICK_APP_SCOPES,
-  type KickUser,
-  type LocalFollow,
-  type Platform,
-  type TwitchUser,
+import type {
+  AuthToken,
+  KickUser,
+  LocalFollow,
+  Platform,
+  TwitchUser,
 } from "../../../shared/auth-types";
 import {
   type AuthStatus,
@@ -27,7 +26,6 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
-import { hasCanonicalKickScopes } from "../../auth/kick-scope-validation";
 import { liveNotificationService } from "../../services/live-notification-service";
 import { storageService } from "../../services/storage-service";
 
@@ -106,15 +104,8 @@ export function persistInitialAuthToken(
   token: AuthToken,
   storage: Pick<typeof storageService, "saveToken"> = storageService
 ): AuthToken {
-  const tokenToSave =
-    platform === "kick" && token.scope === undefined
-      ? { ...token, scope: [...KICK_APP_SCOPES] }
-      : token;
-  if (platform === "kick" && !hasCanonicalKickScopes(tokenToSave.scope)) {
-    throw new Error("Kick token is missing required application scopes");
-  }
-  storage.saveToken(platform, tokenToSave);
-  return tokenToSave;
+  storage.saveToken(platform, token);
+  return token;
 }
 
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
@@ -391,10 +382,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     const twitchHasToken = storageService.hasToken("twitch");
     const kickHasToken = storageService.hasToken("kick");
     const twitchExpired = storageService.isTokenExpired("twitch");
-    const kickToken = storageService.getToken("kick");
-    const kickExpired =
-      storageService.isTokenExpired("kick") ||
-      (kickHasToken && !hasCanonicalKickScopes(kickToken?.scope));
+    const kickExpired = storageService.isTokenExpired("kick");
 
     return {
       twitch: {

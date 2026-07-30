@@ -14,14 +14,28 @@ function ModLogStory() {
     defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
   });
   client.setQueryData(
-    ["modLog", "storybook-channel", undefined, undefined, undefined, 50, 0],
-    CHAT_STORY_MOD_LOG
+    [
+      "modLog",
+      "twitch",
+      "storybook-channel",
+      "storybook-channel",
+      undefined,
+      undefined,
+      undefined,
+      50,
+      0,
+    ],
+    { state: "ready", entries: CHAT_STORY_MOD_LOG, coverage: "complete" }
   );
 
   return (
     <QueryClientProvider client={client}>
       <UserPopoutProvider>
-        <ModLogTab channelId="storybook-channel" />
+        <ModLogTab
+          platform="twitch"
+          channelId="storybook-channel"
+          channelSlug="storybook-channel"
+        />
       </UserPopoutProvider>
     </QueryClientProvider>
   );
@@ -31,7 +45,11 @@ const meta = {
   title: "Components/Chat/Moderation/Mod Log Tab",
   component: ModLogTab,
   parameters: { layout: "centered" },
-  args: { channelId: "storybook-channel" },
+  args: {
+    platform: "twitch",
+    channelId: "storybook-channel",
+    channelSlug: "storybook-channel",
+  },
 } satisfies Meta<typeof ModLogTab>;
 
 export default meta;

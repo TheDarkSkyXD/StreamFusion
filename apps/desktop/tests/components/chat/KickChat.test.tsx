@@ -21,6 +21,7 @@ const timeoutKickUserMock = vi.fn();
 const unbanKickUserMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const recordModActionMock = vi.fn(async (_input: unknown) => 1);
 
 vi.mock("@/backend/api/platforms/kick/kick-mod-mutations", () => ({
   banKickUser: (...args: unknown[]) => banKickUserMock(...args),
@@ -32,6 +33,12 @@ vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccessMock(...args),
     error: (...args: unknown[]) => toastErrorMock(...args),
+  },
+}));
+
+vi.mock("@/backend/services/mod-log-writer", () => ({
+  modLogWriter: {
+    record: (input: unknown) => recordModActionMock(input),
   },
 }));
 
@@ -260,6 +267,8 @@ describe("KickChat", () => {
     unbanKickUserMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
+    recordModActionMock.mockReset();
+    recordModActionMock.mockResolvedValue(1);
     vi.mocked(kickChatService.connect).mockClear();
     vi.mocked(kickChatService.acquire).mockClear();
     vi.mocked(kickChatService.release).mockClear();
@@ -504,6 +513,31 @@ describe("KickChat", () => {
     expect(timeoutKickUserMock).not.toHaveBeenCalled();
   });
 
+  it("records a Kick timeout only after the platform confirms the action", async () => {
+    renderKickChat(<KickChat channel="xqc" channelId="channel-123" chatroomId={12345} />);
+    act(() => {
+      lastListProps.onTimeout?.(fakeMessage);
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Time out$/ }));
+
+    await waitFor(() =>
+      expect(recordModActionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: "kick",
+          channelId: "channel-123",
+          channelSlug: "xqc",
+          action: "timeout",
+          targetUserId: "kuser-9",
+          targetUsername: "baduser",
+          moderatorUserId: "42",
+          moderatorUsername: "modder",
+          durationSeconds: 600,
+          source: "local",
+        })
+      )
+    );
+  });
+
   it("The 10s preset is clamped to 1 minute before calling Kick (sub-minute not supported)", async () => {
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
     act(() => {
@@ -527,6 +561,29 @@ describe("KickChat", () => {
     await waitFor(() => expect(window.electronAPI.kickChat.deleteMessage).toHaveBeenCalledTimes(1));
     expect(window.electronAPI.kickChat.deleteMessage).toHaveBeenCalledWith(12345, "k-msg-1");
     expect(screen.queryByRole("heading", { name: /^Delete message$/ })).toBeNull();
+  });
+
+  it("records a Kick delete only after the platform confirms the exact message deletion", async () => {
+    renderKickChat(<KickChat channel="xqc" channelId="channel-123" chatroomId={12345} />);
+
+    await act(async () => {
+      await lastListProps.onDelete?.(fakeMessage);
+    });
+
+    expect(recordModActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: "kick",
+        channelId: "channel-123",
+        channelSlug: "xqc",
+        action: "delete",
+        targetUserId: "kuser-9",
+        targetUsername: "baduser",
+        moderatorUserId: "42",
+        moderatorUsername: "modder",
+        reason: "kspam",
+        source: "local",
+      })
+    );
   });
 
   it("asks the user to reconnect Kick when delete lacks the chat moderation scope", async () => {
@@ -875,5 +932,58 @@ describe("KickChat", () => {
       deletedAt,
       deletedByUsername: "AutoMod",
     });
+  });
+
+  it("records an observed Kick timeout from the platform event without claiming archive coverage", () => {
+    const occurredAt = new Date("2026-06-29T17:45:00Z");
+    storeState.messagesByChannel["kick:xqc"] = [
+      {
+        id: "k-mod-msg",
+        platform: "kick",
+        type: "message",
+        channel: "xqc",
+        userId: "mod-1",
+        username: "kickmod",
+        displayName: "KickMod",
+        color: "#5B9BD5",
+        badges: [],
+        content: [{ type: "text", content: "rules" }],
+        rawContent: "rules",
+        timestamp: occurredAt,
+        isDeleted: false,
+        isHighlighted: false,
+        isAction: false,
+      },
+    ];
+    renderKickChat(<KickChat channel="xqc" channelId="channel-123" chatroomId={12345} />);
+
+    act(() => {
+      mockServiceHandlers.clearChat?.({
+        platform: "kick",
+        channel: "xqc",
+        targetUserId: "u1",
+        targetUsername: "spammer",
+        bannedByUsername: "KickMod",
+        duration: 600,
+        isClearAll: false,
+        timestamp: occurredAt,
+      });
+    });
+
+    expect(recordModActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: "kick",
+        channelId: "channel-123",
+        channelSlug: "xqc",
+        action: "timeout",
+        targetUserId: "u1",
+        targetUsername: "spammer",
+        moderatorUserId: "mod-1",
+        moderatorUsername: "kickmod",
+        durationSeconds: 600,
+        occurredAt: occurredAt.getTime(),
+        source: "pusher",
+      })
+    );
   });
 });

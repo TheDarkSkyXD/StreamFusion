@@ -3,9 +3,13 @@ import {
   Copy,
   ExternalLink,
   Languages,
+  LayoutDashboard,
+  LockKeyhole,
   MessageSquareText,
   Radio,
+  RefreshCw,
   Reply,
+  Shield,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -21,16 +25,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useModerationAuthority } from "@/hooks/useModerationAuthority";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
+import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 import {
   reconcileSelectedMessage,
   selectLatestAuthoredMessage,
   selectRecentUserMessages,
 } from "@/store/user-popout-chat-context";
-
+import { UserModHistory } from "./UserModHistory";
 import { UserProfileHeader } from "./UserProfileHeader";
 import { useUserProfile } from "./useUserProfile";
 
@@ -111,6 +117,9 @@ export function UserPopout({
   onOpenChange,
 }: UserPopoutProps) {
   const profileState = useUserProfile(userId, platform, channelId, username, channelSlug);
+  const moderationAuthority = useModerationAuthority(platform, channelId, channelSlug);
+  const reconnectPhase = useReconnectDialogStore((state) => state.phase);
+  const reconnectBusy = reconnectPhase === "submitting" || reconnectPhase === "revalidating";
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);
   const chatDisplay =
@@ -224,12 +233,23 @@ export function UserPopout({
           ? "Follow relationship is unavailable."
           : "",
     channel.state === "failed" || channel.state === "unavailable" ? "Channel is unavailable." : "",
+    moderationAuthority.state === "reconnect-required"
+      ? `Reconnect ${platformLabel} to verify moderation permissions.`
+      : moderationAuthority.state === "unverifiable"
+        ? "Moderation access could not be verified."
+        : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && reconnectBusy) return;
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent
         hideCloseButton
         className={`flex w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 overflow-hidden border-[var(--color-border)] bg-[#0f0f0f] p-0 shadow-2xl ${
@@ -237,6 +257,8 @@ export function UserPopout({
         }`}
         data-testid="user-popout"
         data-compact={compact ? "true" : "false"}
+        data-reconnect-locked={reconnectBusy ? "true" : "false"}
+        aria-busy={reconnectBusy}
       >
         <DialogHeader className="shrink-0 border-b border-[var(--color-border)] px-5 py-5 pr-14 text-left">
           <DialogTitle className="sr-only">User profile: {username}</DialogTitle>
@@ -257,7 +279,10 @@ export function UserPopout({
           />
           <Tooltip>
             <TooltipTrigger asChild>
-              <DialogClose className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+              <DialogClose
+                disabled={reconnectBusy}
+                className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
                 <X className="h-5 w-5" aria-hidden />
                 <span className="sr-only">Close</span>
               </DialogClose>
@@ -331,6 +356,95 @@ export function UserPopout({
               </ul>
             )}
           </section>
+          {moderationAuthority.state === "authorized" ? (
+            <section
+              className="mt-5 border-t border-white/10 pt-4"
+              aria-labelledby="moderation-history-heading"
+            >
+              <h3
+                id="moderation-history-heading"
+                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
+              >
+                <Shield className="h-4 w-4" aria-hidden />
+                Moderation history
+              </h3>
+              <p className="mb-3 mt-1 text-xs text-[var(--color-foreground-muted)]">
+                Platform actions available to StreamFusion
+              </p>
+              <UserModHistory
+                platform={platform}
+                channelId={channelId}
+                channelSlug={channelSlug}
+                targetUserId={userId}
+                limit={5}
+              />
+              <button
+                type="button"
+                className="mt-3 inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                onClick={() => {
+                  window.location.hash = `/mod/${platform}/${encodeURIComponent(channelSlug)}`;
+                  onOpenChange(false);
+                }}
+              >
+                <LayoutDashboard className="h-4 w-4" aria-hidden />
+                View all in Mod Dashboard
+              </button>
+            </section>
+          ) : moderationAuthority.state === "reconnect-required" ? (
+            <section
+              className="mt-5 border-t border-white/10 pt-4"
+              aria-labelledby="moderation-reconnect-heading"
+              data-testid="moderation-reconnect-required"
+            >
+              <h3
+                id="moderation-reconnect-heading"
+                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
+              >
+                <Shield className="h-4 w-4" aria-hidden />
+                Moderation
+              </h3>
+              <div className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/5 p-3">
+                <p className="flex items-center gap-2 text-sm font-medium text-white">
+                  <LockKeyhole className="h-4 w-4 text-amber-200" aria-hidden />
+                  Reconnect {platformLabel}
+                </p>
+                <p className="mt-1 text-xs text-[var(--color-foreground-muted)]">
+                  Add the missing permissions in one {platformLabel} consent flow to verify
+                  moderation access and load available history.
+                </p>
+                <button
+                  type="button"
+                  className="mt-3 inline-flex h-8 items-center gap-2 rounded-md bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  onClick={moderationAuthority.reconnect}
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden />
+                  Reconnect {platformLabel}
+                </button>
+              </div>
+            </section>
+          ) : moderationAuthority.state === "unverifiable" ? (
+            <section
+              className="mt-5 border-t border-white/10 pt-4"
+              aria-labelledby="moderation-unverifiable-heading"
+              data-testid="moderation-unverifiable"
+            >
+              <h3
+                id="moderation-unverifiable-heading"
+                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
+              >
+                <Shield className="h-4 w-4" aria-hidden />
+                Moderation
+              </h3>
+              <button
+                type="button"
+                className="mt-2 inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                onClick={moderationAuthority.retry}
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden />
+                Couldn’t verify · Retry
+              </button>
+            </section>
+          ) : null}
         </div>
 
         <DialogFooter
@@ -431,7 +545,8 @@ export function UserPopout({
           <DialogClose asChild>
             <button
               type="button"
-              className="h-9 rounded-md bg-[var(--color-background-tertiary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-background-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              disabled={reconnectBusy}
+              className="h-9 rounded-md bg-[var(--color-background-tertiary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-background-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               Close
             </button>
