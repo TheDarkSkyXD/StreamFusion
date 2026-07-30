@@ -1,6 +1,16 @@
-import { Check, ExternalLink, MessageSquareText, X } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Languages,
+  MessageSquareText,
+  Radio,
+  Reply,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessage as ChatMessageRow } from "@/components/chat/ChatMessage";
+import type { ChatSendEligibility } from "@/components/chat/chat-send-eligibility";
 import {
   Dialog,
   DialogClose,
@@ -11,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
@@ -22,6 +33,16 @@ import {
 
 import { UserProfileHeader } from "./UserProfileHeader";
 import { useUserProfile } from "./useUserProfile";
+
+export interface UserPopoutPublicActions {
+  /** Null means the guest viewer must not be offered Reply. */
+  replyEligibility: ChatSendEligibility | null;
+  onReply: (message: ChatMessage) => void;
+  onViewChannel: (
+    platform: "twitch" | "kick",
+    channel: { id: string; username: string; displayName: string }
+  ) => void;
+}
 
 export interface UserPopoutProps {
   userId: string;
@@ -38,11 +59,30 @@ export interface UserPopoutProps {
     sourceLabel: string;
     retry: () => void;
   };
+  publicActions?: UserPopoutPublicActions;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
+
+function serializeVisibleMessageContent(message: ChatMessage): string {
+  return message.content
+    .map((fragment) => {
+      switch (fragment.type) {
+        case "text":
+          return fragment.content;
+        case "emote":
+        case "cheermote":
+          return fragment.name;
+        case "mention":
+          return `@${fragment.username.replace(/^@+/, "")}`;
+        case "link":
+          return fragment.text;
+      }
+    })
+    .join("");
+}
 
 function useCompactDialog(): boolean {
   const [compact, setCompact] = useState(
@@ -66,13 +106,17 @@ export function UserPopout({
   channelSlug,
   openingMessage,
   badgeCatalog,
+  publicActions,
   open,
   onOpenChange,
 }: UserPopoutProps) {
   const profileState = useUserProfile(userId, platform, channelId, username, channelSlug);
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);
+  const chatDisplay =
+    useAuthStore((state) => state.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const compact = useCompactDialog();
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const { identity, accountCreated, follow, channel } = profileState;
   const renderedIdentity =
     identity.state === "known" && platform === "kick"
@@ -109,6 +153,18 @@ export function UserPopout({
     () => reconcileSelectedMessage(selectedSnapshot, messages),
     [messages, selectedSnapshot]
   );
+  const copyableSelectedMessage =
+    selectedMessage && (!selectedMessage.isDeleted || chatDisplay.showClearMsg)
+      ? selectedMessage
+      : null;
+  const selectedVisibleContent =
+    copyableSelectedMessage?.isDeleted &&
+    (chatDisplay.deletedMessageDisplay === "tombstone" ||
+      copyableSelectedMessage.content.length === 0)
+      ? "Message deleted"
+      : copyableSelectedMessage
+        ? serializeVisibleMessageContent(copyableSelectedMessage)
+        : null;
   const latestAuthoredMessage = useMemo(
     () => selectLatestAuthoredMessage({ [channelKey]: messages }, channelKey, { userId, username }),
     [channelKey, messages, userId, username]
@@ -278,14 +334,73 @@ export function UserPopout({
         </div>
 
         <DialogFooter
-          className="shrink-0 flex-row items-center justify-between border-t border-[var(--color-border)] px-5 py-3"
+          className="shrink-0 flex-row flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] px-5 py-3"
           data-testid="user-popout-selected-footer"
           data-selected-message-id={selectedMessage?.id}
           data-selected-author-id={selectedMessage?.userId}
           data-selected-platform={selectedMessage?.platform}
           data-selected-channel={selectedMessage?.channel}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedMessage && publicActions?.replyEligibility ? (
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={publicActions.replyEligibility.state === "ineligible"}
+                title={
+                  publicActions.replyEligibility.state === "ineligible"
+                    ? publicActions.replyEligibility.reason
+                    : undefined
+                }
+                onClick={() => publicActions.onReply(selectedMessage)}
+              >
+                <Reply className="h-4 w-4" aria-hidden />
+                Reply
+              </button>
+            ) : null}
+            {copyableSelectedMessage && selectedVisibleContent !== null ? (
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(selectedVisibleContent)
+                    .then(() => setCopyStatus("copied"))
+                    .catch(() => setCopyStatus("failed"));
+                }}
+              >
+                <Copy className="h-4 w-4" aria-hidden />
+                Copy
+              </button>
+            ) : null}
+            <span className="sr-only" aria-live="polite">
+              {copyStatus === "copied"
+                ? "Message copied"
+                : copyStatus === "failed"
+                  ? "Couldn’t copy message"
+                  : ""}
+            </span>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-white opacity-50"
+              disabled
+            >
+              <Languages className="h-4 w-4" aria-hidden />
+              Translate · Coming Soon
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!resolvedChannel || !publicActions}
+              onClick={() => {
+                if (resolvedChannel && publicActions) {
+                  publicActions.onViewChannel(platform, resolvedChannel);
+                }
+              }}
+            >
+              <Radio className="h-4 w-4" aria-hidden />
+              View Channel
+            </button>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -300,14 +415,16 @@ export function UserPopout({
               <TooltipContent>Open on {platformLabel}</TooltipContent>
             </Tooltip>
             {channel.state === "loading" ? (
-              <span className="text-xs text-[var(--color-foreground-muted)]">Channel loading…</span>
+              <span className="text-xs text-[var(--color-foreground-muted)]">
+                Verifying channel…
+              </span>
             ) : channel.state !== "known" ? (
               <button
                 type="button"
                 className="rounded text-xs text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 onClick={profileState.retryChannel}
               >
-                Channel unavailable · Retry
+                Couldn’t verify · Retry
               </button>
             ) : null}
           </div>

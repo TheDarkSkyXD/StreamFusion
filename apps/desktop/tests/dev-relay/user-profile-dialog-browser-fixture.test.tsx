@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UserPopout } from "@/components/chat/mod/UserPopout/UserPopout";
@@ -9,6 +9,7 @@ import type { ChatMessage } from "@/shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 function renderFixture(search: string) {
+  const actionState = new URLSearchParams(search).get("actionState");
   const openingMessage: ChatMessage = {
     id: "browser-fixture-message",
     platform: "twitch",
@@ -101,6 +102,16 @@ function renderFixture(search: string) {
             sourceLabel: "Twitch · Live chat",
             retry: vi.fn(),
           }}
+          publicActions={{
+            replyEligibility:
+              actionState === "guest"
+                ? null
+                : actionState === "ineligible"
+                  ? { state: "ineligible", reason: "Followers-only chat is enabled" }
+                  : { state: "eligible" },
+            onReply: vi.fn(),
+            onViewChannel: vi.fn(),
+          }}
           open
           onOpenChange={() => undefined}
         />
@@ -135,7 +146,11 @@ describe("browser user-profile fixture", () => {
     const accountRetry = (
       await screen.findAllByRole("button", { name: "Couldn’t verify · Retry" })
     )[0];
-    const channelRetry = await screen.findByRole("button", { name: "Channel unavailable · Retry" });
+    const channelRetry = await within(screen.getByTestId("user-popout-selected-footer")).findByRole(
+      "button",
+      { name: "Couldn’t verify · Retry" }
+    );
+    expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Open alice on Twitch" })).toBeInTheDocument();
 
     fireEvent.click(accountRetry);
@@ -164,5 +179,26 @@ describe("browser user-profile fixture", () => {
       "data-selected-message-id",
       "browser-fixture-message"
     );
+  });
+
+  it.each([
+    ["", "enabled"],
+    ["?actionState=ineligible", "disabled"],
+    ["?actionState=guest", "hidden"],
+  ] as const)("renders the %s Reply fixture state as %s", async (search, expected) => {
+    renderFixture(search);
+
+    await screen.findByRole("heading", { name: "Alice" });
+    const reply = screen.queryByRole("button", { name: "Reply" });
+    if (expected === "hidden") {
+      expect(reply).toBeNull();
+    } else if (expected === "disabled") {
+      expect(reply).toBeDisabled();
+      expect(reply).toHaveAttribute("title", "Followers-only chat is enabled");
+    } else {
+      expect(reply).toBeEnabled();
+    }
+    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Translate · Coming Soon" })).toBeDisabled();
   });
 });

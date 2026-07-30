@@ -58,6 +58,7 @@ import {
   getContextualEmoteMatch,
   useContextualEmoteMode,
 } from "./ContextualEmoteRow";
+import { type ChatSendEligibility, resolveChatSendEligibility } from "./chat-send-eligibility";
 import { InfoBanner } from "./InfoBanner";
 import { NativeEmoteButton } from "./input/NativeEmoteButton";
 import { QuickEmoteActionBar } from "./input/QuickEmoteActionBar";
@@ -102,6 +103,8 @@ export interface ChatInputProps {
   ) => Promise<SubscriberEligibilityResult>;
   /** Show a link to the current channel's moderation page beside chat settings. */
   showModViewLink?: boolean;
+  /** Publishes the composer-owned eligibility snapshot used by selected-message Reply. */
+  onSendEligibilityChange?: (eligibility: ChatSendEligibility) => void;
   /** Disabled state */
   disabled?: boolean;
   /** Custom class name */
@@ -720,6 +723,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       onOpenChannelPage,
       checkSubscriberEligibility,
       showModViewLink = false,
+      onSendEligibilityChange,
       disabled = false,
       className = "",
     },
@@ -752,6 +756,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     // Refs
     const editorRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const subscriberEligibilityContextRef = useRef("");
     const thirdPartyPopoverAnchorRef = useRef<HTMLElement | null>(null);
     const settingsButtonRef = useRef<HTMLButtonElement>(null);
     const messageRef = useRef(message);
@@ -780,6 +785,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       }),
       [channel, channelId, platform]
     );
+    const subscriberEligibilityContext = `${platform}:${channelId ?? ""}:${channel}`;
+    useLayoutEffect(() => {
+      subscriberEligibilityContextRef.current = subscriberEligibilityContext;
+    }, [subscriberEligibilityContext]);
     const viewerFollowsChannel = useMemo(() => {
       if (!viewerIsAuthenticated) return false;
       const matchingFollow = localFollows.find((follow) => channelsMatch(follow, currentChannel));
@@ -834,6 +843,42 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                       action: null,
                     }
                   : null);
+    const proactiveRoomRestrictionReason =
+      !viewerCanBypassRoomModes &&
+      roomState.followersOnly !== null &&
+      roomState.followersOnly >= 0 &&
+      !viewerFollowsChannel
+        ? "Followers-only chat is enabled"
+        : !viewerCanBypassRoomModes &&
+            platform === "twitch" &&
+            roomState.twitchVerification !== null
+          ? "Verify your Twitch account to chat"
+          : undefined;
+    const sendEligibility = useMemo(
+      () =>
+        resolveChatSendEligibility({
+          isAuthenticated: viewerIsAuthenticated,
+          canSend,
+          disabled,
+          roomRestrictionReason:
+            roomBlockerCopy?.message ??
+            (slowModeRemainingSeconds > 0 && !viewerCanBypassRoomModes
+              ? `Slow mode active. Wait ${formatSlowModeWait(slowModeRemainingSeconds)}.`
+              : proactiveRoomRestrictionReason),
+        }),
+      [
+        canSend,
+        disabled,
+        proactiveRoomRestrictionReason,
+        roomBlockerCopy?.message,
+        slowModeRemainingSeconds,
+        viewerCanBypassRoomModes,
+        viewerIsAuthenticated,
+      ]
+    );
+    useEffect(() => {
+      onSendEligibilityChange?.(sendEligibility);
+    }, [onSendEligibilityChange, sendEligibility]);
     const roomModeCoveredByInfoBanner =
       (activeRoomBlocker === "followersOnly" &&
         roomState.followersOnly !== null &&
@@ -1002,12 +1047,16 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       ]
     );
 
-    const getSubscriberSendBlocker = useCallback(async (): Promise<RoomSendBlockerKind | null> => {
+    const getSubscriberSendBlocker = useCallback(async (): Promise<
+      RoomSendBlockerKind | "stale" | null
+    > => {
       if (viewerCanBypassRoomModes || !roomState.subscribersOnly || !checkSubscriberEligibility) {
         return null;
       }
 
+      const requestedContext = subscriberEligibilityContextRef.current;
       const result = await checkSubscriberEligibility({ platform, channel, channelId });
+      if (subscriberEligibilityContextRef.current !== requestedContext) return "stale";
       if (result.status === "notSubscribed") return "subscribersOnly";
       if (result.status === "missingScopes") return "twitchSubscriptionScopes";
       return null;
@@ -1364,6 +1413,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           return;
         }
         const subscriberBlocker = await getSubscriberSendBlocker();
+        if (subscriberBlocker === "stale") return;
         if (subscriberBlocker) {
           showRoomSendBlocker(subscriberBlocker);
           return;
@@ -1453,6 +1503,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         return;
       }
       const subscriberBlocker = await getSubscriberSendBlocker();
+      if (subscriberBlocker === "stale") return;
       if (subscriberBlocker) {
         showRoomSendBlocker(subscriberBlocker);
         return;

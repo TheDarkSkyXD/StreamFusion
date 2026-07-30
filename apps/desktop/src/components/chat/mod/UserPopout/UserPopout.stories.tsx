@@ -133,6 +133,11 @@ const meta = {
       sourceLabel: "Twitch · Live chat",
       retry: fn(),
     },
+    publicActions: {
+      replyEligibility: { state: "eligible" },
+      onReply: fn(),
+      onViewChannel: fn(),
+    },
     open: true,
     onOpenChange: fn(),
   },
@@ -142,3 +147,26 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const TwitchUser: Story = {};
+
+export const GuestActions: Story = {
+  args: {
+    publicActions: {
+      replyEligibility: null,
+      onReply: fn(),
+      onViewChannel: fn(),
+    },
+  },
+};
+
+export const IneligibleReply: Story = {
+  args: {
+    publicActions: {
+      replyEligibility: {
+        state: "ineligible",
+        reason: "Followers-only chat is enabled",
+      },
+      onReply: fn(),
+      onViewChannel: fn(),
+    },
+  },
+};

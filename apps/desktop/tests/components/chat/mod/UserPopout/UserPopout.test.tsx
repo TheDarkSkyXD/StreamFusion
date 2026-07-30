@@ -16,7 +16,7 @@ vi.mock("@/hooks/useModLog", () => ({
   useModLog: () => ({ entries: [], loading: false }),
 }));
 
-import { UserPopout } from "@/components/chat/mod/UserPopout/UserPopout";
+import { UserPopout, type UserPopoutProps } from "@/components/chat/mod/UserPopout/UserPopout";
 import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
@@ -55,6 +55,10 @@ beforeEach(() => {
     openExternal: vi.fn(),
     auth: { getToken: vi.fn().mockResolvedValue(null) },
   };
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
 });
 
 function makeMessage(id: string, channel: string, rawContent: string): ChatMessage {
@@ -87,7 +91,8 @@ function renderPopout(
     state: "loading" | "ready" | "failed";
     sourceLabel: string;
     retry: () => void;
-  }
+  },
+  publicActions?: UserPopoutProps["publicActions"]
 ) {
   return render(
     <TooltipProvider>
@@ -100,6 +105,7 @@ function renderPopout(
         channelSlug="streamer"
         openingMessage={openingMessage}
         badgeCatalog={badgeCatalog}
+        publicActions={publicActions}
         open={open}
         onOpenChange={() => {}}
       />
@@ -114,6 +120,232 @@ function renderPopout(
 // Guards: Exact selected-message targets survive live insertion/pruning and change only deliberately.
 // Guards: Live matching inserts respect reduced motion and badge catalog states stay independently truthful.
 describe("UserPopout", () => {
+  it("exposes the complete authenticated selected-message public action footer", () => {
+    const openingMessage = makeMessage("selected", "streamer", "hello Kappa");
+    const onReply = vi.fn();
+    const onViewChannel = vi.fn();
+    mockedUseUserProfile.mockReturnValue({
+      ...pendingProfileState(),
+      channel: {
+        state: "known",
+        source: "official",
+        value: { id: "u1", username: "alice", displayName: "Alice" },
+      },
+    });
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [openingMessage],
+      },
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", openingMessage, undefined, {
+      replyEligibility: { state: "eligible" },
+      onReply,
+      onViewChannel,
+    });
+
+    expect(screen.getByRole("button", { name: "Reply" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Translate · Coming Soon" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "View Channel" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Open Alice on Twitch" })).toBeEnabled();
+  });
+
+  it("copies only the deliberately selected row's visible rich content and confirms success", async () => {
+    const openingMessage: ChatMessage = {
+      ...makeMessage("selected", "streamer", "raw content must not be copied"),
+      content: [
+        { type: "text", content: "Hello " },
+        {
+          type: "emote",
+          id: "25",
+          name: "Kappa",
+          url: "https://example.com/kappa.png",
+        },
+        { type: "text", content: " " },
+        { type: "mention", username: "bob" },
+        { type: "text", content: " " },
+        { type: "link", url: "https://example.com/hidden-target", text: "visible link" },
+        { type: "text", content: " " },
+        {
+          type: "cheermote",
+          id: "cheer100",
+          name: "Cheer100",
+          url: "https://example.com/cheer100.png",
+          bits: 100,
+        },
+      ],
+    };
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [openingMessage],
+      },
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", openingMessage);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+
+    await waitFor(() =>
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        "Hello Kappa @bob visible link Cheer100"
+      )
+    );
+    expect(screen.getByText("Message copied")).toBeInTheDocument();
+    expect(screen.getByTestId("user-popout")).toBeInTheDocument();
+  });
+
+  it("copies a deleted tombstone instead of retained hidden content and removes Copy when deleted rows are hidden", async () => {
+    const deleted = {
+      ...makeMessage("deleted", "streamer", "private retained content"),
+      isDeleted: true,
+      content: [{ type: "text" as const, content: "private retained content" }],
+    };
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [deleted],
+      },
+    });
+    useAuthStore.setState((state) => ({
+      preferences: {
+        ...(state.preferences ?? {}),
+        chatDisplay: {
+          ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+          deletedMessageDisplay: "tombstone",
+          showClearMsg: true,
+        },
+      } as typeof state.preferences,
+    }));
+
+    const { unmount } = renderPopout(true, "twitch", undefined, "alice", deleted);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() =>
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Message deleted")
+    );
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalledWith("private retained content");
+    unmount();
+
+    useAuthStore.setState((state) => ({
+      preferences: {
+        ...(state.preferences ?? {}),
+        chatDisplay: {
+          ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+          showClearMsg: false,
+        },
+      } as typeof state.preferences,
+    }));
+    renderPopout(true, "twitch", undefined, "alice", deleted);
+
+    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+  });
+
+  it("hides Reply for guests, exposes the shared disabled reason for ineligible viewers, and omits message actions without a selection", () => {
+    const openingMessage = makeMessage("selected", "streamer", "selected");
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [openingMessage],
+      },
+    });
+
+    const { unmount } = renderPopout(
+      true,
+      "twitch",
+      undefined,
+      "alice",
+      openingMessage,
+      undefined,
+      {
+        replyEligibility: null,
+        onReply: vi.fn(),
+        onViewChannel: vi.fn(),
+      }
+    );
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+    unmount();
+
+    renderPopout(true, "twitch", undefined, "alice", openingMessage, undefined, {
+      replyEligibility: {
+        state: "ineligible",
+        reason: "Followers-only chat is enabled",
+      },
+      onReply: vi.fn(),
+      onViewChannel: vi.fn(),
+    });
+    expect(screen.getByRole("button", { name: "Reply" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reply" })).toHaveAttribute(
+      "title",
+      "Followers-only chat is enabled"
+    );
+  });
+
+  it("omits Reply and Copy when no message is selected", () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+
+    renderPopout(true, "twitch", undefined, "alice", undefined, undefined, {
+      replyEligibility: { state: "eligible" },
+      onReply: vi.fn(),
+      onViewChannel: vi.fn(),
+    });
+
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+  });
+
+  it("keeps profile navigation on the clicked chatter while Reply and Copy target the selected true author", async () => {
+    const alice = makeMessage("alice-message", "streamer", "Alice authored");
+    const bobReply: ChatMessage = {
+      ...makeMessage("bob-reply", "streamer", "Bob selected"),
+      userId: "u2",
+      username: "bob",
+      displayName: "Bob",
+      content: [{ type: "text", content: "Bob selected" }],
+      replyTo: {
+        parentMessageId: alice.id,
+        parentUserId: alice.userId,
+        parentUsername: alice.username,
+        parentDisplayName: alice.displayName,
+        parentMessageBody: alice.rawContent,
+      },
+    };
+    const onReply = vi.fn();
+    const onViewChannel = vi.fn();
+    mockedUseUserProfile.mockReturnValue({
+      ...pendingProfileState(),
+      channel: {
+        state: "known",
+        source: "official",
+        value: { id: "u1", username: "alice", displayName: "Alice" },
+      },
+    });
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [alice, bobReply],
+      },
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", bobReply, undefined, {
+      replyEligibility: { state: "eligible" },
+      onReply,
+      onViewChannel,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "View Channel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Alice on Twitch" }));
+
+    expect(onReply).toHaveBeenCalledWith(bobReply);
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Bob selected"));
+    expect(onViewChannel).toHaveBeenCalledWith("twitch", {
+      id: "u1",
+      username: "alice",
+      displayName: "Alice",
+    });
+    expect(window.electronAPI.openExternal).toHaveBeenCalledWith("https://www.twitch.tv/alice");
+  });
+
   it("keeps the verified-empty current-chat section visible with exact copy", () => {
     mockedUseUserProfile.mockReturnValue(pendingProfileState());
     useChatStore.setState({
@@ -334,7 +566,7 @@ describe("UserPopout", () => {
     expect(screen.getByText("Profile loading…")).toBeInTheDocument();
     expect(screen.getAllByText("Loading…").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Open alice on Twitch" })).toBeInTheDocument();
-    expect(screen.getByText("Channel loading…")).toBeInTheDocument();
+    expect(screen.getByText("Verifying channel…")).toBeInTheDocument();
   });
 
   it("keeps chat-known identity visible and offers Retry when identity cannot be verified", () => {
@@ -483,7 +715,7 @@ describe("UserPopout", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
   });
 
-  it("keeps channel loading and failure independent, then retries only the channel", () => {
+  it("keeps external navigation available while failed internal channel verification disables View Channel and offers Retry", () => {
     const retryChannel = vi.fn();
     mockedUseUserProfile.mockReturnValue({
       ...pendingProfileState(),
@@ -493,7 +725,8 @@ describe("UserPopout", () => {
 
     renderPopout();
     fireEvent.click(screen.getByRole("button", { name: "Open alice on Twitch" }));
-    fireEvent.click(screen.getByRole("button", { name: "Channel unavailable · Retry" }));
+    expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Couldn’t verify · Retry" }));
 
     expect(window.electronAPI.openExternal).toHaveBeenCalledWith("https://www.twitch.tv/alice");
     expect(retryChannel).toHaveBeenCalledOnce();
@@ -528,6 +761,35 @@ describe("UserPopout", () => {
     ).toBeInTheDocument();
   });
 
+  it("opens a verified Kick internal channel through the app action", () => {
+    const onViewChannel = vi.fn();
+    mockedUseUserProfile.mockReturnValue({
+      ...pendingProfileState(),
+      channel: {
+        state: "known",
+        source: "official",
+        value: {
+          id: "kick-user",
+          username: "antithesisofspace",
+          displayName: "AntithesisOfSpace",
+        },
+      },
+    });
+
+    renderPopout(true, "kick", undefined, "AntithesisOfSpace", undefined, undefined, {
+      replyEligibility: null,
+      onReply: vi.fn(),
+      onViewChannel,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "View Channel" }));
+
+    expect(onViewChannel).toHaveBeenCalledWith("kick", {
+      id: "kick-user",
+      username: "antithesisofspace",
+      displayName: "AntithesisOfSpace",
+    });
+  });
+
   it.each([
     "unavailable",
     "failed",
@@ -543,7 +805,8 @@ describe("UserPopout", () => {
     expect(window.electronAPI.openExternal).toHaveBeenCalledWith(
       "https://kick.com/antithesisofspace"
     );
-    expect(screen.getByRole("button", { name: "Channel unavailable · Retry" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Couldn’t verify · Retry" })).toBeEnabled();
   });
 
   it("preserves a chat-event Kick avatar when official enrichment has no avatar", () => {

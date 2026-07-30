@@ -20,11 +20,10 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { logger } from "@/renderer/logging/logger";
 import type { ChatMessage } from "@/shared/chat-types";
 
-import { UserPopout } from "./UserPopout";
+import { UserPopout, type UserPopoutPublicActions } from "./UserPopout";
 
 export interface BadgeCatalogContext {
   state: "loading" | "ready" | "failed";
@@ -57,9 +56,14 @@ const UserPopoutContext = createContext<UserPopoutContextValue | null>(null);
 export interface UserPopoutProviderProps {
   children: ReactNode;
   badgeCatalog?: BadgeCatalogContext;
+  publicActions?: UserPopoutPublicActions;
 }
 
-export function UserPopoutProvider({ children, badgeCatalog }: UserPopoutProviderProps) {
+export function UserPopoutProvider({
+  children,
+  badgeCatalog,
+  publicActions,
+}: UserPopoutProviderProps) {
   const [current, setCurrent] = useState<OpenUserPopoutPayload | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
@@ -89,6 +93,32 @@ export function UserPopoutProvider({ children, badgeCatalog }: UserPopoutProvide
     }, 0);
   }, []);
 
+  const closeForAction = useCallback(() => {
+    openerRef.current = null;
+    setCurrent(null);
+  }, []);
+
+  const dialogPublicActions = useMemo(
+    () =>
+      publicActions
+        ? {
+            replyEligibility: publicActions.replyEligibility,
+            onReply: (message: ChatMessage) => {
+              closeForAction();
+              window.setTimeout(() => publicActions.onReply(message), 0);
+            },
+            onViewChannel: (
+              platform: "twitch" | "kick",
+              channel: { id: string; username: string; displayName: string }
+            ) => {
+              closeForAction();
+              window.setTimeout(() => publicActions.onViewChannel(platform, channel), 0);
+            },
+          }
+        : undefined,
+    [closeForAction, publicActions]
+  );
+
   const value = useMemo<UserPopoutContextValue>(
     () => ({ openUserPopout, current, close }),
     [openUserPopout, current, close]
@@ -111,6 +141,7 @@ export function UserPopoutProvider({ children, badgeCatalog }: UserPopoutProvide
           kickChatroomId={current.kickChatroomId}
           openingMessage={current.openingMessage}
           badgeCatalog={badgeCatalog}
+          publicActions={dialogPublicActions}
           open={true}
           onOpenChange={(open) => {
             if (!open) close();

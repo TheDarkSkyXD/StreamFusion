@@ -6,6 +6,7 @@ import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
 import { logger } from "@/renderer/logging/logger";
+import { router } from "@/routes/router";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import {
   type KickModResult,
@@ -43,6 +44,7 @@ import { useRenderCount } from "../../dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
+import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
@@ -474,6 +476,22 @@ export const KickChat: React.FC<KickChatProps> = ({
   const [showPoll, setShowPoll] = useState(true);
   const [isPollExpanded, setIsPollExpanded] = useState(false);
   const chatInputRef = useRef<ChatInputHandle>(null);
+  const [sendEligibility, setSendEligibility] = useState<ChatSendEligibility>(() =>
+    resolveChatSendEligibility({
+      isAuthenticated,
+      canSend: isAuthenticated && isKickConnected,
+      disabled: false,
+    })
+  );
+  const handleSendEligibilityChange = useCallback((next: ChatSendEligibility) => {
+    setSendEligibility((current) =>
+      current.state === next.state &&
+      (current.state === "eligible" ||
+        (next.state === "ineligible" && current.reason === next.reason))
+        ? current
+        : next
+    );
+  }, []);
   // Auto-dismiss ended poll after 15 s; cancels on follow-up poll or unmount.
   const pollTimer = useManagedTimeout(useCallback(() => setActivePoll(null), []));
   // Latest subscriber badges, mirrored from the prop so the history-fetch
@@ -1057,6 +1075,23 @@ export const KickChat: React.FC<KickChatProps> = ({
   const handleReply = useCallback((message: ChatMessage) => {
     chatInputRef.current?.replyTo(message);
   }, []);
+  const handleViewUserChannel = useCallback(
+    (platform: "twitch" | "kick", resolved: { username: string }) => {
+      void router.navigate({
+        to: "/stream/$platform/$channel",
+        params: { platform, channel: resolved.username },
+      });
+    },
+    []
+  );
+  const userPopoutPublicActions = useMemo(
+    () => ({
+      replyEligibility: isAuthenticated ? sendEligibility : null,
+      onReply: handleReply,
+      onViewChannel: handleViewUserChannel,
+    }),
+    [handleReply, handleViewUserChannel, isAuthenticated, sendEligibility]
+  );
 
   // Stable callbacks for PredictionBanner — see TwitchChat for context.
   const handlePredictionAutoDismiss = useCallback(() => {
@@ -1215,6 +1250,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               window.electronAPI.chat.checkSubscriberEligibility(request)
             }
             showModViewLink={isAuthenticated && isMod}
+            onSendEligibilityChange={handleSendEligibilityChange}
           />
         </div>
       </div>
@@ -1223,6 +1259,7 @@ export const KickChat: React.FC<KickChatProps> = ({
 
   return (
     <UserPopoutProvider
+      publicActions={userPopoutPublicActions}
       badgeCatalog={{
         state: badgeCatalogState,
         sourceLabel: "Kick · Live chat",

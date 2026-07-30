@@ -233,14 +233,14 @@ vi.mock("@/components/chat/MentionAutocomplete", () => {
   };
 });
 
+import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickChatSendError, kickChatService } from "@/backend/services/chat/kick-chat";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
 import { ChatInput, type ChatInputHandle } from "@/components/chat/ChatInput";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useFollowStore } from "@/store/follow-store";
 import type { ChatMessage } from "@/shared/chat-types";
+import { useFollowStore } from "@/store/follow-store";
 import { useRoomStateStore } from "@/store/room-state-store";
 
 beforeEach(() => {
@@ -687,15 +687,10 @@ describe("ChatInput — basics", () => {
       fireEvent.keyDown(editor, { key: "Enter" });
     });
 
-    expect(twitchChatService.sendReply).toHaveBeenCalledWith(
-      "ninja",
-      "m1",
-      "@alice reply draft",
-      [
-        { type: "mention", username: "alice" },
-        { type: "text", content: " reply draft" },
-      ]
-    );
+    expect(twitchChatService.sendReply).toHaveBeenCalledWith("ninja", "m1", "@alice reply draft", [
+      { type: "mention", username: "alice" },
+      { type: "text", content: " reply draft" },
+    ]);
   });
 
   // Guards: reply sends must include the visible @username in both the wire message and optimistic echo; otherwise it only appears after chat refresh.
@@ -758,6 +753,48 @@ describe("ChatInput — basics", () => {
 
 // Guards: room-state send blockers must preserve draft editing and reuse the existing InfoBanner surface.
 describe("ChatInput — room-state send blockers", () => {
+  it("publishes the same reactive send eligibility consumed by selected-message Reply", async () => {
+    const onSendEligibilityChange = vi.fn();
+    const { rerender } = renderInput({
+      isAuthenticated: true,
+      canSend: false,
+      onSendEligibilityChange,
+    });
+
+    await waitFor(() =>
+      expect(onSendEligibilityChange).toHaveBeenLastCalledWith({
+        state: "ineligible",
+        reason: "Chat is reconnecting",
+      })
+    );
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="ninja"
+          platform="twitch"
+          channelId="12345"
+          isAuthenticated
+          canSend
+          onSendEligibilityChange={onSendEligibilityChange}
+        />
+      </TooltipProvider>
+    );
+    await waitFor(() =>
+      expect(onSendEligibilityChange).toHaveBeenLastCalledWith({ state: "eligible" })
+    );
+
+    act(() => {
+      useRoomStateStore.getState().updateRoomState("twitch", "12345", { followersOnly: 10 });
+    });
+    await waitFor(() =>
+      expect(onSendEligibilityChange).toHaveBeenLastCalledWith({
+        state: "ineligible",
+        reason: "Followers-only chat is enabled",
+      })
+    );
+  });
+
   it("blocks follower-only sends without rendering a duplicate blocker row", async () => {
     infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Followers Only Mode</div>);
     useRoomStateStore.getState().updateRoomState("twitch", "12345", { followersOnly: 10 });
@@ -905,6 +942,46 @@ describe("ChatInput — room-state send blockers", () => {
 
 // Guards: subscriber-only preflight blocks only on definite platform results and keeps unknown states sendable.
 describe("ChatInput — subscriber-only preflight", () => {
+  it("discards a late subscriber result after the composer changes channels", async () => {
+    let resolveEligibility: ((result: { status: "notSubscribed" }) => void) | undefined;
+    const checkSubscriberEligibility = vi.fn(
+      () =>
+        new Promise<{ status: "notSubscribed" }>((resolve) => {
+          resolveEligibility = resolve;
+        })
+    );
+    useRoomStateStore.getState().updateRoomState("twitch", "12345", { subscribersOnly: true });
+    const { rerender } = renderInput({
+      isAuthenticated: true,
+      canSend: true,
+      checkSubscriberEligibility,
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "must not leak channels");
+
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await waitFor(() => expect(checkSubscriberEligibility).toHaveBeenCalledOnce());
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="shroud"
+          platform="twitch"
+          channelId="67890"
+          isAuthenticated
+          canSend
+          checkSubscriberEligibility={checkSubscriberEligibility}
+        />
+      </TooltipProvider>
+    );
+    await act(async () => {
+      resolveEligibility?.({ status: "notSubscribed" });
+    });
+
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("chat-send-blocker")).toBeNull();
+  });
+
   it("blocks Twitch subscriber-only sends when preflight says the viewer is not subscribed", async () => {
     infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Subscribers Only Mode</div>);
     const checkSubscriberEligibility = vi.fn(async () => ({ status: "notSubscribed" as const }));
@@ -936,7 +1013,12 @@ describe("ChatInput — subscriber-only preflight", () => {
     }));
     const onAuthRequired = vi.fn(async () => {});
     useRoomStateStore.getState().updateRoomState("twitch", "12345", { subscribersOnly: true });
-    renderInput({ isAuthenticated: true, canSend: true, checkSubscriberEligibility, onAuthRequired });
+    renderInput({
+      isAuthenticated: true,
+      canSend: true,
+      checkSubscriberEligibility,
+      onAuthRequired,
+    });
     const editor = getEditor();
     typeInEditor(editor, "scope check");
 
@@ -961,7 +1043,12 @@ describe("ChatInput — subscriber-only preflight", () => {
     infoBannerImpl.mockReturnValue(null);
     const checkSubscriberEligibility = vi.fn(async () => ({ status: "unknown" as const }));
     useRoomStateStore.getState().updateRoomState("kick", "12345", { subscribersOnly: true });
-    renderInput({ platform: "kick", isAuthenticated: true, canSend: true, checkSubscriberEligibility });
+    renderInput({
+      platform: "kick",
+      isAuthenticated: true,
+      canSend: true,
+      checkSubscriberEligibility,
+    });
     const editor = getEditor();
     typeInEditor(editor, "unknown should send");
 
@@ -987,7 +1074,12 @@ describe("ChatInput — subscriber-only preflight", () => {
     infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Subscribers Only Mode</div>);
     const checkSubscriberEligibility = vi.fn(async () => ({ status: "notSubscribed" as const }));
     useRoomStateStore.getState().updateRoomState("kick", "12345", { subscribersOnly: true });
-    renderInput({ platform: "kick", isAuthenticated: true, canSend: true, checkSubscriberEligibility });
+    renderInput({
+      platform: "kick",
+      isAuthenticated: true,
+      canSend: true,
+      checkSubscriberEligibility,
+    });
     const editor = getEditor();
     typeInEditor(editor, "kick sub check");
 
@@ -1217,9 +1309,7 @@ describe("ChatInput — slow-mode cooldown", () => {
       fireEvent.keyDown(editor, { key: "Enter" });
     });
 
-    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent(
-      "Slow mode active. Wait 7s."
-    );
+    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent("Slow mode active. Wait 7s.");
     expect(editor).toHaveTextContent("too fast");
   });
 });
@@ -1742,9 +1832,7 @@ describe("ChatInput — contextual emote row", () => {
   it("replaces the colon query and requires a subsequent Enter to send", async () => {
     const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProviderForChannel = (channelId: string) =>
-      channelId === "12345"
-        ? new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]])
-        : new Map();
+      channelId === "12345" ? new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]) : new Map();
     emoteStoreState.getEmotesByProvider = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
 

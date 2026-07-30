@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
@@ -26,6 +26,134 @@ import type { ChatMessage as ChatMessageType } from "@/shared/chat-types";
 
 // Guards: chat-known Kick display name and avatar survive the username-click boundary into the dialog.
 describe("Username user-popout wiring", () => {
+  it("restores the original chat opener after a normal Close", async () => {
+    render(
+      <TooltipProvider>
+        <UserPopoutProvider>
+          <Username
+            userId="clicked-user"
+            username="alice"
+            displayName="Alice"
+            platform="twitch"
+            currentChannelContext={{ channelId: "stream-id", channelSlug: "streamer" }}
+          />
+        </UserPopoutProvider>
+      </TooltipProvider>
+    );
+
+    const opener = screen.getByRole("button", { name: "Alice" });
+    opener.focus();
+    fireEvent.click(opener);
+    const closeButtons = screen.getAllByRole("button", { name: "Close" });
+    fireEvent.click(closeButtons[closeButtons.length - 1]);
+
+    await waitFor(() => expect(screen.queryByTestId("user-popout")).toBeNull());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it("closes for View Channel and navigates only with the known resolved profile channel", async () => {
+    vi.mocked(useUserProfile).mockReturnValueOnce({
+      profile: null,
+      loading: false,
+      error: null,
+      identity: { state: "loading" },
+      accountCreated: { state: "loading" },
+      follow: { state: "loading" },
+      channel: {
+        state: "known",
+        source: "official",
+        value: { id: "alice-id", username: "resolved-alice", displayName: "Alice" },
+      },
+      retryIdentity: vi.fn(),
+      retryAccountCreated: vi.fn(),
+      retryFollow: vi.fn(),
+      retryChannel: vi.fn(),
+    });
+    const onViewChannel = vi.fn();
+    render(
+      <TooltipProvider>
+        <UserPopoutProvider
+          publicActions={{
+            replyEligibility: null,
+            onReply: vi.fn(),
+            onViewChannel,
+          }}
+        >
+          <Username
+            userId="clicked-user"
+            username="alice"
+            displayName="Alice"
+            platform="twitch"
+            currentChannelContext={{ channelId: "stream-id", channelSlug: "streamer" }}
+          />
+        </UserPopoutProvider>
+      </TooltipProvider>
+    );
+
+    const opener = screen.getByRole("button", { name: "Alice" });
+    opener.focus();
+    fireEvent.click(opener);
+    fireEvent.click(screen.getByRole("button", { name: "View Channel" }));
+
+    await waitFor(() =>
+      expect(onViewChannel).toHaveBeenCalledWith("twitch", {
+        id: "alice-id",
+        username: "resolved-alice",
+        displayName: "Alice",
+      })
+    );
+    expect(screen.queryByTestId("user-popout")).toBeNull();
+    expect(opener).not.toHaveFocus();
+  });
+
+  it("closes for Reply without restoring the opener and forwards the exact selected message to the composer", async () => {
+    const openingMessage: ChatMessageType = {
+      id: "reply-target",
+      platform: "twitch",
+      channel: "streamer",
+      type: "message",
+      userId: "alice-id",
+      username: "alice",
+      displayName: "Alice",
+      color: "#fff",
+      badges: [],
+      content: [{ type: "text", content: "Exact reply target" }],
+      rawContent: "Exact reply target",
+      timestamp: new Date("2026-07-30T00:00:00Z"),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    };
+    const onReply = vi.fn(() => screen.getByTestId("composer").focus());
+
+    render(
+      <TooltipProvider>
+        <UserPopoutProvider
+          publicActions={{
+            replyEligibility: { state: "eligible" },
+            onReply,
+            onViewChannel: vi.fn(),
+          }}
+        >
+          <input data-testid="composer" />
+          <ChatMessage
+            message={openingMessage}
+            currentChannelContext={{ channelId: "stream-id", channelSlug: "streamer" }}
+          />
+        </UserPopoutProvider>
+      </TooltipProvider>
+    );
+
+    const opener = screen.getByRole("button", { name: "Alice" });
+    fireEvent.click(opener);
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(screen.queryByTestId("user-popout")).toBeNull();
+    await waitFor(() => expect(onReply).toHaveBeenCalledWith(openingMessage));
+    await waitFor(() => expect(screen.getByTestId("composer")).toHaveFocus());
+    expect(opener).not.toHaveFocus();
+  });
+
   it("passes the clicked chatter identity separately from the current channel", () => {
     render(
       <TooltipProvider>

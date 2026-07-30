@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
 import { logger } from "@/renderer/logging/logger";
+import { router } from "@/routes/router";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { UnifiedPrediction } from "@/shared/chat-types";
 import { getTwitchEventSubClient } from "../../../backend/api/platforms/twitch/twitch-eventsub-client";
@@ -63,6 +64,7 @@ import { useRenderCount } from "../../dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
+import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
@@ -494,6 +496,22 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const currentChannelRef = useRef<string | null>(null);
   // Imperative handle on ChatInput for regular chat reply/mention actions.
   const chatInputRef = useRef<ChatInputHandle>(null);
+  const [sendEligibility, setSendEligibility] = useState<ChatSendEligibility>(() =>
+    resolveChatSendEligibility({
+      isAuthenticated,
+      canSend: isAuthenticated && isTwitchConnected,
+      disabled: false,
+    })
+  );
+  const handleSendEligibilityChange = useCallback((next: ChatSendEligibility) => {
+    setSendEligibility((current) =>
+      current.state === next.state &&
+      (current.state === "eligible" ||
+        (next.state === "ineligible" && current.reason === next.reason))
+        ? current
+        : next
+    );
+  }, []);
   // Track channelId for emote cleanup
   const currentChannelIdRef = useRef<string | null>(null);
 
@@ -1137,6 +1155,23 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const handleReply = useCallback((message: ChatMessage) => {
     chatInputRef.current?.replyTo(message);
   }, []);
+  const handleViewUserChannel = useCallback(
+    (platform: "twitch" | "kick", resolved: { username: string }) => {
+      void router.navigate({
+        to: "/stream/$platform/$channel",
+        params: { platform, channel: resolved.username },
+      });
+    },
+    []
+  );
+  const userPopoutPublicActions = useMemo(
+    () => ({
+      replyEligibility: isAuthenticated ? sendEligibility : null,
+      onReply: handleReply,
+      onViewChannel: handleViewUserChannel,
+    }),
+    [handleReply, handleViewUserChannel, isAuthenticated, sendEligibility]
+  );
   const handlePinMessage = useCallback(
     async (message: ChatMessage, durationSeconds: number | null) => {
       const messageId = message.id;
@@ -1495,6 +1530,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               window.electronAPI.chat.checkSubscriberEligibility(request)
             }
             showModViewLink={isAuthenticated && isMod}
+            onSendEligibilityChange={handleSendEligibilityChange}
           />
         </div>
       </div>
@@ -1503,6 +1539,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
   return (
     <UserPopoutProvider
+      publicActions={userPopoutPublicActions}
       badgeCatalog={{
         state: badgeCatalogStatus,
         sourceLabel: "Twitch · Live chat",
