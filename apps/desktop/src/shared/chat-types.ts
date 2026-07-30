@@ -23,6 +23,18 @@ export interface ChatBadge {
   title: string;
 }
 
+export type TwitchBadgeCatalogSource = "gql" | "persisted-gql" | "helix";
+
+export interface TwitchBadgeCatalogSection {
+  badges: ChatBadge[];
+  source: TwitchBadgeCatalogSource;
+}
+
+export interface TwitchBadgeCatalog {
+  global: TwitchBadgeCatalogSection;
+  channel: TwitchBadgeCatalogSection;
+}
+
 export interface ChatUserPresentation {
   userId: string;
   username: string;

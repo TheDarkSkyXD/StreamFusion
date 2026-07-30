@@ -36,6 +36,7 @@ import type {
 import type {
   SubscriberEligibilityRequest,
   SubscriberEligibilityResult,
+  TwitchBadgeCatalog,
 } from "../shared/chat-types";
 import {
   type AppEnvironment,
@@ -676,6 +677,13 @@ const electronAPI = {
       data?: { rawMessages: string[] } | null;
       error?: string;
     }> => ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY, params),
+
+    getTwitchBadgeCatalog: (params: {
+      broadcasterId: string;
+      channelLogin: string;
+      forceRefresh?: boolean;
+    }): Promise<{ success: boolean; data?: TwitchBadgeCatalog; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_TWITCH_BADGE_CATALOG, params),
 
     /**
      * Twitch pinned-message GQL is routed through main so renderer DevTools do

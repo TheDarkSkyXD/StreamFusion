@@ -198,6 +198,7 @@ export const IPC_CHANNELS = {
   // ========== Chat ==========
   CHAT_GET_KICK_HISTORY: "chat:get-kick-history",
   CHAT_GET_TWITCH_HISTORY: "chat:get-twitch-history",
+  CHAT_GET_TWITCH_BADGE_CATALOG: "chat:get-twitch-badge-catalog",
   CHAT_GET_TWITCH_PINNED_MESSAGE: "chat:get-twitch-pinned-message",
   CHAT_ENRICH_MENTION_USERS: "chat:enrich-mention-users",
   CHAT_CHECK_SUBSCRIBER_ELIGIBILITY: "chat:check-subscriber-eligibility",
@@ -425,6 +426,11 @@ export interface IpcPayloads {
     users: Array<{ userId?: string; username: string }>;
   };
   [IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE]: { channel: string };
+  [IPC_CHANNELS.CHAT_GET_TWITCH_BADGE_CATALOG]: {
+    broadcasterId: string;
+    channelLogin: string;
+    forceRefresh?: boolean;
+  };
   [IPC_CHANNELS.CHAT_CHECK_SUBSCRIBER_ELIGIBILITY]: SubscriberEligibilityRequest;
   [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: {
     chatroomId: number;

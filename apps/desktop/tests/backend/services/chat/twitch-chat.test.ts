@@ -65,6 +65,7 @@ function makeFakeTmiClient(): typeof fakeClient {
 }
 
 // Guards: Twitch community gift USERNOTICE events emit an aggregate notice so the gifted-sub banner appears before recipient rows.
+// Guards: Anonymous Twitch viewers load badge catalogs through the Electron bridge without a renderer fetch or auth credentials.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
@@ -85,6 +86,7 @@ describe("TwitchChatService connect() single-flight", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    Reflect.deleteProperty(window, "electronAPI");
     useChatStore.setState({
       messagesByChannel: {},
       pausedChannels: new Set(),
@@ -226,38 +228,19 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(service.isModeratorIn("ninja")).toBe(false);
   });
 
-  it("keeps new auth credentials when already connected so channel subscriber badges can load", async () => {
+  it("keeps authenticated IRC join working when the badge bridge rejects", async () => {
+    const getTwitchBadgeCatalog = vi.fn(async () => {
+      throw new Error("badge transport unavailable");
+    });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { getTwitchBadgeCatalog } },
+    });
     const service = new TwitchChatService();
-
-    const connectPromise = service.connect({ anonymous: true });
-    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
-    await connectPromise;
-
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        data: [
-          {
-            set_id: "subscriber",
-            versions: [
-              {
-                id: "3",
-                image_url_1x: "https://static-cdn.jtvnw.net/badges/v1/custom-3/1",
-                image_url_2x: "https://static-cdn.jtvnw.net/badges/v1/custom-3/2",
-                image_url_4x: "https://static-cdn.jtvnw.net/badges/v1/custom-3/3",
-                title: "3-Month Subscriber",
-                description: "3-Month Subscriber",
-                click_action: null,
-                click_url: null,
-              },
-            ],
-          },
-        ],
-      }),
-    }));
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    await service.connect({
+    const connectPromise = service.connect({
       accessToken: "tok",
       clientId: "client-id",
       user: {
@@ -269,17 +252,64 @@ describe("TwitchChatService connect() single-flight", () => {
         broadcasterType: "",
       },
     });
-    await service.joinChannel("extraemily", "517475551");
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.twitch.tv/helix/chat/badges?broadcaster_id=517475551",
-      expect.objectContaining({
-        headers: {
-          Authorization: "Bearer tok",
-          "Client-Id": "client-id",
+    await expect(service.joinChannel("extraemily", "517475551")).resolves.toBeUndefined();
+
+    expect(getTwitchBadgeCatalog).toHaveBeenCalledTimes(1);
+    expect(fakeClient.join).toHaveBeenCalledWith("extraemily");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("loads and resolves the badge catalog through IPC for an anonymous viewer", async () => {
+    const getTwitchBadgeCatalog = vi.fn(async () => ({
+      success: true,
+      data: {
+        global: {
+          source: "gql" as const,
+          badges: [
+            {
+              setId: "moderator",
+              version: "1",
+              imageUrl:
+                "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3",
+              title: "Moderator",
+            },
+          ],
         },
-      })
-    );
+        channel: { source: "gql" as const, badges: [] },
+      },
+    }));
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { getTwitchBadgeCatalog } },
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new TwitchChatService();
+
+    await expect(service.loadChannelBadges("ninja", "111")).resolves.toBe(true);
+
+    expect(getTwitchBadgeCatalog).toHaveBeenCalledWith({
+      broadcasterId: "111",
+      channelLogin: "ninja",
+      forceRefresh: false,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      service.resolveChannelBadges("ninja", [
+        { setId: "moderator", version: "1", imageUrl: "", title: "" },
+      ])
+    ).toEqual([
+      {
+        setId: "moderator",
+        version: "1",
+        imageUrl:
+          "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3",
+        title: "Moderator",
+      },
+    ]);
   });
 
   it("applies live moderator status to immediate self-echo badges", async () => {

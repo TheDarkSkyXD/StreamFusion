@@ -43,6 +43,26 @@ describe("browser Electron API relay", () => {
     );
   });
 
+  it("forwards Twitch badge catalog requests through the development relay", async () => {
+    const result = {
+      success: true,
+      data: {
+        global: { source: "gql", badges: [] },
+        channel: { source: "persisted-gql", badges: [] },
+      },
+    };
+    const call = vi.fn(async () => result);
+    const api = createBrowserElectronApi({ call, subscribe: () => () => undefined });
+    const request = {
+      broadcasterId: "111",
+      channelLogin: "ninja",
+      forceRefresh: true,
+    };
+
+    await expect(api.chat.getTwitchBadgeCatalog(request)).resolves.toEqual(result);
+    expect(call).toHaveBeenCalledWith(["chat", "getTwitchBadgeCatalog"], [request]);
+  });
+
   it("relays Kick profile reads through the same production-shaped browser API", async () => {
     const result = {
       state: "known",

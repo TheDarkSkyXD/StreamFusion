@@ -666,8 +666,27 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     setActiveChannel,
   ]);
 
+  const refreshBadgeCatalog = useCallback(async (): Promise<boolean> => {
+    if (!channel || !channelId) return false;
+    try {
+      const loaded = await twitchChatService.loadChannelBadges(channel, channelId, {
+        forceRefresh: true,
+      });
+      if (loaded) {
+        useChatStore
+          .getState()
+          .rehydrateChannelBadges(channelKey, (badges) =>
+            twitchChatService.resolveChannelBadges(channel, badges)
+          );
+      }
+      return loaded;
+    } catch {
+      return false;
+    }
+  }, [channel, channelId, channelKey]);
+
   // Channel IDs can arrive after chat has already mounted. Loading badges here
-  // avoids a reconnect while still fixing future subscriber badge resolution.
+  // avoids a reconnect while still fixing retained and future badge resolution.
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the explicit user Retry signal.
   useEffect(() => {
     if (!channel || !channelId) {
@@ -676,34 +695,25 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     }
     if (!isTwitchConnected) {
       setBadgeCatalogStatus("loading");
-      void twitchChatService.loadChannelBadges(channel, channelId, { forceRefresh: true });
+      void refreshBadgeCatalog();
       return;
     }
     let active = true;
     setBadgeCatalogStatus("loading");
-    void twitchChatService
-      .loadChannelBadges(channel, channelId, { forceRefresh: true })
-      .then((loaded) => {
-        if (!active) return;
-        if (loaded) {
-          useChatStore
-            .getState()
-            .rehydrateChannelBadges(channelKey, (badges) =>
-              twitchChatService.resolveChannelBadges(channel, badges)
-            );
-        }
-        setBadgeCatalogStatus(loaded ? "ready" : "failed");
-      });
+    void refreshBadgeCatalog().then((loaded) => {
+      if (active) setBadgeCatalogStatus(loaded ? "ready" : "failed");
+    });
     return () => {
       active = false;
     };
-  }, [badgeCatalogRevision, channel, channelId, channelKey, isTwitchConnected]);
+  }, [badgeCatalogRevision, channel, channelId, isTwitchConnected, refreshBadgeCatalog]);
+
+  const refreshBadgeCatalogOnInterval = useCallback(() => {
+    void refreshBadgeCatalog();
+  }, [refreshBadgeCatalog]);
 
   useInterval(
-    () => {
-      if (!channel || !channelId) return;
-      void twitchChatService.loadChannelBadges(channel, channelId, { forceRefresh: true });
-    },
+    refreshBadgeCatalogOnInterval,
     channel && channelId ? TWITCH_BADGE_REFRESH_INTERVAL_MS : null
   );
 

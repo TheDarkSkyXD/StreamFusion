@@ -111,6 +111,62 @@ function makeEmoteMessage(id: string, platform: ChatPlatform = 'kick'): ChatMess
   };
 }
 
+// Guards: Badge refreshes update the canonical channel bucket, including retained messages outside the visible row window.
+// Guards: Rehydration preserves the selected-message action tuple while replacing stale badge presentation.
+describe('chat-store badge rehydration', () => {
+  beforeEach(() => resetStore());
+
+  it('rehydrates retained messages outside the visible ten without changing action identity', () => {
+    const channelKey = defaultChannelKey();
+    const messages = Array.from({ length: 12 }, (_, index) => ({
+      ...makeMessage(`message-${index}`),
+      badges: [
+        {
+          setId: 'subscriber',
+          version: String(index),
+          imageUrl: `https://old.example/badge-${index}.png`,
+          title: 'Old badge',
+        },
+      ],
+    }));
+    for (const message of messages) {
+      useChatStore.getState().addMessage(message);
+    }
+    const selectedBefore = messagesFor(channelKey)[0];
+    const actionIdentityBefore = {
+      id: selectedBefore.id,
+      platform: selectedBefore.platform,
+      channel: selectedBefore.channel,
+      userId: selectedBefore.userId,
+      rawContent: selectedBefore.rawContent,
+    };
+
+    useChatStore.getState().rehydrateChannelBadges(channelKey, (badges) =>
+      badges.map((badge) => ({
+        ...badge,
+        imageUrl: `https://new.example/${badge.setId}-${badge.version}.png`,
+        title: 'Subscriber',
+      }))
+    );
+
+    const retainedAfter = messagesFor(channelKey)[0];
+    expect(retainedAfter.badges[0]).toEqual({
+      setId: 'subscriber',
+      version: '0',
+      imageUrl: 'https://new.example/subscriber-0.png',
+      title: 'Subscriber',
+    });
+    expect({
+      id: retainedAfter.id,
+      platform: retainedAfter.platform,
+      channel: retainedAfter.channel,
+      userId: retainedAfter.userId,
+      rawContent: retainedAfter.rawContent,
+    }).toEqual(actionIdentityBefore);
+    expect(messagesFor(channelKey)).toHaveLength(12);
+  });
+});
+
 describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo race)', () => {
   beforeEach(() => resetStore());
 

@@ -33,10 +33,20 @@ vi.mock("@/backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
+vi.mock("@/backend/services/storage-service", () => ({
+  storageService: {
+    getToken: vi.fn(() => null),
+    getAppToken: vi.fn(() => null),
+    isTokenExpired: vi.fn(() => true),
+    isAppTokenExpired: vi.fn(() => true),
+  },
+}));
+
 import { ipcMain } from "electron";
 
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { registerChatHandlers } from "@/backend/ipc/handlers/chat-handlers";
+import { badgeResolver } from "@/backend/services/chat/badge-resolver";
 
 type Handler = (event: unknown, params: unknown) => Promise<unknown>;
 
@@ -49,6 +59,7 @@ function getHandler(channel: string): Handler {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  badgeResolver.clearCache();
   registerChatHandlers();
 });
 
@@ -61,8 +72,128 @@ describe("registerChatHandlers", () => {
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(channels).toContain(IPC_CHANNELS.CHAT_GET_KICK_HISTORY);
     expect(channels).toContain(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY);
+    expect(channels).toContain(IPC_CHANNELS.CHAT_GET_TWITCH_BADGE_CATALOG);
     expect(channels).toContain(IPC_CHANNELS.CHAT_GET_TWITCH_PINNED_MESSAGE);
     expect(channels).toContain(IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS);
+  });
+});
+
+// Guards: Anonymous Twitch badge retrieval runs in Electron main and follows Xtra's GQL source order before any authenticated Helix fallback.
+// Guards: Badge catalog readiness is explicit, so an empty valid channel catalog cannot hide a failed global catalog.
+describe("CHAT_GET_TWITCH_BADGE_CATALOG", () => {
+  it("returns global and channel badges from GQL without auth credentials", async () => {
+    const operations: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { operationName: string };
+        operations.push(body.operationName);
+        if (body.operationName === "Badges") {
+          return {
+            ok: true,
+            json: async () => ({
+              data: {
+                badges: [
+                  {
+                    setID: "moderator",
+                    version: "1",
+                    imageURL:
+                      "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3",
+                    title: "Moderator",
+                  },
+                ],
+              },
+            }),
+          };
+        }
+        if (body.operationName === "UserBadges") {
+          return {
+            ok: true,
+            json: async () => ({ data: { user: { broadcastBadges: [] } } }),
+          };
+        }
+        if (body.operationName === "ChatList_Badges") {
+          return {
+            ok: true,
+            json: async () => ({
+              data: {
+                badges: [
+                  {
+                    setID: "subscriber",
+                    version: "0",
+                    image1x:
+                      "https://static-cdn.jtvnw.net/badges/v1/0c79afdf-10a9-4d28-9316-73a786af2578/1",
+                    image2x:
+                      "https://static-cdn.jtvnw.net/badges/v1/0c79afdf-10a9-4d28-9316-73a786af2578/2",
+                    image4x:
+                      "https://static-cdn.jtvnw.net/badges/v1/0c79afdf-10a9-4d28-9316-73a786af2578/3",
+                    title: "Subscriber",
+                  },
+                ],
+              },
+            }),
+          };
+        }
+        throw new Error(`Unexpected operation ${body.operationName}`);
+      })
+    );
+
+    const handler = getHandler(IPC_CHANNELS.CHAT_GET_TWITCH_BADGE_CATALOG);
+    const result = await handler(
+      {},
+      { broadcasterId: "111", channelLogin: "ninja", forceRefresh: true }
+    );
+
+    expect(operations).toEqual(["Badges", "UserBadges", "ChatList_Badges"]);
+    expect(result).toEqual({
+      success: true,
+      data: {
+        global: {
+          source: "gql",
+          badges: [
+            {
+              setId: "moderator",
+              version: "1",
+              imageUrl:
+                "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3",
+              title: "Moderator",
+            },
+          ],
+        },
+        channel: {
+          source: "persisted-gql",
+          badges: [
+            {
+              setId: "subscriber",
+              version: "0",
+              imageUrl:
+                "https://static-cdn.jtvnw.net/badges/v1/0c79afdf-10a9-4d28-9316-73a786af2578/3",
+              title: "Subscriber",
+            },
+          ],
+        },
+      },
+    });
+    expect(vi.mocked(fetch).mock.calls.every(([url]) => url === "https://gql.twitch.tv/gql")).toBe(
+      true
+    );
+  });
+
+  it.each([
+    undefined,
+    {},
+    { broadcasterId: "channel-id", channelLogin: "ninja" },
+    { broadcasterId: "111", channelLogin: "bad-login!" },
+  ])("rejects malformed catalog requests without making a network call", async (params) => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const handler = getHandler(IPC_CHANNELS.CHAT_GET_TWITCH_BADGE_CATALOG);
+
+    await expect(handler({}, params)).resolves.toEqual({
+      success: false,
+      error: "Invalid Twitch badge catalog request",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 

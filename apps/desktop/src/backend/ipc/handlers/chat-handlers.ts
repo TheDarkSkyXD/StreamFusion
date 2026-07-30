@@ -1,6 +1,8 @@
 import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
+import { badgeResolver } from "@/backend/services/chat/badge-resolver";
+import { storageService } from "@/backend/services/storage-service";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
 interface MentionUserLookup {
@@ -197,6 +199,60 @@ export function registerChatHandlers(): void {
       }
     }
   );
+
+  ipcMain.handle(IPC_CHANNELS.CHAT_GET_TWITCH_BADGE_CATALOG, async (_event, params: unknown) => {
+    if (
+      !params ||
+      typeof params !== "object" ||
+      !("broadcasterId" in params) ||
+      typeof params.broadcasterId !== "string" ||
+      !("channelLogin" in params) ||
+      typeof params.channelLogin !== "string"
+    ) {
+      return { success: false, error: "Invalid Twitch badge catalog request" };
+    }
+    const broadcasterId = params.broadcasterId.trim();
+    const channelLogin = params.channelLogin.trim().toLowerCase();
+    if (!/^\d+$/.test(broadcasterId) || !/^[a-z0-9_]{1,25}$/.test(channelLogin)) {
+      return { success: false, error: "Invalid Twitch badge catalog request" };
+    }
+
+    try {
+      const userToken = storageService.isTokenExpired("twitch")
+        ? null
+        : storageService.getToken("twitch");
+      const appToken = storageService.isAppTokenExpired("twitch")
+        ? null
+        : storageService.getAppToken("twitch");
+      const accessToken = userToken?.accessToken || appToken?.accessToken || "";
+      const clientId = process.env.TWITCH_CLIENT_ID?.trim() ?? "";
+      const catalog = await badgeResolver.loadBadgeCatalog(
+        broadcasterId,
+        channelLogin,
+        accessToken,
+        clientId,
+        {
+          forceRefresh:
+            "forceRefresh" in params && typeof params.forceRefresh === "boolean"
+              ? params.forceRefresh
+              : false,
+        }
+      );
+      return catalog
+        ? { success: true, data: catalog }
+        : { success: false, error: "Could not load Twitch badge catalog" };
+    } catch (error) {
+      logger.error("IPC:Chat", "getTwitchBadgeCatalog failed", {
+        broadcasterId,
+        channelLogin,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+      return { success: false, error: "Could not load Twitch badge catalog" };
+    }
+  });
 
   /**
    * Fetch Twitch's current pinned chat message in the main process. Chromium

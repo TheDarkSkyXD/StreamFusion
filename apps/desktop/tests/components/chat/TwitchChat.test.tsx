@@ -171,6 +171,7 @@ const storeState = {
   updateConnectionStatus: vi.fn(),
   deleteMessage: vi.fn(),
   deleteMessagesByUser: vi.fn(),
+  rehydrateChannelBadges: vi.fn(),
   cleanupBatching: vi.fn(),
 };
 
@@ -332,6 +333,7 @@ describe("TwitchChat", () => {
     storeState.addMessageBatched = vi.fn();
     storeState.clearMessages = vi.fn();
     storeState.deleteMessagesByUser = vi.fn();
+    storeState.rehydrateChannelBadges = vi.fn();
     setMockChatDisplay({});
     mockIsTwitchMod.value = true;
     useModeratedChannelsStore.getState().clear();
@@ -386,6 +388,28 @@ describe("TwitchChat", () => {
       expect(twitchChatService.loadChannelBadges).toHaveBeenLastCalledWith("ninja", "ninja-id", {
         forceRefresh: true,
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rehydrates retained messages after an interval badge refresh succeeds", async () => {
+    vi.useFakeTimers();
+    try {
+      render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      vi.mocked(storeState.rehydrateChannelBadges).mockClear();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+      });
+
+      expect(storeState.rehydrateChannelBadges).toHaveBeenCalledWith(
+        "twitch:ninja",
+        expect.any(Function)
+      );
     } finally {
       vi.useRealTimers();
     }

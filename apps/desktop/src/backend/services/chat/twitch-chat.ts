@@ -180,17 +180,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
         return;
       }
 
-      // Load global badges if credentials are present
-      if (this.accessToken && this.clientId) {
-        await badgeResolver.loadGlobalBadges(this.accessToken, this.clientId);
-      }
-
-      // Check again after async operation
-      if (connectionId !== this.currentConnectionId) {
-        this.log(`Connection ${connectionId} aborted after badge load`);
-        return;
-      }
-
       // Create client
       this.client = this.createClient();
 
@@ -325,17 +314,28 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     const normalizedChannel = this.normalizeChannel(channel);
     this.broadcasterId.set(normalizedChannel, broadcasterId);
 
-    if (this.accessToken && this.clientId) {
-      await badgeResolver.loadGlobalBadges(this.accessToken, this.clientId);
-      return badgeResolver.loadChannelBadges(
+    const bridge = window.electronAPI?.chat.getTwitchBadgeCatalog;
+    if (!bridge) return false;
+
+    try {
+      const result = await bridge({
         broadcasterId,
-        this.accessToken,
-        this.clientId,
-        normalizedChannel,
-        options
-      );
+        channelLogin: normalizedChannel,
+        forceRefresh: options.forceRefresh ?? false,
+      });
+      if (!result.success || !result.data) return false;
+
+      badgeResolver.hydrateBadgeCatalog(broadcasterId, result.data);
+      return true;
+    } catch (error) {
+      logger.warn("Chat:Badges", "Twitch badge catalog bridge failed", {
+        channel: normalizedChannel,
+        broadcasterId,
+        error:
+          error instanceof Error ? { name: error.name, message: error.message } : String(error),
+      });
+      return false;
     }
-    return false;
   }
 
   resolveChannelBadges(channel: string, badges: ChatBadge[]): ChatBadge[] {
