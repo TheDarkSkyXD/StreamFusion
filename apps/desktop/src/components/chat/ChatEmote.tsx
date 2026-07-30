@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Emote } from "../../backend/services/emotes/emote-types";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
 import { useAuthStore } from "../../store/auth-store";
+import { useOfficialEmoteImageSource } from "./official-emote-image-source";
 import { EmoteTooltip } from "./tooltips/EmoteTooltip";
 
 interface ChatEmoteProps {
@@ -114,6 +115,7 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
       if (!isAnimated || cd.animatedEmotes) return url;
       return freezeEmoteUrl(url) ?? url;
     }, [url, isAnimated, cd.animatedEmotes]);
+    const imageSource = useOfficialEmoteImageSource(renderUrl);
 
     // Treat as an overlay only when the emote is zero-width AND the viewer has
     // overlays enabled. With overlays off, zero-width emotes render inline.
@@ -176,15 +178,21 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           onClick={handleClick}
           onKeyDown={handleKeyDown}
         >
-          <img
-            src={renderUrl}
-            alt={name}
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-            style={imageStyle}
-            className="block"
-          />
+          {imageSource.failed ? (
+            <span className="inline-flex h-full items-center px-1 text-xs">{name}</span>
+          ) : (
+            <img
+              src={imageSource.sourceUrl}
+              alt={name}
+              loading="lazy"
+              decoding="async"
+              fetchPriority="low"
+              onLoad={imageSource.handleLoad}
+              onError={imageSource.handleError}
+              style={imageStyle}
+              className="block"
+            />
+          )}
         </button>
 
         <EmoteTooltip

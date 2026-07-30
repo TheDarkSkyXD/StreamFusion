@@ -115,6 +115,19 @@ describe("registerThirdPartyCookieStripper", () => {
     expect(result?.["set-cookie"]).toBeUndefined();
   });
 
+  it("strips Set-Cookie from the official 7TV IPv4 fallback edge", () => {
+    const fake = makeFakeSession();
+    registerThirdPartyCookieStripper(fake.session as never);
+
+    const result = fake.fire("https://ipv4-1.eu.cdn.7tv.app/emote/id/2x.webp", {
+      "Content-Type": ["image/webp"],
+      "Set-Cookie": ["__cf_bm=token; SameSite=None; Secure"],
+    });
+
+    expect(result?.["Set-Cookie"]).toBeUndefined();
+    expect(result?.["Content-Type"]).toEqual(["image/webp"]);
+  });
+
   it("does NOT strip cookies from kick.com root (Cloudflare WAF needs them)", () => {
     const fake = makeFakeSession();
     registerThirdPartyCookieStripper(fake.session as never);
@@ -224,6 +237,17 @@ describe("purgeStoredThirdPartyCookies", () => {
     expect(fake.spy.remove).toHaveLength(0);
     // flushStore still fires — safe and cheap.
     expect(fake.spy.flushStore).toHaveBeenCalledTimes(1);
+  });
+
+  it("purges host-only cookies previously stored by the official 7TV IPv4 edge", async () => {
+    const fake = makeFakeSession([{ domain: "ipv4-1.eu.cdn.7tv.app", name: "__cf_bm", path: "/" }]);
+
+    await purgeStoredThirdPartyCookies(fake.session as never);
+
+    expect(fake.spy.remove).toContainEqual({
+      url: "https://ipv4-1.eu.cdn.7tv.app/",
+      name: "__cf_bm",
+    });
   });
 
   it("swallows per-cookie remove failures so app startup doesn't break", async () => {

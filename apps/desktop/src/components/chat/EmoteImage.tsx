@@ -13,6 +13,7 @@
 import type React from "react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import type { Emote } from "../../backend/services/emotes/emote-types";
+import { useOfficialEmoteImageSource } from "./official-emote-image-source";
 import { EmoteTooltip } from "./tooltips/EmoteTooltip";
 
 /** Size presets for emotes */
@@ -45,16 +46,6 @@ const SIZE_CONFIG: Record<EmoteSize, { height: number; urlSize: "1x" | "2x" | "4
   large: { height: 48, urlSize: "2x" },
   xlarge: { height: 64, urlSize: "4x" },
 };
-
-const LOADED_URL_CACHE_LIMIT = 500;
-const loadedUrlCache = new Set<string>();
-
-function rememberLoadedUrl(url: string): void {
-  loadedUrlCache.add(url);
-  if (loadedUrlCache.size <= LOADED_URL_CACHE_LIMIT) return;
-  const first = loadedUrlCache.values().next().value;
-  if (typeof first === "string") loadedUrlCache.delete(first);
-}
 
 export const EmoteImage: React.FC<EmoteImageProps> = memo(
   ({
@@ -89,19 +80,7 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
       }
     }, [config.urlSize, emote.urls.url1x, emote.urls.url2x, emote.urls.url4x]);
 
-    const [isLoaded, setIsLoaded] = useState(() => loadedUrlCache.has(url));
-    const [hasError, setHasError] = useState(false);
-
-    const handleLoad = useCallback(() => {
-      rememberLoadedUrl(url);
-      setIsLoaded(true);
-      setHasError(false);
-    }, [url]);
-
-    const handleError = useCallback(() => {
-      setHasError(true);
-      setIsLoaded(true);
-    }, []);
+    const imageSource = useOfficialEmoteImageSource(url);
 
     const handleClick = useCallback(() => {
       if (onClick) {
@@ -133,13 +112,13 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
         }
       : {};
     const shouldRenderImage = !deferLoad;
-    const shouldRenderPlaceholder = !isLoaded && deferredPlaceholder !== "none";
+    const shouldRenderPlaceholder = !imageSource.loaded && deferredPlaceholder !== "none";
     const placeholderClass =
       deferredPlaceholder === "pulse"
         ? "inline-block bg-neutral-700 rounded animate-pulse"
         : "inline-block bg-neutral-700 rounded opacity-60";
 
-    if (hasError) {
+    if (imageSource.failed) {
       // Fallback for broken images - show emote code
       return (
         <>
@@ -177,19 +156,19 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
           {shouldRenderImage && (
             <img
               ref={imgRef}
-              src={url}
+              src={imageSource.sourceUrl}
               alt={emote.name}
               loading={lazyLoad ? "lazy" : "eager"}
               decoding="async"
-              onLoad={handleLoad}
-              onError={handleError}
+              onLoad={imageSource.handleLoad}
+              onError={imageSource.handleError}
               className={`inline-block align-middle transition-opacity duration-200 ${
-                isLoaded ? "opacity-100" : "opacity-0"
+                imageSource.loaded ? "opacity-100" : "opacity-0"
               }`}
               style={{
                 height: config.height,
                 width: "auto",
-                position: isLoaded ? "relative" : "absolute",
+                position: imageSource.loaded ? "relative" : "absolute",
               }}
               draggable={false}
             />

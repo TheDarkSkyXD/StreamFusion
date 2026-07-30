@@ -32,6 +32,7 @@ describe("third-party-cookie-stripper", () => {
       "https://images.kick.com/foo.png",
       // Emote CDNs — these are pure static and never need cookies
       "https://cdn.7tv.app/emote/123/2x.webp",
+      "https://ipv4-1.eu.cdn.7tv.app/emote/123/2x.webp",
       "https://cdn.betterttv.net/emote/abc/2x.webp",
       "https://cdn.frankerfacez.com/emote/456/2",
       "https://cdn.kicktalk.app/global/foo.webp",
@@ -78,6 +79,11 @@ describe("third-party-cookie-stripper", () => {
       const patterns = THIRD_PARTY_COOKIE_STRIP_URL_PATTERNS.join(" ");
       expect(patterns).toContain("files.kick.com");
       expect(patterns).toContain("images.kick.com");
+    });
+
+    it("covers the canonical 7TV CDN and its official edge subdomains", () => {
+      expect(THIRD_PARTY_COOKIE_STRIP_URL_PATTERNS).toContain("*://cdn.7tv.app/*");
+      expect(THIRD_PARTY_COOKIE_STRIP_URL_PATTERNS).toContain("*://*.cdn.7tv.app/*");
     });
 
     // Carve-outs: these hosts must NEVER appear in the URL-pattern layer.
