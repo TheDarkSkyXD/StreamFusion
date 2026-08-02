@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fixtures, renderWithProviders, screen } from "../../test-utils";
 
@@ -114,7 +114,9 @@ const prefetchStreamPlaybackMock = vi.mocked(prefetchStreamPlayback);
 // Guards: partnered/verified followed channels keep their platform badge in expanded sidebar rows, including live rows hydrated from followed-channel metadata
 // Guards: live viewer counts and categories render on separate readable metadata rows instead of clipping at the sidebar edge
 // Guards: followed rows matching the current stream route render an active state so users can see which followed channel they are watching
+// Guards: selecting an offline followed channel highlights it without changing its live-first, offline-alphabetical sidebar position
 // Guards: mini-player continuity - followed rows matching the active PiP stream keep the same selected state when the user navigates away from the stream page
+// Guards: one Kick broadcaster renders once when guest follows and live lookups use different internal ids for the same slug
 describe("SidebarFollows", () => {
   beforeEach(() => {
     useFollowedChannelsMock.mockReset();
@@ -587,6 +589,84 @@ describe("SidebarFollows", () => {
     expect(activeLink).toHaveClass("bg-neutral-700/80", "border-l-[#53FC18]");
   });
 
+  it("keeps an active offline channel in its sorted sidebar position", () => {
+    routerState.pathname = "/stream/kick/jollyirl";
+    storeState.kickConnected = true;
+    const twitchChannels = Array.from({ length: 2 }, (_, index) =>
+      fixtures.channel({
+        id: `twitch-channel-${index}`,
+        platform: "twitch",
+        username: `twitch-live-${index}`,
+        displayName: `TwitchLive${index}`,
+      })
+    );
+    const kickChannels = [
+      fixtures.channel({
+        id: "kick-aardvark",
+        platform: "kick",
+        username: "aardvark",
+        displayName: "Aardvark",
+      }),
+      fixtures.channel({
+        id: "kick-banana",
+        platform: "kick",
+        username: "banana",
+        displayName: "Banana",
+      }),
+      fixtures.channel({
+        id: "kick-jolly",
+        platform: "kick",
+        username: "jollyirl",
+        displayName: "JollyIRL",
+      }),
+    ];
+    const twitchStreams = twitchChannels.map((channel, index) =>
+      fixtures.stream({
+        id: `twitch-stream-${index}`,
+        platform: "twitch",
+        channelId: channel.id,
+        channelName: channel.username,
+        channelDisplayName: channel.displayName,
+        viewerCount: 10_000 - index,
+      })
+    );
+    useFollowedChannelsMock.mockImplementation(
+      (platform) =>
+        ({
+          data: platform === "kick" ? kickChannels : twitchChannels,
+          isLoading: false,
+        }) as unknown as ReturnType<typeof useFollowedChannels>
+    );
+    useFollowedStreamsMock.mockImplementation(
+      (platform) =>
+        ({
+          data: platform === "twitch" ? twitchStreams : [],
+          isLoading: false,
+        }) as unknown as ReturnType<typeof useFollowedStreams>
+    );
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    const activeName = screen
+      .getAllByText("JollyIRL")
+      .find((element) => element.tagName.toLowerCase() === "span");
+    const activeLink = activeName?.closest("a");
+    expect(activeLink).toHaveAttribute("aria-current", "page");
+    expect(activeLink).toHaveTextContent("Offline");
+    expect(activeLink).toHaveClass("bg-neutral-700/80", "border-l-[#53FC18]");
+
+    const channelOrder = Array.from(
+      screen.getByTestId("sidebar-follows").querySelectorAll<HTMLAnchorElement>("a")
+    ).map((link) => JSON.parse(link.dataset.params ?? "{}").channel);
+    expect(channelOrder).toEqual([
+      "twitch-live-0",
+      "twitch-live-1",
+      "aardvark",
+      "banana",
+      "jollyirl",
+    ]);
+  });
+
   it("marks the followed live stream matching the active mini-player as selected off the stream route", () => {
     routerState.pathname = "/following";
     storeState.currentPipStream = { platform: "twitch", channelName: "alveussanctuary" };
@@ -762,5 +842,61 @@ describe("SidebarFollows", () => {
 
     expect(prefetchStreamPlaybackMock).toHaveBeenCalledWith("kick", "kicklive");
     expect(prefetchStreamPlaybackMock).not.toHaveBeenCalledWith("twitch", "twitchlive");
+  });
+
+  it("deduplicates a guest Kick follow and live stream by broadcaster slug", () => {
+    storeState.twitchConnected = false;
+    storeState.localFollows = [
+      fixtures.channel({
+        id: "kick-user-id",
+        platform: "kick",
+        username: "xqc",
+        displayName: "xQc",
+      }),
+      fixtures.channel({
+        id: "kick-channel-id",
+        platform: "kick",
+        username: "XQC",
+        displayName: "xQc",
+      }),
+    ];
+    useFollowedChannelsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockImplementation(
+      (platform) =>
+        ({
+          data:
+            platform === "kick"
+              ? [
+                  fixtures.stream({
+                    id: "remote-live-id",
+                    platform: "kick",
+                    channelId: "kick-user-id",
+                    channelName: "xqc",
+                    channelDisplayName: "xQc",
+                    viewerCount: 6300,
+                  }),
+                  fixtures.stream({
+                    id: "public-live-id",
+                    platform: "kick",
+                    channelId: "kick-channel-id",
+                    channelName: "XQC",
+                    channelDisplayName: "xQc",
+                    viewerCount: 6300,
+                  }),
+                ]
+              : [],
+          isLoading: false,
+        }) as unknown as ReturnType<typeof useFollowedStreams>
+    );
+
+    renderWithProviders(<SidebarFollows collapsed={false} />);
+
+    const renderedNames = screen
+      .getAllByText("xQc")
+      .filter((element) => element.tagName.toLowerCase() === "span");
+    expect(renderedNames).toHaveLength(1);
   });
 });

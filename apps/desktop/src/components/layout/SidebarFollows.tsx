@@ -10,7 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFollowedChannels } from "@/hooks/queries/useChannels";
 import { useFollowedStreams } from "@/hooks/queries/useStreams";
 import { prefetchStreamPlayback } from "@/hooks/useStreamPlayback";
-import { getChannelKey, getChannelNameKey, getStreamKey } from "@/lib/id-utils";
+import {
+  dedupeChannelsByIdentity,
+  dedupeStreamsByChannelIdentity,
+  getChannelKey,
+  getChannelNameKey,
+  getStreamKey,
+} from "@/lib/id-utils";
 import { cn, formatViewerCount } from "@/lib/utils";
 import type { Platform } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -133,7 +139,10 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     enabled: kickConnected || hasLocalKickFollows,
   });
   const liveStreams = useMemo(() => {
-    const streams = [...(twitchLiveStreams ?? []), ...(kickLiveStreams ?? [])];
+    const streams = dedupeStreamsByChannelIdentity([
+      ...(twitchLiveStreams ?? []),
+      ...(kickLiveStreams ?? []),
+    ]);
     streams.sort((a, b) => b.viewerCount - a.viewerCount);
     return streams;
   }, [twitchLiveStreams, kickLiveStreams]);
@@ -155,7 +164,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     if (twitchFollows) twitchFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
     if (kickFollows) kickFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
 
-    const allChannels = Array.from(channelMap.values());
+    const allChannels = dedupeChannelsByIdentity(Array.from(channelMap.values()));
 
     // Map live streams by platform-aware keys for flexible matching
     // Different API endpoints return different ID formats, so we match by both
@@ -237,27 +246,28 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   const visibleItems = useMemo(() => {
     if (collapsed) return allItems;
 
-    const visible = allItems.slice(0, visibleCount);
+    let visible = allItems.slice(0, visibleCount);
     const hasVisibleKick = visible.some((item) => item.data.platform === "kick");
-    if (hasVisibleKick || !allItems.some((item) => item.data.platform === "kick")) {
-      return visible;
+    if (!hasVisibleKick && allItems.some((item) => item.data.platform === "kick")) {
+      const visibleKeys = new Set(
+        visible.map((item) =>
+          item.type === "live" ? getStreamKey(item.data) : getChannelKey(item.data)
+        )
+      );
+      const kickFill = allItems
+        .filter((item) => item.data.platform === "kick")
+        .filter((item) => {
+          const key = item.type === "live" ? getStreamKey(item.data) : getChannelKey(item.data);
+          return !visibleKeys.has(key);
+        })
+        .slice(0, Math.min(2, visibleCount));
+
+      if (kickFill.length > 0) {
+        visible = [...visible.slice(0, visibleCount - kickFill.length), ...kickFill];
+      }
     }
 
-    const visibleKeys = new Set(
-      visible.map((item) =>
-        item.type === "live" ? getStreamKey(item.data) : getChannelKey(item.data)
-      )
-    );
-    const kickFill = allItems
-      .filter((item) => item.data.platform === "kick")
-      .filter((item) => {
-        const key = item.type === "live" ? getStreamKey(item.data) : getChannelKey(item.data);
-        return !visibleKeys.has(key);
-      })
-      .slice(0, Math.min(2, visibleCount));
-
-    if (kickFill.length === 0) return visible;
-    return [...visible.slice(0, visibleCount - kickFill.length), ...kickFill];
+    return visible;
   }, [allItems, visibleCount, collapsed]);
 
   useEffect(() => {
@@ -510,7 +520,14 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                         </span>
                         {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
                       </div>
-                      <span className="text-xs text-[var(--color-foreground-muted)] truncate block">
+                      <span
+                        className={cn(
+                          "block truncate text-xs",
+                          isActive
+                            ? "font-semibold text-white/70"
+                            : "text-[var(--color-foreground-muted)]"
+                        )}
+                      >
                         Offline
                       </span>
                     </div>

@@ -8,6 +8,7 @@ vi.mock("@/renderer/logging/logger", () => ({
 }));
 
 import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
+import { useFollowStore } from "@/store/follow-store";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
 
 function makeWrapper() {
@@ -25,6 +26,7 @@ let api: ReturnType<typeof installElectronAPIMock>;
 
 beforeEach(() => {
   api = installElectronAPIMock();
+  useFollowStore.setState({ localFollows: [], sourceByKey: new Map(), isHydrated: true });
 });
 
 afterEach(() => {
@@ -34,6 +36,7 @@ afterEach(() => {
 // Guards: useFollowedChannels swallows error responses and returns [] so a Helix auth failure doesn't break the followed sidebar into a query-error boundary
 // Guards: useFollowedChannels stays idle when enabled=false — guest state must not fan out IPC on first render
 // Guards: useChannelByUsername threads (username, platform) verbatim through IPC so a Kick lookup never accidentally hits Twitch
+// Guards: fresh canonical channel lookups self-heal stale followed usernames through the follow-store boundary.
 describe("useFollowedChannels", () => {
   it("fetches followed channels for a platform", async () => {
     const ch = fixtures.channel({ username: "xqc" });
@@ -134,6 +137,65 @@ describe("useChannelByUsername", () => {
       expect(api.channels.getByUsername).toHaveBeenCalledWith({
         username: "xqc",
         platform: "kick",
+      })
+    );
+  });
+
+  it("repairs a stale Twitch username when the canonical channel lookup resolves", async () => {
+    useFollowStore.setState({
+      localFollows: [
+        fixtures.channel({
+          id: "123",
+          platform: "twitch",
+          username: "old-login",
+          displayName: "Old Login",
+        }),
+      ],
+    });
+    const canonical = fixtures.channel({
+      id: "123",
+      platform: "twitch",
+      username: "new-login",
+      displayName: "New Login",
+    });
+    api.channels.getByUsername = vi.fn(async () => ({ data: canonical, error: null }));
+    api.follows.getAll = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: "twitch-row-1",
+          platform: "twitch",
+          channelId: "123",
+          channelName: "old-login",
+          displayName: "Old Login",
+          profileImage: "",
+          followedAt: "2026-01-01T00:00:00.000Z",
+          source: "twitch",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "twitch-row-1",
+          platform: "twitch",
+          channelId: "123",
+          channelName: "new-login",
+          displayName: "New Login",
+          profileImage: canonical.avatarUrl,
+          followedAt: "2026-01-01T00:00:00.000Z",
+          source: "twitch",
+        },
+      ]);
+
+    renderHook(() => useChannelByUsername("old-login", "twitch"), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() =>
+      expect(api.follows.update).toHaveBeenCalledWith("twitch-row-1", {
+        channelId: "123",
+        channelName: "new-login",
+        displayName: "New Login",
+        profileImage: canonical.avatarUrl,
       })
     );
   });

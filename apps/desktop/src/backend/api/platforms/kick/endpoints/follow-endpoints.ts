@@ -20,6 +20,10 @@
 
 import { BrowserWindow, session } from "electron";
 import { logger } from "@/backend/logging/logger";
+import {
+  firstValidKickBroadcasterUserId,
+  getKickBroadcasterUserIdFromAvatar,
+} from "@/lib/kick-channel-identity";
 import { hasCanonicalKickScopes } from "../../../../auth/kick-scope-validation";
 import { storageService } from "../../../../services/storage-service";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
@@ -64,6 +68,34 @@ export type ErrorReason =
 
 interface FollowedChannelsOptions {
   allowBrowserWindowFallback?: boolean;
+}
+
+type ScrapedKickFollowedChannel = {
+  slug: string;
+  displayName: string;
+  avatarUrl: string;
+};
+
+export function mapScrapedKickFollowedChannel(
+  channel: ScrapedKickFollowedChannel
+): UnifiedChannel {
+  const broadcasterUserId = firstValidKickBroadcasterUserId(
+    getKickBroadcasterUserIdFromAvatar(channel.avatarUrl)
+  );
+
+  return {
+    id: broadcasterUserId ?? channel.slug,
+    platform: "kick",
+    username: channel.slug,
+    displayName: channel.displayName,
+    avatarUrl: channel.avatarUrl,
+    bannerUrl: undefined,
+    bio: undefined,
+    isLive: false,
+    isVerified: false,
+    isPartner: false,
+    kickUserId: broadcasterUserId ?? undefined,
+  };
 }
 
 // Single-flight guard. A second caller arriving while a fetch is in flight
@@ -547,18 +579,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // so use the slug as channel_id for DOM-scraped rows. The slug bridge
     // in channelsMatch (matches by platform+id OR platform+slug) means
     // FollowButton, the sidebar, and dedupe paths all still work.
-    const channels: UnifiedChannel[] = scraped.channels.map((c) => ({
-      id: c.slug,
-      platform: "kick" as const,
-      username: c.slug,
-      displayName: c.displayName,
-      avatarUrl: c.avatarUrl,
-      bannerUrl: undefined,
-      bio: undefined,
-      isLive: false,
-      isVerified: false,
-      isPartner: false,
-    }));
+    const channels = scraped.channels.map(mapScrapedKickFollowedChannel);
 
     logger.debug(
       "Kick:Endpoints:Follow",

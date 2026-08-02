@@ -13,6 +13,10 @@ import {
 const storeState = vi.hoisted(() => ({
   twitchConnected: false,
   kickConnected: false,
+  authInitialized: true,
+  followsHydrated: true,
+  twitchUserId: "guest",
+  kickUserId: "guest",
   localFollows: [] as unknown[],
   currentStream: null as { platform: string; channelName: string } | null,
   repairFollowMetadataFromChannel: vi.fn(),
@@ -20,6 +24,8 @@ const storeState = vi.hoisted(() => ({
   followSyncInProgress: false,
   followSyncLastSyncedAt: {} as Partial<Record<"twitch" | "kick", string>>,
 }));
+
+const firstPaintState = vi.hoisted(() => ({ hasPainted: true }));
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
@@ -29,6 +35,14 @@ vi.mock("@/hooks/queries/useChannels", () => ({
 }));
 
 vi.mock("@/hooks/queries/useStreams", () => ({
+  createFollowedStreamSnapshotIdentity: vi.fn(
+    (platform, twitchUserId, kickUserId, follows: Array<{ platform: string; id: string }>) => ({
+      platform: platform ?? "all",
+      twitchUserId,
+      kickUserId,
+      follows: follows.map((follow) => `${follow.platform}:${follow.id}`).sort(),
+    })
+  ),
   useFollowedStreams: vi.fn(),
   useTopStreams: vi.fn(),
   useStreamByChannel: vi.fn(),
@@ -44,10 +58,17 @@ vi.mock("@/hooks/queries/useFollowedContent", () => ({
   useFollowedClipPlayback: vi.fn(),
 }));
 
+vi.mock("@/hooks/useAfterFirstPaint", () => ({
+  useAfterFirstPaint: () => firstPaintState.hasPainted,
+}));
+
 vi.mock("@/store/auth-store", () => ({
   useAuthStore: () => ({
     twitchConnected: storeState.twitchConnected,
     kickConnected: storeState.kickConnected,
+    initialized: storeState.authInitialized,
+    twitchUser: storeState.twitchUserId === "guest" ? null : { id: storeState.twitchUserId },
+    kickUser: storeState.kickUserId === "guest" ? null : { id: storeState.kickUserId },
     syncConnectedFollows: storeState.syncConnectedFollows,
     followSyncInProgress: storeState.followSyncInProgress,
     followSyncLastSyncedAt: storeState.followSyncLastSyncedAt,
@@ -58,11 +79,13 @@ vi.mock("@/store/follow-store", () => ({
   useFollowStore: <T,>(
     selector?: (state: {
       localFollows: unknown[];
+      isHydrated: boolean;
       repairFollowMetadataFromChannel: typeof storeState.repairFollowMetadataFromChannel;
     }) => T
   ) => {
     const state = {
       localFollows: storeState.localFollows,
+      isHydrated: storeState.followsHydrated,
       repairFollowMetadataFromChannel: storeState.repairFollowMetadataFromChannel,
     };
     return selector ? selector(state) : state;
@@ -141,18 +164,21 @@ vi.mock("sonner", () => ({
   toast: (...args: unknown[]) => toastFn(...args),
 }));
 
-import { useTopCategories } from "@/hooks/queries/useCategories";
 import {
   getCachePerformanceSamples,
   resetCachePerformanceSamples,
 } from "@/hooks/queries/cache-performance";
+import { useTopCategories } from "@/hooks/queries/useCategories";
 import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
 import {
   useFollowedClipPlayback,
   useFollowedClips,
   useFollowedVideos,
 } from "@/hooks/queries/useFollowedContent";
-import { useFollowedStreams } from "@/hooks/queries/useStreams";
+import {
+  createFollowedStreamSnapshotIdentity,
+  useFollowedStreams,
+} from "@/hooks/queries/useStreams";
 import { FollowingPage } from "@/pages/Following";
 
 const useTopCategoriesMock = vi.mocked(useTopCategories);
@@ -162,6 +188,7 @@ const useFollowedVideosMock = vi.mocked(useFollowedVideos);
 const useFollowedClipsMock = vi.mocked(useFollowedClips);
 const useFollowedClipPlaybackMock = vi.mocked(useFollowedClipPlayback);
 const useFollowedStreamsMock = vi.mocked(useFollowedStreams);
+const createFollowedStreamSnapshotIdentityMock = vi.mocked(createFollowedStreamSnapshotIdentity);
 
 function installIntersectionObserverMock() {
   const callbacks: IntersectionObserverCallback[] = [];
@@ -207,7 +234,7 @@ function installIntersectionObserverMock() {
 // Guards: loading state — render skeleton cards (StreamGrid skeleton + offline-pills skeleton) while Helix and Kick fan-outs are pending, never blank-on-loading
 // Guards: error state — Helix or Kick fan-out resolves as error (data=undefined, isLoading=false): the empty-state card surfaces with the "Follow channels to see them here" copy + Browse Channels button; users can route forward
 // Guards: empty state — distinct from error; "no follows at all" renders the same empty-state card. Audit punch list flags this triplet as silent-blank-on-Helix-5xx — guarded inline
-// Guards: signed-in Kick account state - local app-only Kick follows are hidden while verified account follows render as live/offline rows
+// Guards: signed-in Kick account state - SQLite follows remain visible while remote follows enrich matching rows and add live/offline rows
 // Guards: partnered/verified followed channels keep their platform badge on Following page cards, and live cards receive badge metadata before rendering through StreamGrid
 // Guards: mini-player continuity - the currently watched PiP stream identity is forwarded into the live grid so followed live cards can render selected while playback stays in the mini player
 // Guards: Videos and Clips tabs aggregate recent content from followed channels instead of rendering unavailable placeholders
@@ -215,6 +242,9 @@ function installIntersectionObserverMock() {
 // Guards: Videos and Clips tabs limit large followed-content lists behind an infinite-scroll sentinel so the page does not render every card at once
 // Guards: Categories tab uses the shared category-card grid rather than custom summary cards
 // Guards: Categories tab warms category data and first-batch thumbnails before tab activation so followed category cards do not cold-load
+// Guards: delayed startup keeps live refresh active but defers exact snapshot identity work until auth, follows, and the first paint are ready
+// Guards: first useful paint derives the deduped cached live count without mounting cards, skeletons, or a false empty state
+// Guards: Live-tab startup does not prepare the full followed-channel collection for disabled Videos and Clips queries
 describe("FollowingPage", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -225,8 +255,13 @@ describe("FollowingPage", () => {
     useFollowedClipsMock.mockReset();
     useFollowedClipPlaybackMock.mockReset();
     useFollowedStreamsMock.mockReset();
+    createFollowedStreamSnapshotIdentityMock.mockClear();
     storeState.twitchConnected = false;
     storeState.kickConnected = false;
+    storeState.authInitialized = true;
+    storeState.followsHydrated = true;
+    storeState.twitchUserId = "guest";
+    storeState.kickUserId = "guest";
     storeState.localFollows = [];
     storeState.currentStream = null;
     storeState.repairFollowMetadataFromChannel.mockReset();
@@ -234,6 +269,7 @@ describe("FollowingPage", () => {
     storeState.syncConnectedFollows.mockResolvedValue({ synced: [], failed: [] });
     storeState.followSyncInProgress = false;
     storeState.followSyncLastSyncedAt = {};
+    firstPaintState.hasPainted = true;
     toastFn.mockReset();
     resetCachePerformanceSamples();
     useFollowedChannelsMock.mockReturnValue({
@@ -277,6 +313,116 @@ describe("FollowingPage", () => {
     expect(screen.getByRole("button", { name: /^all$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /twitch/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /kick/i })).toBeInTheDocument();
+  });
+
+  it("defers followed-content channel lists until their tab is selected", () => {
+    storeState.localFollows = Array.from({ length: 100 }, (_, index) =>
+      fixtures.channel({
+        id: `channel-${index}`,
+        username: `channel${index}`,
+        displayName: `Channel ${index}`,
+      })
+    );
+
+    renderWithProviders(<FollowingPage />);
+
+    expect(useFollowedVideosMock).toHaveBeenLastCalledWith([], {
+      enabled: false,
+      sort: "recent",
+    });
+    expect(useFollowedClipsMock).toHaveBeenLastCalledWith([], {
+      enabled: false,
+      sort: "recent",
+      timeRange: "all",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^videos$/i }));
+
+    expect(useFollowedVideosMock).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "channel-0" }),
+        expect.objectContaining({ id: "channel-99" }),
+      ]),
+      { enabled: true, sort: "recent" }
+    );
+    expect(useFollowedVideosMock.mock.lastCall?.[0]).toHaveLength(100);
+  });
+
+  it("binds followed-stream persistence to the exact account and local follow set", () => {
+    storeState.twitchUserId = "viewer-1";
+    storeState.localFollows = [fixtures.channel({ id: "channel-1", platform: "twitch" })];
+
+    renderWithProviders(<FollowingPage />);
+
+    expect(useFollowedStreamsMock).toHaveBeenCalledWith(undefined, 20, {
+      snapshotIdentity: {
+        platform: "all",
+        twitchUserId: "viewer-1",
+        kickUserId: "guest",
+        follows: ["twitch:channel-1"],
+      },
+    });
+  });
+
+  it("keeps the prepaint live query active without building its snapshot identity", () => {
+    storeState.twitchUserId = "viewer-1";
+    storeState.localFollows = [fixtures.channel({ id: "channel-1", platform: "twitch" })];
+    firstPaintState.hasPainted = false;
+
+    const view = renderWithProviders(<FollowingPage />);
+
+    expect(createFollowedStreamSnapshotIdentityMock).not.toHaveBeenCalled();
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+      snapshotIdentity: undefined,
+    });
+
+    firstPaintState.hasPainted = true;
+    view.rerender(<FollowingPage />);
+
+    expect(createFollowedStreamSnapshotIdentityMock).toHaveBeenCalledWith(
+      undefined,
+      "viewer-1",
+      "guest",
+      storeState.localFollows
+    );
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+      snapshotIdentity: {
+        platform: "all",
+        twitchUserId: "viewer-1",
+        kickUserId: "guest",
+        follows: ["twitch:channel-1"],
+      },
+    });
+  });
+
+  it("waits for auth and follows hydration before allowing followed-stream persistence", () => {
+    storeState.authInitialized = false;
+    storeState.followsHydrated = false;
+
+    const view = renderWithProviders(<FollowingPage />);
+
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+      snapshotIdentity: undefined,
+    });
+
+    storeState.authInitialized = true;
+    storeState.twitchUserId = "viewer-after-startup";
+    storeState.localFollows = [fixtures.channel({ id: "hydrated-follow", platform: "twitch" })];
+    view.rerender(<FollowingPage />);
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+      snapshotIdentity: undefined,
+    });
+
+    storeState.followsHydrated = true;
+    view.rerender(<FollowingPage />);
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+      snapshotIdentity: {
+        platform: "all",
+        twitchUserId: "viewer-after-startup",
+        kickUserId: "guest",
+        follows: ["twitch:hydrated-follow"],
+      },
+    });
   });
 
   it("manual refresh dispatch is measured without showing global refresh copy", async () => {
@@ -369,7 +515,7 @@ describe("FollowingPage", () => {
     expect(screen.getByText(/no matches for "no-such-channel"/i)).toBeInTheDocument();
   });
 
-  it("repairs a stale Kick follow when the user searches the current renamed slug", async () => {
+  it("looks up the current Kick channel when a renamed follow search has no local match", async () => {
     storeState.localFollows = [
       {
         id: "21103818",
@@ -401,20 +547,13 @@ describe("FollowingPage", () => {
     } as unknown as ReturnType<typeof useChannelByUsername>);
 
     renderWithProviders(<FollowingPage />);
-    fireEvent.click(screen.getByRole("button", { name: /kick/i }));
     fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
     fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
       target: { value: "hennytingzz" },
     });
 
     await waitFor(() => {
-      expect(storeState.repairFollowMetadataFromChannel).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: "21103818",
-          platform: "kick",
-          username: "hennytingzz",
-        })
-      );
+      expect(useChannelByUsernameMock).toHaveBeenCalledWith("hennytingzz", "kick");
     });
   });
 
@@ -468,6 +607,65 @@ describe("FollowingPage", () => {
     expect(screen.queryByText(/no followed channels found/i)).not.toBeInTheDocument();
   });
 
+  it("shows connected Kick SQLite follows while remote follows and live status refresh", () => {
+    storeState.kickConnected = true;
+    storeState.localFollows = [
+      fixtures.channel({
+        id: "local-kick",
+        platform: "kick",
+        username: "localpending",
+        displayName: "LocalPending",
+      }),
+    ];
+    useFollowedChannelsMock.mockImplementation(
+      (platform) =>
+        ({
+          data: platform === "kick" ? undefined : [],
+          isLoading: platform === "kick",
+          refetch: vi.fn(),
+        }) as unknown as ReturnType<typeof useFollowedChannels>
+    );
+    useFollowedStreamsMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
+
+    expect(screen.getAllByText("LocalPending").length).toBeGreaterThan(0);
+    expect(useFollowedChannelsMock).toHaveBeenCalledWith("kick", { enabled: true });
+  });
+
+  it("keeps connected Kick SQLite follows when the remote refresh resolves empty", () => {
+    storeState.kickConnected = true;
+    storeState.localFollows = [
+      fixtures.channel({
+        id: "local-kick",
+        platform: "kick",
+        username: "localresolved",
+        displayName: "LocalResolved",
+      }),
+    ];
+    useFollowedChannelsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedChannels>);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
+
+    expect(screen.getAllByText("LocalResolved").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/no followed channels found/i)).not.toBeInTheDocument();
+  });
+
   it("error: Helix/Kick fan-out fails (data=undefined, isLoading=false) → empty-state card surfaces with Browse Channels CTA", () => {
     // React Query exposes a failed query as { data: undefined, isLoading: false, error }
     // — the page reads only data, so the error path collapses to the empty state.
@@ -486,7 +684,7 @@ describe("FollowingPage", () => {
     expect(screen.getByRole("button", { name: /browse channels/i })).toBeInTheDocument();
   });
 
-  it("signed-in Kick: shows verified account follows as live and offline, and hides local-only Kick follows", () => {
+  it("signed-in Kick: merges SQLite follows with verified account follows", () => {
     storeState.kickConnected = true;
     storeState.localFollows = [
       fixtures.channel({
@@ -536,7 +734,77 @@ describe("FollowingPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
     expect(screen.getByRole("heading", { name: /channels/i })).toBeInTheDocument();
     expect(screen.getAllByText("OfflineKick").length).toBeGreaterThan(0);
-    expect(screen.queryByText("LocalOnly")).not.toBeInTheDocument();
+    expect(screen.getAllByText("LocalOnly").length).toBeGreaterThan(0);
+  });
+
+  it("shows the full live count before first paint without mounting the stream grid", () => {
+    const channels = Array.from({ length: 12 }, (_, index) =>
+      fixtures.channel({
+        id: `live-channel-${index}`,
+        username: `livechannel${index}`,
+        displayName: `Live Channel ${index}`,
+      })
+    );
+    storeState.localFollows = channels;
+    useFollowedStreamsMock.mockReturnValue({
+      data: channels.map((channel, index) =>
+        fixtures.stream({
+          id: `live-stream-${index}`,
+          channelId: channel.id,
+          channelName: channel.username,
+          channelDisplayName: channel.displayName,
+          viewerCount: 12 - index,
+        })
+      ),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+    firstPaintState.hasPainted = false;
+
+    const view = renderWithProviders(<FollowingPage />);
+
+    expect(screen.getByRole("heading", { name: /live now/i })).toHaveTextContent("(12)");
+    expect(screen.queryByTestId("stream-grid")).not.toBeInTheDocument();
+    expect(screen.queryByText("loading")).not.toBeInTheDocument();
+    expect(screen.queryByText(/no live followed channels found/i)).not.toBeInTheDocument();
+
+    firstPaintState.hasPainted = true;
+    view.rerender(<FollowingPage />);
+
+    expect(screen.getByTestId("stream-grid")).toHaveTextContent("12 streams");
+  });
+
+  it("uses cached followed streams for the deduped prepaint live count", () => {
+    useFollowedStreamsMock.mockReturnValue({
+      data: [
+        fixtures.stream({
+          id: "cached-stream-1",
+          channelId: "cached-channel-1",
+          channelName: "cachedchannel1",
+          viewerCount: 10,
+        }),
+        fixtures.stream({
+          id: "cached-stream-1-duplicate",
+          channelId: "cached-channel-1",
+          channelName: "cachedchannel1",
+          viewerCount: 20,
+        }),
+        fixtures.stream({
+          id: "cached-stream-2",
+          channelId: "cached-channel-2",
+          channelName: "cachedchannel2",
+          viewerCount: 5,
+        }),
+      ],
+      isLoading: true,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+    firstPaintState.hasPainted = false;
+
+    renderWithProviders(<FollowingPage />);
+
+    expect(screen.getByRole("heading", { name: /live now/i })).toHaveTextContent("(2)");
+    expect(screen.queryByTestId("stream-grid")).not.toBeInTheDocument();
+    expect(screen.queryByText("loading")).not.toBeInTheDocument();
+    expect(screen.queryByText(/no followed channels found/i)).not.toBeInTheDocument();
   });
 
   it("renders a platform badge beside an offline followed channel card", () => {

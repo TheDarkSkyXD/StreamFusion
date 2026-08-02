@@ -42,6 +42,7 @@ function sameResolvedChannel(candidate: UnifiedChannel, resolved: UnifiedChannel
 
 interface FollowState {
   localFollows: UnifiedChannel[];
+  isHydrated: boolean;
   /**
    * Per-channel origin lookup keyed by `${platform}:${id || username}`.
    * Populated by `hydrate` from the LocalFollow.source DB column; FollowButton
@@ -58,11 +59,12 @@ interface FollowState {
   repairFollowMetadataFromChannel: (channel: UnifiedChannel) => Promise<boolean>;
   toggleFollow: (channel: UnifiedChannel) => Promise<void>;
   upgradeFollowIfNeeded: (channel: UnifiedChannel) => Promise<void>;
-  hydrate: () => Promise<void>;
+  hydrate: (options?: { waitForPendingWrites?: boolean }) => Promise<void>;
 }
 
 export const useFollowStore = create<FollowState>()((set, get) => ({
   localFollows: [],
+  isHydrated: false,
   sourceByKey: new Map(),
   followChannel: async (channel) => {
     const key = followKey(channel);
@@ -328,7 +330,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
   },
 
   // Initializer to load from backend
-  hydrate: async () => {
+  hydrate: async (_options = {}) => {
     try {
       const follows = await window.electronAPI.follows.getAll();
       // Map LocalFollow -> UnifiedChannel, and build the source lookup in
@@ -357,6 +359,8 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
         error:
           e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
       });
+    } finally {
+      set({ isHydrated: true });
     }
   },
 }));

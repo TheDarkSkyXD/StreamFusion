@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,7 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { invalidateFollowCachesAfterMutation } from "@/hooks/queries/cache-invalidation";
 import { measureCacheInvalidationDispatch } from "@/hooks/queries/cache-performance";
 import { useTopCategories } from "@/hooks/queries/useCategories";
 import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
@@ -48,11 +46,15 @@ import {
   useFollowedClips,
   useFollowedVideos,
 } from "@/hooks/queries/useFollowedContent";
-import { useFollowedStreams } from "@/hooks/queries/useStreams";
+import {
+  createFollowedStreamSnapshotIdentity,
+  useFollowedStreams,
+} from "@/hooks/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
   dedupeChannelsByIdentity,
+  dedupeStreamsByChannelIdentity,
   getChannelKey,
   getChannelNameKey,
   getStreamKey,
@@ -68,6 +70,11 @@ type FollowingTab = "live" | "videos" | "clips" | "categories" | "channels";
 const CONTENT_PAGE_SIZE = 24;
 const CATEGORY_THUMBNAIL_PRELOAD_LIMIT = CONTENT_PAGE_SIZE;
 const preloadedCategoryThumbnails = new Map<string, HTMLImageElement>();
+const EMPTY_FOLLOWED_CHANNELS: UnifiedChannel[] = [];
+const EMPTY_STREAM_LOOKUPS = {
+  streamByIdMap: new Map<string, UnifiedStream>(),
+  streamByNameMap: new Map<string, UnifiedStream>(),
+};
 
 const FOLLOWING_TABS: Array<{
   id: FollowingTab;
@@ -142,7 +149,6 @@ export function FollowingPage() {
   const videoLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const clipLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const [selectedClip, setSelectedClip] = useState<FollowedContentItem | null>(null);
-  const queryClient = useQueryClient();
   const debouncedSearchQuery = useDebounce(searchQuery.trim(), 500);
 
   // Auth status
@@ -152,13 +158,29 @@ export function FollowingPage() {
     syncConnectedFollows,
     followSyncInProgress,
     followSyncLastSyncedAt,
+    twitchUser,
+    kickUser,
+    initialized: authInitialized,
   } = useAuthStore();
 
   // 1. Local follows
-  const { localFollows } = useFollowStore();
-  const repairFollowMetadataFromChannel = useFollowStore(
-    (state) => state.repairFollowMetadataFromChannel
-  );
+  const { localFollows, isHydrated: followsHydrated } = useFollowStore();
+  const followedStreamSnapshotIdentity = useMemo(() => {
+    if (!canRenderContent || !authInitialized || !followsHydrated) return undefined;
+    return createFollowedStreamSnapshotIdentity(
+      undefined,
+      twitchUser?.id ?? "guest",
+      String(kickUser?.id ?? "guest"),
+      localFollows
+    );
+  }, [
+    authInitialized,
+    canRenderContent,
+    followsHydrated,
+    kickUser?.id,
+    localFollows,
+    twitchUser?.id,
+  ]);
 
   // 2. Remote follows
   // Only fetch if connected to respective platform
@@ -183,23 +205,26 @@ export function FollowingPage() {
     data: liveStreams,
     isLoading: isLoadingStreams,
     refetch: refetchFollowedStreams,
-  } = useFollowedStreams();
+  } = useFollowedStreams(undefined, 20, {
+    snapshotIdentity: followedStreamSnapshotIdentity,
+  });
   const currentStream = usePipStore((state) => state.currentStream);
+  const shouldUsePrepaintLiveData =
+    !canRenderContent && activeTab === "live" && filter === "all" && searchQuery.length === 0;
 
-  // Combine channels logic
-  const { liveChannels, offlineChannels, followedChannels, isLoading } = useMemo(() => {
+  const allChannels = useMemo(() => {
+    if (shouldUsePrepaintLiveData) return EMPTY_FOLLOWED_CHANNELS;
+
     // Collect all channels from local and remote sources
     // Key by platform-channelId to deduplicate while preventing cross-platform collisions
     // Uses centralized key generation from id-utils
     const channelMap = new Map<string, UnifiedChannel>();
 
     // Add local follows
-    localFollows
-      .filter((channel) => !(kickConnected && channel.platform === "kick"))
-      .forEach((channel) => {
-        // LocalFollows store now returns UnifiedChannel[] (hydrated from backend)
-        channelMap.set(getChannelKey(channel), channel);
-      });
+    localFollows.forEach((channel) => {
+      // LocalFollows store now returns UnifiedChannel[] (hydrated from backend)
+      channelMap.set(getChannelKey(channel), channel);
+    });
 
     // Add remote follows (Twitch) - overwrites local if exists (fresh data)
     if (twitchFollows) {
@@ -211,7 +236,11 @@ export function FollowingPage() {
       kickFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
     }
 
-    const allChannels = dedupeChannelsByIdentity(Array.from(channelMap.values()));
+    return dedupeChannelsByIdentity(Array.from(channelMap.values()));
+  }, [kickFollows, localFollows, shouldUsePrepaintLiveData, twitchFollows]);
+
+  const { streamByIdMap, streamByNameMap } = useMemo(() => {
+    if (shouldUsePrepaintLiveData) return EMPTY_STREAM_LOOKUPS;
 
     // Map live streams by platform-aware keys for flexible matching
     // Different API endpoints return different ID formats, so we match by both
@@ -228,12 +257,36 @@ export function FollowingPage() {
       });
     }
 
+    return { streamByIdMap, streamByNameMap };
+  }, [liveStreams, shouldUsePrepaintLiveData]);
+
+  const { liveChannels, hasVisibleFollowedChannels, isLoading } = useMemo(() => {
+    const loadingTwitch = twitchConnected && isLoadingTwitch && !twitchFollows;
+    const loadingKick = kickConnected && isLoadingKick && !kickFollows;
+
+    if (shouldUsePrepaintLiveData) {
+      const live = dedupeStreamsByChannelIdentity(liveStreams ?? []).sort(
+        (a, b) => b.viewerCount - a.viewerCount
+      );
+      const hasFollowedChannels =
+        localFollows.length > 0 ||
+        Boolean(twitchFollows?.length) ||
+        Boolean(kickFollows?.length) ||
+        live.length > 0;
+
+      return {
+        liveChannels: live,
+        hasVisibleFollowedChannels: hasFollowedChannels,
+        isLoading: !hasFollowedChannels && (isLoadingStreams || loadingTwitch || loadingKick),
+      };
+    }
+
     const live: UnifiedStream[] = [];
-    const offline: UnifiedChannel[] = [];
-    const followed: FollowedChannelCard[] = [];
+    let visibleChannelCount = 0;
     const addedStreamIds = new Set<string>(); // Track added streams to prevent duplicates
 
-    // Sort and filter
+    // Live only needs the matching streams and an exact filtered follow count. Channel-card
+    // collections are prepared lazily below when a secondary tab actually consumes them.
     allChannels.forEach((c) => {
       // Filter by Platform
       if (filter !== "all" && c.platform !== filter) return;
@@ -255,7 +308,7 @@ export function FollowingPage() {
         if (!matchesName && !matchesGame) return;
       }
 
-      followed.push({ channel: c, isLive: Boolean(stream) });
+      visibleChannelCount += 1;
 
       if (stream) {
         // Prevent duplicate streams (same stream matched by different channels)
@@ -279,37 +332,25 @@ export function FollowingPage() {
               }
             : stream;
         live.push(streamToAdd);
-      } else {
-        // Channel is offline
-        offline.push(c);
       }
     });
 
     // Sort live by viewer count
     live.sort((a, b) => b.viewerCount - a.viewerCount);
 
-    // Sort offline by name
-    offline.sort((a, b) => a.displayName.localeCompare(b.displayName));
-    followed.sort((a, b) => {
-      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
-      return a.channel.displayName.localeCompare(b.channel.displayName);
-    });
-
     // Determine loading state
-    const loadingTwitch = twitchConnected && isLoadingTwitch && !twitchFollows;
-    const loadingKick = kickConnected && isLoadingKick && !kickFollows;
-
     return {
       liveChannels: live,
-      offlineChannels: offline,
-      followedChannels: followed,
-      isLoading: isLoadingStreams || loadingTwitch || loadingKick,
+      hasVisibleFollowedChannels: visibleChannelCount > 0,
+      isLoading: allChannels.length === 0 && (isLoadingStreams || loadingTwitch || loadingKick),
     };
   }, [
-    localFollows,
+    allChannels,
+    shouldUsePrepaintLiveData,
     twitchFollows,
     kickFollows,
     liveStreams,
+    localFollows.length,
     filter,
     searchQuery,
     isLoadingStreams,
@@ -317,38 +358,67 @@ export function FollowingPage() {
     isLoadingKick,
     twitchConnected,
     kickConnected,
+    streamByIdMap,
+    streamByNameMap,
   ]);
 
-  const followedChannelList = useMemo(
-    () => followedChannels.map(({ channel }) => channel),
-    [followedChannels]
-  );
+  const shouldPrepareFollowedChannels =
+    activeTab === "channels" || activeTab === "videos" || activeTab === "clips";
+  const followedChannels = useMemo(() => {
+    if (!shouldPrepareFollowedChannels) return [];
+
+    const followed: FollowedChannelCard[] = [];
+    allChannels.forEach((channel) => {
+      if (filter !== "all" && channel.platform !== filter) return;
+
+      const stream =
+        streamByIdMap.get(getChannelKey(channel)) ??
+        (channel.username
+          ? streamByNameMap.get(getChannelNameKey(channel.platform, channel.username))
+          : undefined);
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesName =
+          channel.displayName.toLowerCase().includes(query) ||
+          channel.username.toLowerCase().includes(query);
+        const matchesStream =
+          stream?.categoryName?.toLowerCase().includes(query) ||
+          stream?.title?.toLowerCase().includes(query);
+        if (!matchesName && !matchesStream) return;
+      }
+
+      followed.push({ channel, isLive: Boolean(stream) });
+    });
+
+    followed.sort((a, b) => {
+      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+      return a.channel.displayName.localeCompare(b.channel.displayName);
+    });
+    return followed;
+  }, [
+    allChannels,
+    filter,
+    searchQuery,
+    shouldPrepareFollowedChannels,
+    streamByIdMap,
+    streamByNameMap,
+  ]);
+
+  const followedChannelList = useMemo(() => {
+    if (activeTab !== "videos" && activeTab !== "clips") return EMPTY_FOLLOWED_CHANNELS;
+    return followedChannels.map(({ channel }) => channel);
+  }, [activeTab, followedChannels]);
 
   const shouldRepairKickSearchSlug =
-    filter === "kick" &&
+    filter !== "twitch" &&
     activeTab === "channels" &&
     debouncedSearchQuery.length >= 3 &&
-    followedChannelList.length === 0 &&
+    followedChannels.length === 0 &&
     !isLoading;
-  const { data: searchedKickChannel } = useChannelByUsername(
+  useChannelByUsername(
     shouldRepairKickSearchSlug ? debouncedSearchQuery : "",
     "kick"
   );
-
-  useEffect(() => {
-    if (!shouldRepairKickSearchSlug || !searchedKickChannel) return;
-
-    void Promise.resolve(repairFollowMetadataFromChannel(searchedKickChannel)).then((repaired) => {
-      if (repaired) {
-        invalidateFollowCachesAfterMutation(queryClient, "kick");
-      }
-    });
-  }, [
-    queryClient,
-    repairFollowMetadataFromChannel,
-    searchedKickChannel,
-    shouldRepairKickSearchSlug,
-  ]);
 
   const shouldLoadFollowedCategories =
     canRenderContent &&
@@ -510,6 +580,8 @@ export function FollowingPage() {
   }, [activeTab, revealMoreClips, visibleClips.hasMore]);
 
   const followedCategories = useMemo(() => {
+    if (!canRenderContent) return [];
+
     const categoryLookup = new Map<string, UnifiedCategory>();
 
     topCategories?.forEach((category) => {
@@ -554,7 +626,7 @@ export function FollowingPage() {
     return Array.from(categoryMap.values()).sort(
       (a, b) => (b.viewerCount ?? 0) - (a.viewerCount ?? 0)
     );
-  }, [liveChannels, topCategories]);
+  }, [canRenderContent, liveChannels, topCategories]);
 
   useEffect(() => {
     followedCategories.slice(0, CATEGORY_THUMBNAIL_PRELOAD_LIMIT).forEach((category) => {
@@ -739,7 +811,7 @@ export function FollowingPage() {
     </div>
   );
 
-  const hasNoFollowedChannels = liveChannels.length === 0 && offlineChannels.length === 0;
+  const hasNoFollowedChannels = !hasVisibleFollowedChannels;
   const noMatchMessage = searchQuery
     ? `No matches for "${searchQuery}"`
     : "Follow channels to see them here!";
@@ -876,7 +948,7 @@ export function FollowingPage() {
       </div>
 
       <div ref={contentScrollRef} className="space-y-8 flex-1 overflow-y-auto pr-2 pb-10">
-        {isLoading || !canRenderContent ? (
+        {isLoading ? (
           <div className="space-y-8">
             <div className="space-y-4">
               <Skeleton className="h-7 w-32" />
@@ -907,7 +979,9 @@ export function FollowingPage() {
                       ({liveChannels.length})
                     </span>
                   </h2>
-                  <StreamGrid streams={liveChannels} activeStream={currentStream} />
+                  {canRenderContent && (
+                    <StreamGrid streams={liveChannels} activeStream={currentStream} />
+                  )}
                 </div>
               ) : (
                 renderEmptyState(

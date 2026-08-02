@@ -16,9 +16,8 @@ import { logger } from "@/backend/logging/logger";
 // Guards: AbortController scope — timeout cancels in-flight fetch via abort
 // signal so the BrowserWindow mutex elsewhere is never starved by a hanging
 // request.
-// Guards: dual-id rule (delegates to transformer regression in
-// kick-transformers.test.ts) — empty `id` on a slug-only row is accepted, but
-// `user_id` is NEVER mapped to UnifiedChannel.id.
+// Guards: followed-channel ingestion persists a stable broadcaster user ID
+// whenever Kick exposes one directly or through its canonical avatar path.
 
 const mockToken = vi.hoisted(() => ({
   accessToken: "test-token-123",
@@ -43,6 +42,7 @@ import {
   _resetWarnedForTests,
   _tryBearerFetch,
   getAllFollowedChannels,
+  mapScrapedKickFollowedChannel,
 } from "../../../../../src/backend/api/platforms/kick/endpoints/follow-endpoints";
 
 // Tests validate the Bearer-fetch path in isolation via _tryBearerFetch.
@@ -266,5 +266,20 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
         }),
       })
     );
+  });
+});
+
+describe("mapScrapedKickFollowedChannel", () => {
+  it("extracts the stable broadcaster user ID from a canonical Kick avatar URL", () => {
+    const channel = mapScrapedKickFollowedChannel({
+      slug: "abbyapple",
+      displayName: "AbbyApple",
+      avatarUrl:
+        "https://files.kick.com/images/user/110821336/profile_image/conversion/avatar-thumb.webp",
+    });
+
+    expect(channel.id).toBe("110821336");
+    expect(channel.kickUserId).toBe("110821336");
+    expect(channel.username).toBe("abbyapple");
   });
 });

@@ -45,7 +45,7 @@ beforeEach(() => {
   mockApi.update.mockReset();
   // @ts-expect-error — test-only stub of window.electronAPI surface
   globalThis.window.electronAPI = { follows: mockApi };
-  useFollowStore.setState({ localFollows: [], sourceByKey: new Map() });
+  useFollowStore.setState({ localFollows: [], sourceByKey: new Map(), isHydrated: false });
 });
 
 afterEach(() => {
@@ -103,6 +103,16 @@ describe("follow-store isFollowing", () => {
         .getState()
         .isFollowing(makeChannel({ id: "", username: "chickenandy" }))
     ).toBe(true);
+  });
+});
+
+describe("follow-store hydration", () => {
+  it("publishes hydration completion even when the local follow read fails", async () => {
+    mockApi.getAll.mockRejectedValueOnce(new Error("sqlite unavailable"));
+
+    await useFollowStore.getState().hydrate();
+
+    expect(useFollowStore.getState().isHydrated).toBe(true);
   });
 });
 
