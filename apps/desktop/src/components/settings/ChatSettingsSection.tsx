@@ -400,7 +400,7 @@ function PreviewTooltip({
           aria-label={label}
           data-preview-tooltip-trigger=""
           className={cn(
-            "inline-flex cursor-help border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-1 focus-visible:ring-white",
+            "inline-flex border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-1 focus-visible:ring-white",
             className
           )}
         >

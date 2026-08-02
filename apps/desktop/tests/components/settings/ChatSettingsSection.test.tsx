@@ -173,6 +173,10 @@ describe("ChatSettingsSection", () => {
     expect(screen.getByRole("img", { name: "7TV username paint preview" })).toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: "Overlay emote preview" })).not.toHaveLength(0);
     expect(screen.queryByRole("img", { name: /timestamp|font size|emote size/i })).toBeNull();
+    for (const trigger of document.querySelectorAll("[data-preview-tooltip-trigger]")) {
+      expect(trigger.className).not.toContain("cursor-help");
+      expect(trigger.className).not.toContain("cursor-pointer");
+    }
 
     fireEvent.focus(screen.getByRole("img", { name: "7TV username paint preview" }));
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
