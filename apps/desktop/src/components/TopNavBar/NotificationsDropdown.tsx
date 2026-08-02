@@ -83,7 +83,7 @@ export function NotificationsDropdown() {
               </button>
             )}
           </div>
-          <div className="max-h-[300px] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-white [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+          <div className="max-h-[300px] overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-8 flex flex-col items-center justify-center text-center">
                 <LuBell

@@ -1,7 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createElement, useEffect } from "react";
 import { toast } from "sonner";
 
+import { LiveNotificationToast } from "@/components/LiveNotificationToast";
 import { getNotificationPreferences } from "@/lib/live-notification-preferences";
 import { useAuthStore } from "@/store/auth-store";
 import { useNotificationStore } from "@/store/notification-store";
@@ -17,8 +18,7 @@ export function useLiveNotificationBridge(): void {
           useAuthStore.getState().preferences?.notifications
         );
         if (preferences.toastAlerts) {
-          toast(`${notification.channelDisplayName} is live`, {
-            description: notification.title,
+          toast(createElement(LiveNotificationToast, { notification }), {
             action: {
               label: "Watch",
               onClick: () => {

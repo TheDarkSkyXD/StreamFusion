@@ -1,4 +1,5 @@
-import { renderHook } from "@testing-library/react";
+import { render, renderHook, screen } from "@testing-library/react";
+import { isValidElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -13,6 +14,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { useLiveNotificationBridge } from "@/hooks/use-live-notification-bridge";
+import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
@@ -53,13 +55,15 @@ beforeEach(() => {
   });
   window.electronAPI = {
     notifications: {
-      getCoverageStatus: vi.fn(async (): Promise<LiveNotificationCoverageStatus> => ({
-        desktop: { supported: true, permission: "unknown" },
-        platforms: {
-          twitch: { status: "normal", issues: [] },
-          kick: { status: "normal", issues: [] },
-        },
-      })),
+      getCoverageStatus: vi.fn(
+        async (): Promise<LiveNotificationCoverageStatus> => ({
+          desktop: { supported: true, permission: "unknown" },
+          platforms: {
+            twitch: { status: "normal", issues: [] },
+            kick: { status: "normal", issues: [] },
+          },
+        })
+      ),
       onLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
         liveCallback = callback;
         return vi.fn();
@@ -79,6 +83,7 @@ afterEach(() => {
 });
 
 // Guards: renderer must persist live-notification pushes from main so the bell history works for desktop, toast, and guest follows.
+// Guards: live toasts must render the supplied Twitch and Kick channel avatars through the platform image proxy.
 describe("useLiveNotificationBridge", () => {
   it("adds incoming live notifications to the notification store", () => {
     renderHook(() => useLiveNotificationBridge());
@@ -96,11 +101,43 @@ describe("useLiveNotificationBridge", () => {
     liveCallback?.(liveNotification);
 
     expect(toastMock).toHaveBeenCalledWith(
-      "Alpha is live",
+      expect.anything(),
       expect.objectContaining({
-        description: "Live now",
         action: expect.objectContaining({ label: "Watch" }),
       })
+    );
+  });
+
+  it.each([
+    {
+      platform: "twitch" as const,
+      channelAvatar: "https://static-cdn.jtvnw.net/jtv_user_pictures/alpha-profile_image-70x70.png",
+    },
+    {
+      platform: "kick" as const,
+      channelAvatar: "https://files.kick.com/images/user/101/profile_image/fullsize.webp",
+    },
+  ])("renders the supplied $platform channel avatar in the toast", ({
+    platform,
+    channelAvatar,
+  }) => {
+    renderHook(() => useLiveNotificationBridge());
+
+    liveCallback?.({
+      ...liveNotification,
+      platform,
+      channelAvatar,
+    });
+
+    const toastContent = toastMock.mock.lastCall?.[0];
+    expect(isValidElement(toastContent)).toBe(true);
+    if (!isValidElement(toastContent)) return;
+
+    render(toastContent);
+
+    expect(screen.getByRole("img", { name: "Alpha" })).toHaveAttribute(
+      "src",
+      resolveProxiedImageSrc(channelAvatar)
     );
   });
 
