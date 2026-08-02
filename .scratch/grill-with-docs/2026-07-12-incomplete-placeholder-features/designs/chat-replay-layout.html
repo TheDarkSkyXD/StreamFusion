@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamFusion Chat Replay Layout</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg:#09090b; --surface:#18181b; --surface2:#27272a; --border:#3f3f46; --text:#f4f4f5; --muted:#a1a1aa; --accent:#9146ff; --cyan:#38bdf8; }
+    body { background:var(--bg); color:var(--text); font:14px/1.45 Inter,system-ui,sans-serif; padding:28px; }
+    h1 { font-size:24px; margin-bottom:6px; } .intro { color:var(--muted); margin-bottom:24px; }
+    .options { display:grid; grid-template-columns:repeat(3,minmax(300px,1fr)); gap:18px; }
+    .option { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+    .option.recommended { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+    .option-head { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+    .letter { width:26px; height:26px; border-radius:7px; display:grid; place-items:center; background:var(--surface2); font-weight:700; }
+    .recommended .letter { background:var(--accent); } .tag { margin-left:auto; color:#ddd6fe; font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+    .frame { height:330px; display:flex; background:#050506; position:relative; }
+    .main { flex:1; min-width:0; display:flex; flex-direction:column; }
+    .video { flex:1; display:grid; place-items:center; background:linear-gradient(135deg,#14141a,#08080b); color:#71717a; }
+    .timeline { height:38px; padding:13px 12px; } .bar { height:4px; background:#3f3f46; border-radius:5px; position:relative; } .bar:before { content:""; position:absolute; width:42%; height:100%; background:var(--accent); border-radius:5px; }
+    .rail { width:142px; border-left:1px solid var(--border); display:flex; flex-direction:column; background:#111114; }
+    .rail-head { height:42px; padding:11px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; }
+    .messages { flex:1; padding:9px; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+    .message { font-size:10px; color:#d4d4d8; } .time { color:var(--cyan); font-variant-numeric:tabular-nums; margin-right:4px; }
+    .return { margin:8px; padding:7px; border-radius:7px; background:var(--accent); font-size:9px; text-align:center; font-weight:700; }
+    .bottom { height:118px; border-top:1px solid var(--border); background:#111114; padding:10px; }
+    .bottom-head { display:flex; justify-content:space-between; font-size:11px; font-weight:700; margin-bottom:9px; }
+    .bottom .messages { display:grid; grid-template-columns:1fr 1fr; padding:0; gap:8px 16px; }
+    .overlay { position:absolute; right:10px; top:10px; bottom:10px; width:145px; border:1px solid var(--border); border-radius:10px; background:rgba(17,17,20,.96); display:flex; flex-direction:column; box-shadow:0 12px 34px #000; }
+    .collapsed { width:42px; border-left:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding-top:12px; color:var(--muted); gap:12px; }
+    .desc { padding:14px 16px 17px; color:var(--muted); font-size:12px; min-height:86px; }
+    @media (max-width:1050px) { .options { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Where should Chat Replay live?</h1>
+  <p class="intro">All options use synchronized messages, timestamp seeking, and a return-to-current-time control.</p>
+  <div class="options">
+    <section class="option recommended">
+      <div class="option-head"><span class="letter">A</span><strong>Collapsible right rail</strong><span class="tag">Recommended</span></div>
+      <div class="frame">
+        <div class="main"><div class="video">VIDEO</div><div class="timeline"><div class="bar"></div></div></div>
+        <aside class="rail"><div class="rail-head">Chat Replay&nbsp; ‹</div><div class="messages"><div class="message"><span class="time">12:41</span><b>Nova:</b> what a play</div><div class="message"><span class="time">12:45</span><b>mika:</b> no way 😮</div><div class="message"><span class="time">12:48</span><b>Orbit:</b> clip it!</div></div><div class="return">Return to 12:52</div></aside>
+      </div>
+      <p class="desc">Keeps chat beside the Video, preserves context, and lets viewers reclaim width by collapsing it. Use a drawer below desktop width.</p>
+    </section>
+    <section class="option">
+      <div class="option-head"><span class="letter">B</span><strong>Panel below Video</strong></div>
+      <div class="frame"><div class="main"><div class="video">VIDEO</div><div class="timeline"><div class="bar"></div></div><div class="bottom"><div class="bottom-head"><span>Chat Replay</span><span>Return to 12:52</span></div><div class="messages"><div class="message"><span class="time">12:45</span><b>mika:</b> no way 😮</div><div class="message"><span class="time">12:48</span><b>Orbit:</b> clip it!</div></div></div></div></div>
+      <p class="desc">Gives the Video maximum width, but only shows a shallow slice of conversation and competes with metadata and related Videos.</p>
+    </section>
+    <section class="option">
+      <div class="option-head"><span class="letter">C</span><strong>On-demand overlay</strong></div>
+      <div class="frame"><div class="main"><div class="video">VIDEO</div><div class="timeline"><div class="bar"></div></div></div><div class="overlay"><div class="rail-head">Chat Replay&nbsp; ×</div><div class="messages"><div class="message"><span class="time">12:41</span><b>Nova:</b> what a play</div><div class="message"><span class="time">12:45</span><b>mika:</b> no way 😮</div><div class="message"><span class="time">12:48</span><b>Orbit:</b> clip it!</div></div><div class="return">Return to 12:52</div></div></div>
+      <p class="desc">Feels lightweight, but obscures the Video and makes longer reading sessions uncomfortable.</p>
+    </section>
+  </div>
+</body>
+</html>
