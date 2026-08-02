@@ -1,11 +1,92 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  invalidateLegacyTwitchToken,
   KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
+  performTwitchDeviceCodeLogin,
   persistInitialAuthToken,
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
 } from "@/backend/ipc/handlers/auth-handlers";
+
+describe("invalidateLegacyTwitchToken", () => {
+  it("clears an unmarked legacy Twitch token exactly once", () => {
+    let token: { accessToken: string } | null = { accessToken: "legacy-at" };
+    const clearToken = vi.fn(() => {
+      token = null;
+    });
+    const storage = {
+      getToken: vi.fn(() => token),
+      clearToken,
+    };
+
+    expect(invalidateLegacyTwitchToken(storage)).toBe(true);
+    expect(invalidateLegacyTwitchToken(storage)).toBe(false);
+    expect(clearToken).toHaveBeenCalledTimes(1);
+    expect(clearToken).toHaveBeenCalledWith("twitch");
+  });
+
+  it("keeps a device-code Twitch token", () => {
+    const clearToken = vi.fn();
+
+    expect(
+      invalidateLegacyTwitchToken({
+        getToken: vi.fn(() => ({ accessToken: "at", authFlow: "device-code" as const })),
+        clearToken,
+      })
+    ).toBe(false);
+    expect(clearToken).not.toHaveBeenCalled();
+  });
+});
+
+describe("performTwitchDeviceCodeLogin", () => {
+  it("runs the direct device flow and persists the authenticated Twitch account", async () => {
+    const token = {
+      accessToken: "at",
+      refreshToken: "rt",
+      authFlow: "device-code" as const,
+    };
+    const user = {
+      id: "u1",
+      login: "streamer",
+      displayName: "Streamer",
+      profileImageUrl: "https://example.com/avatar.png",
+      createdAt: "2026-01-01T00:00:00Z",
+      broadcasterType: "" as const,
+    };
+    const saveToken = vi.fn();
+    const saveTwitchUser = vi.fn();
+    const scheduleProactiveRefresh = vi.fn();
+    const afterAuthenticated = vi.fn(async () => {});
+
+    const result = await performTwitchDeviceCodeLogin({
+      scopes: ["chat:read"],
+      requestDeviceCode: vi.fn(async () => ({
+        deviceCode: "dc",
+        userCode: "ABCD-EFGH",
+        verificationUri: "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
+        expiresIn: 900,
+        interval: 5,
+      })),
+      openVerificationWindow: vi.fn(async () => ({
+        closed: new Promise<void>(() => undefined),
+        close: vi.fn(),
+      })),
+      pollForToken: vi.fn(async () => token),
+      saveToken,
+      scheduleProactiveRefresh,
+      fetchCurrentUser: vi.fn(async () => user),
+      saveTwitchUser,
+      afterAuthenticated,
+    });
+
+    expect(saveToken).toHaveBeenCalledWith("twitch", token);
+    expect(scheduleProactiveRefresh).toHaveBeenCalledTimes(1);
+    expect(saveTwitchUser).toHaveBeenCalledWith(user);
+    expect(afterAuthenticated).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(user);
+  });
+});
 
 // Guards the A1 fix: a transient Cloudflare/Kasada/auth failure must NOT
 // trigger an account-follows clear, because that would silently wipe the
@@ -56,6 +137,7 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       channels: [
         {
           id: "411439",
+          kickUserId: "421500",
           platform: "kick",
           username: "summit1g",
           displayName: "Summit1G",
@@ -98,7 +180,7 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       [
         expect.objectContaining({
           platform: "kick",
-          channelId: "411439",
+          channelId: "421500",
           channelName: "summit1g",
           displayName: "Summit1G",
           profileImage: "https://example.com/summit.jpg",

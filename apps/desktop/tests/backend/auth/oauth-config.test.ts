@@ -11,8 +11,13 @@ import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
 describe("WORKER_BASE_URL", () => {
   it("defaults to the deployed StreamFusion Worker", () => {
     expect(WORKER_BASE_URL).toBe("https://streamfusion.leveluptogetherbiz.workers.dev");
-    expect(TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe(`${WORKER_BASE_URL}/auth/twitch/token`);
+    expect(TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe("https://id.twitch.tv/oauth2/token");
     expect(KICK_OAUTH_CONFIG.tokenEndpoint).toBe(`${WORKER_BASE_URL}/auth/kick/token`);
+  });
+
+  it("contains no Twitch Worker auth endpoint", () => {
+    expect("appTokenEndpoint" in TWITCH_OAUTH_CONFIG).toBe(false);
+    expect(TWITCH_OAUTH_CONFIG.tokenEndpoint).not.toContain(WORKER_BASE_URL);
   });
 
   it("can be overridden for local Worker verification", async () => {
@@ -22,9 +27,7 @@ describe("WORKER_BASE_URL", () => {
     const config = await import("@/backend/auth/oauth-config");
 
     expect(config.WORKER_BASE_URL).toBe("http://localhost:8787");
-    expect(config.TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe(
-      "http://localhost:8787/auth/twitch/token"
-    );
+    expect(config.TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe("https://id.twitch.tv/oauth2/token");
     expect(config.KICK_OAUTH_CONFIG.tokenEndpoint).toBe("http://localhost:8787/auth/kick/token");
   });
 });

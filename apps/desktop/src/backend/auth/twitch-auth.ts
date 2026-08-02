@@ -121,10 +121,14 @@ class TwitchAuthService {
         platform: this.platform,
         refreshToken: currentToken.refreshToken,
       });
-      const newToken =
+      const refreshedWithScope =
         exchangedToken.scope === undefined && hasCompleteTwitchScopeSet(currentToken)
           ? { ...exchangedToken, scope: currentToken.scope }
           : exchangedToken;
+      const newToken: AuthToken = {
+        ...refreshedWithScope,
+        authFlow: exchangedToken.authFlow ?? currentToken.authFlow,
+      };
 
       if (!hasCompleteTwitchScopeSet(newToken)) {
         logger.warn(
@@ -354,32 +358,6 @@ class TwitchAuthService {
     if (!ok) return null;
     const token = storageService.getToken(this.platform);
     return token?.accessToken ?? null;
-  }
-
-  /**
-   * Ensure we have a valid App Access Token (Client Credentials)
-   */
-  async ensureAppToken(): Promise<boolean> {
-    // Check if we already have a valid app token
-    if (!storageService.isAppTokenExpired(this.platform)) {
-      return true;
-    }
-
-    logger.debug("Auth:Twitch", "Twitch app token missing or expired, fetching new one");
-
-    try {
-      const token = await tokenExchangeService.getAppAccessToken(this.platform);
-      storageService.saveAppToken(this.platform, token);
-      return true;
-    } catch (error) {
-      logger.error("Auth:Twitch", "Failed to get Twitch app token", {
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      return false;
-    }
   }
 
   /**

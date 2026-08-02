@@ -16,7 +16,7 @@ vi.mock("@/backend/auth/oauth-config", () => ({
         platform: "twitch",
         clientId: "twitch-client-id",
         clientSecret: "",
-        tokenEndpoint: "https://worker.test/auth/twitch/token",
+        tokenEndpoint: "https://id.twitch.tv/oauth2/token",
         revokeEndpoint: "https://id.twitch.tv/oauth2/revoke",
         scopes: ["chat:read"],
         usesPkce: true,
@@ -40,7 +40,11 @@ vi.mock("@/backend/auth/oauth-config", () => ({
   }),
 }));
 
-import { TokenRefreshError, tokenExchangeService } from "@/backend/auth/token-exchange";
+import {
+  type TokenExchangeParams,
+  TokenRefreshError,
+  tokenExchangeService,
+} from "@/backend/auth/token-exchange";
 import { KICK_APP_SCOPES } from "@/shared/auth-types";
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
@@ -62,6 +66,23 @@ afterEach(() => {
 });
 
 describe("exchangeCodeForToken", () => {
+  it("rejects Twitch authorization-code exchange before transport", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ access_token: "unexpected", token_type: "bearer" })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      tokenExchangeService.exchangeCodeForToken({
+        platform: "twitch",
+        code: "legacy-code",
+        redirectUri: "http://localhost:8765/auth/twitch/callback",
+        pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
+      } as unknown as TokenExchangeParams)
+    ).rejects.toThrow(/device code/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("sends code + redirect_uri + code_verifier as JSON and returns parsed AuthToken", async () => {
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
@@ -75,9 +96,9 @@ describe("exchangeCodeForToken", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const token = await tokenExchangeService.exchangeCodeForToken({
-      platform: "twitch",
+      platform: "kick",
       code: "auth-code",
-      redirectUri: "http://localhost:8765/auth/twitch/callback",
+      redirectUri: "http://localhost:8765/auth/kick/callback",
       pkce: { codeVerifier: "verifier", codeChallenge: "challenge", codeChallengeMethod: "S256" },
     });
 
@@ -89,11 +110,11 @@ describe("exchangeCodeForToken", () => {
     const call0 = fetchMock.mock.calls[0];
     expect(call0).toBeDefined();
     const [url, init] = call0!;
-    expect(url).toBe("https://worker.test/auth/twitch/token");
+    expect(url).toBe("https://worker.test/auth/kick/token");
     expect(init.method).toBe("POST");
     const body = JSON.parse(init.body as string);
     expect(body.code).toBe("auth-code");
-    expect(body.redirect_uri).toBe("http://localhost:8765/auth/twitch/callback");
+    expect(body.redirect_uri).toBe("http://localhost:8765/auth/kick/callback");
     expect(body.code_verifier).toBe("verifier");
   });
 
@@ -137,9 +158,9 @@ describe("exchangeCodeForToken", () => {
 
     await expect(
       tokenExchangeService.exchangeCodeForToken({
-        platform: "twitch",
+        platform: "kick",
         code: "bad",
-        redirectUri: "http://localhost:8765/auth/twitch/callback",
+        redirectUri: "http://localhost:8765/auth/kick/callback",
         pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
       })
     ).rejects.toThrow("Code expired");
@@ -160,9 +181,9 @@ describe("exchangeCodeForToken", () => {
 
     await expect(
       tokenExchangeService.exchangeCodeForToken({
-        platform: "twitch",
+        platform: "kick",
         code: "code",
-        redirectUri: "http://localhost:8765/auth/twitch/callback",
+        redirectUri: "http://localhost:8765/auth/kick/callback",
         pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
       })
     ).rejects.toThrow("Token exchange failed");
@@ -181,29 +202,13 @@ describe("exchangeCodeForToken", () => {
     );
 
     const token = await tokenExchangeService.exchangeCodeForToken({
-      platform: "twitch",
+      platform: "kick",
       code: "code",
-      redirectUri: "http://localhost:8765/auth/twitch/callback",
+      redirectUri: "http://localhost:8765/auth/kick/callback",
       pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
     });
 
     expect(token.scope).toEqual(["a", "b"]);
-  });
-
-  it("leaves scope undefined when not in response", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ access_token: "at", token_type: "bearer" }))
-    );
-
-    const token = await tokenExchangeService.exchangeCodeForToken({
-      platform: "twitch",
-      code: "code",
-      redirectUri: "http://localhost:8765/auth/twitch/callback",
-      pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
-    });
-
-    expect(token.scope).toBeUndefined();
   });
 
   it("uses the canonical requested Kick grant when the code exchange omits scope", async () => {
@@ -245,9 +250,9 @@ describe("exchangeCodeForToken", () => {
     );
 
     const token = await tokenExchangeService.exchangeCodeForToken({
-      platform: "twitch",
+      platform: "kick",
       code: "code",
-      redirectUri: "http://localhost:8765/auth/twitch/callback",
+      redirectUri: "http://localhost:8765/auth/kick/callback",
       pkce: { codeVerifier: "v", codeChallenge: "c", codeChallengeMethod: "S256" },
     });
 
@@ -256,7 +261,7 @@ describe("exchangeCodeForToken", () => {
 });
 
 describe("refreshToken", () => {
-  it("derives refresh endpoint from token endpoint and returns new token", async () => {
+  it("refreshes Twitch directly as a public client without a client secret", async () => {
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
         access_token: "new-at",
@@ -278,9 +283,33 @@ describe("refreshToken", () => {
     const call0 = fetchMock.mock.calls[0];
     expect(call0).toBeDefined();
     const [url, init] = call0!;
-    expect(url).toBe("https://worker.test/auth/twitch/refresh");
-    const body = JSON.parse(init.body as string);
-    expect(body.refresh_token).toBe("old-rt");
+    expect(url).toBe("https://id.twitch.tv/oauth2/token");
+    expect(init.headers).toEqual(
+      expect.objectContaining({ "Content-Type": "application/x-www-form-urlencoded" })
+    );
+    const body = new URLSearchParams(init.body as string);
+    expect(body.get("client_id")).toBe("twitch-client-id");
+    expect(body.get("refresh_token")).toBe("old-rt");
+    expect(body.get("grant_type")).toBe("refresh_token");
+    expect(body.has("client_secret")).toBe(false);
+    expect(token.authFlow).toBe("device-code");
+  });
+
+  it("keeps Kick refresh on the Worker JSON endpoint", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      jsonResponse({ access_token: "kick-at", refresh_token: "kick-rt", token_type: "bearer" })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await tokenExchangeService.refreshToken({
+      platform: "kick",
+      refreshToken: "old-kick-rt",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://worker.test/auth/kick/refresh");
+    expect(init.headers).toEqual(expect.objectContaining({ "Content-Type": "application/json" }));
+    expect(JSON.parse(init.body as string)).toEqual({ refresh_token: "old-kick-rt" });
   });
 
   it("throws TokenRefreshError with status and error code on failure", async () => {
@@ -393,62 +422,6 @@ describe("revokeToken", () => {
     });
 
     expect(result).toBe(false);
-  });
-});
-
-describe("getAppAccessToken", () => {
-  it("fetches a Twitch app token through the Worker", async () => {
-    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
-      jsonResponse({
-        access_token: "app-at",
-        token_type: "bearer",
-        expires_in: 7200,
-        scope: "channel:read",
-      })
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const token = await tokenExchangeService.getAppAccessToken("twitch");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://worker.test/auth/twitch/app-token",
-      expect.objectContaining({ method: "POST" })
-    );
-    expect(token.accessToken).toBe("app-at");
-    expect(token.expiresAt).toBe(Date.now() + 7200 * 1000);
-    expect(token.scope).toEqual(["channel:read"]);
-  });
-
-  it("does not fetch Kick app tokens into desktop", async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(tokenExchangeService.getAppAccessToken("kick")).rejects.toThrow(
-      "Kick app tokens stay inside the StreamFusion Worker"
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("throws the Worker error when app token minting fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ error: "invalid_client" }, false, 401))
-    );
-
-    await expect(tokenExchangeService.getAppAccessToken("twitch")).rejects.toThrow(
-      "invalid_client"
-    );
-  });
-
-  it("includes HTTP status when the Worker app-token route has no JSON error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({}, false, 404))
-    );
-
-    await expect(tokenExchangeService.getAppAccessToken("twitch")).rejects.toThrow(
-      "App token request failed: HTTP 404"
-    );
   });
 });
 

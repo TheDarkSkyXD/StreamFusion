@@ -70,7 +70,7 @@ export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
   clientId: TWITCH_CLIENT_ID,
   clientSecret: TWITCH_CLIENT_SECRET,
   authorizationEndpoint: "https://id.twitch.tv/oauth2/authorize",
-  tokenEndpoint: `${WORKER_BASE_URL}/auth/twitch/token`, // Worker endpoint
+  tokenEndpoint: "https://id.twitch.tv/oauth2/token",
   revokeEndpoint: "https://id.twitch.tv/oauth2/revoke",
   // Shared canonical set: every Twitch connect/reconnect path requests the
   // same complete app permission list.

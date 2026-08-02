@@ -6,7 +6,7 @@
  */
 
 import { logger } from "@/lib/cross-logger";
-import type { AuthToken, Platform } from "../../shared/auth-types";
+import { type AuthToken, KICK_APP_SCOPES, type Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { hasCanonicalKickScopes } from "./kick-scope-validation";
 import { getOAuthConfig, type PkceChallenge } from "./oauth-config";
@@ -14,7 +14,7 @@ import { getOAuthConfig, type PkceChallenge } from "./oauth-config";
 // ========== Types ==========
 
 export interface TokenExchangeParams {
-  platform: Platform;
+  platform: "kick";
   code: string;
   redirectUri: string; // Required - the redirect URI used for the OAuth flow
   pkce: PkceChallenge;
@@ -103,6 +103,11 @@ class TokenExchangeService {
    * Exchange an authorization code for an access token
    */
   async exchangeCodeForToken(params: TokenExchangeParams): Promise<AuthToken> {
+    if (params.platform !== "kick") {
+      throw new Error(
+        "Twitch authorization uses Device Code Grant, not authorization-code exchange"
+      );
+    }
     const config = getOAuthConfig(params.platform);
 
     logger.debug("Auth:TokenExchange", "Exchanging code for token", { platform: params.platform });
@@ -148,7 +153,9 @@ class TokenExchangeService {
       }
 
       const data = (await response.json()) as TokenResponse;
-      const token = this.parseTokenResponse(data);
+      const parsedToken = this.parseTokenResponse(data);
+      const token =
+        data.scope === undefined ? { ...parsedToken, scope: [...KICK_APP_SCOPES] } : parsedToken;
       logger.debug("Auth:TokenExchange", "Token obtained", { platform: params.platform });
       return token;
     } catch (error) {
@@ -163,86 +170,36 @@ class TokenExchangeService {
     }
   }
 
-  async getAppAccessToken(platform: Platform): Promise<AuthToken> {
-    if (platform === "kick") {
-      throw new Error(
-        "Kick app tokens stay inside the StreamFusion Worker; use the Worker /kick proxy with app auth."
-      );
-    }
-
-    const config = getOAuthConfig(platform);
-    const appTokenEndpoint = config.tokenEndpoint.replace("/token", "/app-token");
-
-    logger.debug("Auth:TokenExchange", "Fetching app token via Worker", { platform });
-
-    try {
-      const response = await fetch(appTokenEndpoint, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as TokenError;
-        const errorMessage =
-          errorData.error_description ||
-          errorData.message ||
-          errorData.error ||
-          `App token request failed: HTTP ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
-      const data = (await response.json()) as TokenResponse;
-      return this.parseTokenResponse(data);
-    } catch (error) {
-      logger.error("Auth:TokenExchange", "App token request failed", {
-        platform,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      throw error;
-    }
-  }
-
   /**
    * Refresh an access token using a refresh token
    */
   async refreshToken(params: TokenRefreshParams): Promise<AuthToken> {
-    // Determine worker refresh endpoint based on platform
-    // We could add this to OAuthConfig, but simple mapping works for now
-    // or just append /refresh to base url if it wasn't hardcoded in config
-
-    // Note: getOAuthConfig returns the /token endpoint primarily.
-    // We need to construct the refresh endpoint or update OAuthConfig to support multiple endpoints.
-    // For simplicity, let's assume the worker endpoints we created:
-    // /auth/twitch/refresh url is distinct from /auth/twitch/token
-
-    // We'll parse the base token endpoint from config to derive the refresh endpoint
-    // Config has: .../auth/twitch/token
-    // We want: .../auth/twitch/refresh
-
     const config = getOAuthConfig(params.platform);
-    const refreshEndpoint = config.tokenEndpoint.replace("/token", "/refresh");
+    const isTwitch = params.platform === "twitch";
+    const refreshEndpoint = isTwitch
+      ? "https://id.twitch.tv/oauth2/token"
+      : config.tokenEndpoint.replace("/token", "/refresh");
 
-    logger.debug("Auth:TokenExchange", "Refreshing token via Worker", {
+    logger.debug("Auth:TokenExchange", "Refreshing token", {
       platform: params.platform,
     });
 
-    const payload = {
-      refresh_token: params.refreshToken,
-    };
+    const body = isTwitch
+      ? new URLSearchParams({
+          client_id: config.clientId,
+          refresh_token: params.refreshToken,
+          grant_type: "refresh_token",
+        }).toString()
+      : JSON.stringify({ refresh_token: params.refreshToken });
 
     try {
       const response = await fetch(refreshEndpoint, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": isTwitch ? "application/x-www-form-urlencoded" : "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify(payload),
+        body,
       });
 
       if (!response.ok) {
@@ -261,7 +218,8 @@ class TokenExchangeService {
       }
 
       const data = (await response.json()) as TokenResponse;
-      const token = this.parseTokenResponse(data);
+      const parsedToken = this.parseTokenResponse(data);
+      const token = isTwitch ? { ...parsedToken, authFlow: "device-code" as const } : parsedToken;
 
       logger.debug("Auth:TokenExchange", "Token refreshed", { platform: params.platform });
       return token;

@@ -15,6 +15,7 @@ vi.mock("@/backend/services/storage-service", () => {
       refreshToken?: string;
       expiresAt?: number;
       scope?: string[];
+      authFlow?: "device-code";
     } | null;
   } = {
     token: null,
@@ -31,8 +32,6 @@ vi.mock("@/backend/services/storage-service", () => {
       clearTwitchUser: vi.fn(),
       saveTwitchUser: vi.fn(),
       getTwitchUser: vi.fn(() => null),
-      isAppTokenExpired: vi.fn(() => true),
-      saveAppToken: vi.fn(),
     },
     __state: state,
   };
@@ -47,7 +46,6 @@ vi.mock("@/backend/auth/token-exchange", async () => {
     tokenExchangeService: {
       refreshToken: vi.fn(),
       validateToken: vi.fn(async () => true),
-      getAppAccessToken: vi.fn(),
       revokeToken: vi.fn(),
       exchangeCodeForToken: vi.fn(),
     },
@@ -66,6 +64,7 @@ function setStoredToken(expiresInSec: number): void {
     refreshToken: "rt-1",
     expiresAt: Date.now() + expiresInSec * 1000,
     scope: [...TWITCH_APP_SCOPES],
+    authFlow: "device-code",
   };
 }
 
@@ -122,6 +121,7 @@ describe("twitchAuthService refresh chain", () => {
       refreshToken: "rt-1",
       expiresAt: Date.now() + 3600_000,
       scope: [...TWITCH_APP_SCOPES],
+      authFlow: "device-code",
     };
     refreshTokenMock.mockResolvedValueOnce({
       accessToken: "new-access",
@@ -132,10 +132,11 @@ describe("twitchAuthService refresh chain", () => {
     await expect(twitchAuthService.refreshToken()).resolves.toMatchObject({
       accessToken: "new-access",
       scope: [...TWITCH_APP_SCOPES],
+      authFlow: "device-code",
     });
     expect(storageModule.storageService.saveToken).toHaveBeenCalledWith(
       "twitch",
-      expect.objectContaining({ scope: [...TWITCH_APP_SCOPES] })
+      expect.objectContaining({ scope: [...TWITCH_APP_SCOPES], authFlow: "device-code" })
     );
   });
 

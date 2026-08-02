@@ -18,6 +18,7 @@ import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type { AuthToken } from "../../shared/auth-types";
 import { getOAuthConfig } from "./oauth-config";
+import type { TwitchDeviceAuthWindowHandle } from "./twitch-device-auth-window";
 
 // ========== Types ==========
 
@@ -37,6 +38,73 @@ export interface DeviceCodeResult {
   interval: number;
 }
 
+type DeviceCodeStatusHandler = (
+  status: "pending" | "authorized" | "expired" | "error",
+  message?: string
+) => void;
+
+export interface TwitchDeviceCodeLoginDependencies {
+  requestDeviceCode: (scopes: string[]) => Promise<DeviceCodeResult>;
+  openVerificationWindow: (verificationUri: string) => Promise<TwitchDeviceAuthWindowHandle>;
+  pollForToken: (
+    deviceCode: string,
+    interval: number,
+    expiresIn: number,
+    scopes: string[],
+    onStatusChange?: DeviceCodeStatusHandler,
+    signal?: AbortSignal
+  ) => Promise<AuthToken>;
+}
+
+function buildTwitchVerificationUrl(device: DeviceCodeResult): string {
+  let verificationUrl: URL;
+  try {
+    verificationUrl = new URL(device.verificationUri);
+  } catch {
+    throw new Error("Invalid Twitch verification URL");
+  }
+
+  if (
+    verificationUrl.protocol !== "https:" ||
+    verificationUrl.hostname !== "www.twitch.tv" ||
+    verificationUrl.port !== "" ||
+    verificationUrl.username !== "" ||
+    verificationUrl.password !== "" ||
+    verificationUrl.pathname !== "/activate"
+  ) {
+    throw new Error("Invalid Twitch verification URL");
+  }
+
+  verificationUrl.search = "";
+  verificationUrl.hash = "";
+  verificationUrl.searchParams.set("public", "true");
+  verificationUrl.searchParams.set("device-code", device.userCode);
+  return verificationUrl.toString();
+}
+
+export async function runTwitchDeviceCodeLogin(
+  scopes: string[],
+  dependencies: TwitchDeviceCodeLoginDependencies,
+  onStatusChange?: DeviceCodeStatusHandler
+): Promise<AuthToken> {
+  const device = await dependencies.requestDeviceCode(scopes);
+  const popup = await dependencies.openVerificationWindow(buildTwitchVerificationUrl(device));
+  const cancellation = new AbortController();
+  void popup.closed.then(() => cancellation.abort());
+  try {
+    return await dependencies.pollForToken(
+      device.deviceCode,
+      device.interval,
+      device.expiresIn,
+      scopes,
+      onStatusChange,
+      cancellation.signal
+    );
+  } finally {
+    popup.close();
+  }
+}
+
 interface TokenResponse {
   access_token: string;
   refresh_token?: string;
@@ -46,9 +114,76 @@ interface TokenResponse {
 }
 
 interface TokenErrorResponse {
-  error: string;
+  error?: string;
   error_description?: string;
   message?: string;
+}
+
+function isBoundedString(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= maxLength;
+}
+
+function parseDeviceCodeResponse(value: unknown): DeviceCodeResponse {
+  if (!value || typeof value !== "object") {
+    throw new Error("Invalid device code response");
+  }
+  const data = value as Partial<DeviceCodeResponse>;
+  if (
+    !isBoundedString(data.device_code, 4096) ||
+    !isBoundedString(data.user_code, 128) ||
+    !isBoundedString(data.verification_uri, 2048) ||
+    !Number.isInteger(data.expires_in) ||
+    (data.expires_in ?? 0) < 1 ||
+    (data.expires_in ?? 0) > 86_400 ||
+    !Number.isInteger(data.interval) ||
+    (data.interval ?? 0) < 1 ||
+    (data.interval ?? 0) > 60
+  ) {
+    throw new Error("Invalid device code response");
+  }
+
+  let verificationUrl: URL;
+  try {
+    verificationUrl = new URL(data.verification_uri);
+  } catch {
+    throw new Error("Invalid device code response");
+  }
+  if (
+    verificationUrl.protocol !== "https:" ||
+    verificationUrl.hostname !== "www.twitch.tv" ||
+    verificationUrl.port !== "" ||
+    verificationUrl.username !== "" ||
+    verificationUrl.password !== "" ||
+    verificationUrl.pathname !== "/activate"
+  ) {
+    throw new Error("Invalid device code response");
+  }
+
+  return data as DeviceCodeResponse;
+}
+
+function parseTokenResponse(value: unknown): TokenResponse {
+  if (!value || typeof value !== "object") {
+    throw new Error("Invalid token response");
+  }
+  const data = value as Partial<TokenResponse>;
+  const scopeIsValid =
+    data.scope === undefined ||
+    (typeof data.scope === "string" && data.scope.length <= 8192) ||
+    (Array.isArray(data.scope) &&
+      data.scope.length <= 128 &&
+      data.scope.every((scope) => isBoundedString(scope, 256)));
+  if (
+    !isBoundedString(data.access_token, 4096) ||
+    (data.refresh_token !== undefined && !isBoundedString(data.refresh_token, 4096)) ||
+    data.token_type?.toLowerCase() !== "bearer" ||
+    (data.expires_in !== undefined &&
+      (!Number.isInteger(data.expires_in) || data.expires_in < 1 || data.expires_in > 604_800)) ||
+    !scopeIsValid
+  ) {
+    throw new Error("Invalid token response");
+  }
+  return data as TokenResponse;
 }
 
 // ========== Constants ==========
@@ -60,6 +195,7 @@ const TOKEN_ENDPOINT = "https://id.twitch.tv/oauth2/token";
 
 class DeviceCodeFlowService {
   private pollingInterval: { stop: () => void } | null = null;
+  private cancelActivePoll: (() => void) | null = null;
 
   /**
    * Step 1: Request a device code and user code from Twitch
@@ -94,12 +230,10 @@ class DeviceCodeFlowService {
       throw new Error(error.error_description || error.message || "Failed to request device code");
     }
 
-    const data = (await response.json()) as DeviceCodeResponse;
+    const data = parseDeviceCodeResponse(await response.json());
 
-    logger.debug("Auth:DeviceCode", "Device code received", { userCode: data.user_code });
-    logger.debug("Auth:DeviceCode", "Verification URL ready", {
-      verificationUri: data.verification_uri,
-    });
+    logger.debug("Auth:DeviceCode", "Device code received");
+    logger.debug("Auth:DeviceCode", "Verification URL ready");
 
     return {
       deviceCode: data.device_code,
@@ -118,22 +252,64 @@ class DeviceCodeFlowService {
     deviceCode: string,
     interval: number,
     expiresIn: number,
-    onStatusChange?: (
-      status: "pending" | "authorized" | "expired" | "error",
-      message?: string
-    ) => void
+    scopes: string[],
+    onStatusChange?: DeviceCodeStatusHandler,
+    signal?: AbortSignal
   ): Promise<AuthToken> {
     const config = getOAuthConfig("twitch");
     const startTime = Date.now();
     const expiryTime = startTime + expiresIn * 1000;
 
+    this.stopPolling();
+
     return new Promise((resolve, reject) => {
+      let settled = false;
+      let pollInFlight = false;
+
+      const stopTimer = (): void => {
+        this.pollingInterval?.stop();
+        this.pollingInterval = null;
+      };
+      const cleanup = (): void => {
+        if (this.cancelActivePoll === cancel) {
+          stopTimer();
+          this.cancelActivePoll = null;
+        }
+        signal?.removeEventListener("abort", cancel);
+      };
+      const settleWithError = (error: Error): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+      const settleWithToken = (token: AuthToken): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(token);
+      };
+      const cancel = (): void => {
+        onStatusChange?.("error", "Authorization cancelled");
+        settleWithError(new Error("Authorization cancelled"));
+      };
+
+      this.cancelActivePoll = cancel;
+      if (signal?.aborted) {
+        cancel();
+        return;
+      }
+      signal?.addEventListener("abort", cancel, { once: true });
+
       const poll = async () => {
+        if (settled || pollInFlight) return;
+        pollInFlight = true;
+
         // Check if expired
         if (Date.now() >= expiryTime) {
-          this.stopPolling();
           onStatusChange?.("expired", "Device code expired");
-          reject(new Error("Device code expired. Please try again."));
+          settleWithError(new Error("Device code expired. Please try again."));
+          pollInFlight = false;
           return;
         }
 
@@ -142,6 +318,7 @@ class DeviceCodeFlowService {
             client_id: config.clientId,
             device_code: deviceCode,
             grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+            scopes: scopes.join(" "),
           });
 
           const response = await fetch(TOKEN_ENDPOINT, {
@@ -150,14 +327,22 @@ class DeviceCodeFlowService {
               "Content-Type": "application/x-www-form-urlencoded",
             },
             body: body.toString(),
+            signal,
           });
 
           const data = await response.json();
+          if (settled) return;
 
           if (response.ok) {
             // Success! User has authorized
-            this.stopPolling();
-            const tokenData = data as TokenResponse;
+            let tokenData: TokenResponse;
+            try {
+              tokenData = parseTokenResponse(data);
+            } catch {
+              onStatusChange?.("error", "Invalid token response");
+              settleWithError(new Error("Invalid token response"));
+              return;
+            }
 
             const token: AuthToken = {
               accessToken: tokenData.access_token,
@@ -166,18 +351,20 @@ class DeviceCodeFlowService {
                 ? Date.now() + tokenData.expires_in * 1000
                 : undefined,
               scope: Array.isArray(tokenData.scope) ? tokenData.scope : tokenData.scope?.split(" "),
+              authFlow: "device-code",
             };
 
             logger.debug("Auth:DeviceCode", "User authorized! Token obtained");
             onStatusChange?.("authorized", "Authorization successful!");
-            resolve(token);
+            settleWithToken(token);
             return;
           }
 
           // Handle error responses
           const errorData = data as TokenErrorResponse;
+          const errorStatus = errorData.error ?? errorData.message;
 
-          switch (errorData.error) {
+          switch (errorStatus) {
             case "authorization_pending":
               // User hasn't authorized yet - keep polling
               onStatusChange?.("pending", "Waiting for user to authorize...");
@@ -186,27 +373,29 @@ class DeviceCodeFlowService {
               // We're polling too fast - increase interval
               logger.debug("Auth:DeviceCode", "Polling too fast, slowing down");
               interval += 5;
+              stopTimer();
+              this.pollingInterval = createManagedInterval(poll, interval * 1000);
               break;
             case "access_denied":
               // User denied the request
-              this.stopPolling();
               onStatusChange?.("error", "Authorization denied by user");
-              reject(new Error("Authorization denied by user"));
+              settleWithError(new Error("Authorization denied by user"));
               return;
             case "expired_token":
               // Device code expired
-              this.stopPolling();
               onStatusChange?.("expired", "Device code expired");
-              reject(new Error("Device code expired. Please try again."));
+              settleWithError(new Error("Device code expired. Please try again."));
               return;
             default:
               // Unknown error
-              this.stopPolling();
-              onStatusChange?.("error", errorData.error_description || errorData.error);
-              reject(new Error(errorData.error_description || errorData.error || "Unknown error"));
+              onStatusChange?.("error", errorData.error_description || errorStatus);
+              settleWithError(
+                new Error(errorData.error_description || errorStatus || "Unknown error")
+              );
               return;
           }
         } catch (error) {
+          if (settled || signal?.aborted) return;
           logger.error("Auth:DeviceCode", "Polling error", {
             error:
               error instanceof Error
@@ -214,11 +403,13 @@ class DeviceCodeFlowService {
                 : String(error),
           });
           // Network error - continue polling
+        } finally {
+          pollInFlight = false;
         }
       };
 
       // Start polling
-      poll();
+      void poll();
       this.pollingInterval = createManagedInterval(poll, interval * 1000);
     });
   }
@@ -227,10 +418,10 @@ class DeviceCodeFlowService {
    * Stop polling for token
    */
   stopPolling(): void {
-    if (this.pollingInterval) {
-      this.pollingInterval.stop();
-      this.pollingInterval = null;
-    }
+    this.cancelActivePoll?.();
+    this.cancelActivePoll = null;
+    this.pollingInterval?.stop();
+    this.pollingInterval = null;
   }
 
   /**

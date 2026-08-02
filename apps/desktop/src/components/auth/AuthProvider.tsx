@@ -45,10 +45,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
       try {
-        const token = await window.electronAPI.auth.getToken("twitch");
-        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-        if (cancelled || !token?.accessToken || !clientId) return;
-        await hydrateModeratedChannels(twitchUser.id, token.accessToken, clientId);
+        if (cancelled) return;
+        await hydrateModeratedChannels(twitchUser.id);
       } catch {
         // Token-read errors are tolerated; the Helix wrapper silences 401s.
       }

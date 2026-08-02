@@ -13,8 +13,7 @@ const storageState: {
     scope?: string[];
   } | null;
   twitchUser: any;
-  appTokenExpired: boolean;
-} = { token: null, twitchUser: null, appTokenExpired: true };
+} = { token: null, twitchUser: null };
 
 vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
@@ -32,15 +31,12 @@ vi.mock("@/backend/services/storage-service", () => ({
     clearTwitchUser: vi.fn(() => {
       storageState.twitchUser = null;
     }),
-    isAppTokenExpired: vi.fn(() => storageState.appTokenExpired),
-    saveAppToken: vi.fn(),
   },
 }));
 
 const refreshTokenMock = vi.fn();
 const validateTokenMock = vi.fn();
 const revokeTokenMock = vi.fn();
-const getAppAccessTokenMock = vi.fn();
 
 vi.mock("@/backend/auth/token-exchange", async () => {
   const actual = await vi.importActual<typeof import("@/backend/auth/token-exchange")>(
@@ -52,7 +48,6 @@ vi.mock("@/backend/auth/token-exchange", async () => {
       refreshToken: (...a: unknown[]) => refreshTokenMock(...a),
       validateToken: (...a: unknown[]) => validateTokenMock(...a),
       revokeToken: (...a: unknown[]) => revokeTokenMock(...a),
-      getAppAccessToken: (...a: unknown[]) => getAppAccessTokenMock(...a),
     },
   };
 });
@@ -63,7 +58,7 @@ vi.mock("@/backend/auth/oauth-config", () => ({
     clientId: "test-client-id",
     clientSecret: "",
     authorizationEndpoint: "https://id.twitch.tv/oauth2/authorize",
-    tokenEndpoint: "https://worker.test/auth/twitch/token",
+    tokenEndpoint: "https://id.twitch.tv/oauth2/token",
     revokeEndpoint: "https://id.twitch.tv/oauth2/revoke",
     scopes: ["chat:read"],
     usesPkce: true,
@@ -82,7 +77,6 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-06-01T12:00:00.000Z"));
   storageState.token = null;
   storageState.twitchUser = null;
-  storageState.appTokenExpired = true;
   vi.clearAllMocks();
   twitchAuthService.cancelProactiveRefresh();
   twitchAuthService.setAuthLostHandler(() => undefined);
@@ -423,24 +417,6 @@ describe("fetchCurrentUser", () => {
 
     expect(result).not.toBeNull();
     expect(refreshTokenMock).toHaveBeenCalled();
-  });
-});
-
-describe("ensureAppToken", () => {
-  it("returns true when app token is not expired", async () => {
-    storageState.appTokenExpired = false;
-    const result = await twitchAuthService.ensureAppToken();
-    expect(result).toBe(true);
-    expect(getAppAccessTokenMock).not.toHaveBeenCalled();
-  });
-
-  it("returns false when getAppAccessToken throws", async () => {
-    storageState.appTokenExpired = true;
-    getAppAccessTokenMock.mockRejectedValueOnce(new Error("not supported"));
-
-    const result = await twitchAuthService.ensureAppToken();
-
-    expect(result).toBe(false);
   });
 });
 

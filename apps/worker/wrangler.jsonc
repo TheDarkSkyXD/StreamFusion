@@ -6,6 +6,40 @@
     "compatibility_flags": [
         "nodejs_compat"
     ],
+    "ratelimits": [
+        {
+            "name": "KICK_AUTH_IP_RATE_LIMITER",
+            "namespace_id": "1001",
+            "simple": {
+                "limit": 30,
+                "period": 60
+            }
+        },
+        {
+            "name": "KICK_AUTH_SUBJECT_RATE_LIMITER",
+            "namespace_id": "1002",
+            "simple": {
+                "limit": 6,
+                "period": 60
+            }
+        },
+        {
+            "name": "KICK_API_IP_RATE_LIMITER",
+            "namespace_id": "1003",
+            "simple": {
+                "limit": 600,
+                "period": 60
+            }
+        },
+        {
+            "name": "KICK_API_BEARER_RATE_LIMITER",
+            "namespace_id": "1004",
+            "simple": {
+                "limit": 300,
+                "period": 60
+            }
+        }
+    ],
     "observability": {
         "enabled": true
     }

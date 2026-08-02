@@ -1,14 +1,28 @@
 export interface Env {
-    TWITCH_CLIENT_ID: string;
-    TWITCH_CLIENT_SECRET: string;
     KICK_CLIENT_ID: string;
     KICK_CLIENT_SECRET: string;
+    KICK_AUTH_IP_RATE_LIMITER: RateLimit;
+    KICK_AUTH_SUBJECT_RATE_LIMITER: RateLimit;
+    KICK_API_IP_RATE_LIMITER: RateLimit;
+    KICK_API_BEARER_RATE_LIMITER: RateLimit;
 }
 
 interface CachedToken {
     accessToken: string;
     expiresAt: number;
 }
+
+interface KickTokenExchangeBody {
+    code: string;
+    redirect_uri: string;
+    code_verifier: string;
+}
+
+interface KickTokenRefreshBody {
+    refresh_token: string;
+}
+
+type CorsHeaders = Record<string, string>;
 
 let kickAppTokenCache: CachedToken | null = null;
 
@@ -29,42 +43,42 @@ export default {
         }
 
         // Health Check
-        if (path === "/health") {
+        if (path === "/health" && request.method === "GET") {
             return handleHealthCheck(env, corsHeaders);
-        }
-
-        // Twitch Auth (Token Exchange)
-        if (path === "/auth/twitch/token" && request.method === "POST") {
-            return handleTwitchTokenExchange(request, env, corsHeaders);
-        }
-
-        // Twitch Auth (Token Refresh)
-        if (path === "/auth/twitch/refresh" && request.method === "POST") {
-            return handleTwitchTokenRefresh(request, env, corsHeaders);
-        }
-
-        // Twitch Auth (App Token)
-        if (path === "/auth/twitch/app-token" && request.method === "POST") {
-            return handleTwitchAppToken(env, corsHeaders);
         }
 
         // Kick Auth (Token Exchange)
         if (path === "/auth/kick/token" && request.method === "POST") {
-            return handleKickTokenExchange(request, env, corsHeaders);
+            const limited = await enforceKickAuthIpLimit(request, env, corsHeaders);
+            if (limited) return limited;
+            const body = await readKickTokenExchangeBody(request);
+            if (!body) return invalidRequest(corsHeaders);
+            const subjectLimited = await enforceKickAuthSubjectLimit(body.code, env, corsHeaders);
+            if (subjectLimited) return subjectLimited;
+            return handleKickTokenExchange(body, env, corsHeaders);
         }
 
         // Kick Auth (Token Refresh)
         if (path === "/auth/kick/refresh" && request.method === "POST") {
-            return handleKickTokenRefresh(request, env, corsHeaders);
-        }
-
-        // Twitch API Proxy
-        if (path.startsWith("/twitch/")) {
-            return handleTwitchProxy(request, env, path.replace("/twitch", ""), corsHeaders);
+            const limited = await enforceKickAuthIpLimit(request, env, corsHeaders);
+            if (limited) return limited;
+            const body = await readKickTokenRefreshBody(request);
+            if (!body) return invalidRequest(corsHeaders);
+            const subjectLimited = await enforceKickAuthSubjectLimit(
+                body.refresh_token,
+                env,
+                corsHeaders
+            );
+            if (subjectLimited) return subjectLimited;
+            return handleKickTokenRefresh(body, env, corsHeaders);
         }
 
         // Kick API Proxy
         if (path.startsWith("/kick/")) {
+            const limited = await enforceKickApiIpLimit(request, env, corsHeaders);
+            if (limited) return limited;
+            const bearerLimited = await enforceKickApiBearerLimit(request, env, corsHeaders);
+            if (bearerLimited) return bearerLimited;
             return handleKickProxy(request, env, path.replace("/kick", ""), corsHeaders);
         }
 
@@ -72,105 +86,185 @@ export default {
     },
 };
 
-async function handleTwitchTokenExchange(request: Request, env: Env, corsHeaders: any) {
+async function enforceKickAuthIpLimit(
+    request: Request,
+    env: Env,
+    corsHeaders: CorsHeaders
+): Promise<Response | null> {
+    const ip = request.headers.get("CF-Connecting-IP") || "missing";
+    return enforceLimit(env.KICK_AUTH_IP_RATE_LIMITER, `kick-auth:ip:${ip}`, corsHeaders);
+}
+
+async function enforceKickAuthSubjectLimit(
+    subject: string,
+    env: Env,
+    corsHeaders: CorsHeaders
+): Promise<Response | null> {
+    const digest = await sha256Hex(subject);
+    return enforceLimit(
+        env.KICK_AUTH_SUBJECT_RATE_LIMITER,
+        `kick-auth:subject:${digest}`,
+        corsHeaders
+    );
+}
+
+async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
     try {
-        const body = await request.json() as any;
-        const { code, redirect_uri } = body;
-
-        const params = new URLSearchParams({
-            client_id: env.TWITCH_CLIENT_ID,
-            client_secret: env.TWITCH_CLIENT_SECRET,
-            code,
-            grant_type: "authorization_code",
-            redirect_uri
-        });
-
-        const response = await fetch("https://id.twitch.tv/oauth2/token", {
-            method: "POST",
-            body: params
-        });
-
-        const data = await response.json();
-        return Response.json(data, { status: response.status, headers: corsHeaders });
-    } catch (err: any) {
-        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+        const body: unknown = await request.json();
+        return isRecord(body) ? body : null;
+    } catch {
+        return null;
     }
 }
 
-async function handleTwitchTokenRefresh(request: Request, env: Env, corsHeaders: any) {
+async function readKickTokenExchangeBody(request: Request): Promise<KickTokenExchangeBody | null> {
+    const body = await readJsonObject(request);
+    if (!body) return null;
+
+    const { code, redirect_uri, code_verifier } = body;
+    if (typeof code !== "string" || code.length === 0 || code.length > 4096) return null;
+    if (!isAllowedKickRedirect(redirect_uri)) return null;
+    if (!isValidCodeVerifier(code_verifier)) return null;
+
+    return { code, redirect_uri, code_verifier };
+}
+
+async function readKickTokenRefreshBody(request: Request): Promise<KickTokenRefreshBody | null> {
+    const body = await readJsonObject(request);
+    if (!body) return null;
+
+    const { refresh_token } = body;
+    if (typeof refresh_token !== "string" || refresh_token.length === 0 || refresh_token.length > 8192) {
+        return null;
+    }
+
+    return { refresh_token };
+}
+
+async function enforceKickApiIpLimit(
+    request: Request,
+    env: Env,
+    corsHeaders: CorsHeaders
+): Promise<Response | null> {
+    const ip = request.headers.get("CF-Connecting-IP") || "missing";
+    return enforceLimit(env.KICK_API_IP_RATE_LIMITER, `kick-api:ip:${ip}`, corsHeaders);
+}
+
+async function enforceKickApiBearerLimit(
+    request: Request,
+    env: Env,
+    corsHeaders: CorsHeaders
+): Promise<Response | null> {
+    const authorization = request.headers.get("Authorization");
+    const match = authorization?.match(/^Bearer\s+([^\s]+)$/i);
+    if (!match) return null;
+
+    const digest = await sha256Hex(match[1]);
+    return enforceLimit(
+        env.KICK_API_BEARER_RATE_LIMITER,
+        `kick-api:bearer:${digest}`,
+        corsHeaders
+    );
+}
+
+async function enforceLimit(
+    limiter: RateLimit | undefined,
+    key: string,
+    corsHeaders: CorsHeaders
+): Promise<Response | null> {
     try {
-        const body = await request.json() as any;
-        const { refresh_token } = body;
+        const outcome = await limiter?.limit({ key });
+        if (!outcome) return rateLimitUnavailable(corsHeaders);
+        if (outcome.success) return null;
+    } catch {
+        return rateLimitUnavailable(corsHeaders);
+    }
 
-        const params = new URLSearchParams({
-            client_id: env.TWITCH_CLIENT_ID,
-            client_secret: env.TWITCH_CLIENT_SECRET,
-            refresh_token,
-            grant_type: "refresh_token"
-        });
+    return rateLimitDenied(corsHeaders);
+}
 
-        const response = await fetch("https://id.twitch.tv/oauth2/token", {
-            method: "POST",
-            body: params
-        });
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-        const data = await response.json();
-        return Response.json(data, { status: response.status, headers: corsHeaders });
-    } catch (err: any) {
-        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+function isAllowedKickRedirect(value: unknown): value is string {
+    if (typeof value !== "string" || value.length > 2048) return false;
+
+    try {
+        const redirect = new URL(value);
+        const port = Number(redirect.port);
+        return (
+            redirect.protocol === "http:" &&
+            redirect.hostname === "localhost" &&
+            Number.isInteger(port) &&
+            port >= 8765 &&
+            port <= 8864 &&
+            redirect.pathname === "/auth/kick/callback" &&
+            redirect.username === "" &&
+            redirect.password === "" &&
+            redirect.search === "" &&
+            redirect.hash === ""
+        );
+    } catch {
+        return false;
     }
 }
 
-async function handleTwitchAppToken(env: Env, corsHeaders: any) {
-    try {
-        const params = new URLSearchParams({
-            client_id: env.TWITCH_CLIENT_ID,
-            client_secret: env.TWITCH_CLIENT_SECRET,
-            grant_type: "client_credentials"
-        });
-
-        const response = await fetch("https://id.twitch.tv/oauth2/token", {
-            method: "POST",
-            body: params
-        });
-
-        const data = await response.json();
-        return Response.json(data, { status: response.status, headers: corsHeaders });
-    } catch (err: any) {
-        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
-    }
+function isValidCodeVerifier(value: unknown): value is string {
+    return typeof value === "string" && /^[A-Za-z0-9._~-]{43,128}$/.test(value);
 }
 
-async function handleTwitchProxy(request: Request, env: Env, subPath: string, corsHeaders: any) {
-    const url = `https://api.twitch.tv/helix${subPath}${new URL(request.url).search}`;
-
-    const headers = new Headers(request.headers);
-    headers.set("Client-Id", env.TWITCH_CLIENT_ID);
-
-    // If no Authorization header is present (e.g. app access token needed), 
-    // we could inject one here if we stored/cached it.
-    // For now, we assume the client sends a User Token or we need to implement App Token caching.
-    // But purely proxying allows User Token to pass through.
-
-    const response = await fetch(url, {
-        method: request.method,
-        headers: headers,
-        body: request.body
-    });
-
-    const responseHeaders = new Headers(response.headers);
-    responseHeaders.set("Access-Control-Allow-Origin", "*");
-
-    return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders
-    });
+async function sha256Hex(value: string): Promise<string> {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function handleKickTokenExchange(request: Request, env: Env, corsHeaders: any) {
+function rateLimitDenied(corsHeaders: CorsHeaders): Response {
+    return Response.json(
+        { error: "rate_limited" },
+        {
+            status: 429,
+            headers: {
+                ...corsHeaders,
+                "Retry-After": "60",
+                "Cache-Control": "no-store",
+            },
+        }
+    );
+}
+
+function rateLimitUnavailable(corsHeaders: CorsHeaders): Response {
+    return Response.json(
+        { error: "rate_limit_unavailable" },
+        {
+            status: 503,
+            headers: {
+                ...corsHeaders,
+                "Cache-Control": "no-store",
+            },
+        }
+    );
+}
+
+function invalidRequest(corsHeaders: CorsHeaders): Response {
+    return Response.json(
+        { error: "invalid_request" },
+        {
+            status: 400,
+            headers: {
+                ...corsHeaders,
+                "Cache-Control": "no-store",
+            },
+        }
+    );
+}
+
+async function handleKickTokenExchange(
+    body: KickTokenExchangeBody,
+    env: Env,
+    corsHeaders: CorsHeaders
+) {
     try {
-        const body = await request.json() as any;
         const { code, redirect_uri, code_verifier } = body;
 
         const params = new URLSearchParams({
@@ -195,9 +289,12 @@ async function handleKickTokenExchange(request: Request, env: Env, corsHeaders: 
     }
 }
 
-async function handleKickTokenRefresh(request: Request, env: Env, corsHeaders: any) {
+async function handleKickTokenRefresh(
+    body: KickTokenRefreshBody,
+    env: Env,
+    corsHeaders: CorsHeaders
+) {
     try {
-        const body = await request.json() as any;
         const { refresh_token } = body;
 
         const params = new URLSearchParams({
@@ -220,61 +317,19 @@ async function handleKickTokenRefresh(request: Request, env: Env, corsHeaders: a
     }
 }
 
-async function handleHealthCheck(env: Env, corsHeaders: any) {
-    const secretsConfigured = {
-        twitch: !!(env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET),
-        kick: !!(env.KICK_CLIENT_ID && env.KICK_CLIENT_SECRET)
-    };
-
-    const kickOfficialApi: {
-        status: "healthy" | "unhealthy";
-        probe: string;
-        http_status?: number;
-        error?: string;
-    } = {
-        status: "unhealthy",
-        probe: "/public/v1/channels?slug[]=hennytingzz"
-    };
-
-    if (secretsConfigured.kick) {
-        try {
-            const token = await fetchKickAppToken(env);
-            const response = await fetch("https://api.kick.com/public/v1/channels?slug[]=hennytingzz", {
-                headers: {
-                    Accept: "application/json",
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            if (response.status === 401) {
-                kickAppTokenCache = null;
-                const freshToken = await fetchKickAppToken(env);
-                const retryResponse = await fetch("https://api.kick.com/public/v1/channels?slug[]=hennytingzz", {
-                    headers: {
-                        Accept: "application/json",
-                        Authorization: `Bearer ${freshToken}`
-                    }
-                });
-                kickOfficialApi.http_status = retryResponse.status;
-                kickOfficialApi.status = retryResponse.status === 200 ? "healthy" : "unhealthy";
-            } else {
-                kickOfficialApi.http_status = response.status;
-                kickOfficialApi.status = response.status === 200 ? "healthy" : "unhealthy";
-            }
-        } catch (err: any) {
-            kickOfficialApi.error = err instanceof Error ? err.message : String(err);
-        }
-    } else {
-        kickOfficialApi.error = "Kick client credentials are not configured";
-    }
-
+function handleHealthCheck(env: Env, corsHeaders: CorsHeaders): Response {
     return Response.json({
-        status: kickOfficialApi.status === "healthy" ? "ok" : "degraded",
-        secrets_configured: secretsConfigured,
-        kick_official_api: kickOfficialApi,
+        status: "ok",
+        secrets_configured: {
+            kick: !!(env.KICK_CLIENT_ID && env.KICK_CLIENT_SECRET)
+        },
         timestamp: new Date().toISOString()
     }, {
-        status: kickOfficialApi.status === "healthy" ? 200 : 503,
-        headers: corsHeaders
+        status: 200,
+        headers: {
+            ...corsHeaders,
+            "Cache-Control": "no-store"
+        }
     });
 }
 

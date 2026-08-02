@@ -1,14 +1,9 @@
 import { type BrowserWindow, ipcMain } from "electron";
+import { z } from "zod";
 
 import { logger } from "@/backend/logging/logger";
 import { createManagedInterval } from "../../../lib/managed-interval";
-import type {
-  AuthToken,
-  KickUser,
-  LocalFollow,
-  Platform,
-  TwitchUser,
-} from "../../../shared/auth-types";
+import type { AuthToken, LocalFollow, Platform, TwitchUser } from "../../../shared/auth-types";
 import {
   type AuthStatus,
   type AuthSyncFollowsResult,
@@ -26,8 +21,60 @@ import {
   twitchAuthService,
   validateOAuthConfig,
 } from "../../auth";
+import {
+  runTwitchDeviceCodeLogin,
+  type TwitchDeviceCodeLoginDependencies,
+} from "../../auth/device-code-flow";
+import { twitchDeviceAuthWindow } from "../../auth/twitch-device-auth-window";
 import { liveNotificationService } from "../../services/live-notification-service";
 import { storageService } from "../../services/storage-service";
+import { isAllowedSender } from "../sender-origin";
+
+const authTokenSchema = z
+  .object({
+    accessToken: z.string().min(1),
+    refreshToken: z.string().min(1).optional(),
+    expiresAt: z.number().finite().nonnegative().optional(),
+    scope: z.array(z.string().min(1)).optional(),
+    authFlow: z.literal("device-code").optional(),
+  })
+  .strict();
+
+const kickPlatformPayloadSchema = z.object({ platform: z.literal("kick") }).strict();
+const platformPayloadSchema = z.object({ platform: z.enum(["twitch", "kick"]) }).strict();
+const kickTokenPayloadSchema = z
+  .object({ platform: z.literal("kick"), token: authTokenSchema })
+  .strict();
+const twitchUserSchema = z
+  .object({
+    id: z.string().min(1),
+    login: z.string().min(1),
+    displayName: z.string(),
+    profileImageUrl: z.string(),
+    email: z.string().optional(),
+    createdAt: z.string().min(1),
+    broadcasterType: z.enum(["partner", "affiliate", ""]),
+  })
+  .strict();
+const kickUserSchema = z
+  .object({
+    id: z.number().finite().int().nonnegative(),
+    username: z.string().min(1),
+    slug: z.string().min(1),
+    profilePic: z.string(),
+    email: z.string().optional(),
+    bio: z.string().optional(),
+    verified: z.boolean(),
+    twitter: z.string().optional(),
+    discord: z.string().optional(),
+    instagram: z.string().optional(),
+    tiktok: z.string().optional(),
+    facebook: z.string().optional(),
+    youtube: z.string().optional(),
+  })
+  .strict();
+const twitchUserPayloadSchema = z.object({ user: twitchUserSchema }).strict();
+const kickUserPayloadSchema = z.object({ user: kickUserSchema }).strict();
 
 /**
  * Kick-side of the post-login follow sync, extracted so the
@@ -69,7 +116,7 @@ export async function syncKickFollowsAfterLogin(
     (channel) =>
       ({
         platform: "kick",
-        channelId: channel.id,
+        channelId: channel.kickUserId ?? channel.id,
         channelName: channel.username,
         displayName: channel.displayName,
         profileImage: channel.avatarUrl,
@@ -108,8 +155,60 @@ export function persistInitialAuthToken(
   return token;
 }
 
+interface PerformTwitchDeviceCodeLoginDependencies extends TwitchDeviceCodeLoginDependencies {
+  scopes: string[];
+  saveToken: (platform: Platform, token: AuthToken) => void;
+  scheduleProactiveRefresh: () => void;
+  fetchCurrentUser: () => Promise<TwitchUser | null>;
+  saveTwitchUser: (user: TwitchUser) => void;
+  afterAuthenticated: () => Promise<void>;
+  onStatusChange?: (
+    status: "pending" | "authorized" | "expired" | "error",
+    message?: string
+  ) => void;
+}
+
+export async function performTwitchDeviceCodeLogin(
+  dependencies: PerformTwitchDeviceCodeLoginDependencies
+): Promise<TwitchUser | null> {
+  const token = await runTwitchDeviceCodeLogin(
+    dependencies.scopes,
+    dependencies,
+    dependencies.onStatusChange
+  );
+  dependencies.saveToken("twitch", token);
+  dependencies.scheduleProactiveRefresh();
+
+  const user = await dependencies.fetchCurrentUser();
+  if (user) {
+    dependencies.saveTwitchUser(user);
+  }
+  await dependencies.afterAuthenticated();
+  return user;
+}
+
+export function invalidateLegacyTwitchToken(
+  storage: Pick<typeof storageService, "getToken" | "clearToken"> = storageService
+): boolean {
+  const token = storage.getToken("twitch");
+  if (!token || token.authFlow === "device-code") {
+    return false;
+  }
+
+  storage.clearToken("twitch");
+  return true;
+}
+
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   const authHandlersStartedAt = Date.now();
+  let twitchLoginInFlight: Promise<{ success: boolean; error?: string }> | null = null;
+
+  if (invalidateLegacyTwitchToken()) {
+    logger.warn(
+      "IPC:Auth",
+      "Cleared a legacy Twitch credential so the account can reconnect with Device Code Grant"
+    );
+  }
 
   /**
    * Helper to safely send IPC messages to the renderer.
@@ -313,70 +412,94 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   });
 
   // ========== Auth - Token Management ==========
-  ipcMain.handle(IPC_CHANNELS.AUTH_GET_TOKEN, (_event, { platform }: { platform: Platform }) => {
-    return storageService.getToken(platform);
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_TOKEN, (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return null;
+    const parsed = kickPlatformPayloadSchema.safeParse(payload);
+    if (!parsed.success) return null;
+    return storageService.getToken(parsed.data.platform);
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.AUTH_SAVE_TOKEN,
-    (_event, { platform, token }: { platform: Platform; token: AuthToken }) => {
-      persistInitialAuthToken(platform, token);
-      if (platform === "twitch") {
-        liveNotificationService.reconcileSilently();
-      }
-    }
-  );
+  ipcMain.handle(IPC_CHANNELS.AUTH_SAVE_TOKEN, (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return;
+    const parsed = kickTokenPayloadSchema.safeParse(payload);
+    if (!parsed.success) return;
+    persistInitialAuthToken(parsed.data.platform, parsed.data.token);
+  });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_TOKEN, (_event, { platform }: { platform: Platform }) => {
-    storageService.clearToken(platform);
-    if (platform === "twitch") {
+  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_TOKEN, (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return;
+    const parsed = platformPayloadSchema.safeParse(payload);
+    if (!parsed.success) return;
+    storageService.clearToken(parsed.data.platform);
+    if (parsed.data.platform === "twitch") {
       liveNotificationService.reconcileSilently();
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_HAS_TOKEN, (_event, { platform }: { platform: Platform }) => {
-    return storageService.hasToken(platform);
+  ipcMain.handle(IPC_CHANNELS.AUTH_HAS_TOKEN, (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return false;
+    const parsed = platformPayloadSchema.safeParse(payload);
+    if (!parsed.success) return false;
+    return storageService.hasToken(parsed.data.platform);
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.AUTH_IS_TOKEN_EXPIRED,
-    (_event, { platform }: { platform: Platform }) => {
-      return storageService.isTokenExpired(platform);
-    }
-  );
+  ipcMain.handle(IPC_CHANNELS.AUTH_IS_TOKEN_EXPIRED, (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return true;
+    const parsed = platformPayloadSchema.safeParse(payload);
+    if (!parsed.success) return true;
+    return storageService.isTokenExpired(parsed.data.platform);
+  });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_ALL_TOKENS, () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_ALL_TOKENS, (event) => {
+    if (!isAllowedSender(event)) return;
     storageService.clearAllTokens();
     liveNotificationService.reconcileSilently();
   });
 
   // ========== Auth - User Data ==========
-  ipcMain.handle(IPC_CHANNELS.AUTH_GET_TWITCH_USER, () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_TWITCH_USER, (event) => {
+    if (!isAllowedSender(event)) return null;
     return storageService.getTwitchUser();
   });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_SAVE_TWITCH_USER, (_event, { user }: { user: TwitchUser }) => {
-    storageService.saveTwitchUser(user);
+  ipcMain.handle(IPC_CHANNELS.AUTH_SAVE_TWITCH_USER, (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return;
+    const parsed = twitchUserPayloadSchema.safeParse(payload);
+    if (!parsed.success) return;
+    storageService.saveTwitchUser(parsed.data.user);
   });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_TWITCH_USER, () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_TWITCH_USER, (event) => {
+    if (!isAllowedSender(event)) return;
     storageService.clearTwitchUser();
   });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_GET_KICK_USER, () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_KICK_USER, (event) => {
+    if (!isAllowedSender(event)) return null;
     return storageService.getKickUser();
   });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_SAVE_KICK_USER, (_event, { user }: { user: KickUser }) => {
-    storageService.saveKickUser(user);
+  ipcMain.handle(IPC_CHANNELS.AUTH_SAVE_KICK_USER, (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return;
+    const parsed = kickUserPayloadSchema.safeParse(payload);
+    if (!parsed.success) return;
+    storageService.saveKickUser(parsed.data.user);
   });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_KICK_USER, () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_CLEAR_KICK_USER, (event) => {
+    if (!isAllowedSender(event)) return;
     storageService.clearKickUser();
   });
 
   // ========== Auth - Status ==========
-  ipcMain.handle(IPC_CHANNELS.AUTH_GET_STATUS, (): AuthStatus => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_STATUS, (event): AuthStatus => {
+    if (!isAllowedSender(event)) {
+      return {
+        twitch: { connected: false, user: null, hasToken: false, isExpired: true },
+        kick: { connected: false, user: null, hasToken: false, isExpired: true },
+        isGuest: true,
+      };
+    }
     const twitchUser = storageService.getTwitchUser();
     const kickUser = storageService.getKickUser();
     const twitchHasToken = storageService.hasToken("twitch");
@@ -401,41 +524,41 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     };
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.AUTH_SYNC_FOLLOWS,
-    async (_event, { platform }: { platform: Platform }) => {
-      const isAuthenticated =
-        platform === "kick"
-          ? await kickAuthService.ensureValidToken()
-          : storageService.hasToken(platform) && !storageService.isTokenExpired(platform);
-      if (!isAuthenticated) {
-        return { success: false, error: "not-authenticated" };
-      }
-
-      const result = await syncFollowsOnLogin(platform);
-      if (result.status === "error") {
-        return { success: false, error: result.reason } satisfies AuthSyncFollowsResult;
-      }
-
-      return {
-        success: true,
-        count: result.count,
-        pendingCount: result.pendingCount,
-        addedCount: result.addedCount,
-        removedCount: result.removedCount,
-      } satisfies AuthSyncFollowsResult;
+  ipcMain.handle(IPC_CHANNELS.AUTH_SYNC_FOLLOWS, async (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
+    const parsed = platformPayloadSchema.safeParse(payload);
+    if (!parsed.success) return { success: false, error: "Invalid request" };
+    const { platform } = parsed.data;
+    const isAuthenticated =
+      platform === "kick"
+        ? await kickAuthService.ensureValidToken()
+        : storageService.hasToken(platform) && !storageService.isTokenExpired(platform);
+    if (!isAuthenticated) {
+      return { success: false, error: "not-authenticated" };
     }
-  );
+
+    const result = await syncFollowsOnLogin(platform);
+    if (result.status === "error") {
+      return { success: false, error: result.reason } satisfies AuthSyncFollowsResult;
+    }
+
+    return {
+      success: true,
+      count: result.count,
+      pendingCount: result.pendingCount,
+      addedCount: result.addedCount,
+      removedCount: result.removedCount,
+    } satisfies AuthSyncFollowsResult;
+  });
 
   // ========== Auth - OAuth Flow using Localhost Callback Server ==========
 
   // Track in-progress OAuth flows to prevent state mismatch from multiple clicks
-  const pendingOAuthFlows: Map<Platform, { cancel: () => void }> = new Map();
+  const pendingOAuthFlows: Map<"kick", { cancel: () => void }> = new Map();
 
-  /**
-   * Handle OAuth flow for a platform using localhost callback server
-   */
-  async function handleOAuthFlow(platform: Platform): Promise<void> {
+  /** Kick keeps the localhost callback + Worker code-exchange flow. */
+  async function handleKickOAuthFlow(): Promise<void> {
+    const platform = "kick" as const;
     // Validate OAuth config first
     const configErrors = validateOAuthConfig(platform);
     if (configErrors.length > 0) {
@@ -492,46 +615,23 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
       logger.debug("IPC:Auth", "Successfully authenticated", { platform });
 
-      // Fetch user info after token is saved
-      if (platform === "twitch") {
-        // Kick off background refresh chain against the new expiry. Without
-        // this the user would be auto-refreshed only after the first idle
-        // expiry, leaving a window where Twitch IRC/EventSub get torn down.
-        twitchAuthService.scheduleProactiveRefresh();
-        try {
-          const user = await twitchAuthService.fetchCurrentUser();
-          if (user) {
-            storageService.saveTwitchUser(user);
-          }
-        } catch (userError) {
-          logger.error("IPC:Auth", "Failed to fetch Twitch user info", {
-            error:
-              userError instanceof Error
-                ? { name: userError.name, message: userError.message, stack: userError.stack }
-                : String(userError),
-          });
+      try {
+        const user = await kickAuthService.fetchCurrentUser();
+        if (user) {
+          storageService.saveKickUser(user);
         }
-      } else if (platform === "kick") {
-        try {
-          const user = await kickAuthService.fetchCurrentUser();
-          if (user) {
-            storageService.saveKickUser(user);
-          }
-        } catch (userError) {
-          logger.error("IPC:Auth", "Failed to fetch Kick user info", {
-            error:
-              userError instanceof Error
-                ? { name: userError.name, message: userError.message, stack: userError.stack }
-                : String(userError),
-          });
-        }
+      } catch (userError) {
+        logger.error("IPC:Auth", "Failed to fetch Kick user info", {
+          error:
+            userError instanceof Error
+              ? { name: userError.name, message: userError.message, stack: userError.stack }
+              : String(userError),
+        });
       }
 
       // Sync local follows with account follows (background, non-blocking)
       reconcileLiveNotificationsAfterFollowSync(
-        syncFollowsOnLogin(platform, {
-          allowKickBrowserWindowFallback: platform === "kick",
-        })
+        syncFollowsOnLogin(platform, { allowKickBrowserWindowFallback: true })
       );
 
       // Notify renderer of successful auth
@@ -572,31 +672,77 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     }
   }
 
-  // Handle opening Twitch OAuth
-  ipcMain.handle(IPC_CHANNELS.AUTH_OPEN_TWITCH, async () => {
-    logger.debug("IPC:Auth", "Opening Twitch login");
+  // The renderer's established login action now completes Twitch's public
+  // Device Code Grant end-to-end. Kick continues to use the callback/Worker
+  // authorization-code flow below.
+  ipcMain.handle(IPC_CHANNELS.AUTH_OPEN_TWITCH, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
+    if (twitchLoginInFlight) return twitchLoginInFlight;
+
+    const login = (async (): Promise<{ success: boolean; error?: string }> => {
+      logger.debug("IPC:Auth", "Opening Twitch login");
+      try {
+        const config = getOAuthConfig("twitch");
+        if (!config.clientId) {
+          throw new Error("TWITCH_CLIENT_ID is not set. Please add it to your .env file.");
+        }
+
+        await performTwitchDeviceCodeLogin({
+          scopes: config.scopes,
+          requestDeviceCode: (scopes) => deviceCodeFlowService.requestDeviceCode(scopes),
+          openVerificationWindow: (verificationUri) => twitchDeviceAuthWindow.open(verificationUri),
+          pollForToken: (deviceCode, interval, expiresIn, scopes, onStatusChange, signal) =>
+            deviceCodeFlowService.pollForToken(
+              deviceCode,
+              interval,
+              expiresIn,
+              scopes,
+              onStatusChange,
+              signal
+            ),
+          saveToken: (platform, token) => storageService.saveToken(platform, token),
+          scheduleProactiveRefresh: () => twitchAuthService.scheduleProactiveRefresh(),
+          fetchCurrentUser: () => twitchAuthService.fetchCurrentUser(),
+          saveTwitchUser: (user) => storageService.saveTwitchUser(user),
+          afterAuthenticated: async () => {
+            reconcileLiveNotificationsAfterFollowSync(syncFollowsOnLogin("twitch"));
+            safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
+              platform: "twitch",
+              success: true,
+            });
+          },
+          onStatusChange: (status, message) => {
+            safeSend(IPC_CHANNELS.AUTH_DCF_STATUS, { status, message });
+          },
+        });
+        return { success: true };
+      } catch (error) {
+        logger.error("IPC:Auth", "Twitch OAuth error", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Authentication failed",
+        };
+      }
+    })();
+    twitchLoginInFlight = login;
     try {
-      await handleOAuthFlow("twitch");
-      return { success: true };
-    } catch (error) {
-      logger.error("IPC:Auth", "Twitch OAuth error", {
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Authentication failed",
-      };
+      return await login;
+    } finally {
+      if (twitchLoginInFlight === login) twitchLoginInFlight = null;
     }
   });
 
   // Handle opening Kick OAuth
-  ipcMain.handle(IPC_CHANNELS.AUTH_OPEN_KICK, async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_OPEN_KICK, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
     logger.debug("IPC:Auth", "Opening Kick login");
     try {
-      await handleOAuthFlow("kick");
+      await handleKickOAuthFlow();
       return { success: true };
     } catch (error) {
       logger.error("IPC:Auth", "Kick OAuth error", {
@@ -615,7 +761,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   // ========== Twitch Auth Operations ==========
 
   // Handle Twitch logout
-  ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT_TWITCH, async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT_TWITCH, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
     logger.debug("IPC:Auth", "Logging out from Twitch");
     try {
       await twitchAuthService.logout();
@@ -641,13 +788,19 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Handle Twitch token refresh
-  ipcMain.handle(IPC_CHANNELS.AUTH_REFRESH_TWITCH, async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_REFRESH_TWITCH, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
     logger.debug("IPC:Auth", "Refreshing Twitch token");
     try {
       const token = await twitchAuthService.refreshToken();
       if (token) {
         liveNotificationService.reconcileSilently();
-        return { success: true, token };
+        return {
+          success: true,
+          user: storageService.getTwitchUser(),
+          hasToken: storageService.hasToken("twitch"),
+          isExpired: storageService.isTokenExpired("twitch"),
+        };
       }
       return { success: false, error: "Token refresh failed" };
     } catch (error) {
@@ -664,11 +817,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     }
   });
 
-  // Returns a guaranteed-valid access-token string, refreshing if expired or
-  // expiring within 5 minutes. Use this anywhere the renderer needs to attach
-  // Authorization: Bearer <token> to a Twitch API call (chat IRC handshake,
-  // direct Helix fetches that don't route through TwitchRequestor, etc.).
-  ipcMain.handle(IPC_CHANNELS.AUTH_GET_VALID_TWITCH_TOKEN, async () => {
+  // Narrow raw-token exception for renderer-owned Twitch IRC/Hermes sockets.
+  // Helix, EventSub, emotes, and account operations must use main-owned IPC.
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_VALID_TWITCH_TOKEN, async (event) => {
+    if (!isAllowedSender(event)) return null;
     return await twitchAuthService.getValidAccessToken();
   });
 
@@ -682,7 +834,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Handle fetching Twitch user info
-  ipcMain.handle(IPC_CHANNELS.AUTH_FETCH_TWITCH_USER, async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_FETCH_TWITCH_USER, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
     logger.debug("IPC:Auth", "Fetching Twitch user info");
     try {
       const user = await twitchAuthService.fetchCurrentUser();
@@ -707,7 +860,11 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   // ========== Kick Auth Operations ==========
 
   // Handle Kick logout (generic)
-  ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async (_event, { platform }: { platform: Platform }) => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async (event, payload: unknown) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
+    const parsed = platformPayloadSchema.safeParse(payload);
+    if (!parsed.success) return { success: false, error: "Invalid request" };
+    const { platform } = parsed.data;
     if (platform === "twitch") {
       await twitchAuthService.logout();
     } else if (platform === "kick") {
@@ -727,7 +884,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Handle Kick logout (specific channel)
-  ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT_KICK, async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT_KICK, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
     logger.debug("IPC:Auth", "Logging out from Kick");
     try {
       await kickAuthService.logout();
@@ -753,7 +911,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Handle Kick token refresh
-  ipcMain.handle(IPC_CHANNELS.AUTH_REFRESH_KICK, async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_REFRESH_KICK, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
     logger.debug("IPC:Auth", "Refreshing Kick token");
     try {
       const token = await kickAuthService.refreshToken();
@@ -776,7 +935,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Handle Kick user fetch
-  ipcMain.handle(IPC_CHANNELS.AUTH_FETCH_KICK_USER, async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_FETCH_KICK_USER, async (event) => {
+    if (!isAllowedSender(event)) return { success: false, error: "Request rejected" };
     logger.debug("IPC:Auth", "Fetching Kick user info");
     try {
       const user = await kickAuthService.fetchCurrentUser();
@@ -801,112 +961,5 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   // ========== Device Code Flow (Twitch) ==========
 
   // Start device code flow - returns codes for user to enter
-  ipcMain.handle(IPC_CHANNELS.AUTH_DCF_START, async () => {
-    logger.debug("IPC:Auth", "Starting Device Code Flow for Twitch");
-    try {
-      const config = getOAuthConfig("twitch");
-
-      if (!config.clientId) {
-        throw new Error("TWITCH_CLIENT_ID is not set. Please add it to your .env file.");
-      }
-
-      const result = await deviceCodeFlowService.requestDeviceCode(config.scopes);
-
-      // Open the verification URL in the default browser
-      const { shell } = await import("electron");
-      shell.openExternal(result.verificationUri);
-
-      return {
-        success: true,
-        userCode: result.userCode,
-        verificationUri: result.verificationUri,
-        deviceCode: result.deviceCode,
-        expiresIn: result.expiresIn,
-        interval: result.interval,
-      };
-    } catch (error) {
-      logger.error("IPC:Auth", "Failed to start device code flow", {
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to start device code flow",
-      };
-    }
-  });
-
   // Poll for token after user authorizes
-  ipcMain.handle(
-    IPC_CHANNELS.AUTH_DCF_POLL,
-    async (
-      _event,
-      {
-        deviceCode,
-        interval,
-        expiresIn,
-      }: {
-        deviceCode: string;
-        interval: number;
-        expiresIn: number;
-      }
-    ) => {
-      logger.debug("IPC:Auth", "Polling for Twitch authorization");
-      try {
-        const token = await deviceCodeFlowService.pollForToken(
-          deviceCode,
-          interval,
-          expiresIn,
-          (status, message) => {
-            // Send status updates to renderer
-            safeSend(IPC_CHANNELS.AUTH_DCF_STATUS, { status, message });
-          }
-        );
-
-        // Save the token
-        storageService.saveToken("twitch", token);
-
-        // Chain proactive refresh against the new expiry — see the OAuth
-        // callback branch above for the rationale.
-        twitchAuthService.scheduleProactiveRefresh();
-
-        // Fetch user info
-        const user = await twitchAuthService.fetchCurrentUser();
-        if (user) {
-          storageService.saveTwitchUser(user);
-        }
-
-        // Sync local follows with account follows (background, non-blocking)
-        reconcileLiveNotificationsAfterFollowSync(syncFollowsOnLogin("twitch"));
-
-        // Notify renderer
-        safeSend(IPC_CHANNELS.AUTH_ON_CALLBACK, {
-          platform: "twitch",
-          success: true,
-        });
-
-        return { success: true, user };
-      } catch (error) {
-        logger.error("IPC:Auth", "Device code flow failed", {
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        });
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Authorization failed",
-        };
-      }
-    }
-  );
-
-  // Cancel device code flow
-  ipcMain.handle(IPC_CHANNELS.AUTH_DCF_CANCEL, () => {
-    logger.debug("IPC:Auth", "Cancelling device code flow");
-    deviceCodeFlowService.stopPolling();
-    return { success: true };
-  });
 }

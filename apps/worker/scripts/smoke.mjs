@@ -27,16 +27,8 @@ async function main() {
   );
   assert(health?.status === "ok", `/health status was ${health?.status}; expected ok`);
   assert(
-    health?.kick_official_api?.probe === "/public/v1/channels?slug[]=hennytingzz",
-    "/health did not report the hennytingzz Kick official API probe"
-  );
-  assert(
-    health?.kick_official_api?.status === "healthy",
-    `/health Kick official API was ${health?.kick_official_api?.status}; expected healthy`
-  );
-  assert(
-    health?.kick_official_api?.http_status === 200,
-    `/health Kick official API probe returned ${health?.kick_official_api?.http_status}; expected 200`
+    health?.secrets_configured?.kick === true,
+    "/health reports that Kick credentials are not configured"
   );
 
   const channelUrl = new URL("/kick/channels", baseUrl);
@@ -103,7 +95,7 @@ async function main() {
         ok: true,
         baseUrl,
         health_status: health.status,
-        kick_probe_status: health.kick_official_api.http_status,
+        kick_configured: health.secrets_configured.kick,
         channel_rows: channel.data.length,
         broadcaster_id: probeChannel.broadcaster_user_id,
         broadcaster_rows: broadcasterChannel.data.length,
