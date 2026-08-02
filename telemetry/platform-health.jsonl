@@ -10280,3 +10280,5 @@
 {"ts":"2026-07-30T08:51:34.652Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":22,"failureRate":0,"source":"internal"}
 {"ts":"2026-08-02T17:33:57.974Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":59,"failureRate":0,"source":"internal"}
 {"ts":"2026-08-02T17:33:57.977Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":5,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-02T18:06:44.021Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":99,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-02T18:06:44.024Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":3,"failureRate":0,"source":"internal"}
