@@ -15,10 +15,7 @@ const mocks = vi.hoisted(() => ({
     twitchUser: null as { id: string; login: string; displayName: string } | null,
     kickUser: null as { id: number; username: string; slug: string } | null,
   },
-  getModeratedChannels: vi.fn(
-    async (..._args: unknown[]) =>
-      [] as Array<{ broadcaster_id: string; broadcaster_login: string; broadcaster_name: string }>
-  ),
+  execute: vi.fn(),
 }));
 
 vi.mock("@/store/auth-store", () => {
@@ -28,23 +25,20 @@ vi.mock("@/store/auth-store", () => {
   return { useAuthStore: useStore };
 });
 
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
-  getModeratedChannels: (...args: unknown[]) => mocks.getModeratedChannels(...args),
-}));
-
 import { ChannelList } from "@/pages/Mod/ChannelList";
 
+// Guards: Twitch moderation cards are populated through the credential-free main-process IPC boundary.
+// Guards: signed-out, loading, and multi-platform channel-list states remain distinct.
 describe("ChannelList", () => {
   let api: ReturnType<typeof installElectronAPIMock>;
 
   beforeEach(() => {
     mocks.authState.twitchUser = null;
     mocks.authState.kickUser = null;
-    mocks.getModeratedChannels.mockResolvedValue([]);
+    mocks.execute.mockReset();
+    mocks.execute.mockResolvedValue({ ok: true, data: [] });
     api = installElectronAPIMock();
-    api.auth.getToken = vi.fn(async () => ({ accessToken: "tok" }));
-    // biome-ignore lint/suspicious/noExplicitAny: env stub.
-    (import.meta as any).env = { VITE_TWITCH_CLIENT_ID: "cid" };
+    api.twitch.execute = mocks.execute;
   });
 
   it("shows empty state when no users are signed in", () => {
@@ -64,9 +58,12 @@ describe("ChannelList", () => {
 
   it("renders moderated Twitch channels returned by the API", async () => {
     mocks.authState.twitchUser = { id: "111", login: "streamer", displayName: "Streamer" };
-    mocks.getModeratedChannels.mockResolvedValue([
-      { broadcaster_id: "222", broadcaster_login: "othermod", broadcaster_name: "OtherMod" },
-    ]);
+    mocks.execute.mockResolvedValue({
+      ok: true,
+      data: [
+        { broadcaster_id: "222", broadcaster_login: "othermod", broadcaster_name: "OtherMod" },
+      ],
+    });
     renderWithProviders(<ChannelList />);
     await waitFor(() => {
       expect(screen.getByTestId("mod-channel-card-twitch-othermod")).toBeInTheDocument();
@@ -93,7 +90,7 @@ describe("ChannelList", () => {
 
   it("shows 'Loading...' while Twitch channels are being fetched", () => {
     mocks.authState.twitchUser = { id: "111", login: "streamer", displayName: "Streamer" };
-    mocks.getModeratedChannels.mockReturnValue(new Promise(() => {}));
+    mocks.execute.mockReturnValue(new Promise(() => {}));
     renderWithProviders(<ChannelList />);
     // The broadcaster's own card shows immediately (no loading gate), so the
     // grid renders rather than the loading text.

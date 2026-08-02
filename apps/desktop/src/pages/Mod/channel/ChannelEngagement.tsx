@@ -9,13 +9,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
-import { getPolls, type PollPayload } from "@/backend/api/platforms/twitch/twitch-helix-polls";
-import {
-  getPredictions,
-  type PredictionPayload,
-} from "@/backend/api/platforms/twitch/twitch-helix-predictions";
 import { useInterval } from "@/hooks/useInterval";
+import type { TwitchPoll, TwitchPrediction } from "@/shared/twitch-api-types";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -26,30 +21,26 @@ interface ChannelEngagementProps {
 }
 
 export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEngagementProps) {
-  const [prediction, setPrediction] = useState<PredictionPayload | null>(null);
-  const [poll, setPoll] = useState<PollPayload | null>(null);
+  const [prediction, setPrediction] = useState<TwitchPrediction | null>(null);
+  const [poll, setPoll] = useState<TwitchPoll | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refetch = useCallback(async () => {
     if (!broadcasterId) return;
     setLoading(true);
     try {
-      const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!accessToken || !clientId) return;
       const [predResult, pollResult] = await Promise.all([
-        withTwitchHelixRetry({ accessToken, clientId, broadcasterId }, getPredictions),
-        withTwitchHelixRetry({ accessToken, clientId, broadcasterId }, getPolls),
+        window.electronAPI.twitch.execute({ operation: "get-predictions", broadcasterId }),
+        window.electronAPI.twitch.execute({ operation: "get-polls", broadcasterId }),
       ]);
+      const predictions = predResult.ok
+        ? ((predResult.data as { data: TwitchPrediction[] }).data ?? [])
+        : [];
+      const polls = pollResult.ok ? ((pollResult.data as { data: TwitchPoll[] }).data ?? []) : [];
       setPrediction(
-        predResult.ok
-          ? (predResult.payload.data.find((p) => p.status === "ACTIVE" || p.status === "LOCKED") ??
-              null)
-          : null
+        predictions.find((p) => p.status === "ACTIVE" || p.status === "LOCKED") ?? null
       );
-      setPoll(
-        pollResult.ok ? (pollResult.payload.data.find((p) => p.status === "ACTIVE") ?? null) : null
-      );
+      setPoll(polls.find((p) => p.status === "ACTIVE") ?? null);
     } finally {
       setLoading(false);
     }

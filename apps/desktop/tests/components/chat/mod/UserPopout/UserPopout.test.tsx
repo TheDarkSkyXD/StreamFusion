@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { renderWithProviders } from "../../../../test-utils";
 
 // Mock the profile fetcher BEFORE importing the popout — the hook runs an
 // effect on mount and we don't want it touching the network.
@@ -23,7 +24,11 @@ vi.mock("@/hooks/useModLog", () => ({
 
 import { UserPopout, type UserPopoutProps } from "@/components/chat/mod/UserPopout/UserPopout";
 import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, TWITCH_APP_SCOPES } from "@/shared/auth-types";
+import {
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  KICK_APP_SCOPES,
+  TWITCH_APP_SCOPES,
+} from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
@@ -115,24 +120,24 @@ function renderPopout(
     sourceLabel: string;
     retry: () => void;
   },
-  publicActions?: UserPopoutProps["publicActions"]
+  publicActions?: UserPopoutProps["publicActions"],
+  queryClient?: QueryClient
 ) {
-  return render(
-    <TooltipProvider>
-      <UserPopout
-        userId="u1"
-        username={username}
-        avatarUrl={avatarUrl}
-        platform={platform}
-        channelId="c1"
-        channelSlug="streamer"
-        openingMessage={openingMessage}
-        badgeCatalog={badgeCatalog}
-        publicActions={publicActions}
-        open={open}
-        onOpenChange={() => {}}
-      />
-    </TooltipProvider>
+  return renderWithProviders(
+    <UserPopout
+      userId="u1"
+      username={username}
+      avatarUrl={avatarUrl}
+      platform={platform}
+      channelId="c1"
+      channelSlug="streamer"
+      openingMessage={openingMessage}
+      badgeCatalog={badgeCatalog}
+      publicActions={publicActions}
+      open={open}
+      onOpenChange={() => {}}
+    />,
+    { queryClient }
   );
 }
 
@@ -174,6 +179,95 @@ describe("UserPopout", () => {
     expect(await screen.findByRole("heading", { name: "Moderation history" })).toBeInTheDocument();
     expect(screen.getByText("Platform actions available to StreamFusion")).toBeInTheDocument();
     expect(screen.getByText("No moderation actions available")).toBeInTheDocument();
+  });
+
+  it("keeps timeout success refreshing until target state and moderation history both refresh", async () => {
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useAuthStore.setState({
+      kickUser: {
+        id: 42,
+        username: "streamer",
+        slug: "streamer",
+        profilePic: "",
+        verified: false,
+      },
+    });
+    vi.mocked(window.electronAPI.auth.tokenStatus).mockResolvedValue({
+      platform: "kick",
+      connected: true,
+      valid: true,
+      userId: "42",
+      scopes: [...KICK_APP_SCOPES],
+    });
+
+    const availableSnapshot = {
+      state: "available" as const,
+      snapshotId: "kick-popout-snapshot",
+      verifiedAt: Date.now(),
+      actorRole: "broadcaster" as const,
+      policy: {
+        durationUnit: "minutes" as const,
+        minDuration: 1,
+        maxDuration: 10_080,
+        supportsReason: true,
+        maxReasonLength: 100,
+      },
+    };
+    let finishTargetRefresh!: () => void;
+    const createTimeoutSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce(availableSnapshot)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishTargetRefresh = () => resolve(availableSnapshot);
+        })
+      );
+    const submitTimeout = vi.fn().mockResolvedValue({
+      state: "success" as const,
+      attemptId: "attempt-1",
+    });
+    const getViewerRole = vi.fn().mockResolvedValue({
+      ok: true,
+      isModerator: true,
+      status: 200,
+    });
+    Object.assign(window.electronAPI, {
+      moderation: { createTimeoutSnapshot, submitTimeout },
+      kickChat: { getViewerRole },
+    });
+
+    let finishHistoryRefresh!: () => void;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishHistoryRefresh = resolve;
+      })
+    );
+
+    renderPopout(true, "kick", undefined, "alice", undefined, undefined, undefined, queryClient);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Timeout user" }));
+    fireEvent.click(screen.getByRole("button", { name: "Time out" }));
+    await waitFor(() => expect(submitTimeout).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Refreshing moderation history");
+
+    await act(async () => {
+      finishTargetRefresh();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Refreshing moderation history");
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["modLog", "kick", "c1"],
+    });
+
+    await act(async () => {
+      finishHistoryRefresh();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("history refreshed");
   });
 
   it("fails stale moderator authority closed with Retry and no history", () => {
@@ -576,7 +670,7 @@ describe("UserPopout", () => {
     expect(rows.getAllByRole("img", { name: /^Badge / })).toHaveLength(4);
     expect(
       within(screen.getByTestId("user-profile-badges")).getAllByRole("img", {
-        name: /^Badge \d$/,
+        name: /^Badge \d\./,
       })
     ).toHaveLength(6);
   });

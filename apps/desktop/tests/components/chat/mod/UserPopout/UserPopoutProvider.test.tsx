@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { renderWithProviders as render } from "../../../../test-utils";
 
 vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
   useUserProfile: vi.fn(() => ({

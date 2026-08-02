@@ -18,19 +18,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
-import type { HelixModResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
-import {
-  cancelPrediction,
-  createPrediction,
-  getPredictions,
-  lockPrediction,
-  type PredictionPayload,
-  type PredictionsListPayload,
-  resolvePrediction,
-} from "@/backend/api/platforms/twitch/twitch-helix-predictions";
 import { modLogWriter } from "@/backend/services/mod-log-writer";
 import { useHelixPoll } from "@/hooks/useHelixPoll";
+import type { TwitchPrediction } from "@/shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { ModActionConfirmDialog } from "../ModActionConfirmDialog";
@@ -56,43 +46,34 @@ type PendingAction =
   | { kind: "cancel" }
   | { kind: "resolve"; outcomeId: string; outcomeTitle: string };
 
-function isActive(p: PredictionPayload | null | undefined): boolean {
+function isActive(p: TwitchPrediction | null | undefined): boolean {
   return p?.status === "ACTIVE";
 }
-function isLocked(p: PredictionPayload | null | undefined): boolean {
+function isLocked(p: TwitchPrediction | null | undefined): boolean {
   return p?.status === "LOCKED";
-}
-
-async function getToken(): Promise<string | null> {
-  // Auto-refreshing path so idle sessions don't 401 on resume.
-  return window.electronAPI.auth.getValidTwitchToken();
 }
 
 export function EngagementPredictions({ channelId }: EngagementPredictionsProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
 
-  const fetcher = useCallback(async (): Promise<PredictionsListPayload | null> => {
-    const accessToken = await getToken();
-    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-    if (!accessToken || !clientId) return null;
-    const result = await withTwitchHelixRetry(
-      { accessToken, clientId, broadcasterId: channelId },
-      getPredictions
-    );
+  const fetcher = useCallback(async (): Promise<{ data: TwitchPrediction[] } | null> => {
+    const result = await window.electronAPI.twitch.execute({
+      operation: "get-predictions",
+      broadcasterId: channelId,
+    });
     if (!result.ok) {
-      // Surface as fetch error so the hook shows it.
-      throw new Error(result.message);
+      throw new Error(result.error.message);
     }
-    return result.payload;
+    return result.data as { data: TwitchPrediction[] };
   }, [channelId]);
 
-  const { data, refresh } = useHelixPoll<PredictionsListPayload | null>({
+  const { data, refresh } = useHelixPoll<{ data: TwitchPrediction[] } | null>({
     fetcher,
     intervalMs: POLL_INTERVAL_MS,
     enabled: true,
   });
 
-  const current: PredictionPayload | null = useMemo(() => {
+  const current: TwitchPrediction | null = useMemo(() => {
     const first = data?.data?.[0];
     return first ?? null;
   }, [data]);
@@ -110,18 +91,6 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
   const moderatorUserId = twitchUser?.id ?? "";
   const moderatorUsername = twitchUser?.login ?? "";
 
-  async function withMissingScopeHandling<T>(
-    run: (token: string, clientId: string) => Promise<HelixModResult<T>>
-  ): Promise<HelixModResult<T> | null> {
-    const accessToken = await getToken();
-    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-    if (!accessToken || !clientId) {
-      toast.error("Sign in to Twitch to take this action");
-      return null;
-    }
-    return run(accessToken, clientId);
-  }
-
   const handleCreate = async () => {
     const title = formTitle.trim();
     if (title.length === 0) {
@@ -135,19 +104,15 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
     }
     setBusy(true);
     try {
-      const result = await withMissingScopeHandling((t, cid) =>
-        createPrediction({
-          accessToken: t,
-          clientId: cid,
-          broadcasterId: channelId,
-          title,
-          outcomes: cleanedOutcomes.map((o) => ({ title: o })),
-          predictionWindow: formDuration,
-        })
-      );
-      if (!result) return;
+      const result = await window.electronAPI.twitch.execute({
+        operation: "create-prediction",
+        broadcasterId: channelId,
+        title,
+        outcomes: cleanedOutcomes,
+        predictionWindow: formDuration,
+      });
       if (!result.ok) {
-        toast.error(`Could not create prediction: ${result.message}`);
+        toast.error(`Could not create prediction: ${result.error.message}`);
         return;
       }
       modLogWriter.record({
@@ -176,44 +141,25 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
     if (!pending || !current) return;
     setBusy(true);
     try {
-      let result: HelixModResult<PredictionPayload> | null = null;
       let logAction: "prediction-lock" | "prediction-resolve" | "prediction-cancel";
 
       if (pending.kind === "lock") {
         logAction = "prediction-lock";
-        result = await withMissingScopeHandling((t, cid) =>
-          lockPrediction({
-            accessToken: t,
-            clientId: cid,
-            broadcasterId: channelId,
-            predictionId: current.id,
-          })
-        );
       } else if (pending.kind === "cancel") {
         logAction = "prediction-cancel";
-        result = await withMissingScopeHandling((t, cid) =>
-          cancelPrediction({
-            accessToken: t,
-            clientId: cid,
-            broadcasterId: channelId,
-            predictionId: current.id,
-          })
-        );
       } else {
         logAction = "prediction-resolve";
-        result = await withMissingScopeHandling((t, cid) =>
-          resolvePrediction({
-            accessToken: t,
-            clientId: cid,
-            broadcasterId: channelId,
-            predictionId: current.id,
-            winningOutcomeId: pending.outcomeId,
-          })
-        );
       }
-      if (!result) return;
+      const result = await window.electronAPI.twitch.execute({
+        operation: "end-prediction",
+        broadcasterId: channelId,
+        predictionId: current.id,
+        status:
+          pending.kind === "lock" ? "LOCKED" : pending.kind === "cancel" ? "CANCELED" : "RESOLVED",
+        ...(pending.kind === "resolve" ? { winningOutcomeId: pending.outcomeId } : {}),
+      });
       if (!result.ok) {
-        toast.error(`Action failed: ${result.message}`);
+        toast.error(`Action failed: ${result.error.message}`);
         return;
       }
       modLogWriter.record({

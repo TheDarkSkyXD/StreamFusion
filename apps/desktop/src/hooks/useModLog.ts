@@ -14,10 +14,10 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
-import { getModerationDevelopmentHistoryFixture } from "@/dev-relay/moderation-browser-fixtures";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 import type { ModerationHistoryResult, ModLogEntry } from "@/shared/mod-log-types";
+import { MOD_LOG_QUERY_KEYS } from "./mod-log-query-keys";
 
 export type { ModLogEntry };
 
@@ -52,9 +52,7 @@ export function useModLog(opts: UseModLogOptions): {
 
   const query = useQuery({
     queryKey: [
-      "modLog",
-      platform,
-      channelId,
+      ...MOD_LOG_QUERY_KEYS.channel(platform, channelId),
       channelSlug,
       targetUserId,
       action,
@@ -63,19 +61,6 @@ export function useModLog(opts: UseModLogOptions): {
       refreshCounter,
     ],
     queryFn: async () => {
-      const developmentFixture = getModerationDevelopmentHistoryFixture(
-        {
-          platform,
-          channelId,
-          channelSlug,
-          targetUserId,
-          action,
-          moderatorUsername,
-          limit,
-        },
-        window.location.search
-      );
-      if (developmentFixture) return developmentFixture;
       try {
         const result = await window.electronAPI.modLog.query({
           platform,

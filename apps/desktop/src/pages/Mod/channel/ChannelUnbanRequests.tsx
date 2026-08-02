@@ -10,13 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
-import {
-  getUnbanRequests,
-  resolveUnbanRequest,
-  type UnbanRequest,
-  type UnbanRequestStatus,
-} from "@/backend/api/platforms/twitch/twitch-helix-unban-requests";
+import type { TwitchUnbanRequest, TwitchUnbanRequestStatus } from "@/shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
 
 interface ChannelUnbanRequestsProps {
@@ -24,7 +18,7 @@ interface ChannelUnbanRequestsProps {
   refreshCounter?: number;
 }
 
-const STATUS_OPTIONS: UnbanRequestStatus[] = [
+const STATUS_OPTIONS: TwitchUnbanRequestStatus[] = [
   "pending",
   "approved",
   "denied",
@@ -36,8 +30,8 @@ type Pending = { requestId: string; status: "approved" | "denied" };
 
 export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelUnbanRequestsProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
-  const [statusFilter, setStatusFilter] = useState<UnbanRequestStatus>("pending");
-  const [entries, setEntries] = useState<UnbanRequest[]>([]);
+  const [statusFilter, setStatusFilter] = useState<TwitchUnbanRequestStatus>("pending");
+  const [entries, setEntries] = useState<TwitchUnbanRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -49,28 +43,18 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
     setLoading(true);
     setError(null);
     try {
-      const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!accessToken || !clientId) {
-        setError("Missing Twitch credentials.");
-        return;
-      }
-      const result = await withTwitchHelixRetry(
-        {
-          accessToken,
-          clientId,
-          broadcasterId,
-          moderatorId: twitchUser.id,
-          status: statusFilter,
-        },
-        getUnbanRequests
-      );
+      const result = await window.electronAPI.twitch.execute({
+        operation: "get-unban-requests",
+        broadcasterId,
+        moderatorId: twitchUser.id,
+        status: statusFilter,
+      });
       if (!result.ok) {
-        setError(`Couldn't load unban requests — ${result.kind}`);
+        setError(`Couldn't load unban requests — ${result.error.message}`);
         setEntries([]);
         return;
       }
-      setEntries(result.payload.data);
+      setEntries((result.data as { data: TwitchUnbanRequest[] }).data);
     } finally {
       setLoading(false);
     }
@@ -95,15 +79,8 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
     if (!pending || !twitchUser) return;
     setBusy(true);
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!token?.accessToken || !clientId) {
-        toast.error("Couldn't resolve — missing Twitch credentials");
-        return;
-      }
-      const result = await resolveUnbanRequest({
-        accessToken: token.accessToken,
-        clientId,
+      const result = await window.electronAPI.twitch.execute({
+        operation: "resolve-unban-request",
         broadcasterId,
         moderatorId: twitchUser.id,
         unbanRequestId: pending.requestId,
@@ -112,7 +89,7 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
       });
       if (!result.ok) {
         toast.error(
-          `Couldn't ${pending.status === "approved" ? "approve" : "deny"} — ${result.kind}`
+          `Couldn't ${pending.status === "approved" ? "approve" : "deny"} — ${result.error.message}`
         );
         return;
       }
@@ -131,7 +108,7 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
         <select
           aria-label="Status filter"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as UnbanRequestStatus)}
+          onChange={(e) => setStatusFilter(e.target.value as TwitchUnbanRequestStatus)}
           data-testid="unban-requests-status-filter"
           className="rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
         >

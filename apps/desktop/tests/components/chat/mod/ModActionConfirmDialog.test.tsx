@@ -143,38 +143,40 @@ describe("ModActionConfirmDialog", () => {
         actionType="ban"
         targetPreview={<span>nobody</span>}
         onConfirm={() => {}}
-      />,
+      />
     );
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
-  it.each(ACTION_COPY)(
-    "renders the correct title, description, and CTA label for actionType=$actionType",
-    ({ actionType, title, confirmLabel, descriptionFragment }) => {
-      render(
-        <ModActionConfirmDialog
-          open={true}
-          onOpenChange={() => {}}
-          actionType={actionType}
-          targetPreview={<span>target</span>}
-          onConfirm={() => {}}
-        />,
-      );
-      // Heading text matches the configured title exactly.
-      expect(
-        screen.getByRole("heading", { name: new RegExp(`^${title}$`) }),
-      ).toBeInTheDocument();
-      // Primary CTA label appears as a button.
-      expect(
-        screen.getByRole("button", {
-          name: new RegExp(`^${confirmLabel}$`),
-        }),
-      ).toBeInTheDocument();
-      // Description prose is present.
-      expect(screen.getByText(new RegExp(descriptionFragment))).toBeInTheDocument();
-    },
-  );
+  it.each(
+    ACTION_COPY
+  )("renders the correct title, description, and CTA label for actionType=$actionType", ({
+    actionType,
+    title,
+    confirmLabel,
+    descriptionFragment,
+  }) => {
+    render(
+      <ModActionConfirmDialog
+        open={true}
+        onOpenChange={() => {}}
+        actionType={actionType}
+        targetPreview={<span>target</span>}
+        onConfirm={() => {}}
+      />
+    );
+    // Heading text matches the configured title exactly.
+    expect(screen.getByRole("heading", { name: new RegExp(`^${title}$`) })).toBeInTheDocument();
+    // Primary CTA label appears as a button.
+    expect(
+      screen.getByRole("button", {
+        name: new RegExp(`^${confirmLabel}$`),
+      })
+    ).toBeInTheDocument();
+    // Description prose is present.
+    expect(screen.getByText(new RegExp(descriptionFragment))).toBeInTheDocument();
+  });
 
   it("renders the targetPreview content in the dialog body", () => {
     render(
@@ -184,7 +186,7 @@ describe("ModActionConfirmDialog", () => {
         actionType="delete"
         targetPreview={<div data-testid="preview">Hello</div>}
         onConfirm={() => {}}
-      />,
+      />
     );
     const preview = screen.getByTestId("preview");
     expect(preview).toBeInTheDocument();
@@ -200,7 +202,7 @@ describe("ModActionConfirmDialog", () => {
         actionType="ban"
         targetPreview={<span>x</span>}
         onConfirm={onConfirm}
-      />,
+      />
     );
     fireEvent.click(screen.getByRole("button", { name: /^Ban user$/ }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
@@ -225,7 +227,7 @@ describe("ModActionConfirmDialog", () => {
             set
           </button>
         )}
-      />,
+      />
     );
     fireEvent.click(screen.getByTestId("slot-set"));
     fireEvent.click(screen.getByRole("button", { name: /^Time out$/ }));
@@ -243,7 +245,7 @@ describe("ModActionConfirmDialog", () => {
         actionType="ban"
         targetPreview={<span>x</span>}
         onConfirm={onConfirm}
-      />,
+      />
     );
     fireEvent.click(screen.getByRole("button", { name: /^Cancel$/ }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -251,20 +253,25 @@ describe("ModActionConfirmDialog", () => {
   });
 
   it("disables both buttons when busy=true and shows the busy label on the primary CTA", () => {
+    const onOpenChange = vi.fn();
     render(
       <ModActionConfirmDialog
         open={true}
-        onOpenChange={() => {}}
+        onOpenChange={onOpenChange}
         actionType="ban"
         targetPreview={<span>x</span>}
         onConfirm={() => {}}
         busy={true}
-      />,
+      />
     );
     const cancel = screen.getByRole("button", { name: /^Cancel$/ });
     const primary = screen.getByRole("button", { name: /^Banning…$/ });
     expect(cancel).toBeDisabled();
     expect(primary).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Banning");
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it("disables only the primary CTA when confirmDisabled=true", () => {
@@ -276,7 +283,7 @@ describe("ModActionConfirmDialog", () => {
         targetPreview={<span>x</span>}
         onConfirm={() => {}}
         confirmDisabled={true}
-      />,
+      />
     );
     expect(screen.getByRole("button", { name: /^Cancel$/ })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: /^Warn user$/ })).toBeDisabled();
@@ -292,16 +299,14 @@ describe("ModActionConfirmDialog", () => {
         actionType="delete"
         targetPreview={<span>x</span>}
         onConfirm={onConfirm}
-      />,
+      />
     );
     fireEvent.click(screen.getByRole("button", { name: /^Delete message$/ }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
     // The dialog never calls onOpenChange on confirm — only the parent does.
     expect(onOpenChange).not.toHaveBeenCalled();
     // And the dialog itself is still rendered (open stayed true).
-    expect(
-      screen.getByRole("heading", { name: /^Delete message$/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Delete message$/ })).toBeInTheDocument();
   });
 
   it("renders no extra slot content between preview and footer when extraSlot is undefined", () => {
@@ -312,7 +317,7 @@ describe("ModActionConfirmDialog", () => {
         actionType="unban"
         targetPreview={<span>x</span>}
         onConfirm={() => {}}
-      />,
+      />
     );
     expect(screen.queryByTestId("mod-action-extra-slot")).toBeNull();
   });

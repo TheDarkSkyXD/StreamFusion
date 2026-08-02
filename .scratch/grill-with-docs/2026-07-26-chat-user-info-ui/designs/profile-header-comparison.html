@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat user dialog — profile header comparison</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f; --surface: #1a1a1a; --mid: #252525; --raised: #2d2d2d;
+      --border: #333; --text: #fff; --secondary: #a0a0a0; --muted: #666;
+      --twitch: #9146ff; --success: #68d391;
+    }
+    body {
+      min-width: 1080px; min-height: 100vh; padding: 32px;
+      background: var(--void); color: var(--text);
+      font: 500 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    header, main { max-width: 1240px; margin-inline: auto; }
+    header { margin-bottom: 22px; }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .intro { color: var(--secondary); max-width: 820px; }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .option { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    .option.recommended { border-color: rgba(255,255,255,.56); }
+    .option-head { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .letter { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; background: var(--mid); font-size: 12px; font-weight: 700; }
+    .recommended .letter { background: #fff; color: var(--void); }
+    h2 { font-size: 15px; }
+    .badge-rec { margin-left: auto; padding: 2px 8px; border: 1px solid rgba(104,211,145,.35); border-radius: 999px; color: var(--success); background: rgba(104,211,145,.12); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .copy { color: var(--secondary); font-size: 12px; }
+    .scene { position: relative; height: 560px; display: grid; place-items: center; background: radial-gradient(circle at 50% 30%, rgba(145,70,255,.18), transparent 28%), #090909; }
+    .dialog { width: 500px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: #121215; box-shadow: 0 8px 32px rgba(0,0,0,.62); }
+    .header-clean { position: relative; padding: 22px; }
+    .header-banner { position: relative; min-height: 190px; padding: 70px 22px 18px; overflow: hidden; }
+    .banner-image { position: absolute; inset: 0; background: radial-gradient(circle at 72% 25%, #9673d2 0 6%, transparent 7%), linear-gradient(145deg, #654891, #293556 48%, #15151b); }
+    .banner-image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.86)); }
+    .close { position: absolute; z-index: 4; top: 12px; right: 15px; color: #ddd; font-size: 21px; text-shadow: 0 1px 5px #000; }
+    .profile { position: relative; z-index: 2; display: flex; align-items: center; gap: 13px; }
+    .avatar { width: 66px; height: 66px; flex: 0 0 auto; border: 2px solid #777; border-radius: 50%; background: linear-gradient(145deg, #d28d45, #6d3b21); }
+    .header-banner .avatar { border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+    .identity h3 { color: #b26dff; font-size: 18px; }
+    .header-banner .identity h3 { color: #fff; text-shadow: 0 2px 8px #000; }
+    .handle { color: var(--secondary); font-size: 11px; }
+    .header-banner .handle { color: #ddd; }
+    .platform { display: inline-block; margin-left: 5px; padding: 1px 6px; border: 1px solid rgba(145,70,255,.5); border-radius: 999px; color: #bd8cff; font-size: 9px; }
+    .header-banner .platform { border-color: rgba(255,255,255,.55); color: #fff; background: rgba(0,0,0,.3); }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 25px; margin-top: 14px; }
+    .meta span { display: block; color: var(--muted); font-size: 9px; }
+    .meta strong { display: block; margin-top: 2px; font-size: 10px; }
+    .header-banner .meta { position: relative; z-index: 2; }
+    .header-banner .meta span { color: #bbb; }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+    .chip { padding: 2px 7px; border: 1px solid #424242; border-radius: 999px; background: var(--mid); color: #ddd; font-size: 9px; }
+    .header-banner .chip { border-color: rgba(255,255,255,.24); background: rgba(0,0,0,.42); color: #fff; }
+    .bio { margin-top: 13px; color: var(--secondary); font-size: 10px; }
+    .content { padding: 16px 22px 20px; border-top: 1px solid var(--border); }
+    .label { color: var(--secondary); font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; margin-bottom: 7px; }
+    .message { padding: 8px 10px; border: 1px solid #2c2c30; border-radius: 7px; background: #1a1a1e; font-size: 10px; }
+    .time { color: var(--muted); margin-right: 5px; }
+    .name { color: #b56fff; font-weight: 700; }
+    .footer { display: flex; justify-content: flex-end; gap: 7px; padding: 11px 22px; border-top: 1px solid var(--border); background: #151518; }
+    button { height: 31px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--mid); color: #fff; font: 600 10px Inter, system-ui; }
+    button.primary { border-color: #fff; background: #fff; color: var(--void); }
+    .analysis { min-height: 104px; padding: 14px 18px; border-top: 1px solid var(--border); color: var(--secondary); font-size: 12px; }
+    .analysis strong { display: block; color: var(--text); margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Profile header inside the centered dialog</h1>
+    <p class="intro">Both options keep avatar, Channel identity, account age, follow relationship, public badges, and optional bio. The decision is whether a Platform banner becomes part of the visual hierarchy.</p>
+  </header>
+  <main>
+    <article class="option recommended">
+      <div class="option-head">
+        <div class="title-row"><span class="letter">1</span><h2>Clean structured header</h2><span class="badge-rec">Recommended</span></div>
+        <p class="copy">Keeps the current StreamFusion direction and adds better metadata hierarchy.</p>
+      </div>
+      <div class="scene">
+        <section class="dialog">
+          <div class="header-clean">
+            <span class="close">×</span>
+            <div class="profile"><div class="avatar"></div><div class="identity"><h3>Dimawho <span class="platform">Twitch</span></h3><div class="handle">@dimawho</div></div></div>
+            <div class="meta"><div><span>Account created</span><strong>Feb 13, 2013</strong></div><div><span>Following since</span><strong>Not following</strong></div></div>
+            <div class="chips"><span class="chip">★ Subscriber</span><span class="chip">◆ 7TV Supporter</span><span class="chip">Founding chatter</span></div>
+            <p class="bio">Path of Exile enjoyer. Usually here for league starts and build experiments.</p>
+          </div>
+          <div class="content"><div class="label">Recent in this chat</div><div class="message"><span class="time">10:42</span><span class="name">Dimawho:</span> I accidentally didn’t even have my winterorb gem linked.</div></div>
+          <footer class="footer"><button>Copy</button><button disabled>Translate · Soon</button><button>View Channel</button><button class="primary">Reply</button></footer>
+        </section>
+      </div>
+      <div class="analysis"><strong>Most consistent with “The Dark Theater”</strong>The UI stays quieter than the content, works when a Platform has no banner, and keeps dates and badges readable without image-dependent contrast.</div>
+    </article>
+
+    <article class="option">
+      <div class="option-head">
+        <div class="title-row"><span class="letter">2</span><h2>Xtra-style banner header</h2></div>
+        <p class="copy">Uses the selected user’s Twitch banner when available, then falls back to a gradient.</p>
+      </div>
+      <div class="scene">
+        <section class="dialog">
+          <div class="header-banner">
+            <div class="banner-image"></div><span class="close">×</span>
+            <div class="profile"><div class="avatar"></div><div class="identity"><h3>Dimawho <span class="platform">Twitch</span></h3><div class="handle">@dimawho</div></div></div>
+            <div class="meta"><div><span>Account created</span><strong>Feb 13, 2013</strong></div><div><span>Following since</span><strong>Not following</strong></div></div>
+            <div class="chips"><span class="chip">★ Subscriber</span><span class="chip">◆ 7TV Supporter</span><span class="chip">Founding chatter</span></div>
+          </div>
+          <div class="content"><div class="label">Recent in this chat</div><div class="message"><span class="time">10:42</span><span class="name">Dimawho:</span> I accidentally didn’t even have my winterorb gem linked.</div></div>
+          <footer class="footer"><button>Copy</button><button disabled>Translate · Soon</button><button>View Channel</button><button class="primary">Reply</button></footer>
+        </section>
+      </div>
+      <div class="analysis"><strong>More personal, less predictable</strong>Feels richer when a good banner exists, but image brightness, missing banners, text contrast, and inconsistent Kick data create more states to design and test.</div>
+    </article>
+  </main>
+</body>
+</html>

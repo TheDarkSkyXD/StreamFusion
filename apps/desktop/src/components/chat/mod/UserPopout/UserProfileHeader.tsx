@@ -1,4 +1,5 @@
 import { BadgeCheck, CalendarDays, Radio, UserRound } from "lucide-react";
+import { useState } from "react";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -85,6 +86,7 @@ function BadgeSection({
   badges: NonNullable<UserProfileHeaderProps["badges"]>;
   platform: "twitch" | "kick";
 }) {
+  const [hoveredBadge, setHoveredBadge] = useState<string | null>(null);
   const platformLabel = platform === "kick" ? "Kick" : "Twitch";
   const sourceLabel =
     badges.state === "loading"
@@ -120,14 +122,18 @@ function BadgeSection({
         >
           {badges.badges.map((badge, index) => {
             const badgeName = badge.title || badge.setId || "Badge";
+            const badgeKey = `${badge.setId}-${badge.version}-${index}`;
             return (
-              <Tooltip key={`${badge.setId}-${badge.version}-${index}`}>
+              <Tooltip key={badgeKey} open={hoveredBadge === badgeKey}>
                 <TooltipTrigger asChild>
                   <span
                     role="img"
                     tabIndex={0}
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    aria-label={badgeName}
+                    aria-label={`${badgeName}. Source: ${sourceLabel}`}
+                    onPointerEnter={() => setHoveredBadge(badgeKey)}
+                    onPointerLeave={() => setHoveredBadge(null)}
+                    onPointerCancel={() => setHoveredBadge(null)}
                   >
                     <img
                       src={badge.imageUrl}
@@ -164,6 +170,8 @@ function DateValue({
   onRetry: () => void;
   onReconnect: () => void;
 }) {
+  const [showRelativeTooltip, setShowRelativeTooltip] = useState(false);
+
   if (field.state === "loading")
     return (
       <span aria-label="Loading" data-profile-state="loading">
@@ -181,14 +189,23 @@ function DateValue({
         />
       );
     }
+    const relative = formatRelativeDate(field.value);
     return (
-      <Tooltip>
+      <Tooltip open={showRelativeTooltip}>
         <TooltipTrigger asChild>
-          <time dateTime={field.value} tabIndex={0} data-profile-state="known">
+          <time
+            dateTime={field.value}
+            data-profile-state="known"
+            aria-label={`${absolute}. ${relative}`}
+            tabIndex={0}
+            onPointerEnter={() => setShowRelativeTooltip(true)}
+            onPointerLeave={() => setShowRelativeTooltip(false)}
+            onPointerCancel={() => setShowRelativeTooltip(false)}
+          >
             {absolute}
           </time>
         </TooltipTrigger>
-        <TooltipContent>{formatRelativeDate(field.value)}</TooltipContent>
+        <TooltipContent>{relative}</TooltipContent>
       </Tooltip>
     );
   }

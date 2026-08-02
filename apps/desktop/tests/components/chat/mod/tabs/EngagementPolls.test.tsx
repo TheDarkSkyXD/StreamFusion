@@ -18,23 +18,14 @@ vi.mock("@/backend/services/mod-log-writer", () => ({
   },
 }));
 
-const getPollsMock = vi.fn();
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-polls", async () => {
-  const actual = await vi.importActual<
-    typeof import("@/backend/api/platforms/twitch/twitch-helix-polls")
-  >("@/backend/api/platforms/twitch/twitch-helix-polls");
-  return {
-    ...actual,
-    getPolls: (args: unknown) => getPollsMock(args),
-  };
-});
+const executeMock = vi.fn();
 
 import { EngagementPolls } from "@/components/chat/mod/tabs/EngagementPolls";
 
 const CHANNEL_ID = "111";
 
 beforeEach(() => {
-  getPollsMock.mockReset();
+  executeMock.mockReset();
   useAuthStore.setState({
     twitchUser: {
       id: CHANNEL_ID,
@@ -46,10 +37,7 @@ beforeEach(() => {
     } as any,
   });
   (globalThis.window as unknown as { electronAPI: unknown }).electronAPI = {
-    auth: {
-      getToken: vi.fn().mockResolvedValue({ accessToken: "tok" }),
-      getValidTwitchToken: vi.fn().mockResolvedValue("tok"),
-    },
+    twitch: { execute: executeMock },
   };
 });
 
@@ -57,9 +45,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// Guards: poll create/live/archive presentation reads through typed Twitch IPC.
 describe("EngagementPolls", () => {
   it("renders the create form when there is no active poll", async () => {
-    getPollsMock.mockResolvedValue({ ok: true, payload: { data: [] } });
+    executeMock.mockResolvedValue({ ok: true, data: { data: [] } });
     render(<EngagementPolls channelId={CHANNEL_ID} />);
     await waitFor(() => {
       expect(screen.getByTestId("poll-create-form")).toBeInTheDocument();
@@ -71,9 +60,9 @@ describe("EngagementPolls", () => {
   });
 
   it("renders the live state with Terminate when poll.status=ACTIVE", async () => {
-    getPollsMock.mockResolvedValue({
+    executeMock.mockResolvedValue({
       ok: true,
-      payload: {
+      data: {
         data: [
           {
             id: "poll1",
@@ -107,9 +96,9 @@ describe("EngagementPolls", () => {
   });
 
   it("renders Archive button when poll.status=TERMINATED", async () => {
-    getPollsMock.mockResolvedValue({
+    executeMock.mockResolvedValue({
       ok: true,
-      payload: {
+      data: {
         data: [
           {
             id: "poll1",

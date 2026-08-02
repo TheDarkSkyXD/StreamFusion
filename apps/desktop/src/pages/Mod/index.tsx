@@ -27,12 +27,7 @@ export function ModPage() {
     const twitchUser = useAuthStore.getState().twitchUser;
     if (!twitchUser) return;
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!token?.accessToken || !clientId) return;
-      await useModeratedChannelsStore
-        .getState()
-        .hydrate(twitchUser.id, token.accessToken, clientId);
+      await useModeratedChannelsStore.getState().hydrate(twitchUser.id);
     } catch {
       // Hydrate errors are silenced — store handles its own 401 tolerance.
     }

@@ -31,7 +31,7 @@ function renderHeader(
   headerIdentity = identity
 ) {
   render(
-    <TooltipProvider>
+    <TooltipProvider delayDuration={0}>
       <UserProfileHeader
         fallbackUsername="alice"
         identity={headerIdentity}
@@ -50,7 +50,7 @@ afterEach(() => {
 });
 
 describe("UserProfileHeader field states", () => {
-  it("shows every badge from the newest authored message with truthful source tooltips", async () => {
+  it("shows badge tooltips only while pointer-hovered and keeps source context accessible", async () => {
     const badges = Array.from({ length: 6 }, (_, index) => ({
       setId: `badge-${index}`,
       version: "1",
@@ -58,7 +58,7 @@ describe("UserProfileHeader field states", () => {
       title: `Badge ${index}`,
     }));
     render(
-      <TooltipProvider>
+      <TooltipProvider delayDuration={0}>
         <UserProfileHeader
           platform="twitch"
           fallbackUsername="alice"
@@ -75,13 +75,25 @@ describe("UserProfileHeader field states", () => {
 
     expect(screen.getByText("Badges")).toBeInTheDocument();
     const badgeButtons = screen.getAllByRole("img", {
-      name: /^Badge \d$/,
+      name: /^Badge \d\./,
     });
     expect(badgeButtons).toHaveLength(6);
-    expect(badgeButtons[0]).toHaveAccessibleName("Badge 0");
+    expect(badgeButtons[0]).toHaveAccessibleName("Badge 0. Source: Twitch · Live chat");
+
     fireEvent.focus(badgeButtons[0]);
-    expect((await screen.findAllByText("Twitch · Live chat")).length).toBeGreaterThan(0);
-    expect(badgeButtons[0]).toHaveAccessibleDescription("Twitch · Live chat");
+    await act(async () => {});
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.click(badgeButtons[0]);
+    await act(async () => {});
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.pointerEnter(badgeButtons[0], { pointerType: "mouse" });
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Badge 0 · Twitch · Live chat");
+
+    fireEvent.pointerLeave(badgeButtons[0], { pointerType: "mouse" });
+    await act(async () => {});
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
   it("routes a known custom Twitch avatar through the image proxy contract", () => {
@@ -118,12 +130,35 @@ describe("UserProfileHeader field states", () => {
     expect(screen.getByText("May 6, 2012")).toBeInTheDocument();
   });
 
-  it("renders absolute dates with a relative-age tooltip on keyboard focus", async () => {
+  it("shows relative-age tooltips only while pointer-hovered and keeps both dates accessible", async () => {
     renderHeader({ state: "failed", message: "Unavailable" });
     const date = screen.getByText("May 6, 2012");
     expect(date.tagName).toBe("TIME");
+
     fireEvent.focus(date);
-    expect((await screen.findAllByText(/years ago|months ago|days ago/)).length).toBeGreaterThan(0);
+    await act(async () => {});
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.click(date);
+    await act(async () => {});
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    expect(date).toHaveAccessibleName(/May 6, 2012\. \d+ years ago/);
+
+    fireEvent.pointerEnter(date, { pointerType: "mouse" });
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      /years ago|months ago|days ago|Today/
+    );
+
+    fireEvent.pointerLeave(date, { pointerType: "mouse" });
+    await act(async () => {});
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.pointerEnter(date, { pointerType: "mouse" });
+    expect(await screen.findByRole("tooltip")).toBeInTheDocument();
+    fireEvent.pointerCancel(date, { pointerType: "mouse" });
+    await act(async () => {});
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
   it("renders reconnect-required follow state distinctly from unavailable and failed", () => {

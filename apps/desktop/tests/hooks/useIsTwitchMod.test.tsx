@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useIsTwitchMod } from "@/hooks/useIsTwitchMod";
+import { useHasActualTwitchModAuthority, useIsTwitchMod } from "@/hooks/useIsTwitchMod";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
@@ -103,5 +103,27 @@ describe("useIsTwitchMod", () => {
     useDevModOverrideStore.getState().setForceModRole(true);
     const { result } = renderHook(() => useIsTwitchMod("anything"));
     expect(result.current).toBe(true);
+  });
+
+  it("does not treat the dev role override as real Twitch moderation authority", () => {
+    useAuthStore.setState({
+      twitchUser: {
+        id: "1",
+        login: "me",
+        displayName: "Me",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    useDevModOverrideStore.getState().setForceModRole(true);
+
+    const { result } = renderHook(() => ({
+      uiAuthority: useIsTwitchMod("not-my-channel"),
+      actualAuthority: useHasActualTwitchModAuthority("not-my-channel"),
+    }));
+
+    expect(result.current.uiAuthority).toBe(true);
+    expect(result.current.actualAuthority).toBe(false);
   });
 });

@@ -19,10 +19,12 @@ function makeWrapper() {
 }
 
 describe('useResolveTwitchChannel', () => {
+  let api: ReturnType<typeof installElectronAPIMock>;
+
   beforeEach(() => {
     // biome-ignore lint/suspicious/noExplicitAny: env stub.
     (import.meta as any).env = { VITE_TWITCH_CLIENT_ID: 'cid' };
-    const api = installElectronAPIMock();
+    api = installElectronAPIMock();
     api.auth.getToken = vi.fn(async () => ({ accessToken: 'tok' }));
   });
 
@@ -34,14 +36,10 @@ describe('useResolveTwitchChannel', () => {
   });
 
   it('resolves login to id on 200 OK', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          data: [{ id: '99', login: 'ninja', display_name: 'Ninja' }],
-        }),
-        { status: 200 },
-      ),
-    );
+    api.twitch.execute = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { id: '99', login: 'ninja', displayName: 'Ninja' },
+    });
     const { result } = renderHook(() => useResolveTwitchChannel('ninja'), {
       wrapper: makeWrapper(),
     });
@@ -50,7 +48,7 @@ describe('useResolveTwitchChannel', () => {
       login: 'ninja',
       displayName: 'Ninja',
     }));
-    fetchSpy.mockRestore();
+    expect(api.twitch.execute).toHaveBeenCalledWith({ operation: 'resolve-channel', login: 'ninja' });
   });
 
   it('returns null on 404', async () => {

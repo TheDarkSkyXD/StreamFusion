@@ -18,23 +18,14 @@ vi.mock("@/backend/services/mod-log-writer", () => ({
   },
 }));
 
-const getPredictionsMock = vi.fn();
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-predictions", async () => {
-  const actual = await vi.importActual<
-    typeof import("@/backend/api/platforms/twitch/twitch-helix-predictions")
-  >("@/backend/api/platforms/twitch/twitch-helix-predictions");
-  return {
-    ...actual,
-    getPredictions: (args: unknown) => getPredictionsMock(args),
-  };
-});
+const executeMock = vi.fn();
 
 import { EngagementPredictions } from "@/components/chat/mod/tabs/EngagementPredictions";
 
 const CHANNEL_ID = "111";
 
 beforeEach(() => {
-  getPredictionsMock.mockReset();
+  executeMock.mockReset();
   useAuthStore.setState({
     twitchUser: {
       id: CHANNEL_ID,
@@ -46,10 +37,7 @@ beforeEach(() => {
     } as any,
   });
   (globalThis.window as unknown as { electronAPI: unknown }).electronAPI = {
-    auth: {
-      getToken: vi.fn().mockResolvedValue({ accessToken: "tok" }),
-      getValidTwitchToken: vi.fn().mockResolvedValue("tok"),
-    },
+    twitch: { execute: executeMock },
   };
 });
 
@@ -57,9 +45,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// Guards: prediction create/active/locked presentation reads through typed Twitch IPC.
 describe("EngagementPredictions", () => {
   it("renders the create form when there is no active prediction", async () => {
-    getPredictionsMock.mockResolvedValue({ ok: true, payload: { data: [] } });
+    executeMock.mockResolvedValue({ ok: true, data: { data: [] } });
     render(<EngagementPredictions channelId={CHANNEL_ID} />);
     await waitFor(() => {
       expect(screen.getByTestId("prediction-create-form")).toBeInTheDocument();
@@ -71,9 +60,9 @@ describe("EngagementPredictions", () => {
   });
 
   it("renders the live state when prediction.status=ACTIVE (Lock / Cancel buttons present)", async () => {
-    getPredictionsMock.mockResolvedValue({
+    executeMock.mockResolvedValue({
       ok: true,
-      payload: {
+      data: {
         data: [
           {
             id: "p1",
@@ -105,9 +94,9 @@ describe("EngagementPredictions", () => {
   });
 
   it("renders per-outcome 'Choose winner' buttons when prediction.status=LOCKED", async () => {
-    getPredictionsMock.mockResolvedValue({
+    executeMock.mockResolvedValue({
       ok: true,
-      payload: {
+      data: {
         data: [
           {
             id: "p1",

@@ -19,16 +19,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 
-const HELIX_BASE = "https://api.twitch.tv/helix";
-
 export interface ResolvedTwitchChannel {
   id: string;
   login: string;
   displayName: string;
-}
-
-interface HelixUsersResponse {
-  data?: Array<{ id: string; login: string; display_name: string }>;
 }
 
 export function useResolveTwitchChannel(
@@ -48,22 +42,11 @@ export function useResolveTwitchChannel(
         };
       }
       try {
-        const token = await window.electronAPI.auth.getToken("twitch");
-        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-        if (!token?.accessToken || !clientId) return null;
-
-        const url = `${HELIX_BASE}/users?login=${encodeURIComponent(login!.trim().toLowerCase())}`;
-        const res = await fetch(url, {
-          headers: {
-            "Client-Id": clientId,
-            Authorization: `Bearer ${token.accessToken}`,
-          },
+        const result = await window.electronAPI.twitch.execute({
+          operation: "resolve-channel",
+          login: login!.trim().toLowerCase(),
         });
-        if (!res.ok) return null;
-        const body = (await res.json()) as HelixUsersResponse;
-        const first = body.data?.[0];
-        if (!first) return null;
-        return { id: first.id, login: first.login, displayName: first.display_name };
+        return result.ok ? (result.data as ResolvedTwitchChannel | null) : null;
       } catch {
         return null;
       }

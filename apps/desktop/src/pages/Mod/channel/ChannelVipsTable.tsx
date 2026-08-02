@@ -8,18 +8,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
-import {
-  addVip,
-  removeVip,
-} from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
-import {
-  type ChannelMember,
-  getVips,
-} from "@/backend/api/platforms/twitch/twitch-helix-moderators-vips";
+import type { TwitchChannelMember } from "@/shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
-
-const HELIX_BASE = "https://api.twitch.tv/helix";
 
 interface ChannelVipsTableProps {
   broadcasterId: string;
@@ -32,25 +22,19 @@ interface ResolvedUser {
   display_name: string;
 }
 
-async function resolveLogin(
-  login: string,
-  accessToken: string,
-  clientId: string
-): Promise<ResolvedUser | null> {
-  const url = `${HELIX_BASE}/users?login=${encodeURIComponent(login.trim().toLowerCase())}`;
-  const res = await fetch(url, {
-    headers: { "Client-Id": clientId, Authorization: `Bearer ${accessToken}` },
+async function resolveLogin(login: string): Promise<ResolvedUser | null> {
+  const result = await window.electronAPI.twitch.execute({
+    operation: "resolve-channel",
+    login: login.trim().toLowerCase(),
   });
-  if (!res.ok) return null;
-  const body = (await res.json()) as {
-    data?: Array<{ id: string; login: string; display_name: string }>;
-  };
-  return body.data?.[0] ?? null;
+  if (!result.ok || !result.data) return null;
+  const user = result.data as { id: string; login: string; displayName: string };
+  return { id: user.id, login: user.login, display_name: user.displayName };
 }
 
 export function ChannelVipsTable({ broadcasterId, refreshCounter }: ChannelVipsTableProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
-  const [entries, setEntries] = useState<ChannelMember[]>([]);
+  const [entries, setEntries] = useState<TwitchChannelMember[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,21 +47,19 @@ export function ChannelVipsTable({ broadcasterId, refreshCounter }: ChannelVipsT
     setLoading(true);
     setError(null);
     try {
-      const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!accessToken || !clientId) {
-        setError("Missing Twitch credentials.");
-        return;
-      }
-      const result = await withTwitchHelixRetry({ accessToken, clientId, broadcasterId }, getVips);
+      const result = await window.electronAPI.twitch.execute({
+        operation: "get-vips",
+        broadcasterId,
+      });
       if (!result.ok) {
-        setError(`Couldn't load VIPs — ${result.kind}`);
+        setError(`Couldn't load VIPs — ${result.error.message}`);
         setEntries([]);
         setHasMore(false);
         return;
       }
-      setEntries(result.payload.data);
-      setHasMore(Boolean(result.payload.pagination.cursor));
+      const page = result.data as { data: TwitchChannelMember[]; pagination: { cursor?: string } };
+      setEntries(page.data);
+      setHasMore(Boolean(page.pagination.cursor));
     } finally {
       setLoading(false);
     }
@@ -94,25 +76,18 @@ export function ChannelVipsTable({ broadcasterId, refreshCounter }: ChannelVipsT
     if (!twitchUser) return;
     setAdding(true);
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!token?.accessToken || !clientId) {
-        toast.error("Couldn't add VIP — missing Twitch credentials");
-        return;
-      }
-      const resolved = await resolveLogin(trimmed, token.accessToken, clientId);
+      const resolved = await resolveLogin(trimmed);
       if (!resolved) {
         toast.error(`Couldn't find user "${trimmed}"`);
         return;
       }
-      const result = await addVip({
-        accessToken: token.accessToken,
-        clientId,
+      const result = await window.electronAPI.twitch.execute({
+        operation: "add-vip",
         broadcasterId,
         userId: resolved.id,
       });
       if (!result.ok) {
-        toast.error(`Couldn't add VIP — ${result.kind}`);
+        toast.error(`Couldn't add VIP — ${result.error.message}`);
         return;
       }
       setEntries((prev) => [
@@ -130,23 +105,16 @@ export function ChannelVipsTable({ broadcasterId, refreshCounter }: ChannelVipsT
     }
   };
 
-  const handleRemove = async (row: ChannelMember) => {
+  const handleRemove = async (row: TwitchChannelMember) => {
     setRemoving((prev) => new Map(prev).set(row.user_id, true));
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!token?.accessToken || !clientId) {
-        toast.error("Couldn't remove VIP — missing Twitch credentials");
-        return;
-      }
-      const result = await removeVip({
-        accessToken: token.accessToken,
-        clientId,
+      const result = await window.electronAPI.twitch.execute({
+        operation: "remove-vip",
         broadcasterId,
         userId: row.user_id,
       });
       if (!result.ok) {
-        toast.error(`Couldn't remove VIP — ${result.kind}`);
+        toast.error(`Couldn't remove VIP — ${result.error.message}`);
         return;
       }
       setEntries((prev) => prev.filter((e) => e.user_id !== row.user_id));

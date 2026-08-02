@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamFusion — dialog icons</title>
+  <style>
+    *{box-sizing:border-box} :root{color-scheme:dark;--bg:#0d0d0f;--panel:#151518;--raised:#202025;--line:#34343c;--text:#f4f4f6;--sub:#a1a1ab;--muted:#70707b;--purple:#a970ff;--red:#f0676f}
+    body{margin:0;min-height:100vh;padding:30px;background:radial-gradient(circle at 35% 18%,rgba(145,70,255,.14),transparent 30%),var(--bg);color:var(--text);font:500 14px/1.4 "Segoe UI Variable Text","Segoe UI",sans-serif}
+    button{font:inherit}.page{width:min(980px,100%);margin:auto}.title{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:22px}h1{margin:0 0 4px;font-size:24px;letter-spacing:-.02em}.title p{margin:0;color:var(--sub);font-size:12px}.chosen{padding:5px 9px;border:1px solid #335e47;border-radius:99px;color:#79d49f;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+    .layout{display:grid;grid-template-columns:560px 1fr;gap:20px;align-items:start}.dialog{overflow:hidden;border:1px solid #464650;border-radius:13px;background:var(--panel);box-shadow:0 22px 70px rgba(0,0,0,.55)}.header{position:relative;padding:20px 22px 16px;border-bottom:1px solid var(--line)}.close,.external{display:grid;place-items:center;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--sub)}.close{position:absolute;top:13px;right:14px;width:32px;height:32px}.profile{display:flex;align-items:center;gap:13px;padding-right:42px}.avatar{display:grid;width:60px;height:60px;place-items:center;border:2px solid #45454d;border-radius:50%;background:linear-gradient(145deg,#c97938,#67361f)}.avatar svg{width:25px;height:25px}.name-row{display:flex;align-items:center;gap:7px}.name-row h2{margin:0;color:#c693ff;font-size:19px}.tag{padding:2px 6px;border:1px solid rgba(169,112,255,.4);border-radius:99px;color:#c79cff;font-size:9px;font-weight:800}.handle{color:var(--sub);font-size:11px}.header-actions{display:flex;gap:7px;margin-top:8px}.external{width:32px;height:32px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:14px}.meta small{display:block;color:var(--muted);font-size:9px}.meta strong{font-size:11px}
+    .section{padding:15px 22px;border-bottom:1px solid var(--line)}.section-title{display:flex;align-items:center;gap:7px;margin:0 0 9px;color:var(--sub);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}.section-title svg{width:15px;height:15px;color:#d2d2d7}.aside-label{margin-left:auto;color:var(--muted);font-size:9px;letter-spacing:0;text-transform:none}.badges{display:flex;gap:6px;overflow:hidden}.badge{display:flex;align-items:center;gap:5px;flex:none;padding:4px 7px;border:1px solid #3a3a43;border-radius:6px;background:var(--raised);font-size:9px}.mark{display:grid;width:13px;height:13px;place-items:center;border-radius:3px;background:#9146ff;font-size:7px;font-weight:900}.mark.green{background:#2e9e5a}.messages{display:grid;gap:6px}.message{padding:8px 9px;border:1px solid #2e2e35;border-radius:7px;background:#1a1a1e;font-size:10px}.message.selected{border-color:rgba(169,112,255,.65);background:rgba(169,112,255,.11);box-shadow:inset 3px 0 var(--purple)}.row{display:flex;align-items:center;gap:5px;margin-bottom:2px}.time{color:var(--muted)}.author{color:#bf87ff;font-weight:800}.selected-label{margin-left:auto;color:#cfaeff;font-size:8px;font-weight:800;text-transform:uppercase}.replying{display:flex;align-items:center;gap:4px;margin-bottom:2px;color:var(--sub);font-size:9px}.replying svg{width:11px;height:11px}
+    .modbox{border:1px solid #36363e;border-radius:8px;background:#19191d}.mod-actions{display:flex;gap:6px;padding:9px;border-bottom:1px solid #303037}.history{display:flex;align-items:center;gap:8px;padding:9px;color:var(--sub);font-size:9px}.history-icon{display:grid;width:25px;height:25px;place-items:center;border-radius:6px;background:#25252b}.history strong{display:block;color:var(--text)}.view-all{display:flex;align-items:center;gap:4px;margin-left:auto;color:#c99cff}
+    .footer{display:flex;align-items:center;gap:6px;padding:11px 22px;background:#121215}.selection{margin-right:auto;color:var(--muted);font-size:9px}.button{display:inline-flex;height:32px;align-items:center;gap:6px;padding:0 10px;border:1px solid #42424b;border-radius:7px;background:var(--raised);color:var(--text);font-size:10px;font-weight:750}.button svg{width:14px;height:14px}.button.primary{border-color:#fff;background:#fff;color:#111}.button.disabled{border-color:#292930;background:#18181c;color:#62626c}.button.danger{border-color:rgba(240,103,111,.38);background:rgba(240,103,111,.09);color:#ff9399}
+    .legend{overflow:hidden;border:1px solid var(--line);border-radius:11px;background:rgba(21,21,24,.96)}.legend-head,.legend-group,.rule{padding:14px 16px;border-bottom:1px solid var(--line)}.legend h3{margin:0 0 3px;font-size:13px}.legend p,.rule{margin:0;color:var(--sub);font-size:10px}.group-title{margin-bottom:7px;color:var(--muted);font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.09em}.legend-row{display:grid;grid-template-columns:27px 1fr;gap:8px;align-items:center;min-height:34px}.legend-icon{display:grid;width:27px;height:27px;place-items:center;border:1px solid #3a3a42;border-radius:6px;background:var(--raised)}.legend-icon svg{width:14px;height:14px}.legend-row strong{display:block;font-size:10px}.legend-row span{color:var(--muted);font-size:8px}.rule{border-bottom:0}.rule strong{color:var(--text)}
+    .icon{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    @media(max-width:900px){body{padding:18px}.layout{grid-template-columns:1fr}.dialog{width:min(560px,100%)}}
+  </style>
+</head>
+<body>
+<svg aria-hidden="true" width="0" height="0" style="position:absolute">
+  <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+  <symbol id="award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.5 13 17 22l-5-3-5 3 1.5-9"/></symbol>
+  <symbol id="message" viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 8h8M8 12h5"/></symbol>
+  <symbol id="reply" viewBox="0 0 24 24"><path d="m9 17-5-5 5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="languages" viewBox="0 0 24 24"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></symbol>
+  <symbol id="channel" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></symbol>
+  <symbol id="external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/></symbol>
+  <symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></symbol>
+  <symbol id="history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></symbol>
+  <symbol id="dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+</svg>
+<main class="page">
+  <header class="title"><div><h1>Chat user dialog — icon mockup</h1><p>Icons support the labels; they do not replace them on important actions.</p></div><span class="chosen">Chosen direction</span></header>
+  <div class="layout">
+    <article class="dialog" role="dialog" aria-label="User profile: Dimawho">
+      <header class="header">
+        <button class="close" aria-label="Close dialog" title="Close"><svg class="icon"><use href="#x"/></svg></button>
+        <div class="profile">
+          <div class="avatar"><svg class="icon"><use href="#user"/></svg></div>
+          <div>
+            <div class="name-row"><h2>Dimawho</h2><span class="tag">Twitch</span></div>
+            <div class="handle">@dimawho</div>
+            <div class="header-actions">
+              <button class="button"><svg class="icon"><use href="#channel"/></svg>View Channel</button>
+              <button class="external" aria-label="Open on Twitch" title="Open on Twitch"><svg class="icon"><use href="#external"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="meta"><div><small>Account created</small><strong title="13 years ago">Feb 13, 2013</strong></div><div><small>Following since</small><strong title="7 years ago">Jun 21, 2019</strong></div></div>
+      </header>
+      <section class="section">
+        <h3 class="section-title"><svg class="icon"><use href="#award"/></svg>Badges <span class="aside-label">Scroll to see all</span></h3>
+        <div class="badges"><span class="badge"><i class="mark">S</i>12-Month Subscriber</span><span class="badge"><i class="mark green">7</i>7TV Supporter</span><span class="badge"><i class="mark">F</i>Founder</span></div>
+      </section>
+      <section class="section">
+        <h3 class="section-title"><svg class="icon"><use href="#message"/></svg>Recent in this chat <span class="aside-label">3 messages</span></h3>
+        <div class="messages">
+          <div class="message selected"><div class="row"><span class="time">10:42</span><i class="mark">S</i><i class="mark green">7</i><span class="author">Dimawho</span><span class="selected-label">Selected</span></div>I accidentally didn’t even have my winterorb gem linked.</div>
+          <div class="message"><div class="replying"><svg class="icon"><use href="#reply"/></svg>Replying to @Dimawho</div><div class="row"><span class="time">10:44</span><span class="author" style="color:#65c8ff">shockkwaves</span></div>That explains the clear speed.</div>
+          <div class="message"><div class="row"><span class="time">10:47</span><i class="mark">S</i><span class="author">Dimawho</span></div>Fixed it now Pog</div>
+        </div>
+      </section>
+      <section class="section">
+        <h3 class="section-title"><svg class="icon"><use href="#shield"/></svg>Moderation <span class="aside-label">Moderators only</span></h3>
+        <div class="modbox">
+          <div class="mod-actions"><button class="button"><svg class="icon"><use href="#clock"/></svg>Timeout</button><button class="button danger"><svg class="icon"><use href="#ban"/></svg>Ban</button><button class="button danger"><svg class="icon"><use href="#trash"/></svg>Delete</button></div>
+          <div class="history"><span class="history-icon"><svg class="icon"><use href="#history"/></svg></span><div><strong>Recent mod history</strong>No actions recorded in this Channel</div><span class="view-all"><svg class="icon"><use href="#dashboard"/></svg>View all</span></div>
+        </div>
+      </section>
+      <footer class="footer"><span class="selection">10:42 selected</span><button class="button"><svg class="icon"><use href="#copy"/></svg>Copy</button><button class="button disabled" title="Coming soon"><svg class="icon"><use href="#languages"/></svg>Translate · Soon</button><button class="button primary"><svg class="icon"><use href="#reply"/></svg>Reply</button></footer>
+    </article>
+    <aside class="legend">
+      <div class="legend-head"><h3>Icon map</h3><p>One consistent Lucide-style outline family.</p></div>
+      <div class="legend-group"><div class="group-title">Public</div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#award"/></svg></i><div><strong>Award</strong><span>Badges</span></div></div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#message"/></svg></i><div><strong>Message Square</strong><span>Recent messages</span></div></div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#channel"/></svg></i><div><strong>Channel</strong><span>Internal Channel view</span></div></div>
+      </div>
+      <div class="legend-group"><div class="group-title">Message actions</div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#reply"/></svg></i><div><strong>Reply</strong><span>Move to composer</span></div></div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#copy"/></svg></i><div><strong>Copy</strong><span>Visible message content</span></div></div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#languages"/></svg></i><div><strong>Languages</strong><span>Translation coming soon</span></div></div>
+      </div>
+      <div class="legend-group"><div class="group-title">Moderator-only</div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#shield"/></svg></i><div><strong>Shield</strong><span>Moderation section</span></div></div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#clock"/></svg></i><div><strong>Clock</strong><span>Timeout</span></div></div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#ban"/></svg></i><div><strong>Ban</strong><span>Ban user</span></div></div>
+        <div class="legend-row"><i class="legend-icon"><svg class="icon"><use href="#trash"/></svg></i><div><strong>Trash</strong><span>Delete selected message</span></div></div>
+      </div>
+      <div class="rule"><strong>Icon-only:</strong> Close and Open on Twitch only, both with accessible names and hover tooltips.</div>
+    </aside>
+  </div>
+</main>
+</body>
+</html>

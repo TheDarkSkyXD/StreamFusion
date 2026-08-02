@@ -21,10 +21,7 @@
 
 import { create } from "zustand";
 
-import {
-  getModeratedChannelsResult,
-  type ModeratedChannelsResult,
-} from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+import type { ModeratedTwitchChannel } from "@/shared/twitch-api-types";
 
 const STALE_MS = 5 * 60_000; // 5 min
 
@@ -35,7 +32,7 @@ export type TwitchAuthoritySnapshot =
   | {
       state: "partial" | "failed";
       checkedAt: number;
-      reason: Exclude<ModeratedChannelsResult, { state: "complete" }>["reason"];
+      reason: "authorization" | "network" | "invalid-response" | "page-cap";
     };
 
 export type KickAuthoritySnapshot =
@@ -62,7 +59,7 @@ interface ModeratedChannelsState {
   kickAuthorityBySlug: Map<string, KickAuthoritySnapshot>;
 
   /** Trigger a hydrate. Safe to call repeatedly — concurrent calls dedupe. */
-  hydrate: (selfUserId: string, accessToken: string, clientId: string) => Promise<void>;
+  hydrate: (selfUserId: string) => Promise<void>;
   /** Apply a live Twitch IRC mod/unmod update for one broadcaster id. */
   setTwitchChannelModState: (channelId: string, isModerator: boolean) => void;
   /** Apply a live Kick badge-derived mod/unmod update for one channel slug. */
@@ -86,18 +83,21 @@ export const useModeratedChannelsStore = create<ModeratedChannelsState>()((set, 
   twitchAuthority: { state: "idle" },
   kickAuthorityBySlug: new Map<string, KickAuthoritySnapshot>(),
 
-  hydrate: async (selfUserId, accessToken, clientId) => {
+  hydrate: async (selfUserId) => {
     if (get().hydrating) return;
     set({ hydrating: true, twitchAuthority: { state: "loading", checkedAt: Date.now() } });
     try {
-      const result = await getModeratedChannelsResult(selfUserId, accessToken, clientId);
+      const result = await window.electronAPI.twitch.execute({
+        operation: "get-moderated-channels",
+        userId: selfUserId,
+      });
       const checkedAt = Date.now();
-      if (result.state !== "complete") {
+      if (!result.ok) {
         set({
           hydrating: false,
           twitchAuthority: {
-            state: result.state,
-            reason: result.reason,
+            state: "failed",
+            reason: result.error.code === "unauthorized" ? "authorization" : "network",
             checkedAt,
           },
         });
@@ -106,7 +106,8 @@ export const useModeratedChannelsStore = create<ModeratedChannelsState>()((set, 
       // The broadcaster's OWN channel is mod-equivalent for our purposes but
       // not included by Helix. {@link useIsTwitchMod} handles the self check
       // separately; we only store the actual moderated-channels list here.
-      const ids = new Set(result.channels.map((channel) => channel.broadcaster_id));
+      const channels = result.data as ModeratedTwitchChannel[];
+      const ids = new Set(channels.map((channel) => channel.broadcaster_id));
       set({
         twitchModeratedChannelIds: ids,
         hydratedAt: checkedAt,

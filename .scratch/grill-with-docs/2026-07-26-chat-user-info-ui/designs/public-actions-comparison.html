@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat user dialog — public action comparison</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --border: #333333;
+      --text: #ffffff;
+      --secondary: #a0a0a0;
+      --muted: #666666;
+      --twitch: #9146ff;
+      --selected: rgba(145, 70, 255, .14);
+      --selected-border: rgba(169, 112, 255, .48);
+      --success: #68d391;
+    }
+    body {
+      min-width: 1180px;
+      min-height: 100vh;
+      padding: 30px;
+      background: var(--void);
+      color: var(--text);
+      font: 500 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    header { max-width: 1380px; margin: 0 auto 22px; }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .intro { color: var(--secondary); max-width: 850px; }
+    .comparison {
+      max-width: 1380px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+    .option {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+    .option.recommended { border-color: rgba(255,255,255,.55); }
+    .option-head { padding: 15px 18px; border-bottom: 1px solid var(--border); }
+    .title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .letter {
+      display: grid; place-items: center;
+      width: 27px; height: 27px; border-radius: 7px;
+      background: var(--mid); font-size: 12px; font-weight: 700;
+    }
+    .recommended .letter { background: #fff; color: #0f0f0f; }
+    h2 { font-size: 15px; }
+    .recommended-badge {
+      margin-left: auto;
+      padding: 2px 8px;
+      border: 1px solid rgba(104,211,145,.35);
+      border-radius: 999px;
+      background: rgba(104,211,145,.12);
+      color: var(--success);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .option-copy { color: var(--secondary); font-size: 12px; }
+    .scene {
+      position: relative;
+      height: 620px;
+      background:
+        linear-gradient(rgba(0,0,0,.72), rgba(0,0,0,.72)),
+        radial-gradient(circle at 45% 35%, rgba(145,70,255,.28), transparent 26%),
+        linear-gradient(145deg, #24222c, #101013 62%);
+    }
+    .fake-shell {
+      position: absolute; inset: 0;
+      display: grid;
+      grid-template-columns: 120px 1fr 170px;
+      opacity: .42;
+    }
+    .sidebar { border-right: 1px solid var(--border); background: #181818; padding: 22px 13px; }
+    .sidebar i { display: block; height: 7px; margin-bottom: 20px; border-radius: 5px; background: #414141; }
+    .video-area { padding: 30px 18px; }
+    .video { height: 265px; border-radius: 8px; border: 1px solid #303030; background: #211f27; }
+    .bar { height: 8px; margin-top: 14px; border-radius: 4px; background: #3b3b3b; }
+    .bar.short { width: 55%; }
+    .chat { border-left: 1px solid var(--border); background: #171717; padding: 18px 10px; }
+    .chat p { margin-bottom: 14px; color: #b8b8b8; font-size: 9px; }
+    .chat strong { color: #ad6aff; }
+    .dialog {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 500px;
+      transform: translate(-50%, -50%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #121215;
+      box-shadow: 0 8px 32px rgba(0,0,0,.62), 0 2px 8px rgba(0,0,0,.35);
+      overflow: hidden;
+    }
+    .dialog-body { padding: 20px 22px 14px; }
+    .close {
+      position: absolute; top: 13px; right: 15px;
+      color: var(--secondary); font-size: 20px;
+    }
+    .profile { display: flex; align-items: center; gap: 13px; padding-right: 32px; }
+    .avatar {
+      width: 58px; height: 58px; flex: 0 0 auto;
+      border: 1px solid #666;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #d28d45, #6d3b21);
+    }
+    .identity h3 { color: #b26dff; font-size: 17px; margin-bottom: 1px; }
+    .handle { color: var(--secondary); font-size: 11px; }
+    .platform {
+      display: inline-block; margin-left: 5px; padding: 1px 5px;
+      border: 1px solid rgba(145,70,255,.45);
+      border-radius: 999px; color: #bd8cff; font-size: 9px;
+    }
+    .identity-meta {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 7px 30px; margin-top: 12px;
+    }
+    .identity-meta span { display: block; color: var(--muted); font-size: 9px; }
+    .identity-meta strong { display: block; margin-top: 1px; font-size: 10px; }
+    .badges { display: flex; gap: 5px; margin-top: 11px; }
+    .chip {
+      padding: 2px 7px; border: 1px solid #404040; border-radius: 999px;
+      background: var(--mid); color: #d7d7d7; font-size: 9px;
+    }
+    .section-label {
+      margin: 17px 0 7px;
+      color: var(--secondary);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .message-list { display: grid; gap: 5px; }
+    .message {
+      position: relative;
+      min-height: 49px;
+      padding: 8px 10px;
+      border: 1px solid #2b2b2f;
+      border-radius: 7px;
+      background: #1a1a1e;
+      font-size: 10px;
+    }
+    .message.selected { border-color: var(--selected-border); background: var(--selected); }
+    .time { color: var(--muted); margin-right: 5px; }
+    .badge-icon { color: #55c77b; margin-right: 3px; }
+    .name { color: #b56fff; font-weight: 700; }
+    .reply-context {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--secondary);
+      font-size: 9px;
+    }
+    .row-actions {
+      position: absolute; top: 6px; right: 6px;
+      display: flex; gap: 4px;
+    }
+    .icon-action {
+      display: grid; place-items: center;
+      width: 25px; height: 25px;
+      border: 1px solid #414141;
+      border-radius: 6px;
+      background: var(--raised);
+      color: #dedede;
+      font-size: 11px;
+    }
+    .message.has-actions { padding-right: 72px; }
+    .dialog-footer {
+      display: flex; align-items: center; justify-content: flex-end; gap: 7px;
+      padding: 12px 22px;
+      border-top: 1px solid var(--border);
+      background: #151518;
+    }
+    .footer-context { margin-right: auto; color: var(--muted); font-size: 9px; }
+    button {
+      height: 32px; padding: 0 11px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--mid); color: #fff;
+      font: 600 10px Inter, system-ui, sans-serif;
+    }
+    button.primary { border-color: #fff; background: #fff; color: #0f0f0f; }
+    .selected-note {
+      margin-right: auto; color: var(--secondary); font-size: 9px;
+    }
+    .analysis {
+      min-height: 106px;
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+      color: var(--secondary);
+      font-size: 12px;
+    }
+    .analysis strong { display: block; margin-bottom: 4px; color: var(--text); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Public actions inside the existing centered dialog</h1>
+    <p class="intro">Both options keep profile metadata and rich current-session conversation history visible to everyone. This comparison changes only where Reply, Copy, Translate, and View Profile live.</p>
+  </header>
+
+  <main class="comparison">
+    <article class="option recommended">
+      <div class="option-head">
+        <div class="title-row">
+          <span class="letter">1</span>
+          <h2>Contextual message actions</h2>
+          <span class="recommended-badge">Recommended</span>
+        </div>
+        <p class="option-copy">Copy and Translate live on the affected message; global actions stay in the footer.</p>
+      </div>
+      <div class="scene">
+        <div class="fake-shell">
+          <aside class="sidebar"><i></i><i></i><i></i><i></i></aside>
+          <div class="video-area"><div class="video"></div><div class="bar"></div><div class="bar short"></div></div>
+          <aside class="chat"><p><strong>Dimawho:</strong> winterorb was rolling</p><p><strong>shockkwaves:</strong> campaign clear</p></aside>
+        </div>
+        <section class="dialog">
+          <span class="close">×</span>
+          <div class="dialog-body">
+            <div class="profile">
+              <div class="avatar"></div>
+              <div class="identity">
+                <h3>Dimawho <span class="platform">Twitch</span></h3>
+                <div class="handle">@dimawho</div>
+                <div class="identity-meta">
+                  <div><span>Account created</span><strong>Feb 13, 2013</strong></div>
+                  <div><span>Following since</span><strong>Not following</strong></div>
+                </div>
+                <div class="badges"><span class="chip">★ Subscriber</span><span class="chip">◆ 7TV</span></div>
+              </div>
+            </div>
+            <div class="section-label">Recent in this chat</div>
+            <div class="message-list">
+              <div class="message selected has-actions">
+                <span class="time">10:42</span><span class="badge-icon">◆</span><span class="name">Dimawho:</span>
+                I accidentally didn’t even have my <strong>winterorb</strong> gem linked.
+                <span class="row-actions"><button class="icon-action" title="Copy">⧉</button><button class="icon-action" title="Translate">文</button></span>
+              </div>
+              <div class="message has-actions">
+                <span class="reply-context">↳ Replying to @Dimawho</span>
+                <span class="time">10:44</span><span class="name">shockkwaves:</span> that explains the clear speed
+                <span class="row-actions"><button class="icon-action" title="Copy">⧉</button><button class="icon-action" title="Translate">文</button></span>
+              </div>
+              <div class="message">
+                <span class="time">10:47</span><span class="badge-icon">◆</span><span class="name">Dimawho:</span> fixed it now <span title="emote">Pog</span>
+              </div>
+            </div>
+          </div>
+          <footer class="dialog-footer">
+            <span class="footer-context">Selected: Dimawho’s 10:42 message</span>
+            <button>View Profile</button>
+            <button class="primary">Reply</button>
+          </footer>
+        </section>
+      </div>
+      <div class="analysis">
+        <strong>Clear target, calmer footer</strong>
+        Copy and Translate can never affect the wrong message. Keyboard focus and hover reveal the same controls. The footer stays stable even as message selection changes.
+      </div>
+    </article>
+
+    <article class="option">
+      <div class="option-head">
+        <div class="title-row">
+          <span class="letter">2</span>
+          <h2>Xtra-style selected-message footer</h2>
+        </div>
+        <p class="option-copy">Click a message to select it, then use one shared row of actions below.</p>
+      </div>
+      <div class="scene">
+        <div class="fake-shell">
+          <aside class="sidebar"><i></i><i></i><i></i><i></i></aside>
+          <div class="video-area"><div class="video"></div><div class="bar"></div><div class="bar short"></div></div>
+          <aside class="chat"><p><strong>Dimawho:</strong> winterorb was rolling</p><p><strong>shockkwaves:</strong> campaign clear</p></aside>
+        </div>
+        <section class="dialog">
+          <span class="close">×</span>
+          <div class="dialog-body">
+            <div class="profile">
+              <div class="avatar"></div>
+              <div class="identity">
+                <h3>Dimawho <span class="platform">Twitch</span></h3>
+                <div class="handle">@dimawho</div>
+                <div class="identity-meta">
+                  <div><span>Account created</span><strong>Feb 13, 2013</strong></div>
+                  <div><span>Following since</span><strong>Not following</strong></div>
+                </div>
+                <div class="badges"><span class="chip">★ Subscriber</span><span class="chip">◆ 7TV</span></div>
+              </div>
+            </div>
+            <div class="section-label">Recent in this chat · Select a message</div>
+            <div class="message-list">
+              <div class="message selected">
+                <span class="time">10:42</span><span class="badge-icon">◆</span><span class="name">Dimawho:</span>
+                I accidentally didn’t even have my <strong>winterorb</strong> gem linked.
+              </div>
+              <div class="message">
+                <span class="reply-context">↳ Replying to @Dimawho</span>
+                <span class="time">10:44</span><span class="name">shockkwaves:</span> that explains the clear speed
+              </div>
+              <div class="message">
+                <span class="time">10:47</span><span class="badge-icon">◆</span><span class="name">Dimawho:</span> fixed it now <span title="emote">Pog</span>
+              </div>
+            </div>
+          </div>
+          <footer class="dialog-footer">
+            <span class="selected-note">10:42 selected</span>
+            <button>Copy</button>
+            <button>Translate</button>
+            <button>View Profile</button>
+            <button class="primary">Reply</button>
+          </footer>
+        </section>
+      </div>
+      <div class="analysis">
+        <strong>Closer to Xtra, but selection-dependent</strong>
+        The rows stay visually clean and touch-friendly. The footer is busier, and every action depends on users understanding which message is selected.
+      </div>
+    </article>
+  </main>
+</body>
+</html>

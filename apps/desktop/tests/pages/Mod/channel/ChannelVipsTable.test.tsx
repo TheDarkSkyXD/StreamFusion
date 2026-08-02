@@ -27,34 +27,31 @@ vi.mock('sonner', () => ({
 import { toast } from 'sonner';
 import { ChannelVipsTable } from '@/pages/Mod/channel/ChannelVipsTable';
 
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
+const executeMock = vi.fn();
 
+// Guards: VIP roster loading, pagination, mutations, and errors use typed Twitch IPC commands.
 describe('ChannelVipsTable', () => {
   beforeEach(() => {
     authState.twitchUser = { id: '111', login: 'me' };
-    // biome-ignore lint/suspicious/noExplicitAny: env stub.
-    (import.meta as any).env = { VITE_TWITCH_CLIENT_ID: 'cid' };
     const api = installElectronAPIMock();
-    api.auth.getToken = vi.fn(async () => ({ accessToken: 'tok' }));
+    executeMock.mockReset();
+    executeMock.mockResolvedValue({ ok: true, data: { data: [], pagination: {} } });
+    api.twitch.execute = executeMock;
     (toast.success as ReturnType<typeof vi.fn>).mockClear();
     (toast.error as ReturnType<typeof vi.fn>).mockClear();
   });
 
   it('renders VIPs on 200', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      jsonResponse(200, {
+    executeMock.mockResolvedValue({
+      ok: true,
+      data: {
         data: [
           { user_id: 'v1', user_login: 'vip1', user_name: 'Vip1' },
           { user_id: 'v2', user_login: 'vip2', user_name: 'Vip2' },
         ],
         pagination: {},
-      }),
-    );
+      },
+    });
     renderWithProviders(<ChannelVipsTable broadcasterId="222" />);
     await waitFor(() =>
       expect(screen.getByTestId('vip-row-v1')).toBeInTheDocument(),
@@ -63,9 +60,7 @@ describe('ChannelVipsTable', () => {
   });
 
   it('renders empty state when no VIPs', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      jsonResponse(200, { data: [], pagination: {} }),
-    );
+    executeMock.mockResolvedValue({ ok: true, data: { data: [], pagination: {} } });
     renderWithProviders(<ChannelVipsTable broadcasterId="222" />);
     await waitFor(() =>
       expect(screen.getByText(/no vips yet/i)).toBeInTheDocument(),
@@ -73,12 +68,13 @@ describe('ChannelVipsTable', () => {
   });
 
   it('shows "showing first 100" footer when pagination cursor present', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      jsonResponse(200, {
+    executeMock.mockResolvedValue({
+      ok: true,
+      data: {
         data: [{ user_id: 'v1', user_login: 'vip1', user_name: 'Vip1' }],
         pagination: { cursor: 'more' },
-      }),
-    );
+      },
+    });
     renderWithProviders(<ChannelVipsTable broadcasterId="222" />);
     await waitFor(() =>
       expect(screen.getByText(/showing first 100/i)).toBeInTheDocument(),
@@ -86,23 +82,14 @@ describe('ChannelVipsTable', () => {
   });
 
   it('Add resolves and calls addVip on success', async () => {
-    let postCalled = false;
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const url = String(input);
-      const method = (init?.method as string) ?? 'GET';
-      if (url.includes('/channels/vips') && method === 'GET') {
-        return jsonResponse(200, { data: [], pagination: {} });
+    executeMock.mockImplementation(async (command) => {
+      if (command.operation === 'get-vips') {
+        return { ok: true, data: { data: [], pagination: {} } };
       }
-      if (url.includes('/users?login=new_vip')) {
-        return jsonResponse(200, {
-          data: [{ id: 'v9', login: 'new_vip', display_name: 'NewVip' }],
-        });
+      if (command.operation === 'resolve-channel') {
+        return { ok: true, data: { id: 'v9', login: 'new_vip', displayName: 'NewVip' } };
       }
-      if (url.includes('/channels/vips') && method === 'POST') {
-        postCalled = true;
-        return new Response(null, { status: 204 });
-      }
-      return jsonResponse(404, {});
+      return { ok: true, data: null };
     });
 
     renderWithProviders(<ChannelVipsTable broadcasterId="222" />);
@@ -115,28 +102,27 @@ describe('ChannelVipsTable', () => {
     });
     fireEvent.click(screen.getByTestId('add-vip-button'));
 
-    await waitFor(() => expect(postCalled).toBe(true));
+    await waitFor(() =>
+      expect(executeMock).toHaveBeenCalledWith({
+        operation: 'add-vip',
+        broadcasterId: '222',
+        userId: 'v9',
+      }),
+    );
     await waitFor(() =>
       expect(screen.getByTestId('vip-row-v9')).toBeInTheDocument(),
     );
   });
 
   it('Remove calls removeVip and drops the row', async () => {
-    let deleteCalled = false;
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const url = String(input);
-      const method = (init?.method as string) ?? 'GET';
-      if (url.includes('/channels/vips') && method === 'GET') {
-        return jsonResponse(200, {
+    executeMock.mockImplementation(async (command) => {
+      if (command.operation === 'get-vips') {
+        return { ok: true, data: {
           data: [{ user_id: 'v1', user_login: 'vip1', user_name: 'Vip1' }],
           pagination: {},
-        });
+        } };
       }
-      if (url.includes('/channels/vips') && method === 'DELETE') {
-        deleteCalled = true;
-        return new Response(null, { status: 204 });
-      }
-      return jsonResponse(404, {});
+      return { ok: true, data: null };
     });
 
     renderWithProviders(<ChannelVipsTable broadcasterId="222" />);
@@ -145,16 +131,23 @@ describe('ChannelVipsTable', () => {
     );
     fireEvent.click(screen.getByTestId('remove-vip-button-v1'));
 
-    await waitFor(() => expect(deleteCalled).toBe(true));
+    await waitFor(() =>
+      expect(executeMock).toHaveBeenCalledWith({
+        operation: 'remove-vip',
+        broadcasterId: '222',
+        userId: 'v1',
+      }),
+    );
     await waitFor(() =>
       expect(screen.queryByTestId('vip-row-v1')).not.toBeInTheDocument(),
     );
   });
 
   it('surfaces an error when load fails', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      jsonResponse(403, { message: 'nope' }),
-    );
+    executeMock.mockResolvedValue({
+      ok: false,
+      error: { code: 'unavailable', message: 'nope' },
+    });
     renderWithProviders(<ChannelVipsTable broadcasterId="222" />);
     await waitFor(() =>
       expect(screen.getByTestId('channel-vips-error')).toBeInTheDocument(),

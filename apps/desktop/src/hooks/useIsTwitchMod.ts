@@ -19,17 +19,29 @@ import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
-export function useIsTwitchMod(channelId?: string | null): boolean {
+function hasActualTwitchModAuthority(
+  channelId: string | null | undefined,
+  twitchUserId: string | undefined,
+  moddedIds: Set<string>
+): boolean {
+  if (!channelId || !twitchUserId) return false;
+  return twitchUserId === channelId || moddedIds.has(channelId);
+}
+
+/** Real Twitch-backed authority only; intentionally ignores dev UI overrides. */
+export function useHasActualTwitchModAuthority(channelId?: string | null): boolean {
   const twitchUser = useAuthStore((state) => state.twitchUser);
   const moddedIds = useModeratedChannelsStore((state) => state.twitchModeratedChannelIds);
+
+  return hasActualTwitchModAuthority(channelId, twitchUser?.id, moddedIds);
+}
+
+export function useIsTwitchMod(channelId?: string | null): boolean {
+  const actualAuthority = useHasActualTwitchModAuthority(channelId);
   // Dev debug-panel override — lets the ChatSimTool force mod UI without
   // needing an actual mod token. Off by default, no production impact.
   const forceMod = useDevModOverrideStore((s) => s.forceModRole);
 
   if (forceMod) return true;
-  if (!channelId) return false;
-  if (!twitchUser) return false;
-  // Broadcaster moderates their own channel by definition.
-  if (twitchUser.id === channelId) return true;
-  return moddedIds.has(channelId);
+  return actualAuthority;
 }

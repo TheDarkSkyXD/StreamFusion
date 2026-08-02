@@ -21,10 +21,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LuShield } from "react-icons/lu";
 
-import {
-  getModeratedChannels,
-  type ModeratedChannel,
-} from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+import type { ModeratedTwitchChannel } from "@/shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
 
 interface ChannelEntry {
@@ -38,7 +35,7 @@ interface ChannelEntry {
 export function ChannelList() {
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const kickUser = useAuthStore((s) => s.kickUser);
-  const [twitchChannels, setTwitchChannels] = useState<ModeratedChannel[]>([]);
+  const [twitchChannels, setTwitchChannels] = useState<ModeratedTwitchChannel[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -50,11 +47,13 @@ export function ChannelList() {
     setLoading(true);
     (async () => {
       try {
-        const token = await window.electronAPI.auth.getToken("twitch");
-        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-        if (!token?.accessToken || !clientId) return;
-        const channels = await getModeratedChannels(twitchUser.id, token.accessToken, clientId);
-        if (!cancelled) setTwitchChannels(channels);
+        const result = await window.electronAPI.twitch.execute({
+          operation: "get-moderated-channels",
+          userId: twitchUser.id,
+        });
+        if (!cancelled && result.ok) {
+          setTwitchChannels(result.data as ModeratedTwitchChannel[]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

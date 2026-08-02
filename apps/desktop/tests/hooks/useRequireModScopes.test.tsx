@@ -2,31 +2,23 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useRequireModScopes } from "@/hooks/useRequireModScopes";
-import { TWITCH_MOD_ACTION_SCOPES } from "@/shared/auth-types";
+import {
+  TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES,
+  TWITCH_MOD_ACTION_SCOPES,
+} from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
-interface MockedTokenShape {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  scope: string[];
-}
-
 function installElectronAPIMock(tokenScope: string[] | null) {
-  const token: MockedTokenShape | null =
-    tokenScope === null
-      ? null
-      : {
-          accessToken: "tok",
-          refreshToken: "ref",
-          expiresAt: Date.now() + 3_600_000,
-          scope: tokenScope,
-        };
   Object.assign(window, {
     electronAPI: {
       auth: {
-        getToken: vi.fn().mockResolvedValue(token),
+        tokenStatus: vi.fn().mockResolvedValue({
+          platform: "twitch",
+          connected: tokenScope !== null,
+          valid: tokenScope !== null,
+          scopes: tokenScope ?? [],
+        }),
       },
     },
   });
@@ -73,6 +65,60 @@ describe("useRequireModScopes", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.hasModScopes).toBe(true);
+  });
+
+  it("keeps normal mod actions enabled while blocking EventSub when its full scope set is absent", async () => {
+    useAuthStore.setState({
+      twitchUser: {
+        id: "1",
+        login: "me",
+        displayName: "Me",
+        profileImageUrl: "",
+        createdAt: "2026-01-01T00:00:00Z",
+        broadcasterType: "",
+      },
+    });
+    installElectronAPIMock([...TWITCH_MOD_ACTION_SCOPES]);
+
+    const { result } = renderHook(() => useRequireModScopes());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.hasModScopes).toBe(true);
+    expect(result.current.hasChannelModerateEventSubScopes).toBe(false);
+    expect(result.current.missingChannelModerateEventSubScopes).toEqual(
+      TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES.filter(
+        (scope) => !new Set<string>(TWITCH_MOD_ACTION_SCOPES).has(scope)
+      )
+    );
+  });
+
+  it("accepts the documented read/manage alternatives for EventSub scope groups", async () => {
+    useAuthStore.setState({
+      twitchUser: {
+        id: "1",
+        login: "me",
+        displayName: "Me",
+        profileImageUrl: "",
+        createdAt: "2026-01-01T00:00:00Z",
+        broadcasterType: "",
+      },
+    });
+    installElectronAPIMock([
+      "moderator:manage:blocked_terms",
+      "moderator:manage:chat_settings",
+      "moderator:manage:unban_requests",
+      "moderator:read:banned_users",
+      "moderator:read:chat_messages",
+      "moderator:read:warnings",
+      "moderator:read:moderators",
+      "moderator:read:vips",
+    ]);
+
+    const { result } = renderHook(() => useRequireModScopes());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.hasChannelModerateEventSubScopes).toBe(true);
+    expect(result.current.missingChannelModerateEventSubScopes).toEqual([]);
   });
 
   it("returns hasModScopes=false when token is missing user:read:moderated_channels", async () => {
@@ -126,7 +172,7 @@ describe("useRequireModScopes", () => {
     });
     Object.assign(window, {
       electronAPI: {
-        auth: { getToken: vi.fn().mockRejectedValue(new Error("nope")) },
+        auth: { tokenStatus: vi.fn().mockRejectedValue(new Error("nope")) },
       },
     });
 
@@ -172,5 +218,18 @@ describe("useRequireModScopes", () => {
     // The registered callback fires exactly once via fireReconnected.
     state.fireReconnected();
     expect(onReconnected).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps promptReconnect stable across rerenders so subscription effects do not churn", async () => {
+    useAuthStore.setState({ twitchUser: null });
+    installElectronAPIMock([]);
+
+    const { result, rerender } = renderHook(() => useRequireModScopes());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const first = result.current.promptReconnect;
+
+    rerender();
+
+    expect(result.current.promptReconnect).toBe(first);
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { selectedModerationDevelopmentFixture } from "@/dev-relay/moderation-browser-fixtures";
+import { useTimeout } from "@/hooks/useTimeout";
 import { KICK_APP_SCOPES, type Platform, TWITCH_APP_SCOPES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
@@ -207,14 +208,13 @@ export function useModerationAuthority(
     twitchUser,
   ]);
 
-  const fixtureUserId =
-    developmentFixture && developmentFixture !== "hidden" ? "fixture-moderator" : undefined;
   const signedInUserId =
-    platform === "twitch"
-      ? (twitchUser?.id ?? fixtureUserId)
-      : kickUser
-        ? String(kickUser.id)
-        : fixtureUserId;
+    platform === "twitch" ? twitchUser?.id : kickUser ? String(kickUser.id) : undefined;
+  const scopeSubject =
+    signedInUserId ??
+    (authority.state === "confirmed" && authority.source === "development-fixture"
+      ? "development-override"
+      : undefined);
   const authorityProof =
     authority.state === "confirmed" || authority.state === "confirmed-viewer"
       ? authority.source === "twitch-authenticated-broadcaster" ||
@@ -224,7 +224,7 @@ export function useModerationAuthority(
       : "";
   const scopeKey =
     authority.state === "confirmed"
-      ? `${platform}:${signedInUserId}:${authority.role}:${scopeRevision}`
+      ? `${platform}:${scopeSubject}:${authority.role}:${scopeRevision}`
       : "";
   const [scopeCheck, setScopeCheck] = useState<ScopeCheck>({
     key: "",
@@ -232,23 +232,20 @@ export function useModerationAuthority(
     missingScopes: [],
   });
 
-  useEffect(() => {
-    if (
-      (authority.state !== "confirmed" && authority.state !== "confirmed-viewer") ||
-      !authorityProof
-    ) {
-      return;
-    }
-    const delay = Math.max(0, authority.expiresAt - Date.now());
-    const timeout = setTimeout(() => {
+  const authorityExpiryDelay =
+    authority.state === "confirmed" || authority.state === "confirmed-viewer"
+      ? Math.max(0, authority.expiresAt - Date.now())
+      : null;
+  useTimeout(
+    () => {
       setExpiredAuthorityProof(authorityProof);
       setAuthorityClock(Date.now());
-    }, delay);
-    return () => clearTimeout(timeout);
-  }, [authority, authorityProof]);
+    },
+    authorityProof ? authorityExpiryDelay : null
+  );
 
   useEffect(() => {
-    if (authority.state !== "confirmed" || !signedInUserId) return;
+    if (authority.state !== "confirmed" || !scopeSubject) return;
     if (developmentFixture === "reconnect") {
       setScopeCheck({
         key: scopeKey,
@@ -271,7 +268,7 @@ export function useModerationAuthority(
         if (
           !status.connected ||
           !status.valid ||
-          (status.userId !== undefined && status.userId !== signedInUserId)
+          (status.userId !== undefined && status.userId !== scopeSubject)
         ) {
           setScopeCheck({ key: scopeKey, state: "unverifiable", missingScopes: [] });
           return;
@@ -291,20 +288,12 @@ export function useModerationAuthority(
     return () => {
       cancelled = true;
     };
-  }, [authority, developmentFixture, forceModScopes, platform, scopeKey, signedInUserId]);
+  }, [authority, developmentFixture, forceModScopes, platform, scopeKey, scopeSubject]);
 
   const retryAuthority = useCallback(async () => {
     if (platform === "twitch") {
       if (!twitchUser) return;
-      const [token, clientId] = await Promise.all([
-        window.electronAPI.auth.getToken("twitch"),
-        Promise.resolve(import.meta.env.VITE_TWITCH_CLIENT_ID),
-      ]);
-      if (!token?.accessToken || !clientId) {
-        setScopeRevision((revision) => revision + 1);
-        return;
-      }
-      await hydrateTwitch(twitchUser.id, token.accessToken, clientId);
+      await hydrateTwitch(twitchUser.id);
     } else if (kickUser) {
       const result = await window.electronAPI.kickChat.getViewerRole(channelSlug);
       const checkedAt = Date.now();

@@ -20,9 +20,13 @@
  * pass no args fall back to the two pin-path scopes.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { TWITCH_MOD_ACTION_SCOPES } from "@/shared/auth-types";
+import {
+  TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPE_GROUPS,
+  TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES,
+  TWITCH_MOD_ACTION_SCOPES,
+} from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
@@ -37,6 +41,10 @@ export interface UseRequireModScopesResult {
   hasModScopes: boolean;
   /** True while the initial token read is in flight. */
   loading: boolean;
+  /** Actual token authority for the eight scope groups required by channel.moderate v2. */
+  hasChannelModerateEventSubScopes: boolean;
+  /** Canonical scopes absent from the inspected token. */
+  missingChannelModerateEventSubScopes: string[];
   /**
    * Opens the singleton "Reconnect for mod features" dialog.
    *
@@ -52,25 +60,37 @@ export function useRequireModScopes(): UseRequireModScopesResult {
   // Dev debug-panel override — see dev-mod-override-store.
   const forceScopes = useDevModOverrideStore((s) => s.forceModScopes);
   const [hasModScopes, setHasModScopes] = useState(false);
+  const [missingChannelModerateEventSubScopes, setMissingChannelModerateEventSubScopes] = useState<
+    string[]
+  >([...TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     if (!twitchUser) {
       setHasModScopes(false);
+      setMissingChannelModerateEventSubScopes([...TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES]);
       setLoading(false);
       return;
     }
     setLoading(true);
     (async () => {
       try {
-        const token = await window.electronAPI.auth.getToken("twitch");
+        const scopeStatus = await window.electronAPI.auth.tokenStatus("twitch");
         if (cancelled) return;
-        const scopes = new Set(token?.scope ?? []);
+        const scopes = new Set(scopeStatus.scopes);
         const ok = TWITCH_MOD_ACTION_SCOPES.every((s) => scopes.has(s));
         setHasModScopes(ok);
+        setMissingChannelModerateEventSubScopes(
+          TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPE_GROUPS.filter(
+            (group) => !group.accepted.some((scope) => scopes.has(scope))
+          ).map((group) => group.canonical)
+        );
       } catch {
-        if (!cancelled) setHasModScopes(false);
+        if (!cancelled) {
+          setHasModScopes(false);
+          setMissingChannelModerateEventSubScopes([...TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -80,18 +100,22 @@ export function useRequireModScopes(): UseRequireModScopesResult {
     };
   }, [twitchUser]);
 
-  const promptReconnect = (options?: PromptReconnectOptions) => {
+  const promptReconnect = useCallback((options?: PromptReconnectOptions) => {
     useReconnectDialogStore.getState().open({
       platform: "twitch",
       missingScopes: options?.missingScopes ?? [...TWITCH_MOD_ACTION_SCOPES],
       onReconnected: options?.onReconnected,
     });
-  };
+  }, []);
 
   // Dev override wins. Lets the debug panel test the post-scope action path
   // without needing a token that actually carries the new scopes.
   return {
     hasModScopes: forceScopes || hasModScopes,
+    // Dev scope overrides exist for fixture UI only and must never authorize
+    // a real EventSub subscription against Twitch.
+    hasChannelModerateEventSubScopes: missingChannelModerateEventSubScopes.length === 0,
+    missingChannelModerateEventSubScopes,
     loading: forceScopes ? false : loading,
     promptReconnect,
   };

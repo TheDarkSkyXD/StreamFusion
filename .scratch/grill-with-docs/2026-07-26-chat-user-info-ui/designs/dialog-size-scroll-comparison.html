@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat user dialog — size and scrolling</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --void:#0f0f0f; --surface:#1a1a1a; --mid:#252525; --border:#333; --text:#fff; --secondary:#a0a0a0; --muted:#666; --twitch:#9146ff; --success:#68d391; }
+    body { min-width: 1280px; min-height:100vh; padding:30px; background:var(--void); color:var(--text); font:500 14px/1.45 Inter,system-ui,sans-serif; }
+    header,main { max-width:1500px; margin-inline:auto; }
+    header { margin-bottom:22px; } h1 { font-size:24px; margin-bottom:6px; } .intro { color:var(--secondary); max-width:850px; }
+    main { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+    .option { overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+    .option.rec { border-color:rgba(255,255,255,.56); }
+    .head { min-height:100px; padding:15px 17px; border-bottom:1px solid var(--border); }
+    .row { display:flex; align-items:center; gap:9px; margin-bottom:5px; }
+    .letter { width:26px; height:26px; display:grid; place-items:center; border-radius:7px; background:var(--mid); font-size:12px; font-weight:700; }
+    .rec .letter { background:#fff; color:var(--void); }
+    h2 { font-size:14px; } .tag { margin-left:auto; padding:2px 7px; border:1px solid rgba(104,211,145,.35); border-radius:999px; color:var(--success); font-size:9px; text-transform:uppercase; }
+    .copy { color:var(--secondary); font-size:11px; }
+    .scene { height:610px; display:grid; place-items:center; background:radial-gradient(circle at 50% 25%,rgba(145,70,255,.16),transparent 28%),#090909; }
+    .dialog { display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border); border-radius:11px; background:#121215; box-shadow:0 8px 32px rgba(0,0,0,.62); }
+    .d1 { width:390px; height:530px; } .d2 { width:340px; height:470px; } .d3 { width:455px; height:500px; }
+    .profile { flex:0 0 auto; padding:15px 17px; border-bottom:1px solid var(--border); }
+    .identity { display:flex; align-items:center; gap:10px; }
+    .avatar { width:48px; height:48px; border-radius:50%; background:linear-gradient(145deg,#d28d45,#6d3b21); border:1px solid #666; }
+    .name { color:#b56fff; font-weight:700; font-size:14px; }.handle,.mini { color:var(--secondary); font-size:9px; }
+    .meta { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; font-size:9px; }.meta span { display:block; color:var(--muted); }
+    .badges { margin-top:9px; padding:6px 0; white-space:nowrap; overflow:hidden; border-top:1px solid #29292d; }
+    .chip { display:inline-block; margin-right:4px; padding:2px 6px; border:1px solid #414141; border-radius:999px; background:var(--mid); font-size:8px; }
+    .body { padding:13px 17px; overflow:auto; scrollbar-color:#4a4a4a transparent; scrollbar-width:thin; }
+    .body.single-scroll { flex:1 1 auto; }
+    .label { margin:4px 0 6px; color:var(--secondary); font-size:8px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+    .message { margin-bottom:5px; padding:7px 8px; border:1px solid #2c2c30; border-radius:6px; background:#1a1a1e; font-size:8.5px; }
+    .message.sel { border-color:rgba(145,70,255,.55); background:rgba(145,70,255,.12); }
+    .time { color:var(--muted); }.user { color:#b56fff; font-weight:700; }
+    .mod { margin-top:11px; padding:9px; border:1px solid #383838; border-radius:7px; background:#18181b; font-size:8.5px; }
+    .footer { flex:0 0 auto; display:flex; justify-content:flex-end; gap:5px; padding:9px 12px; border-top:1px solid var(--border); background:#151518; }
+    button { height:27px; padding:0 8px; border:1px solid var(--border); border-radius:7px; background:var(--mid); color:#fff; font:600 8px Inter,system-ui; }
+    button.primary { background:#fff; color:var(--void); border-color:#fff; }
+    .nested .message-window { height:120px; overflow:auto; padding-right:4px; }
+    .nested .mod-window { height:74px; overflow:auto; }
+    .columns { flex:1; display:grid; grid-template-columns:1fr 1.25fr; min-height:0; }
+    .columns .left { padding:13px; border-right:1px solid var(--border); overflow:auto; }
+    .columns .right { padding:13px; overflow:auto; }
+    .analysis { min-height:110px; padding:14px 17px; border-top:1px solid var(--border); color:var(--secondary); font-size:11px; }
+    .analysis strong { display:block; margin-bottom:4px; color:var(--text); }
+  </style>
+</head>
+<body>
+  <header><h1>Centered dialog size and scrolling</h1><p class="intro">The richer profile can contain ten full chat rows plus a permission-gated Moderation section. Compare how each option manages limited window height.</p></header>
+  <main>
+    <article class="option rec">
+      <div class="head"><div class="row"><span class="letter">1</span><h2>Responsive medium dialog</h2><span class="tag">Recommended</span></div><p class="copy">560px desktop width, capped around 80% of window height. Fixed header/footer, one scrolling content region.</p></div>
+      <div class="scene">
+        <section class="dialog d1">
+          <div class="profile"><div class="identity"><div class="avatar"></div><div><div class="name">Dimawho</div><div class="handle">@dimawho · Twitch</div></div></div><div class="meta"><div><span>Account created</span>Feb 13, 2013</div><div><span>Following since</span>May 20, 2020</div></div><div class="badges"><span class="chip">Subscriber</span><span class="chip">7TV</span><span class="chip">Founder</span><span class="chip">VIP</span><span class="chip">More →</span></div></div>
+          <div class="body single-scroll"><div class="label">Recent in this chat</div><div class="message sel"><span class="time">10:42</span> <span class="user">Dimawho:</span> winterorb gem wasn’t linked</div><div class="message"><span class="time">10:44</span> <span class="user">shockkwaves:</span> that explains the clear speed</div><div class="message"><span class="time">10:47</span> <span class="user">Dimawho:</span> fixed it now Pog</div><div class="message"><span class="time">10:52</span> <span class="user">Dimawho:</span> campaign feels much better</div><div class="label">Moderation</div><div class="mod">No moderation history<br><br>Timeout · Ban · Delete message</div></div>
+          <footer class="footer"><button>Copy</button><button disabled>Translate · Soon</button><button>View Channel</button><button class="primary">Reply</button></footer>
+        </section>
+      </div>
+      <div class="analysis"><strong>Predictable and accessible</strong>Only one interior scroll target, actions never move, and the dialog still fits smaller desktop windows without turning into a full-screen sheet.</div>
+    </article>
+
+    <article class="option">
+      <div class="head"><div class="row"><span class="letter">2</span><h2>Current compact width</h2></div><p class="copy">Keep roughly 480px and give messages and moderation history separate nested scroll regions.</p></div>
+      <div class="scene">
+        <section class="dialog d2 nested">
+          <div class="profile"><div class="identity"><div class="avatar"></div><div><div class="name">Dimawho</div><div class="handle">@dimawho · Twitch</div></div></div><div class="meta"><div><span>Created</span>Feb 13, 2013</div><div><span>Following</span>May 20, 2020</div></div><div class="badges"><span class="chip">Subscriber</span><span class="chip">7TV</span><span class="chip">Founder</span></div></div>
+          <div class="body"><div class="label">Recent in this chat</div><div class="message-window"><div class="message sel"><span class="user">Dimawho:</span> winterorb gem wasn’t linked</div><div class="message"><span class="user">shockkwaves:</span> that explains it</div><div class="message"><span class="user">Dimawho:</span> fixed it</div><div class="message"><span class="user">Dimawho:</span> feels better</div></div><div class="label">Moderation</div><div class="mod-window"><div class="mod">No history<br><br>Timeout · Ban · Delete</div></div></div>
+          <footer class="footer"><button>Copy</button><button>View</button><button class="primary">Reply</button></footer>
+        </section>
+      </div>
+      <div class="analysis"><strong>Small, but scroll-heavy</strong>Preserves the current footprint, yet mouse-wheel focus can become confusing when message history, mod history, and the dialog each have their own scrolling behavior.</div>
+    </article>
+
+    <article class="option">
+      <div class="head"><div class="row"><span class="letter">3</span><h2>Wide two-column dialog</h2></div><p class="copy">Use a wider desktop layout: identity/moderation on the left, conversation history on the right.</p></div>
+      <div class="scene">
+        <section class="dialog d3">
+          <div class="columns">
+            <div class="left"><div class="identity"><div class="avatar"></div><div><div class="name">Dimawho</div><div class="handle">@dimawho</div></div></div><div class="meta" style="grid-template-columns:1fr"><div><span>Account created</span>Feb 13, 2013</div><div><span>Following since</span>May 20, 2020</div></div><div class="label">Badges</div><div><span class="chip">Subscriber</span><span class="chip">7TV</span><span class="chip">Founder</span></div><div class="label">Moderation</div><div class="mod">No moderation history<br><br>Timeout · Ban · Delete</div></div>
+            <div class="right"><div class="label">Recent in this chat</div><div class="message sel"><span class="time">10:42</span> <span class="user">Dimawho:</span> winterorb gem wasn’t linked</div><div class="message"><span class="time">10:44</span> <span class="user">shockkwaves:</span> that explains the clear speed</div><div class="message"><span class="time">10:47</span> <span class="user">Dimawho:</span> fixed it now</div><div class="message"><span class="time">10:52</span> <span class="user">Dimawho:</span> feels better</div></div>
+          </div>
+          <footer class="footer"><button>Copy</button><button disabled>Translate · Soon</button><button>View Channel</button><button class="primary">Reply</button></footer>
+        </section>
+      </div>
+      <div class="analysis"><strong>High information density</strong>Powerful for moderators, but it makes the everyday identity-first dialog feel like a desktop administration console and departs furthest from the current design.</div>
+    </article>
+  </main>
+</body>
+</html>

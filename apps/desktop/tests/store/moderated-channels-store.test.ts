@@ -1,19 +1,10 @@
 import { act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
-  getModeratedChannels: vi.fn(),
-  getModeratedChannelsResult: vi.fn(),
-}));
-
-import {
-  getModeratedChannels,
-  getModeratedChannelsResult,
-} from "@/backend/api/platforms/twitch/twitch-helix-moderation";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { installElectronAPIMock } from "../test-utils";
 
-const getModeratedChannelsMock = vi.mocked(getModeratedChannels);
-const getModeratedChannelsResultMock = vi.mocked(getModeratedChannelsResult);
+const getModeratedChannelsMock = vi.fn();
 
 function freshStore() {
   // Reset between tests by calling clear() — store is a module singleton.
@@ -24,12 +15,10 @@ function freshStore() {
 
 beforeEach(() => {
   freshStore();
+  const api = installElectronAPIMock();
   getModeratedChannelsMock.mockReset();
-  getModeratedChannelsResultMock.mockReset();
-  getModeratedChannelsResultMock.mockImplementation(async (...args) => ({
-    state: "complete",
-    channels: await getModeratedChannelsMock(...args),
-  }));
+  getModeratedChannelsMock.mockResolvedValue({ ok: true, data: [] });
+  api.twitch.execute = getModeratedChannelsMock;
 });
 
 afterEach(() => {
@@ -37,15 +26,32 @@ afterEach(() => {
 });
 
 describe("useModeratedChannelsStore", () => {
-  it("records a failed authority lookup without replacing it with a verified empty result", async () => {
-    getModeratedChannelsResultMock.mockResolvedValue({
-      state: "failed",
-      reason: "authorization",
-      channels: [],
+  it("hydrates through main without receiving Twitch credentials", async () => {
+    const api = installElectronAPIMock();
+    api.twitch.execute = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [{ broadcaster_id: "111", broadcaster_login: "a", broadcaster_name: "A" }],
     });
 
     await act(async () => {
-      await useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+      await useModeratedChannelsStore.getState().hydrate("me");
+    });
+
+    expect(api.twitch.execute).toHaveBeenCalledWith({
+      operation: "get-moderated-channels",
+      userId: "me",
+    });
+    expect(JSON.stringify(vi.mocked(api.twitch.execute).mock.calls)).not.toMatch(/token|client.?id/i);
+  });
+
+  it("records a failed authority lookup without replacing it with a verified empty result", async () => {
+    getModeratedChannelsMock.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Sign in" },
+    });
+
+    await act(async () => {
+      await useModeratedChannelsStore.getState().hydrate("me");
     });
 
     expect(useModeratedChannelsStore.getState().twitchAuthority).toMatchObject({
@@ -64,13 +70,13 @@ describe("useModeratedChannelsStore", () => {
   });
 
   it("hydrate populates the Set with returned broadcaster ids", async () => {
-    getModeratedChannelsMock.mockResolvedValue([
+    getModeratedChannelsMock.mockResolvedValue({ ok: true, data: [
       { broadcaster_id: "111", broadcaster_login: "a", broadcaster_name: "A" },
       { broadcaster_id: "222", broadcaster_login: "b", broadcaster_name: "B" },
-    ]);
+    ] });
 
     await act(async () => {
-      await useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+      await useModeratedChannelsStore.getState().hydrate("me");
     });
 
     const state = useModeratedChannelsStore.getState();
@@ -80,19 +86,19 @@ describe("useModeratedChannelsStore", () => {
   });
 
   it("dedupes concurrent hydrate calls", async () => {
-    let resolve: (v: never[]) => void = () => {};
-    const pending = new Promise<never[]>((r) => {
+    let resolve: (v: { ok: true; data: never[] }) => void = () => {};
+    const pending = new Promise<{ ok: true; data: never[] }>((r) => {
       resolve = r;
     });
     getModeratedChannelsMock.mockReturnValueOnce(pending);
 
-    const first = useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
-    const second = useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+    const first = useModeratedChannelsStore.getState().hydrate("me");
+    const second = useModeratedChannelsStore.getState().hydrate("me");
 
     expect(getModeratedChannelsMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      resolve([]);
+      resolve({ ok: true, data: [] });
       await Promise.all([first, second]);
     });
 
@@ -100,17 +106,17 @@ describe("useModeratedChannelsStore", () => {
   });
 
   it("preserves prior cache when hydrate throws", async () => {
-    getModeratedChannelsMock.mockResolvedValueOnce([
+    getModeratedChannelsMock.mockResolvedValueOnce({ ok: true, data: [
       { broadcaster_id: "111", broadcaster_login: "a", broadcaster_name: "A" },
-    ]);
+    ] });
     await act(async () => {
-      await useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+      await useModeratedChannelsStore.getState().hydrate("me");
     });
     expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("111")).toBe(true);
 
     getModeratedChannelsMock.mockRejectedValueOnce(new Error("network blip"));
     await act(async () => {
-      await useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+      await useModeratedChannelsStore.getState().hydrate("me");
     });
 
     expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.has("111")).toBe(true);
@@ -152,11 +158,11 @@ describe("useModeratedChannelsStore", () => {
   it("isStale returns true after 5 minutes elapsed", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-18T00:00:00Z"));
-    getModeratedChannelsMock.mockResolvedValue([
+    getModeratedChannelsMock.mockResolvedValue({ ok: true, data: [
       { broadcaster_id: "111", broadcaster_login: "a", broadcaster_name: "A" },
-    ]);
+    ] });
     await act(async () => {
-      await useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+      await useModeratedChannelsStore.getState().hydrate("me");
     });
     expect(useModeratedChannelsStore.getState().isStale()).toBe(false);
 
@@ -170,11 +176,11 @@ describe("useModeratedChannelsStore", () => {
   });
 
   it("clear resets the store to its empty initial state", async () => {
-    getModeratedChannelsMock.mockResolvedValue([
+    getModeratedChannelsMock.mockResolvedValue({ ok: true, data: [
       { broadcaster_id: "111", broadcaster_login: "a", broadcaster_name: "A" },
-    ]);
+    ] });
     await act(async () => {
-      await useModeratedChannelsStore.getState().hydrate("me", "tok", "cid");
+      await useModeratedChannelsStore.getState().hydrate("me");
     });
     expect(useModeratedChannelsStore.getState().twitchModeratedChannelIds.size).toBe(1);
 

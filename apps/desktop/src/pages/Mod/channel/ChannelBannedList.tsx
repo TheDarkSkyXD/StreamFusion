@@ -13,13 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  type BannedUserEntry,
-  BannedUsersFetchError,
-  type GetBannedUsersError,
-  getBannedUsers,
-} from "@/backend/api/platforms/twitch/twitch-helix-banned-list";
-import { unbanUser } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
+import type { TwitchBannedUser } from "@/shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
 
 interface ChannelBannedListProps {
@@ -46,28 +40,13 @@ function formatRemaining(expiresAt: string | ""): string {
   return `${day}d left`;
 }
 
-function errorMessage(info: GetBannedUsersError): string {
-  switch (info.kind) {
-    case "unauthorized":
-      return "Sign-in lacks moderation scope for this channel.";
-    case "forbidden":
-      return "You're not authorized to view this channel's banned list.";
-    case "not-found":
-      return "Channel not found.";
-    case "rate-limited":
-      return "Twitch is rate-limiting; try again in a few seconds.";
-    case "network":
-      return `Network error: ${info.message}`;
-  }
-}
-
 export function ChannelBannedList({
   platform,
   broadcasterId,
   refreshCounter,
 }: ChannelBannedListProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
-  const [entries, setEntries] = useState<BannedUserEntry[]>([]);
+  const [entries, setEntries] = useState<TwitchBannedUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<Map<string, boolean>>(new Map());
@@ -80,28 +59,20 @@ export function ChannelBannedList({
     setLoading(true);
     setError(null);
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!token?.accessToken || !clientId) {
-        setError("Missing Twitch credentials.");
+      const result = await window.electronAPI.twitch.execute({
+        operation: "get-banned-users",
+        broadcasterId,
+      });
+      if (!result.ok) {
+        setError(result.error.message);
+        setEntries([]);
         return;
       }
-      const result = await getBannedUsers({
-        accessToken: token.accessToken,
-        broadcasterId,
-        moderatorUserId: twitchUser.id,
-        clientId,
-      });
-      setEntries(result.data);
+      setEntries((result.data as { data: TwitchBannedUser[] }).data);
     } catch (err) {
-      if (err instanceof BannedUsersFetchError) {
-        setError(errorMessage(err.info));
-        setEntries([]);
-      } else {
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(`Network error: ${msg}`);
-        setEntries([]);
-      }
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Network error: ${msg}`);
+      setEntries([]);
     } finally {
       setLoading(false);
     }
@@ -121,25 +92,18 @@ export function ChannelBannedList({
     });
   };
 
-  const handleUnban = async (row: BannedUserEntry) => {
+  const handleUnban = async (row: TwitchBannedUser) => {
     if (!broadcasterId || !twitchUser) return;
     setRowBusy(row.user_id, true);
     try {
-      const token = await window.electronAPI.auth.getToken("twitch");
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!token?.accessToken || !clientId) {
-        toast.error("Couldn't unban — missing Twitch credentials");
-        return;
-      }
-      const result = await unbanUser({
-        accessToken: token.accessToken,
-        clientId,
+      const result = await window.electronAPI.twitch.execute({
+        operation: "unban-user",
         broadcasterId,
         moderatorId: twitchUser.id,
         userId: row.user_id,
       });
       if (!result.ok) {
-        toast.error(`Couldn't unban — ${result.kind}`);
+        toast.error(`Couldn't unban — ${result.error.message}`);
         return;
       }
       setEntries((prev) => prev.filter((e) => e.user_id !== row.user_id));

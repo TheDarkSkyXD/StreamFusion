@@ -23,6 +23,7 @@ import {
   LuClock,
   LuEraser,
   LuFingerprint,
+  LuLoaderCircle,
   LuLock,
   LuMegaphone,
   LuRadio,
@@ -307,8 +308,26 @@ export function ModActionConfirmDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px] bg-[#0F0F12] border-[var(--color-border)] p-6 shadow-2xl">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && busy) return;
+        onOpenChange(nextOpen);
+      }}
+    >
+      <DialogContent
+        hideCloseButton={busy}
+        onEscapeKeyDown={(event) => {
+          if (busy) event.preventDefault();
+        }}
+        onPointerDownOutside={(event) => {
+          if (busy) event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          if (busy) event.preventDefault();
+        }}
+        className="sm:max-w-[440px] bg-[#0F0F12] border-[var(--color-border)] p-6 shadow-2xl"
+      >
         <DialogHeader className="pb-4 border-b border-[var(--color-border)]">
           <DialogTitle className="flex items-center gap-2 text-xl text-white">
             {copy.icon}
@@ -330,6 +349,16 @@ export function ModActionConfirmDialog({
           {extraSlot ? (
             <div data-testid="mod-action-extra-slot">
               {extraSlot({ onDataChange: setExtraData, disabled: busy })}
+            </div>
+          ) : null}
+          {busy ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mt-3 flex items-center gap-2 text-sm text-amber-200"
+            >
+              <LuLoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+              {copy.busyLabel}
             </div>
           ) : null}
         </div>

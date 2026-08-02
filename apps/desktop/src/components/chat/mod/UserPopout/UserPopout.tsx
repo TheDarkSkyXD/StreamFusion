@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Copy,
@@ -25,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { MOD_LOG_QUERY_KEYS } from "@/hooks/mod-log-query-keys";
 import { useModerationAuthority } from "@/hooks/useModerationAuthority";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
@@ -36,6 +38,7 @@ import {
   selectLatestAuthoredMessage,
   selectRecentUserMessages,
 } from "@/store/user-popout-chat-context";
+import { StateAwareTimeoutAction } from "./StateAwareTimeoutAction";
 import { UserModHistory } from "./UserModHistory";
 import { UserProfileHeader } from "./UserProfileHeader";
 import { useUserProfile } from "./useUserProfile";
@@ -116,6 +119,7 @@ export function UserPopout({
   open,
   onOpenChange,
 }: UserPopoutProps) {
+  const queryClient = useQueryClient();
   const profileState = useUserProfile(userId, platform, channelId, username, channelSlug);
   const moderationAuthority = useModerationAuthority(platform, channelId, channelSlug);
   const reconnectPhase = useReconnectDialogStore((state) => state.phase);
@@ -126,6 +130,8 @@ export function UserPopout({
     useAuthStore((state) => state.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const compact = useCompactDialog();
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [timeoutPending, setTimeoutPending] = useState(false);
+  const dialogLocked = reconnectBusy || timeoutPending;
   const { identity, accountCreated, follow, channel } = profileState;
   const renderedIdentity =
     identity.state === "known" && platform === "kick"
@@ -246,7 +252,7 @@ export function UserPopout({
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && reconnectBusy) return;
+        if (!nextOpen && dialogLocked) return;
         onOpenChange(nextOpen);
       }}
     >
@@ -258,7 +264,17 @@ export function UserPopout({
         data-testid="user-popout"
         data-compact={compact ? "true" : "false"}
         data-reconnect-locked={reconnectBusy ? "true" : "false"}
-        aria-busy={reconnectBusy}
+        data-timeout-locked={timeoutPending ? "true" : "false"}
+        aria-busy={dialogLocked}
+        onEscapeKeyDown={(event) => {
+          if (dialogLocked) event.preventDefault();
+        }}
+        onPointerDownOutside={(event) => {
+          if (dialogLocked) event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          if (dialogLocked) event.preventDefault();
+        }}
       >
         <DialogHeader className="shrink-0 border-b border-[var(--color-border)] px-5 py-5 pr-14 text-left">
           <DialogTitle className="sr-only">User profile: {username}</DialogTitle>
@@ -280,7 +296,7 @@ export function UserPopout({
           <Tooltip>
             <TooltipTrigger asChild>
               <DialogClose
-                disabled={reconnectBusy}
+                disabled={dialogLocked}
                 className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X className="h-5 w-5" aria-hidden />
@@ -377,6 +393,24 @@ export function UserPopout({
                 channelSlug={channelSlug}
                 targetUserId={userId}
                 limit={5}
+              />
+              <StateAwareTimeoutAction
+                binding={{
+                  platform,
+                  channelId,
+                  channelSlug,
+                  targetUserId: userId,
+                  targetUsername: username,
+                  ...(selectedMessage?.id ? { selectedMessageId: selectedMessage.id } : {}),
+                  action: "timeout",
+                }}
+                displayName={displayName ?? username}
+                onPendingChange={setTimeoutPending}
+                onSuccess={async () => {
+                  await queryClient.invalidateQueries({
+                    queryKey: MOD_LOG_QUERY_KEYS.channel(platform, channelId),
+                  });
+                }}
               />
               <button
                 type="button"
@@ -545,7 +579,7 @@ export function UserPopout({
           <DialogClose asChild>
             <button
               type="button"
-              disabled={reconnectBusy}
+              disabled={dialogLocked}
               className="h-9 rounded-md bg-[var(--color-background-tertiary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-background-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               Close

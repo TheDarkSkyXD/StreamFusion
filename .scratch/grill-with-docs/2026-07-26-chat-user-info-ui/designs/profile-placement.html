@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat user profile — placement options</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --border: #333333;
+      --text: #ffffff;
+      --secondary: #a0a0a0;
+      --muted: #666666;
+      --crimson: #dc143c;
+      --twitch: #9146ff;
+      --success: #45c56f;
+    }
+    body {
+      min-width: 1180px;
+      min-height: 100vh;
+      padding: 32px;
+      background: var(--void);
+      color: var(--text);
+      font: 500 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    header { max-width: 1440px; margin: 0 auto 24px; }
+    h1 { font-size: 24px; line-height: 1.2; margin-bottom: 8px; }
+    .intro { color: var(--secondary); max-width: 800px; }
+    .options {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .option {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+    .option.recommended { border-color: rgba(255,255,255,.58); }
+    .option-head {
+      min-height: 92px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .option-title { display: flex; gap: 10px; align-items: center; margin-bottom: 5px; }
+    .letter {
+      width: 26px; height: 26px; border-radius: 7px;
+      display: grid; place-items: center;
+      background: var(--mid); font-size: 12px; font-weight: 700;
+    }
+    .recommended .letter { background: #fff; color: #0f0f0f; }
+    h2 { font-size: 15px; }
+    .badge {
+      margin-left: auto; padding: 2px 7px; border-radius: 999px;
+      background: rgba(69,197,111,.14); color: #72dc94;
+      border: 1px solid rgba(69,197,111,.3); font-size: 10px; font-weight: 700;
+      letter-spacing: .03em; text-transform: uppercase;
+    }
+    .option-copy { color: var(--secondary); font-size: 12px; }
+    .frame {
+      position: relative;
+      height: 480px;
+      background: #090909;
+      overflow: hidden;
+    }
+    .appbar {
+      height: 34px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 9px; padding: 0 11px;
+      color: var(--secondary); font-size: 10px; background: #151515;
+    }
+    .brand-dot { width: 12px; height: 12px; border-radius: 4px; background: linear-gradient(135deg, var(--twitch), var(--crimson)); }
+    .app {
+      height: calc(100% - 34px);
+      display: grid;
+      grid-template-columns: 58px 1fr 145px;
+    }
+    .side { border-right: 1px solid var(--border); background: #171717; padding: 12px; }
+    .side i { display: block; width: 28px; height: 7px; margin: 0 auto 17px; border-radius: 4px; background: #343434; }
+    .stage { position: relative; padding: 12px; background: #0c0c0c; }
+    .video {
+      height: 198px; border-radius: 6px;
+      background:
+        radial-gradient(circle at 45% 55%, rgba(145,70,255,.22), transparent 20%),
+        linear-gradient(145deg, #24222c, #101013 62%);
+      border: 1px solid #292929;
+    }
+    .stream-meta { padding-top: 12px; }
+    .line { height: 7px; border-radius: 4px; background: #303030; margin-bottom: 8px; }
+    .line.wide { width: 85%; } .line.med { width: 58%; } .line.short { width: 34%; }
+    .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 20px; }
+    .cards div { height: 82px; border: 1px solid #292929; border-radius: 7px; background: #171717; }
+    .chat { border-left: 1px solid var(--border); background: #141414; padding: 10px; overflow: hidden; }
+    .chat-title { font-size: 11px; font-weight: 700; margin-bottom: 11px; }
+    .message { margin-bottom: 10px; color: #b7b7b7; font-size: 9px; line-height: 1.35; }
+    .name { color: #b06cff; font-weight: 700; }
+    .profile {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .profile-top { display: flex; gap: 10px; align-items: center; }
+    .avatar {
+      width: 43px; height: 43px; border-radius: 50%;
+      background: linear-gradient(145deg, #d58b40, #6f3d22);
+      border: 1px solid #6e6e6e; flex: 0 0 auto;
+    }
+    .display { color: #b46cff; font-weight: 700; font-size: 13px; }
+    .handle, .micro { color: var(--secondary); font-size: 9px; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+    .meta-grid span { display: block; color: var(--muted); font-size: 8px; }
+    .meta-grid strong { display: block; font-size: 9px; margin-top: 1px; }
+    .section-title { color: var(--secondary); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; margin: 15px 0 6px; }
+    .recent { padding: 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--mid); font-size: 9px; }
+    .viewer-actions { display: flex; gap: 6px; margin-top: 14px; }
+    .small-btn { padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--mid); color: #fff; font-size: 8px; }
+    .small-btn.primary { background: #fff; color: #0f0f0f; border-color: #fff; }
+    .rail-profile {
+      position: absolute; inset: 34px 0 0 auto; width: 47%;
+      padding: 14px;
+      background: var(--surface); border-left: 1px solid var(--border);
+      box-shadow: -8px 0 22px rgba(0,0,0,.35);
+    }
+    .back { color: var(--secondary); font-size: 9px; margin-bottom: 14px; }
+    .rail-profile .profile-top { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .rail-profile .recent { margin-bottom: 6px; }
+    .sticky {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      display: flex; gap: 6px; padding: 10px 14px;
+      background: var(--surface); border-top: 1px solid var(--border);
+    }
+    .anchored {
+      position: absolute; top: 135px; right: 116px; width: 235px;
+      padding: 13px; border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.55);
+    }
+    .pointer {
+      position: absolute; right: -7px; top: 42px; width: 13px; height: 13px;
+      transform: rotate(45deg); background: var(--surface);
+      border-top: 1px solid var(--border); border-right: 1px solid var(--border);
+    }
+    .scrim { position: absolute; inset: 34px 0 0; background: rgba(0,0,0,.72); }
+    .modal {
+      position: absolute; left: 50%; top: 53%; transform: translate(-50%,-50%);
+      width: 78%; padding: 16px; border-radius: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.65);
+    }
+    .close { position: absolute; top: 10px; right: 12px; color: var(--secondary); }
+    .mod-note {
+      margin-top: 12px; padding: 7px;
+      border: 1px dashed #505050; border-radius: 6px;
+      color: var(--muted); font-size: 8px;
+    }
+    .verdict {
+      min-height: 94px; padding: 14px 18px; border-top: 1px solid var(--border);
+      color: var(--secondary); font-size: 12px;
+    }
+    .verdict strong { color: var(--text); display: block; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Where should a chat user profile open?</h1>
+    <p class="intro">All three show the viewer state: identity and chat context first, with moderation absent unless permission is confirmed. Compare how much each interrupts the stream and chat.</p>
+  </header>
+
+  <main class="options">
+    <article class="option recommended">
+      <div class="option-head">
+        <div class="option-title"><span class="letter">A</span><h2>Chat-rail profile</h2><span class="badge">Recommended</span></div>
+        <p class="option-copy">Temporarily replaces chat with a stable, scrollable profile panel.</p>
+      </div>
+      <div class="frame">
+        <div class="appbar"><span class="brand-dot"></span> StreamFusion</div>
+        <div class="app">
+          <aside class="side"><i></i><i></i><i></i><i></i><i></i></aside>
+          <section class="stage">
+            <div class="video"></div>
+            <div class="stream-meta"><div class="line wide"></div><div class="line med"></div></div>
+            <div class="cards"><div></div><div></div></div>
+          </section>
+          <aside class="chat"><div class="chat-title">Chat</div><p class="message"><span class="name">Dimawho:</span> I accidentally didn't even have my gem linked</p></aside>
+        </div>
+        <section class="rail-profile profile">
+          <div class="back">← Back to chat</div>
+          <div class="profile-top"><div class="avatar"></div><div><div class="display">Dimawho</div><div class="handle">@dimawho · Twitch</div></div></div>
+          <div class="meta-grid"><div><span>Account created</span><strong>Feb 13, 2013</strong></div><div><span>Following since</span><strong>Not following</strong></div></div>
+          <div class="section-title">Recent in this chat</div>
+          <div class="recent">I accidentally didn't even have my winterorb gem linked…</div>
+          <div class="recent">That campaign felt much smoother today.</div>
+          <div class="mod-note">Moderator tools appear here only when your permissions are confirmed.</div>
+          <div class="sticky"><button class="small-btn primary">Mention</button><button class="small-btn">Open on Twitch</button></div>
+        </section>
+      </div>
+      <div class="verdict"><strong>Best fit for StreamFusion</strong>Keeps the stream fully visible, gives long content room, and provides one predictable location across normal, fullscreen, and multiview chat.</div>
+    </article>
+
+    <article class="option">
+      <div class="option-head">
+        <div class="option-title"><span class="letter">B</span><h2>Anchored popover</h2></div>
+        <p class="option-copy">Appears next to the clicked username without replacing the chat rail.</p>
+      </div>
+      <div class="frame">
+        <div class="appbar"><span class="brand-dot"></span> StreamFusion</div>
+        <div class="app">
+          <aside class="side"><i></i><i></i><i></i><i></i><i></i></aside>
+          <section class="stage">
+            <div class="video"></div>
+            <div class="stream-meta"><div class="line wide"></div><div class="line med"></div></div>
+            <div class="cards"><div></div><div></div></div>
+          </section>
+          <aside class="chat">
+            <div class="chat-title">Chat</div>
+            <p class="message"><span class="name">shockkwaves:</span> best campaign clear ever</p>
+            <p class="message"><span class="name">Dimawho:</span> I accidentally didn't even have my gem linked</p>
+            <p class="message"><span class="name">ramsesmj12:</span> this rimworld music?</p>
+          </aside>
+        </div>
+        <section class="anchored profile">
+          <span class="pointer"></span>
+          <div class="profile-top"><div class="avatar"></div><div><div class="display">Dimawho</div><div class="handle">@dimawho · Twitch</div></div></div>
+          <div class="meta-grid"><div><span>Created</span><strong>Feb 2013</strong></div><div><span>Following</span><strong>No</strong></div></div>
+          <div class="section-title">Latest message</div>
+          <div class="recent">I accidentally didn't even have my winterorb gem linked…</div>
+          <div class="viewer-actions"><button class="small-btn primary">Mention</button><button class="small-btn">Open</button></div>
+        </section>
+      </div>
+      <div class="verdict"><strong>Fast, but cramped</strong>Excellent for a lightweight identity card. Recent messages, history, and moderator workflows quickly exceed the available space.</div>
+    </article>
+
+    <article class="option">
+      <div class="option-head">
+        <div class="option-title"><span class="letter">C</span><h2>Centered modal</h2></div>
+        <p class="option-copy">An improved version of the current blocking dialog.</p>
+      </div>
+      <div class="frame">
+        <div class="appbar"><span class="brand-dot"></span> StreamFusion</div>
+        <div class="app">
+          <aside class="side"><i></i><i></i><i></i><i></i><i></i></aside>
+          <section class="stage">
+            <div class="video"></div>
+            <div class="stream-meta"><div class="line wide"></div><div class="line med"></div></div>
+            <div class="cards"><div></div><div></div></div>
+          </section>
+          <aside class="chat"><div class="chat-title">Chat</div><p class="message"><span class="name">Dimawho:</span> I accidentally didn't even have my gem linked</p></aside>
+        </div>
+        <div class="scrim"></div>
+        <section class="modal profile">
+          <span class="close">×</span>
+          <div class="profile-top"><div class="avatar"></div><div><div class="display">Dimawho</div><div class="handle">@dimawho · Twitch</div></div></div>
+          <div class="meta-grid"><div><span>Account created</span><strong>Feb 13, 2013</strong></div><div><span>Following since</span><strong>Not following</strong></div></div>
+          <div class="section-title">Recent in this chat</div>
+          <div class="recent">I accidentally didn't even have my winterorb gem linked…</div>
+          <div class="viewer-actions"><button class="small-btn primary">Mention</button><button class="small-btn">Open on Twitch</button></div>
+        </section>
+      </div>
+      <div class="verdict"><strong>Most interruption</strong>Allows rich content but dims the stream, hides chat context, and makes a frequent low-risk action feel like a blocking decision.</div>
+    </article>
+  </main>
+</body>
+</html>

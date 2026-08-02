@@ -12,7 +12,7 @@ vi.mock('@tanstack/react-router', () => routerMock());
 
 const mocks = vi.hoisted(() => ({
   hydrate: vi.fn(
-    async (_selfUserId: string, _accessToken: string, _clientId: string) => {},
+    async (_selfUserId: string) => {},
   ),
   moderatedIds: new Set<string>(),
   authState: {
@@ -65,10 +65,7 @@ describe('ModPage (index)', () => {
       displayName: 'Streamer',
     };
     mocks.authState.kickUser = null;
-    // biome-ignore lint/suspicious/noExplicitAny: env stub.
-    (import.meta as any).env = { VITE_TWITCH_CLIENT_ID: 'cid' };
-    const api = installElectronAPIMock();
-    api.auth.getToken = vi.fn(async () => ({ accessToken: 'tok' }));
+    installElectronAPIMock();
   });
 
   it('renders the Moderation heading + channel list + global retention sections', async () => {
@@ -103,8 +100,7 @@ describe('ModPage (index)', () => {
     );
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(mocks.hydrate).toHaveBeenCalled();
-    const callArgs = mocks.hydrate.mock.calls[0] as [string, string, string];
+    const callArgs = mocks.hydrate.mock.calls[0] as [string];
     expect(callArgs[0]).toBe('111');
-    expect(callArgs[1]).toBe('tok');
   });
 });

@@ -15,18 +15,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
-import type { HelixModResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
-import {
-  archivePoll,
-  createPoll,
-  getPolls,
-  type PollPayload,
-  type PollsListPayload,
-  terminatePoll,
-} from "@/backend/api/platforms/twitch/twitch-helix-polls";
 import { modLogWriter } from "@/backend/services/mod-log-writer";
 import { useHelixPoll } from "@/hooks/useHelixPoll";
+import type { TwitchPoll } from "@/shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { ModActionConfirmDialog } from "../ModActionConfirmDialog";
@@ -46,44 +37,35 @@ export interface EngagementPollsProps {
 
 type PendingAction = { kind: "terminate" } | { kind: "archive" };
 
-async function getToken(): Promise<string | null> {
-  // Auto-refreshing path. Replaces the raw cached-token read so idle sessions
-  // don't 401 the first poll on resume.
-  return window.electronAPI.auth.getValidTwitchToken();
-}
-
-function isActive(p: PollPayload | null | undefined): boolean {
+function isActive(p: TwitchPoll | null | undefined): boolean {
   return p?.status === "ACTIVE";
 }
 
-function isTerminated(p: PollPayload | null | undefined): boolean {
+function isTerminated(p: TwitchPoll | null | undefined): boolean {
   return p?.status === "TERMINATED";
 }
 
 export function EngagementPolls({ channelId }: EngagementPollsProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
 
-  const fetcher = useCallback(async (): Promise<PollsListPayload | null> => {
-    const accessToken = await getToken();
-    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-    if (!accessToken || !clientId) return null;
-    const result = await withTwitchHelixRetry(
-      { accessToken, clientId, broadcasterId: channelId },
-      getPolls
-    );
+  const fetcher = useCallback(async (): Promise<{ data: TwitchPoll[] } | null> => {
+    const result = await window.electronAPI.twitch.execute({
+      operation: "get-polls",
+      broadcasterId: channelId,
+    });
     if (!result.ok) {
-      throw new Error(result.message);
+      throw new Error(result.error.message);
     }
-    return result.payload;
+    return result.data as { data: TwitchPoll[] };
   }, [channelId]);
 
-  const { data, refresh } = useHelixPoll<PollsListPayload | null>({
+  const { data, refresh } = useHelixPoll<{ data: TwitchPoll[] } | null>({
     fetcher,
     intervalMs: POLL_INTERVAL_MS,
     enabled: true,
   });
 
-  const current: PollPayload | null = useMemo(() => {
+  const current: TwitchPoll | null = useMemo(() => {
     const first = data?.data?.[0];
     return first ?? null;
   }, [data]);
@@ -98,18 +80,6 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
   const moderatorUserId = twitchUser?.id ?? "";
   const moderatorUsername = twitchUser?.login ?? "";
 
-  async function withMissingScopeHandling<T>(
-    run: (token: string, clientId: string) => Promise<HelixModResult<T>>
-  ): Promise<HelixModResult<T> | null> {
-    const accessToken = await getToken();
-    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-    if (!accessToken || !clientId) {
-      toast.error("Sign in to Twitch to take this action");
-      return null;
-    }
-    return run(accessToken, clientId);
-  }
-
   const handleCreate = async () => {
     const title = formTitle.trim();
     if (title.length === 0) {
@@ -123,19 +93,15 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
     }
     setBusy(true);
     try {
-      const result = await withMissingScopeHandling((t, cid) =>
-        createPoll({
-          accessToken: t,
-          clientId: cid,
-          broadcasterId: channelId,
-          title,
-          choices: cleaned.map((c) => ({ title: c })),
-          duration: formDuration,
-        })
-      );
-      if (!result) return;
+      const result = await window.electronAPI.twitch.execute({
+        operation: "create-poll",
+        broadcasterId: channelId,
+        title,
+        choices: cleaned,
+        duration: formDuration,
+      });
       if (!result.ok) {
-        toast.error(`Could not create poll: ${result.message}`);
+        toast.error(`Could not create poll: ${result.error.message}`);
         return;
       }
       modLogWriter.record({
@@ -164,29 +130,14 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
     if (!pending || !current) return;
     setBusy(true);
     try {
-      let result: HelixModResult<PollPayload> | null = null;
-      if (pending.kind === "terminate") {
-        result = await withMissingScopeHandling((t, cid) =>
-          terminatePoll({
-            accessToken: t,
-            clientId: cid,
-            broadcasterId: channelId,
-            pollId: current.id,
-          })
-        );
-      } else {
-        result = await withMissingScopeHandling((t, cid) =>
-          archivePoll({
-            accessToken: t,
-            clientId: cid,
-            broadcasterId: channelId,
-            pollId: current.id,
-          })
-        );
-      }
-      if (!result) return;
+      const result = await window.electronAPI.twitch.execute({
+        operation: "end-poll",
+        broadcasterId: channelId,
+        pollId: current.id,
+        status: pending.kind === "terminate" ? "TERMINATED" : "ARCHIVED",
+      });
       if (!result.ok) {
-        toast.error(`Action failed: ${result.message}`);
+        toast.error(`Action failed: ${result.error.message}`);
         return;
       }
       // Only the terminate path writes to mod_log per plan (action set:

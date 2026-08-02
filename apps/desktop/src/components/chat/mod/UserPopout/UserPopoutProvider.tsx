@@ -20,6 +20,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { logger } from "@/renderer/logging/logger";
 import type { ChatMessage } from "@/shared/chat-types";
 
@@ -66,37 +67,51 @@ export function UserPopoutProvider({
 }: UserPopoutProviderProps) {
   const [current, setCurrent] = useState<OpenUserPopoutPayload | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const pendingActionRef = useRef<(() => void) | null>(null);
+
+  const restoreFocusTimeout = useManagedTimeout(() => {
+    const opener = openerRef.current;
+    const target =
+      opener?.isConnected === true
+        ? opener
+        : document.querySelector<HTMLElement>(
+            "[data-chat-scroll-container], [data-testid='chat-message-list'], [role='log']"
+          );
+    if (target) {
+      if (!target.matches("button, a, input, select, textarea, [tabindex]")) {
+        target.tabIndex = -1;
+      }
+      target.focus();
+    }
+    openerRef.current = null;
+  });
+
+  const deferredActionTimeout = useManagedTimeout(() => {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    action?.();
+  });
 
   const openUserPopout = useCallback((payload: OpenUserPopoutPayload) => {
+    restoreFocusTimeout.clear();
+    pendingActionRef.current = null;
+    deferredActionTimeout.clear();
     openerRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setCurrent(payload);
-  }, []);
+  }, [deferredActionTimeout, restoreFocusTimeout]);
 
   const close = useCallback(() => {
-    const opener = openerRef.current;
     setCurrent(null);
-    window.setTimeout(() => {
-      const target =
-        opener?.isConnected === true
-          ? opener
-          : document.querySelector<HTMLElement>(
-              "[data-chat-scroll-container], [data-testid='chat-message-list'], [role='log']"
-            );
-      if (target) {
-        if (!target.matches("button, a, input, select, textarea, [tabindex]")) {
-          target.tabIndex = -1;
-        }
-        target.focus();
-      }
-      openerRef.current = null;
-    }, 0);
-  }, []);
+    pendingActionRef.current = null;
+    restoreFocusTimeout.start(0);
+  }, [restoreFocusTimeout]);
 
   const closeForAction = useCallback(() => {
+    restoreFocusTimeout.clear();
     openerRef.current = null;
     setCurrent(null);
-  }, []);
+  }, [restoreFocusTimeout]);
 
   const dialogPublicActions = useMemo(
     () =>
@@ -104,19 +119,21 @@ export function UserPopoutProvider({
         ? {
             replyEligibility: publicActions.replyEligibility,
             onReply: (message: ChatMessage) => {
+              pendingActionRef.current = () => publicActions.onReply(message);
               closeForAction();
-              window.setTimeout(() => publicActions.onReply(message), 0);
+              deferredActionTimeout.start(0);
             },
             onViewChannel: (
               platform: "twitch" | "kick",
               channel: { id: string; username: string; displayName: string }
             ) => {
+              pendingActionRef.current = () => publicActions.onViewChannel(platform, channel);
               closeForAction();
-              window.setTimeout(() => publicActions.onViewChannel(platform, channel), 0);
+              deferredActionTimeout.start(0);
             },
           }
         : undefined,
-    [closeForAction, publicActions]
+    [closeForAction, deferredActionTimeout, publicActions]
   );
 
   const value = useMemo<UserPopoutContextValue>(
