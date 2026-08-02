@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+vi.mock("@/providers/query-provider", () => ({
+  queryClient: { invalidateQueries: vi.fn() },
+}));
 
 import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
 import { useFollowStore } from "@/store/follow-store";
