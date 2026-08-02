@@ -1,51 +1,56 @@
-import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Guards: app-level offline state follows browser online/offline transitions so outage UI does not depend on platform API failures.
+import { installElectronAPIMock } from "../test-utils";
+
+// Guards: app-level offline state comes from a main-process reachability probe rather than navigator.onLine alone.
+// Guards: the debug console can simulate offline UI without changing the confirmed connectivity state.
 describe("useNetworkStatus", () => {
   beforeEach(() => {
+    vi.resetModules();
     setOnline(true);
   });
 
-  it("returns offline when the browser reports the app is offline", async () => {
-    setOnline(false);
+  it("reports offline when the browser has a network link but the internet probe fails", async () => {
+    const api = installElectronAPIMock();
+    api.connectivity.check = vi.fn(async () => ({ reachable: false }));
     const { useNetworkStatus } = await import("@/hooks/useNetworkStatus");
 
     const { result } = renderHook(() => useNetworkStatus());
 
-    expect(result.current).toEqual({ isOnline: false, isOffline: true });
+    await waitFor(() => expect(result.current.isOffline).toBe(true));
+    expect(result.current).toMatchObject({
+      status: "offline",
+      confirmedStatus: "offline",
+      isOnline: false,
+      retryInSeconds: 5,
+    });
   });
 
-  it("updates when the browser moves offline and back online", async () => {
-    const { useNetworkStatus } = await import("@/hooks/useNetworkStatus");
-    const { result } = renderHook(() => useNetworkStatus());
-
-    expect(result.current.isOnline).toBe(true);
-
-    act(() => {
-      setOnline(false);
-      window.dispatchEvent(new Event("offline"));
-    });
-    expect(result.current).toEqual({ isOnline: false, isOffline: true });
-
-    act(() => {
-      setOnline(true);
-      window.dispatchEvent(new Event("online"));
-    });
-    expect(result.current).toEqual({ isOnline: true, isOffline: false });
-  });
-
-  it("allows the debug console to simulate offline UI and then reset to browser state", async () => {
+  it("allows the debug console to simulate offline UI and then reset to confirmed state", async () => {
+    const api = installElectronAPIMock();
+    api.connectivity.check = vi.fn(async () => ({ reachable: true }));
     const { setNetworkStatusOverrideForDebug, useNetworkStatus } = await import(
       "@/hooks/useNetworkStatus"
     );
     const { result } = renderHook(() => useNetworkStatus());
+    await waitFor(() => expect(result.current.confirmedStatus).toBe("online"));
 
     act(() => setNetworkStatusOverrideForDebug(false));
-    expect(result.current).toEqual({ isOnline: false, isOffline: true });
+    expect(result.current).toMatchObject({
+      status: "offline",
+      confirmedStatus: "online",
+      isOnline: false,
+      isOffline: true,
+    });
 
     act(() => setNetworkStatusOverrideForDebug(null));
-    expect(result.current).toEqual({ isOnline: true, isOffline: false });
+    expect(result.current).toMatchObject({
+      status: "online",
+      confirmedStatus: "online",
+      isOnline: true,
+      isOffline: false,
+    });
   });
 });
 

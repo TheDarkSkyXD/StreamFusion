@@ -6,6 +6,10 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock("@/hooks/useNetworkStatus", () => ({
+  useNetworkStatus: () => ({ recoveryCount: 0 }),
+}));
+
 // Module-level playback cache and stagger state survive imports. Dynamic import
 // after resetModules resets them.
 const WAIT_OPTS = { timeout: 3000 };
@@ -29,6 +33,7 @@ afterEach(() => {
 // Guards: main stream and mini-player subscribers must share one in-flight playback request.
 // Guards: sidebar/startup prefetch warms the same playback cache used by the player.
 // Guards: reload failure after a live stream ends clears the stale playback URL so pages can show their offline state instead of remounting the dead HLS URL.
+// Guards: changing stream identity never exposes the previous stream's playback URL during an intermediate render.
 describe("useStreamPlayback", () => {
   it("returns loading=true initially and resolves with playback data", async () => {
     vi.resetModules();
@@ -134,6 +139,36 @@ describe("useStreamPlayback", () => {
     );
   });
 
+  it("updates every subscriber when one playback owner requests a fresh URL", async () => {
+    vi.resetModules();
+    window.electronAPI!.streams.getPlaybackUrl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        data: { url: "https://example.test/first.m3u8", format: "hls" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { url: "https://example.test/refreshed.m3u8", format: "hls" },
+      });
+    const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
+    const pageOwner = renderHook(() => useStreamPlayback("kick", "shared-refresh"));
+    const visiblePlayer = renderHook(() => useStreamPlayback("kick", "shared-refresh"));
+
+    await waitFor(
+      () => expect(visiblePlayer.result.current.playback?.url).toContain("first.m3u8"),
+      WAIT_OPTS
+    );
+
+    act(() => pageOwner.result.current.reload());
+
+    await waitFor(
+      () => expect(visiblePlayer.result.current.playback?.url).toContain("refreshed.m3u8"),
+      WAIT_OPTS
+    );
+    expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(2);
+  });
+
   it("prefetch warms the same cache used by the player hook", async () => {
     vi.resetModules();
     const { prefetchStreamPlayback, useStreamPlayback } = await import("@/hooks/useStreamPlayback");
@@ -153,15 +188,44 @@ describe("useStreamPlayback", () => {
 
   it("resets state when identifier changes", async () => {
     vi.resetModules();
+    window.electronAPI!.streams.getPlaybackUrl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        data: { url: "https://example.com/xqc.m3u8", format: "hls" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { url: "https://example.com/adin.m3u8", format: "hls" },
+      });
     const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
-    const { result, rerender } = renderHook(({ id }) => useStreamPlayback("kick", id), {
-      initialProps: { id: "xqc" },
-    });
-    await waitFor(() => expect(result.current.playback).not.toBeNull(), WAIT_OPTS);
+    const observations: Array<{ id: string; playback: string | null }> = [];
+    const { result, rerender } = renderHook(
+      ({ id }) => {
+        const playbackState = useStreamPlayback("kick", id);
+        observations.push({ id, playback: playbackState.playback?.url ?? null });
+        return playbackState;
+      },
+      {
+        initialProps: { id: "xqc" },
+      }
+    );
+    await waitFor(
+      () => expect(result.current.playback?.url).toBe("https://example.com/xqc.m3u8"),
+      WAIT_OPTS
+    );
+
+    observations.length = 0;
     rerender({ id: "adin" });
-    expect(result.current.playback).toBeNull();
-    expect(result.current.isLoading).toBe(true);
-    await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
+    await waitFor(
+      () => expect(result.current.playback?.url).toBe("https://example.com/adin.m3u8"),
+      WAIT_OPTS
+    );
+
+    expect(observations).not.toContainEqual({
+      id: "adin",
+      playback: "https://example.com/xqc.m3u8",
+    });
   });
 
   it("resets state when platform changes with the same identifier", async () => {

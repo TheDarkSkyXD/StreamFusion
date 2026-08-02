@@ -19,15 +19,14 @@
  *   - `session_reconnect` envelope → open new WS to the supplied URL, wait
  *     for `session_welcome`, then close old WS. Subscriptions remain
  *     attached to the same session id on Twitch's side (we do NOT re-POST).
- *   - Abnormal close (no `session_reconnect` received) → exponential
- *     backoff 250 → 500 → 1000 → 2000 → 4000 → 8000 ms cap, ten attempts,
- *     then surface `connectionState: "error"`.
+ *   - Abnormal close (no `session_reconnect` received) → retry after
+ *     5 → 10 → 15 → 30 seconds, then every 30 seconds until recovery.
  *   - Keepalive guard: if no message arrives within 1.5× the welcome's
  *     `keepalive_timeout_seconds`, force-close and reconnect.
  */
 
 import { logger } from "@/lib/cross-logger";
-import { sleep } from "@/lib/sleep";
+import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
 
 import { attachEventSubHealthBridge } from "./eventsub-health-bridge";
 import type {
@@ -48,9 +47,7 @@ const DEFAULT_HELIX_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const DEFAULT_WS_ENDPOINT = "wss://eventsub.wss.twitch.tv/ws";
 const HELIX_SUBSCRIPTIONS_URL = "https://api.twitch.tv/helix/eventsub/subscriptions";
 
-const BACKOFF_BASE_MS = 250;
-const BACKOFF_MAX_MS = 8000;
-const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAYS_MS = [5000, 10000, 15000, 30000] as const;
 const KEEPALIVE_GRACE_MULTIPLIER = 1.5;
 
 // ---------------------------------------------------------------------------
@@ -76,6 +73,9 @@ export interface TwitchEventSubClientOptions {
   webSocketCtor?: typeof WebSocket;
   clientId?: string;
   tokenFetcher?: () => Promise<string | null>;
+  subscriptionRequestor?: {
+    request<T>(endpoint: string, options?: RequestInit): Promise<T>;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -116,21 +116,9 @@ type SubEntry = {
   subscriptionId: string | null;
   /** True while the Helix POST is in flight (or queued waiting for welcome). */
   posting: boolean;
+  /** Permanent Helix rejection for this local subscription entry. */
+  terminalFailureStatus: number | null;
 };
-
-function getDefaultTwitchTokenFetcher(): (() => Promise<string | null>) | null {
-  const bridge = (globalThis as { window?: unknown }).window as
-    | {
-        electronAPI?: {
-          auth?: {
-            getValidTwitchToken?: () => Promise<string | null>;
-          };
-        };
-      }
-    | undefined;
-
-  return bridge?.electronAPI?.auth?.getValidTwitchToken ?? null;
-}
 
 // ---------------------------------------------------------------------------
 // Client implementation
@@ -143,6 +131,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private readonly webSocketCtor: typeof WebSocket;
   private readonly clientId: string;
   private readonly tokenFetcher: (() => Promise<string | null>) | null;
+  private readonly subscriptionRequestor: TwitchEventSubClientOptions["subscriptionRequestor"];
 
   /** (eventType, channelId) → SubEntry. */
   private readonly subs = new Map<string, SubEntry>();
@@ -160,6 +149,8 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private keepaliveSeconds = 10;
   private keepaliveTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
+  /** Owns the pending reconnect delay so teardown can physically cancel it. */
+  private reconnectTimer: CancellableSleep | null = null;
   /** Set true after `close()` so we don't auto-reconnect. */
   private closed = false;
   private healthBridgeCleanup: (() => void) | null = null;
@@ -177,12 +168,21 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       (globalThis.WebSocket as typeof WebSocket | undefined) ??
       (undefined as unknown as typeof WebSocket);
     this.clientId = options?.clientId ?? DEFAULT_HELIX_CLIENT_ID;
-    this.tokenFetcher = options?.tokenFetcher ?? getDefaultTwitchTokenFetcher();
+    this.tokenFetcher = options?.tokenFetcher ?? null;
+    this.subscriptionRequestor = options?.subscriptionRequestor;
     this.healthBridgeCleanup = attachEventSubHealthBridge(this);
   }
 
   get connectionState(): TwitchEventSubConnectionState {
     return this._state;
+  }
+
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  updateAccessToken(accessToken: string): void {
+    this.accessToken = accessToken;
   }
 
   // -------------------------------------------------------------------------
@@ -204,6 +204,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         listeners: new Set(),
         subscriptionId: null,
         posting: false,
+        terminalFailureStatus: null,
       };
       this.subs.set(key, entry);
     }
@@ -215,7 +216,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       this.openSocket();
     } else if (this._state === "connected") {
       // Already connected — fire the Helix POST immediately if it's a brand-new pair.
-      if (!entry.subscriptionId && !entry.posting) {
+      if (!entry.subscriptionId && !entry.posting && !entry.terminalFailureStatus) {
         this.postSubscription(entry);
       }
     }
@@ -251,6 +252,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     this.subIdToPair.clear();
 
     this.clearKeepaliveTimer();
+    this.clearReconnectTimer();
 
     if (this.ws) {
       try {
@@ -366,23 +368,40 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     if (this.ws !== ws) return;
     this.ws = null;
     this.sessionId = null;
+    this.resetSubscriptionIdsForFreshSession();
     this.clearKeepaliveTimer();
     this.scheduleReconnect();
   }
 
-  private scheduleReconnect(): void {
-    if (this.closed) return;
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      this.setState("error");
-      return;
+  private resetSubscriptionIdsForFreshSession(): void {
+    this.subIdToPair.clear();
+    for (const entry of this.subs.values()) {
+      entry.subscriptionId = null;
     }
-    const exponent = Math.min(this.reconnectAttempts, 6);
-    const delay = Math.min(BACKOFF_BASE_MS * 2 ** exponent, BACKOFF_MAX_MS);
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closed || this.reconnectTimer !== null) return;
+    const delay =
+      RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempts, RECONNECT_DELAYS_MS.length - 1)];
     this.reconnectAttempts += 1;
     this.setState("reconnecting");
-    void sleep(delay).then(() => {
+    const reconnectDelay = createCancellableSleep(delay, { unref: true });
+    this.reconnectTimer = reconnectDelay;
+    void reconnectDelay.result.then((result) => {
+      if (!result.ok || this.reconnectTimer !== reconnectDelay || this.closed) {
+        return;
+      }
+      this.reconnectTimer = null;
       this.openSocket();
     });
+  }
+
+  private clearReconnectTimer(): void {
+    const reconnectDelay = this.reconnectTimer;
+    if (reconnectDelay === null) return;
+    this.reconnectTimer = null;
+    reconnectDelay.cancel();
   }
 
   private clearKeepaliveTimer(): void {
@@ -408,6 +427,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     const old = this.ws;
     this.ws = null;
     this.sessionId = null;
+    this.resetSubscriptionIdsForFreshSession();
     if (old) {
       try {
         old.close(4000, "keepalive timeout");
@@ -488,7 +508,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     this.reconnectAttempts = 0;
     this.setState("connected");
     for (const entry of this.subs.values()) {
-      if (!entry.subscriptionId && !entry.posting) {
+      if (!entry.subscriptionId && !entry.posting && !entry.terminalFailureStatus) {
         this.postSubscription(entry);
       }
     }
@@ -585,7 +605,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
   private async postSubscription(entry: SubEntry): Promise<void> {
     if (!this.sessionId) return;
-    if (entry.posting || entry.subscriptionId) return;
+    if (entry.posting || entry.subscriptionId || entry.terminalFailureStatus) return;
     entry.posting = true;
     const version = subscriptionVersion(entry.eventType);
     const body = {
@@ -609,6 +629,9 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       }
 
       if (!res.ok) {
+        if (res.status === 403 || res.status === 409 || res.status === 429) {
+          entry.terminalFailureStatus = res.status;
+        }
         logger.warn("Twitch:EventSub", "subscription POST failed", {
           status: res.status,
           eventType: entry.eventType,
@@ -621,6 +644,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         data?: Array<{ id?: string }>;
       };
       const subId = parsed.data?.[0]?.id ?? null;
+      const currentEntry = this.subs.get(pairKey(entry.eventType, entry.channelId));
+      if (subId && (this.closed || currentEntry !== entry || entry.refcount === 0)) {
+        entry.posting = false;
+        void this.deleteSubscription(subId);
+        return;
+      }
       entry.subscriptionId = subId;
       entry.posting = false;
       if (subId) {
@@ -658,6 +687,20 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   }
 
   private postSubscriptionRequest(body: unknown, accessToken: string): Promise<Response> {
+    if (this.subscriptionRequestor) {
+      return this.subscriptionRequestor
+        .request<unknown>("/eventsub/subscriptions", {
+          method: "POST",
+          body: JSON.stringify(body),
+        })
+        .then(
+          (data) =>
+            ({ ok: true, status: 200, json: async () => data }) as Pick<
+              Response,
+              "ok" | "status" | "json"
+            > as Response
+        );
+    }
     return fetch(HELIX_SUBSCRIPTIONS_URL, {
       method: "POST",
       headers: {
@@ -671,6 +714,13 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
   private async deleteSubscription(subscriptionId: string): Promise<void> {
     try {
+      if (this.subscriptionRequestor) {
+        await this.subscriptionRequestor.request(
+          `/eventsub/subscriptions?id=${encodeURIComponent(subscriptionId)}`,
+          { method: "DELETE" }
+        );
+        return;
+      }
       await fetch(`${HELIX_SUBSCRIPTIONS_URL}?id=${encodeURIComponent(subscriptionId)}`, {
         method: "DELETE",
         headers: {
@@ -693,10 +743,16 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 // Factory + cache
 // ---------------------------------------------------------------------------
 
-const clientCache = new Map<string, TwitchEventSubClientImpl>();
+const CLIENT_CACHE_SYMBOL = Symbol.for("streamfusion.twitchEventSubClientCache");
+const cacheOwner = globalThis as typeof globalThis & {
+  [CLIENT_CACHE_SYMBOL]?: Map<string, TwitchEventSubClientImpl>;
+};
+const clientCache =
+  cacheOwner[CLIENT_CACHE_SYMBOL] ??
+  (cacheOwner[CLIENT_CACHE_SYMBOL] = new Map<string, TwitchEventSubClientImpl>());
 
-function cacheKey(accessToken: string, broadcasterUserId: string, clientId: string): string {
-  return `${accessToken}::${broadcasterUserId}::${clientId}`;
+function cacheKey(broadcasterUserId: string, clientId: string): string {
+  return `${broadcasterUserId}::${clientId}`;
 }
 
 export function getTwitchEventSubClient(
@@ -705,9 +761,15 @@ export function getTwitchEventSubClient(
   options?: TwitchEventSubClientOptions
 ): TwitchEventSubClient {
   const clientId = options?.clientId ?? DEFAULT_HELIX_CLIENT_ID;
-  const key = cacheKey(accessToken, broadcasterUserId, clientId);
+  const key = cacheKey(broadcasterUserId, clientId);
   const existing = clientCache.get(key);
-  if (existing) return existing;
+  if (existing && !existing.isClosed) {
+    existing.updateAccessToken(accessToken);
+    return existing;
+  }
+  if (existing) {
+    clientCache.delete(key);
+  }
   const client = new TwitchEventSubClientImpl(accessToken, broadcasterUserId, options);
   clientCache.set(key, client);
   return client;

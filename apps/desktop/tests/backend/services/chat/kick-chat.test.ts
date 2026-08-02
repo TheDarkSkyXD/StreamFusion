@@ -7,6 +7,15 @@ vi.mock("pusher-js", () => ({
   default: vi.fn(),
 }));
 
+vi.mock("@/lib/cross-logger", () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 // The kick-chat service now goes through `window.electronAPI.kickChat` for all
 // send-window operations (the direct kick-send-window import was leaking
 // electron + better-sqlite3 into the renderer bundle). Stub the window surface
@@ -28,6 +37,7 @@ import { KickChatService } from "@/backend/services/chat/kick-chat";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 import type { ChatMessage } from "@/shared/chat-types";
 import type { KickChatMessageEvent } from "@/backend/services/chat/kick-parser";
+import Pusher from "pusher-js";
 
 // Guards: kick-chat sendMessage wire format — POST /public/v1/chat must carry the
 // broadcaster's user_id (channel data.id), NOT the chatroom id used for Pusher.
@@ -86,9 +96,157 @@ function seedKickBucket(channel: string): string {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.mocked(Pusher).mockReset();
   useChatStore.setState({
     messagesByChannel: {},
     pausedChannels: new Set(),
+  });
+});
+
+function makeReconnectPusher(initialState: "connected" | "disconnected" | "failed") {
+  const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
+  const pusher = {
+    connection: {
+      state: initialState,
+      bind: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        const listeners = handlers.get(event) ?? new Set();
+        listeners.add(handler);
+        handlers.set(event, listeners);
+      }),
+      unbind: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        handlers.get(event)?.delete(handler);
+      }),
+      unbind_all: vi.fn(() => handlers.clear()),
+    },
+    disconnect: vi.fn(),
+    subscribe: vi.fn(() => ({ bind: vi.fn(), unbind_all: vi.fn() })),
+    __emitConnection(event: string, ...args: unknown[]) {
+      if (event === "connected" || event === "disconnected" || event === "failed") {
+        this.connection.state = event;
+      }
+      for (const listener of handlers.get(event) ?? []) listener(...args);
+    },
+  };
+  return pusher;
+}
+
+describe("KickChatService reconnect lifecycle", () => {
+  // Guards: active Kick chat survives outages longer than the former ten-attempt cutoff and keeps retrying at the capped cadence.
+  it("retries active chat forever with 5s, 10s, 15s, then capped 30s delays", async () => {
+    vi.useFakeTimers();
+    const initialPusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher).mockImplementationOnce(function makeInitialPusher() {
+      return initialPusher as unknown as Pusher;
+    });
+
+    const service = new KickChatService();
+    const errors: Error[] = [];
+    service.on("error", (error) => errors.push(error));
+    const initialConnect = service.connect();
+    initialPusher.__emitConnection("connected");
+    await initialConnect;
+
+    vi.mocked(Pusher).mockImplementation(function makeFailingPusher() {
+      const pusher = makeReconnectPusher("disconnected");
+      queueMicrotask(() => pusher.__emitConnection("failed"));
+      return pusher as unknown as Pusher;
+    });
+
+    initialPusher.__emitConnection("disconnected");
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(Pusher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(Pusher).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(Pusher).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(Pusher).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(Pusher).toHaveBeenCalledTimes(5);
+
+    await vi.advanceTimersByTimeAsync(8 * 30_000);
+    expect(Pusher).toHaveBeenCalledTimes(13);
+    expect(service.getConnectionStatus().state).toBe("reconnecting");
+    expect(errors.some((error) => /max reconnection attempts/i.test(error.message))).toBe(false);
+  });
+
+  // Guards: duplicate Pusher disconnect notifications cannot fan out into competing reconnect attempts.
+  it("coalesces duplicate disconnect notifications into one reconnect", async () => {
+    vi.useFakeTimers();
+    const initialPusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher).mockImplementationOnce(function makeInitialPusher() {
+      return initialPusher as unknown as Pusher;
+    });
+    vi.mocked(Pusher).mockImplementation(function makeFailingPusher() {
+      const pusher = makeReconnectPusher("disconnected");
+      queueMicrotask(() => pusher.__emitConnection("failed"));
+      return pusher as unknown as Pusher;
+    });
+
+    const service = new KickChatService();
+    const initialConnect = service.connect();
+    initialPusher.__emitConnection("connected");
+    await initialConnect;
+
+    initialPusher.__emitConnection("disconnected");
+    initialPusher.__emitConnection("disconnected");
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(Pusher).toHaveBeenCalledTimes(2);
+  });
+
+  // Guards: an intentional Kick shutdown physically clears pending recovery and never resurrects Pusher.
+  it("clears the pending reconnect timer and does not reconnect after intentional shutdown", async () => {
+    vi.useFakeTimers();
+    const initialPusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher).mockImplementationOnce(function makeInitialPusher() {
+      return initialPusher as unknown as Pusher;
+    });
+
+    const service = new KickChatService();
+    const initialConnect = service.connect();
+    initialPusher.__emitConnection("connected");
+    await initialConnect;
+
+    initialPusher.__emitConnection("disconnected");
+    expect(vi.getTimerCount()).toBe(1);
+    await service.forceShutdown();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(Pusher).toHaveBeenCalledTimes(1);
+    expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
+  // Guards: replacement Kick sockets must resubscribe every desired Pusher channel retained across an outage.
+  it("resubscribes tracked channels on the replacement Pusher client", async () => {
+    vi.useFakeTimers();
+    const initialPusher = makeReconnectPusher("disconnected");
+    const replacementPusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher)
+      .mockImplementationOnce(function makeInitialPusher() {
+        return initialPusher as unknown as Pusher;
+      })
+      .mockImplementationOnce(function makeReplacementPusher() {
+        return replacementPusher as unknown as Pusher;
+      });
+
+    const service = new KickChatService();
+    const initialConnect = service.connect();
+    initialPusher.__emitConnection("connected");
+    await initialConnect;
+    await service.joinChannel("xqc", 123, 456);
+    vi.mocked(replacementPusher.subscribe).mockClear();
+
+    initialPusher.__emitConnection("disconnected");
+    await vi.advanceTimersByTimeAsync(5_000);
+    replacementPusher.__emitConnection("connected");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(replacementPusher.subscribe).toHaveBeenCalledWith("chatrooms.123.v2");
+    expect(replacementPusher.subscribe).toHaveBeenCalledWith("chatrooms.123");
   });
 });
 
@@ -211,7 +369,7 @@ describe("KickChatService.sendMessage", () => {
       "ac7ionman",
       "hi PeepoClap",
       { id: 7, username: "me", slug: "me" },
-      fragments,
+      fragments
     );
     expect(messages).toHaveLength(1);
     expect(messages[0].content).toEqual(fragments);
@@ -243,7 +401,7 @@ describe("KickChatService.sendMessage", () => {
       "@alice hi back",
       { id: 7, username: "me", slug: "me" },
       fragments,
-      replyTo,
+      replyTo
     );
 
     expect(messages).toHaveLength(1);
@@ -299,7 +457,10 @@ describe("KickChatService.sendMessage", () => {
     });
     const messages: any[] = [];
     service.on("message", (m) => messages.push(m));
-    const cachedBadges = new Map<string, Array<{ setId: string; version: string; imageUrl: string; title: string }>>([
+    const cachedBadges = new Map<
+      string,
+      Array<{ setId: string; version: string; imageUrl: string; title: string }>
+    >([
       [
         "7",
         [
@@ -418,7 +579,11 @@ describe("send-window disposal", () => {
 
   it("leaveChannel that leaves other channels active does NOT dispose", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", { slug: "ac7ionman", chatroomId: 999_111, broadcasterUserId: 42 });
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
     internals.channels.set("xqc", { slug: "xqc", chatroomId: 1, broadcasterUserId: 2 });
     (service as any).pusher = {
       connection: { state: "connected" },
@@ -446,7 +611,7 @@ describe("KickChatService teardown does not race the Pusher socket close", () =>
   // Guards: forceShutdown() must keep per-channel unbind_all() (local closure cleanup) but drop pusher.unsubscribe (socket-touching frame that races the disconnect)
   function makePusherStub(
     state: "connected" | "disconnected" | "connecting" | "unavailable" | "failed",
-    socketReadyState: number = 1,
+    socketReadyState: number = 1
   ) {
     const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
     return {

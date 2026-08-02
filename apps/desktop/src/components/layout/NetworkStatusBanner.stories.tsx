@@ -10,28 +10,45 @@ const meta = {
     docs: {
       description: {
         component:
-          "A full-width connectivity warning that appears only while the desktop renderer is offline.",
+          "A bottom-left connectivity card that explains the outage and reports silent automatic reconnect progress.",
       },
     },
   },
   args: {
     isOnline: false,
+    isChecking: false,
+    retryInSeconds: 5,
   },
 } satisfies Meta<typeof NetworkStatusBanner>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Offline: Story = {};
+export const OfflineCountdown: Story = {};
+
+export const Checking: Story = {
+  args: {
+    isChecking: true,
+    retryInSeconds: null,
+  },
+};
+
+export const TheaterMode: Story = {
+  args: {
+    isTheaterModeActive: true,
+  },
+};
 
 export const Online: Story = {
   args: {
     isOnline: true,
+    isChecking: true,
+    retryInSeconds: null,
   },
   parameters: {
     docs: {
       description: {
-        story: "Online state intentionally renders no banner.",
+        story: "Online state intentionally renders no card or recovery toast.",
       },
     },
   },

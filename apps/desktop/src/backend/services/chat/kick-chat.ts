@@ -6,10 +6,10 @@
  */
 
 import Pusher from "pusher-js";
+import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
 // Cross-logger: imported by renderer chat components — avoids dragging
 // electron-log into the renderer bundle.
 import { logger } from "@/lib/cross-logger";
-import { sleep } from "@/lib/sleep";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 // ... imports
 import type {
@@ -230,8 +230,7 @@ export class KickChatSendError extends Error {
 
 const PUSHER_APP_KEY = "32cbd69e4b950bf97679";
 const PUSHER_CLUSTER = "us2";
-const RECONNECT_DELAY_MS = 3000;
-const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAYS_MS = [5000, 10000, 15000, 30000] as const;
 const MESSAGE_RATE_LIMIT = 10; // Messages per 10 seconds (conservative)
 const MOD_MESSAGE_RATE_LIMIT = 50; // Messages per 10 seconds for mods
 const CONNECTION_TIMEOUT_MS = 30000; // 30 second timeout for initial connection
@@ -248,6 +247,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   private channels: Map<string, ChannelInfo> = new Map(); // slug -> ChannelInfo
   private connectionState: ChatConnectionState = "disconnected";
   private reconnectAttempts = 0;
+  private reconnectTimer: CancellableSleep | null = null;
   private debugMode = false;
 
   // Rate limiting
@@ -268,7 +268,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   private isActive = false;
 
   // Generation counter for soft-disconnect race guard.
-  // Incremented by disconnect() and forceShutdown() so any sleep() callback
+  // Incremented by disconnect() and forceShutdown() so any reconnect callback
   // that was scheduled before the disconnect can detect it was superseded.
   private reconnectGeneration = 0;
 
@@ -284,6 +284,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * Connect to Kick Pusher WebSocket
    */
   async connect(options: KickChatOptions = {}): Promise<void> {
+    this.clearReconnectTimer();
     // Mark service as active - allows connections and reconnections
     this.isActive = true;
 
@@ -427,11 +428,9 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * Note: This is a soft disconnect - service remains active for reconnection
    */
   async disconnect(): Promise<void> {
-    if (!this.pusher) return;
-
-    // Invalidate any pending sleep-based reconnect so it doesn't fire after
-    // this soft disconnect (forceShutdown covers the hard path via isActive).
+    this.clearReconnectTimer();
     this.reconnectGeneration += 1;
+    if (!this.pusher) return;
 
     try {
       // No per-channel unsubscribe: closing the socket cleans them up
@@ -530,6 +529,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     // Mark service as inactive FIRST - this blocks all reconnection attempts
     this.isActive = false;
+    this.clearReconnectTimer();
     this.reconnectGeneration += 1;
     this.activeUsers = 0;
     this.reconnectAttempts = 0;
@@ -615,29 +615,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     }
 
     try {
-      // KickTalk subscribes to multiple channel patterns for better event coverage
-      // We subscribe to both v2 (primary) and the base channel (fallback)
-      const v2ChannelName = `chatrooms.${chatroomId}.v2`;
-      const baseChannelName = `chatrooms.${chatroomId}`;
-
       this.log(`Subscribing to chatroom ${chatroomId}...`);
-
-      // Subscribe to v2 channel (primary - has most events)
-      const pusherChannel = this.pusher.subscribe(v2ChannelName);
-
-      // Also subscribe to base channel for additional event coverage
-      this.pusher.subscribe(baseChannelName);
-
-      // Store channel info
-      this.channels.set(normalizedChannel, {
-        slug: normalizedChannel,
-        chatroomId,
-        broadcasterUserId,
-        pusherChannel,
-      });
-
-      // Set up event handlers for this channel
-      this.setupChannelEventHandlers(pusherChannel, normalizedChannel, chatroomId);
+      this.subscribeTrackedChannel(normalizedChannel, chatroomId, broadcasterUserId);
 
       // NOTE: Channel badges should be set by caller via setChannelBadges()
 
@@ -653,6 +632,27 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       });
       throw error;
     }
+  }
+
+  private subscribeTrackedChannel(
+    channel: string,
+    chatroomId: number,
+    broadcasterUserId?: number
+  ): void {
+    if (!this.pusher) throw new Error("Not connected to Kick Pusher");
+
+    const previous = this.channels.get(channel);
+    previous?.pusherChannel?.unbind_all();
+
+    const pusherChannel = this.pusher.subscribe(`chatrooms.${chatroomId}.v2`);
+    this.pusher.subscribe(`chatrooms.${chatroomId}`);
+    this.channels.set(channel, {
+      slug: channel,
+      chatroomId,
+      broadcasterUserId,
+      pusherChannel,
+    });
+    this.setupChannelEventHandlers(pusherChannel, channel, chatroomId);
   }
 
   /**
@@ -1138,52 +1138,63 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       return;
     }
 
-    if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      this.reconnectAttempts++;
-      this.setConnectionState("reconnecting");
+    this.scheduleReconnect();
+  }
 
-      const delay = RECONNECT_DELAY_MS * this.reconnectAttempts;
-      this.log(
-        `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
-      );
+  private clearReconnectTimer(): void {
+    this.reconnectTimer?.cancel();
+    this.reconnectTimer = null;
+  }
 
-      const capturedGeneration = this.reconnectGeneration;
-      void sleep(delay).then(async () => {
-        // Abort if a disconnect() or forceShutdown() was called during the sleep.
-        if (this.reconnectGeneration !== capturedGeneration) {
-          this.log("Reconnect generation changed during delay, aborting");
-          return;
+  private scheduleReconnect(): void {
+    if (!this.isActive || this.reconnectTimer !== null) return;
+
+    const delay =
+      RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempts, RECONNECT_DELAYS_MS.length - 1)];
+    this.reconnectAttempts += 1;
+    this.setConnectionState("reconnecting");
+    this.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})...`);
+
+    const capturedGeneration = this.reconnectGeneration;
+    const timer = createCancellableSleep(delay);
+    this.reconnectTimer = timer;
+    void this.runReconnectAfterDelay(timer, capturedGeneration);
+  }
+
+  private async runReconnectAfterDelay(
+    timer: CancellableSleep,
+    capturedGeneration: number
+  ): Promise<void> {
+    const result = await timer.result;
+    if (!result.ok || this.reconnectTimer !== timer) return;
+    this.reconnectTimer = null;
+    void this.runReconnect(capturedGeneration);
+  }
+
+  private async runReconnect(capturedGeneration: number): Promise<void> {
+    if (!this.isActive || this.reconnectGeneration !== capturedGeneration) return;
+
+    try {
+      await this.connect({ debug: this.debugMode });
+      if (
+        this.isActive &&
+        this.reconnectGeneration === capturedGeneration &&
+        this.connectionState === "connected"
+      ) {
+        for (const [slug, info] of [...this.channels]) {
+          this.subscribeTrackedChannel(slug, info.chatroomId, info.broadcasterUserId);
         }
-        // Double-check service is still active before reconnecting
-        if (!this.isActive) {
-          this.log("Service deactivated during reconnect delay, aborting");
-          return;
-        }
-
-        try {
-          await this.connect({ debug: this.debugMode });
-
-          // Rejoin channels (only if still active)
-          if (this.isActive) {
-            for (const [slug, info] of this.channels) {
-              // We need to resubscribe with the stored chatroomId, and
-              // preserve broadcasterUserId across reconnect so the optimistic-echo
-              // broadcaster-badge synthesis keeps working after reconnect.
-              await this.joinChannel(slug, info.chatroomId, info.broadcasterUserId);
-            }
-          }
-        } catch (error) {
-          logger.error("Chat:Kick", "Reconnection failed", {
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message, stack: error.stack }
-                : String(error),
-          });
-        }
+      }
+    } catch (error) {
+      logger.error("Chat:Kick", "Reconnection failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
       });
-    } else {
-      this.log("Max reconnection attempts reached");
-      this.emit("error", new Error("Max reconnection attempts reached"));
+      if (this.isActive && this.reconnectGeneration === capturedGeneration) {
+        this.scheduleReconnect();
+      }
     }
   }
 

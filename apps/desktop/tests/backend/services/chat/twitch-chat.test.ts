@@ -10,8 +10,8 @@ import { TwitchChatService } from "@/backend/services/chat/twitch-chat";
 import type {
   ChatMessage,
   ModeratorStateEvent,
-  RoomStatePatchEvent,
   UserNotice,
+  ViewerChatSendRestrictionEvent,
 } from "@/shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
@@ -56,6 +56,7 @@ function seedTwitchBucket(channel: string): string {
 // success, so the test drives completion by emitting "connected".
 let fakeClient: EventEmitter & {
   connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
   join: ReturnType<typeof vi.fn>;
   say: ReturnType<typeof vi.fn>;
 };
@@ -70,6 +71,7 @@ describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
       connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      disconnect: vi.fn(() => Promise.resolve()),
       join: vi.fn(() => Promise.resolve(["#xqc"])),
       say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
     });
@@ -116,6 +118,169 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(ClientCtor).toHaveBeenCalledTimes(1);
   });
 
+  // Guards: an active Twitch chat survives outages longer than the former ten-attempt cutoff and keeps retrying at the capped cadence.
+  it("retries active chat forever with 5s, 10s, 15s, then capped 30s delays", async () => {
+    vi.useFakeTimers();
+    const service = new TwitchChatService();
+    const errors: Error[] = [];
+    service.on("error", (error) => errors.push(error));
+
+    const initialConnect = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+
+    ClientCtor.mockImplementation(function makeFailingClient() {
+      return Object.assign(new EventEmitter(), {
+        connect: vi.fn(() => Promise.reject(new Error("network unavailable"))),
+        disconnect: vi.fn(() => Promise.resolve()),
+        join: vi.fn(() => Promise.resolve(["#xqc"])),
+        say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
+      });
+    });
+
+    fakeClient.emit("disconnected", "network unavailable");
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(ClientCtor).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ClientCtor).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(ClientCtor).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ClientCtor).toHaveBeenCalledTimes(3);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(ClientCtor).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(ClientCtor).toHaveBeenCalledTimes(5);
+
+    // Eight more capped retries cross the old ten-attempt circuit breaker.
+    await vi.advanceTimersByTimeAsync(8 * 30_000);
+    expect(ClientCtor).toHaveBeenCalledTimes(13);
+    expect(service.getConnectionStatus().state).toBe("reconnecting");
+    expect(errors.some((error) => /max reconnection attempts/i.test(error.message))).toBe(false);
+  });
+
+  // Guards: duplicate disconnect notifications cannot fan out into competing Twitch reconnect attempts.
+  it("coalesces duplicate disconnect notifications into one reconnect", async () => {
+    vi.useFakeTimers();
+    const service = new TwitchChatService();
+    const initialConnect = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+
+    fakeClient.emit("disconnected", "network unavailable");
+    fakeClient.emit("disconnected", "network unavailable");
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(ClientCtor).toHaveBeenCalledTimes(2);
+  });
+
+  // Guards: an intentional Twitch shutdown physically clears pending recovery and never resurrects the socket.
+  it("clears the pending reconnect timer and does not reconnect after intentional shutdown", async () => {
+    vi.useFakeTimers();
+    const service = new TwitchChatService();
+    const initialConnect = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+
+    fakeClient.emit("disconnected", "network unavailable");
+    expect(vi.getTimerCount()).toBe(1);
+    await service.forceShutdown();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(ClientCtor).toHaveBeenCalledTimes(1);
+    expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
+  // Guards: shutdown while an OAuth refresh is pending cannot resume reconnect and reactivate Twitch chat.
+  it("does not reconnect when shutdown occurs during token refresh", async () => {
+    vi.useFakeTimers();
+    let resolveToken!: (token: string | null) => void;
+    const tokenFetcher = vi.fn(
+      () =>
+        new Promise<string | null>((resolve) => {
+          resolveToken = resolve;
+        })
+    );
+    const service = new TwitchChatService();
+    const initialConnect = service.connect({
+      accessToken: "old-token",
+      tokenFetcher,
+      user: {
+        id: "user-1",
+        login: "tester",
+        displayName: "Tester",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+
+    fakeClient.emit("disconnected", "network unavailable");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(tokenFetcher).toHaveBeenCalledTimes(1);
+
+    await service.forceShutdown();
+    resolveToken("fresh-token");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(ClientCtor).toHaveBeenCalledTimes(1);
+    expect(service.isServiceActive()).toBe(false);
+    expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
+  // Guards: replacement Twitch sockets must rejoin every desired IRC channel retained across an outage.
+  it("rejoins tracked channels on the replacement client", async () => {
+    vi.useFakeTimers();
+    const service = new TwitchChatService();
+    const initialConnect = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+    await service.joinChannel("xqc");
+
+    const replacementClient = Object.assign(new EventEmitter(), {
+      connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      disconnect: vi.fn(() => Promise.resolve()),
+      join: vi.fn(() => Promise.resolve(["#xqc"])),
+      say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
+    });
+    ClientCtor.mockImplementationOnce(function makeReplacementClient() {
+      return replacementClient;
+    });
+
+    fakeClient.emit("disconnected", "network unavailable");
+    await vi.advanceTimersByTimeAsync(5_000);
+    replacementClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(replacementClient.join).toHaveBeenCalledTimes(1);
+    expect(replacementClient.join).toHaveBeenCalledWith("xqc");
+  });
+
+  // Guards: a timed-out Twitch connection attempt is fully detached so late events cannot create a zombie connection.
+  it("tears down a timed-out client and ignores its late connected event", async () => {
+    vi.useFakeTimers();
+    const service = new TwitchChatService();
+    service.on("error", vi.fn());
+
+    const connectPromise = service.connect({ anonymous: true });
+    const rejection = expect(connectPromise).rejects.toThrow("timed out");
+    await vi.advanceTimersByTimeAsync(30_000);
+    await rejection;
+
+    expect(fakeClient.disconnect).toHaveBeenCalledTimes(1);
+    expect(fakeClient.listenerCount("connected")).toBe(0);
+    expect(fakeClient.listenerCount("disconnected")).toBe(0);
+
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
   it("keeps a channel bucket while another panel still holds it, then evicts on the last release", async () => {
     const service = new TwitchChatService();
     const internals = service as unknown as ServiceInternals;
@@ -156,11 +321,11 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(internals.channelUsers.has("xqc")).toBe(false);
   });
 
-  it("emits a roomState patch when Twitch rejects chat for phone verification", async () => {
+  it("emits a viewer-specific send restriction when Twitch rejects chat for phone verification", async () => {
     const service = new TwitchChatService();
     const internals = service as unknown as ServiceInternals;
-    const roomStateEvents: RoomStatePatchEvent[] = [];
-    service.on("roomState", (event) => roomStateEvents.push(event));
+    const restrictionEvents: ViewerChatSendRestrictionEvent[] = [];
+    service.on("viewerSendRestriction", (event) => restrictionEvents.push(event));
 
     const connectPromise = service.connect({ anonymous: true });
     fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
@@ -174,13 +339,42 @@ describe("TwitchChatService connect() single-flight", () => {
       "A verified phone number is required to chat in this channel."
     );
 
-    expect(roomStateEvents).toEqual([
+    expect(restrictionEvents).toEqual([
       {
         platform: "twitch",
         channel: "erobb221",
         channelId: "71092938",
-        patch: { twitchVerification: "phone" },
-        reason: "ws",
+        restriction: "verification",
+        requirement: "phone",
+      },
+    ]);
+  });
+
+  it("identifies email verification separately from phone verification", async () => {
+    const service = new TwitchChatService();
+    const internals = service as unknown as ServiceInternals;
+    const restrictionEvents: ViewerChatSendRestrictionEvent[] = [];
+    service.on("viewerSendRestriction", (event) => restrictionEvents.push(event));
+
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    internals.broadcasterId.set("ninja", "12345");
+
+    fakeClient.emit(
+      "notice",
+      "#ninja",
+      "msg_verified_email",
+      "A verified email address is required to chat in this channel."
+    );
+
+    expect(restrictionEvents).toEqual([
+      {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "email",
       },
     ]);
   });
@@ -305,8 +499,7 @@ describe("TwitchChatService connect() single-flight", () => {
       {
         setId: "moderator",
         version: "1",
-        imageUrl:
-          "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3",
+        imageUrl: "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3",
         title: "Moderator",
       },
     ]);

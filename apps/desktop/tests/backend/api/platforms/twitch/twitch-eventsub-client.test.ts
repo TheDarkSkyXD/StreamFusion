@@ -8,7 +8,7 @@
  *     return canned responses with subscription ids.
  */
 
-// Guards: Twitch EventSub WebSocket lifecycle — `session_welcome` handoff to subscription POST, `session_keepalive` heartbeat, `session_reconnect` URL handoff, `revocation`/`subscription` event routing, and DELETE-on-close cleanup. Asserts the full handshake with a stubbable WebSocket ctor + stubbable fetch so we don't depend on real CDP connectivity.
+// Guards: Twitch EventSub WebSocket lifecycle — handshake, reconnect, dispatch, cleanup, terminal POST rejection quarantine, stable client reuse, and late-success orphan deletion.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -102,7 +102,7 @@ interface FetchCall {
 
 let fetchCalls: FetchCall[] = [];
 let nextPostId = 0;
-let fetchOverride: ((call: FetchCall) => Response) | null = null;
+let fetchOverride: ((call: FetchCall) => Response | Promise<Response>) | null = null;
 
 function installFetch(): void {
   fetchCalls = [];
@@ -185,7 +185,7 @@ function notificationEnvelope(
   subscriptionId: string,
   type: TwitchEventSubEventType,
   channelId: string,
-  event: Record<string, unknown>,
+  event: Record<string, unknown>
 ) {
   const version = type === "channel.moderate" ? "2" : "1";
   const condition =
@@ -217,11 +217,7 @@ function notificationEnvelope(
   };
 }
 
-function revocationEnvelope(
-  subscriptionId: string,
-  type: "channel.moderate",
-  channelId: string,
-) {
+function revocationEnvelope(subscriptionId: string, type: "channel.moderate", channelId: string) {
   return {
     metadata: {
       message_id: `revoke-${subscriptionId}`,
@@ -468,6 +464,38 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     expect(deletes[0]!.url).toContain("id=sub-1");
   });
 
+  it("deletes a subscription that finishes creating after its last listener left", async () => {
+    let resolvePost: ((response: Response) => void) | undefined;
+    fetchOverride = (call) => {
+      if (call.method === "POST") {
+        return new Promise<Response>((resolve) => {
+          resolvePost = resolve;
+        });
+      }
+      return new Response(null, { status: 204 });
+    };
+
+    const client = getClient();
+    const unsubscribe = client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope());
+    await flushMicrotasks();
+
+    unsubscribe();
+    resolvePost?.(
+      new Response(JSON.stringify({ data: [{ id: "late-sub" }] }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    await flushMicrotasks();
+
+    const deletes = fetchCalls.filter((call) => call.method === "DELETE");
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]!.url).toContain("id=late-sub");
+  });
+
   it("no-more-listeners closes the WS", async () => {
     const client = getClient();
     const unsub = client.subscribe("channel.moderate", "chan-1", () => {});
@@ -485,6 +513,96 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
 });
 
 describe("TwitchEventSubClient — reconnect", () => {
+  it("does not retry a permanent 403 subscription rejection after a fresh welcome", async () => {
+    vi.useFakeTimers();
+    fetchOverride = (call) => {
+      if (call.method === "POST") {
+        return new Response(JSON.stringify({ message: "missing required scope" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(null, { status: 204 });
+    };
+
+    const client = getClient();
+    client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws1 = MockWebSocket.instances[0]!;
+    ws1._open();
+    ws1._emit(welcomeEnvelope("sess-1"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+
+    ws1._serverClose(1006);
+    await vi.advanceTimersByTimeAsync(5_001);
+    const ws2 = MockWebSocket.instances[1]!;
+    ws2._open();
+    ws2._emit(welcomeEnvelope("sess-2"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+  });
+
+  it("does not retry a duplicate-limit 429 subscription rejection after a fresh welcome", async () => {
+    vi.useFakeTimers();
+    fetchOverride = (call) => {
+      if (call.method === "POST") {
+        return new Response(JSON.stringify({ message: "subscription limit exceeded" }), {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(null, { status: 204 });
+    };
+
+    const client = getClient();
+    client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws1 = MockWebSocket.instances[0]!;
+    ws1._open();
+    ws1._emit(welcomeEnvelope("sess-1"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+
+    ws1._serverClose(1006);
+    await vi.advanceTimersByTimeAsync(5_001);
+    const ws2 = MockWebSocket.instances[1]!;
+    ws2._open();
+    ws2._emit(welcomeEnvelope("sess-2"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+  });
+
+  it("does not retry an existing-subscription 409 rejection after a fresh welcome", async () => {
+    vi.useFakeTimers();
+    fetchOverride = (call) => {
+      if (call.method === "POST") {
+        return new Response(JSON.stringify({ message: "subscription already exists" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(null, { status: 204 });
+    };
+
+    const client = getClient();
+    client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws1 = MockWebSocket.instances[0]!;
+    ws1._open();
+    ws1._emit(welcomeEnvelope("sess-1"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+
+    ws1._serverClose(1006);
+    await vi.advanceTimersByTimeAsync(5_001);
+    const ws2 = MockWebSocket.instances[1]!;
+    ws2._open();
+    ws2._emit(welcomeEnvelope("sess-2"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+  });
+
   it("session_reconnect opens a new WS to the supplied URL and closes the old one", async () => {
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});
@@ -528,15 +646,15 @@ describe("TwitchEventSubClient — reconnect", () => {
     expect(client.connectionState).toBe("connected");
 
     // Crossing 15s — keepalive guard fires; force-reconnect path schedules
-    // a fresh open after the first backoff (250ms).
+    // a fresh open after the first reconnect delay (5s).
     await vi.advanceTimersByTimeAsync(1_001);
     expect(client.connectionState).toBe("reconnecting");
 
-    await vi.advanceTimersByTimeAsync(260);
+    await vi.advanceTimersByTimeAsync(5_000);
     expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("abnormal close triggers exponential-backoff reconnect (250ms → 500ms → …)", async () => {
+  it("abnormal close follows the 5s then 10s reconnect cadence", async () => {
     vi.useFakeTimers();
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});
@@ -549,51 +667,97 @@ describe("TwitchEventSubClient — reconnect", () => {
     ws1._serverClose(1006);
     expect(client.connectionState).toBe("reconnecting");
 
-    // Just before 250ms — no new socket yet.
-    await vi.advanceTimersByTimeAsync(249);
+    // Just before 5s — no new socket yet.
+    await vi.advanceTimersByTimeAsync(4_999);
     expect(MockWebSocket.instances).toHaveLength(1);
-    // At 250ms — second socket opens.
-    await vi.advanceTimersByTimeAsync(2);
+    // At 5s — second socket opens.
+    await vi.advanceTimersByTimeAsync(1);
     expect(MockWebSocket.instances).toHaveLength(2);
 
     const ws2 = MockWebSocket.instances[1]!;
     ws2._open();
     ws2._serverClose(1006);
 
-    // Backoff doubles to 500ms.
-    await vi.advanceTimersByTimeAsync(499);
+    await vi.advanceTimersByTimeAsync(9_999);
     expect(MockWebSocket.instances).toHaveLength(2);
-    await vi.advanceTimersByTimeAsync(2);
+    await vi.advanceTimersByTimeAsync(1);
     expect(MockWebSocket.instances).toHaveLength(3);
   });
 
-  it("circuit-breaker: after 10 failed reconnects, state becomes 'error' and no further reconnects fire", async () => {
+  it("recreates subscriptions after an abnormal socket loss", async () => {
+    vi.useFakeTimers();
+    const client = getClient();
+    client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws1 = MockWebSocket.instances[0]!;
+    ws1._open();
+    ws1._emit(welcomeEnvelope("sess-1"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+
+    ws1._serverClose(1006);
+    await vi.advanceTimersByTimeAsync(5_001);
+    const ws2 = MockWebSocket.instances[1]!;
+    ws2._open();
+    ws2._emit(welcomeEnvelope("sess-2"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(2);
+  });
+
+  // Guards: active EventSub subscriptions survive outages longer than the former ten-attempt cutoff and keep retrying at the capped cadence.
+  it("retries active EventSub forever with 5s, 10s, 15s, then capped 30s delays", async () => {
     vi.useFakeTimers();
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});
 
-    // Drive 10 failed connections.
-    for (let i = 0; i < 10; i += 1) {
-      const ws = MockWebSocket.instances[i]!;
+    const delays = [5_000, 10_000, 15_000, ...Array<number>(9).fill(30_000)];
+    for (const [index, delay] of delays.entries()) {
+      const ws = MockWebSocket.instances[index]!;
       ws._open();
       ws._serverClose(1006);
-      // Advance by the current backoff (cap at 8s).
-      const exponent = Math.min(i, 6);
-      const delay = Math.min(250 * 2 ** exponent, 8000);
-      await vi.advanceTimersByTimeAsync(delay + 10);
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(MockWebSocket.instances).toHaveLength(index + 1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(MockWebSocket.instances).toHaveLength(index + 2);
     }
 
-    // After 10 close-driven scheduleReconnects we should have opened 11
-    // sockets total (the initial + 10 reconnects). The 11th open just
-    // happened; close it and the next scheduleReconnect trips the
-    // circuit-breaker (attempts already at 10 → 10 >= MAX → error).
-    expect(MockWebSocket.instances).toHaveLength(11);
-    const lastWs = MockWebSocket.instances[10]!;
-    lastWs._open();
-    lastWs._serverClose(1006);
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(client.connectionState).toBe("error");
-    expect(MockWebSocket.instances).toHaveLength(11);
+    expect(MockWebSocket.instances).toHaveLength(13);
+    expect(client.connectionState).not.toBe("error");
+  });
+
+  // Guards: duplicate close delivery for one EventSub socket cannot open competing replacements.
+  it("coalesces duplicate close notifications into one reconnect", async () => {
+    vi.useFakeTimers();
+    const client = getClient();
+    client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+
+    ws.onclose?.({ code: 1006 } as CloseEvent);
+    ws.onclose?.({ code: 1006 } as CloseEvent);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  // Guards: explicitly closing EventSub physically cancels pending recovery and never resurrects the socket.
+  it("does not reconnect after intentional close", async () => {
+    vi.useFakeTimers();
+    const client = getClient();
+    client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    vi.clearAllTimers();
+    ws._serverClose(1006);
+    // Reconnect delay plus the EventSub health bridge's disconnect debounce.
+    expect(vi.getTimerCount()).toBe(2);
+
+    client.close();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(client.connectionState).toBe("idle");
   });
 });
 
@@ -610,9 +774,7 @@ describe("TwitchEventSubClient — dispatch + observability", () => {
     await flushMicrotasks();
 
     // POSTs return sub-1, sub-2 in the order subscribe was called.
-    ws._emit(
-      notificationEnvelope("sub-1", "channel.moderate", "chan-1", { kind: "ban" }),
-    );
+    ws._emit(notificationEnvelope("sub-1", "channel.moderate", "chan-1", { kind: "ban" }));
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).not.toHaveBeenCalled();
     const arg = a.mock.calls[0]![0] as NotificationPayload<{ kind: string }>;
@@ -735,6 +897,41 @@ describe("TwitchEventSubClient — dispatch + observability", () => {
       webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
     });
     expect(other).not.toBe(a);
+  });
+
+  it("reuses the user client across token rotation and posts with the newest token", async () => {
+    const first = getTwitchEventSubClient("token-before-refresh", SELF_ID, {
+      wsEndpoint: WS_URL,
+      webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
+      clientId: "stable-client-id",
+    });
+    const afterRefresh = getTwitchEventSubClient("token-after-refresh", SELF_ID, {
+      wsEndpoint: WS_URL,
+      webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
+      clientId: "stable-client-id",
+    });
+
+    expect(afterRefresh).toBe(first);
+    afterRefresh.subscribe("channel.moderate", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope());
+    await flushMicrotasks();
+
+    const post = fetchCalls.find((call) => call.method === "POST");
+    expect(post?.headers.Authorization).toBe("Bearer token-after-refresh");
+  });
+
+  it("replaces a closed cached client so a later subscriber can reconnect", () => {
+    const first = getClient();
+    first.close();
+
+    const replacement = getClient();
+
+    expect(replacement).not.toBe(first);
+    replacement.subscribe("channel.moderate", "chan-1", () => {});
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(replacement.connectionState).toBe("connecting");
   });
 
   it("getTwitchEventSubClient keeps separate clients for different client ids", () => {

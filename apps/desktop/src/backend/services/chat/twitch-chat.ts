@@ -9,7 +9,7 @@ import tmi from "tmi.js";
 // Cross-logger: imported by renderer chat components — avoids dragging
 // electron-log into the renderer bundle.
 import { logger } from "@/lib/cross-logger";
-import { sleep } from "@/lib/sleep";
+import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
 import type { TwitchUser } from "../../../shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type {
@@ -30,11 +30,7 @@ import {
   parseTwitchMessage,
   type TwitchTags,
 } from "./twitch-parser";
-import {
-  noticeMsgIdToRoomStatePatch,
-  roomStateTagsToPatch,
-  type TmiRoomStateTags,
-} from "./twitch-roomstate";
+import { roomStateTagsToPatch, type TmiRoomStateTags } from "./twitch-roomstate";
 
 // ========== Types ==========
 
@@ -70,8 +66,7 @@ type TypedEventEmitter = {
 
 // ========== Constants ==========
 
-const RECONNECT_DELAY_MS = 3000;
-const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAYS_MS = [5000, 10000, 15000, 30000] as const;
 const MESSAGE_RATE_LIMIT = 20; // Messages per 30 seconds (normal user)
 const MOD_MESSAGE_RATE_LIMIT = 100; // Messages per 30 seconds (mod/broadcaster)
 const CONNECTION_TIMEOUT_MS = 30000; // 30 second timeout for initial connection
@@ -83,6 +78,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   private channels: Set<string> = new Set();
   private connectionState: ChatConnectionState = "disconnected";
   private reconnectAttempts = 0;
+  private reconnectTimer: CancellableSleep | null = null;
+  private reconnectGeneration = 0;
   private isAnonymous = false;
   private debugMode = false;
   private broadcasterId: Map<string, string> = new Map(); // channel -> broadcaster ID
@@ -120,6 +117,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    * Uses connection ID tracking to handle React Strict Mode race conditions
    */
   async connect(options: TwitchChatOptions = {}): Promise<void> {
+    this.clearReconnectTimer();
     // Mark service as active - allows connections and reconnections
     this.isActive = true;
     this.storeAuthOptions(options);
@@ -173,6 +171,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     this.setConnectionState("connecting");
 
+    let attemptClient: tmi.Client | null = null;
     try {
       // Check if this connection attempt was aborted
       if (connectionId !== this.currentConnectionId) {
@@ -181,38 +180,41 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       }
 
       // Create client
-      this.client = this.createClient();
+      attemptClient = this.createClient();
+      this.client = attemptClient;
 
       // Set up event handlers
       this.setupEventHandlers();
 
       // Connect with proper await - wait for 'connected' event
       await new Promise<void>((resolve, reject) => {
+        const cleanup = () => {
+          clearTimeout(timeout);
+          attemptClient?.removeListener("connected", onConnected);
+          attemptClient?.removeListener("disconnected", onDisconnected);
+        };
         // timer-allowlist: IRC connection-timeout watchdog inside _doConnect connected-event waiter (SP1/SP3 out-of-scope)
         const timeout = setTimeout(() => {
+          cleanup();
           reject(new Error("Twitch IRC connection timed out"));
         }, CONNECTION_TIMEOUT_MS);
 
         const onConnected = () => {
-          clearTimeout(timeout);
-          this.client?.removeListener("disconnected", onDisconnected);
+          cleanup();
           resolve();
         };
 
         const onDisconnected = (reason: string) => {
-          clearTimeout(timeout);
-          this.client?.removeListener("connected", onConnected);
+          cleanup();
           reject(new Error(`Connection failed: ${reason}`));
         };
 
-        this.client?.once("connected", onConnected);
-        this.client?.once("disconnected", onDisconnected);
+        attemptClient?.once("connected", onConnected);
+        attemptClient?.once("disconnected", onDisconnected);
 
         // Initiate connection
-        this.client?.connect().catch((err) => {
-          clearTimeout(timeout);
-          this.client?.removeListener("connected", onConnected);
-          this.client?.removeListener("disconnected", onDisconnected);
+        attemptClient?.connect().catch((err) => {
+          cleanup();
           reject(err);
         });
       });
@@ -220,25 +222,14 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       // Check if service was deactivated during connection
       if (!this.isActive) {
         this.log(`Connection ${connectionId} aborted - service deactivated`);
-        try {
-          await this.client?.disconnect();
-        } catch {
-          // Ignore
-        }
-        this.client = null;
+        await this.disposeConnectionAttempt(attemptClient);
         return;
       }
 
       // Final check before declaring success
       if (connectionId !== this.currentConnectionId) {
         this.log(`Connection ${connectionId} aborted after IRC connect`);
-        // Clean up the client we just connected
-        try {
-          await this.client?.disconnect();
-        } catch {
-          // Ignore
-        }
-        this.client = null;
+        await this.disposeConnectionAttempt(attemptClient);
         return;
       }
 
@@ -246,6 +237,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       this.setConnectionState("connected");
       this.log("Connected to Twitch IRC");
     } catch (error) {
+      if (attemptClient) await this.disposeConnectionAttempt(attemptClient);
       // Only handle error if this is still the active connection attempt
       if (connectionId === this.currentConnectionId) {
         this.handleConnectionError(error);
@@ -262,6 +254,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
    * Note: This is a soft disconnect - service remains active for reconnection
    */
   async disconnect(): Promise<void> {
+    this.clearReconnectTimer();
+    this.reconnectGeneration += 1;
     // Increment connection ID to abort any in-progress connection attempts
     this.currentConnectionId++;
     this.connectingPromise = null;
@@ -421,6 +415,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     // Increment connection ID to abort any in-progress connection attempts
     this.currentConnectionId++;
     this.connectingPromise = null;
+    this.clearReconnectTimer();
+    this.reconnectGeneration += 1;
     this.reconnectAttempts = 0;
 
     const { dropChannel } = useChatStore.getState();
@@ -493,6 +489,17 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       });
       throw error;
     }
+  }
+
+  private async rejoinTrackedChannel(channel: string): Promise<void> {
+    if (!this.client || this.connectionState !== "connected") {
+      throw new Error("Not connected to Twitch IRC");
+    }
+
+    await this.client.join(channel);
+    this.refreshOwnModeratorState(channel);
+    this.emitConnectionStatus();
+    this.log(`Rejoined channel: ${channel}`);
   }
 
   /**
@@ -760,6 +767,16 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     if (options.tokenFetcher !== undefined) this.tokenFetcher = options.tokenFetcher;
   }
 
+  private async disposeConnectionAttempt(client: tmi.Client): Promise<void> {
+    client.removeAllListeners();
+    try {
+      await client.disconnect();
+    } catch {
+      // Ignore teardown failures; the attempt is already detached locally.
+    }
+    if (this.client === client) this.client = null;
+  }
+
   private refreshOwnModeratorState(channel: string): void {
     if (!this.client || !this.user) return;
     const client = this.client as tmi.Client & {
@@ -880,17 +897,23 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     });
 
     this.client.on("notice", (channel, msgId) => {
-      const patch = noticeMsgIdToRoomStatePatch(msgId);
-      if (Object.keys(patch).length === 0) return;
+      const noticeMsgId = String(msgId);
+      const requirement =
+        noticeMsgId === "msg_requires_verified_phone_number"
+          ? "phone"
+          : noticeMsgId === "msg_verified_email"
+            ? "email"
+            : null;
+      if (!requirement) return;
       const channelLogin = this.normalizeChannel(channel);
       const channelId = this.broadcasterId.get(channelLogin) ?? "";
       if (!channelId) return;
-      this.emit("roomState", {
+      this.emit("viewerSendRestriction", {
         platform: "twitch",
         channel: channelLogin,
         channelId,
-        patch,
-        reason: "ws",
+        restriction: "verification",
+        requirement,
       });
     });
 
@@ -1079,70 +1102,73 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       return;
     }
 
-    if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      this.reconnectAttempts++;
-      this.setConnectionState("reconnecting");
+    this.scheduleReconnect();
+  }
 
-      const delay = RECONNECT_DELAY_MS * this.reconnectAttempts;
-      this.log(
-        `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
-      );
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer === null) return;
+    this.reconnectTimer.cancel();
+    this.reconnectTimer = null;
+  }
 
-      // Capture connection ID so a disconnect() during the delay aborts the reconnect
-      const capturedConnectionId = this.currentConnectionId;
-      void sleep(delay).then(async () => {
-        // Double-check service is still active before reconnecting
-        if (!this.isActive) {
-          this.log("Service deactivated during reconnect delay, aborting");
-          return;
-        }
-        // Abort if disconnect() was called during the delay (bumps currentConnectionId)
-        if (this.currentConnectionId !== capturedConnectionId) {
-          this.log("Disconnect called during reconnect delay, aborting");
-          return;
-        }
+  private scheduleReconnect(): void {
+    if (!this.isActive || this.reconnectTimer !== null) return;
 
-        // Refresh the access token before reconnecting. The cached token
-        // captured at original connect time may have expired (Twitch IRC
-        // closes the WSS when the OAuth token expires), and reusing the
-        // stale token would just re-fail with "Login unsuccessful".
-        if (!this.isAnonymous && this.tokenFetcher) {
-          try {
-            const fresh = await this.tokenFetcher();
-            if (fresh) {
-              this.accessToken = fresh;
-            }
-          } catch (err) {
-            logger.warn("Chat:Twitch", "Token refresh before reconnect failed", {
-              error:
-                err instanceof Error
-                  ? { name: err.name, message: err.message, stack: err.stack }
-                  : String(err),
-            });
-          }
-        }
+    const delay =
+      RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempts, RECONNECT_DELAYS_MS.length - 1)];
+    this.reconnectAttempts += 1;
+    this.setConnectionState("reconnecting");
+    this.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})...`);
 
-        try {
-          await this.connect({ anonymous: this.isAnonymous, debug: this.debugMode });
+    const capturedGeneration = this.reconnectGeneration;
+    const reconnectTimer = createCancellableSleep(delay);
+    this.reconnectTimer = reconnectTimer;
+    void reconnectTimer.result.then((result) => {
+      if (!result.ok || this.reconnectTimer !== reconnectTimer) return;
+      this.reconnectTimer = null;
+      void this.runReconnect(capturedGeneration);
+    });
+  }
 
-          // Rejoin channels (only if still active)
-          if (this.isActive) {
-            for (const channel of this.channels) {
-              await this.joinChannel(channel);
-            }
-          }
-        } catch (error) {
-          logger.error("Chat:Twitch", "Reconnection failed", {
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message, stack: error.stack }
-                : String(error),
-          });
-        }
+  private async runReconnect(capturedGeneration: number): Promise<void> {
+    if (!this.isActive || this.reconnectGeneration !== capturedGeneration) return;
+
+    // The cached token may have expired during the outage.
+    if (!this.isAnonymous && this.tokenFetcher) {
+      try {
+        const fresh = await this.tokenFetcher();
+        if (fresh) this.accessToken = fresh;
+      } catch (err) {
+        logger.warn("Chat:Twitch", "Token refresh before reconnect failed", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
+      }
+    }
+
+    if (!this.isActive || this.reconnectGeneration !== capturedGeneration) return;
+
+    try {
+      await this.connect({ anonymous: this.isAnonymous, debug: this.debugMode });
+      if (
+        this.isActive &&
+        this.reconnectGeneration === capturedGeneration &&
+        this.connectionState === "connected"
+      ) {
+        for (const channel of this.channels) await this.rejoinTrackedChannel(channel);
+      }
+    } catch (error) {
+      logger.error("Chat:Twitch", "Reconnection failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
       });
-    } else {
-      this.log("Max reconnection attempts reached");
-      this.emit("error", new Error("Max reconnection attempts reached"));
+      if (this.isActive && this.reconnectGeneration === capturedGeneration) {
+        this.scheduleReconnect();
+      }
     }
   }
 

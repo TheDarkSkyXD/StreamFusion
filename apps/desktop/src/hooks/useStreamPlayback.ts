@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import type { StreamPlayback } from "@/components/player/types";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 
@@ -42,6 +43,7 @@ type CacheEntry = {
   evictionTimer: ReturnType<typeof setTimeout> | null;
 };
 const playbackCache = new Map<string, CacheEntry>();
+const playbackReloadListeners = new Map<string, Set<() => void>>();
 const playbackPrefetchFailures = new Map<string, number>();
 const PLAYBACK_CACHE_TTL_MS = 90_000;
 const PREFETCH_FAILURE_TTL_MS = 30_000;
@@ -50,6 +52,11 @@ let playbackRequestCounter = 0;
 
 function getPlaybackCacheKey(platform: Platform, identifier: string): string {
   return `${platform}:${identifier.toLowerCase()}`;
+}
+
+function requestSharedPlaybackReload(key: string): void {
+  playbackCache.delete(key);
+  playbackReloadListeners.get(key)?.forEach((listener) => listener());
 }
 
 function summarizePlaybackUrl(url: string): { urlHost: string | null; formatHint: string | null } {
@@ -276,10 +283,13 @@ function subscribePlayback(
     entry.inFlightFetch = startPlaybackFetch(key, entry, traceId, platform, identifier, "network");
     promise = entry.inFlightFetch;
   }
+  const subscribedEntry = entry;
 
   const release = () => {
     const cur = playbackCache.get(key);
-    if (!cur) return;
+    // A shared reload replaces the cache entry. A cleanup from the previous
+    // generation must never decrement or evict the fresh generation.
+    if (!cur || cur !== subscribedEntry) return;
     cur.refCount--;
     logger.debug("Hook:StreamPlayback", "released playback cache subscription", {
       traceId,
@@ -323,8 +333,12 @@ interface UseStreamPlaybackResult {
 }
 
 export function useStreamPlayback(platform: Platform, identifier: string): UseStreamPlaybackResult {
+  const { recoveryCount } = useNetworkStatus();
   // Unique ID for this hook instance (for staggered loading)
   const instanceId = useId();
+  const streamIdentity = `${platform}:${identifier}`;
+  const stateIdentityRef = useRef(streamIdentity);
+  const stateMatchesCurrentIdentity = stateIdentityRef.current === streamIdentity;
   const [playback, setPlayback] = useState<StreamPlayback | null>(null);
   const [isLoading, setIsLoading] = useState(!!identifier);
   const [error, setError] = useState<Error | null>(null);
@@ -336,12 +350,15 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   // Track reload attempts to prevent infinite loops
   // Use ref for synchronous access in callbacks, state for consumers
   const reloadAttemptsRef = useRef(0);
+  const handledRecoveryCountRef = useRef(recoveryCount);
   const [reloadAttempts, setReloadAttempts] = useState(0);
   const [playbackRevision, setPlaybackRevision] = useState(0);
+  const playbackCacheKey = getPlaybackCacheKey(platform, identifier);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: platform is part of stream identity; the same slug can exist on Twitch and Kick.
   useEffect(() => {
     // Reset all state when the platform or stream identifier changes.
+    stateIdentityRef.current = streamIdentity;
     setPlayback(null);
     setIsLoading(!!identifier);
     setError(null);
@@ -350,7 +367,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     reloadAttemptsRef.current = 0; // Sync ref
     setReloadAttempts(0); // Reset attempts when stream changes
     setPlaybackRevision(0);
-  }, [platform, identifier]);
+  }, [platform, identifier, streamIdentity]);
 
   // Register this instance for stagger calculation only while it has a real
   // stream. Empty identifiers are used to keep hidden player surfaces idle.
@@ -363,6 +380,58 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
       activeInstances.delete(instanceId);
     };
   }, [identifier, instanceId]);
+
+  useEffect(() => {
+    if (!identifier) return;
+    let listeners = playbackReloadListeners.get(playbackCacheKey);
+    if (!listeners) {
+      listeners = new Set();
+      playbackReloadListeners.set(playbackCacheKey, listeners);
+    }
+
+    const handleSharedReload = () => {
+      setPlayback(null);
+      setError(null);
+      setIsLoading(true);
+      setReloadKey((previous) => previous + 1);
+    };
+    listeners.add(handleSharedReload);
+
+    return () => {
+      listeners.delete(handleSharedReload);
+      if (listeners.size === 0) playbackReloadListeners.delete(playbackCacheKey);
+    };
+  }, [identifier, playbackCacheKey]);
+
+  useEffect(() => {
+    const previousRecoveryCount = handledRecoveryCountRef.current;
+    if (recoveryCount <= previousRecoveryCount) return;
+
+    if (!stateMatchesCurrentIdentity || !identifier) {
+      handledRecoveryCountRef.current = recoveryCount;
+      return;
+    }
+
+    // A recovery observed while the old request is still pending remains
+    // available. If that request fails, the settled error render consumes the
+    // same recovery and starts one clean fetch.
+    if (isLoading) return;
+
+    handledRecoveryCountRef.current = recoveryCount;
+    if (playback !== null || error === null) return;
+
+    reloadAttemptsRef.current = 0;
+    setReloadAttempts(0);
+    requestSharedPlaybackReload(playbackCacheKey);
+  }, [
+    error,
+    identifier,
+    isLoading,
+    playback,
+    playbackCacheKey,
+    recoveryCount,
+    stateMatchesCurrentIdentity,
+  ]);
 
   // Ref holds the pending fetchUrl for the current effect run so the stable
   // useManagedTimeout callback can invoke whichever fetchUrl is current.
@@ -463,10 +532,8 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
   const retryWithoutProxy = useCallback(() => {
     logger.debug("Hook:StreamPlayback", "retrying without proxy (fallback to direct)");
     setForceNoProxy(true);
-    setPlayback(null);
-    setError(null);
-    setReloadKey((prev) => prev + 1);
-  }, []);
+    requestSharedPlaybackReload(playbackCacheKey);
+  }, [playbackCacheKey]);
 
   // Reload with rate limiting to prevent infinite loops
   // Uses a ref for synchronous tracking since React state updates are async/batched
@@ -480,23 +547,17 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     }
     reloadAttemptsRef.current += 1;
     setReloadAttempts(reloadAttemptsRef.current); // Keep state in sync for consumers
-    setPlayback(null);
-    setError(null);
-    setIsLoading(true);
-    // Drop the cached URL so the effect's subscribePlayback refetches instead of
-    // re-serving the URL that just 404'd (cache TTL is 90 s).
-    playbackCache.delete(getPlaybackCacheKey(platform, identifier));
-    setReloadKey((prev) => prev + 1);
-  }, [platform, identifier]);
+    requestSharedPlaybackReload(playbackCacheKey);
+  }, [playbackCacheKey]);
 
   return {
-    playback,
-    isLoading,
-    error,
-    isUsingProxy,
+    playback: stateMatchesCurrentIdentity ? playback : null,
+    isLoading: stateMatchesCurrentIdentity ? isLoading : Boolean(identifier),
+    error: stateMatchesCurrentIdentity ? error : null,
+    isUsingProxy: stateMatchesCurrentIdentity ? isUsingProxy : false,
     reload,
     retryWithoutProxy,
-    reloadAttempts,
-    playbackRevision,
+    reloadAttempts: stateMatchesCurrentIdentity ? reloadAttempts : 0,
+    playbackRevision: stateMatchesCurrentIdentity ? playbackRevision : 0,
   };
 }

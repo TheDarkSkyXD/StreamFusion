@@ -1,6 +1,12 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type React from "react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+
+import { useBrowseSnapshotBootstrap } from "@/hooks/queries/browse-snapshot-bootstrap";
+import {
+  networkStatusStore,
+  type NetworkStatusStore,
+} from "@/hooks/network-status-store";
 
 // Lazy load ReactQueryDevtools only in development to avoid bundling in production
 // This can save ~200KB+ in production bundle size
@@ -153,16 +159,49 @@ export const queryClient = new QueryClient({
       refetchOnMount: false,
     },
     mutations: {
-      retry: 1,
+      // User actions (chat sends, follows, moderation) must never replay
+      // silently after connectivity returns; duplicates can be destructive.
+      networkMode: "always",
+      retry: false,
     },
   },
 });
+
+export function configureConfirmedConnectivity(
+  client: QueryClient,
+  store: NetworkStatusStore = networkStatusStore
+): void {
+  onlineManager.setEventListener((setOnline) => {
+    let previousStatus: "online" | "offline" | null = null;
+
+    const syncConfirmedStatus = (): void => {
+      const currentStatus = store.getSnapshot().confirmedStatus;
+      if (currentStatus === "checking" || currentStatus === previousStatus) return;
+
+      const recovered = previousStatus === "offline" && currentStatus === "online";
+      previousStatus = currentStatus;
+      setOnline(currentStatus === "online");
+
+      if (recovered) {
+        void client.invalidateQueries({ refetchType: "active" });
+      }
+    };
+
+    const unsubscribe = store.subscribe(syncConfirmedStatus);
+    syncConfirmedStatus();
+    return unsubscribe;
+  });
+}
+
+configureConfirmedConnectivity(queryClient);
 
 interface QueryProviderProps {
   children: React.ReactNode;
 }
 
 export function QueryProvider({ children }: QueryProviderProps) {
+  useBrowseSnapshotBootstrap(queryClient);
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}
