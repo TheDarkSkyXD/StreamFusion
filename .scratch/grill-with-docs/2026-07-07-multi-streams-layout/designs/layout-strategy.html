@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Multi Streams Layout Strategy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --border: #333333;
+      --text: #ffffff;
+      --muted: #a0a0a0;
+      --soft: #666666;
+      --crimson: #dc143c;
+      --twitch: #9146ff;
+      --kick: #53fc18;
+    }
+    body {
+      min-height: 100vh;
+      background: var(--void);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+      padding: 28px;
+    }
+    h1 { font-size: 24px; line-height: 1.2; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); max-width: 820px; margin-bottom: 24px; font-size: 14px; }
+    .options { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 16px; align-items: stretch; }
+    .option {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 640px;
+    }
+    .option.recommended { border-color: rgba(220, 20, 60, 0.7); }
+    .option-header {
+      background: var(--mid);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      min-height: 112px;
+    }
+    .kicker {
+      color: var(--crimson);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .025em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    h2 { font-size: 15px; line-height: 1.25; margin-bottom: 6px; }
+    .option-header p { color: var(--muted); font-size: 12px; }
+    .body { padding: 14px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+    .toolbar {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: var(--void);
+    }
+    .pill {
+      background: var(--raised);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .pill.dim { color: var(--muted); font-weight: 600; }
+    .layout-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .mini {
+      background: var(--void);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .mini-title { color: var(--muted); font-size: 11px; margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
+    .screen {
+      aspect-ratio: 16 / 10;
+      background: #050505;
+      border: 1px solid #222;
+      border-radius: 4px;
+      display: grid;
+      gap: 3px;
+      overflow: hidden;
+      padding: 3px;
+    }
+    .slot {
+      min-width: 0;
+      min-height: 0;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.015)),
+        #111;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 3px;
+      position: relative;
+      overflow: hidden;
+    }
+    .slot::before {
+      content: "";
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      width: 22px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--crimson);
+    }
+    .slot:nth-child(2n)::after {
+      content: "";
+      position: absolute;
+      right: 5px;
+      bottom: 5px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--twitch);
+    }
+    .slot:nth-child(2n + 1)::after {
+      content: "";
+      position: absolute;
+      right: 5px;
+      bottom: 5px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--kick);
+    }
+    .one { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    .two { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+    .four { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+    .six { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; }
+    .focus { grid-template-columns: 1fr; grid-template-rows: 3fr 1fr; }
+    .focus-rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+    .side-by-side { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr; }
+    .side-list { display: grid; grid-template-rows: repeat(3, 1fr); gap: 3px; }
+    .preset-stack { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .wide { grid-column: span 3; }
+    .notes {
+      margin-top: auto;
+      padding-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .notes strong { color: var(--text); }
+    @media (max-width: 1050px) {
+      .options { grid-template-columns: 1fr; }
+      .option { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Multi Streams Layout Strategy</h1>
+  <p class="subtitle">Question: what should "multiple layouts" mean for a page that auto-adjusts from 1 to 6 StreamSlots?</p>
+
+  <main class="options">
+    <section class="option recommended">
+      <header class="option-header">
+        <div class="kicker">Recommended</div>
+        <h2>A. Auto Grid plus Focus</h2>
+        <p>The page chooses the best grid for the active StreamSlot count. The user switches between Grid and Focus, not every row/column variant.</p>
+      </header>
+      <div class="body">
+        <div class="toolbar"><span class="pill">Grid</span><span class="pill dim">Focus</span><span>Auto by count</span></div>
+        <div class="layout-grid">
+          <div class="mini"><div class="mini-title"><span>1 slot</span><span>1x1</span></div><div class="screen one"><div class="slot"></div></div></div>
+          <div class="mini"><div class="mini-title"><span>2 slots</span><span>2 across</span></div><div class="screen two"><div class="slot"></div><div class="slot"></div></div></div>
+          <div class="mini"><div class="mini-title"><span>3-4 slots</span><span>2x2</span></div><div class="screen four"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+          <div class="mini wide"><div class="mini-title"><span>5-6 slots</span><span>3x2</span></div><div class="screen six"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        </div>
+        <p class="notes"><strong>Best fit:</strong> simple, stable, close to the current implementation, and good for drag-to-reorder.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <header class="option-header">
+        <div class="kicker">More Control</div>
+        <h2>B. Preset Chooser per Count</h2>
+        <p>The user can pick variants like 2x1 vs 1x2, 3x2 vs 2x3, and main-plus-side layouts. The app still adapts when count changes.</p>
+      </header>
+      <div class="body">
+        <div class="toolbar"><span class="pill">Grid</span><span class="pill dim">Side</span><span class="pill dim">Focus</span></div>
+        <div class="preset-stack">
+          <div class="mini"><div class="mini-title"><span>3 slots</span><span>Main + 2</span></div><div class="screen side-by-side"><div class="slot"></div><div class="side-list"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div></div>
+          <div class="mini"><div class="mini-title"><span>4 slots</span><span>2x2</span></div><div class="screen four"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+          <div class="mini"><div class="mini-title"><span>6 slots</span><span>3x2 or 2x3</span></div><div class="screen six"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        </div>
+        <p class="notes"><strong>Tradeoff:</strong> stronger control, but more toolbar complexity and more state migration.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <header class="option-header">
+        <div class="kicker">Advanced</div>
+        <h2>C. Saved Custom Layouts</h2>
+        <p>The user saves named arrangements. Opening a saved layout can restore streams, order, layout mode, and chat target.</p>
+      </header>
+      <div class="body">
+        <div class="toolbar"><span class="pill">Preset: Mod Night</span><span class="pill dim">Save</span><span class="pill dim">Manage</span></div>
+        <div class="preset-stack">
+          <div class="mini"><div class="mini-title"><span>Saved layout</span><span>Focus rail</span></div><div class="screen focus"><div class="slot"></div><div class="focus-rail"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div></div>
+          <div class="mini"><div class="mini-title"><span>Saved layout</span><span>Six slot grid</span></div><div class="screen six"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        </div>
+        <p class="notes"><strong>Tradeoff:</strong> powerful, but probably a separate feature because it touches persistence, editing, and failure states.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

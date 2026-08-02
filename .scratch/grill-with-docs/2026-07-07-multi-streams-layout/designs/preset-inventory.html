@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Multi Streams Preset Inventory</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --border: #333333;
+      --text: #ffffff;
+      --muted: #a0a0a0;
+      --soft: #666666;
+      --crimson: #dc143c;
+      --twitch: #9146ff;
+      --kick: #53fc18;
+    }
+    body {
+      min-height: 100vh;
+      background: var(--void);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+      padding: 28px;
+    }
+    h1 { font-size: 24px; line-height: 1.2; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); max-width: 920px; margin-bottom: 24px; font-size: 14px; }
+    .count-grid { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 16px; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .panel h2 {
+      font-size: 15px;
+      line-height: 1.25;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .default {
+      color: var(--crimson);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .025em;
+    }
+    .panel p { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+    .presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .preset {
+      background: var(--void);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      min-width: 0;
+    }
+    .preset.primary { border-color: rgba(220, 20, 60, .65); }
+    .preset-name {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .screen {
+      aspect-ratio: 16 / 10;
+      background: #050505;
+      border: 1px solid #222;
+      border-radius: 4px;
+      display: grid;
+      gap: 3px;
+      overflow: hidden;
+      padding: 3px;
+    }
+    .slot {
+      min-width: 0;
+      min-height: 0;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.015)),
+        #111;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 3px;
+      position: relative;
+      overflow: hidden;
+    }
+    .slot::before {
+      content: "";
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      width: 20px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--crimson);
+    }
+    .slot:nth-child(2n)::after {
+      content: "";
+      position: absolute;
+      right: 5px;
+      bottom: 5px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--twitch);
+    }
+    .slot:nth-child(2n + 1)::after {
+      content: "";
+      position: absolute;
+      right: 5px;
+      bottom: 5px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--kick);
+    }
+    .single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    .cols-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+    .rows-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .cols-3 { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr; }
+    .rows-3 { grid-template-columns: 1fr; grid-template-rows: repeat(3, 1fr); }
+    .grid-2x2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+    .grid-3x2 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); }
+    .grid-2x3 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
+    .main-2 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+    .main-2 .slot:first-child { grid-row: span 2; }
+    .main-3 { grid-template-columns: 2fr 1fr; grid-template-rows: repeat(3, 1fr); }
+    .main-3 .slot:first-child { grid-row: span 3; }
+    .main-5 { grid-template-columns: 2fr 1fr 1fr; grid-template-rows: repeat(2, 1fr); }
+    .main-5 .slot:first-child { grid-row: span 2; }
+    .wide { grid-column: 1 / -1; }
+    .footer {
+      margin-top: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .footer strong { color: var(--text); }
+    @media (max-width: 1120px) {
+      .count-grid { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .count-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Preset Inventory by StreamSlot Count</h1>
+  <p class="subtitle">Recommended shape: show only layouts compatible with the current count. Each count has one default so adding or removing streams always lands somewhere predictable.</p>
+
+  <main class="count-grid">
+    <section class="panel">
+      <h2>1 StreamSlot <span class="default">Default</span></h2>
+      <p>Only one meaningful layout.</p>
+      <div class="presets">
+        <div class="preset primary"><div class="preset-name"><span>Single</span><span>1x1</span></div><div class="screen single"><div class="slot"></div></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>2 StreamSlots <span class="default">Default: Side by side</span></h2>
+      <p>Horizontal for normal desktop windows, stacked for tall/narrow windows.</p>
+      <div class="presets">
+        <div class="preset primary"><div class="preset-name"><span>Side by side</span><span>1x2</span></div><div class="screen cols-2"><div class="slot"></div><div class="slot"></div></div></div>
+        <div class="preset"><div class="preset-name"><span>Stacked</span><span>2x1</span></div><div class="screen rows-2"><div class="slot"></div><div class="slot"></div></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>3 StreamSlots <span class="default">Default: Main + 2</span></h2>
+      <p>One primary stream with two secondary streams, plus equal variants.</p>
+      <div class="presets">
+        <div class="preset primary"><div class="preset-name"><span>Main + 2</span><span>1+2</span></div><div class="screen main-2"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        <div class="preset"><div class="preset-name"><span>Three across</span><span>1x3</span></div><div class="screen cols-3"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        <div class="preset"><div class="preset-name"><span>Stacked</span><span>3x1</span></div><div class="screen rows-3"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>4 StreamSlots <span class="default">Default: Quad</span></h2>
+      <p>Quad is stable. Main + 3 supports watch-party/moderation workflows.</p>
+      <div class="presets">
+        <div class="preset primary"><div class="preset-name"><span>Quad</span><span>2x2</span></div><div class="screen grid-2x2"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        <div class="preset"><div class="preset-name"><span>Main + 3</span><span>1+3</span></div><div class="screen main-3"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>5 StreamSlots <span class="default">Default: Main + 4</span></h2>
+      <p>Equal grids leave a blank cell. Main + 4 uses the space intentionally.</p>
+      <div class="presets">
+        <div class="preset primary"><div class="preset-name"><span>Main + 4</span><span>1+4</span></div><div class="screen main-5"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        <div class="preset"><div class="preset-name"><span>Six grid with gap</span><span>3x2</span></div><div class="screen grid-3x2"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>6 StreamSlots <span class="default">Default: 3x2</span></h2>
+      <p>Choose horizontal or vertical density based on window shape.</p>
+      <div class="presets">
+        <div class="preset primary"><div class="preset-name"><span>Wide grid</span><span>3x2</span></div><div class="screen grid-3x2"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+        <div class="preset"><div class="preset-name"><span>Tall grid</span><span>2x3</span></div><div class="screen grid-2x3"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div></div>
+      </div>
+    </section>
+  </main>
+
+  <section class="footer">
+    <strong>Recommended rule:</strong> when the StreamSlot count changes, preserve the selected layout only if it is compatible with the new count. Otherwise move to the default for that count.
+  </section>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Multi Streams Chat Placement</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --border: #333333;
+      --text: #ffffff;
+      --muted: #a0a0a0;
+      --crimson: #dc143c;
+      --twitch: #9146ff;
+      --kick: #53fc18;
+    }
+    body {
+      min-height: 100vh;
+      background: var(--void);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+      padding: 28px;
+    }
+    h1 { font-size: 24px; line-height: 1.2; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); max-width: 900px; margin-bottom: 24px; font-size: 14px; }
+    .options { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 16px; }
+    .option {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .recommended { border-color: rgba(220, 20, 60, .7); }
+    .head { background: var(--mid); border-bottom: 1px solid var(--border); padding: 14px; min-height: 116px; }
+    .kicker { color: var(--crimson); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .025em; margin-bottom: 6px; }
+    h2 { font-size: 15px; line-height: 1.25; margin-bottom: 6px; }
+    .head p { color: var(--muted); font-size: 12px; }
+    .body { padding: 14px; }
+    .app {
+      height: 310px;
+      background: #090909;
+      border: 1px solid #222;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .toolbar {
+      height: 34px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .pill { background: var(--raised); color: var(--text); border-radius: 999px; padding: 2px 7px; font-weight: 700; }
+    .content { flex: 1; min-height: 0; display: flex; }
+    .grid {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 3px;
+      padding: 4px;
+      background: #050505;
+    }
+    .slot {
+      min-width: 0;
+      min-height: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.015)), #111;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 3px;
+      position: relative;
+      overflow: hidden;
+    }
+    .slot::before {
+      content: "";
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      width: 22px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--crimson);
+    }
+    .slot:nth-child(2n)::after {
+      content: "";
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--twitch);
+    }
+    .slot:nth-child(2n + 1)::after {
+      content: "";
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--kick);
+    }
+    .chat {
+      width: 92px;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      padding: 7px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .chat-title { font-size: 10px; color: var(--text); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .line { height: 8px; border-radius: 999px; background: var(--raised); }
+    .line.short { width: 65%; }
+    .overlay-chat {
+      position: absolute;
+      top: 36px;
+      right: 8px;
+      bottom: 8px;
+      width: 98px;
+      border: 1px solid var(--border);
+      background: rgba(26,26,26,.94);
+      border-radius: 6px;
+      padding: 7px;
+    }
+    .slot-chat {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      left: 4px;
+      height: 26px;
+      border-radius: 4px;
+      background: rgba(0,0,0,.72);
+      border: 1px solid rgba(255,255,255,.1);
+    }
+    .notes { margin-top: 12px; color: var(--muted); font-size: 12px; }
+    .notes strong { color: var(--text); }
+    @media (max-width: 1050px) { .options { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Chat Placement With Layout Presets</h1>
+  <p class="subtitle">Question: should chat remain outside the layout, float over the layout, or become part of each StreamSlot?</p>
+
+  <main class="options">
+    <section class="option recommended">
+      <header class="head">
+        <div class="kicker">Recommended</div>
+        <h2>A. Docked Chat Rail</h2>
+        <p>One selected StreamSlot owns the visible chat. The rail is outside the preset grid and can be toggled closed.</p>
+      </header>
+      <div class="body">
+        <div class="app">
+          <div class="toolbar"><span class="pill">3x2</span><span>Chat: Slot 1</span></div>
+          <div class="content">
+            <div class="grid"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div>
+            <aside class="chat"><div class="chat-title">Chat: Channel</div><div class="line"></div><div class="line short"></div><div class="line"></div><div class="line short"></div></aside>
+          </div>
+        </div>
+        <p class="notes"><strong>Best fit:</strong> matches current app behavior and avoids cramming chat into video slots.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <header class="head">
+        <div class="kicker">More Screen</div>
+        <h2>B. Floating Chat Panel</h2>
+        <p>Chat overlays the grid and can be moved or collapsed. More video width, but it can cover content.</p>
+      </header>
+      <div class="body">
+        <div class="app" style="position: relative;">
+          <div class="toolbar"><span class="pill">3x2</span><span>Floating chat</span></div>
+          <div class="content">
+            <div class="grid"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div>
+          </div>
+          <aside class="overlay-chat"><div class="chat-title">Chat</div><div class="line"></div><div class="line short"></div><div class="line"></div><div class="line short"></div></aside>
+        </div>
+        <p class="notes"><strong>Tradeoff:</strong> preserves grid size, but creates occlusion and drag/focus complexity.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <header class="head">
+        <div class="kicker">Per Slot</div>
+        <h2>C. Chat Inside Slots</h2>
+        <p>Each StreamSlot can show its own chat preview or drawer. Powerful, but visually crowded.</p>
+      </header>
+      <div class="body">
+        <div class="app">
+          <div class="toolbar"><span class="pill">3x2</span><span>Per-slot chat</span></div>
+          <div class="content">
+            <div class="grid">
+              <div class="slot"><div class="slot-chat"></div></div><div class="slot"><div class="slot-chat"></div></div><div class="slot"><div class="slot-chat"></div></div>
+              <div class="slot"><div class="slot-chat"></div></div><div class="slot"><div class="slot-chat"></div></div><div class="slot"><div class="slot-chat"></div></div>
+            </div>
+          </div>
+        </div>
+        <p class="notes"><strong>Tradeoff:</strong> too dense for six streams unless treated as a later advanced mode.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

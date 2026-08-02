@@ -31,7 +31,7 @@ StreamFusion is built as a monorepo using **npm workspaces**, leveraging a power
 - **Data Fetching**: [TanStack Query](https://tanstack.com/query/latest)
 - **Routing**: [TanStack Router](https://tanstack.com/router/latest)
 - **Database**: [Better-SQLite3](https://github.com/WiseLibs/better-sqlite3) (for local data persistence)
-- **APIs**: Twitch (tmi.js), Kick (Pusher-js), and internal tRPC for IPC.
+- **APIs**: Twitch (tmi.js), Kick (Pusher-js), and typed Electron IPC through the preload bridge.
 
 ## 📂 Project Structure
 
@@ -52,7 +52,7 @@ StreamFusion/
 
 Ensure you have the following installed:
 
-- **Node.js** (v18 or higher recommended)
+- **Node.js** (v18.18 or higher recommended)
 - **npm** (comes with Node.js)
 - **Git**
 
@@ -92,11 +92,12 @@ Contributions are welcome! Please feel free to check out the [issues](https://gi
 
 ### Linting & Formatting
 
-This project uses **Biome** for fast linting and formatting.
+The desktop app uses **ESLint** for linting and **Prettier** for formatting.
 
 - Check for errors: `npm run lint`
 - Auto-fix errors: `npm run lint:fix --workspace=streamfusion`
 - Format code: `npm run format --workspace=streamfusion`
+- Check formatting: `npm run format:check --workspace=streamfusion`
 
 ## 📝 License
 

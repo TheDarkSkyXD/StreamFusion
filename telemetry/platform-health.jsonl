@@ -10276,3 +10276,7 @@
 {"ts":"2026-07-03T23:50:46.741Z","platform":"kick","fromState":"healthy","toState":"degraded","sampleSize":12,"failureRate":1,"source":"internal"}
 {"ts":"2026-07-03T23:51:40.717Z","platform":"kick","fromState":"degraded","toState":"healthy","sampleSize":5,"failureRate":0.2,"source":"status-page"}
 {"ts":"2026-07-03T23:51:41.387Z","platform":"kick","fromState":"healthy","toState":"degraded","sampleSize":6,"failureRate":1,"source":"internal"}
+{"ts":"2026-07-30T08:51:34.648Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":41,"failureRate":0,"source":"internal"}
+{"ts":"2026-07-30T08:51:34.652Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":22,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-02T17:33:57.974Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":59,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-02T17:33:57.977Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":5,"failureRate":0,"source":"internal"}
