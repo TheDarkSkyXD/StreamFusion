@@ -4,6 +4,7 @@ logs
 *.log
 /.scratch/logs/
 /.scratch/images/
+/.scratch/runtime/
 
 # Claude Code worktrees (per-session isolated checkouts under .claude/worktrees/)
 .claude/worktrees/
