@@ -1,6 +1,6 @@
-import type React from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
+import { useProgressScrubbing } from "./hooks/use-progress-scrubbing";
 import { SeekPreview } from "./seek-preview";
 
 interface ProgressBarProps {
@@ -24,52 +24,37 @@ export function ProgressBar({
   className = "",
   color = "bg-white",
 }: ProgressBarProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isHovering, setIsHovering] = useState(false);
-  const [hoverPosition, setHoverPosition] = useState(0); // 0 to 1
+  const {
+    containerRef,
+    isHovering,
+    hoverPosition,
+    handleClick,
+    handleMouseEnter,
+    handleMouseLeave,
+    handleMouseMove,
+    handlePointerCancel,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+  } = useProgressScrubbing({ duration, onSeek, onSeekHover });
 
   const progress = useMemo(() => {
     if (!duration || duration === 0) return 0;
     return Math.min(100, (currentTime / duration) * 100);
   }, [currentTime, duration]);
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const pos = (e.clientX - rect.left) / rect.width;
-      const boundedPos = Math.max(0, Math.min(1, pos));
-      setHoverPosition(boundedPos);
-      onSeekHover?.(boundedPos * duration);
-    },
-    [duration, onSeekHover]
-  );
-
-  const handleMouseLeave = useCallback(() => {
-    setIsHovering(false);
-    onSeekHover?.(null);
-  }, [onSeekHover]);
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!containerRef.current || !duration) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const pos = (e.clientX - rect.left) / rect.width;
-      onSeek(Math.max(0, Math.min(1, pos)) * duration);
-    },
-    [duration, onSeek]
-  );
-
   return (
     <div
       className={`group relative w-full h-4 cursor-pointer flex items-center select-none touch-none ${className}`}
       ref={containerRef}
-      onMouseEnter={() => setIsHovering(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
       onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       {/* Background Track */}
       <div className="relative w-full h-1 bg-white/20 rounded-full overflow-hidden">

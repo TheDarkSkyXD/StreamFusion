@@ -1,3 +1,4 @@
+import type Hls from "hls.js";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -10,8 +11,11 @@ import { useFullscreen } from "../hooks/use-fullscreen";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
 import { usePlayerKeyboard } from "../hooks/use-player-keyboard";
 import { useResumePlayback } from "../hooks/use-resume-playback";
+import { useTimedText } from "../hooks/use-timed-text";
 import { useVolume } from "../hooks/use-volume";
 import type { Platform, PlayerError, QualityLevel } from "../types";
+import { CaptionOverlay } from "../caption-overlay";
+import type { VideoPlaybackSnapshot } from "@/shared/chat-replay-types";
 
 import { resolveKickHlsConfig } from "./kick-hls-config";
 import { KickHlsPlayer } from "./kick-hls-player";
@@ -33,6 +37,8 @@ export interface KickVodPlayerProps {
   videoId?: string;
   title?: string;
   thumbnail?: string;
+  onPlaybackStateChange?: (snapshot: VideoPlaybackSnapshot) => void;
+  subscribeToSeek?: (listener: (offsetSeconds: number) => void) => () => void;
 }
 
 export function KickVodPlayer(props: KickVodPlayerProps) {
@@ -51,10 +57,18 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     videoId,
     title,
     thumbnail,
+    onPlaybackStateChange,
+    subscribeToSeek,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playbackSnapshotRef = useRef<VideoPlaybackSnapshot>({
+    currentTime: 0,
+    isPlaying: autoPlay,
+    playbackRate: 1,
+  });
+  const [hls, setHls] = useState<Hls | null>(null);
 
   // Persistent volume
   const { volume, isMuted, handleVolumeChange, handleToggleMute, syncFromVideoElement } = useVolume(
@@ -63,6 +77,7 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
       initialMuted,
     }
   );
+  const timedText = useTimedText(hls, streamUrl, videoRef.current);
 
   // Hooks
   const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef);
@@ -79,7 +94,16 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
   });
 
   // State
-  const [isReady, setIsReady] = useState(false);
+  const [readiness, setReadiness] = useState(() => ({
+    source: streamUrl,
+    isReady: false,
+    isKeyboardReady: false,
+  }));
+  if (readiness.source !== streamUrl) {
+    setReadiness({ source: streamUrl, isReady: false, isKeyboardReady: false });
+  }
+  const isReady = readiness.source === streamUrl && readiness.isReady;
+  const isKeyboardReady = readiness.source === streamUrl && readiness.isKeyboardReady;
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
   const [currentQualityId, setCurrentQualityId] = useState<string>("auto");
@@ -107,22 +131,51 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     setHasError(false);
   }, []);
 
+  const publishPlaybackState = useCallback(
+    (next: Partial<VideoPlaybackSnapshot>) => {
+      const snapshot = { ...playbackSnapshotRef.current, ...next };
+      playbackSnapshotRef.current = snapshot;
+      onPlaybackStateChange?.(snapshot);
+    },
+    [onPlaybackStateChange]
+  );
+
   // Setup event listeners
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      publishPlaybackState({
+        currentTime: video.currentTime,
+        isPlaying: true,
+        playbackRate: video.playbackRate,
+      });
+    };
+    const handlePause = () => {
+      setIsPlaying(false);
+      publishPlaybackState({
+        currentTime: video.currentTime,
+        isPlaying: false,
+        playbackRate: video.playbackRate,
+      });
+    };
     const handleVideoVolumeChange = () => {
       syncFromVideoElement();
     };
     const handleWaiting = () => setIsLoading(true);
     const handlePlaying = () => setIsLoading(false);
-    const handleTimeUpdate = () => setCurrentTime(video.currentTime);
+    const handleTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      publishPlaybackState({ currentTime: video.currentTime });
+    };
     const handleDurationChange = () => setDuration(video.duration);
     const handleProgress = () => setBuffered(video.buffered);
-    const handleRateChange = () => setPlaybackRate(video.playbackRate);
+    const handleRateChange = () => {
+      setPlaybackRate(video.playbackRate);
+      publishPlaybackState({ playbackRate: video.playbackRate });
+    };
 
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
@@ -145,7 +198,7 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
       video.removeEventListener("progress", handleProgress);
       video.removeEventListener("ratechange", handleRateChange);
     };
-  }, [syncFromVideoElement]);
+  }, [publishPlaybackState, syncFromVideoElement]);
 
   // Volume initialization is handled by useVolume hook
 
@@ -169,8 +222,14 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
   const handleSeek = useCallback((time: number) => {
     const video = videoRef.current;
     if (!video) return;
+    setCurrentTime(time);
     video.currentTime = time;
   }, []);
+
+  useEffect(() => {
+    if (!subscribeToSeek) return;
+    return subscribeToSeek(handleSeek);
+  }, [handleSeek, subscribeToSeek]);
 
   const handlePlaybackRateChange = useCallback((rate: number) => {
     const video = videoRef.current;
@@ -181,14 +240,19 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
   const handleQualityLevels = useCallback(
     (levels: QualityLevel[]) => {
       setAvailableQualities(levels);
-      if (!isReady) {
-        setIsReady(true);
-        setIsLoading(false);
-        onReady?.();
-      }
+      setReadiness((current) =>
+        current.source === streamUrl ? { ...current, isKeyboardReady: true } : current
+      );
     },
-    [isReady, onReady]
+    [streamUrl]
   );
+
+  const handleCanPlay = useCallback(() => {
+    if (isReady) return;
+    setReadiness({ source: streamUrl, isReady: true, isKeyboardReady: true });
+    setIsLoading(false);
+    onReady?.();
+  }, [isReady, onReady, streamUrl]);
 
   const handleQualitySet = useCallback(
     (id: string) => {
@@ -208,7 +272,7 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     onVolumeUp: () => handleVolumeChange((v) => v + 10),
     onVolumeDown: () => handleVolumeChange((v) => v - 10),
     onToggleFullscreen: toggleFullscreen,
-    disabled: !isReady,
+    disabled: !isKeyboardReady,
   });
 
   return (
@@ -225,6 +289,8 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
           autoPlay={autoPlay}
           currentLevel={currentQualityId}
           onQualityLevels={handleQualityLevels}
+          onHlsInstance={setHls}
+          onCanPlay={handleCanPlay}
           onError={(error) => {
             setHasError(true);
             onError?.(error);
@@ -245,6 +311,8 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
           <KickLoadingSpinner />
         </div>
       )}
+
+      <CaptionOverlay cues={timedText.activeCues} />
 
       {/* Controls Overlay - VOD with progress bar */}
       {streamUrl && !hasError && duration > 0 && (
@@ -272,6 +340,9 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
           onPlaybackRateChange={handlePlaybackRateChange}
           onSeekHover={handleSeekHover}
           previewImage={previewImage}
+          timedTextTracks={timedText.tracks}
+          currentTimedTextTrackKey={timedText.selectedTrackKey}
+          onTimedTextTrackChange={timedText.selectTrack}
         />
       )}
     </div>

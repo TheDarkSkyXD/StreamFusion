@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { logger } from "@/renderer/logging/logger";
 
 import { HlsPlayer } from "./hls-player";
@@ -93,25 +94,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
   const [buffered, setBuffered] = useState<TimeRanges | undefined>(undefined);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [hasError, setHasError] = useState(false); // Track if player has errored
-  const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
-
-  // Handle seek hover to update preview image
-  const handleSeekHover = useCallback(
-    (time: number | null) => {
-      if (time === null) {
-        setPreviewImage(undefined);
-        return;
-      }
-
-      // Default behavior: use thumbnail or poster
-      if (thumbnail) {
-        setPreviewImage(thumbnail);
-      } else if (poster) {
-        setPreviewImage(poster);
-      }
-    },
-    [thumbnail, poster]
-  );
+  const { previewImage, handleSeekHover } = useSeekPreview({ streamUrl });
 
   // Apply user's default quality preference
   useDefaultQuality(availableQualities, currentQualityId, setCurrentQualityId);
@@ -188,6 +171,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
   const handleSeek = useCallback((time: number) => {
     const video = videoRef.current;
     if (!video) return;
+    setCurrentTime(time);
     video.currentTime = time;
   }, []);
 

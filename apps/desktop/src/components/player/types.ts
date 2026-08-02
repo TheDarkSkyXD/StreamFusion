@@ -40,3 +40,48 @@ export interface StreamPlayback {
     frameRate?: number;
   }[];
 }
+
+export interface TimedTextTrack {
+  key: string;
+  hlsTrackId: number | null;
+  cueTrack: string;
+  kind: "subtitles" | "captions";
+  label: string;
+  language: string;
+}
+
+export interface TimedTextCue {
+  text: string;
+  startTime: number;
+  endTime: number;
+  align?: "start" | "center" | "end" | "left" | "right";
+  line?: number | "auto";
+  lineAlign?: "start" | "center" | "end";
+  position?: number | "auto";
+  positionAlign?: "line-left" | "center" | "line-right" | "auto";
+  size?: number;
+  snapToLines?: boolean;
+  localLive?: {
+    cueId: string;
+    revision: number;
+    isFinal: boolean;
+    words: Array<{ text: string; startTime: number; endTime: number }>;
+    wordTimingValid: boolean;
+    activeWordIndex: number | null;
+    fallbackHighlight: boolean;
+  };
+}
+
+export interface TimedTextError {
+  failedTrackKey: string;
+  message: string;
+}
+
+export const LOCAL_LIVE_CAPTION_TRACK: TimedTextTrack = {
+  key: "local-live:en",
+  hlsTrackId: null,
+  cueTrack: "local-live",
+  kind: "captions",
+  label: "Local live captions (English)",
+  language: "en",
+};

@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 import { PlayPauseButton } from "./play-pause-button";
 import { ProgressBar } from "./progress-bar";
-import { SettingsMenu } from "./settings-menu";
+import { SettingsMenu, type SettingsMenuProps } from "./settings-menu";
 import type { QualityLevel } from "./types";
 import { VolumeControl } from "./volume-control";
 
@@ -50,7 +50,21 @@ const TheaterFilledIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export interface PlayerControlsProps {
+export interface PlayerControlsProps
+  extends Pick<
+    SettingsMenuProps,
+    | "timedTextTracks"
+    | "localTimedTextTrack"
+    | "currentTimedTextTrackKey"
+    | "onTimedTextTrackChange"
+    | "localCaptionModel"
+    | "localCaptionPhase"
+    | "localCaptionError"
+    | "onLocalCaptionModelDownload"
+    | "onLocalCaptionModelCancel"
+    | "onLocalCaptionModelRemove"
+    | "onLocalCaptionRetry"
+  > {
   // Playback state
   isPlaying: boolean;
   isLoading?: boolean;
@@ -316,6 +330,17 @@ export function PlayerControls(props: PlayerControlsProps) {
               showVideoStats={showVideoStats}
               onToggleVideoStats={onToggleVideoStats}
               container={containerRef.current}
+              timedTextTracks={props.timedTextTracks}
+              localTimedTextTrack={props.localTimedTextTrack}
+              currentTimedTextTrackKey={props.currentTimedTextTrackKey}
+              onTimedTextTrackChange={props.onTimedTextTrackChange}
+              localCaptionModel={props.localCaptionModel}
+              localCaptionPhase={props.localCaptionPhase}
+              localCaptionError={props.localCaptionError}
+              onLocalCaptionModelDownload={props.onLocalCaptionModelDownload}
+              onLocalCaptionModelCancel={props.onLocalCaptionModelCancel}
+              onLocalCaptionModelRemove={props.onLocalCaptionModelRemove}
+              onLocalCaptionRetry={props.onLocalCaptionRetry}
             />
 
             {controls.showTheater && onToggleTheater && !isFullscreen && (

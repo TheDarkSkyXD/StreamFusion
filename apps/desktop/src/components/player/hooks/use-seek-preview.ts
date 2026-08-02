@@ -4,6 +4,8 @@ import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { logger } from "@/renderer/logging/logger";
 
 type SeekPreviewHlsConfig = Partial<NonNullable<ConstructorParameters<typeof Hls>[0]>>;
+const SEEK_PREVIEW_DEBOUNCE_MS = 16;
+const MAX_CACHED_PREVIEW_FRAMES = 60;
 
 export interface UseSeekPreviewProps {
   streamUrl: string | null;
@@ -15,8 +17,42 @@ export function useSeekPreview({ streamUrl, thumbnail, hlsConfig }: UseSeekPrevi
   const [previewImage, setPreviewImage] = useState<string | undefined>(thumbnail);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const isHlsAttachedRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pendingSeekTimeRef = useRef<number | null>(null);
+  const pendingSeekSourceRef = useRef<string | null>(null);
+  const previewSourceRef = useRef(streamUrl);
+  const frameCacheRef = useRef(new Map<number, string>());
+
+  const releasePreviewDecoder = useCallback(() => {
+    const hls = hlsRef.current;
+    if (hls) {
+      hls.stopLoad();
+      if (isHlsAttachedRef.current) {
+        hls.detachMedia();
+        isHlsAttachedRef.current = false;
+      }
+    }
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
+  }, []);
+
+  const destroyPreviewPipeline = useCallback(() => {
+    releasePreviewDecoder();
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
+  }, [releasePreviewDecoder]);
+
+  useEffect(() => {
+    previewSourceRef.current = streamUrl;
+    pendingSeekSourceRef.current = null;
+    frameCacheRef.current.clear();
+    setPreviewImage(thumbnail);
+  }, [streamUrl, thumbnail]);
 
   // Initialize hidden elements once
   useEffect(() => {
@@ -25,7 +61,7 @@ export function useSeekPreview({ streamUrl, thumbnail, hlsConfig }: UseSeekPrevi
       v.muted = true;
       v.playsInline = true;
       v.crossOrigin = "anonymous"; // Important for canvas
-      v.preload = "auto";
+      v.preload = "none";
       videoRef.current = v;
     }
     if (!canvasRef.current) {
@@ -33,20 +69,17 @@ export function useSeekPreview({ streamUrl, thumbnail, hlsConfig }: UseSeekPrevi
     }
 
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      destroyPreviewPipeline();
       videoRef.current = null;
       canvasRef.current = null;
     };
-  }, []);
+  }, [destroyPreviewPipeline]);
 
   // Helper to extract frame
   const captureFrame = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!video || !canvas || pendingSeekSourceRef.current !== previewSourceRef.current) return;
 
     // Set canvas to a reasonable preview size (e.g. 320px width)
     // A smaller size is faster and sufficient for preview
@@ -62,36 +95,62 @@ export function useSeekPreview({ streamUrl, thumbnail, hlsConfig }: UseSeekPrevi
       ctx.drawImage(video, 0, 0, width, height);
       try {
         const dataUrl = canvas.toDataURL("image/jpeg", 0.6); // 0.6 quality is enough
-        setPreviewImage(dataUrl);
+        const frameSecond = Math.max(0, Math.round(video.currentTime));
+        const cache = frameCacheRef.current;
+        cache.delete(frameSecond);
+        cache.set(frameSecond, dataUrl);
+        while (cache.size > MAX_CACHED_PREVIEW_FRAMES) {
+          const oldestSecond = cache.keys().next().value;
+          if (oldestSecond === undefined) break;
+          cache.delete(oldestSecond);
+        }
+        if (pendingSeekTimeRef.current === frameSecond) {
+          setPreviewImage(dataUrl);
+        }
       } catch (e) {
         logger.warn("Player:Hook:SeekPreview", "canvas tainted or error", { error: e });
       }
     }
   }, []);
 
-  // Listen to seeked event
+  const seekPreviewVideo = useCallback(() => {
+    const time = pendingSeekTimeRef.current;
+    const video = videoRef.current;
+    if (!video || time === null || !Number.isFinite(time)) return;
+    try {
+      video.currentTime = time;
+    } catch {
+      // A newly attached MediaSource may not be seekable until metadata arrives.
+      // loadedmetadata retries this same target without delaying pointer feedback.
+    }
+  }, []);
+
+  // Listen for both metadata readiness and completed preview seeks.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    video.addEventListener("loadedmetadata", seekPreviewVideo);
     video.addEventListener("seeked", captureFrame);
-    return () => video.removeEventListener("seeked", captureFrame);
-  }, [captureFrame]);
+    return () => {
+      video.removeEventListener("loadedmetadata", seekPreviewVideo);
+      video.removeEventListener("seeked", captureFrame);
+    };
+  }, [captureFrame, seekPreviewVideo]);
 
-  // Initialize HLS for the preview video when streamUrl changes
+  // Preload only source metadata. HLS fragment loading and decoder attachment
+  // remain stopped until hover, so the first real frame is faster without a
+  // second video continuously consuming bandwidth, CPU, and memory.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
 
-    // Clean up previous HLS
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    destroyPreviewPipeline();
 
     const isHls = streamUrl.includes(".m3u8") || streamUrl.includes("usher.ttvnw.net");
 
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({
+        autoStartLoad: false,
         enableWorker: true,
         // Optimize for low resource usage
         maxBufferLength: 5, // Keep buffer small
@@ -101,7 +160,6 @@ export function useSeekPreview({ streamUrl, thumbnail, hlsConfig }: UseSeekPrevi
       });
 
       hls.loadSource(streamUrl);
-      hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
         // Force lowest quality level for faster seeking and lower bandwidth
@@ -135,48 +193,75 @@ export function useSeekPreview({ streamUrl, thumbnail, hlsConfig }: UseSeekPrevi
             type: data.type,
             details: data.details,
           });
-          if (thumbnail) setPreviewImage(thumbnail);
+          setPreviewImage(undefined);
         }
       });
 
       hlsRef.current = hls;
     } else {
-      // Standard playback
+      // Direct clips can fetch their small metadata header without decoding.
+      video.preload = "metadata";
       video.src = streamUrl;
+      video.load();
     }
 
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, [streamUrl, thumbnail, hlsConfig]);
+    return destroyPreviewPipeline;
+  }, [streamUrl, hlsConfig, destroyPreviewPipeline]);
 
   const seekTimer = useManagedTimeout(
     useCallback(() => {
       const time = pendingSeekTimeRef.current;
       const video = videoRef.current;
       if (!video || !streamUrl) {
-        if (thumbnail) setPreviewImage(thumbnail);
+        setPreviewImage(undefined);
         return;
       }
       if (time !== null && Number.isFinite(time)) {
-        video.currentTime = time;
+        const hls = hlsRef.current;
+        if (hls) hls.startLoad(time);
+        seekPreviewVideo();
       }
-    }, [streamUrl, thumbnail])
+    }, [streamUrl, seekPreviewVideo])
   );
 
   const handleSeekHover = useCallback(
     (time: number | null) => {
       if (time === null) {
+        pendingSeekTimeRef.current = null;
+        pendingSeekSourceRef.current = null;
+        seekTimer.clear();
         setPreviewImage(undefined);
+        releasePreviewDecoder();
+        if (streamUrl && !hlsRef.current) {
+          const video = videoRef.current;
+          if (video) {
+            video.preload = "metadata";
+            video.src = streamUrl;
+            video.load();
+          }
+        }
         return;
       }
-      pendingSeekTimeRef.current = time;
-      seekTimer.start(150); // 150ms debounce
+      const targetSecond = Math.max(0, Math.round(time));
+      pendingSeekTimeRef.current = targetSecond;
+      pendingSeekSourceRef.current = streamUrl;
+      const cachedFrame = frameCacheRef.current.get(targetSecond);
+      if (cachedFrame) {
+        frameCacheRef.current.delete(targetSecond);
+        frameCacheRef.current.set(targetSecond, cachedFrame);
+        setPreviewImage(cachedFrame);
+        return;
+      }
+      setPreviewImage(undefined);
+      const hls = hlsRef.current;
+      const video = videoRef.current;
+      if (hls && video && !isHlsAttachedRef.current) {
+        hls.attachMedia(video);
+        isHlsAttachedRef.current = true;
+      }
+      seekTimer.start(SEEK_PREVIEW_DEBOUNCE_MS);
     },
-    [seekTimer]
+    [releasePreviewDecoder, seekTimer, streamUrl]
   );
 
   return { previewImage, handleSeekHover };

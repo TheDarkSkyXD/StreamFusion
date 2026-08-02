@@ -1,4 +1,5 @@
 import { act, render } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerError } from "@/components/player/types";
@@ -11,6 +12,13 @@ const h = vi.hoisted(() => ({
     onAdBlockStatusChange?: (status: AdBlockStatus) => void;
     onError?: (error: PlayerError) => void;
   },
+  kickHlsMounts: 0,
+  twitchHlsMounts: 0,
+  recoveryCount: 0,
+}));
+
+vi.mock("@/hooks/useNetworkStatus", () => ({
+  useNetworkStatus: () => ({ recoveryCount: h.recoveryCount }),
 }));
 
 vi.mock("@/components/ui/loading-spinner", () => ({
@@ -63,7 +71,8 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
 vi.mock("@/components/player/hls-player", () => ({
   HlsPlayer: (props: { onError?: (error: PlayerError) => void }) => {
     h.kickHlsProps = props;
-    return <div data-testid="kick-hls-player" />;
+    const [mountId] = useState(() => ++h.kickHlsMounts);
+    return <div data-testid="kick-hls-player" data-mount-id={mountId} />;
   },
 }));
 
@@ -82,7 +91,8 @@ vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
     onError?: (error: PlayerError) => void;
   }) => {
     h.twitchHlsProps = props;
-    return <div data-testid="twitch-hls-player" />;
+    const [mountId] = useState(() => ++h.twitchHlsMounts);
+    return <div data-testid="twitch-hls-player" data-mount-id={mountId} />;
   },
 }));
 
@@ -113,6 +123,9 @@ describe("live player offline retry handling", () => {
   beforeEach(() => {
     h.kickHlsProps = null;
     h.twitchHlsProps = null;
+    h.kickHlsMounts = 0;
+    h.twitchHlsMounts = 0;
+    h.recoveryCount = 0;
   });
 
   it("Kick STREAM_OFFLINE calls onError without auto-refreshing", () => {
@@ -226,6 +239,44 @@ describe("live player offline retry handling", () => {
 
     expect(onRefresh).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith(watchdogError);
+  });
+
+  // Guards: confirmed network recovery remounts a failed Kick HLS engine but leaves a healthy engine intact.
+  it("remounts only an errored Kick HLS engine on confirmed recovery", () => {
+    const { getByTestId, rerender } = render(
+      <KickLivePlayer streamUrl="https://example.test/kick.m3u8" />
+    );
+    const healthyMountId = getByTestId("kick-hls-player").dataset.mountId;
+
+    h.recoveryCount = 1;
+    rerender(<KickLivePlayer streamUrl="https://example.test/kick.m3u8" />);
+    expect(getByTestId("kick-hls-player").dataset.mountId).toBe(healthyMountId);
+
+    act(() => h.kickHlsProps?.onError?.(offlineError));
+    h.recoveryCount = 2;
+    rerender(<KickLivePlayer streamUrl="https://example.test/kick.m3u8" />);
+
+    expect(getByTestId("kick-hls-player").dataset.mountId).not.toBe(healthyMountId);
+  });
+
+  // Guards: confirmed network recovery remounts a failed Twitch HLS engine but leaves a healthy engine intact.
+  it("remounts only an errored Twitch HLS engine on confirmed recovery", () => {
+    const props = {
+      streamUrl: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8",
+      channelName: "xqc",
+    };
+    const { getByTestId, rerender } = render(<TwitchLivePlayer {...props} />);
+    const healthyMountId = getByTestId("twitch-hls-player").dataset.mountId;
+
+    h.recoveryCount = 1;
+    rerender(<TwitchLivePlayer {...props} />);
+    expect(getByTestId("twitch-hls-player").dataset.mountId).toBe(healthyMountId);
+
+    act(() => h.twitchHlsProps?.onError?.(offlineError));
+    h.recoveryCount = 2;
+    rerender(<TwitchLivePlayer {...props} />);
+
+    expect(getByTestId("twitch-hls-player").dataset.mountId).not.toBe(healthyMountId);
   });
 
   it("Twitch refreshable missing-fragment watchdog errors call onError without auto-refreshing", () => {

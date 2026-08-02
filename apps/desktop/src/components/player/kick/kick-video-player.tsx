@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { logger } from "@/renderer/logging/logger";
 
 import { HlsPlayer } from "../hls-player";
@@ -92,27 +93,7 @@ export function KickVideoPlayer(props: KickVideoPlayerProps) {
   const [buffered, setBuffered] = useState<TimeRanges | undefined>(undefined);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [hasError, setHasError] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
-
-  // Handle seek hover to update preview image
-  const handleSeekHover = useCallback(
-    (time: number | null) => {
-      if (time === null) {
-        setPreviewImage(undefined);
-        return;
-      }
-
-      // TODO: Implement frame-accurate preview fetching if Kick API supports it.
-      // Currently falling back to the main video thumbnail/poster.
-      // If we have a storyboard spritesheet logic, it would go here.
-      if (thumbnail) {
-        setPreviewImage(thumbnail);
-      } else if (poster) {
-        setPreviewImage(poster);
-      }
-    },
-    [thumbnail, poster]
-  );
+  const { previewImage, handleSeekHover } = useSeekPreview({ streamUrl });
 
   // Apply user's default quality preference
   useDefaultQuality(availableQualities, currentQualityId, setCurrentQualityId);
@@ -189,6 +170,7 @@ export function KickVideoPlayer(props: KickVideoPlayerProps) {
   const handleSeek = useCallback((time: number) => {
     const video = videoRef.current;
     if (!video) return;
+    setCurrentTime(time);
     video.currentTime = time;
   }, []);
 

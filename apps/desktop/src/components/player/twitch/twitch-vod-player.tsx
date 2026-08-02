@@ -1,3 +1,4 @@
+import type Hls from "hls.js";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -10,8 +11,10 @@ import { useFullscreen } from "../hooks/use-fullscreen";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
 import { usePlayerKeyboard } from "../hooks/use-player-keyboard";
 import { useResumePlayback } from "../hooks/use-resume-playback";
+import { useTimedText } from "../hooks/use-timed-text";
 import { useVolume } from "../hooks/use-volume";
 import type { Platform, PlayerError, QualityLevel } from "../types";
+import { CaptionOverlay } from "../caption-overlay";
 
 import { TwitchVodHlsPlayer } from "./twitch-vod-hls-player";
 import { TwitchVodPlayerControls } from "./twitch-vod-player-controls";
@@ -55,6 +58,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [hls, setHls] = useState<Hls | null>(null);
 
   // Persistent volume
   const { volume, isMuted, handleVolumeChange, handleToggleMute, syncFromVideoElement } = useVolume(
@@ -63,6 +67,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
       initialMuted,
     }
   );
+  const timedText = useTimedText(hls, streamUrl, videoRef.current);
 
   // Hooks
   const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef);
@@ -79,7 +84,16 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   });
 
   // State
-  const [isReady, setIsReady] = useState(false);
+  const [readiness, setReadiness] = useState(() => ({
+    source: streamUrl,
+    isReady: false,
+    isKeyboardReady: false,
+  }));
+  if (readiness.source !== streamUrl) {
+    setReadiness({ source: streamUrl, isReady: false, isKeyboardReady: false });
+  }
+  const isReady = readiness.source === streamUrl && readiness.isReady;
+  const isKeyboardReady = readiness.source === streamUrl && readiness.isKeyboardReady;
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
   const [currentQualityId, setCurrentQualityId] = useState<string>("auto");
@@ -167,6 +181,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   const handleSeek = useCallback((time: number) => {
     const video = videoRef.current;
     if (!video) return;
+    setCurrentTime(time);
     video.currentTime = time;
   }, []);
 
@@ -179,14 +194,19 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   const handleQualityLevels = useCallback(
     (levels: QualityLevel[]) => {
       setAvailableQualities(levels);
-      if (!isReady) {
-        setIsReady(true);
-        setIsLoading(false);
-        onReady?.();
-      }
+      setReadiness((current) =>
+        current.source === streamUrl ? { ...current, isKeyboardReady: true } : current
+      );
     },
-    [isReady, onReady]
+    [streamUrl]
   );
+
+  const handleCanPlay = useCallback(() => {
+    if (isReady) return;
+    setReadiness({ source: streamUrl, isReady: true, isKeyboardReady: true });
+    setIsLoading(false);
+    onReady?.();
+  }, [isReady, onReady, streamUrl]);
 
   const handleQualitySet = useCallback(
     (id: string) => {
@@ -206,7 +226,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     onVolumeUp: () => handleVolumeChange((v) => v + 10),
     onVolumeDown: () => handleVolumeChange((v) => v - 10),
     onToggleFullscreen: toggleFullscreen,
-    disabled: !isReady,
+    disabled: !isKeyboardReady,
   });
 
   return (
@@ -224,6 +244,8 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
           currentLevel={currentQualityId}
           sources={props.qualities}
           onQualityLevels={handleQualityLevels}
+          onHlsInstance={setHls}
+          onCanPlay={handleCanPlay}
           onError={(error) => {
             setHasError(true);
             onError?.(error);
@@ -245,6 +267,8 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
           <TwitchLoadingSpinner />
         </div>
       )}
+
+      <CaptionOverlay cues={timedText.activeCues} />
 
       {/* Controls Overlay - VOD with progress bar */}
       {streamUrl && !hasError && duration > 0 && (
@@ -272,6 +296,9 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
           onPlaybackRateChange={handlePlaybackRateChange}
           onSeekHover={handleSeekHover}
           previewImage={previewImage}
+          timedTextTracks={timedText.tracks}
+          currentTimedTextTrackKey={timedText.selectedTrackKey}
+          onTimedTextTrackChange={timedText.selectTrack}
         />
       )}
     </div>

@@ -13,12 +13,13 @@ export function SeekPreview({ time, position, previewImage, className }: SeekPre
   // Prevent overflow at edges (adjust thresholds based on preview width)
   const isNearLeftEdge = position < 0.1;
   const isNearRightEdge = position > 0.9;
-  const [imageError, setImageError] = React.useState(false);
+  const [failedImage, setFailedImage] = React.useState<string | null>(null);
+  const imageError = previewImage === failedImage;
 
   return (
     <div
       className={cn(
-        "absolute bottom-full mb-3 flex flex-col items-center pointer-events-none z-50 animate-in fade-in zoom-in-95 duration-75",
+        "absolute bottom-full mb-3 flex flex-col items-center pointer-events-none z-50",
         isNearLeftEdge ? "left-0" : isNearRightEdge ? "right-0 translate-x-0" : "-translate-x-1/2",
         className
       )}
@@ -33,7 +34,7 @@ export function SeekPreview({ time, position, previewImage, className }: SeekPre
                 src={previewImage}
                 alt={`Preview at ${formatDuration(time)}`}
                 className="w-full h-full object-cover"
-                onError={() => setImageError(true)}
+                onError={() => setFailedImage(previewImage)}
               />
             ) : (
               <div className="flex items-center justify-center w-full h-full text-white/50 text-xs">

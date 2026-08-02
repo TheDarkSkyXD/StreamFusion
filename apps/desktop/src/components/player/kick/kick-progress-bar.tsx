@@ -1,6 +1,6 @@
-import type React from "react";
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 
+import { useProgressScrubbing } from "../hooks/use-progress-scrubbing";
 import { SeekPreview } from "../seek-preview";
 
 interface KickProgressBarProps {
@@ -47,21 +47,47 @@ export const KickProgressBar = forwardRef<KickProgressBarHandle, KickProgressBar
     },
     ref
   ) {
-    const containerRef = useRef<HTMLDivElement>(null);
     const progressFillRef = useRef<HTMLDivElement>(null);
     const seekableRangeRef = useRef<HTMLDivElement>(null);
-    const [isHovering, setIsHovering] = useState(false);
-    const [hoverPosition, setHoverPosition] = useState(0); // 0 to 1
 
-    // Live state mirrors the most recent prop OR ref.update() values. Reads
-    // from these refs (handleClick, handleMouseMove) avoid closure staleness
-    // when the parent drives updates imperatively.
+    // Live state mirrors the most recent prop OR ref.update() values. The
+    // getter lets pointer scrubbing read imperative live-rewind updates.
     const currentTimeRef = useRef(currentTime);
     const durationRef = useRef(duration);
     const seekableRangeStateRef = useRef(seekableRange);
-    currentTimeRef.current = currentTime;
-    durationRef.current = duration;
-    seekableRangeStateRef.current = seekableRange;
+    useEffect(() => {
+      currentTimeRef.current = currentTime;
+      durationRef.current = duration;
+      seekableRangeStateRef.current = seekableRange;
+    }, [currentTime, duration, seekableRange]);
+    const getTimeline = useCallback(
+      () => ({
+        duration: durationRef.current,
+        seekableRange: seekableRangeStateRef.current,
+      }),
+      []
+    );
+
+    const {
+      containerRef,
+      isHovering,
+      hoverPosition,
+      handleClick,
+      handleMouseEnter,
+      handleMouseLeave,
+      handleMouseMove,
+      handlePointerCancel,
+      handlePointerDown,
+      handlePointerMove,
+      handlePointerUp,
+    } = useProgressScrubbing({
+      duration,
+      onSeek,
+      onSeekHover,
+      isLive,
+      seekableRange,
+      getTimeline,
+    });
 
     const computeProgressPct = useCallback((current: number, dur: number, live: boolean) => {
       if (live) return 100;
@@ -123,56 +149,18 @@ export const KickProgressBar = forwardRef<KickProgressBarHandle, KickProgressBar
       };
     }, [duration, seekableRange]);
 
-    const handleMouseMove = useCallback(
-      (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!containerRef.current) return;
-        const rect = containerRef.current.getBoundingClientRect();
-        if (rect.width === 0) return;
-        const pos = (e.clientX - rect.left) / rect.width;
-        const boundedPos = Math.max(0, Math.min(1, pos));
-        setHoverPosition(boundedPos);
-        onSeekHover?.(boundedPos * durationRef.current);
-      },
-      [onSeekHover]
-    );
-
-    const handleMouseLeave = useCallback(() => {
-      setIsHovering(false);
-      onSeekHover?.(null);
-    }, [onSeekHover]);
-
-    const handleClick = useCallback(
-      (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!containerRef.current || !onSeek) return;
-        if (isLive) return;
-
-        const dur = durationRef.current;
-        if (!dur) return;
-
-        const rect = containerRef.current.getBoundingClientRect();
-        if (rect.width === 0) return;
-        const pos = (e.clientX - rect.left) / rect.width;
-        let time = Math.max(0, Math.min(1, pos)) * dur;
-
-        const sr = seekableRangeStateRef.current;
-        if (sr) {
-          if (time < sr.start) time = sr.start;
-          if (time > sr.end) time = sr.end;
-        }
-
-        onSeek(time);
-      },
-      [onSeek, isLive]
-    );
-
     return (
       <div
         className={`group relative w-full h-4 cursor-pointer flex items-center select-none touch-none ${className}`}
         ref={containerRef}
-        onMouseEnter={() => setIsHovering(true)}
+        onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         {/* Background Track - Darker */}
         <div className="relative w-full h-1 bg-white/10 rounded-full overflow-hidden">
