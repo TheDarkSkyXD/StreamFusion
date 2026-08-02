@@ -5,6 +5,7 @@ import {
   deleteKickMessage,
   setKickChatMode,
   timeoutKickUser,
+  timeoutKickUserOfficial,
   unbanKickUser,
 } from "@/backend/api/platforms/kick/kick-mod-mutations";
 
@@ -100,8 +101,8 @@ describe("timeoutKickUser", () => {
     const result = await timeoutKickUser({
       channelSlug: "ac7ionman",
       username: "spammer",
-      broadcasterUserId: "123",
-      userId: "456",
+      broadcasterUserId: 123,
+      userId: 456,
       duration: 10,
       accessToken: "tok-1",
     });
@@ -249,6 +250,32 @@ describe("deleteKickMessage", () => {
       ]);
     }
   );
+});
+
+describe("timeoutKickUserOfficial", () => {
+  it("never retries the undocumented Kick web endpoint when the official mutation fails", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      return {
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        headers: new Headers(),
+        json: async () => ({ message: "Official API unavailable" }),
+      } as Response;
+    });
+
+    const result = await timeoutKickUserOfficial({
+      broadcasterUserId: 123,
+      userId: 456,
+      duration: 10,
+      accessToken: "tok-1",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(urls).toEqual(["https://api.kick.com/public/v1/moderation/bans"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

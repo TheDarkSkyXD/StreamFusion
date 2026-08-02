@@ -1,5 +1,5 @@
+import Module from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import Module from "module";
 
 /* ------------------------------------------------------------------ *
  * Electron mock: clip-endpoints.ts uses `require("electron")` (CJS)  *
@@ -23,6 +23,8 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// Guards: Kick clip responses construct the current public page URL instead of trusting legacy media fields
+// Guards: Kick clip listing degrades to empty results for missing channels and transport failures
 describe("clip-endpoints — getClipsByChannelSlug", () => {
   let getClipsByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByChannelSlug;
 
@@ -52,7 +54,7 @@ describe("clip-endpoints — getClipsByChannelSlug", () => {
             view_count: 1200,
             created_at: "2026-01-15T12:00:00Z",
             video_url: "https://clips.kick.com/clip-1.mp4",
-            clip_url: "https://kick.com/clip/clip-1",
+            clip_url: "https://clips.kick.com/clips/a1/clip-1/playlist.m3u8",
             category: { name: "Just Chatting" },
             thumbnail_url: "https://files.kick.com/thumb-clip-1.webp",
             livestream_id: "ls-100",
@@ -74,7 +76,8 @@ describe("clip-endpoints — getClipsByChannelSlug", () => {
       date: expect.any(String),
       created_at: "2026-01-15T12:00:00Z",
       embedUrl: "https://clips.kick.com/clip-1.mp4",
-      url: "https://kick.com/clip/clip-1",
+      url: "https://kick.com/streamer1/clips/clip-1",
+      shareUrl: "https://kick.com/streamer1/clips/clip-1",
       gameName: "Just Chatting",
       isLive: false,
       thumbnailUrl: "https://files.kick.com/thumb-clip-1.webp",

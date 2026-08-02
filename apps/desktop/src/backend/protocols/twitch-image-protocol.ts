@@ -20,6 +20,8 @@
 
 import { net, protocol } from "electron";
 
+import { imageByteCache } from "./image-byte-cache";
+
 export const TWITCH_IMAGE_SCHEME = "twitch-image";
 
 // 1×1 fully-transparent PNG, 67 bytes. The renderer treats naturalWidth === 1
@@ -65,6 +67,53 @@ function placeholderResponse(): Response {
   });
 }
 
+function detectImageContentType(bytes: Uint8Array, declaredContentType: string): string | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  if (bytes.length >= 6 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return "image/gif";
+  }
+
+  return declaredContentType.startsWith("image/") ? declaredContentType : null;
+}
+
+function imageResponse(bytes: Uint8Array, contentType: string): Response {
+  return new Response(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=3600",
+    },
+  });
+}
+
 export function registerTwitchImageProtocol(): void {
   protocol.handle(TWITCH_IMAGE_SCHEME, async (request) => {
     const url = new URL(request.url);
@@ -75,6 +124,9 @@ export function registerTwitchImageProtocol(): void {
     if (!originalUrl || !/^https?:\/\//i.test(originalUrl)) {
       return placeholderResponse();
     }
+
+    const cached = imageByteCache.get(originalUrl);
+    if (cached) return imageResponse(cached.bytes, cached.contentType);
 
     try {
       const upstream = await net.fetch(originalUrl, {
@@ -88,21 +140,16 @@ export function registerTwitchImageProtocol(): void {
 
       if (!upstream.ok) return placeholderResponse();
 
-      const contentType = upstream.headers.get("Content-Type") || "";
-      // Pass-through guard: Twitch's 403 responses come back with
-      // Content-Type: text/html. Refuse to forward anything that isn't
-      // declared as an image — the renderer's <img> would either fail or
-      // (worse) succeed-with-zero-dimensions and confuse the 1×1 detection.
-      if (!contentType.startsWith("image/")) return placeholderResponse();
-
+      const declaredContentType = upstream.headers.get("Content-Type") || "";
+      // Twitch can label valid avatar bytes as binary/octet-stream. Prefer a
+      // recognized byte signature, but retain a declared image type for
+      // formats without one so non-image responses still become placeholders.
       const bytes = new Uint8Array(await upstream.arrayBuffer());
-      return new Response(bytes, {
-        status: 200,
-        headers: {
-          "Content-Type": contentType,
-          "Cache-Control": "public, max-age=3600",
-        },
-      });
+      const contentType = detectImageContentType(bytes, declaredContentType);
+      if (!contentType) return placeholderResponse();
+
+      imageByteCache.set(originalUrl, bytes, contentType);
+      return imageResponse(bytes, contentType);
     } catch {
       return placeholderResponse();
     }

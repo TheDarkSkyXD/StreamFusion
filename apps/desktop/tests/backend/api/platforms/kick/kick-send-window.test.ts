@@ -31,6 +31,7 @@ import {
   getKickChannelViewerRole,
   getBearerForTest,
   installBearerInterceptor,
+  isKickWebApiReady,
   isSanctumBearer,
   parseKickChannelViewerRoleBody,
   setBearerForTest,
@@ -357,6 +358,10 @@ describe("ensureSendWindowReady", () => {
     expect(a).toBeUndefined();
     expect(b).toBeUndefined();
     expect(acquired.length).toBe(1);
+    expect(await isKickWebApiReady()).toBe(true);
+
+    fakeWin.webContents.executeJavaScript.mockResolvedValue(false);
+    expect(await isKickWebApiReady()).toBe(false);
   });
 
   // Warmup-timeout tests share fake timers — production WARMUP_TIMEOUT_MS is 10s
@@ -490,6 +495,27 @@ describe("sendKickChatMessage happy path", () => {
 });
 
 describe("fetchKickWebApiGet", () => {
+  // Guards: raw moderation-state reads are not exposed through the generic hidden-window GET transport.
+  it("rejects the unverified bare bans-list path", async () => {
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
+
+    const result = await fetchKickWebApiGet("/api/v2/channels/xqc/bans");
+
+    expect(result.ok).toBe(false);
+    expect(BrowserWindow).not.toHaveBeenCalled();
+  });
+
+  it("rejects the unverified channel-user moderation path", async () => {
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
+
+    const result = await fetchKickWebApiGet("/api/v2/channels/xqc/users/viewer");
+
+    expect(result.ok).toBe(false);
+    expect(BrowserWindow).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported paths without initializing the hidden window", async () => {
     const { BrowserWindow } = await import("electron");
     (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
@@ -606,18 +632,21 @@ describe("fetchKickWebApiGet", () => {
 });
 
 describe("getKickChannelViewerRole", () => {
-  it("parses explicit moderator booleans", () => {
-    expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { is_moderator: true } }))).toBe(
-      true
-    );
+  // Guards: guessed or recursively nested Kick role aliases never grant moderator authority.
+  it("fails closed for nested moderator aliases without a captured response contract", () => {
+    expect(
+      parseKickChannelViewerRoleBody(
+        JSON.stringify({ data: { viewer: { is_moderator: true }, unrelated: { moderator: true } } })
+      )
+    ).toBeNull();
     expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { is_moderator: false } }))).toBe(
-      false
+      null
     );
   });
 
-  it("parses role arrays and leaves unknown shapes as null", () => {
+  it("leaves guessed role arrays and unknown shapes unverifiable", () => {
     expect(parseKickChannelViewerRoleBody(JSON.stringify({ roles: ["subscriber", "moderator"] }))).toBe(
-      true
+      null
     );
     expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { following: true } }))).toBeNull();
   });
@@ -662,7 +691,7 @@ describe("getKickChannelViewerRole", () => {
 
     await expect(getKickChannelViewerRole("XQC")).resolves.toEqual({
       ok: true,
-      isModerator: true,
+      isModerator: null,
       status: 200,
     });
   });

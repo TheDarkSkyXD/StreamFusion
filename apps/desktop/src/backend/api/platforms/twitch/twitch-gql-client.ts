@@ -1366,20 +1366,44 @@ export async function gqlSearchCategories(
  * Get channel info via GQL (ChannelShell)
  */
 export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChannel | null> {
-  const [shellResp, aboutResp] = (await gqlRequest([
+  type ChannelLastBroadcastData = {
+    user: { lastBroadcast: { startedAt: string | null } | null } | null;
+  };
+  const lastBroadcastQuery = `query ChannelLastBroadcast($login: String!) {
+    user(login: $login) {
+      lastBroadcast {
+        startedAt
+      }
+    }
+  }`;
+
+  const [shellResp, aboutResp, lastBroadcastResp] = (await gqlRequest([
     getQueryChannelShell({ login }),
     getQueryChannelRootAboutPanel({
       channelLogin: login,
       skipSchedule: true,
       includeIsDJ: false,
     }),
-  ])) as [{ data: ChannelShellData }, { data: ChannelRootAboutPanelData }];
+    getRawQuery<ChannelLastBroadcastData>({
+      query: lastBroadcastQuery,
+      variables: { login },
+    }),
+  ])) as [
+    { data: ChannelShellData },
+    { data: ChannelRootAboutPanelData },
+    { data?: ChannelLastBroadcastData }?,
+  ];
 
   const userOrErr = shellResp.data?.userOrError;
   if (!userOrErr || "userDoesNotExist" in userOrErr) return null;
 
   const shell = userOrErr;
   const about = aboutResp.data?.user;
+  const lastBroadcastStartedAt = lastBroadcastResp?.data?.user?.lastBroadcast?.startedAt;
+  const lastLiveAt =
+    typeof lastBroadcastStartedAt === "string" && lastBroadcastStartedAt.trim().length > 0
+      ? lastBroadcastStartedAt
+      : undefined;
 
   return {
     id: shell.id,
@@ -1393,6 +1417,7 @@ export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChanne
     isVerified: about?.roles?.isPartner || false,
     isPartner: about?.roles?.isPartner || false,
     followerCount: about?.followers?.totalCount ?? undefined,
+    lastLiveAt,
     categoryId: about?.lastBroadcast?.game?.id,
     categoryName: about?.lastBroadcast?.game?.displayName,
     socialLinks: about?.channel?.socialMedias?.map((s) => ({
@@ -1499,6 +1524,7 @@ export async function gqlGetVideosByChannel(
       viewCount: v.viewCount,
       publishedAt: v.publishedAt || "",
       url: `https://www.twitch.tv/videos/${v.id}`,
+      shareUrl: `https://www.twitch.tv/videos/${v.id}`,
       type: "archive", // FilterableVideoTower doesn't expose broadcastType directly
     };
   });
@@ -1549,6 +1575,7 @@ export async function gqlGetClipsByChannel(
       title: c.title,
       thumbnailUrl: c.thumbnailURL || "",
       clipUrl: c.url,
+      shareUrl: c.url || `https://clips.twitch.tv/${c.slug}`,
       embedUrl: c.embedURL,
       duration: c.durationSeconds,
       viewCount: c.viewCount,
@@ -1700,6 +1727,7 @@ export async function gqlGetVideoMetadata(
     viewCount: video.viewCount,
     publishedAt: video.publishedAt || video.createdAt,
     url: `https://www.twitch.tv/videos/${video.id}`,
+    shareUrl: `https://www.twitch.tv/videos/${video.id}`,
     type: broadcastType,
   };
 }

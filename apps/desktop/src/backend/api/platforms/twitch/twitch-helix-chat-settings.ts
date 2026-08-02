@@ -13,7 +13,6 @@
  *
  * Returns a discriminated result mirroring the moderation-mutations shape so
  * callers can branch on failure kind without parsing strings. Pair this call
- * with `withTwitchHelixRetry` in `./helix-retry` to auto-refresh on 401.
  */
 
 import type { ChatSettingsPayload } from "./twitch-helix-moderation-mutations";
@@ -51,7 +50,7 @@ export interface GetChatSettingsArgs {
   /**
    * Twitch app client_id — MUST match the client_id that minted the
    * `accessToken`. Helix rejects mismatched pairs with 401 even if the token
-   * itself validates. In the renderer, pass `import.meta.env.VITE_TWITCH_CLIENT_ID`.
+   * itself validates. Renderer callers must use the typed main-process capability bridge.
    */
   clientId: string;
   /**

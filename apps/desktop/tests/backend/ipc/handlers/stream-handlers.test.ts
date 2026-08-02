@@ -476,6 +476,39 @@ describe("STREAMS_GET_FOLLOWED", () => {
     const uniqueIds = [...new Set(ids)];
     expect(ids.length).toBe(uniqueIds.length);
   });
+
+  it("deduplicates Kick remote and public live results by broadcaster slug", async () => {
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(true);
+    vi.mocked(kickClient.getFollowedStreams).mockResolvedValue({
+      data: [
+        {
+          id: "remote-live-id",
+          platform: "kick",
+          channelId: "kick-user-id",
+          channelName: "xqc",
+          viewerCount: 6300,
+        },
+      ],
+    } as any);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
+      platform === "kick" ? ([{ channelId: "12345", channelName: "xqc" }] as any) : []
+    );
+    vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([
+      {
+        id: "public-live-id",
+        platform: "kick",
+        channelId: "kick-channel-id",
+        channelName: "XQC",
+        viewerCount: 6300,
+      },
+    ] as any);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = (await handler({}, { platform: "kick" })) as any;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(1);
+  });
 });
 
 describe("STREAMS_GET_PLAYBACK_URL", () => {

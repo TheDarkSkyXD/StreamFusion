@@ -15,6 +15,8 @@
  * (matches the existing anti-abstraction pattern across U6 / U25 / U26).
  */
 
+import { z } from "zod";
+
 import type { HelixModResult } from "./twitch-helix-moderation-mutations";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
@@ -172,6 +174,8 @@ export interface GetMembersArgs {
   /** Must match the client_id that minted `accessToken`. */
   clientId: string;
   broadcasterId: string;
+  /** Exact channel member to query. Twitch names this filter `user_id`. */
+  userId?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -180,6 +184,17 @@ interface HelixMembersEnvelope {
   pagination?: { cursor?: string };
 }
 
+const exactMembersEnvelopeSchema = z.object({
+  data: z.array(
+    z.object({
+      user_id: z.string().min(1),
+      user_login: z.string().min(1),
+      user_name: z.string().min(1),
+    })
+  ),
+  pagination: z.object({ cursor: z.string().min(1).optional() }).optional(),
+});
+
 export async function getModerators(
   args: GetMembersArgs
 ): Promise<HelixModResult<ChannelMembersPage>> {
@@ -187,11 +202,32 @@ export async function getModerators(
     accessToken: args.accessToken,
     method: "GET",
     path: "/moderation/moderators",
-    query: { broadcaster_id: args.broadcasterId, first: 100 },
+    query: {
+      broadcaster_id: args.broadcasterId,
+      user_id: args.userId,
+      first: args.userId ? 1 : 100,
+    },
     fetchImpl: args.fetchImpl,
     clientId: args.clientId,
   });
   if (!result.ok) return result;
+  if (args.userId) {
+    const parsed = exactMembersEnvelopeSchema.safeParse(result.payload);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        kind: "network",
+        message: "Malformed Twitch moderators response",
+      };
+    }
+    return {
+      ok: true,
+      payload: {
+        data: parsed.data.data,
+        pagination: { cursor: parsed.data.pagination?.cursor },
+      },
+    };
+  }
   return {
     ok: true,
     payload: {

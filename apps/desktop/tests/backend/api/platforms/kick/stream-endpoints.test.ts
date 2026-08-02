@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/backend/logging/logger";
 
-// Guards: followed Kick stream live status can use the official broadcaster-ID livestream API instead of fan-out legacy slug checks.
+// Guards: followed Kick stream live status uses the current 100-ID bulk API instead of the deprecated endpoint or fan-out legacy slug checks.
 // Guards: successful Kick stream metadata fetch seeds live playback cache so stream opens can resolve from memory.
 // Guards: Kick public-stream-cache + fan-out 4-part contract (regressions cb0b7b6 + 6d3606d, refactored in 640870a).
 // Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
 // Guards: stagger fires AFTER cache check — a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
 // Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
 // Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
+
+// Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
 // The vi.mock factory is hoisted above all top-level declarations and cannot
 // close over variables defined later in this file. `vi.hoisted` runs at the
@@ -99,9 +101,8 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     vi.useFakeTimers();
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
-    ({ getPublicStreamBySlug } = await import(
-      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
-    ));
+    ({ getPublicStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   afterEach(() => {
@@ -125,9 +126,8 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
 
   it("seeds the Kick playback cache from the same channel payload", async () => {
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
-    const { getCachedKickLivePlayback } = await import(
-      "@/backend/api/platforms/kick/kick-playback-cache"
-    );
+    const { getCachedKickLivePlayback } =
+      await import("@/backend/api/platforms/kick/kick-playback-cache");
 
     await getPublicStreamBySlug("ac7ionman");
 
@@ -204,28 +204,29 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
 });
 
 describe("getStreamsByBroadcasterIds", () => {
-  it("calls the official livestreams endpoint with repeated broadcaster_user_id params", async () => {
+  it("calls the current user-livestreams endpoint with repeated user_id params", async () => {
     vi.resetModules();
     vi.useRealTimers();
-    const { getStreamsByBroadcasterIds } = await import(
-      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
-    );
+    const { getStreamsByBroadcasterIds } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = {
       request: vi.fn().mockResolvedValue({
         data: [
           {
-            broadcaster_user_id: 123,
-            channel_id: 456,
-            slug: "new-slug",
-            broadcaster_display_name: "New Slug",
-            stream_title: "Live now",
-            language: "en",
+            broadcaster_user: {
+              id: 123,
+              username: "New Slug",
+              profile_picture: "https://example.com/avatar.webp",
+            },
+            channel: { slug: "new-slug" },
+            id: "stream-456",
+            title: "Live now",
+            language_code: "en",
             has_mature_content: false,
             viewer_count: 42,
             thumbnail: "https://example.com/thumb.webp",
-            profile_picture: "https://example.com/avatar.webp",
             started_at: "2026-06-29T12:00:00Z",
-            custom_tags: ["chatting"],
+            tags: ["chatting"],
             category: { id: 15, name: "Just Chatting", thumbnail: "" },
           },
         ],
@@ -235,7 +236,7 @@ describe("getStreamsByBroadcasterIds", () => {
     const result = await getStreamsByBroadcasterIds(client as any, [123, 123, 789]);
 
     expect(client.request).toHaveBeenCalledWith(
-      "/livestreams?broadcaster_user_id=123&broadcaster_user_id=789",
+      "/users/livestreams?user_id=123&user_id=789",
       undefined,
       "app"
     );
@@ -248,6 +249,65 @@ describe("getStreamsByBroadcasterIds", () => {
       }),
     ]);
   });
+
+  it("keeps each bulk lookup within the documented 100-user limit", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    const { getStreamsByBroadcasterIds } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = {
+      request: vi.fn().mockResolvedValue({ data: [] }),
+    };
+
+    await getStreamsByBroadcasterIds(
+      client as any,
+      Array.from({ length: 101 }, (_, index) => index + 1)
+    );
+
+    expect(client.request).toHaveBeenCalledTimes(2);
+    const firstPath = client.request.mock.calls[0]?.[0] as string;
+    const secondPath = client.request.mock.calls[1]?.[0] as string;
+    expect((firstPath.match(/user_id=/g) ?? []).length).toBe(100);
+    expect((secondPath.match(/user_id=/g) ?? []).length).toBe(1);
+    expect(secondPath).toContain("user_id=101");
+  });
+});
+
+describe("getStreamBySlug live-state authority", () => {
+  it("returns explicit offline evidence when the official channel response says the stream ended", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = {
+      request: vi.fn().mockResolvedValue({
+        data: [
+          {
+            broadcaster_user_id: 75154627,
+            slug: "jollyirl",
+            channel_description: "IRL streamer",
+            banner_picture: null,
+            stream_title: "India Day 18",
+            category: { id: 8549, name: "IRL", thumbnail: "" },
+            stream: null,
+          },
+        ],
+      }),
+    };
+
+    const result = await getStreamBySlug(client as any, "JollyIRL");
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        platform: "kick",
+        channelId: "75154627",
+        channelName: "jollyirl",
+        isLive: false,
+        startedAt: null,
+      })
+    );
+    expect(client.request).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("getPublicTopStreams", () => {
@@ -258,9 +318,8 @@ describe("getPublicTopStreams", () => {
     vi.useRealTimers();
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
-    ({ getPublicTopStreams } = await import(
-      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
-    ));
+    ({ getPublicTopStreams } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   it("parses private livestream pages and forwards the real next cursor", async () => {
@@ -322,9 +381,8 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
     mockState.state.netRequestCalls.length = 0;
     platformHealthSpies.recordPlatformFailure.mockReset();
     platformHealthSpies.recordPlatformSuccess.mockReset();
-    ({ getPublicStreamBySlug } = await import(
-      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
-    ));
+    ({ getPublicStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   afterEach(() => {
@@ -506,9 +564,8 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
     platformHealthSpies.isPlatformHealthy.mockReturnValue(true);
     vi.mocked(logger.warn).mockClear();
     vi.mocked(logger.debug).mockClear();
-    ({ getPublicStreamBySlug } = await import(
-      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
-    ));
+    ({ getPublicStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   afterEach(() => {
@@ -571,9 +628,8 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
       .mock.calls.filter(([tag]) => tag === "Kick:Endpoints:Stream");
     expect(warnCalls1).toHaveLength(1);
 
-    const { clearKickStreamFailureCache } = await import(
-      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
-    );
+    const { clearKickStreamFailureCache } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
     clearKickStreamFailureCache();
 
     await vi.advanceTimersByTimeAsync(310_000);

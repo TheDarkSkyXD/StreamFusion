@@ -330,6 +330,17 @@ const KICK_OFFICIAL_CHAT_URL = "https://api.kick.com/public/v1/chat";
 
 const COOKIE_PREDICATE_IIFE = `(() => document.cookie.indexOf("session_token=") >= 0)()`;
 
+export async function isKickWebApiReady(): Promise<boolean> {
+  const win = sendWindow;
+  if (!win || win.isDestroyed() || latestKickWebBearer === null) return false;
+
+  try {
+    return (await win.webContents.executeJavaScript(COOKIE_PREDICATE_IIFE)) === true;
+  } catch {
+    return false;
+  }
+}
+
 async function _pollPredicate(win: BrowserWindow, deadline: number): Promise<void> {
   // Poll until both: session_token cookie is set AND latestKickWebBearer was
   // captured by the interceptor on some kick.com request.
@@ -521,6 +532,7 @@ function classifyOfficialSendResult(input: {
 }
 
 const ALLOWED_KICK_WEB_API_GET_PATHS = [
+  /^\/api\/v1\/user$/,
   /^\/api\/v2\/user\/subscriptions$/,
   /^\/api\/v2\/channels\/[^/?#]+\/me$/,
 ] as const;
@@ -589,84 +601,10 @@ function isAllowedKickWebApiGet(path: string): boolean {
   return ALLOWED_KICK_WEB_API_GET_PATHS.some((pattern) => pattern.test(path));
 }
 
-function valueHasModRole(value: unknown): boolean | null {
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return null;
-    if (
-      normalized === "moderator" ||
-      normalized === "mod" ||
-      normalized === "broadcaster" ||
-      normalized === "owner" ||
-      normalized === "channel_owner" ||
-      normalized === "channel-owner"
-    ) {
-      return true;
-    }
-    if (normalized === "viewer" || normalized === "follower" || normalized === "subscriber") {
-      return false;
-    }
-    return null;
-  }
-
-  if (Array.isArray(value)) {
-    let sawExplicitFalse = false;
-    for (const item of value) {
-      const itemResult = valueHasModRole(item);
-      if (itemResult === true) return true;
-      if (itemResult === false) sawExplicitFalse = true;
-    }
-    return sawExplicitFalse ? false : null;
-  }
-
-  if (!value || typeof value !== "object") return null;
-  return parseKickChannelViewerRoleObject(value as Record<string, unknown>);
-}
-
-function parseKickChannelViewerRoleObject(data: Record<string, unknown>): boolean | null {
-  const explicitBooleanKeys = [
-    "is_moderator",
-    "isModerator",
-    "is_mod",
-    "isMod",
-    "moderator",
-    "can_moderate",
-    "canModerate",
-    "is_broadcaster",
-    "isBroadcaster",
-    "broadcaster",
-    "is_channel_owner",
-    "isChannelOwner",
-  ];
-  for (const key of explicitBooleanKeys) {
-    if (typeof data[key] === "boolean") return data[key] as boolean;
-  }
-
-  const roleKeys = ["role", "roles", "badges", "permissions", "user_role", "userRole"];
-  for (const key of roleKeys) {
-    const result = valueHasModRole(data[key]);
-    if (result !== null) return result;
-  }
-
-  let sawExplicitFalse = false;
-  for (const value of Object.values(data)) {
-    if (!value || typeof value !== "object") continue;
-    const result = valueHasModRole(value);
-    if (result === true) return true;
-    if (result === false) sawExplicitFalse = true;
-  }
-  return sawExplicitFalse ? false : null;
-}
-
-export function parseKickChannelViewerRoleBody(body: string): boolean | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    return null;
-  }
-
-  return valueHasModRole(parsed);
+export function parseKickChannelViewerRoleBody(_body: string): boolean | null {
+  // Kick does not publish this legacy `/me` response contract. Guessed aliases
+  // and recursive object scans must never become moderator authority.
+  return null;
 }
 
 export async function getKickChannelViewerRole(

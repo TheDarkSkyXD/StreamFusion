@@ -385,6 +385,7 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
           thumbnailUrl: c.thumbnailUrl,
           embedUrl: c.embedUrl,
           url: c.clipUrl,
+          shareUrl: c.shareUrl || `https://clips.twitch.tv/${c.id}`,
           platform: "twitch",
           gameName: c.gameName || "",
           language: "",
@@ -682,6 +683,7 @@ export function registerVideoHandlers(): void {
               description: video.description,
               type: video.type,
               platform: "twitch",
+              shareUrl: video.shareUrl || `https://www.twitch.tv/videos/${video.id}`,
             },
           };
         } else if (params.platform === "kick") {
@@ -781,6 +783,7 @@ export function registerVideoHandlers(): void {
               gameName: gameName,
               category: gameName,
               language: "",
+              shareUrl: v.shareUrl || `https://www.twitch.tv/videos/${v.id}`,
             };
           });
 
@@ -973,6 +976,7 @@ export function registerVideoHandlers(): void {
                   channelAvatar: video.channelAvatar || null,
                   category: video.category,
                   language: video.language || "",
+                  shareUrl: video.shareUrl,
                 },
               };
             }

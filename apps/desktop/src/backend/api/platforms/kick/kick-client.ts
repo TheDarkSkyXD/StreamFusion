@@ -9,6 +9,7 @@
 
 import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
+import { session } from "electron";
 import type { KickUser, Platform } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
 import { WORKER_BASE_URL } from "../../../auth/oauth-config";
@@ -186,6 +187,7 @@ class KickClient implements KickRequestor, IPlatformReader {
 
   // Lazy-initialized direct session for CDN requests (bypasses proxy)
   private cdnSession: Electron.Session | null = null;
+  private cdnSessionInitialization: Promise<Electron.Session> | null = null;
 
   /**
    * Get or create a session configured for direct CDN access (no proxy)
@@ -196,31 +198,42 @@ class KickClient implements KickRequestor, IPlatformReader {
       return this.cdnSession;
     }
 
-    const { session } = require("electron");
+    if (this.cdnSessionInitialization) {
+      return this.cdnSessionInitialization;
+    }
 
-    // Create dedicated session for CDN requests with no proxy
-    const cdnSession: Electron.Session = session.fromPartition("persist:kick-cdn-direct");
+    this.cdnSessionInitialization = (async () => {
+      // Create dedicated session for CDN requests with no proxy
+      const cdnSession: Electron.Session = session.fromPartition("persist:kick-cdn-direct");
 
-    // Configure to bypass all proxies for CDN domains
-    await cdnSession.setProxy({
-      mode: "direct", // Bypass all proxy settings
-    });
+      // Configure to bypass all proxies for CDN domains
+      await cdnSession.setProxy({
+        mode: "direct", // Bypass all proxy settings
+      });
 
-    // Close any existing connections to ensure new settings take effect
-    await cdnSession.closeAllConnections();
+      // Close any existing connections to ensure new settings take effect
+      await cdnSession.closeAllConnections();
 
-    // The CDN partition has its own cookie jar, so the default-session
-    // stripper doesn't reach it. Wire the same strip + purge here so Kick
-    // CDN responses don't pollute this jar either.
-    registerThirdPartyCookieStripper(cdnSession);
-    void purgeStoredThirdPartyCookies(cdnSession).catch(() => {
-      // Best-effort; cookie eviction is not gating CDN reads.
-    });
+      // The CDN partition has its own cookie jar, so the default-session
+      // stripper doesn't reach it. Wire the same strip + purge here so Kick
+      // CDN responses don't pollute this jar either.
+      registerThirdPartyCookieStripper(cdnSession);
+      void purgeStoredThirdPartyCookies(cdnSession).catch(() => {
+        // Best-effort; cookie eviction is not gating CDN reads.
+      });
 
-    // Cache the session
-    this.cdnSession = cdnSession;
+      // Cache the session
+      this.cdnSession = cdnSession;
 
-    return cdnSession;
+      return cdnSession;
+    })();
+
+    try {
+      return await this.cdnSessionInitialization;
+    } catch (error) {
+      this.cdnSessionInitialization = null;
+      throw error;
+    }
   }
 
   /**

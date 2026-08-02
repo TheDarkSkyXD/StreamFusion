@@ -1214,6 +1214,7 @@ describe("gqlGetCategoryById", () => {
 // ---------------------------------------------------------------------------
 
 // Guards: direct Twitch channel lookup preserves the AboutPanel last-broadcast game so offline channel pages can show category context.
+// Guards: direct Twitch channel lookup batches canonical last-broadcast metadata so channels with VODs disabled still expose when they were last live.
 describe("gqlGetChannelByLogin", () => {
   let fetchMock: FetchMock;
 
@@ -1287,6 +1288,45 @@ describe("gqlGetChannelByLogin", () => {
     ]);
   });
 
+  it("returns the canonical last broadcast start time in the existing lookup batch", async () => {
+    stubFetchBatch(
+      fetchMock,
+      {
+        data: {
+          userOrError: {
+            id: "u1",
+            login: "ninja",
+            displayName: "Ninja",
+            profileImageURL: "https://cdn/avatar.jpg",
+            bannerImageURL: null,
+            stream: null,
+            __typename: "User",
+          },
+        },
+      },
+      { data: { user: null } },
+      {
+        data: {
+          user: {
+            lastBroadcast: { startedAt: "2026-08-01T15:30:00Z" },
+          },
+        },
+      }
+    );
+
+    const result = await gqlGetChannelByLogin("ninja");
+
+    expect(result).toMatchObject({ lastLiveAt: "2026-08-01T15:30:00Z" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(lastFetchBody(fetchMock));
+    expect(body).toHaveLength(3);
+    expect(body[2].variables).toEqual({ login: "ninja" });
+    expect(body[2].query).toContain("query ChannelLastBroadcast($login: String!)");
+    expect(body[2].query).toMatch(
+      /user\(login: \$login\)\s*{\s*lastBroadcast\s*{\s*startedAt\s*}\s*}/
+    );
+  });
+
   it("returns null when user does not exist", async () => {
     stubFetchBatch(
       fetchMock,
@@ -1331,7 +1371,8 @@ describe("gqlGetChannelByLogin", () => {
             channel: null,
           },
         },
-      }
+      },
+      { data: { user: { lastBroadcast: null } } }
     );
 
     const result = await gqlGetChannelByLogin("ch1");
@@ -1340,33 +1381,9 @@ describe("gqlGetChannelByLogin", () => {
     expect(result!.isVerified).toBe(false);
     expect(result!.isPartner).toBe(false);
     expect(result!.followerCount).toBeUndefined();
+    expect(result!.lastLiveAt).toBeUndefined();
     expect(result!.bannerUrl).toBeUndefined();
     expect(result!.bio).toBeUndefined();
-  });
-
-  it("batches shell and about-panel queries in one fetch call", async () => {
-    stubFetchBatch(
-      fetchMock,
-      {
-        data: {
-          userOrError: {
-            id: "u1",
-            login: "ch1",
-            displayName: "Ch1",
-            profileImageURL: "",
-            bannerImageURL: null,
-            stream: null,
-          },
-        },
-      },
-      { data: { user: null } }
-    );
-
-    await gqlGetChannelByLogin("ch1");
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(lastFetchBody(fetchMock));
-    expect(body).toHaveLength(2);
   });
 });
 

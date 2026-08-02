@@ -8,6 +8,7 @@ import { transformKickChannel } from "../kick-transformers";
 import { KICK_LEGACY_API_V2_BASE, type KickApiChannel, type KickApiResponse } from "../kick-types";
 
 import { getUsersById } from "./user-endpoints";
+import { getLatestCompletedVideoStartedAtByChannelSlug } from "./video-endpoints";
 
 /**
  * Map the raw `data.chatroom` block from the Kick v2 channel-resolve payload
@@ -77,6 +78,36 @@ function pickPublicChannelAvatar(
     data.profile_picture,
     data.profileImage
   );
+}
+
+function normalizeFollowerCount(value: unknown): number | undefined {
+  const count = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(count) && count >= 0 ? count : undefined;
+}
+
+async function enrichOfflineLastLiveAt(
+  channel: UnifiedChannel,
+  slug: string
+): Promise<UnifiedChannel> {
+  if (channel.isLive || channel.lastLiveAt) return channel;
+
+  try {
+    const videoStartedAt = await getLatestCompletedVideoStartedAtByChannelSlug(slug);
+    return videoStartedAt ? { ...channel, lastLiveAt: videoStartedAt } : channel;
+  } catch (error) {
+    logger.debug(
+      "Kick:Endpoints:Channel",
+      "Completed VOD last-live fallback failed; keeping channel metadata",
+      {
+        slug,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      }
+    );
+    return channel;
+  }
 }
 
 async function enrichChannelWithKickUser(
@@ -192,7 +223,38 @@ export async function getChannel(
           return null;
         }
 
-        const enrichedChannel = await enrichChannelWithKickUser(client, channel, channel.id, slug);
+        let enrichedChannel = await enrichChannelWithKickUser(client, channel, channel.id, slug);
+
+        // The official channel response is authoritative for identity and live
+        // state, but it does not expose follower totals or broadcast history.
+        // Best-effort enrich offline channels from Kick's legacy/internal v2
+        // response without allowing that fallback to replace official fields.
+        if (!enrichedChannel.isLive) {
+          try {
+            const publicChannel = await getPublicChannel(slug);
+            if (publicChannel?.username.toLowerCase() === normalizedSlug) {
+              enrichedChannel = {
+                ...enrichedChannel,
+                followerCount: publicChannel.followerCount ?? enrichedChannel.followerCount,
+                lastLiveAt: publicChannel.lastLiveAt ?? enrichedChannel.lastLiveAt,
+              };
+            }
+          } catch (error) {
+            logger.debug(
+              "Kick:Endpoints:Channel",
+              "Legacy offline metadata enrichment failed; keeping official channel",
+              {
+                slug,
+                error:
+                  error instanceof Error
+                    ? { name: error.name, message: error.message, stack: error.stack }
+                    : String(error),
+              }
+            );
+          }
+
+          enrichedChannel = await enrichOfflineLastLiveAt(enrichedChannel, slug);
+        }
 
         // Cache successful result
         _channelCache.set(normalizedSlug, {
@@ -216,12 +278,13 @@ export async function getChannel(
   try {
     const publicChannel = await getPublicChannel(slug);
     if (publicChannel) {
-      const enrichedChannel = await enrichChannelWithKickUser(
+      let enrichedChannel = await enrichChannelWithKickUser(
         client,
         publicChannel,
         publicChannel.kickUserId || publicChannel.id,
         slug
       );
+      enrichedChannel = await enrichOfflineLastLiveAt(enrichedChannel, slug);
       _channelCache.set(normalizedSlug, {
         channel: enrichedChannel,
         timestamp: Date.now(),
@@ -587,6 +650,12 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       lastStreamTitle = data.previous_livestreams[0]?.session_title;
     }
 
+    const previousCreatedAt = data.previous_livestreams?.[0]?.created_at;
+    const lastLiveAt =
+      typeof previousCreatedAt === "string" && previousCreatedAt.trim().length > 0
+        ? previousCreatedAt
+        : undefined;
+
     // Prefer `data.id` (the channel's internal db id) over `data.user_id`.
     // The two are NOT the same for many Kick channels — `data.id` aligns with
     // the official API's `broadcaster_user_id`, and only it is accepted by the
@@ -652,10 +721,11 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       isLive: data.livestream !== null,
       isVerified: data.verified?.id !== undefined || false,
       isPartner: false, // Can't easily tell from this endpoint
-      followerCount: data.followers_count ?? data.followersCount ?? undefined,
+      followerCount: normalizeFollowerCount(data.followers_count ?? data.followersCount),
       categoryId,
       categoryName,
       lastStreamTitle,
+      lastLiveAt,
       chatroomId: typeof chatroomId === "number" ? chatroomId : undefined,
       // Keep the broadcaster `user_id` distinct from `id` above (which is the
       // channel/db id). 7TV's KICK connection is keyed by this user_id.

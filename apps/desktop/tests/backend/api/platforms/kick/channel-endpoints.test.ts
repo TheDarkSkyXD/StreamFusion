@@ -9,8 +9,9 @@ vi.mock("@/lib/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
-const { getUsersByIdMock } = vi.hoisted(() => ({
+const { getUsersByIdMock, getLatestCompletedVideoStartedAtMock } = vi.hoisted(() => ({
   getUsersByIdMock: vi.fn(),
+  getLatestCompletedVideoStartedAtMock: vi.fn(),
 }));
 
 vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", async () => {
@@ -22,6 +23,10 @@ vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", async () => {
     getUsersById: getUsersByIdMock,
   };
 });
+
+vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
+  getLatestCompletedVideoStartedAtByChannelSlug: getLatestCompletedVideoStartedAtMock,
+}));
 
 const mockLoadURL = vi.fn();
 const mockExecuteJavaScript = vi.fn();
@@ -62,6 +67,9 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
   };
 }
 
+// Guards: public Kick channel lookup exposes the prior livestream creation time for offline channel metadata.
+// Guards: public Kick channel lookup does not expose blank prior livestream timestamps.
+// Guards: normal Kick channel lookup keeps official identity while enriching offline metadata from the legacy response.
 describe("channel-endpoints", () => {
   beforeEach(() => {
     mockLoadURL.mockReset().mockResolvedValue(undefined);
@@ -71,6 +79,7 @@ describe("channel-endpoints", () => {
     vi.mocked(getPlatformHealth).mockReturnValue("healthy");
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
     getUsersByIdMock.mockReset().mockResolvedValue([]);
+    getLatestCompletedVideoStartedAtMock.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -145,7 +154,7 @@ describe("channel-endpoints", () => {
         },
         livestream: null,
         verified: {},
-        followers_count: 5000,
+        followers_count: "5000",
         chatroom: {
           id: 999,
           followers_mode: false,
@@ -337,6 +346,40 @@ describe("channel-endpoints", () => {
       const result = await getPublicChannel("prev-title");
 
       expect(result!.lastStreamTitle).toBe("Yesterday's stream");
+    });
+
+    it("extracts the last live time from the newest previous livestream", async () => {
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 1,
+          slug: "previous-live-time",
+          user: { username: "PreviousLiveTime" },
+          livestream: null,
+          previous_livestreams: [
+            { created_at: "2026-08-01T15:30:00Z", session_title: "Previous stream" },
+          ],
+        })
+      );
+
+      const result = await getPublicChannel("previous-live-time");
+
+      expect(result).toMatchObject({ lastLiveAt: "2026-08-01T15:30:00Z" });
+    });
+
+    it("ignores a blank previous livestream creation time", async () => {
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 1,
+          slug: "blank-live-time",
+          user: { username: "BlankLiveTime" },
+          livestream: null,
+          previous_livestreams: [{ created_at: "   " }],
+        })
+      );
+
+      const result = await getPublicChannel("blank-live-time");
+
+      expect(result!.lastLiveAt).toBeUndefined();
     });
 
     it("destroys the BrowserWindow after use", async () => {
@@ -663,7 +706,34 @@ describe("channel-endpoints", () => {
       expect(result!.avatarUrl).toBe("https://kick.com/img/authenticated-degraded.webp");
     });
 
-    it("prefers official app-token API result over legacy public lookup", async () => {
+    it("adds the latest completed VOD time to an offline public fallback channel", async () => {
+      vi.mocked(getPlatformHealth).mockReturnValue("degraded");
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 655,
+          user_id: 988,
+          slug: "public-vod-time-fallback",
+          user: { username: "Public VOD Time Fallback" },
+          livestream: null,
+          followers_count: "12500",
+        })
+      );
+      getLatestCompletedVideoStartedAtMock.mockResolvedValueOnce("2026-08-01T12:00:00Z");
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      const result = await getChannel(client, "public-vod-time-fallback");
+
+      expect(result).toMatchObject({
+        username: "public-vod-time-fallback",
+        followerCount: 12_500,
+        lastLiveAt: "2026-08-01T12:00:00Z",
+      });
+      expect(getLatestCompletedVideoStartedAtMock).toHaveBeenCalledWith(
+        "public-vod-time-fallback"
+      );
+    });
+
+    it("keeps the official channel when legacy offline metadata is unavailable", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({
           data: [
@@ -679,6 +749,7 @@ describe("channel-endpoints", () => {
           ],
         }),
       });
+      mockExecuteJavaScript.mockResolvedValueOnce("");
 
       const result = await getChannel(client, "official-first");
 
@@ -689,7 +760,89 @@ describe("channel-endpoints", () => {
         undefined,
         "app"
       );
-      expect(mockLoadURL).not.toHaveBeenCalled();
+      expect(mockLoadURL).toHaveBeenCalled();
+    });
+
+    it("enriches an official channel with legacy offline metadata without replacing its identity", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 901,
+              slug: "official-enriched",
+              channel_description: "Official description",
+              stream: null,
+              stream_title: "Official title",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 777,
+          user_id: 901,
+          slug: "official-enriched",
+          user: { username: "Legacy Display Name", bio: "Legacy description" },
+          livestream: null,
+          followers_count: 196_800,
+          previous_livestreams: [{ created_at: "2026-08-01T15:30:00Z" }],
+        })
+      );
+
+      const result = await getChannel(client, "official-enriched");
+
+      expect(result).toMatchObject({
+        id: "901",
+        kickUserId: "901",
+        username: "official-enriched",
+        bio: "Official description",
+        isLive: false,
+        followerCount: 196_800,
+        lastLiveAt: "2026-08-01T15:30:00Z",
+      });
+      expect(mockLoadURL).toHaveBeenCalled();
+      expect(getLatestCompletedVideoStartedAtMock).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the latest completed VOD when channel history omits last-live time", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 902,
+              slug: "vod-time-fallback",
+              channel_description: "Official description",
+              stream: null,
+              stream_title: "Official title",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 778,
+          user_id: 902,
+          slug: "vod-time-fallback",
+          user: { username: "VOD Time Fallback" },
+          livestream: null,
+          followers_count: 2_100_000,
+        })
+      );
+      getLatestCompletedVideoStartedAtMock.mockResolvedValueOnce("2026-08-01T12:00:00Z");
+
+      const result = await getChannel(client, "vod-time-fallback");
+
+      expect(result).toMatchObject({
+        id: "902",
+        username: "vod-time-fallback",
+        followerCount: 2_100_000,
+        lastLiveAt: "2026-08-01T12:00:00Z",
+      });
+      expect(getLatestCompletedVideoStartedAtMock).toHaveBeenCalledWith("vod-time-fallback");
     });
 
     it("uses official app-token API without requiring a viewer login", async () => {

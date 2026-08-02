@@ -89,6 +89,27 @@ export interface KickApiLivestream {
   category: KickApiChannelCategory;
 }
 
+// Endpoint: GET /public/v1/users/livestreams
+export interface KickApiUserLivestream {
+  broadcaster_user: {
+    id: number;
+    username: string;
+    profile_picture: string;
+  };
+  category: KickApiChannelCategory;
+  channel: {
+    slug: string;
+  };
+  has_mature_content: boolean;
+  id: string;
+  language_code: string;
+  started_at: string;
+  tags: string[];
+  thumbnail: string;
+  title: string;
+  viewer_count: number;
+}
+
 // Endpoint: GET /public/v1/livestreams/stats
 export interface KickApiLivestreamStats {
   total_count: number;
@@ -304,8 +325,8 @@ export interface KickLegacyApiVideo {
  * so the transformer degrades to a partial UnifiedChannel rather than throwing
  * when the shape drifts.
  *
- * Important: prefer `id` (channel.id) over `user_id` for identity. See
- * docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md.
+ * `id` is the legacy channel record ID. `user_id` / `user.id` identify the
+ * broadcaster account and remain stable across channel slug changes.
  */
 export interface KickLegacyApiFollowedChannel {
   id?: number;

@@ -105,6 +105,7 @@ describe("CHANNELS_GET_BY_ID", () => {
   });
 });
 
+// Guards: stale Twitch and Kick follow logins resolve through stable channel IDs and persist canonical profile metadata.
 describe("CHANNELS_GET_BY_USERNAME", () => {
   it("fetches Twitch channel by login via GQL", async () => {
     const channel = { id: "123", login: "testuser" };
@@ -117,6 +118,65 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
     expect(twitchClient.getChannelByLogin).toHaveBeenCalledWith("testuser");
   });
 
+  it("repairs a stale Twitch follow login through its stable channel ID", async () => {
+    const renamedChannel = {
+      id: "123",
+      platform: "twitch",
+      username: "new-login",
+      displayName: "New Login",
+      avatarUrl: "https://example.com/new-login.jpg",
+      isLive: false,
+      isVerified: false,
+      isPartner: false,
+    } satisfies UnifiedChannel;
+    vi.mocked(twitchClient.getChannelByLogin).mockResolvedValue(null);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "twitch-row-1",
+        platform: "twitch",
+        channelId: "123",
+        channelName: "old-login",
+        displayName: "Old Login",
+        profileImage: "https://example.com/old-login.jpg",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "twitch",
+      },
+    ]);
+    vi.mocked(twitchClient.getChannelsById).mockResolvedValue([renamedChannel]);
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
+    const result = await handler({}, { platform: "twitch", username: "old-login" });
+
+    expect(result).toEqual({ success: true, data: renamedChannel });
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("twitch-row-1", {
+      channelName: "new-login",
+      displayName: "New Login",
+      profileImage: "https://example.com/new-login.jpg",
+    });
+  });
+
+  it("does not send a legacy Twitch login to the ID lookup", async () => {
+    vi.mocked(twitchClient.getChannelByLogin).mockResolvedValue(null);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "twitch-row-1",
+        platform: "twitch",
+        channelId: "old-login",
+        channelName: "old-login",
+        displayName: "Old Login",
+        profileImage: "",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "twitch",
+      },
+    ]);
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
+    const result = await handler({}, { platform: "twitch", username: "old-login" });
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(twitchClient.getChannelsById).not.toHaveBeenCalled();
+  });
+
   it("fetches Kick channel by slug", async () => {
     const channel = { id: "456", slug: "kickuser" };
     vi.mocked(kickClient.getChannel).mockResolvedValue(channel as any);
@@ -126,6 +186,43 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
 
     expect(result).toEqual({ success: true, data: channel });
     expect(kickClient.getChannel).toHaveBeenCalledWith("kickuser");
+  });
+
+  it("repairs a stale Kick follow slug through its stable broadcaster ID", async () => {
+    const renamedChannel = {
+      id: "456",
+      platform: "kick",
+      username: "new-slug",
+      displayName: "New Slug",
+      avatarUrl: "https://example.com/new-slug.jpg",
+      isLive: false,
+      isVerified: false,
+      isPartner: false,
+    } satisfies UnifiedChannel;
+    vi.mocked(kickClient.getChannel).mockResolvedValue(null);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "kick-row-1",
+        platform: "kick",
+        channelId: "456",
+        channelName: "old-slug",
+        displayName: "Old Slug",
+        profileImage: "https://example.com/old-slug.jpg",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "kick",
+      },
+    ]);
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([renamedChannel]);
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
+    const result = await handler({}, { platform: "kick", username: "old-slug" });
+
+    expect(result).toEqual({ success: true, data: renamedChannel });
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("kick-row-1", {
+      channelName: "new-slug",
+      displayName: "New Slug",
+      profileImage: "https://example.com/new-slug.jpg",
+    });
   });
 
   it("enriches the authenticated Kick user's own channel with auth profile data", async () => {

@@ -98,12 +98,55 @@ export function registerChannelHandlers(): void {
 
       try {
         let channel = null;
+        const requestedUsername = params.username.trim().toLowerCase();
 
         if (params.platform === "twitch") {
           // Use GQL (no auth needed) for channel lookup by login
           channel = await twitchClient.getChannelByLogin(params.username);
+          if (!channel) {
+            const staleFollow = storageService
+              .getActiveFollowsByPlatform("twitch")
+              .find(
+                (follow) =>
+                  follow.channelName.toLowerCase() === requestedUsername &&
+                  /^\d+$/.test(follow.channelId)
+              );
+            if (staleFollow) {
+              channel = (await twitchClient.getChannelsById([staleFollow.channelId]))[0] || null;
+              if (channel && channel.username.toLowerCase() !== requestedUsername) {
+                storageService.updateLocalFollow(staleFollow.id, {
+                  channelName: channel.username,
+                  displayName: channel.displayName,
+                  profileImage: channel.avatarUrl,
+                });
+              }
+            }
+          }
         } else if (params.platform === "kick") {
           channel = await kickClient.getChannel(params.username);
+          if (!channel) {
+            const staleFollow = storageService
+              .getActiveFollowsByPlatform("kick")
+              .find(
+                (follow) =>
+                  follow.channelName.toLowerCase() === requestedUsername &&
+                  Number.isSafeInteger(Number(follow.channelId)) &&
+                  Number(follow.channelId) > 0
+              );
+            if (staleFollow) {
+              channel =
+                (
+                  await kickClient.getChannelsByBroadcasterIds([Number(staleFollow.channelId)])
+                )[0] || null;
+              if (channel && channel.username.toLowerCase() !== requestedUsername) {
+                storageService.updateLocalFollow(staleFollow.id, {
+                  channelName: channel.username,
+                  displayName: channel.displayName,
+                  profileImage: channel.avatarUrl,
+                });
+              }
+            }
+          }
           channel = enrichOwnKickChannel(channel, params.username, storageService.getKickUser());
         }
 

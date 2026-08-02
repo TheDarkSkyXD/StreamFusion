@@ -214,6 +214,7 @@ function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
     viewCount: video.view_count,
     publishedAt: video.published_at,
     url: video.url,
+    shareUrl: video.url,
     type: video.type,
   };
 }
@@ -232,6 +233,7 @@ function transformTwitchClip(clip: TwitchApiClip): UnifiedClip {
     title: clip.title,
     thumbnailUrl: clip.thumbnail_url,
     clipUrl: clip.url,
+    shareUrl: clip.url,
     embedUrl: clip.embed_url,
     duration: clip.duration,
     viewCount: clip.view_count,

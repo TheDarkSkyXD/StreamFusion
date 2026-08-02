@@ -23,7 +23,7 @@ Owns Kick-specific API knowledge for `kick-client.ts`, `kick-requestor.ts`, `kic
 
 ## Official Endpoint Inventory
 
-Last checked from `docs.kick.com` and `api.kick.com/swagger/doc.yaml` on 2026-06-09.
+Last checked from `docs.kick.com` and `api.kick.com/swagger/doc.yaml` on 2026-07-30.
 
 ### OAuth: `https://id.kick.com`
 
@@ -55,7 +55,8 @@ Last checked from `docs.kick.com` and `api.kick.com/swagger/doc.yaml` on 2026-06
 
 | Method | Path | Use | Params/Auth |
 | --- | --- | --- | --- |
-| `GET` | `/public/v1/livestreams` | Get live streams | Optional `broadcaster_user_id[]`, `category_id`, `language`, `limit`, `sort`; user or app token. |
+| `GET` | `/public/v1/users/livestreams` | Get active streams for users | Required `user_id[]`, max 100; user or app token. |
+| `GET` | `/public/v1/livestreams` | Deprecated live-stream lookup | Optional `broadcaster_user_id[]`, max 50; migrate ID lookups to `/public/v1/users/livestreams`. |
 | `GET` | `/public/v1/livestreams/stats` | Get livestream total stats | User or app token. |
 
 ### Chat And Moderation

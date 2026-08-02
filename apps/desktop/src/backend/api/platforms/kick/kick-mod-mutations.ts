@@ -170,6 +170,49 @@ export interface TimeoutKickUserArgs {
   reason?: string;
 }
 
+export interface OfficialTimeoutKickUserArgs {
+  accessToken: string;
+  broadcasterUserId: number;
+  userId: number;
+  /** Kick timeout duration in whole minutes. */
+  duration: number;
+  reason?: string;
+}
+
+/**
+ * Strict official-only Timeout seam used by state-aware moderation.
+ *
+ * There is deliberately no legacy retry here: once an official mutation has
+ * produced an uncertain response, replaying it through another endpoint could
+ * duplicate the action.
+ */
+export function timeoutKickUserOfficial(args: OfficialTimeoutKickUserArgs): Promise<KickModResult> {
+  if (
+    !Number.isSafeInteger(args.broadcasterUserId) ||
+    !Number.isSafeInteger(args.userId) ||
+    !Number.isInteger(args.duration) ||
+    args.duration < 1 ||
+    args.duration > 10_080
+  ) {
+    return Promise.resolve({
+      ok: false,
+      kind: "unknown",
+      message: "Invalid official Kick timeout input.",
+    });
+  }
+  return kickRequest({
+    method: "POST",
+    url: `${KICK_OFFICIAL_API_BASE}/moderation/bans`,
+    accessToken: args.accessToken,
+    body: {
+      broadcaster_user_id: args.broadcasterUserId,
+      user_id: args.userId,
+      duration: args.duration,
+      ...(args.reason ? { reason: args.reason } : {}),
+    },
+  });
+}
+
 export function timeoutKickUser(args: TimeoutKickUserArgs): Promise<KickModResult> {
   const broadcasterUserId = numericId(args.broadcasterUserId);
   const userId = numericId(args.userId);

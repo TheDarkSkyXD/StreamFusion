@@ -46,6 +46,8 @@ export interface UnifiedChannel {
   subscriberCount?: number;
   viewCount?: number;
   createdAt?: string;
+  /** Published/created time of the newest trustworthy prior broadcast. */
+  lastLiveAt?: string;
   socialLinks?: SocialLink[];
   // Category info - represents the last set category for the channel
   categoryId?: string;
@@ -187,6 +189,8 @@ export interface UnifiedVideo {
   viewCount: number;
   publishedAt: string;
   url: string;
+  /** Verified public content URL, separate from playback media. */
+  shareUrl?: string;
   type: "archive" | "highlight" | "upload";
 }
 
@@ -202,6 +206,8 @@ export interface UnifiedClip {
   title: string;
   thumbnailUrl: string;
   clipUrl: string;
+  /** Verified public content URL, separate from playback media. */
+  shareUrl?: string;
   embedUrl: string;
   duration: number; // seconds
   viewCount: number;

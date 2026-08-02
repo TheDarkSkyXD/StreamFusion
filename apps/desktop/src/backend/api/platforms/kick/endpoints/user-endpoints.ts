@@ -28,12 +28,54 @@ export interface KickPublicChannelUserProfile {
   followingSince?: string;
 }
 
+export interface KickChannelUserState {
+  userId: string;
+  login: string;
+  displayName: string;
+  isModerator: boolean;
+  isChannelOwner: boolean;
+  isStaff: boolean;
+  banned: unknown;
+}
+
 const kickPublicChannelUserProfileSchema = z.looseObject({
   id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
   slug: z.string().trim().min(1),
   username: z.string().trim().min(1),
   profile_pic: z.string().nullable().optional(),
   following_since: z.string().nullable().optional(),
+});
+
+const CHANNEL_USER_KEYS = [
+  "badges",
+  "badges_v2",
+  "banned",
+  "created_at",
+  "following_since",
+  "id",
+  "is_channel_owner",
+  "is_moderator",
+  "is_staff",
+  "profile_pic",
+  "slug",
+  "subscribed_for",
+  "username",
+] as const;
+
+const kickChannelUserStateSchema = z.strictObject({
+  badges: z.array(z.unknown()),
+  badges_v2: z.array(z.unknown()),
+  banned: z.unknown(),
+  created_at: z.string().trim().min(1),
+  following_since: z.string().nullable(),
+  id: z.number().int().positive(),
+  is_channel_owner: z.boolean(),
+  is_moderator: z.boolean(),
+  is_staff: z.boolean(),
+  profile_pic: z.string().nullable(),
+  slug: z.string().trim().min(1),
+  subscribed_for: z.number().int().nonnegative(),
+  username: z.string().trim().min(1),
 });
 
 /**
@@ -90,10 +132,10 @@ export async function getUsersByIdStrict(
  * are not channel owners, so this channel-scoped web endpoint is the only
  * observed no-auth profile source that includes `profile_pic`.
  */
-export async function getPublicChannelUserProfile(
+async function fetchPublicChannelUserPayload(
   channelSlug: string,
   username: string
-): Promise<KickPublicChannelUserProfile | null> {
+): Promise<unknown | null> {
   const normalizedChannelSlug = channelSlug.trim();
   const normalizedUsername = username.trim();
   if (!normalizedChannelSlug || !normalizedUsername || getPlatformHealth("kick") === "down") {
@@ -156,24 +198,7 @@ export async function getPublicChannelUserProfile(
       return null;
     }
 
-    const parsed = kickPublicChannelUserProfileSchema.safeParse(rawData);
-    if (!parsed.success) return null;
-
-    const data = parsed.data;
-    const followingSince =
-      data.following_since &&
-      ISO_TIMESTAMP_PATTERN.test(data.following_since) &&
-      Number.isFinite(Date.parse(data.following_since))
-        ? data.following_since
-        : undefined;
-
-    return {
-      userId: String(data.id),
-      username: data.slug,
-      displayName: data.username,
-      avatarUrl: data.profile_pic ?? "",
-      followingSince,
-    };
+    return rawData;
   } catch (error) {
     logger.debug("Kick:Endpoints:User", "Failed to fetch public Kick channel user profile", {
       channelSlug: normalizedChannelSlug,
@@ -190,4 +215,62 @@ export async function getPublicChannelUserProfile(
     }
     releaseSlot();
   }
+}
+
+export async function getPublicChannelUserProfile(
+  channelSlug: string,
+  username: string
+): Promise<KickPublicChannelUserProfile | null> {
+  const rawData = await fetchPublicChannelUserPayload(channelSlug, username);
+  const parsed = kickPublicChannelUserProfileSchema.safeParse(rawData);
+  if (!parsed.success) return null;
+
+  const data = parsed.data;
+  const followingSince =
+    data.following_since &&
+    ISO_TIMESTAMP_PATTERN.test(data.following_since) &&
+    Number.isFinite(Date.parse(data.following_since))
+      ? data.following_since
+      : undefined;
+
+  return {
+    userId: String(data.id),
+    username: data.slug,
+    displayName: data.username,
+    avatarUrl: data.profile_pic ?? "",
+    followingSince,
+  };
+}
+
+/**
+ * Strict legacy/internal channel-user state read used for moderation checks.
+ * The official Kick API does not expose equivalent channel-relative role and
+ * current ban state, so schema drift must fail closed.
+ */
+export async function getChannelUserState(
+  channelSlug: string,
+  username: string
+): Promise<KickChannelUserState | null> {
+  const rawData = await fetchPublicChannelUserPayload(channelSlug, username);
+  if (
+    typeof rawData !== "object" ||
+    rawData === null ||
+    Object.keys(rawData).length !== CHANNEL_USER_KEYS.length ||
+    !CHANNEL_USER_KEYS.every((key) => Object.hasOwn(rawData, key))
+  ) {
+    return null;
+  }
+
+  const parsed = kickChannelUserStateSchema.safeParse(rawData);
+  if (!parsed.success) return null;
+
+  return {
+    userId: String(parsed.data.id),
+    login: parsed.data.slug,
+    displayName: parsed.data.username,
+    isModerator: parsed.data.is_moderator,
+    isChannelOwner: parsed.data.is_channel_owner,
+    isStaff: parsed.data.is_staff,
+    banned: parsed.data.banned,
+  };
 }

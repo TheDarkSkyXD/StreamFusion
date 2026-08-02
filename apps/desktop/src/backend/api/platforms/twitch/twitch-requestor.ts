@@ -1,13 +1,13 @@
 import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
-import { getOAuthConfig, WORKER_BASE_URL } from "../../../auth/oauth-config";
+import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import type { PlatformFailureClass } from "../../unified/platform-health";
 import { recordPlatformFailure, recordPlatformSuccess } from "../../unified/platform-health";
-import type { TwitchClientError } from "./twitch-types";
+import { TWITCH_API_BASE, type TwitchClientError } from "./twitch-types";
 
 export class TwitchRequestor {
-  private readonly baseUrl = `${WORKER_BASE_URL}/twitch`;
+  private readonly baseUrl = TWITCH_API_BASE;
   private config = getOAuthConfig("twitch");
 
   constructor() {
@@ -121,10 +121,8 @@ export class TwitchRequestor {
    * Uses Electron's net module for better network compatibility
    */
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    // Only User Token is supported — App Token (Client Credentials) flow is
-    // intentionally disabled because client secrets live on the Cloudflare Worker
-    // and no /auth/twitch/app-token proxy endpoint has been created yet.
-    // Callers should use GQL-based methods for unauthenticated access.
+    // Only user tokens are supported. Public browsing continues to use the
+    // existing unauthenticated GQL path.
     const accessToken = await twitchAuthService.getValidAccessToken();
 
     if (!accessToken) {
@@ -133,10 +131,10 @@ export class TwitchRequestor {
 
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${accessToken}`,
-      // "Client-Id": this.config.clientId, // Handled by Worker Proxy
-      "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
+      Authorization: `Bearer ${accessToken}`,
+      "Client-Id": this.config.clientId,
+      "Content-Type": "application/json",
     };
 
     let lastError: Error | null = null;

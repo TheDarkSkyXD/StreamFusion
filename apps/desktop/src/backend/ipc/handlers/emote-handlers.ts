@@ -5,10 +5,15 @@ import {
   fetch7TVUserByConnection,
 } from "@/backend/services/emotes/7tv-emotes-service";
 import {
+  fetchBTTVBadges,
   fetchBTTVGlobalEmotes,
   fetchBTTVUserByTwitchId,
 } from "@/backend/services/emotes/bttv-emotes-service";
-import { fetchFFZGlobalEmotes, fetchFFZRoom } from "@/backend/services/emotes/ffz-emotes-service";
+import {
+  fetchFFZBadges,
+  fetchFFZGlobalEmotes,
+  fetchFFZRoom,
+} from "@/backend/services/emotes/ffz-emotes-service";
 import { fetchKickChannelEmotes } from "@/backend/services/emotes/kick-channel-emotes-service";
 import { fetchKickUserSubscriptions } from "@/backend/services/emotes/kick-user-subscriptions-service";
 import { IPC_CHANNELS, type IpcPayloads } from "@/shared/ipc-channels";
@@ -28,6 +33,10 @@ export function registerEmoteHandlers(): void {
     return fetch7TVGlobalEmoteSet();
   });
 
+  ipcMain.handle(IPC_CHANNELS.EMOTES_BTTV_GET_BADGES, async () => {
+    return fetchBTTVBadges();
+  });
+
   ipcMain.handle(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL, async () => {
     return fetchBTTVGlobalEmotes();
   });
@@ -41,6 +50,10 @@ export function registerEmoteHandlers(): void {
       return fetchBTTVUserByTwitchId(channelId);
     }
   );
+
+  ipcMain.handle(IPC_CHANNELS.EMOTES_FFZ_GET_BADGES, async () => {
+    return fetchFFZBadges();
+  });
 
   ipcMain.handle(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL, async () => {
     return fetchFFZGlobalEmotes();

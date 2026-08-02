@@ -23,15 +23,19 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// Guards: Kick VODs expose a public share URL only when the API supplies a canonical slug
+// Guards: malformed and unavailable Kick VOD responses fail closed without exposing deleted content
+// Guards: last-live fallback uses only source-backed timestamps from completed Kick VODs.
 describe("video-endpoints — getVideosByChannelSlug", () => {
   let getVideosByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug;
+  let getLatestCompletedVideoStartedAtByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getLatestCompletedVideoStartedAtByChannelSlug;
 
   beforeEach(async () => {
     vi.resetModules();
     mockNetFetch.mockReset();
     // Default: return empty array
     mockNetFetch.mockResolvedValue(jsonResponse([]));
-    ({ getVideosByChannelSlug } = await import(
+    ({ getVideosByChannelSlug, getLatestCompletedVideoStartedAtByChannelSlug } = await import(
       "@/backend/api/platforms/kick/endpoints/video-endpoints"
     ));
   });
@@ -76,6 +80,7 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
     expect(result.data[0].id).toBe("100");
     expect(result.data[0].uuid).toBe("uuid-abc");
     expect(result.data[0].slug).toBe("video-slug-1");
+    expect(result.data[0].shareUrl).toBe("https://kick.com/video/video-slug-1");
     expect(result.data[0].title).toBe("Stream Title");
     expect(result.data[0].duration).toBe("2:00:00");
     expect(result.data[0].views).toBe("5000");
@@ -87,6 +92,66 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
     expect(result.data[0].channelName).toBe("Streamer");
     expect(result.data[0].category).toBe("Just Chatting");
     expect(result.cursor).toBe("next-cursor-value");
+  });
+
+  it("returns the newest source-backed start time from a completed video", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 90,
+          session_title: "Currently live",
+          duration: 0,
+          source: "https://example.com/live.m3u8",
+          is_live: true,
+          created_at: "2026-08-02T16:00:00Z",
+        },
+        {
+          id: 80,
+          session_title: "Newest completed",
+          duration: 7_200_000,
+          source: "https://example.com/newest.m3u8",
+          is_live: false,
+          created_at: "2026-08-01T15:30:00Z",
+        },
+        {
+          id: 70,
+          session_title: "Missing timestamp",
+          duration: 3_600_000,
+          source: "https://example.com/missing.m3u8",
+          is_live: false,
+        },
+        {
+          id: 60,
+          session_title: "Older completed",
+          duration: 3_600_000,
+          source: "https://example.com/older.m3u8",
+          is_live: false,
+          created_at: "2026-07-30T12:00:00Z",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoStartedAtByChannelSlug("offline-streamer");
+
+    expect(result).toBe("2026-08-01T15:30:00Z");
+  });
+
+  it("treats a source-backed VOD with no is_live field as completed", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 81,
+          session_title: "Completed VOD without an is_live flag",
+          duration: 5_400_000,
+          source: "https://example.com/completed.m3u8",
+          created_at: "2026-08-01T18:00:00Z",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoStartedAtByChannelSlug("offline-streamer");
+
+    expect(result).toBe("2026-08-01T18:00:00Z");
   });
 
   it("handles raw array response (V2 format) and computes cursor from video count", async () => {
@@ -118,6 +183,7 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
     });
 
     expect(result.data).toHaveLength(2);
+    expect(result.data[0].shareUrl).toBeUndefined();
     expect(result.cursor).toBe("12");
   });
 

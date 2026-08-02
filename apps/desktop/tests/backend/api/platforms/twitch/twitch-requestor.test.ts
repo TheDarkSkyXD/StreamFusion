@@ -28,7 +28,6 @@ vi.mock("@/backend/auth/twitch-auth", () => ({
 }));
 
 vi.mock("@/backend/auth/oauth-config", () => ({
-  WORKER_BASE_URL: "https://worker.test",
   getOAuthConfig: () => ({ clientId: "test-client-id" }),
 }));
 
@@ -53,6 +52,7 @@ function spyNetRequest(
   return vi.spyOn(requestor as any, "netRequest").mockImplementation(impl);
 }
 
+// Guards: authenticated Helix calls go directly from Electron main to Twitch with main-owned credentials.
 describe("TwitchRequestor", () => {
   let requestor: TwitchRequestor;
 
@@ -68,7 +68,7 @@ describe("TwitchRequestor", () => {
   });
 
   describe("request", () => {
-    it("makes authenticated request with correct URL prefix", async () => {
+    it("calls Twitch Helix directly with main-owned credentials", async () => {
       const spy = spyNetRequest(requestor, async (url: unknown) => ({
         data: { ok: true },
         status: 200,
@@ -79,10 +79,30 @@ describe("TwitchRequestor", () => {
 
       expect(spy).toHaveBeenCalledTimes(1);
       const [url, opts] = spy.mock.calls[0] as [string, { headers: Record<string, string> }];
-      expect(url).toContain("/twitch/streams");
+      expect(url).toBe("https://api.twitch.tv/helix/streams");
       expect(opts.headers.Authorization).toBe("Bearer test-token");
+      expect(opts.headers["Client-Id"]).toBe("test-client-id");
       expect(opts.headers["Content-Type"]).toBe("application/json");
       expect(result).toEqual({ ok: true });
+    });
+
+    it("does not allow request options to override main-owned Twitch credentials", async () => {
+      const spy = spyNetRequest(requestor, async () => ({
+        data: { ok: true },
+        status: 200,
+        headers: {},
+      }));
+
+      await requestor.request("/streams", {
+        headers: {
+          Authorization: "Bearer renderer-token",
+          "Client-Id": "renderer-client-id",
+        },
+      });
+
+      const [, opts] = spy.mock.calls[0] as [string, { headers: Record<string, string> }];
+      expect(opts.headers.Authorization).toBe("Bearer test-token");
+      expect(opts.headers["Client-Id"]).toBe("test-client-id");
     });
 
     it("throws when not authenticated", async () => {

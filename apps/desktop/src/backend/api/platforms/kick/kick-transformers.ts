@@ -19,9 +19,14 @@ import type {
   KickApiChannel,
   KickApiLivestream,
   KickApiUser,
+  KickApiUserLivestream,
   KickLegacyApiClip,
   KickLegacyApiFollowedChannel,
 } from "./kick-types";
+import {
+  firstValidKickBroadcasterUserId,
+  getKickBroadcasterUserIdFromAvatar,
+} from "@/lib/kick-channel-identity";
 
 /**
  * Transform official Kick API user to unified user
@@ -117,6 +122,32 @@ export function transformKickLivestream(livestream: KickApiLivestream): UnifiedS
 }
 
 /**
+ * Transform the current bulk user-livestream response into a unified stream.
+ * Endpoint: GET /public/v1/users/livestreams
+ */
+export function transformKickUserLivestream(livestream: KickApiUserLivestream): UnifiedStream {
+  return {
+    id: livestream.id,
+    platform: "kick",
+    channelId: livestream.broadcaster_user.id.toString(),
+    channelName: livestream.channel.slug,
+    channelDisplayName: livestream.broadcaster_user.username || livestream.channel.slug,
+    channelAvatar: livestream.broadcaster_user.profile_picture || "",
+    channelIsVerified: false,
+    title: livestream.title,
+    viewerCount: livestream.viewer_count,
+    thumbnailUrl: livestream.thumbnail || "",
+    isLive: true,
+    startedAt: normalizeKickDate(livestream.started_at),
+    language: livestream.language_code,
+    tags: livestream.tags || [],
+    isMature: livestream.has_mature_content,
+    categoryId: livestream.category.id.toString(),
+    categoryName: livestream.category.name,
+  };
+}
+
+/**
  * Transform official Kick API category to unified category
  * Endpoint: GET /public/v1/categories
  */
@@ -161,13 +192,18 @@ function transformKickFollow(channel: KickApiChannel, followedAt?: string): Unif
 export function transformKickFollowedChannelLegacy(
   item: KickLegacyApiFollowedChannel
 ): UnifiedChannel | null {
-  const channelId = item.id;
+  const avatarUrl = item.user?.profile_pic ?? item.profile_pic ?? "";
+  const broadcasterUserId = firstValidKickBroadcasterUserId(
+    item.user_id,
+    item.user?.id,
+    getKickBroadcasterUserIdFromAvatar(avatarUrl)
+  );
+  const channelId = broadcasterUserId ?? item.id;
   const slug = item.slug;
   if (channelId == null && !slug) return null;
 
   const displayName =
     item.user?.username ?? item.username ?? slug ?? (channelId != null ? String(channelId) : "");
-  const avatarUrl = item.user?.profile_pic ?? item.profile_pic ?? "";
   const isLive = item.livestream?.is_live ?? item.is_live ?? false;
 
   return {
@@ -181,6 +217,7 @@ export function transformKickFollowedChannelLegacy(
     isLive,
     isVerified: false,
     isPartner: false,
+    kickUserId: broadcasterUserId ?? undefined,
   };
 }
 
@@ -189,6 +226,7 @@ export function transformKickFollowedChannelLegacy(
  * Note: Clips are NOT in the official API, this uses legacy undocumented API format
  */
 function transformKickClip(clip: KickLegacyApiClip): UnifiedClip {
+  const publicClipUrl = `https://kick.com/${encodeURIComponent(clip.channel.slug)}/clips/${encodeURIComponent(clip.id)}`;
   return {
     id: clip.id,
     platform: "kick",
@@ -198,7 +236,8 @@ function transformKickClip(clip: KickLegacyApiClip): UnifiedClip {
     channelAvatar: clip.channel.profile_pic || "",
     title: clip.title,
     thumbnailUrl: clip.thumbnail_url,
-    clipUrl: clip.clip_url,
+    clipUrl: publicClipUrl,
+    shareUrl: publicClipUrl,
     embedUrl: clip.video_url,
     duration: clip.duration,
     viewCount: clip.view_count,

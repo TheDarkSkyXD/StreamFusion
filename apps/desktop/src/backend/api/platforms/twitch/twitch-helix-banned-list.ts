@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * Twitch Helix — Single-channel banned-user list.
  *
@@ -32,6 +34,8 @@ export interface GetBannedUsersArgs {
   moderatorUserId: string;
   clientId: string;
   cursor?: string;
+  /** Exact banned user to query. Twitch names this filter `user_id`. */
+  userId?: string;
   /** Page size, 1..100. Defaults to 100. */
   first?: number;
   /** Test seam — defaults to `globalThis.fetch`. */
@@ -49,6 +53,23 @@ export type GetBannedUsersError =
   | { kind: "not-found" }
   | { kind: "rate-limited" }
   | { kind: "network"; message: string };
+
+const bannedUserEntrySchema = z.object({
+  user_id: z.string().min(1),
+  user_login: z.string().min(1),
+  user_name: z.string().min(1),
+  expires_at: z.union([z.literal(""), z.iso.datetime({ offset: true })]),
+  created_at: z.iso.datetime({ offset: true }),
+  reason: z.string(),
+  moderator_id: z.string().min(1),
+  moderator_login: z.string().min(1),
+  moderator_name: z.string().min(1),
+});
+
+const helixBannedResponseSchema = z.object({
+  data: z.array(bannedUserEntrySchema),
+  pagination: z.object({ cursor: z.string().min(1).optional() }).optional(),
+});
 
 interface HelixBannedResponse {
   data?: BannedUserEntry[];
@@ -70,6 +91,7 @@ export async function getBannedUsers(args: GetBannedUsersArgs): Promise<GetBanne
   const params = new URLSearchParams();
   params.set("broadcaster_id", args.broadcasterId);
   params.set("first", String(first));
+  if (args.userId) params.set("user_id", args.userId);
   if (args.cursor) params.set("after", args.cursor);
 
   const url = `${HELIX_BASE}/moderation/banned?${params.toString()}`;
@@ -102,14 +124,28 @@ export async function getBannedUsers(args: GetBannedUsersArgs): Promise<GetBanne
     });
   }
 
-  let body: HelixBannedResponse;
+  let body: unknown;
   try {
-    body = (await res.json()) as HelixBannedResponse;
+    body = await res.json();
   } catch {
     body = {};
   }
+  if (args.userId) {
+    const parsed = helixBannedResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BannedUsersFetchError({
+        kind: "network",
+        message: "Malformed Twitch banned-users response",
+      });
+    }
+    return {
+      data: parsed.data.data,
+      cursor: parsed.data.pagination?.cursor ?? null,
+    };
+  }
+  const legacyBody = body as HelixBannedResponse;
   return {
-    data: body.data ?? [],
-    cursor: body.pagination?.cursor ?? null,
+    data: legacyBody.data ?? [],
+    cursor: legacyBody.pagination?.cursor ?? null,
   };
 }

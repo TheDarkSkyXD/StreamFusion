@@ -49,26 +49,31 @@ export async function getClipsByChannelSlug(
     // there's more upstream.
     const clips = data.clips || [];
     const nextCursor = data.nextCursor ?? undefined;
+    const publicChannelPath = encodeURIComponent(slug);
 
     return {
-      data: clips.map((c: KickLegacyApiClip) => ({
-        id: c.id,
-        title: c.title,
-        duration: formatDuration(c.duration),
-        views: c.views?.toString() || c.view_count?.toString() || "0",
-        date: new Date(c.created_at).toLocaleDateString(),
-        created_at: c.created_at, // Raw ISO date for time range filtering
-        creatorName: c.creator?.username || c.creator?.slug || "",
-        embedUrl: c.video_url, // Actual video file URL for playback
-        url: c.clip_url, // Clip page URL on Kick website
-        gameName: c.category?.name || "Unknown",
-        isLive: false, // Clips aren't live
-        thumbnailUrl: c.thumbnail_url,
-        // VOD availability - livestream_id links to the full VOD
-        vodId: c.livestream_id || "",
-        // Channel info for VOD lookup
-        channelSlug: c.channel?.slug || "",
-      })),
+      data: clips.map((c: KickLegacyApiClip) => {
+        const publicClipUrl = `https://kick.com/${publicChannelPath}/clips/${encodeURIComponent(c.id)}`;
+        return {
+          id: c.id,
+          title: c.title,
+          duration: formatDuration(c.duration),
+          views: c.views?.toString() || c.view_count?.toString() || "0",
+          date: new Date(c.created_at).toLocaleDateString(),
+          created_at: c.created_at, // Raw ISO date for time range filtering
+          creatorName: c.creator?.username || c.creator?.slug || "",
+          embedUrl: c.video_url, // Actual video file URL for playback
+          url: publicClipUrl,
+          shareUrl: publicClipUrl,
+          gameName: c.category?.name || "Unknown",
+          isLive: false, // Clips aren't live
+          thumbnailUrl: c.thumbnail_url,
+          // VOD availability - livestream_id links to the full VOD
+          vodId: c.livestream_id || "",
+          // Channel info for VOD lookup
+          channelSlug: c.channel?.slug || "",
+        };
+      }),
       cursor: nextCursor?.toString(),
     };
   } catch (_error) {

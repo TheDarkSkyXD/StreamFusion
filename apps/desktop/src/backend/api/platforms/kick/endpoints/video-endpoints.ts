@@ -116,6 +116,7 @@ export async function getVideosByChannelSlug(
           // A VOD without a source URL is subscriber-only content
           const hasSource = Boolean(v.source);
           const isSubOnly = !hasSource && !v.is_live;
+          const sourceCreatedAt = normalizeKickDate(v.created_at || v.start_time) || undefined;
 
           return {
             id: v.id.toString(),
@@ -124,8 +125,12 @@ export async function getVideosByChannelSlug(
             title: v.session_title || v.title || `Stream ${v.id}`,
             duration: v.duration ? formatDuration(v.duration) : "0:00",
             views: (v.views || v.view_count || "0").toString(),
-            date: normalizeKickDate(v.created_at || v.start_time) || new Date().toISOString(),
-            created_at: normalizeKickDate(v.created_at || v.start_time) || new Date().toISOString(),
+            date: sourceCreatedAt || new Date().toISOString(),
+            created_at: sourceCreatedAt || new Date().toISOString(),
+            // Unlike `date`/`created_at`, this never receives the UI's
+            // current-time fallback. Channel last-live metadata may only use
+            // a timestamp that was actually present in Kick's VOD response.
+            sourceCreatedAt,
             thumbnailUrl:
               v.thumbnail?.src ||
               v.thumbnail?.url ||
@@ -135,6 +140,7 @@ export async function getVideosByChannelSlug(
               "",
             source: v.source || "", // Direct HLS m3u8 URL - this is the most reliable way to play VODs
             url: v.source || `https://kick.com/video/${v.slug}`,
+            shareUrl: v.slug ? `https://kick.com/video/${v.slug}` : undefined,
             platform: "kick",
             isLive: v.is_live,
             isSubOnly, // Flag for subscriber-only VODs
@@ -166,6 +172,35 @@ export async function getVideosByChannelSlug(
     });
     return { data: [] };
   }
+}
+
+/**
+ * Find the newest trustworthy stream start among completed Kick VODs.
+ *
+ * Kick's legacy VOD `created_at` is the stream start. A recently finalized
+ * VOD can briefly retain `is_live=true`, so the same completion rule used by
+ * VideoCard also accepts a non-zero-duration row with a playback source.
+ */
+export async function getLatestCompletedVideoStartedAtByChannelSlug(
+  slug: string
+): Promise<string | undefined> {
+  const videos = await getVideosByChannelSlug(slug, { limit: 20, sort: "date" });
+  let latest: { value: string; time: number } | undefined;
+
+  for (const video of videos.data || []) {
+    const isCompleted =
+      video.isLive !== true || (Boolean(video.source) && video.duration !== "0:00");
+    if (!isCompleted || typeof video.sourceCreatedAt !== "string") continue;
+
+    const time = Date.parse(video.sourceCreatedAt);
+    if (!Number.isFinite(time)) continue;
+
+    if (!latest || time > latest.time) {
+      latest = { value: video.sourceCreatedAt, time };
+    }
+  }
+
+  return latest?.value;
 }
 
 function formatDuration(ms: number): string {

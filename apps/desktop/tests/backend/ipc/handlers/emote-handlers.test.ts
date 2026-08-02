@@ -14,8 +14,10 @@ vi.mock("electron", () => ({
 const serviceMock = vi.hoisted(() => ({
   fetch7TVUserByConnection: vi.fn(),
   fetch7TVGlobalEmoteSet: vi.fn(),
+  fetchBTTVBadges: vi.fn(),
   fetchBTTVGlobalEmotes: vi.fn(),
   fetchBTTVUserByTwitchId: vi.fn(),
+  fetchFFZBadges: vi.fn(),
   fetchFFZGlobalEmotes: vi.fn(),
   fetchFFZRoom: vi.fn(),
   fetchKickChannelEmotes: vi.fn(),
@@ -27,10 +29,12 @@ vi.mock("@/backend/services/emotes/7tv-emotes-service", () => ({
   fetch7TVGlobalEmoteSet: serviceMock.fetch7TVGlobalEmoteSet,
 }));
 vi.mock("@/backend/services/emotes/bttv-emotes-service", () => ({
+  fetchBTTVBadges: serviceMock.fetchBTTVBadges,
   fetchBTTVGlobalEmotes: serviceMock.fetchBTTVGlobalEmotes,
   fetchBTTVUserByTwitchId: serviceMock.fetchBTTVUserByTwitchId,
 }));
 vi.mock("@/backend/services/emotes/ffz-emotes-service", () => ({
+  fetchFFZBadges: serviceMock.fetchFFZBadges,
   fetchFFZGlobalEmotes: serviceMock.fetchFFZGlobalEmotes,
   fetchFFZRoom: serviceMock.fetchFFZRoom,
 }));
@@ -55,8 +59,10 @@ describe("registerEmoteHandlers", () => {
     ipcMock.handle.mockReset();
     serviceMock.fetch7TVUserByConnection.mockReset();
     serviceMock.fetch7TVGlobalEmoteSet.mockReset();
+    serviceMock.fetchBTTVBadges.mockReset();
     serviceMock.fetchBTTVGlobalEmotes.mockReset();
     serviceMock.fetchBTTVUserByTwitchId.mockReset();
+    serviceMock.fetchFFZBadges.mockReset();
     serviceMock.fetchFFZGlobalEmotes.mockReset();
     serviceMock.fetchFFZRoom.mockReset();
     serviceMock.fetchKickChannelEmotes.mockReset();
@@ -124,6 +130,22 @@ describe("registerEmoteHandlers", () => {
     expect(result).toBeNull();
   });
 
+  it("forwards the BTTV badge catalog without transforming it", async () => {
+    const badges = [
+      {
+        providerId: "user123",
+        badge: { description: "BTTV Developer", svg: "https://cdn.example/badge.svg" },
+      },
+    ];
+    serviceMock.fetchBTTVBadges.mockResolvedValue(badges);
+    const handler = captureHandler(IPC_CHANNELS.EMOTES_BTTV_GET_BADGES);
+
+    const result = await handler({}, undefined);
+
+    expect(serviceMock.fetchBTTVBadges).toHaveBeenCalledOnce();
+    expect(result).toEqual(badges);
+  });
+
   it("forwards FFZ room with the original {name, channelId} opts", async () => {
     const room = { room: { _id: 1 }, sets: {} };
     serviceMock.fetchFFZRoom.mockResolvedValue(room);
@@ -133,6 +155,20 @@ describe("registerEmoteHandlers", () => {
 
     expect(serviceMock.fetchFFZRoom).toHaveBeenCalledWith({ name: "xqc" });
     expect(result).toEqual(room);
+  });
+
+  it("forwards the FFZ badge catalog without transforming it", async () => {
+    const catalog = {
+      badges: [{ id: 1, title: "FFZ Developer", color: "#ff0000", urls: { "1": "one" } }],
+      users: { "1": ["11111"] },
+    };
+    serviceMock.fetchFFZBadges.mockResolvedValue(catalog);
+    const handler = captureHandler(IPC_CHANNELS.EMOTES_FFZ_GET_BADGES);
+
+    const result = await handler({}, undefined);
+
+    expect(serviceMock.fetchFFZBadges).toHaveBeenCalledOnce();
+    expect(result).toEqual(catalog);
   });
 
   it("forwards Kick channel-emote lookup and passes the null sentinel through", async () => {

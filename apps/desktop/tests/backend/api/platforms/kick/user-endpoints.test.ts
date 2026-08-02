@@ -37,6 +37,7 @@ vi.mock("@/backend/api/unified/platform-health", () => ({
 }));
 
 import {
+  getChannelUserState,
   getPublicChannelUserProfile,
   getUser,
   getUsersById,
@@ -211,6 +212,66 @@ describe("user-endpoints", () => {
       await expect(getPublicChannelUserProfile("streamer", "alice")).resolves.toMatchObject({
         followingSince: "2024-05-01T12:30:00Z",
       });
+    });
+  });
+
+  describe("getChannelUserState", () => {
+    it("returns normalized moderation state from the exact captured channel-user contract", async () => {
+      electronMocks.executeJavaScript.mockResolvedValue(
+        JSON.stringify({
+          badges: [],
+          badges_v2: [],
+          banned: null,
+          created_at: "2013-06-01T12:30:00Z",
+          following_since: "2020-01-01T00:00:00Z",
+          id: 123,
+          is_channel_owner: false,
+          is_moderator: true,
+          is_staff: false,
+          profile_pic: "https://files.kick.com/alice.webp",
+          slug: "alice",
+          subscribed_for: 0,
+          username: "Alice",
+        })
+      );
+
+      await expect(getChannelUserState("streamer", "alice")).resolves.toEqual({
+        userId: "123",
+        login: "alice",
+        displayName: "Alice",
+        isModerator: true,
+        isChannelOwner: false,
+        isStaff: false,
+        banned: null,
+      });
+    });
+
+    it("rejects missing, extra, and failed channel-user payloads", async () => {
+      const captured = {
+        badges: [],
+        badges_v2: [],
+        banned: null,
+        created_at: "2013-06-01T12:30:00Z",
+        following_since: null,
+        id: 123,
+        is_channel_owner: false,
+        is_moderator: false,
+        is_staff: false,
+        profile_pic: null,
+        slug: "alice",
+        subscribed_for: 0,
+        username: "Alice",
+      };
+      const { badges_v2: _missing, ...missingKey } = captured;
+
+      electronMocks.executeJavaScript
+        .mockResolvedValueOnce(JSON.stringify(missingKey))
+        .mockResolvedValueOnce(JSON.stringify({ ...captured, unexpected: true }))
+        .mockRejectedValueOnce(new Error("Kick unavailable"));
+
+      await expect(getChannelUserState("streamer", "alice")).resolves.toBeNull();
+      await expect(getChannelUserState("streamer", "alice")).resolves.toBeNull();
+      await expect(getChannelUserState("streamer", "alice")).resolves.toBeNull();
     });
   });
 });

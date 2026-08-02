@@ -46,11 +46,36 @@ afterEach(() => {
 const CTX = { accessToken: "tok-1", clientId: "test-client-id", broadcasterId: "111" };
 
 describe("getModerators", () => {
+  // Guards: exact moderator checks must use Twitch's user_id filter and a one-entry page.
+  it("filters the moderator roster by the exact target user id", async () => {
+    await getModerators({ ...CTX, userId: "target-300" });
+
+    expect(lastUrl).toBe(
+      "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=111&user_id=target-300&first=1"
+    );
+  });
+
+  // Guards: malformed exact-user moderator payloads must not collapse to an authoritative empty roster.
+  it("rejects a malformed exact-user moderator response", async () => {
+    nextResponse = {
+      status: 200,
+      body: { data: [{ user_id: "target-300", user_login: 42, user_name: "Viewer" }] },
+    };
+
+    const result = await getModerators({ ...CTX, userId: "target-300" });
+
+    expect(result).toEqual({
+      ok: false,
+      kind: "network",
+      message: "Malformed Twitch moderators response",
+    });
+  });
+
   it("GETs /moderation/moderators?broadcaster_id=&first=100", async () => {
     await getModerators(CTX);
     expect(lastMethod).toBe("GET");
     expect(lastUrl).toBe(
-      "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=111&first=100",
+      "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=111&first=100"
     );
     expect(lastBody).toBeNull();
   });
@@ -65,9 +90,7 @@ describe("getModerators", () => {
     };
     const result = await getModerators(CTX);
     if (!result.ok) throw new Error("expected ok");
-    expect(result.payload.data).toEqual([
-      { user_id: "u1", user_login: "mod1", user_name: "Mod1" },
-    ]);
+    expect(result.payload.data).toEqual([{ user_id: "u1", user_login: "mod1", user_name: "Mod1" }]);
     expect(result.payload.pagination.cursor).toBe("abc");
   });
 
@@ -103,9 +126,7 @@ describe("getVips", () => {
   it("GETs /channels/vips?broadcaster_id=&first=100", async () => {
     await getVips(CTX);
     expect(lastMethod).toBe("GET");
-    expect(lastUrl).toBe(
-      "https://api.twitch.tv/helix/channels/vips?broadcaster_id=111&first=100",
-    );
+    expect(lastUrl).toBe("https://api.twitch.tv/helix/channels/vips?broadcaster_id=111&first=100");
   });
 
   it("returns parsed data on 200", async () => {

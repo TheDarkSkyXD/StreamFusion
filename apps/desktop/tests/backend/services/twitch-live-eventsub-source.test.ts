@@ -138,7 +138,7 @@ function createSource(
   return { source, deps, ...eventSub };
 }
 
-// Guards: Twitch EventSub live source must dispatch authenticated stream.online/offline events while preserving polling as the fallback path when subscriptions fail or auth disappears.
+// Guards: Twitch EventSub live source must dispatch authenticated stream.online/offline events while preserving polling as the fallback path when subscriptions fail, auth disappears, or the cost budget cannot cover the follow list.
 describe("TwitchLiveEventSubSource", () => {
   it("subscribes authenticated Twitch follows to stream online and offline events", () => {
     const { source, deps, client } = createSource({
@@ -225,5 +225,28 @@ describe("TwitchLiveEventSubSource", () => {
     expect(deps.onCoverageDegraded).toHaveBeenCalledWith(
       expect.objectContaining({ platform: "twitch", reason: "subscription-failed" })
     );
+  });
+
+  it("does not create an impossible EventSub request storm when follows exceed Twitch's cost budget", () => {
+    const follows = Array.from({ length: 6 }, (_, index) =>
+      follow({
+        id: `follow-${index}`,
+        channelId: String(index + 1),
+        channelName: `channel-${index}`,
+      })
+    );
+    const { source, deps, client } = createSource({ follows });
+
+    source.sync();
+    source.sync();
+
+    expect(deps.getEventSubClient).not.toHaveBeenCalled();
+    expect(client.subscribe).not.toHaveBeenCalled();
+    expect(deps.onCoverageDegraded).toHaveBeenCalledOnce();
+    expect(deps.onCoverageDegraded).toHaveBeenCalledWith({
+      platform: "twitch",
+      reason: "subscription-limit",
+      message: expect.stringContaining("polling"),
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   BannedUsersFetchError,
@@ -40,6 +40,56 @@ const BANNED_USER = {
 };
 
 describe("getBannedUsers", () => {
+  // Guards: exact-user moderation reads must send Twitch's user_id filter so an empty result is authoritative for only that target.
+  it("filters the Helix request by the exact target user id", async () => {
+    const spy = makeFetch({ status: 200, body: { data: [] } });
+
+    await getBannedUsers({ ...BASE_ARGS, userId: "target-300", fetchImpl: spy });
+
+    const url = new URL((spy as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
+    expect(url.searchParams.get("broadcaster_id")).toBe("111");
+    expect(url.searchParams.get("user_id")).toBe("target-300");
+  });
+
+  // Guards: malformed exact-user Helix payloads must not collapse to an authoritative empty result.
+  it("rejects a malformed entry returned by an exact-user query", async () => {
+    await expect(
+      getBannedUsers({
+        ...BASE_ARGS,
+        userId: "u1",
+        fetchImpl: makeFetch({
+          status: 200,
+          body: { data: [{ ...BANNED_USER, user_login: 42 }] },
+        }),
+      })
+    ).rejects.toMatchObject({
+      info: { kind: "network", message: "Malformed Twitch banned-users response" },
+    });
+  });
+
+  // Guards: the Zod 4 ISO schema must continue accepting Twitch timestamps with numeric timezone offsets.
+  it("accepts exact-user timestamps with numeric timezone offsets", async () => {
+    const result = await getBannedUsers({
+      ...BASE_ARGS,
+      userId: "u1",
+      fetchImpl: makeFetch({
+        status: 200,
+        body: {
+          data: [
+            {
+              ...BANNED_USER,
+              created_at: "2026-01-01T02:00:00+02:00",
+              expires_at: "2026-01-01T02:10:00+02:00",
+            },
+          ],
+        },
+      }),
+    });
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].expires_at).toBe("2026-01-01T02:10:00+02:00");
+  });
+
   it("returns data and cursor on success", async () => {
     const result = await getBannedUsers({
       ...BASE_ARGS,

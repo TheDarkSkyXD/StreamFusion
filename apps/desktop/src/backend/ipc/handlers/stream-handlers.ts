@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
+import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
@@ -437,12 +438,17 @@ export function registerStreamHandlers(): void {
         }
 
         if (!params.platform) {
-          const allStreams = results.flatMap((r) => r.data);
+          const allStreams = dedupeStreamsByChannelIdentity(results.flatMap((r) => r.data));
           allStreams.sort((a, b) => b.viewerCount - a.viewerCount);
           return { success: true, data: allStreams };
         }
 
-        return { success: true, ...(results[0] || { data: [] }) };
+        const result = results[0];
+        return {
+          success: true,
+          ...(result || {}),
+          data: dedupeStreamsByChannelIdentity(result?.data || []),
+        };
       } catch (error) {
         logger.error("IPC:Stream", "Failed to get followed streams", {
           error:

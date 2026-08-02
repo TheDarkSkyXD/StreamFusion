@@ -14,7 +14,7 @@ import type { LiveNotificationObservation } from "./live-notification-service";
 
 export interface TwitchLiveEventSubCoverageIssue {
   platform: "twitch";
-  reason: "subscription-failed" | "connection-error";
+  reason: "subscription-failed" | "subscription-limit" | "connection-error";
   channelId?: string;
   message?: string;
 }
@@ -37,11 +37,18 @@ interface LiveEventSubSubscription {
   unsubscribeOffline: () => void;
 }
 
+// Twitch caps total EventSub cost at 10 per client-ID/user tuple.
+// `stream.online` and `stream.offline` normally cost 1 each when a followed
+// broadcaster has not authorized this app, so more than five channels cannot
+// be covered safely. Large lists stay on the batched polling source.
+const MAX_UNAUTHORIZED_FOLLOW_CHANNELS = 5;
+
 export class TwitchLiveEventSubSource {
   private client: TwitchEventSubClient | null = null;
   private clientKey: string | null = null;
   private connectionCleanup: (() => void) | null = null;
   private readonly subscriptions = new Map<string, LiveEventSubSubscription>();
+  private costLimitReported = false;
 
   constructor(private readonly deps: TwitchLiveEventSubSourceDeps) {}
 
@@ -49,9 +56,39 @@ export class TwitchLiveEventSubSource {
     const token = this.deps.getToken();
     const user = this.deps.getUser();
     if (!token?.accessToken || !user?.id) {
+      this.costLimitReported = false;
       this.teardown();
       return;
     }
+
+    const desiredFollows: LocalFollow[] = [];
+    const seenChannelIds = new Set<string>();
+    for (const follow of this.deps.getFollows()) {
+      if (
+        follow.platform !== "twitch" ||
+        follow.source !== "twitch" ||
+        !follow.channelId ||
+        seenChannelIds.has(follow.channelId)
+      ) {
+        continue;
+      }
+      seenChannelIds.add(follow.channelId);
+      desiredFollows.push(follow);
+    }
+
+    if (desiredFollows.length > MAX_UNAUTHORIZED_FOLLOW_CHANNELS) {
+      this.teardown();
+      if (!this.costLimitReported) {
+        this.costLimitReported = true;
+        this.deps.onCoverageDegraded?.({
+          platform: "twitch",
+          reason: "subscription-limit",
+          message: `Twitch EventSub cannot cover ${desiredFollows.length} followed channels within its cost budget; batched polling remains active.`,
+        });
+      }
+      return;
+    }
+    this.costLimitReported = false;
 
     const clientId = this.deps.getClientId?.() ?? null;
     const nextClientKey = `${token.accessToken}:${user.id}:${clientId ?? ""}`;
@@ -77,9 +114,6 @@ export class TwitchLiveEventSubSource {
       });
     }
 
-    const desiredFollows = this.deps
-      .getFollows()
-      .filter((follow) => follow.platform === "twitch" && follow.source === "twitch");
     const desiredChannelIds = new Set(desiredFollows.map((follow) => follow.channelId));
 
     for (const [channelId, subscription] of this.subscriptions) {

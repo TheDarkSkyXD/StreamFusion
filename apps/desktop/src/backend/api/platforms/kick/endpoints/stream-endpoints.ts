@@ -9,15 +9,20 @@ import {
   recordPlatformLocalNetError,
   recordPlatformSuccess,
 } from "../../../unified/platform-health";
-import type { UnifiedStream } from "../../../unified/platform-types";
+import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-types";
 import { acquireKickRequestSlot } from "../kick-network-health";
 import { rememberKickLivePlaybackFromChannelPayload } from "../kick-playback-cache";
 import type { KickRequestor } from "../kick-requestor";
-import { normalizeKickDate, transformKickLivestream } from "../kick-transformers";
+import {
+  normalizeKickDate,
+  transformKickLivestream,
+  transformKickUserLivestream,
+} from "../kick-transformers";
 import {
   KICK_LEGACY_API_V1_BASE,
   type KickApiLivestream,
   type KickApiResponse,
+  type KickApiUserLivestream,
   type PaginatedResult,
   type PaginationOptions,
 } from "../kick-types";
@@ -187,6 +192,27 @@ function isKickChannelVerified(data: any): boolean {
     data?.streamer?.user?.is_verified ??
     false
   );
+}
+
+function createOfflineStreamEvidence(channel: UnifiedChannel): UnifiedStream {
+  return {
+    id: `offline:${channel.id}`,
+    platform: "kick",
+    channelId: channel.id,
+    channelName: channel.username,
+    channelDisplayName: channel.displayName,
+    channelAvatar: channel.avatarUrl,
+    channelIsVerified: channel.isVerified || channel.isPartner,
+    title: channel.lastStreamTitle || "",
+    viewerCount: 0,
+    thumbnailUrl: "",
+    isLive: false,
+    startedAt: null,
+    language: "en",
+    tags: [],
+    categoryId: channel.categoryId,
+    categoryName: channel.categoryName,
+  };
 }
 
 // In-flight dedupe: concurrent callers (sidebar refetch + hover prefetch + page
@@ -642,7 +668,7 @@ export async function getStreamBySlug(
         });
       }
     } else if (channel) {
-      return null;
+      return createOfflineStreamEvidence(channel);
     }
   } catch (e) {
     logger.warn("Kick:Endpoints:Stream", "Official stream API failed; trying legacy", {
@@ -675,7 +701,11 @@ export async function getStreamBySlug(
 
 /**
  * Get live streams by stable Kick broadcaster user IDs.
- * https://docs.kick.com/apis/livestreams - GET /public/v1/livestreams?broadcaster_user_id=:id
+ * GET /public/v1/users/livestreams?user_id=:id
+ *
+ * The deprecated `/public/v1/livestreams` endpoint returned 500 for valid
+ * 50-ID requests in production. The replacement accepts up to 100 user IDs,
+ * keeping typical followed-stream refreshes to one bounded bulk request.
  */
 export async function getStreamsByBroadcasterIds(
   client: KickRequestor,
@@ -688,29 +718,29 @@ export async function getStreamsByBroadcasterIds(
 
   const streams: UnifiedStream[] = [];
 
-  for (let i = 0; i < uniqueIds.length; i += 50) {
-    const ids = uniqueIds.slice(i, i + 50);
+  for (let i = 0; i < uniqueIds.length; i += 100) {
+    const ids = uniqueIds.slice(i, i + 100);
     const params = new URLSearchParams();
     for (const id of ids) {
-      params.append("broadcaster_user_id", id.toString());
+      params.append("user_id", id.toString());
     }
 
-    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(
-      `/livestreams?${params.toString()}`,
+    const response = await client.request<KickApiResponse<KickApiUserLivestream[]>>(
+      `/users/livestreams?${params.toString()}`,
       undefined,
       "app"
     );
     const requested = new Set(ids);
 
     for (const apiStream of response.data || []) {
-      if (!requested.has(apiStream.broadcaster_user_id)) {
+      if (!requested.has(apiStream.broadcaster_user.id)) {
         logger.warn("Kick:Endpoints:Stream", "Ignoring livestream with unexpected broadcaster ID", {
           requestedIds: ids,
-          returnedBroadcasterId: apiStream.broadcaster_user_id,
+          returnedBroadcasterId: apiStream.broadcaster_user.id,
         });
         continue;
       }
-      streams.push(transformKickLivestream(apiStream));
+      streams.push(transformKickUserLivestream(apiStream));
     }
   }
 

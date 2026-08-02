@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-// Guards: dual-id rule — `id` MUST come from the response's `channel.id` field,
-// NOT from `user_id`. Mixing the two regenerates the 2026-05-15 follow-mismatch
-// bug (see docs/solutions/logic-errors/kick-guest-follows-dual-id-bridge-2026-05-15.md).
+// Guards: followed-channel identity uses Kick's stable broadcaster user ID when
+// the legacy response exposes it, never the rename-sensitive channel ID/slug.
 // Guards: transformer returns null on rows missing both id and slug —
 // channelsMatch needs at least one of platform+id or platform+slug for identity.
 // Guards: optional-chaining defense — a v2 response with missing user.profile_pic
@@ -27,7 +26,7 @@ describe("transformKickFollowedChannelLegacy", () => {
     const result = transformKickFollowedChannelLegacy(item);
 
     expect(result).toEqual({
-      id: "411439",
+      id: "421500",
       platform: "kick",
       username: "summit1g",
       displayName: "Summit1G",
@@ -37,11 +36,11 @@ describe("transformKickFollowedChannelLegacy", () => {
       isLive: true,
       isVerified: false,
       isPartner: false,
+      kickUserId: "421500",
     });
   });
 
-  it("uses channel.id (not user_id) for UnifiedChannel.id", () => {
-    // Critical regression: dual-id rule. Both fields populated, different values.
+  it("uses broadcaster user_id instead of the rename-sensitive channel id", () => {
     const item: KickLegacyApiFollowedChannel = {
       id: 411439, // channel.id — what we want
       user_id: 421500, // legacy field — must NOT win
@@ -51,7 +50,8 @@ describe("transformKickFollowedChannelLegacy", () => {
 
     const result = transformKickFollowedChannelLegacy(item);
 
-    expect(result?.id).toBe("411439");
+    expect(result?.id).toBe("421500");
+    expect(result?.kickUserId).toBe("421500");
   });
 
   it("falls back to flat top-level fields when user nesting is absent", () => {
