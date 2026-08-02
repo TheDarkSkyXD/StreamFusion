@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stream Recording Player States</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #101012; --bg-secondary: #18181b; --bg-tertiary: #27272a;
+      --border: #3f3f46; --text-primary: #f4f4f5; --text-secondary: #a1a1aa;
+      --success: #22c55e; --record: #ef4444; --warning: #f59e0b; --error: #f87171;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary); color: var(--text-primary);
+      line-height: 1.5; padding: 28px;
+    }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 22px; max-width: 980px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 18px; }
+    .card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .header { height: 34px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--text-secondary); font-size: 12px; }
+    .body { padding: 14px; }
+    .player { aspect-ratio: 16 / 9; background: #050505; border-radius: 6px; position: relative; overflow: hidden; margin-bottom: 12px; }
+    .player::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, #222, #0b0b0b 55%, #343434); }
+    .player.dim::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+    .controls { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
+    .top { position: absolute; left: 10px; right: 10px; top: 10px; z-index: 1; display: flex; justify-content: space-between; align-items: center; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; background: rgba(0,0,0,.76); font-size: 12px; font-weight: 700; }
+    .pill.warning { color: var(--warning); }
+    .pill.error { color: var(--error); }
+    .pill.success { color: var(--success); }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--record); }
+    .dot.warning { background: var(--warning); }
+    .dot.success { background: var(--success); }
+    .button { border-radius: 999px; padding: 7px 12px; background: rgba(39,39,42,.9); border: 1px solid var(--border); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; color: white; }
+    .button.danger { background: var(--record); border-color: var(--record); }
+    .button.disabled { opacity: .55; }
+    .meta { color: var(--text-secondary); font-size: 12px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .title { font-weight: 700; margin-bottom: 3px; }
+    .note { color: var(--text-secondary); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Which recording states need first-class player UI?</h1>
+  <p class="subtitle">If recording is attached to the player, the user should always understand whether StreamFusion is capturing, waiting, paused, or cleaning up a partial file.</p>
+
+  <div class="grid">
+    <section class="card">
+      <div class="header"><span>Starting</span><span>pre-flight</span></div>
+      <div class="body">
+        <div class="player dim">
+          <div class="controls">
+            <span class="pill"><span class="dot warning"></span>Preparing recording...</span>
+            <span class="button disabled">Stop</span>
+          </div>
+        </div>
+        <div class="title">Save dialog accepted, job is resolving quality/path</div>
+        <p class="note">Prevents the awkward “did it start?” moment after picking a save location.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="header"><span>Recording</span><span>happy path</span></div>
+      <div class="body">
+        <div class="player">
+          <div class="top"><span></span><span class="pill">Best · 1080p60</span></div>
+          <div class="controls">
+            <span class="pill"><span class="dot"></span>Recording 12:45</span>
+            <span class="button danger">Stop</span>
+          </div>
+        </div>
+        <div class="title">Duration and quality are visible</div>
+        <p class="note">Pause can be secondary; Stop stays prominent because it ends capture.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="header"><span>Reconnecting</span><span>network/platform trouble</span></div>
+      <div class="body">
+        <div class="player">
+          <div class="controls">
+            <span class="pill warning"><span class="dot warning"></span>Reconnecting · partial saved</span>
+            <span class="button danger">Stop</span>
+          </div>
+        </div>
+        <div class="title">Call out that a gap may exist</div>
+        <p class="note">The queue can show exact gap times; player UI only needs immediate truth.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="header"><span>Paused</span><span>user-controlled gap</span></div>
+      <div class="body">
+        <div class="player dim">
+          <div class="controls">
+            <span class="pill warning"><span class="dot warning"></span>Recording paused 03:12</span>
+            <span class="button">Resume</span>
+          </div>
+        </div>
+        <div class="title">User-created gaps should be obvious</div>
+        <p class="note">Pause is useful, but we should never imply the file is continuous.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="header"><span>Finalizing</span><span>after stop/end</span></div>
+      <div class="body">
+        <div class="player dim">
+          <div class="controls">
+            <span class="pill"><span class="dot warning"></span>Finalizing file...</span>
+            <span class="button disabled">Open</span>
+          </div>
+        </div>
+        <div class="title">Stop is not done until file is playable</div>
+        <p class="note">Avoids users opening a half-written output while ffmpeg is closing.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="header"><span>Failed / partial</span><span>needs cleanup</span></div>
+      <div class="body">
+        <div class="player dim">
+          <div class="controls">
+            <span class="pill error">Recording stopped · partial file</span>
+            <span class="button">Downloads</span>
+          </div>
+        </div>
+        <div class="title">Send recovery to Downloads</div>
+        <p class="note">Open/Show/Delete actions belong in Downloads; the stream page gives a clear jump point.</p>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

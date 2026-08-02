@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Multiple Stream Recordings Popover</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #101012; --bg-secondary: #18181b; --bg-tertiary: #27272a;
+      --border: #3f3f46; --text-primary: #f4f4f5; --text-secondary: #a1a1aa;
+      --accent: #22c55e; --record: #ef4444; --warning: #f59e0b; --error: #f87171;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary); color: var(--text-primary);
+      line-height: 1.5; padding: 28px;
+    }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 22px; max-width: 980px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 18px; }
+    .option { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .recommended { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(34,197,94,.25); }
+    .header { height: 34px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--text-secondary); font-size: 12px; }
+    .label { font-size: 11px; color: var(--accent); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .body { padding: 14px; min-height: 350px; position: relative; }
+    .topbar { height: 42px; border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 10px; background: #0b0b0d; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 11px; background: var(--bg-tertiary); border: 1px solid var(--border); font-size: 12px; font-weight: 750; color: white; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--record); box-shadow: 0 0 0 3px rgba(239,68,68,.16); }
+    .popover { margin-left: auto; margin-top: 12px; width: 100%; border: 1px solid var(--border); border-radius: 8px; background: rgba(24,24,27,.98); overflow: hidden; }
+    .popover-title { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+    .row { padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 10px; border-bottom: 1px solid rgba(63,63,70,.7); }
+    .row:last-child { border-bottom: 0; }
+    .name { font-weight: 700; font-size: 13px; }
+    .meta { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+    .actions { display: flex; gap: 6px; align-items: center; }
+    .button { border-radius: 999px; padding: 6px 9px; background: var(--bg-tertiary); border: 1px solid var(--border); font-size: 11px; color: white; white-space: nowrap; }
+    .danger { background: var(--record); border-color: var(--record); }
+    .warn { color: var(--warning); }
+    .error { color: var(--error); }
+    .note { color: var(--text-secondary); font-size: 13px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>How should the global recording UI scale to multiple recordings?</h1>
+  <p class="subtitle">The queue protects platform load, but the user still needs to understand whether one recording, several recordings, or a mix of recording/reconnecting jobs is active.</p>
+
+  <div class="grid">
+    <section class="option recommended">
+      <div class="header"><span>Option A</span><span class="label">Recommended</span></div>
+      <div class="body">
+        <div class="topbar"><span class="pill"><span class="dot"></span>3 recordings</span></div>
+        <div class="popover">
+          <div class="popover-title"><strong>Active recordings</strong><span class="button">Downloads</span></div>
+          <div class="row">
+            <div><div class="name">Jollyrancherzoo</div><div class="meta">Recording 12:45 · Best 1080p60</div></div>
+            <div class="actions"><span class="button">View</span><span class="button">Pause</span><span class="button danger">Stop</span></div>
+          </div>
+          <div class="row">
+            <div><div class="name">xQc</div><div class="meta warn">Reconnecting · Best 720p60 · partial saved</div></div>
+            <div class="actions"><span class="button">View</span><span class="button danger">Stop</span></div>
+          </div>
+          <div class="row">
+            <div><div class="name">AlveusSanctuary</div><div class="meta">Paused 03:12 · Source quality</div></div>
+            <div class="actions"><span class="button">Resume</span><span class="button danger">Stop</span></div>
+          </div>
+        </div>
+        <p class="note">Aggregated count in chrome, detailed rows in popover. Handles mixed states without stuffing the top bar.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="header"><span>Option B</span><span>One pill per recording</span></div>
+      <div class="body">
+        <div class="topbar">
+          <span class="pill"><span class="dot"></span>Jolly · 1080p</span>
+          <span class="pill"><span class="dot"></span>xQc · 720p</span>
+        </div>
+        <div class="popover">
+          <div class="row">
+            <div><div class="name">Top bar carries each recording</div><div class="meta">Fast for two, crowded for three or more.</div></div>
+          </div>
+        </div>
+        <p class="note">Immediate, but gets cramped and competes with search, notifications, and profile controls.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="header"><span>Option C</span><span>Highest priority only</span></div>
+      <div class="body">
+        <div class="topbar"><span class="pill"><span class="dot"></span>xQc reconnecting</span></div>
+        <div class="popover">
+          <div class="row">
+            <div><div class="name error">Only the most urgent recording appears</div><div class="meta">Other active recordings are hidden unless user opens Downloads.</div></div>
+          </div>
+        </div>
+        <p class="note">Great for alerts, weak as a global truth source.</p>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

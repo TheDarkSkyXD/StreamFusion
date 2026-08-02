@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Global Recording Indicator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #101012; --bg-secondary: #18181b; --bg-tertiary: #27272a;
+      --border: #3f3f46; --text-primary: #f4f4f5; --text-secondary: #a1a1aa;
+      --accent: #22c55e; --record: #ef4444; --warning: #f59e0b;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary); color: var(--text-primary);
+      line-height: 1.5; padding: 28px;
+    }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 22px; max-width: 980px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 18px; }
+    .option { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .recommended { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(34,197,94,.25); }
+    .header { height: 34px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--text-secondary); font-size: 12px; }
+    .label { font-size: 11px; color: var(--accent); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .app { height: 360px; display: grid; grid-template-columns: 96px 1fr; background: #0b0b0d; }
+    .side { border-right: 1px solid var(--border); padding: 12px 8px; display: grid; gap: 8px; align-content: start; }
+    .nav { height: 28px; border-radius: 6px; background: var(--bg-tertiary); color: var(--text-secondary); font-size: 11px; display: flex; align-items: center; padding: 0 8px; }
+    .nav.active { color: white; background: #27272a; }
+    .main { position: relative; padding: 14px; }
+    .topbar { height: 38px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 10px; }
+    .content { margin-top: 16px; color: var(--text-secondary); }
+    .card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); height: 70px; margin-bottom: 10px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 11px; background: rgba(39,39,42,.96); border: 1px solid var(--border); font-size: 12px; font-weight: 750; color: white; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--record); box-shadow: 0 0 0 3px rgba(239,68,68,.16); }
+    .floating { position: absolute; right: 14px; bottom: 14px; max-width: 240px; border: 1px solid var(--border); border-radius: 8px; background: rgba(24,24,27,.98); padding: 10px; }
+    .button { border-radius: 999px; padding: 6px 10px; background: var(--bg-tertiary); border: 1px solid var(--border); font-size: 11px; color: white; }
+    .danger { background: var(--record); border-color: var(--record); }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .note { color: var(--text-secondary); font-size: 13px; padding: 12px 14px 16px; }
+    .tiny { color: var(--text-secondary); font-size: 11px; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>What should happen when recording continues off-page?</h1>
+  <p class="subtitle">If a Stream Recording keeps running while the user browses categories, watches another stream, or opens settings, the app needs a global truth source.</p>
+
+  <div class="grid">
+    <section class="option recommended">
+      <div class="header"><span>Option A</span><span class="label">Recommended</span></div>
+      <div class="app">
+        <div class="side">
+          <div class="nav">Home</div><div class="nav">Following</div><div class="nav active">Downloads</div><div class="nav">Settings</div>
+        </div>
+        <div>
+          <div class="topbar">
+            <span class="pill"><span class="dot"></span>1 recording · 1080p60</span>
+          </div>
+          <div class="main">
+            <div class="content">
+              <div class="card"></div><div class="card"></div><div class="card"></div>
+            </div>
+            <div class="floating">
+              <div class="row"><strong>Jollyrancherzoo</strong><span class="button">View</span></div>
+              <div class="tiny">Recording 12:45 · Best 1080p60</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note">Global pill in app chrome; clicking opens a compact popover with View/Pause/Stop and a link to Downloads.</p>
+    </section>
+
+    <section class="option">
+      <div class="header"><span>Option B</span><span>Downloads badge only</span></div>
+      <div class="app">
+        <div class="side">
+          <div class="nav">Home</div><div class="nav">Following</div><div class="nav active">Downloads · REC</div><div class="nav">Settings</div>
+        </div>
+        <div>
+          <div class="topbar"></div>
+          <div class="main"><div class="content"><div class="card"></div><div class="card"></div><div class="card"></div></div></div>
+        </div>
+      </div>
+      <p class="note">Simple and low-noise, but users may miss it unless they already know Downloads owns recordings.</p>
+    </section>
+
+    <section class="option">
+      <div class="header"><span>Option C</span><span>No global UI</span></div>
+      <div class="app">
+        <div class="side">
+          <div class="nav">Home</div><div class="nav">Following</div><div class="nav">Downloads</div><div class="nav active">Settings</div>
+        </div>
+        <div>
+          <div class="topbar"></div>
+          <div class="main"><div class="content"><div class="card"></div><div class="card"></div><div class="card"></div></div></div>
+        </div>
+      </div>
+      <p class="note">Clean, but unsafe: recording can continue invisibly while the user is elsewhere.</p>
+    </section>
+  </div>
+</body>
+</html>

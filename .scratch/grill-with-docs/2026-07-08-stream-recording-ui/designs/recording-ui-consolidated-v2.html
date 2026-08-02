@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stream Recording UI, Consolidated State Board V2</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --void: #0f0f0f;
+      --surface: #1a1a1a;
+      --mid: #252525;
+      --raised: #2d2d2d;
+      --line: #333333;
+      --white: #ffffff;
+      --secondary: #a0a0a0;
+      --muted: #707070;
+      --crimson: #dc143c;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #22c55e;
+      --focus: #f5f5f5;
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--void);
+      color: var(--white);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+    .page {
+      width: min(1460px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 34px 0 56px;
+    }
+
+    .eyebrow {
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    h1 { font-size: clamp(24px, 3vw, 38px); line-height: 1.08; letter-spacing: -.035em; }
+    .intro { color: var(--secondary); max-width: 760px; margin-top: 10px; font-size: 14px; }
+
+    .decision-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .decision {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 999px;
+      padding: 7px 11px;
+      color: #d7d7d7;
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 18px;
+      margin-top: 28px;
+      align-items: start;
+    }
+
+    .stage,
+    .state-panel,
+    .safety-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .stage { overflow: hidden; min-width: 0; }
+
+    .window-bar {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-left: 12px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .window-actions { height: 100%; display: flex; }
+    .window-action { width: 42px; display: grid; place-items: center; border-left: 1px solid #222; }
+
+    .app-bar {
+      min-height: 52px;
+      padding: 8px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand { font-weight: 800; letter-spacing: -.03em; }
+    .nav { display: flex; gap: 4px; color: var(--secondary); font-size: 12px; }
+    .nav span { padding: 7px 9px; border-radius: 7px; }
+    .nav .active { color: var(--white); background: var(--mid); }
+    .app-spacer { flex: 1; }
+
+    .global-wrap { position: relative; }
+    .global-pill {
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 11px;
+      border: 1px solid #444;
+      border-radius: 999px;
+      background: var(--mid);
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 750;
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+
+    .global-pill:hover { background: var(--raised); border-color: #555; }
+    .global-pill[data-tone="warning"] { color: #ffd587; }
+    .global-pill[data-tone="error"] { color: #ffb0b0; border-color: #6d3333; }
+    .global-pill[data-tone="success"] { color: #a7efbd; border-color: #315d3e; }
+
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); flex: 0 0 auto; }
+    .dot.pulse { animation: pulse 1.8s ease-in-out infinite; }
+    .global-pill[data-tone="warning"] .dot { background: var(--warning); }
+    .global-pill[data-tone="error"] .dot { background: var(--danger); }
+    .global-pill[data-tone="success"] .dot { background: var(--success); }
+
+    .recording-popover {
+      position: absolute;
+      z-index: 5;
+      right: 0;
+      top: 42px;
+      width: 312px;
+      padding: 12px;
+      border: 1px solid #454545;
+      border-radius: 10px;
+      background: var(--raised);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4), 0 1px 4px rgba(0,0,0,.3);
+    }
+
+    .popover-label { color: var(--secondary); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+    .popover-title { font-size: 14px; font-weight: 750; margin-top: 3px; }
+    .popover-meta { color: var(--secondary); font-size: 11px; margin-top: 4px; }
+    .popover-actions { display: flex; gap: 7px; margin-top: 12px; }
+
+    .app-body { display: grid; grid-template-columns: 64px minmax(0, 1fr); min-height: 540px; }
+    .sidebar { background: #151515; border-right: 1px solid var(--line); padding: 12px 8px; display: grid; align-content: start; gap: 8px; }
+    .side-icon { width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center; color: var(--secondary); font-size: 16px; }
+    .side-icon.active { background: var(--mid); color: var(--white); }
+
+    .content { padding: 18px; min-width: 0; }
+    .breadcrumb { color: var(--secondary); font-size: 11px; margin-bottom: 10px; }
+    .player {
+      position: relative;
+      aspect-ratio: 16 / 8.8;
+      min-height: 320px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 72% 34%, rgba(255,255,255,.07), transparent 18%),
+        linear-gradient(150deg, #252525 0%, #111 45%, #1d1d1d 100%);
+      border: 1px solid #272727;
+      border-radius: 10px;
+    }
+
+    .stream-art {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #4f4f4f;
+      font-size: clamp(28px, 5vw, 64px);
+      font-weight: 850;
+      letter-spacing: -.06em;
+      user-select: none;
+    }
+
+    .player-top { position: absolute; top: 14px; right: 14px; display: flex; gap: 7px; }
+    .quality-chip { background: rgba(15,15,15,.84); border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 6px 9px; font-size: 10px; font-weight: 700; color: #d4d4d4; }
+
+    .player-controls {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 44px 14px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(transparent, rgba(0,0,0,.9));
+    }
+
+    .control { color: #dedede; font-size: 15px; padding: 6px; }
+    .control-spacer { flex: 1; }
+
+    .player-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 32px;
+      border-radius: 999px;
+      padding: 0 11px;
+      background: rgba(15,15,15,.9);
+      border: 1px solid rgba(255,255,255,.12);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .player-status[data-tone="warning"] { color: #ffd587; }
+    .player-status[data-tone="error"] { color: #ffb0b0; }
+    .player-status[data-tone="success"] { color: #a7efbd; }
+
+    .gap-flag {
+      position: absolute;
+      left: 14px;
+      bottom: 58px;
+      display: none;
+      align-items: center;
+      gap: 7px;
+      background: rgba(15,15,15,.92);
+      color: #ffd587;
+      border: 1px solid rgba(245,158,11,.36);
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .stream-info { display: flex; gap: 12px; padding-top: 14px; }
+    .avatar { width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; background: var(--mid); display: grid; place-items: center; font-weight: 800; }
+    .stream-copy { min-width: 0; }
+    .stream-copy strong { display: block; font-size: 13px; }
+    .stream-copy span { color: var(--secondary); font-size: 11px; }
+
+    .btn {
+      min-height: 32px;
+      padding: 0 11px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: var(--mid);
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+
+    .btn:hover { background: var(--raised); transform: translateY(-1px); }
+    .btn.primary { background: var(--white); color: var(--void); }
+    .btn.primary:hover { background: #e7e7e7; }
+    .btn.danger { background: var(--danger); }
+    .btn.danger:hover { background: #dc3636; }
+    .btn.outline { background: transparent; border-color: #4a4a4a; }
+
+    .state-panel { padding: 14px; }
+    .state-panel h2 { font-size: 14px; }
+    .state-panel > p { color: var(--secondary); font-size: 11px; margin: 4px 0 12px; }
+    .state-list { display: grid; gap: 7px; }
+
+    .state-button {
+      width: 100%;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 9px minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--white);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .state-button:hover { background: var(--mid); }
+    .state-button.active { background: var(--mid); border-color: #424242; }
+    .state-button .state-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .state-button[data-tone="live"] .state-dot { background: var(--crimson); }
+    .state-button[data-tone="warning"] .state-dot { background: var(--warning); }
+    .state-button[data-tone="error"] .state-dot { background: var(--danger); }
+    .state-button[data-tone="success"] .state-dot { background: var(--success); }
+    .state-name { font-size: 11px; font-weight: 750; }
+    .state-rule { color: var(--muted); font-size: 9px; }
+
+    .panel-note { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--secondary); font-size: 10px; }
+
+    .safety-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
+    .safety-card { overflow: hidden; }
+    .safety-head { padding: 11px 13px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
+    .safety-head strong { font-size: 12px; }
+    .safety-head span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .07em; }
+    .safety-body { min-height: 188px; display: grid; place-items: center; padding: 18px; background: #141414; }
+
+    .dialog {
+      width: 100%;
+      max-width: 330px;
+      padding: 16px;
+      border: 1px solid #454545;
+      border-radius: 10px;
+      background: var(--raised);
+      box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3);
+    }
+
+    .dialog-heading { display: flex; align-items: flex-start; gap: 10px; }
+    .dialog-heading-copy { min-width: 0; flex: 1; }
+    .dialog-icon { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; background: rgba(239,68,68,.14); color: #ff8e8e; font-weight: 900; }
+    .dialog-icon.warning { background: rgba(245,158,11,.14); color: #ffd587; }
+    .dialog h3 { font-size: 13px; }
+    .dialog p { color: var(--secondary); font-size: 10px; margin-top: 5px; }
+    .dialog-meta { margin-top: 10px; padding: 8px; background: var(--mid); border-radius: 7px; font-size: 10px; }
+    .dialog-meta span { color: var(--secondary); }
+    .dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+
+    .toast-demo { width: 100%; max-width: 330px; display: grid; gap: 9px; }
+    .toast { padding: 11px; border: 1px solid #454545; border-radius: 9px; background: var(--raised); box-shadow: 0 2px 8px rgba(0,0,0,.3); display: flex; align-items: flex-start; gap: 9px; }
+    .toast-mark { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; font-size: 10px; font-weight: 850; background: rgba(34,197,94,.16); color: #83e6a1; }
+    .toast.error .toast-mark { background: rgba(239,68,68,.15); color: #ff9898; }
+    .toast strong { display: block; font-size: 10px; }
+    .toast p { color: var(--secondary); font-size: 9px; margin-top: 2px; }
+
+    .annotation {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--secondary);
+      font-size: 11px;
+      background: var(--surface);
+    }
+
+    .annotation strong { color: var(--white); }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220,20,60,0); }
+      45% { box-shadow: 0 0 0 4px rgba(220,20,60,.15); }
+    }
+
+    @media (max-width: 1100px) {
+      .board { grid-template-columns: 1fr; }
+      .state-list { grid-template-columns: repeat(3, 1fr); }
+      .state-button { grid-template-columns: 9px minmax(0, 1fr); }
+      .state-rule { display: none; }
+      .safety-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .page { width: min(100% - 24px, 1460px); padding-top: 20px; }
+      .nav { display: none; }
+      .app-body { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .content { padding: 10px; }
+      .player { min-height: 270px; }
+      .state-list { grid-template-columns: repeat(2, 1fr); }
+      .recording-popover { right: -6px; width: min(312px, calc(100vw - 44px)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="eyebrow">Grill close-out, consolidated direction</div>
+    <h1>One recording. Always visible. Never silently lost.</h1>
+    <p class="intro">Use the state selector to review the player and global recording pill together. The lower row locks the safety and recovery interactions decided after the earlier mockups.</p>
+
+    <div class="decision-strip" aria-label="Key decisions">
+      <span class="decision">1 active recording maximum</span>
+      <span class="decision">Captured duration timer</span>
+      <span class="decision">One final playable file</span>
+      <span class="decision">Persistent failure acknowledgement</span>
+      <span class="decision">No automatic restart resume</span>
+    </div>
+
+    <section class="board" aria-label="Interactive recording state board">
+      <div class="stage">
+        <div class="window-bar">
+          <span>StreamFusion</span>
+          <div class="window-actions" aria-hidden="true"><span class="window-action">−</span><span class="window-action">□</span><span class="window-action">×</span></div>
+        </div>
+
+        <div class="app-bar">
+          <div class="brand">StreamFusion</div>
+          <div class="nav"><span class="active">Following</span><span>Browse</span><span>Downloads</span></div>
+          <div class="app-spacer"></div>
+          <div class="global-wrap">
+            <button class="global-pill" id="globalPill" data-tone="live" aria-expanded="true">
+              <span class="dot pulse" id="globalDot"></span>
+              <span id="globalText">Recording 18:42</span>
+            </button>
+            <div class="recording-popover" id="recordingPopover">
+              <div class="popover-label" id="popoverLabel">Active recording</div>
+              <div class="popover-title">Jollyrancherzoo</div>
+              <div class="popover-meta" id="popoverMeta">18:42 captured · Best 1080p60</div>
+              <div class="popover-actions" id="popoverActions">
+                <button class="btn outline">View</button>
+                <button class="btn">Pause</button>
+                <button class="btn danger">Stop</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="app-body">
+          <aside class="sidebar" aria-label="Mock navigation">
+            <div class="side-icon active">⌂</div>
+            <div class="side-icon">◫</div>
+            <div class="side-icon">↓</div>
+            <div class="side-icon">⚙</div>
+          </aside>
+
+          <div class="content">
+            <div class="breadcrumb">Following / Jollyrancherzoo</div>
+            <div class="player">
+              <div class="stream-art">LIVE STREAM</div>
+              <div class="player-top"><span class="quality-chip">Best · 1080p60</span></div>
+              <div class="gap-flag" id="gapFlag">▲ Gap detected · details in Downloads</div>
+              <div class="player-controls">
+                <span class="control">▶</span>
+                <span class="control">▮)))</span>
+                <span class="player-status" id="playerStatus" data-tone="live"><span class="dot pulse"></span><span id="playerText">Recording 18:42 captured</span></span>
+                <div class="control-spacer"></div>
+                <button class="btn" id="pauseButton">Pause</button>
+                <button class="btn danger" id="stopButton">Stop</button>
+                <span class="control">⛶</span>
+              </div>
+            </div>
+            <div class="stream-info">
+              <div class="avatar">J</div>
+              <div class="stream-copy"><strong>Building a wildlife habitat live</strong><span>Jollyrancherzoo · Just Chatting · 4,218 viewers</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="state-panel">
+        <h2>Lifecycle states</h2>
+        <p>Every in-progress state keeps the global pill visible.</p>
+        <div class="state-list" id="stateList">
+          <button class="state-button" data-state="preparing" data-tone="warning"><span class="state-dot"></span><span class="state-name">Preparing</span><span class="state-rule">Pill visible</span></button>
+          <button class="state-button active" data-state="recording" data-tone="live"><span class="state-dot"></span><span class="state-name">Recording</span><span class="state-rule">Captured time</span></button>
+          <button class="state-button" data-state="reconnecting" data-tone="warning"><span class="state-dot"></span><span class="state-name">Reconnecting</span><span class="state-rule">Timer frozen</span></button>
+          <button class="state-button" data-state="paused" data-tone="warning"><span class="state-dot"></span><span class="state-name">Paused</span><span class="state-rule">Timer frozen</span></button>
+          <button class="state-button" data-state="finalizing"><span class="state-dot"></span><span class="state-name">Finalizing</span><span class="state-rule">Combining parts</span></button>
+          <button class="state-button" data-state="completed" data-tone="success"><span class="state-dot"></span><span class="state-name">Completed</span><span class="state-rule">Brief, then fade</span></button>
+          <button class="state-button" data-state="failed" data-tone="error"><span class="state-dot"></span><span class="state-name">Failed / Partial</span><span class="state-rule">Until acknowledged</span></button>
+          <button class="state-button" data-state="interrupted" data-tone="warning"><span class="state-dot"></span><span class="state-name">Interrupted</span><span class="state-rule">Next launch</span></button>
+        </div>
+        <div class="panel-note"><strong>Timer rule:</strong> 18:42 means playable captured footage. Pause and reconnect time never inflate it.</div>
+      </aside>
+    </section>
+
+    <section class="safety-grid" aria-label="Safety and recovery dialogs">
+      <article class="safety-card">
+        <div class="safety-head"><strong>Stop confirmation</strong><span>all surfaces</span></div>
+        <div class="safety-body">
+          <div class="dialog">
+            <div class="dialog-heading">
+              <div class="dialog-icon">■</div>
+              <div class="dialog-heading-copy"><h3>Stop recording?</h3><p>The recording will finalize into one playable file. Missed live footage cannot be recovered.</p></div>
+            </div>
+            <div class="dialog-actions"><button class="btn primary">Keep Recording</button><button class="btn danger">Stop Recording</button></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="safety-card">
+        <div class="safety-head"><strong>Second recording blocked</strong><span>one active maximum</span></div>
+        <div class="safety-body">
+          <div class="dialog">
+            <div class="dialog-heading">
+              <div class="dialog-icon warning">1</div>
+              <div class="dialog-heading-copy"><h3>A recording is already active</h3><p>Stop the current recording before starting another. StreamFusion will not queue a live recording.</p></div>
+            </div>
+            <div class="dialog-meta"><strong>Jollyrancherzoo</strong><br><span>Recording · 18:42 captured · 1080p60</span></div>
+            <div class="dialog-actions"><button class="btn outline">Cancel</button><button class="btn">Downloads</button><button class="btn primary">View Recording</button></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="safety-card">
+        <div class="safety-head"><strong>Context-aware outcomes</strong><span>focused app</span></div>
+        <div class="safety-body">
+          <div class="toast-demo">
+            <div class="toast"><div class="toast-mark">✓</div><div><strong>Recording completed</strong><p>Jollyrancherzoo.mp4 is ready · Open · Show in Folder</p></div></div>
+            <div class="toast error"><div class="toast-mark">!</div><div><strong>Partial recording saved</strong><p>Recording stopped unexpectedly · Review in Downloads</p></div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="safety-card">
+        <div class="safety-head"><strong>Restart recovery</strong><span>never auto-resume</span></div>
+        <div class="safety-body">
+          <div class="dialog">
+            <div class="dialog-heading">
+              <div class="dialog-icon warning">↻</div>
+              <div class="dialog-heading-copy"><h3>Recording was interrupted</h3><p>18:42 of footage is safe. The Stream is still live, so you can resume with a visible gap or finish the partial file now.</p></div>
+            </div>
+            <div class="dialog-actions"><button class="btn outline">Finalize Partial</button><button class="btn primary">Resume Recording</button></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="safety-card">
+        <div class="safety-head"><strong>Unexpected source loss</strong><span>preserve started work</span></div>
+        <div class="safety-body">
+          <div class="dialog">
+            <div class="dialog-heading">
+              <div class="dialog-icon">!</div>
+              <div class="dialog-heading-copy"><h3>Partial recording preserved</h3><p>The Stream became unavailable unexpectedly. StreamFusion kept the captured footage instead of removing the job.</p></div>
+            </div>
+            <div class="dialog-actions"><button class="btn outline">Acknowledge</button><button class="btn primary">Open Downloads</button></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="safety-card">
+        <div class="safety-head"><strong>Final file contract</strong><span>one file, honest gaps</span></div>
+        <div class="safety-body">
+          <div class="dialog">
+            <div class="dialog-heading">
+              <div class="dialog-icon warning">≋</div>
+              <div class="dialog-heading-copy"><h3>Finalizing recording</h3><p>Combining safely captured sections into one playable file. The finished item will retain a gap history in Downloads.</p></div>
+            </div>
+            <div class="dialog-meta"><strong>18:42 captured</strong><br><span>2 sections · 1 recorded gap · Best 1080p60</span></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <div class="annotation"><strong>Review focus:</strong> Does this state hierarchy feel honest and calm enough while still making irreversible actions and partial-file failures impossible to miss?</div>
+  </main>
+
+  <script>
+    const states = {
+      preparing: {
+        tone: "warning", global: "Preparing recording…", player: "Preparing recording…", meta: "Resolving source and opening the output file", actions: ["View", "Stop"], gap: false
+      },
+      recording: {
+        tone: "live", global: "Recording 18:42", player: "Recording 18:42 captured", meta: "18:42 captured · Best 1080p60", actions: ["View", "Pause", "Stop"], gap: false
+      },
+      reconnecting: {
+        tone: "warning", global: "Reconnecting · 18:42", player: "Reconnecting · 18:42 captured", meta: "Captured timer frozen · partial footage safe", actions: ["View", "Stop"], gap: true
+      },
+      paused: {
+        tone: "warning", global: "Paused · 18:42", player: "Paused · 18:42 captured", meta: "Captured timer frozen · resume creates a gap", actions: ["View", "Resume", "Stop"], gap: true
+      },
+      finalizing: {
+        tone: "neutral", global: "Finalizing file…", player: "Finalizing file…", meta: "Combining safe sections into one playable file", actions: ["Downloads"], gap: true
+      },
+      completed: {
+        tone: "success", global: "Recording completed", player: "Completed · 18:42 captured", meta: "Ready to open · this pill fades after a short delay", actions: ["Open", "Show in Folder", "Downloads"], gap: true
+      },
+      failed: {
+        tone: "error", global: "Partial recording saved", player: "Failed · partial file preserved", meta: "Remains visible until acknowledged", actions: ["Acknowledge", "Downloads"], gap: true
+      },
+      interrupted: {
+        tone: "warning", global: "Recording interrupted", player: "Interrupted · 18:42 captured", meta: "Resume if live, or finalize the partial file", actions: ["Resume", "Finalize Partial"], gap: true
+      }
+    };
+
+    const globalPill = document.getElementById("globalPill");
+    const globalText = document.getElementById("globalText");
+    const playerStatus = document.getElementById("playerStatus");
+    const playerText = document.getElementById("playerText");
+    const popoverMeta = document.getElementById("popoverMeta");
+    const popoverActions = document.getElementById("popoverActions");
+    const gapFlag = document.getElementById("gapFlag");
+    const pauseButton = document.getElementById("pauseButton");
+    const stopButton = document.getElementById("stopButton");
+
+    function actionButton(label) {
+      const danger = label === "Stop" ? " danger" : "";
+      const outline = label === "Acknowledge" ? " outline" : "";
+      return `<button class="btn${danger}${outline}">${label}</button>`;
+    }
+
+    function selectState(name) {
+      const state = states[name];
+      const tone = state.tone === "neutral" ? "" : state.tone;
+      globalPill.dataset.tone = tone;
+      playerStatus.dataset.tone = tone;
+      globalText.textContent = state.global;
+      playerText.textContent = state.player;
+      popoverMeta.textContent = state.meta;
+      popoverActions.innerHTML = state.actions.map(actionButton).join("");
+      gapFlag.style.display = state.gap ? "inline-flex" : "none";
+
+      const controlsActive = ["recording", "paused", "reconnecting"].includes(name);
+      pauseButton.style.display = controlsActive ? "inline-flex" : "none";
+      pauseButton.textContent = name === "paused" ? "Resume" : "Pause";
+      stopButton.style.display = ["preparing", "recording", "paused", "reconnecting"].includes(name) ? "inline-flex" : "none";
+
+      document.querySelectorAll(".state-button").forEach(button => {
+        button.classList.toggle("active", button.dataset.state === name);
+      });
+    }
+
+    document.getElementById("stateList").addEventListener("click", event => {
+      const button = event.target.closest(".state-button");
+      if (button) selectState(button.dataset.state);
+    });
+
+    globalPill.addEventListener("click", () => {
+      const popover = document.getElementById("recordingPopover");
+      const open = popover.hidden;
+      popover.hidden = !open;
+      globalPill.setAttribute("aria-expanded", String(open));
+    });
+  </script>
+</body>
+</html>

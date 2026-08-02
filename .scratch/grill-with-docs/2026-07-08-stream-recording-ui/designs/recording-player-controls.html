@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stream Recording Player Controls</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #101012; --bg-secondary: #18181b; --bg-tertiary: #27272a;
+      --border: #3f3f46; --text-primary: #f4f4f5; --text-secondary: #a1a1aa;
+      --accent: #22c55e; --record: #ef4444; --warning: #f59e0b;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary); color: var(--text-primary);
+      line-height: 1.5; padding: 28px;
+    }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 22px; max-width: 920px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 18px; }
+    .option { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .recommended { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(34,197,94,.25); }
+    .header { height: 34px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--text-secondary); font-size: 12px; }
+    .label { font-size: 11px; color: var(--accent); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .body { padding: 14px; }
+    .player { aspect-ratio: 16 / 9; background: #050505; border-radius: 6px; position: relative; overflow: hidden; margin-bottom: 12px; }
+    .player::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, #222, #0b0b0b 55%, #343434); }
+    .controls { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; background: rgba(0,0,0,.76); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--record); }
+    .button-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .button { border-radius: 999px; padding: 7px 11px; background: rgba(39,39,42,.92); border: 1px solid var(--border); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; color: white; }
+    .danger { background: var(--record); border-color: var(--record); }
+    .warning { color: var(--warning); }
+    .title { font-weight: 700; margin-bottom: 4px; }
+    .note { color: var(--text-secondary); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Which controls belong directly on the player?</h1>
+  <p class="subtitle">The player should be honest about recording state, but it should not become a tiny Downloads page. This comparison focuses on control weight.</p>
+
+  <div class="grid">
+    <section class="option recommended">
+      <div class="header"><span>Option A</span><span class="label">Recommended</span></div>
+      <div class="body">
+        <div class="player">
+          <div class="controls">
+            <span class="pill"><span class="dot"></span>Recording 12:45</span>
+            <span class="button-row">
+              <span class="button">Pause</span>
+              <span class="button danger">Stop</span>
+            </span>
+          </div>
+        </div>
+        <div class="title">Status + Pause/Resume + Stop + Downloads link on problem states</div>
+        <p class="note">Keeps immediate capture controls close to the stream. Show/Open/Delete still live in Downloads.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="header"><span>Option B</span><span>Stop only</span></div>
+      <div class="body">
+        <div class="player">
+          <div class="controls">
+            <span class="pill"><span class="dot"></span>Recording 12:45</span>
+            <span class="button-row">
+              <span class="button danger">Stop</span>
+            </span>
+          </div>
+        </div>
+        <div class="title">Player stays very simple</div>
+        <p class="note">Less clutter, but pause/resume requires leaving the stream page or visiting Downloads.</p>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="header"><span>Option C</span><span>Full manager</span></div>
+      <div class="body">
+        <div class="player">
+          <div class="controls">
+            <span class="pill warning"><span class="dot"></span>Recording 12:45 · 1080p60</span>
+            <span class="button-row">
+              <span class="button">Pause</span>
+              <span class="button">Folder</span>
+              <span class="button">Open</span>
+              <span class="button danger">Stop</span>
+            </span>
+          </div>
+        </div>
+        <div class="title">Everything is one click away</div>
+        <p class="note">Powerful, but crowded and mixes active recording controls with completed-file actions.</p>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

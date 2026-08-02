@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stream Recording Player Controls V2</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #101012; --bg-secondary: #18181b; --bg-tertiary: #27272a;
+      --border: #3f3f46; --text-primary: #f4f4f5; --text-secondary: #a1a1aa;
+      --accent: #22c55e; --record: #ef4444; --warning: #f59e0b;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary); color: var(--text-primary);
+      line-height: 1.5; padding: 28px;
+    }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 22px; max-width: 920px; }
+    .shell { max-width: 980px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .header { height: 36px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; color: var(--text-secondary); font-size: 12px; }
+    .label { font-size: 11px; color: var(--accent); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .body { padding: 16px; }
+    .player { aspect-ratio: 16 / 9; background: #050505; border-radius: 6px; position: relative; overflow: hidden; margin-bottom: 14px; }
+    .player::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, #222, #0b0b0b 55%, #343434); }
+    .controls { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .status-group { display: flex; gap: 8px; align-items: center; min-width: 0; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 11px; background: rgba(0,0,0,.76); font-size: 12px; font-weight: 750; white-space: nowrap; }
+    .quality { color: #d4d4d8; font-weight: 650; border: 1px solid rgba(255,255,255,.14); }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--record); box-shadow: 0 0 0 3px rgba(239,68,68,.18); }
+    .button-row { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .button { border-radius: 999px; padding: 7px 12px; background: rgba(39,39,42,.92); border: 1px solid var(--border); font-size: 12px; display: inline-flex; align-items: center; color: white; }
+    .danger { background: var(--record); border-color: var(--record); }
+    .examples { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+    .example { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--bg-tertiary); }
+    .example strong { display: block; font-size: 13px; margin-bottom: 3px; }
+    .example span { color: var(--text-secondary); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Player controls with selected quality visible</h1>
+  <p class="subtitle">This applies the Q4 direction: the player shows status, quality, Pause/Resume, and Stop. Completed-file actions stay in Downloads.</p>
+
+  <section class="shell">
+    <div class="header"><span>Selected direction</span><span class="label">Status + quality + immediate controls</span></div>
+    <div class="body">
+      <div class="player">
+        <div class="controls">
+          <div class="status-group">
+            <span class="pill"><span class="dot"></span>Recording 12:45</span>
+            <span class="pill quality">Best · 1080p60</span>
+          </div>
+          <div class="button-row">
+            <span class="button">Pause</span>
+            <span class="button danger">Stop</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="examples">
+        <div class="example">
+          <strong>Recording</strong>
+          <span>Recording 12:45 · Best 1080p60</span>
+        </div>
+        <div class="example">
+          <strong>Reconnecting</strong>
+          <span>Reconnecting · Best 1080p60 · partial saved</span>
+        </div>
+        <div class="example">
+          <strong>Paused</strong>
+          <span>Paused 03:12 · Best 1080p60</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>
