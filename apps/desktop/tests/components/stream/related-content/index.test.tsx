@@ -7,6 +7,8 @@ import type { VideoOrClip } from '@/components/stream/related-content/types';
 const mockUseSearch = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
     useSearch: () => mockUseSearch(),
+    useRouterState: ({ select }: { select: (state: { location: { search: ReturnType<typeof mockUseSearch> } }) => unknown }) =>
+        select({ location: { search: mockUseSearch() } }),
     Link: ({ children, search }: any) => <div data-search={JSON.stringify(search)}>{children}</div>,
     useNavigate: () => vi.fn()
 }));

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Share Placement</title>
+  <style>
+    *{box-sizing:border-box}:root{color-scheme:dark;--void:#0f0f0f;--surface:#1a1a1a;--mid:#252525;--raised:#2d2d2d;--border:#333;--text:#fff;--muted:#a0a0a0}
+    body{margin:0;padding:32px;background:var(--void);color:var(--text);font-family:Inter,system-ui,sans-serif}h1{margin:0 0 8px;font-size:24px}.intro{margin:0 0 28px;color:var(--muted)}
+    .grid{display:grid;gap:18px}.option{padding:20px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}.recommended{border-color:#fff}.badge{display:inline-block;margin-bottom:16px;padding:4px 8px;border-radius:999px;background:#fff;color:#0f0f0f;font-size:11px;font-weight:800}.option:not(.recommended) .badge{background:var(--raised);color:var(--text)}
+    h2{margin:0 0 16px;font-size:16px}.page-row{display:flex;align-items:flex-start;gap:14px;padding:16px;border-radius:10px;background:var(--void)}.avatar{width:52px;height:52px;border-radius:50%;background:#9146ff;flex:none}.info{min-width:210px;flex:1}.title{height:14px;width:70%;margin:3px 0 10px;border-radius:3px;background:#eee}.meta{height:10px;width:45%;border-radius:3px;background:#666}.actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.button{height:36px;padding:0 14px;border-radius:999px;background:var(--mid);display:flex;align-items:center;gap:7px;font-size:12px;font-weight:750;white-space:nowrap}.share{outline:1px solid #666}.hint{margin-top:13px;color:var(--muted);font-size:13px;line-height:1.45}
+  </style>
+</head>
+<body>
+  <h1>Where should Share sit on the Video page?</h1>
+  <p class="intro">The player remains unchanged. These compare the metadata action row beneath it.</p>
+  <main class="grid">
+    <section class="option recommended"><span class="badge">A · RECOMMENDED</span><h2>Follow → Share → Download → Watch Live</h2><div class="page-row"><div class="avatar"></div><div class="info"><div class="title"></div><div class="meta"></div></div><div class="actions"><div class="button">Follow</div><div class="button share">↗ Share</div><div class="button">↓ Download</div><div class="button">Watch Live</div></div></div><p class="hint">Groups the two portable-content actions together and matches the existing Clip dialog’s Follow → Share → Download order.</p></section>
+    <section class="option"><span class="badge">B</span><h2>Follow → Download → Share → Watch Live</h2><div class="page-row"><div class="avatar"></div><div class="info"><div class="title"></div><div class="meta"></div></div><div class="actions"><div class="button">Follow</div><div class="button">↓ Download</div><div class="button share">↗ Share</div><div class="button">Watch Live</div></div></div><p class="hint">Preserves the current Follow → Download ordering, inserting Share later, but differs from the Clip dialog.</p></section>
+    <section class="option"><span class="badge">C</span><h2>Share inside the player controls</h2><div class="page-row"><div class="avatar"></div><div class="info"><div class="title"></div><div class="meta"></div></div><div class="actions"><div class="button">Follow</div><div class="button">↓ Download</div><div class="button">Watch Live</div></div></div><p class="hint">Puts Share near playback, but requires changes across both Platform players and makes the control harder to find consistently.</p></section>
+  </main>
+</body>
+</html>

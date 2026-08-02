@@ -13,8 +13,11 @@ export interface VideoOrClip {
   thumbnailUrl: string;
   embedUrl?: string; // For clips
   url?: string; // For clips
+  /** Verified public Platform content URL. Never a playback/media URL. */
+  shareUrl?: string;
   source?: string; // HLS m3u8 URL for VODs (especially Kick)
   gameName?: string;
+  gameId?: string;
   isLive?: boolean;
   isSubOnly?: boolean; // Whether the VOD is subscriber-only content
   // Additional metadata for passing to video page

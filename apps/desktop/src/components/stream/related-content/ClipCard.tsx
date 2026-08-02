@@ -91,7 +91,7 @@ export const ClipCard = memo(function ClipCard({
               to="/categories/$platform/$categoryId"
               params={{
                 platform: platform || "twitch",
-                categoryId: categoryName,
+                categoryId: clip.gameId || categoryName,
               }}
               className="text-xs font-bold text-[#b2b2b2] hover:text-[var(--color-primary)] hover:underline mt-1 truncate transition-colors w-fit block"
               onClick={(e) => e.stopPropagation()}

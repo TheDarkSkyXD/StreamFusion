@@ -66,6 +66,7 @@ export const VideoCard = memo(function VideoCard({
           tags: video.tags || undefined,
           language: video.language || undefined,
           isMature: video.isMature || undefined,
+          shareUrl: video.shareUrl || undefined,
         }
       : undefined,
   };
@@ -170,7 +171,7 @@ export const VideoCard = memo(function VideoCard({
               to="/categories/$platform/$categoryId"
               params={{
                 platform: platform || "twitch",
-                categoryId: categoryName,
+                categoryId: video.gameId || categoryName,
               }}
               className="text-xs font-bold text-[#b2b2b2] hover:text-[var(--color-primary)] hover:underline mt-1 truncate transition-colors w-fit block"
             >

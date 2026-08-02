@@ -1,7 +1,15 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import type { IconType } from "react-icons";
-import { LuCalendarClock, LuEye, LuGamepad2, LuScissors } from "react-icons/lu";
+import {
+  LuCalendarClock,
+  LuCheck,
+  LuDownload,
+  LuEye,
+  LuGamepad2,
+  LuScissors,
+  LuShare2,
+} from "react-icons/lu";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickVodPlayer } from "@/components/player/kick";
@@ -13,6 +21,8 @@ import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loadin
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { useHistoryActions } from "@/hooks/queries/useHistoryQuery";
+import { useDownloadActions } from "@/hooks/use-download-actions";
+import { useShareAction } from "@/hooks/use-share-action";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 
@@ -69,6 +79,8 @@ export function ClipDialog({
   const { addToHistory } = useHistoryActions();
   const [vodLookupLoading, setVodLookupLoading] = useState(false);
   const [vodLookupError, setVodLookupError] = useState<string | null>(null);
+  const [readyPlaybackKey, setReadyPlaybackKey] = useState<string | null>(null);
+  const [failedPlaybackKey, setFailedPlaybackKey] = useState<string | null>(null);
   const clipPlatform = selectedClip?.platform ?? platform;
   const channelDisplayName = channelData?.displayName || selectedClip?.channelName || channelName;
   const channelAvatar = channelData?.avatarUrl || selectedClip?.channelAvatar || "";
@@ -97,6 +109,56 @@ export function ClipDialog({
   const visibleClipMetadata = clipMetadata.filter((value): value is ClipMetadataItem =>
     Boolean(value)
   );
+  const playbackKey =
+    selectedClip && clipPlaybackUrl ? `${selectedClip.id}:${clipPlaybackUrl}` : null;
+  const playbackFailed = playbackKey !== null && failedPlaybackKey === playbackKey;
+  const isPlaybackReady = Boolean(
+    selectedClip &&
+      clipPlaybackUrl &&
+      readyPlaybackKey === playbackKey &&
+      !clipLoading &&
+      !clipError &&
+      !playbackFailed
+  );
+
+  useEffect(() => {
+    if (readyPlaybackKey !== null && readyPlaybackKey !== playbackKey) {
+      setReadyPlaybackKey(null);
+    }
+    if (failedPlaybackKey !== null && failedPlaybackKey !== playbackKey) {
+      setFailedPlaybackKey(null);
+    }
+  }, [failedPlaybackKey, playbackKey, readyPlaybackKey]);
+
+  const { downloadClip } = useDownloadActions();
+  const shareAction = useShareAction({
+    shareUrl: selectedClip?.shareUrl,
+    isPlaybackReady,
+    contentLabel: "Clip",
+    contentKey: selectedClip?.id,
+  });
+
+  const handlePlayerReady = useCallback(() => {
+    if (playbackKey) setReadyPlaybackKey(playbackKey);
+  }, [playbackKey]);
+
+  const handlePlayerError = useCallback(() => {
+    setReadyPlaybackKey(null);
+    if (playbackKey) setFailedPlaybackKey(playbackKey);
+    onPlaybackError();
+  }, [onPlaybackError, playbackKey]);
+
+  const handleDownload = useCallback(() => {
+    if (!selectedClip || !isPlaybackReady) return;
+    void downloadClip({
+      platform: clipPlatform,
+      clipId: selectedClip.id,
+      title: selectedClip.title,
+      channelName: selectedClip.channelSlug || channelName,
+      clipUrl: clipPlaybackUrl || undefined,
+      thumbnailUrl: selectedClip.thumbnailUrl,
+    });
+  }, [channelName, clipPlatform, clipPlaybackUrl, downloadClip, isPlaybackReady, selectedClip]);
 
   useEffect(() => {
     if (!selectedClip || clipLoading) return;
@@ -108,6 +170,7 @@ export function ClipDialog({
       title: selectedClip.title,
       thumbnail: selectedClip.thumbnailUrl || "",
       playbackUrl: clipPlaybackUrl,
+      shareUrl: selectedClip.shareUrl,
       platform: clipPlatform,
       type: "clip",
       channelName: selectedClip.channelSlug || channelName,
@@ -175,6 +238,7 @@ export function ClipDialog({
             category: result.data.category,
             duration: result.data.duration,
             language: result.data.language || selectedClip.language || undefined,
+            shareUrl: result.data.shareUrl || undefined,
           },
         });
       } else {
@@ -225,7 +289,8 @@ export function ClipDialog({
                       videoId={selectedClip.id}
                       title={selectedClip.title}
                       qualities={clipQualities}
-                      onError={onPlaybackError}
+                      onReady={handlePlayerReady}
+                      onError={handlePlayerError}
                     />
                   ) : (
                     <KickVodPlayer
@@ -234,7 +299,8 @@ export function ClipDialog({
                       className="w-full h-full"
                       videoId={selectedClip.id}
                       title={selectedClip.title}
-                      onError={onPlaybackError}
+                      onReady={handlePlayerReady}
+                      onError={handlePlayerError}
                       // Kick clips are handled differently or might not have manual qualities exposed the same way yet
                     />
                   )
@@ -304,8 +370,33 @@ export function ClipDialog({
                     </Button>
                   )}
 
-                  <Button variant="secondary" className="px-4 rounded-full font-bold">
-                    Share
+                  <Button
+                    variant="secondary"
+                    className="px-4 rounded-full font-bold gap-2"
+                    onClick={() => void shareAction.share()}
+                    disabled={!shareAction.canShare}
+                    title={!shareAction.canShare ? shareAction.unavailableTitle : undefined}
+                  >
+                    {shareAction.copied ? (
+                      <LuCheck aria-hidden="true" />
+                    ) : (
+                      <LuShare2 aria-hidden="true" />
+                    )}
+                    {shareAction.copied ? "Copied" : "Share"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-4 rounded-full font-bold gap-2"
+                    onClick={handleDownload}
+                    disabled={!isPlaybackReady}
+                    title={
+                      !isPlaybackReady
+                        ? "Download is available when this Clip is ready to play."
+                        : undefined
+                    }
+                  >
+                    <LuDownload aria-hidden="true" />
+                    Download
                   </Button>
                 </div>
               </div>

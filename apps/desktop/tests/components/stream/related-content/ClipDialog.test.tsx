@@ -26,9 +26,23 @@ vi.mock("@/components/ui/loading-spinner", () => ({
 }));
 
 vi.mock("@/components/player/twitch", () => ({
-  TwitchVodPlayer: ({ streamUrl }: { streamUrl: string }) => (
+  TwitchVodPlayer: ({
+    streamUrl,
+    onReady,
+    onError,
+  }: {
+    streamUrl: string;
+    onReady?: () => void;
+    onError?: () => void;
+  }) => (
     <div data-testid="twitch-vod-player" data-stream-url={streamUrl}>
       Twitch Player
+      <button type="button" onClick={onReady}>
+        Ready playback
+      </button>
+      <button type="button" onClick={onError}>
+        Fail playback
+      </button>
     </div>
   ),
 }));
@@ -59,6 +73,10 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+// Guards: guest playback surfaces expose Share and Download without consulting auth state
+// Guards: Clip sharing copies only the explicit public content URL, never the playback URL
+// Guards: player failures disable both Share and Download because the playback entitlement is invalid
+// Guards: switching Clips clears Copied state and waits for the new player readiness signal
 describe("[Unit] ClipDialog", () => {
   const mockOnClose = vi.fn();
   const mockOnPlaybackError = vi.fn();
@@ -70,6 +88,7 @@ describe("[Unit] ClipDialog", () => {
     created_at: "2023-01-01",
     duration: "30s",
     url: "http://clip.url",
+    shareUrl: "https://clips.twitch.tv/AwesomeClip",
     embedUrl: "http://embed.url",
     gameName: "Just Chatting",
     creatorName: "Clipper",
@@ -101,7 +120,137 @@ describe("[Unit] ClipDialog", () => {
       videos: {
         getByLivestreamId: vi.fn(),
       },
+      downloads: {
+        getQueue: vi.fn().mockResolvedValue({ jobs: [] }),
+        downloadClip: vi.fn().mockResolvedValue({ success: true, jobId: "clip-job" }),
+      },
     };
+  });
+
+  it("enables guest sharing and downloading only after the player becomes ready", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <ClipDialog
+        selectedClip={mockClip}
+        onClose={mockOnClose}
+        clipLoading={false}
+        clipError={null}
+        clipPlaybackUrl="https://video.example/clip.m3u8"
+        platform="twitch"
+        channelName="coolstreamer"
+        channelData={null}
+        onPlaybackError={mockOnPlaybackError}
+      />
+    );
+
+    const share = screen.getByRole("button", { name: "Share" });
+    const download = screen.getByRole("button", { name: "Download" });
+    expect(share).toBeDisabled();
+    expect(download).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ready playback" }));
+
+    expect(share).toBeEnabled();
+    expect(download).toBeEnabled();
+    fireEvent.click(share);
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("https://clips.twitch.tv/AwesomeClip")
+    );
+
+    fireEvent.click(download);
+    await waitFor(() =>
+      expect((window as any).electronAPI.downloads.downloadClip).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: "twitch",
+          clipId: "clip-123",
+          clipUrl: "https://video.example/clip.m3u8",
+        })
+      )
+    );
+  });
+
+  it("disables sharing and downloading after playback fails", async () => {
+    render(
+      <ClipDialog
+        selectedClip={mockClip}
+        onClose={mockOnClose}
+        clipLoading={false}
+        clipError={null}
+        clipPlaybackUrl="https://video.example/clip.m3u8"
+        platform="twitch"
+        channelName="coolstreamer"
+        channelData={null}
+        onPlaybackError={mockOnPlaybackError}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ready playback" }));
+    expect(screen.getByRole("button", { name: "Share" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Download" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fail playback" }));
+
+    expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
+    expect(mockOnPlaybackError).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets Copied immediately when the selected clip changes", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const baseProps = {
+      onClose: mockOnClose,
+      clipLoading: false,
+      clipError: null,
+      platform: "twitch" as Platform,
+      channelName: "coolstreamer",
+      channelData: null,
+      onPlaybackError: mockOnPlaybackError,
+    };
+    const { rerender } = render(
+      <ClipDialog
+        {...baseProps}
+        selectedClip={mockClip}
+        clipPlaybackUrl="https://video.example/first.m3u8"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ready playback" }));
+    fireEvent.click(screen.getByRole("button", { name: "Share" }));
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeEnabled();
+
+    rerender(
+      <ClipDialog
+        {...baseProps}
+        selectedClip={{
+          ...mockClip,
+          id: "clip-456",
+          title: "Another Clip",
+          shareUrl: "https://clips.twitch.tv/AnotherClip",
+        }}
+        clipPlaybackUrl="https://video.example/second.m3u8"
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Copied" })).not.toBeInTheDocument();
+
+    rerender(
+      <ClipDialog
+        {...baseProps}
+        selectedClip={mockClip}
+        clipPlaybackUrl="https://video.example/first.m3u8"
+      />
+    );
+    expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
   });
 
   it("should render nothing when no clip is selected", () => {

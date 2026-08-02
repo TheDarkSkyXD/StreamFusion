@@ -1,4 +1,4 @@
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
 import { logger } from "@/renderer/logging/logger";
 
 import { ClipCard } from "./ClipCard";
@@ -23,6 +24,21 @@ export type TimeRange = "day" | "week" | "month" | "all";
 
 const EAGER_RELATED_CARD_COUNT = 9;
 const RELATED_CARD_ROOT_MARGIN = "320px 0px";
+const relatedContentRequestCache = new Map<string, Promise<void>>();
+
+function prewarmRelatedContentImages(requestKey: string, items: VideoOrClip[]): void {
+  if (relatedContentRequestCache.has(requestKey)) return;
+
+  const imageUrls = items.map((item) => item.thumbnailUrl);
+  if (imageUrls.length === 0) return;
+
+  const request = prewarmViewportImages(imageUrls);
+  relatedContentRequestCache.set(requestKey, request);
+}
+
+export function _resetRelatedContentRequestCache(): void {
+  relatedContentRequestCache.clear();
+}
 
 function LazyRelatedCard({ eager, children }: { eager: boolean; children: React.ReactNode }) {
   const [shouldRender, setShouldRender] = useState(eager);
@@ -74,7 +90,12 @@ export function RelatedContent({
   streamStartedAt,
   onClipSelectionChange,
 }: RelatedContentProps) {
-  const { tab: urlTab } = useSearch({ from: "/_app/stream/$platform/$channel" });
+  const urlTab = useRouterState({
+    select: (state) => {
+      const tab = state.location.search.tab;
+      return tab === "home" || tab === "videos" || tab === "clips" ? tab : undefined;
+    },
+  });
   const activeTab = urlTab ?? "home";
 
   const [isLoading, setIsLoading] = useState(true);
@@ -224,12 +245,23 @@ export function RelatedContent({
           ]);
 
           if (videosResult.success) {
-            setVideos(videosResult.data || []);
+            const nextVideos = videosResult.data || [];
+            setVideos(nextVideos);
+            prewarmRelatedContentImages(
+              `${platform}:${channelName}:home`,
+              nextVideos.concat(clipsResult.success ? clipsResult.data || [] : [])
+            );
             // No cursor needed for home view
           }
 
           if (clipsResult.success) {
             setClips(clipsResult.data || []);
+            if (!videosResult.success) {
+              prewarmRelatedContentImages(
+                `${platform}:${channelName}:home`,
+                clipsResult.data || []
+              );
+            }
           }
 
           if (!videosResult.success && !clipsResult.success) {
@@ -244,7 +276,9 @@ export function RelatedContent({
             sort: sortBy === "views" ? "views" : "date",
           });
           if (result.success) {
-            setVideos(result.data || []);
+            const nextVideos = result.data || [];
+            setVideos(nextVideos);
+            prewarmRelatedContentImages(`${platform}:${channelName}:videos`, nextVideos);
             setVideoCursor(result.cursor);
             setHasMoreVideos(!!result.cursor);
             setDebugInfo(result.debug || null);
@@ -261,7 +295,9 @@ export function RelatedContent({
             timeRange: timeRange,
           });
           if (result.success) {
-            setClips(result.data || []);
+            const nextClips = result.data || [];
+            setClips(nextClips);
+            prewarmRelatedContentImages(`${platform}:${channelName}:clips`, nextClips);
             setClipCursor(result.cursor);
             setHasMoreClips(!!result.cursor);
           } else {
@@ -278,7 +314,7 @@ export function RelatedContent({
       }
     };
 
-    if (platform && channelName && channelData?.id) {
+    if (platform && channelName) {
       fetchInitialData();
     }
   }, [activeTab, platform, channelName, channelData?.id, sortBy, timeRange, reloadKey]);
@@ -729,18 +765,20 @@ export function RelatedContent({
         )}
       </div>
 
-      <ClipDialog
-        selectedClip={selectedClip}
-        onClose={() => setSelectedClip(null)}
-        clipLoading={clipLoading}
-        clipError={clipError}
-        clipPlaybackUrl={clipPlaybackUrl}
-        clipQualities={clipQualities}
-        platform={platform}
-        channelName={channelName}
-        channelData={channelData}
-        onPlaybackError={handleClipPlaybackError}
-      />
+      {selectedClip ? (
+        <ClipDialog
+          selectedClip={selectedClip}
+          onClose={() => setSelectedClip(null)}
+          clipLoading={clipLoading}
+          clipError={clipError}
+          clipPlaybackUrl={clipPlaybackUrl}
+          clipQualities={clipQualities}
+          platform={platform}
+          channelName={channelName}
+          channelData={channelData}
+          onPlaybackError={handleClipPlaybackError}
+        />
+      ) : null}
     </div>
   );
 }

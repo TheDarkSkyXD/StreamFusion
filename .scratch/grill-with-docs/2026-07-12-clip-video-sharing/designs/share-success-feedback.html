@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamFusion Share Feedback</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; --void:#0f0f0f; --surface:#1a1a1a; --raised:#2d2d2d; --border:#333; --text:#fff; --muted:#a0a0a0; --success:#34c759; }
+    body { margin:0; padding:32px; background:var(--void); color:var(--text); font-family:Inter,system-ui,sans-serif; }
+    h1 { margin:0 0 8px; font-size:24px; } .intro { margin:0 0 28px; color:var(--muted); }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; }
+    .option { position:relative; min-height:270px; padding:20px; border:1px solid var(--border); border-radius:12px; background:var(--surface); overflow:hidden; }
+    .recommended { border-color:#fff; } .badge { display:inline-block; margin-bottom:18px; padding:4px 8px; border-radius:999px; background:#fff; color:#0f0f0f; font-size:11px; font-weight:800; letter-spacing:.04em; }
+    h2 { margin:0 0 7px; font-size:16px; } p { margin:0; color:var(--muted); font-size:13px; line-height:1.5; }
+    .actions { display:flex; gap:10px; margin-top:34px; }
+    button { height:38px; padding:0 16px; border:0; border-radius:999px; background:#252525; color:#fff; font:700 13px Inter,system-ui,sans-serif; }
+    .changed { color:var(--success); outline:1px solid color-mix(in srgb,var(--success) 55%,transparent); }
+    .toast { position:absolute; right:16px; bottom:16px; display:flex; align-items:center; gap:10px; padding:12px 14px; border:1px solid var(--border); border-radius:9px; background:var(--raised); box-shadow:0 2px 8px rgba(0,0,0,.3); font-size:13px; font-weight:650; }
+    .check { color:var(--success); font-size:18px; } .note { margin-top:42px; padding:14px 16px; border-left:3px solid var(--muted); background:var(--surface); color:var(--muted); font-size:13px; }
+  </style>
+</head>
+<body>
+  <h1>After the link is copied, what should change?</h1>
+  <p class="intro">All options use the existing neutral Share button. These examples show the success state.</p>
+  <main class="grid">
+    <section class="option recommended">
+      <span class="badge">A · RECOMMENDED</span>
+      <h2>Toast only</h2>
+      <p>The button stays stable while a short confirmation appears. Clear, accessible, and consistent with StreamFusion’s existing clipboard actions.</p>
+      <div class="actions"><button>Follow</button><button>Share</button><button>Download</button></div>
+      <div class="toast"><span class="check">✓</span> Link copied</div>
+    </section>
+    <section class="option">
+      <span class="badge">B</span>
+      <h2>Button changes + toast</h2>
+      <p>The button temporarily becomes “Copied” and a toast appears. Strong confirmation, but duplicates the same message and changes the action row width.</p>
+      <div class="actions"><button>Follow</button><button class="changed">✓ Copied</button><button>Download</button></div>
+      <div class="toast"><span class="check">✓</span> Link copied</div>
+    </section>
+    <section class="option">
+      <span class="badge">C</span>
+      <h2>Button changes only</h2>
+      <p>The button temporarily becomes “Copied.” Compact, but feedback may be missed if focus or attention moves immediately after clicking.</p>
+      <div class="actions"><button>Follow</button><button class="changed">✓ Copied</button><button>Download</button></div>
+    </section>
+  </main>
+  <div class="note">Clipboard failures will be grilled separately after the success state is chosen.</div>
+</body>
+</html>
