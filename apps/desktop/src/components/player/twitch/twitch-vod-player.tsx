@@ -252,7 +252,6 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
           }}
           className="size-full object-contain cursor-pointer"
           controls={false}
-          onClick={togglePlay}
           onDoubleClick={toggleFullscreen}
         />
       ) : (

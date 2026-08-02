@@ -26,7 +26,10 @@ export function usePlayerKeyboard({
       const target = e.target as HTMLElement;
       if (
         target instanceof HTMLElement &&
-        (target.isContentEditable || target.closest("input, textarea, select, button"))
+        (target.isContentEditable ||
+          target.closest(
+            'input, textarea, select, button, a[href], [role="button"], [role="link"], [contenteditable="true"]'
+          ))
       ) {
         return;
       }

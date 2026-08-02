@@ -66,7 +66,7 @@ vi.mock("@/components/player/hls-player", () => ({
   ),
 }));
 
-// Guards: Twitch VODs keep a click-to-play fallback on the video surface before duration-gated controls appear.
+// Guards: Twitch VOD video-surface clicks cannot bypass the explicit play/pause controls.
 // Guards: Twitch VOD readiness requires playable media; manifest quality discovery alone cannot ready the player.
 // Guards: a seek updates the visible playback position immediately, without waiting for timeupdate.
 describe("TwitchVodPlayer", () => {
@@ -74,14 +74,14 @@ describe("TwitchVodPlayer", () => {
     vi.restoreAllMocks();
   });
 
-  it("clicks the video surface to recover playback when autoplay leaves the VOD paused", () => {
+  it("does not play a paused VOD when its video surface is clicked", () => {
     const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
 
     render(<TwitchVodPlayer streamUrl="https://usher.ttvnw.net/vod/123.m3u8" autoPlay />);
 
     fireEvent.click(screen.getByTestId("twitch-vod-video"));
 
-    expect(playSpy).toHaveBeenCalledTimes(1);
+    expect(playSpy).not.toHaveBeenCalled();
   });
 
   it("becomes ready on canplay, not when quality levels are published", () => {

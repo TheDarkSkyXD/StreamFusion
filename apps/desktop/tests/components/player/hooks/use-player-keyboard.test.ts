@@ -102,6 +102,28 @@ describe("usePlayerKeyboard", () => {
     expect(callbacks.onToggleFullscreen).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["link", () => {
+      const link = document.createElement("a");
+      link.href = "https://example.test";
+      return link;
+    }],
+    ["button role", () => {
+      const control = document.createElement("div");
+      control.setAttribute("role", "button");
+      return control;
+    }],
+    ["link role", () => {
+      const control = document.createElement("div");
+      control.setAttribute("role", "link");
+      return control;
+    }],
+  ])("ignores key events from an interactive %s", (_name, createTarget) => {
+    renderHook(() => usePlayerKeyboard(callbacks));
+    fireKey("k", createTarget());
+    expect(callbacks.onTogglePlay).not.toHaveBeenCalled();
+  });
+
   it("ignores key events when target is contentEditable", () => {
     renderHook(() => usePlayerKeyboard(callbacks));
     const div = document.createElement("div");

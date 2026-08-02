@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { PlayerControls } from '@/components/player/player-controls';
+import { TwitchPlayerControls } from '@/components/player/twitch/twitch-player-controls';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 // Mock dependencies
@@ -61,6 +62,31 @@ describe('PlayerControls', () => {
         renderControls(defaultProps);
         fireEvent.click(screen.getByText('Play/Pause'));
         expect(defaultProps.onTogglePlay).toHaveBeenCalled();
+    });
+
+    it('does not toggle playback when the blank player surface is clicked', () => {
+        vi.useFakeTimers();
+        const onTogglePlay = vi.fn();
+        const { container } = renderControls({ ...defaultProps, onTogglePlay });
+
+        fireEvent.click(container.firstElementChild as HTMLElement);
+        act(() => vi.runAllTimers());
+
+        expect(onTogglePlay).not.toHaveBeenCalled();
+        vi.useRealTimers();
+    });
+
+    it('does not toggle Twitch playback when the blank player surface is clicked', () => {
+        const onTogglePlay = vi.fn();
+        const { container } = render(
+            <TooltipProvider>
+                <TwitchPlayerControls {...defaultProps} onTogglePlay={onTogglePlay} />
+            </TooltipProvider>
+        );
+
+        fireEvent.click(container.firstElementChild as HTMLElement);
+
+        expect(onTogglePlay).not.toHaveBeenCalled();
     });
 
     it('should render Live badge when duration is missing (Live stream)', () => {
