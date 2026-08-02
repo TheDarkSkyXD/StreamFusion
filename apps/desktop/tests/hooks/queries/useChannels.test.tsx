@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 // Guards: useFollowedChannels swallows error responses and returns [] so a Helix auth failure doesn't break the followed sidebar into a query-error boundary

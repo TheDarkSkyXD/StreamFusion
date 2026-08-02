@@ -572,13 +572,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
 
     // The DB enforces UNIQUE(platform, channel_id, source). Empty channelId
     // would collide across all rows after the first, dropping 21 of 22
-    // imported follows on a typical user. The dual-id solution doc reserves
-    // id="" as the in-memory sentinel for "canonical not yet known," but
-    // that's a renderer-side convention; at the storage layer we need
-    // SOMETHING unique per channel. Slugs are unique per channel on Kick,
-    // so use the slug as channel_id for DOM-scraped rows. The slug bridge
-    // in channelsMatch (matches by platform+id OR platform+slug) means
-    // FollowButton, the sidebar, and dedupe paths all still work.
+    // Prefer the stable broadcaster id embedded in Kick's canonical avatar
+    // path. The mapper falls back to the slug when that identity is absent.
     const channels = scraped.channels.map(mapScrapedKickFollowedChannel);
 
     logger.debug(
