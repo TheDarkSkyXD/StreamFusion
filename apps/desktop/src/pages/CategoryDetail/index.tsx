@@ -1,57 +1,156 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams, useSearch } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import type { MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuArrowLeft } from "react-icons/lu";
 
 import type { UnifiedCategory } from "@/backend/api/unified/platform-types";
 import { CategoryFilterBar } from "@/components/discovery/category-filter-bar";
 import { StreamGrid } from "@/components/stream/stream-grid";
 import { ProxiedImage } from "@/components/ui/proxied-image";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getQueryCacheOptions } from "@/hooks/queries/cache-policy";
 import { useCategoryById } from "@/hooks/queries/useCategories";
 import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
-import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getStreamElementKey } from "@/lib/id-utils";
 import { formatViewerCount, getEquivalentCategoryName, normalizeCategoryName } from "@/lib/utils";
+import type {
+  CategoryContentTab,
+  CategoryDetailSearch,
+  CategoryPlatformScope,
+} from "@/routes/category-detail-search";
+import { validateCategoryDetailSearch } from "@/routes/category-detail-search";
 import type { Platform } from "@/shared/auth-types";
 
+import { CategoryMediaTab } from "./components/CategoryMediaTab";
+
+function getSavedClipTimeRange(): "day" | "week" | "month" | "all" {
+  const saved = localStorage.getItem("clips-filter-preference");
+  return saved === "day" || saved === "week" || saved === "month" || saved === "all"
+    ? saved
+    : "all";
+}
+
 const PAGE_SIZE = 30;
+const CATEGORY_ROUTE = "/categories/$platform/$categoryId" as const;
+const CATEGORY_SEARCH_KEYS = ["tab", "platform", "language", "tag", "sort", "otherId"] as const;
+
+const CATEGORY_TABS: Array<{ value: CategoryContentTab; label: string }> = [
+  { value: "live", label: "Live Streams" },
+  { value: "clips", label: "Clips" },
+  { value: "videos", label: "Videos" },
+];
+
+const PLATFORM_SCOPES: Array<{ value: CategoryPlatformScope; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "twitch", label: "Twitch" },
+  { value: "kick", label: "Kick" },
+];
+
+function resetContentScroll() {
+  const scrollArea = document.getElementById("main-content-scroll-area");
+  if (scrollArea) scrollArea.scrollTop = 0;
+}
+
+function isPlainPrimaryClick(event: MouseEvent<HTMLAnchorElement>) {
+  return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+}
+
+function needsCanonicalSearch(
+  rawSearch: Record<string, unknown>,
+  canonicalSearch: CategoryDetailSearch
+) {
+  return CATEGORY_SEARCH_KEYS.some((key) => {
+    const rawValue = rawSearch[key];
+    const canonicalValue = canonicalSearch[key];
+    if (
+      key === "otherId" &&
+      typeof rawValue === "number" &&
+      Number.isFinite(rawValue) &&
+      String(rawValue) === canonicalValue
+    ) {
+      return false;
+    }
+    return rawValue !== canonicalValue;
+  });
+}
+
+function selectedPlatformClasses(scope: CategoryPlatformScope) {
+  if (scope === "twitch") return "bg-[#9146FF] text-white";
+  if (scope === "kick") return "bg-[#53FC18] text-black";
+  return "bg-white text-black";
+}
 
 export function CategoryDetailPage() {
-  const canRenderContent = useAfterFirstPaint();
-  const { platform, categoryId } = useParams({ from: "/_app/categories/$platform/$categoryId" });
-  // `otherId` is set by the Categories list when it knows the cross-platform
-  // category id up-front. When present, we skip the brittle name-search below.
-  const { otherId } = useSearch({ from: "/_app/categories/$platform/$categoryId" });
+  const { platform: routePlatform, categoryId } = useParams({
+    from: "/_app/categories/$platform/$categoryId",
+  });
+  const routeSearch = useSearch({ from: "/_app/categories/$platform/$categoryId" });
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [clipSort, setClipSort] = useState<"views" | "recent">("views");
+  const [clipTimeRange, setClipTimeRange] = useState(getSavedClipTimeRange);
 
-  // Filter / sort state lives here; the underlying queries re-key on `language`
-  // (so changing it triggers a fresh fetch from cursor=0), while tag search
-  // and sort are applied client-side to the already-loaded pages.
-  const [language, setLanguage] = useState("");
-  const [rawTagQuery, setRawTagQuery] = useState("");
+  const tab = routeSearch.tab ?? "live";
+  const platformScope = routeSearch.platform ?? "all";
+  const language = routeSearch.language ?? "";
+  const rawTagQuery = routeSearch.tag ?? "";
+  const sortOrder = routeSearch.sort ?? "desc";
+  const otherId = routeSearch.otherId;
   const tagQuery = useDebounce(rawTagQuery, 200);
-  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const currentPlatform = routePlatform as Platform;
+  const otherPlatform: Platform = currentPlatform === "twitch" ? "kick" : "twitch";
+  const routePath = `/categories/${currentPlatform}/${categoryId}`;
 
-  // 1. Fetch primary category details
-  const { data: category, isLoading: isCategoryLoading } = useCategoryById(
-    categoryId,
-    platform as Platform
+  const currentSearch = useMemo<CategoryDetailSearch>(
+    () => ({
+      tab,
+      platform: platformScope,
+      language,
+      tag: rawTagQuery,
+      sort: sortOrder,
+      otherId,
+    }),
+    [language, otherId, platformScope, rawTagQuery, sortOrder, tab]
   );
 
-  // 2. Determine other platform
-  const currentPlatform = platform as Platform;
-  const otherPlatform: Platform = currentPlatform === "twitch" ? "kick" : "twitch";
+  useEffect(() => {
+    if (location.pathname !== routePath) return;
+    const rawSearch = location.search as Record<string, unknown>;
+    const canonicalSearch = validateCategoryDetailSearch(rawSearch);
+    if (!needsCanonicalSearch(rawSearch, canonicalSearch)) return;
+    void navigate({
+      to: CATEGORY_ROUTE,
+      params: { platform: currentPlatform, categoryId },
+      search: canonicalSearch,
+      replace: true,
+    });
+  }, [categoryId, currentPlatform, location.pathname, location.search, navigate, routePath]);
 
-  // 3. Find corresponding category on other platform.
-  // Reverse-lookup: if the current name has a curated equivalent for the other
-  // platform (e.g. Kick "Slots" → Twitch "Slots & Casino"), search by that.
-  // Otherwise search by the same name (covers IRL, GTA V, etc).
-  // Skipped entirely when `otherId` is provided via URL — that path is faster
-  // and more reliable (works for unauthenticated users on niche categories).
-  const { data: otherCategoryFromSearch } = useQuery({
-    // Keyed by normalized name so stream-page badge clicks (which use the same
-    // hook → same key) share this cache and don't refetch.
+  const { data: category, isLoading: isCategoryLoading } = useCategoryById(
+    categoryId,
+    currentPlatform
+  );
+  const providedOtherQuery = useCategoryById(otherId ?? "", otherPlatform);
+  const providedOtherCategory = otherId ? providedOtherQuery.data : undefined;
+  const providedOtherMatches = Boolean(
+    otherId &&
+    category?.name &&
+    providedOtherCategory?.name &&
+    normalizeCategoryName(category.name) === normalizeCategoryName(providedOtherCategory.name)
+  );
+  const shouldSearchForOtherCategory = Boolean(
+    category?.name && (!otherId || (!providedOtherQuery.isLoading && !providedOtherMatches))
+  );
+
+  const otherCategorySearch = useQuery({
     queryKey: [
       "category-match",
       category?.name ? normalizeCategoryName(category.name) : null,
@@ -61,110 +160,182 @@ export function CategoryDetailPage() {
       if (!category?.name) return null;
       const normalizedKey = normalizeCategoryName(category.name);
       const searchQuery = getEquivalentCategoryName(normalizedKey, otherPlatform) ?? category.name;
-
       const response = await window.electronAPI.categories.search({
         query: searchQuery,
         platform: otherPlatform,
         limit: 10,
       });
-
-      const candidates = (response.data as UnifiedCategory[]) || [];
-      return candidates.find((c) => normalizeCategoryName(c.name) === normalizedKey) || null;
+      if (response.error) throw new Error(String(response.error));
+      const candidates = (response.data as UnifiedCategory[]) ?? [];
+      return (
+        candidates.find((candidate) => normalizeCategoryName(candidate.name) === normalizedKey) ??
+        null
+      );
     },
-    enabled: !!category?.name && !otherId,
+    enabled: shouldSearchForOtherCategory,
     ...getQueryCacheOptions("categoryReference"),
   });
 
-  const otherCategoryId = otherId ?? otherCategoryFromSearch?.id ?? "";
+  const searchedOtherId = otherCategorySearch.data?.id;
+  const identityIsPending =
+    Boolean(otherId && providedOtherQuery.isLoading) ||
+    (shouldSearchForOtherCategory && otherCategorySearch.isPending);
+  const trustedOtherId = providedOtherMatches ? otherId : searchedOtherId;
+  const linkOtherId =
+    trustedOtherId ?? (identityIsPending || otherCategorySearch.isError ? otherId : undefined);
+  const otherCategoryId = trustedOtherId ?? "";
 
-  // Resolved name on the OTHER platform — passed to the secondary query so the
-  // Kick path can slug-guess when we never managed to find a numeric id.
-  // For Twitch → Kick this uses the curated equivalence (e.g. Twitch "Slots & Casino"
-  // → Kick "Slots"); falls back to the primary name when no override exists.
-  // Only meaningful when the secondary is Kick — Twitch's `getTopStreams` has no
-  // slug-fallback and would happily return the global top dump for an empty id.
+  const navigationSearch = useMemo<CategoryDetailSearch>(
+    () => ({ ...currentSearch, otherId: linkOtherId }),
+    [currentSearch, linkOtherId]
+  );
+
+  const identityIsSettled =
+    Boolean(category?.name) &&
+    !providedOtherQuery.isLoading &&
+    (providedOtherMatches || otherCategorySearch.isSuccess || otherCategorySearch.isError);
+
+  useEffect(() => {
+    if (location.pathname !== routePath || !identityIsSettled || otherCategorySearch.isError) {
+      return;
+    }
+    if (linkOtherId === otherId) return;
+    void navigate({
+      to: CATEGORY_ROUTE,
+      params: { platform: currentPlatform, categoryId },
+      search: navigationSearch,
+      replace: true,
+    });
+  }, [
+    categoryId,
+    currentPlatform,
+    identityIsSettled,
+    linkOtherId,
+    location.pathname,
+    navigate,
+    navigationSearch,
+    otherCategorySearch.isError,
+    otherId,
+    routePath,
+  ]);
+
+  const updateSearch = useCallback(
+    (patch: Partial<CategoryDetailSearch>) => {
+      resetContentScroll();
+      void navigate({
+        to: CATEGORY_ROUTE,
+        params: { platform: currentPlatform, categoryId },
+        search: { ...navigationSearch, ...patch },
+      });
+    },
+    [categoryId, currentPlatform, navigate, navigationSearch]
+  );
+
+  const handleNativeLinkClick = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
+    if (isPlainPrimaryClick(event)) resetContentScroll();
+  }, []);
+
   const otherCategoryName = useMemo(() => {
     if (otherPlatform !== "kick" || !category?.name) return undefined;
     const normalizedKey = normalizeCategoryName(category.name);
     return (
-      otherCategoryFromSearch?.name ??
+      otherCategorySearch.data?.name ??
+      (providedOtherMatches ? providedOtherCategory?.name : undefined) ??
       getEquivalentCategoryName(normalizedKey, otherPlatform) ??
       category.name
     );
-  }, [category?.name, otherCategoryFromSearch?.name, otherPlatform]);
+  }, [
+    category?.name,
+    otherCategorySearch.data?.name,
+    otherPlatform,
+    providedOtherCategory?.name,
+    providedOtherMatches,
+  ]);
+  const twitchCategoryId = currentPlatform === "twitch" ? categoryId : otherCategoryId;
+  const kickCategoryId = currentPlatform === "kick" ? categoryId : otherCategoryId;
+  const kickCategorySlug =
+    currentPlatform === "kick" ? category?.slug : providedOtherCategory?.slug ?? category?.slug;
+  const kickCategoryName = currentPlatform === "kick" ? category?.name : otherCategoryName;
+  const hasOtherPlatformMediaIdentity = currentPlatform === "twitch" || Boolean(otherCategoryId);
+  const isNativeKickMediaOnly =
+    tab !== "live" && currentPlatform === "kick" && !hasOtherPlatformMediaIdentity;
+  const mediaPlatformScope = isNativeKickMediaOnly ? "kick" : platformScope;
 
-  // 4. Infinite-load streams from both platforms in parallel.
-  // Pass `undefined` (not `""`) so the IPC handler doesn't set an empty
-  // `language=` query param on the upstream APIs.
+  const updateClipTimeRange = useCallback((value: "day" | "week" | "month" | "all") => {
+    setClipTimeRange(value);
+    localStorage.setItem("clips-filter-preference", value);
+  }, []);
+
   const langParam = language || undefined;
+  const datasetKey = `${platformScope}:${language}:${tagQuery}:${sortOrder}`;
   const primaryQuery = useInfiniteStreamsByCategory(
     categoryId,
     currentPlatform,
     PAGE_SIZE,
-    undefined,
-    langParam
+    currentPlatform === "kick" ? category?.name : undefined,
+    langParam,
+    datasetKey
   );
   const secondaryQuery = useInfiniteStreamsByCategory(
     otherCategoryId,
     otherPlatform,
     PAGE_SIZE,
     otherCategoryName,
-    langParam
+    langParam,
+    datasetKey
   );
 
-  const isLoading = !canRenderContent || isCategoryLoading || primaryQuery.isLoading;
-  const isFetchingNextPage = primaryQuery.isFetchingNextPage || secondaryQuery.isFetchingNextPage;
-  const hasNextPage = primaryQuery.hasNextPage || secondaryQuery.hasNextPage;
-
-  // 5. Merge, dedup, filter by tag, then sort by viewer count.
-  // Defensive: a page's `data` can be undefined if the backend fetch failed and
-  // returned a malformed response; flatMap with `p?.data ?? []` filters those out.
-  // Dedup by platform+id because Kick's offset pagination can return the same
-  // stream across consecutive pages when live channels shift between fetches.
-  const { merged, streams } = useMemo(() => {
-    const primary = primaryQuery.data?.pages.flatMap((p) => p?.data ?? []) ?? [];
-    const secondary = secondaryQuery.data?.pages.flatMap((p) => p?.data ?? []) ?? [];
+  const { merged, scopedMerged, streams } = useMemo(() => {
+    const primary = primaryQuery.data?.pages.flatMap((page) => page?.data ?? []) ?? [];
+    const secondary = secondaryQuery.data?.pages.flatMap((page) => page?.data ?? []) ?? [];
     const seen = new Set<string>();
     const mergedList = [];
-    for (const s of [...primary, ...secondary]) {
-      if (s == null) continue;
-      const key = getStreamElementKey(s);
+    for (const stream of [...primary, ...secondary]) {
+      if (stream == null) continue;
+      const key = getStreamElementKey(stream);
       if (seen.has(key)) continue;
       seen.add(key);
-      mergedList.push(s);
+      mergedList.push(stream);
     }
+    const scoped =
+      platformScope === "all"
+        ? mergedList
+        : mergedList.filter((stream) => stream.platform === platformScope);
     const lowerTag = tagQuery.trim().toLowerCase();
     const filtered = lowerTag
-      ? mergedList.filter((s) => s.tags?.some((t) => t.toLowerCase().includes(lowerTag)))
-      : mergedList;
-    const sorted = [...filtered].sort((a, b) =>
+      ? scoped.filter((stream) =>
+          stream.tags?.some((streamTag) => streamTag.toLowerCase().includes(lowerTag))
+        )
+      : scoped;
+    const sorted = [...filtered].sort((left, right) =>
       sortOrder === "desc"
-        ? (b.viewerCount ?? 0) - (a.viewerCount ?? 0)
-        : (a.viewerCount ?? 0) - (b.viewerCount ?? 0)
+        ? (right.viewerCount ?? 0) - (left.viewerCount ?? 0)
+        : (left.viewerCount ?? 0) - (right.viewerCount ?? 0)
     );
-    return { merged: mergedList, streams: sorted };
-  }, [primaryQuery.data, secondaryQuery.data, tagQuery, sortOrder]);
+    return { merged: mergedList, scopedMerged: scoped, streams: sorted };
+  }, [platformScope, primaryQuery.data, secondaryQuery.data, sortOrder, tagQuery]);
 
-  // Match the number the Categories card shows. `category.viewerCount` is the
-  // authoritative platform total (Twitch GQL `viewersCount`, Kick public-stream
-  // aggregation), so prefer it over summing the streams we've paginated in —
-  // that sum is partial and drifts upward as the user scrolls.
-  // Fall back to the running sum (pre-tag-filter so the header doesn't shrink
-  // when the user searches for a tag) when the API didn't supply a total (e.g.
-  // authenticated Kick's `/categories/:id` doesn't expose viewer_count).
-  const streamsSum = merged.reduce((acc, stream) => acc + (stream.viewerCount || 0), 0);
+  const streamsSum = merged.reduce((sum, stream) => sum + (stream.viewerCount || 0), 0);
   const totalViewers = category?.viewerCount ?? streamsSum;
+  const selectedQuery =
+    platformScope === "all"
+      ? null
+      : platformScope === currentPlatform
+        ? primaryQuery
+        : secondaryQuery;
+  const isStreamsLoading = selectedQuery
+    ? selectedQuery.isLoading
+    : primaryQuery.isLoading || secondaryQuery.isLoading;
+  const isFetchingNextPage = selectedQuery
+    ? selectedQuery.isFetchingNextPage
+    : primaryQuery.isFetchingNextPage || secondaryQuery.isFetchingNextPage;
+  const hasNextPage = selectedQuery
+    ? selectedQuery.hasNextPage
+    : primaryQuery.hasNextPage || secondaryQuery.hasNextPage;
 
-  // 6. IntersectionObserver sentinel — fetch next page on both queries in parallel
-  // so the merged sort stays balanced (avoids one side running far ahead).
-  // The scrollable container is <main id="main-content-scroll-area"> from AppLayout,
-  // not the viewport — pass it explicitly as the IO root.
-  // A queries ref keeps the callback stable so the observer is created exactly once
-  // (per sentinel mount), instead of re-creating on every render.
-  const queriesRef = useRef({ primaryQuery, secondaryQuery });
-  queriesRef.current = { primaryQuery, secondaryQuery };
+  const queriesRef = useRef({ primaryQuery, secondaryQuery, platformScope, currentPlatform });
+  queriesRef.current = { primaryQuery, secondaryQuery, platformScope, currentPlatform };
   const observerRef = useRef<IntersectionObserver | null>(null);
-
   const sentinelRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -176,9 +347,25 @@ export function CategoryDetailPage() {
     observerRef.current = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
-        const { primaryQuery: pq, secondaryQuery: sq } = queriesRef.current;
-        if (pq.hasNextPage && !pq.isFetchingNextPage) pq.fetchNextPage();
-        if (sq.hasNextPage && !sq.isFetchingNextPage) sq.fetchNextPage();
+        const state = queriesRef.current;
+        const fetchPrimary =
+          state.platformScope === "all" || state.platformScope === state.currentPlatform;
+        const fetchSecondary =
+          state.platformScope === "all" || state.platformScope !== state.currentPlatform;
+        if (
+          fetchPrimary &&
+          state.primaryQuery.hasNextPage &&
+          !state.primaryQuery.isFetchingNextPage
+        ) {
+          state.primaryQuery.fetchNextPage();
+        }
+        if (
+          fetchSecondary &&
+          state.secondaryQuery.hasNextPage &&
+          !state.secondaryQuery.isFetchingNextPage
+        ) {
+          state.secondaryQuery.fetchNextPage();
+        }
       },
       { root, threshold: 0, rootMargin: "1500px" }
     );
@@ -187,94 +374,208 @@ export function CategoryDetailPage() {
 
   return (
     <div className="p-6 h-full flex flex-col gap-6">
-      {isLoading && (
-        <div className="animate-pulse space-y-6">
-          <div className="space-y-4">
-            {/* Back Button Skeleton */}
-            <div className="h-6 w-32 bg-[var(--color-background-tertiary)] rounded" />
-            {/* Header Skeleton */}
-            <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
-              <div className="w-48 aspect-[3/4] bg-[var(--color-background-tertiary)] rounded-xl" />
-              <div className="flex-1 space-y-4 w-full">
-                <div className="h-12 w-3/4 md:w-1/2 bg-[var(--color-background-tertiary)] rounded" />
-                <div className="h-6 w-1/4 bg-[var(--color-background-tertiary)] rounded" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Link
+        to="/categories"
+        className="text-[var(--color-foreground-muted)] hover:text-white flex items-center gap-2 transition-colors w-fit"
+      >
+        <LuArrowLeft size={20} />
+        Back to Categories
+      </Link>
 
-      {!isLoading && (
-        <div className="flex flex-col gap-6">
-          <Link
-            to="/categories"
-            className="text-[var(--color-foreground-muted)] hover:text-white flex items-center gap-2 transition-colors w-fit"
-          >
-            <LuArrowLeft size={20} />
-            Back to Categories
-          </Link>
-
+      {isCategoryLoading ? (
+        <div className="animate-pulse motion-reduce:animate-none space-y-6">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
-            <div className="w-48 aspect-[3/4] bg-[var(--color-background-tertiary)] rounded-xl shadow-2xl flex items-center justify-center shrink-0 border border-[var(--color-border)] relative overflow-hidden group">
-              {category?.boxArtUrl ? (
-                <ProxiedImage
-                  src={category.boxArtUrl.replace("{width}", "285").replace("{height}", "380")}
-                  alt={category.name}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-              ) : (
-                <span className="text-6xl">🎮</span>
-              )}
-              {/* Gradient overlay for depth */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none" />
+            <div className="w-48 aspect-[3/4] bg-[var(--color-background-tertiary)] rounded-xl" />
+            <div className="flex-1 space-y-4 w-full">
+              <div className="h-12 w-3/4 md:w-1/2 bg-[var(--color-background-tertiary)] rounded" />
+              <div className="h-6 w-1/4 bg-[var(--color-background-tertiary)] rounded" />
             </div>
-            <div className="flex-1 text-center md:text-left space-y-2 pb-2">
-              <h1 className="text-4xl md:text-6xl font-black tracking-tight">{category?.name}</h1>
-              <div className="flex items-center justify-center md:justify-start gap-3 text-lg">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-[var(--color-primary)] text-xl">
-                    {formatViewerCount(totalViewers)}
-                  </span>
-                  <span className="text-[var(--color-foreground-secondary)]">Viewers</span>
-                </div>
-              </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
+          <div className="w-48 aspect-[3/4] bg-[var(--color-background-tertiary)] rounded-xl shadow-2xl flex items-center justify-center shrink-0 border border-[var(--color-border)] relative overflow-hidden group">
+            {category?.boxArtUrl ? (
+              <ProxiedImage
+                src={category.boxArtUrl.replace("{width}", "285").replace("{height}", "380")}
+                alt={category.name}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <span className="text-6xl" aria-hidden="true">
+                🎮
+              </span>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none" />
+          </div>
+          <div className="flex-1 text-center md:text-left space-y-2 pb-2">
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight">
+              {category?.name ?? "Unknown Category"}
+            </h1>
+            <div className="flex items-center justify-center md:justify-start gap-1.5 text-lg">
+              <span className="font-bold text-[var(--color-primary)] text-xl">
+                {formatViewerCount(totalViewers)}
+              </span>
+              <span className="text-[var(--color-foreground-secondary)]">watching live</span>
             </div>
           </div>
         </div>
       )}
 
-      {!isLoading && (
-        <CategoryFilterBar
-          language={language}
-          onLanguageChange={setLanguage}
-          tagQuery={rawTagQuery}
-          onTagQueryChange={setRawTagQuery}
-          sortOrder={sortOrder}
-          onSortOrderChange={setSortOrder}
-        />
+      <nav
+        aria-label="Category content"
+        className="sticky top-0 z-10 flex min-h-10 items-end gap-6 border-b border-[var(--color-border)] bg-[var(--color-background-primary)]"
+      >
+        {CATEGORY_TABS.map(({ value, label }) => {
+          const isSelected = tab === value;
+          return (
+            <Link
+              key={value}
+              to={CATEGORY_ROUTE}
+              params={{ platform: currentPlatform, categoryId }}
+              search={{ ...navigationSearch, tab: value }}
+              aria-current={isSelected ? "page" : undefined}
+              onClick={handleNativeLinkClick}
+              className={`inline-flex min-h-10 items-center border-b-2 px-1 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                isSelected
+                  ? "border-white text-white"
+                  : "border-transparent text-[var(--color-foreground-muted)] hover:text-white"
+              }`}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        {!isNativeKickMediaOnly && (
+          <div
+            role="group"
+            aria-label="Platform"
+            className="flex min-h-10 w-full items-stretch rounded-lg bg-[var(--color-background-tertiary)] p-1 sm:w-fit"
+          >
+            {PLATFORM_SCOPES.map(({ value, label }) => {
+              const isSelected = platformScope === value;
+              return (
+                <Link
+                  key={value}
+                  to={CATEGORY_ROUTE}
+                  params={{ platform: currentPlatform, categoryId }}
+                  search={{ ...navigationSearch, platform: value }}
+                  aria-current={isSelected ? true : undefined}
+                  onClick={handleNativeLinkClick}
+                  className={`inline-flex min-h-10 flex-1 items-center justify-center rounded-md px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:flex-none ${
+                    isSelected
+                      ? selectedPlatformClasses(value)
+                      : "text-[var(--color-foreground-secondary)] hover:bg-[var(--color-background-elevated)] hover:text-white"
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === "live" && (
+          <CategoryFilterBar
+            language={language}
+            onLanguageChange={(value) => updateSearch({ language: value })}
+            tagQuery={rawTagQuery}
+            onTagQueryChange={(value) => updateSearch({ tag: value })}
+            sortOrder={sortOrder}
+            onSortOrderChange={(value) => updateSearch({ sort: value })}
+          />
+        )}
+        {tab !== "live" && (
+          <div role="group" aria-label="Category filters" className="flex min-w-0 flex-wrap items-center gap-3">
+            <div role="group" aria-label="Category text filters">
+              <CategoryFilterBar
+                language={language}
+                onLanguageChange={(value) => updateSearch({ language: value })}
+                tagQuery={rawTagQuery}
+                onTagQueryChange={(value) => updateSearch({ tag: value })}
+                sortOrder={sortOrder}
+                onSortOrderChange={(value) => updateSearch({ sort: value })}
+                showViewerSort={false}
+              />
+            </div>
+            {tab === "clips" && (
+              <div
+                role="group"
+                aria-label="Category clip filters"
+                className="flex min-w-0 flex-wrap items-center gap-3 sm:ml-auto sm:justify-end"
+              >
+                <span className="shrink-0 whitespace-nowrap font-bold text-[var(--color-foreground)]">
+                  Filter by:
+                </span>
+                <Select value={clipTimeRange} onValueChange={updateClipTimeRange}>
+                  <SelectTrigger aria-label="Filter clips by time range" className="min-w-[120px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">Last Day</SelectItem>
+                    <SelectItem value="week">Last Week</SelectItem>
+                    <SelectItem value="month">Last Month</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={clipSort} onValueChange={(value) => setClipSort(value as "views" | "recent")}>
+                  <SelectTrigger aria-label="Sort Category clips" className="min-w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="views">Views</SelectItem>
+                    <SelectItem value="recent">Most Recent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {tab === "live" && (
+        <>
+          <StreamGrid
+            key={datasetKey}
+            datasetKey={datasetKey}
+            streams={streams}
+            isLoading={isStreamsLoading}
+            emptyMessage={
+              tagQuery && scopedMerged.length > 0
+                ? `No streams in this category match "${tagQuery}".`
+                : "No active streams found for this category."
+            }
+            skeletons={8}
+          />
+
+          {hasNextPage && (
+            <div className="relative h-14 flex items-center justify-center">
+              <div ref={sentinelRef} className="absolute inset-0" aria-hidden="true" />
+              {isFetchingNextPage && (
+                <div className="animate-spin motion-reduce:animate-none rounded-full h-6 w-6 border-b-2 border-white" />
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      <StreamGrid
-        streams={streams}
-        isLoading={isLoading}
-        emptyMessage={
-          tagQuery && merged.length > 0
-            ? `No streams in this category match "${tagQuery}".`
-            : "No active streams found for this category."
-        }
-        skeletons={8}
-      />
-
-      {/* Footer: fixed-height area that holds the IO sentinel and loading spinner.
-          Keeping the height constant avoids the layout shift that nudged the scroll
-          position when the spinner appeared/disappeared between pages. */}
-      {hasNextPage && (
-        <div className="relative h-14 flex items-center justify-center">
-          <div ref={sentinelRef} className="absolute inset-0" aria-hidden="true" />
-          {isFetchingNextPage && (
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white" />
-          )}
-        </div>
+      {tab !== "live" && (
+        <CategoryMediaTab
+          kind={tab}
+          platformScope={mediaPlatformScope}
+          twitchCategoryId={twitchCategoryId}
+          kickCategoryId={kickCategoryId}
+          kickCategorySlug={kickCategorySlug}
+          kickCategoryName={kickCategoryName}
+          language={language}
+          tag={rawTagQuery}
+          direction={tab === "clips" ? "desc" : sortOrder}
+          timeRange={clipTimeRange}
+          sort={tab === "clips" ? clipSort : "views"}
+        />
       )}
     </div>
   );

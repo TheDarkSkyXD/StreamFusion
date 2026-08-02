@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "calibrated": true,
+  "source": "electron-runtime-observations",
+  "observationCount": 6,
+  "generatedAt": "2026-07-17T05:52:36.230Z",
+  "budgets": {
+    "twitch": {
+      "pageSize": 30,
+      "maxPages": 5,
+      "maxRequests": 27,
+      "maxDurationMs": 3000,
+      "maxConcurrentRequests": 2
+    },
+    "kick": {
+      "pageSize": 20,
+      "maxPages": 3,
+      "maxRequests": 30,
+      "maxDurationMs": 10000,
+      "maxConcurrentRequests": 2
+    }
+  }
+}

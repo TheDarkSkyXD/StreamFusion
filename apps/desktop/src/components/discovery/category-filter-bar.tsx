@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LuSearch } from "react-icons/lu";
 
 import {
@@ -17,6 +17,7 @@ interface Props {
   onTagQueryChange: (v: string) => void;
   sortOrder: "desc" | "asc";
   onSortOrderChange: (v: "desc" | "asc") => void;
+  showViewerSort?: boolean;
 }
 
 // Radix Select forbids empty-string values, so we use a sentinel for "all".
@@ -29,7 +30,9 @@ export function CategoryFilterBar({
   onTagQueryChange,
   sortOrder,
   onSortOrderChange,
+  showViewerSort = true,
 }: Props) {
+  const [tagInput, setTagInput] = useState(tagQuery);
   const languageOptions = useMemo(
     () =>
       BROADCAST_LANGUAGES.map((code) => ({ code, name: getLanguageDisplayName(code) })).sort(
@@ -38,13 +41,17 @@ export function CategoryFilterBar({
     []
   );
 
+  useEffect(() => {
+    setTagInput(tagQuery);
+  }, [tagQuery]);
+
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Select
         value={language || ALL_LANGUAGES}
         onValueChange={(v) => onLanguageChange(v === ALL_LANGUAGES ? "" : v)}
       >
-        <SelectTrigger className="min-w-[160px] w-auto">
+        <SelectTrigger aria-label="Language" className="min-w-[160px] w-auto">
           <SelectValue placeholder="All languages" />
         </SelectTrigger>
         <SelectContent>
@@ -63,23 +70,29 @@ export function CategoryFilterBar({
           aria-hidden="true"
         />
         <input
+          aria-label="Tag"
           type="text"
-          value={tagQuery}
-          onChange={(e) => onTagQueryChange(e.target.value)}
+          value={tagInput}
+          onChange={(e) => {
+            setTagInput(e.target.value);
+            onTagQueryChange(e.target.value);
+          }}
           placeholder="Search tags…"
           className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pl-9 pr-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500"
         />
       </div>
 
-      <Select value={sortOrder} onValueChange={(v) => onSortOrderChange(v as "desc" | "asc")}>
-        <SelectTrigger className="min-w-[160px] w-auto">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="desc">Most viewers</SelectItem>
-          <SelectItem value="asc">Fewest viewers</SelectItem>
-        </SelectContent>
-      </Select>
+      {showViewerSort && (
+        <Select value={sortOrder} onValueChange={(v) => onSortOrderChange(v as "desc" | "asc")}>
+          <SelectTrigger aria-label="Viewer sort" className="min-w-[160px] w-auto">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="desc">Most viewers</SelectItem>
+            <SelectItem value="asc">Fewest viewers</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
     </div>
   );
 }

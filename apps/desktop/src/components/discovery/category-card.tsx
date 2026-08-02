@@ -13,6 +13,7 @@ import { formatViewerCount } from "@/lib/utils";
 interface CategoryCardProps {
   category: UnifiedCategory;
   imageLoading?: "lazy" | "eager";
+  imageFetchPriority?: "high" | "low" | "auto";
 }
 
 // Hover-debounce window mirrors StreamCard — long enough that wheel-scrolling
@@ -21,7 +22,11 @@ interface CategoryCardProps {
 const HOVER_PREFETCH_DELAY_MS = 150;
 
 // Memoize CategoryCard to prevent re-renders when grid updates but individual category hasn't changed
-export const CategoryCard = React.memo(({ category, imageLoading = "lazy" }: CategoryCardProps) => {
+export const CategoryCard = React.memo(({
+  category,
+  imageLoading = "lazy",
+  imageFetchPriority,
+}: CategoryCardProps) => {
   const queryClient = useQueryClient();
   // Lazy-fetch stream count + (Twitch-only) tags. The virtualized grid only
   // mounts cards that are visible, so we only pay for what the user can see.
@@ -72,6 +77,7 @@ export const CategoryCard = React.memo(({ category, imageLoading = "lazy" }: Cat
             alt={category.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading={imageLoading}
+            fetchPriority={imageFetchPriority}
             fallback={
               <div className="w-full h-full flex items-center justify-center text-4xl">🎮</div>
             }

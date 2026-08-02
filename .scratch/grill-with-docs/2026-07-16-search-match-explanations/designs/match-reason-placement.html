@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Search match reason placement</title>
+    <style>
+      * { box-sizing: border-box; }
+      :root {
+        color-scheme: dark;
+        --void: #0f0f0f;
+        --surface: #1a1a1a;
+        --raised: #252525;
+        --border: #333333;
+        --text: #ffffff;
+        --secondary: #a0a0a0;
+        --muted: #666666;
+        --twitch: #9146ff;
+        --live: #dc2626;
+      }
+      body {
+        margin: 0;
+        background: var(--void);
+        color: var(--text);
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+        padding: 32px;
+      }
+      main { max-width: 1180px; margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-size: 24px; }
+      .intro { margin: 0 0 28px; color: var(--secondary); font-size: 14px; }
+      .query { color: white; font-weight: 700; }
+      .options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+      .option { min-width: 0; }
+      .option-head { min-height: 86px; margin-bottom: 12px; }
+      .eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      h2 { margin: 4px 0; font-size: 16px; }
+      .explanation { margin: 0; color: var(--secondary); font-size: 12px; line-height: 1.45; }
+      .recommended { color: white; }
+      .card { overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: var(--surface); }
+      .thumbnail {
+        position: relative;
+        display: grid;
+        min-height: 176px;
+        place-items: center;
+        background: linear-gradient(145deg, #40334d, #1a2027 62%, #171717);
+      }
+      .scene { color: rgba(255,255,255,.28); font-size: 18px; font-weight: 800; letter-spacing: .04em; }
+      .live { position: absolute; top: 10px; left: 10px; border-radius: 4px; background: var(--live); padding: 3px 6px; font-size: 10px; font-weight: 800; }
+      .viewers { position: absolute; bottom: 10px; left: 10px; border-radius: 4px; background: rgba(0,0,0,.82); padding: 3px 6px; font-size: 11px; }
+      .platform { position: absolute; top: 10px; right: 10px; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 5px; background: rgba(0,0,0,.82); color: var(--twitch); font-size: 12px; font-weight: 900; }
+      .body { display: flex; gap: 11px; padding: 12px; }
+      .avatar { flex: 0 0 auto; width: 40px; height: 40px; border: 2px solid var(--twitch); border-radius: 999px; background: #393939; }
+      .copy { min-width: 0; flex: 1; }
+      .title, .channel, .category, .reason, .stacked { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .title { font-size: 14px; font-weight: 700; }
+      .category { margin-top: 4px; color: #b2b2b2; font-size: 12px; font-weight: 700; }
+      .channel { margin-top: 4px; color: var(--secondary); font-size: 13px; font-weight: 700; }
+      .reason { margin-top: 7px; color: var(--secondary); font-size: 11px; }
+      .reason-label { color: var(--muted); }
+      mark { border-radius: 3px; background: var(--raised); color: white; font-weight: 800; padding: 1px 2px; }
+      .inline-match { text-decoration: underline; text-decoration-color: white; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+      .stacked { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; white-space: normal; }
+      .chip { border-radius: 999px; background: #4a4d55; color: #efeff1; padding: 3px 7px; font-size: 10px; font-weight: 700; }
+      .note { margin-top: 28px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 16px; color: var(--secondary); font-size: 13px; }
+      @media (max-width: 880px) { .options { grid-template-columns: 1fr; } .option-head { min-height: 0; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>How should a result explain its match?</h1>
+      <p class="intro">Existing StreamFusion card layout, query: <span class="query">“streamer univer”</span></p>
+
+      <div class="options">
+        <section class="option">
+          <div class="option-head">
+            <div class="eyebrow recommended">A · Recommended</div>
+            <h2>One strongest match line</h2>
+            <p class="explanation">Adds one quiet metadata line only when the primary visible text does not fully explain the result.</p>
+          </div>
+          <article class="card">
+            <div class="thumbnail"><span class="scene">STREAM PREVIEW</span><span class="live">LIVE</span><span class="viewers">1.8K viewers</span><span class="platform">T</span></div>
+            <div class="body"><div class="avatar"></div><div class="copy">
+              <div class="title">Day 3: meet the new class</div>
+              <div class="category">Streamer University</div>
+              <div class="channel">StreamersUniverse</div>
+              <div class="reason"><span class="reason-label">Matched username:</span> <mark>streamer</mark>s<mark>univer</mark>se</div>
+            </div></div>
+          </article>
+        </section>
+
+        <section class="option">
+          <div class="option-head">
+            <div class="eyebrow">B</div>
+            <h2>Inline highlighting only</h2>
+            <p class="explanation">No new row, but hidden fields such as descriptions or creators cannot explain why they matched.</p>
+          </div>
+          <article class="card">
+            <div class="thumbnail"><span class="scene">STREAM PREVIEW</span><span class="live">LIVE</span><span class="viewers">1.8K viewers</span><span class="platform">T</span></div>
+            <div class="body"><div class="avatar"></div><div class="copy">
+              <div class="title">Day 3: meet the new class</div>
+              <div class="category"><span class="inline-match">Streamer Univer</span>sity</div>
+              <div class="channel">StreamersUniverse</div>
+            </div></div>
+          </article>
+        </section>
+
+        <section class="option">
+          <div class="option-head">
+            <div class="eyebrow">C</div>
+            <h2>All match reasons</h2>
+            <p class="explanation">Shows every matching field, but adds visual weight and makes media cards taller.</p>
+          </div>
+          <article class="card">
+            <div class="thumbnail"><span class="scene">STREAM PREVIEW</span><span class="live">LIVE</span><span class="viewers">1.8K viewers</span><span class="platform">T</span></div>
+            <div class="body"><div class="avatar"></div><div class="copy">
+              <div class="title">Day 3: meet the new class</div>
+              <div class="category">Streamer University</div>
+              <div class="channel">StreamersUniverse</div>
+              <div class="stacked"><span class="chip">Username match</span><span class="chip">Category match</span></div>
+            </div></div>
+          </article>
+        </section>
+      </div>
+
+      <div class="note">The strongest-match line can reuse the same slot across every result type: “Matched title,” “Matched username,” “Matched description,” “Matched tag,” or “Matched creator.” It does not change the grid or card structure.</div>
+    </main>
+  </body>
+</html>

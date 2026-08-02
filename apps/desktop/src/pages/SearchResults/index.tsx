@@ -131,21 +131,22 @@ export function SearchPage() {
   // Apply Client-Side Filtering (Live Only)
   // Note: Platform filtering is handled by the API via useSearchChannels.
   const filteredChannels = React.useMemo(() => {
-    const normalizedQuery = q.toLowerCase().trim();
-    const channels = allChannelResults.filter((channel) => {
-      if (!normalizedQuery) return true;
-      return (
-        channel.username.toLowerCase().includes(normalizedQuery) ||
-        channel.displayName.toLowerCase().includes(normalizedQuery)
-      );
-    });
+    const channels = allChannelResults.filter(
+      (channel) => typeof channel.username === "string" && channel.username.trim().length > 0
+    );
     if (liveOnly) {
       return channels.filter((c) => c.isLive);
     }
     return channels;
-  }, [allChannelResults, liveOnly, q]);
+  }, [allChannelResults, liveOnly]);
 
-  const filteredStreams = results?.streams || []; // Streams are inherently live
+  const filteredStreams = React.useMemo(
+    () =>
+      (results?.streams || []).filter(
+        (stream) => typeof stream.channelName === "string" && stream.channelName.trim().length > 0
+      ),
+    [results?.streams]
+  ); // Streams are inherently live
 
   const filteredCategories = results?.categories || []; // Categories don't have a live state
 
@@ -175,6 +176,7 @@ export function SearchPage() {
       thumbnailUrl: selectedClip.thumbnailUrl,
       embedUrl: selectedClip.embedUrl || selectedClip.clipUrl,
       url: selectedClip.clipUrl,
+      shareUrl: selectedClip.shareUrl || selectedClip.clipUrl,
       gameName: selectedClip.gameName,
       channelSlug: selectedClip.channelName,
       channelName: selectedClip.channelDisplayName || selectedClip.channelName,
@@ -540,6 +542,17 @@ export function SearchPage() {
               <Link
                 to="/video/$platform/$videoId"
                 params={{ platform: video.platform, videoId: video.id }}
+                search={{
+                  title: video.title,
+                  channelName: video.channelName,
+                  channelDisplayName: video.channelDisplayName,
+                  channelAvatar: video.channelAvatar || undefined,
+                  thumbnail: video.thumbnailUrl,
+                  views: String(video.viewCount),
+                  date: video.publishedAt,
+                  duration: formatDuration(video.duration),
+                  shareUrl: video.shareUrl,
+                }}
                 key={`${video.platform}-${video.id}`}
                 className="group block rounded-xl overflow-hidden bg-[var(--color-background-secondary)] transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
               >
