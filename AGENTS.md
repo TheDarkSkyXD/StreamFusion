@@ -1,3 +1,13 @@
+<!-- VALO-MANAGED:AGENTS-FROM-CLAUDE:BEGIN -->
+<!-- VALO-MANAGED:CONTENT-CHARS:382;CLAUDE-CHARS:10;SOURCE:claude -->
+<!-- Valo maintains only this section. Native Codex instructions belong outside it. -->
+<!-- Shared rules below come from CLAUDE.md, Valo's cross-provider source of truth. -->
+<!-- Literal names stay literal: ".claude", "CLAUDE_CONFIG_DIR", and "claude.exe" are correct. -->
+
+<!-- Shared CLAUDE.md rules follow verbatim (with BOM removed and line endings normalized). -->
+@AGENTS.md
+<!-- VALO-MANAGED:AGENTS-FROM-CLAUDE:END -->
+
 # CRITICAL RULES - MUST FOLLOW
 
 ## RESPONSES

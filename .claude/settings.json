@@ -1,3 +1,25 @@
 {
-  "enabledPlugins": {}
+  "enabledPlugins": {},
+  "permissionDenyToAskHealV1": true,
+  "valoPermissionGroupRuleVersions": {
+    "index": 1,
+    "ghost": 1
+  },
+  "valoPermissionGroupChoices": {
+    "index": "ask",
+    "ghost": "ask"
+  },
+  "permissions": {
+    "ask": [
+      "mcp__valo-index__index",
+      "mcp__valo__ghost_click",
+      "mcp__valo__ghost_click_xy",
+      "mcp__valo__ghost_type",
+      "mcp__valo__ghost_key",
+      "mcp__valo__ghost_scroll",
+      "mcp__valo__ghost_select_tab",
+      "mcp__valo__ghost_close_tab",
+      "mcp__valo__ghost_navigate"
+    ]
+  }
 }
