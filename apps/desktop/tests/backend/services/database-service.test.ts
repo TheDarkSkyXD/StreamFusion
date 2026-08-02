@@ -636,6 +636,45 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     );
   });
 
+  it("does not treat an unproven numeric Kick channel id as a broadcaster rename", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "110821336",
+        channelName: "legacy-channel",
+        displayName: "Legacy Channel",
+        profileImage: "",
+      },
+      "kick"
+    );
+
+    const result = svc.upsertSyncedFollows(
+      "kick",
+      [
+        {
+          platform: "kick",
+          channelId: "110821336",
+          channelName: "current-channel",
+          displayName: "Current Channel",
+          profileImage: "https://files.kick.com/images/user/110821336/profile_image/current.webp",
+        },
+      ],
+      { pruneAbsent: false }
+    );
+
+    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({
+        channelId: "110821336",
+        channelName: "current-channel",
+        displayName: "Current Channel",
+      }),
+    ]);
+  });
+
   it("external unfollow is auto-detected when the authoritative fetched list is empty", () => {
     // A successful empty fetched list means the account follows no channels
     // for this platform, so old platform-source rows must be pruned.

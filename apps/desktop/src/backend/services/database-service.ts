@@ -478,7 +478,7 @@ export class DatabaseService {
       fetched: { channelId: string; profileImage?: string }
     ): boolean => {
       if (platform !== "kick") return false;
-      const existingIdentity = getKickStableIdentity(existing);
+      const existingIdentity = getKickBroadcasterUserIdFromAvatar(existing.profileImage);
       const fetchedIdentity = getKickStableIdentity(fetched);
       return Boolean(existingIdentity && fetchedIdentity && existingIdentity === fetchedIdentity);
     };
