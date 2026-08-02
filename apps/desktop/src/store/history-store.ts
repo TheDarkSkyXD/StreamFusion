@@ -7,6 +7,7 @@ export interface HistoryItem {
   title: string;
   thumbnail: string;
   playbackUrl?: string;
+  shareUrl?: string;
   platform: "twitch" | "kick";
   type: "video" | "clip" | "stream";
   channelName: string;

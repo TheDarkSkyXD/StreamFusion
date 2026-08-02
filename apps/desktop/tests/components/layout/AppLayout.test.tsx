@@ -2,11 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, routerMock, screen } from "../../test-utils";
 
-const mockNetworkStatus = vi.hoisted(() => vi.fn(() => ({ isOnline: true, isOffline: false })));
+const mockCheckNow = vi.hoisted(() => vi.fn(async () => true));
+const mockNetworkStatus = vi.hoisted(() => vi.fn());
+const layoutState = vi.hoisted(() => ({
+  pathname: "/",
+  currentStream: null as null | { platform: "kick"; channelName: string },
+  isTheaterModeActive: false,
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   ...routerMock(),
-  useLocation: () => ({ pathname: "/" }),
+  useLocation: () => ({ pathname: layoutState.pathname }),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuthInitialize: () => true }));
@@ -20,7 +26,7 @@ vi.mock("@/store/app-store", () => ({
     const state = {
       sidebarCollapsed: false,
       setSidebarCollapsed: vi.fn(),
-      isTheaterModeActive: false,
+      isTheaterModeActive: layoutState.isTheaterModeActive,
     };
     return selector ? selector(state) : state;
   },
@@ -43,14 +49,43 @@ vi.mock("@/components/layout/PlatformHealthBanner", () => ({
 }));
 
 vi.mock("@/components/player/mini-player", () => ({
-  MiniPlayer: () => null,
+  MiniPlayer: () => <div data-testid="persistent-live-player" />,
+}));
+
+vi.mock("@/store/pip-store", () => ({
+  usePipStore: (selector: (state: typeof layoutState) => unknown) => selector(layoutState),
 }));
 
 import { AppLayout } from "@/components/layout/AppLayout";
 
 describe("AppLayout", () => {
   beforeEach(() => {
-    mockNetworkStatus.mockReturnValue({ isOnline: true, isOffline: false });
+    mockNetworkStatus.mockReturnValue({
+      isOnline: true,
+      isOffline: false,
+      isChecking: false,
+      status: "online",
+      nextRetryAt: null,
+      retryInSeconds: null,
+      checkNow: mockCheckNow,
+    });
+    layoutState.pathname = "/";
+    layoutState.currentStream = null;
+    layoutState.isTheaterModeActive = false;
+  });
+
+  // Guards: the app shell owns one live-player tree on stream routes so route-to-mini handoff cannot unmount its video or HLS instance.
+  it("keeps the persistent live player mounted in the app shell on its stream route", async () => {
+    layoutState.pathname = "/stream/kick/xqc";
+    layoutState.currentStream = { platform: "kick", channelName: "xqc" };
+
+    renderWithProviders(
+      <AppLayout>
+        <div id="persistent-live-player-dock" />
+      </AppLayout>
+    );
+
+    expect(await screen.findByTestId("persistent-live-player")).toBeInTheDocument();
   });
 
   it("renders title bar, top nav, and children", () => {
@@ -76,7 +111,15 @@ describe("AppLayout", () => {
   });
 
   it("shows the offline banner instead of the platform banner while the app is offline", () => {
-    mockNetworkStatus.mockReturnValue({ isOnline: false, isOffline: true });
+    mockNetworkStatus.mockReturnValue({
+      isOnline: false,
+      isOffline: true,
+      isChecking: false,
+      status: "offline",
+      nextRetryAt: Date.now() + 5_000,
+      retryInSeconds: 5,
+      checkNow: mockCheckNow,
+    });
 
     renderWithProviders(
       <AppLayout>
@@ -86,5 +129,47 @@ describe("AppLayout", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("No internet connection");
     expect(screen.queryByTestId("platform-health-banner")).toBeNull();
+  });
+
+  it("keeps the offline card visible above player controls in theater mode", () => {
+    layoutState.isTheaterModeActive = true;
+    mockNetworkStatus.mockReturnValue({
+      isOnline: false,
+      isOffline: true,
+      isChecking: false,
+      status: "offline",
+      nextRetryAt: Date.now() + 5_000,
+      retryInSeconds: 5,
+      checkNow: mockCheckNow,
+    });
+
+    renderWithProviders(
+      <AppLayout>
+        <div>page-content</div>
+      </AppLayout>
+    );
+
+    expect(screen.getByTestId("network-status-card")).toHaveClass("bottom-16");
+    expect(screen.queryByTestId("top-nav")).toBeNull();
+  });
+
+  it("keeps confirmed-offline retry probes visible as checking", () => {
+    mockNetworkStatus.mockReturnValue({
+      isOnline: false,
+      isOffline: true,
+      isChecking: true,
+      status: "offline",
+      nextRetryAt: null,
+      retryInSeconds: null,
+      checkNow: mockCheckNow,
+    });
+
+    renderWithProviders(
+      <AppLayout>
+        <div>page-content</div>
+      </AppLayout>
+    );
+
+    expect(screen.getByTestId("network-status-card")).toHaveTextContent("Checking connection…");
   });
 });

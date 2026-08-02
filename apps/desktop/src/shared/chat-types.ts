@@ -21,6 +21,66 @@ export interface ChatBadge {
   imageUrl: string;
   /** Alt text / title for the badge */
   title: string;
+  /** Optional badge tile color supplied by a third-party provider. */
+  backgroundColor?: string;
+}
+
+export type ChatCosmeticProvider = "7tv" | "bttv" | "ffz";
+
+/** A third-party badge kept separate from the platform's official message badge array. */
+export interface ChatCosmeticBadge {
+  /** Provider-qualified identity, e.g. `7tv:badge-id`. */
+  id: string;
+  provider: ChatCosmeticProvider;
+  providerId: string;
+  title: string;
+  imageUrl: string;
+  slot?: number;
+  replaces?: string;
+  color?: string;
+}
+
+export type SevenTvPaintFunction = "linear-gradient" | "radial-gradient" | "url";
+
+export interface SevenTvPaintStop {
+  /** Position in the inclusive 0..1 range supplied by 7TV. */
+  at: number;
+  color: string;
+}
+
+export interface SevenTvPaintShadow {
+  xOffset: number;
+  yOffset: number;
+  radius: number;
+  color: string;
+}
+
+/** Full 7TV username-paint definition; the renderer decides whether to display it. */
+export interface SevenTvPaint {
+  id: string;
+  name: string;
+  function: SevenTvPaintFunction;
+  stops: SevenTvPaintStop[];
+  angle?: number;
+  shape?: string;
+  repeat?: boolean;
+  imageUrl?: string;
+  shadows: SevenTvPaintShadow[];
+}
+
+export type SevenTvCosmeticKind = "badge" | "paint";
+
+export interface SevenTvCosmeticAssignment {
+  /** Twitch user ID from the entitlement user's TWITCH connection. */
+  userId: string;
+  kind: SevenTvCosmeticKind;
+  /** Raw 7TV cosmetic ID, resolved against the corresponding definition Map. */
+  cosmeticId: string;
+}
+
+export interface ChatUserCosmetics {
+  badges: ChatCosmeticBadge[];
+  paint?: SevenTvPaint;
 }
 
 export type TwitchBadgeCatalogSource = "gql" | "persisted-gql" | "helix";
@@ -513,11 +573,21 @@ export interface RoomStatePatchEvent {
     emoteOnly?: boolean;
     uniqueChat?: boolean;
     shieldMode?: boolean;
-    twitchVerification?: TwitchVerificationRequirement | null;
     accountAge?: number | null;
   };
   /** Source provenance: 'ws' for live WS events, 'fetch' for initial reads. */
   reason: "ws" | "fetch";
+}
+
+/** A send restriction that applies only to the signed-in Twitch viewer. */
+export interface ViewerChatSendRestrictionEvent {
+  platform: "twitch";
+  /** Channel login, sans leading #. */
+  channel: string;
+  /** Twitch broadcaster user id. */
+  channelId: string;
+  restriction: "verification";
+  requirement: TwitchVerificationRequirement;
 }
 
 export interface ModeratorStateEvent {
@@ -556,5 +626,6 @@ export interface ChatServiceEvents {
   pollUpdate: (poll: KickPoll) => void;
   predictionUpdate: (prediction: UnifiedPrediction) => void;
   roomState: (event: RoomStatePatchEvent) => void;
+  viewerSendRestriction: (event: ViewerChatSendRestrictionEvent) => void;
   moderatorState: (event: ModeratorStateEvent) => void;
 }

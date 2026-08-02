@@ -1,6 +1,6 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LuCircleAlert, LuLock } from "react-icons/lu";
+import { LuCheck, LuCircleAlert, LuDownload, LuLock, LuShare2 } from "react-icons/lu";
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickVodPlayer } from "@/components/player/kick";
 import { TwitchVodPlayer } from "@/components/player/twitch";
@@ -11,6 +11,8 @@ import { FollowButton } from "@/components/ui/follow-button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useHistoryActions } from "@/hooks/queries/useHistoryQuery";
+import { useDownloadActions } from "@/hooks/use-download-actions";
+import { useShareAction } from "@/hooks/use-share-action";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 import { useFollowStore } from "@/store/follow-store";
@@ -33,6 +35,7 @@ interface VideoMetadata {
   tags?: string[];
   language?: string;
   isMature?: boolean;
+  shareUrl?: string;
 }
 
 function formatViews(views: number | string): string {
@@ -57,6 +60,16 @@ function formatRelativeDate(dateString: string): string {
   return `${Math.floor(diffDays / 365)} years ago`;
 }
 
+const englishLanguageNames = new Intl.DisplayNames(["en"], { type: "language" });
+
+function formatLanguage(language: string): string {
+  try {
+    return englishLanguageNames.of(language) || language;
+  } catch {
+    return language;
+  }
+}
+
 export function VideoPage() {
   const { platform, videoId } = useParams({ from: "/_app/video/$platform/$videoId" });
   const searchParams = useSearch({ from: "/_app/video/$platform/$videoId" });
@@ -77,6 +90,7 @@ export function VideoPage() {
     tags: passedTags,
     language: passedLanguage,
     isMature: passedIsMature,
+    shareUrl: passedShareUrl,
   } = searchParams;
 
   // Check if this is a subscriber-only VOD
@@ -85,6 +99,8 @@ export function VideoPage() {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
+  const [readyPlaybackUrl, setReadyPlaybackUrl] = useState<string | null>(null);
+  const [playbackFailed, setPlaybackFailed] = useState(false);
   const [_isLoading, setIsLoading] = useState(true);
 
   const [relatedVideos, setRelatedVideos] = useState<VideoOrClip[]>([]);
@@ -95,6 +111,8 @@ export function VideoPage() {
     const fetchVideoData = async () => {
       setError(null);
       setStreamUrl(null);
+      setReadyPlaybackUrl(null);
+      setPlaybackFailed(false);
       setIsLoading(true);
 
       try {
@@ -234,7 +252,19 @@ export function VideoPage() {
   const channelName = videoMetadata?.channelName || passedChannelName || "channel";
   const channelDisplayName =
     videoMetadata?.channelDisplayName || passedChannelDisplayName || passedChannelName || "Channel";
-  const channelAvatar = videoMetadata?.channelAvatar || passedChannelAvatar;
+
+  // Resolve the canonical channel for follow identity and as a metadata
+  // fallback when a VOD route does not include the channel avatar.
+  const { data: channelData } = useChannelByUsername(
+    hasResolvedChannelName ? channelName : "",
+    platform as Platform
+  );
+  const channelAvatar =
+    videoMetadata?.channelAvatar || passedChannelAvatar || channelData?.avatarUrl;
+  const shareUrl =
+    videoMetadata?.shareUrl ||
+    passedShareUrl ||
+    (platform === "twitch" ? `https://www.twitch.tv/videos/${videoId}` : undefined);
 
   // Save to history
   const { addToHistory, removeFromHistory } = useHistoryActions();
@@ -243,6 +273,8 @@ export function VideoPage() {
     platform === "kick" ? directSourceUrl || streamUrl || undefined : undefined;
 
   const handlePlaybackError = () => {
+    setReadyPlaybackUrl(null);
+    setPlaybackFailed(true);
     removeFromHistory(historyItemId);
   };
 
@@ -254,6 +286,7 @@ export function VideoPage() {
         title: videoTitle,
         thumbnail: videoMetadata?.thumbnailUrl || passedThumbnail || "",
         playbackUrl: historyPlaybackUrl,
+        shareUrl,
         platform: platform as "twitch" | "kick",
         type: "video",
         channelName: channelName,
@@ -273,6 +306,7 @@ export function VideoPage() {
     videoMetadata,
     addToHistory,
     historyItemId,
+    shareUrl,
   ]);
   const views = videoMetadata
     ? formatViews(videoMetadata.views)
@@ -285,16 +319,33 @@ export function VideoPage() {
       ? formatRelativeDate(passedDate)
       : "—";
   const category = videoMetadata?.category || passedCategory;
+  const isPlaybackReady = Boolean(
+    streamUrl && readyPlaybackUrl === streamUrl && !error && !isSubOnly && !playbackFailed
+  );
+  const shareAction = useShareAction({
+    shareUrl,
+    isPlaybackReady,
+    contentLabel: "Video",
+    contentKey: `${platform}:${videoId}`,
+  });
+  const { downloadVideo } = useDownloadActions();
+  const handleDownload = () => {
+    if (!isPlaybackReady || !streamUrl) return;
+    void downloadVideo({
+      platform: platform as Platform,
+      videoId,
+      title: videoTitle,
+      channelName,
+      durationSeconds: null,
+      thumbnailUrl: videoMetadata?.thumbnailUrl || passedThumbnail,
+      playbackUrl: streamUrl,
+    });
+  };
 
   // Fetch the canonical channel so FollowButton stores the platform-numeric id
   // (not the slug) — keeps follow keys consistent with the Stream page. Skip
   // the fetch while channelName is still in placeholder state so we don't fire
   // a real request for an unrelated channel.
-  const { data: channelData } = useChannelByUsername(
-    hasResolvedChannelName ? channelName : "",
-    platform as Platform
-  );
-
   // Render the real FollowButton immediately by falling back to a channel
   // synthesized from route + search params. Once useChannelByUsername resolves
   // we swap to channelData so writes carry the canonical id. channelsMatch
@@ -378,6 +429,7 @@ export function VideoPage() {
                 videoId={videoId}
                 title={videoTitle}
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
+                onReady={() => setReadyPlaybackUrl(streamUrl)}
                 onError={handlePlaybackError}
               />
             ) : (
@@ -388,6 +440,7 @@ export function VideoPage() {
                 videoId={videoId}
                 title={videoTitle}
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
+                onReady={() => setReadyPlaybackUrl(streamUrl)}
                 onError={handlePlaybackError}
               />
             )
@@ -467,8 +520,7 @@ export function VideoPage() {
                     {/* Language Tag */}
                     {displayLanguage && (
                       <span className="text-xs px-3 py-1 rounded-full font-medium bg-[#4a4d55] text-[#efeff1] hover:bg-[#5a5d66] transition-colors cursor-default">
-                        {new Intl.DisplayNames(["en"], { type: "language" }).of(displayLanguage) ||
-                          displayLanguage.toUpperCase()}
+                        {formatLanguage(displayLanguage)}
                       </span>
                     )}
                     {/* Mature Content Tag */}
@@ -493,6 +545,34 @@ export function VideoPage() {
             </div>
             <div className="flex gap-4">
               <FollowButton channel={channelForFollow} size="sm" />
+              <Button
+                className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"
+                size="sm"
+                onClick={() => void shareAction.share()}
+                disabled={!shareAction.canShare}
+                title={!shareAction.canShare ? shareAction.unavailableTitle : undefined}
+              >
+                {shareAction.copied ? (
+                  <LuCheck aria-hidden="true" />
+                ) : (
+                  <LuShare2 aria-hidden="true" />
+                )}
+                {shareAction.copied ? "Copied" : "Share"}
+              </Button>
+              <Button
+                className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"
+                size="sm"
+                onClick={handleDownload}
+                disabled={!isPlaybackReady}
+                title={
+                  !isPlaybackReady
+                    ? "Download is available when this Video is ready to play."
+                    : undefined
+                }
+              >
+                <LuDownload aria-hidden="true" />
+                Download
+              </Button>
               <Link
                 to="/stream/$platform/$channel"
                 params={{ platform: platform || "twitch", channel: channelName }}

@@ -30,8 +30,10 @@ export function formatViewerCount(count: number | undefined | null): string {
 /**
  * Format relative time (e.g. "2 hours ago")
  */
-function formatRelativeTime(dateString: string): string {
+export function formatRelativeTime(dateString: string): string | null {
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
@@ -41,16 +43,16 @@ function formatRelativeTime(dateString: string): string {
 
   const diffInMinutes = Math.floor(diffInSeconds / 60);
   if (diffInMinutes < 60) {
-    return `${diffInMinutes}m ago`;
+    return `${diffInMinutes} ${diffInMinutes === 1 ? "minute" : "minutes"} ago`;
   }
 
   const diffInHours = Math.floor(diffInMinutes / 60);
   if (diffInHours < 24) {
-    return `${diffInHours}h ago`;
+    return `${diffInHours} ${diffInHours === 1 ? "hour" : "hours"} ago`;
   }
 
   const diffInDays = Math.floor(diffInHours / 24);
-  return `${diffInDays}d ago`;
+  return `${diffInDays} ${diffInDays === 1 ? "day" : "days"} ago`;
 }
 
 /**

@@ -1,14 +1,25 @@
-import { useParams } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { PlayerError } from "@/components/player/types";
+import { useRegisterDockedPlayerConfig } from "@/components/player/persistent-player-shell";
 import { StreamInfo } from "@/components/stream/stream-info";
 import { Button } from "@/components/ui/button";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
-import { useStreamByChannel } from "@/hooks/queries/useStreams";
+import { removeFollowedStreamFromCache, useStreamByChannel } from "@/hooks/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
@@ -21,9 +32,15 @@ const CHAT_CONTENT_WIDTH_PX = 340;
 const CHAT_BORDER_WIDTH_PX = 1;
 const CHAT_RAIL_WIDTH_PX = CHAT_CONTENT_WIDTH_PX + CHAT_BORDER_WIDTH_PX;
 
-const ChatPanel = lazy(() =>
-  import("@/components/chat").then((module) => ({ default: module.ChatPanel }))
-);
+let chatPanelModulePromise: Promise<{ default: typeof import("@/components/chat").ChatPanel }>;
+const loadChatPanel = () =>
+  (chatPanelModulePromise ??= import("@/components/chat").then((module) => ({
+    default: module.ChatPanel,
+  })));
+
+export const preloadChatPanel = (): Promise<unknown> => loadChatPanel();
+
+const ChatPanel = lazy(loadChatPanel);
 const KickLivePlayer = lazy(() =>
   import("@/components/player/kick").then((module) => ({ default: module.KickLivePlayer }))
 );
@@ -48,6 +65,7 @@ interface OfflineOverlayProps {
   bannerUrl?: string;
   categoryName?: string;
   lastStreamTitle?: string;
+  statusMessage?: string;
   onCheckAgain: () => void;
 }
 
@@ -59,6 +77,7 @@ function OfflineOverlay({
   bannerUrl,
   categoryName,
   lastStreamTitle,
+  statusMessage = "is currently offline",
   onCheckAgain,
 }: OfflineOverlayProps) {
   const name = displayName || channelName;
@@ -100,7 +119,7 @@ function OfflineOverlay({
         )}
         <div className="text-center max-w-xl">
           <p className="text-white text-3xl font-bold mb-2 drop-shadow-lg">{name}</p>
-          <p className="text-white/70 text-lg mb-4">is currently offline</p>
+          <p className="text-white/70 text-lg mb-4">{statusMessage}</p>
           {lastStreamTitle && (
             <p className="text-white/90 text-base font-medium line-clamp-2 mb-2">
               {lastStreamTitle}
@@ -125,6 +144,10 @@ function OfflineOverlay({
 }
 
 export function StreamPage() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const registerDockedConfig = useRegisterDockedPlayerConfig();
+  const hasPersistentPlayerShell = registerDockedConfig !== null;
   const canMountHeavyContent = useAfterFirstPaint();
   const { platform, channel: channelName } = useParams({ from: "/_app/stream/$platform/$channel" });
   const routePlatform = platform as Platform;
@@ -134,17 +157,77 @@ export function StreamPage() {
     data: channelData,
     isLoading: isChannelLoading,
     isError: isChannelError,
+    isPlaceholderData: isChannelPlaceholderData,
     refetch: refetchChannel,
   } = useChannelByUsername(channelName, routePlatform);
-  const { data: streamData, isLoading: isStreamLoading } = useStreamByChannel(
-    channelName,
-    routePlatform
-  );
+  const {
+    data: streamData,
+    isLoading: isStreamLoading,
+    isError: isStreamError,
+    isSuccess: isStreamSuccess,
+    isPlaceholderData: isStreamPlaceholderData,
+    refetch: refetchStream,
+  } = useStreamByChannel(channelName, routePlatform);
 
-  const isKnownTwitchLive =
-    routePlatform === "twitch" && (channelData?.isLive === true || Boolean(streamData?.startedAt));
+  const channelDataMatchesRoute =
+    channelData != null &&
+    channelData.platform === routePlatform &&
+    normalizeChannelLogin(channelData.username) === normalizeChannelLogin(channelName);
+
+  useEffect(() => {
+    if (
+      !channelData ||
+      isChannelPlaceholderData !== false ||
+      channelData.platform !== routePlatform ||
+      normalizeChannelLogin(channelData.username) === normalizeChannelLogin(channelName)
+    ) {
+      return;
+    }
+
+    void navigate({
+      to: "/stream/$platform/$channel",
+      params: { platform: routePlatform, channel: channelData.username },
+      replace: true,
+    });
+  }, [
+    channelData,
+    channelName,
+    isChannelPlaceholderData,
+    navigate,
+    routePlatform,
+  ]);
+  const streamDataMatchesRoute =
+    streamData != null &&
+    streamData.platform === routePlatform &&
+    normalizeChannelLogin(streamData.channelName) === normalizeChannelLogin(channelName);
+  const detailChannelData =
+    channelDataMatchesRoute && !isChannelPlaceholderData ? channelData : null;
+  const detailStreamData =
+    streamDataMatchesRoute && !isStreamPlaceholderData ? streamData : undefined;
+  const hasRouteMatchedStreamLiveEvidence =
+    streamDataMatchesRoute && !isStreamPlaceholderData && streamData?.isLive === true;
+  const hasRouteMatchedChannelLiveEvidence =
+    channelDataMatchesRoute && !isChannelPlaceholderData && channelData?.isLive === true;
+  const hasRouteMatchedStreamOfflineEvidence =
+    streamDataMatchesRoute && !isStreamPlaceholderData && streamData?.isLive === false;
+  const hasRouteMatchedChannelOfflineEvidence =
+    channelDataMatchesRoute && !isChannelPlaceholderData && channelData?.isLive === false;
+  const hasAuthoritativeTwitchStreamStatus =
+    routePlatform === "twitch" &&
+    isStreamSuccess &&
+    !isStreamPlaceholderData &&
+    (streamData == null || streamDataMatchesRoute);
+  const hasMismatchedSuccessfulTwitchStreamStatus =
+    routePlatform === "twitch" &&
+    isStreamSuccess &&
+    !isStreamPlaceholderData &&
+    streamData != null &&
+    !streamDataMatchesRoute;
+  const isStreamLive = hasAuthoritativeTwitchStreamStatus
+    ? hasRouteMatchedStreamLiveEvidence
+    : hasRouteMatchedStreamLiveEvidence || hasRouteMatchedChannelLiveEvidence;
   const playbackIdentifier =
-    routePlatform === "twitch" ? (isKnownTwitchLive ? channelName : "") : channelName;
+    routePlatform === "twitch" ? (isStreamLive ? channelName : "") : channelName;
 
   // Playback URL resolution
   const {
@@ -163,9 +246,6 @@ export function StreamPage() {
   // rendered, so there's no socket to tear down — the safe path per the
   // websocket-connecting-state learning. The toggle that SETS this lives in U6.
   const isChatHidden = useAuthStore((s) => s.preferences?.chat?.position === "hidden");
-  const channelDataMatchesRoute =
-    channelData?.platform === routePlatform &&
-    normalizeChannelLogin(channelData.username) === normalizeChannelLogin(channelName);
   const canMountChatPanel =
     routePlatform === "kick"
       ? Boolean(channelDataMatchesRoute && channelData?.id && channelData?.chatroomId)
@@ -173,6 +253,10 @@ export function StreamPage() {
 
   // Theater Mode Logic - synced with app store for sidebar auto-collapse
   const { isTheaterModeActive: isTheater, setTheaterModeActive } = useAppStore();
+  const handleToggleTheater = useCallback(
+    () => setTheaterModeActive(!isTheater),
+    [isTheater, setTheaterModeActive]
+  );
 
   // Player error state (e.g., stream offline even though URL was provided)
   const [playerError, setPlayerError] = useState<PlayerError | null>(null);
@@ -181,20 +265,79 @@ export function StreamPage() {
     streamIdentity: string;
     playbackRevision: number;
   } | null>(null);
+  const twitchStatusRecheckRef = useRef<{
+    streamIdentity: string;
+    playbackRevision: number;
+  } | null>(null);
+
+  const handleCheckAgain = useCallback(() => {
+    setPlayerError(null);
+    void Promise.all([refetchChannel(), refetchStream()]);
+  }, [refetchChannel, refetchStream]);
+
+  const handlePlaybackCheckAgain = useCallback(() => {
+    setPlayerError(null);
+    void Promise.all([refetchChannel(), refetchStream()]);
+    reloadPlayback();
+  }, [refetchChannel, refetchStream, reloadPlayback]);
 
   // Track clip dialog state to mute main player
   const [isClipDialogOpen, setIsClipDialogOpen] = useState(false);
 
-  // Determine if stream is truly live - allow playback if URL exists (optimistic) or confirmed live
-  // This allows the player to start buffering while metadata is still fetching
-  const isStreamLive = Boolean(streamData?.startedAt || channelData?.isLive);
-  const isStreamMetadataSettled = !isChannelLoading && !isStreamLoading;
-  const hasConfirmedOfflineMetadata = isStreamMetadataSettled && !isStreamLive;
-  const hasConfirmedLiveMetadata = isStreamMetadataSettled && isStreamLive;
+  const isStreamMetadataPending = Boolean(
+    isChannelLoading || isStreamLoading || isChannelPlaceholderData || isStreamPlaceholderData
+  );
+  const isStreamMetadataSettled = !isStreamMetadataPending;
+  const hasTerminalTwitchStreamError =
+    isStreamError &&
+    !isStreamLoading &&
+    !isStreamPlaceholderData &&
+    !hasRouteMatchedStreamLiveEvidence;
+  const hasTerminalTwitchMetadataError =
+    routePlatform === "twitch" &&
+    !hasAuthoritativeTwitchStreamStatus &&
+    (hasMismatchedSuccessfulTwitchStreamStatus ||
+      hasTerminalTwitchStreamError ||
+      (isStreamMetadataSettled && isChannelError));
+  const hasAuthoritativeTwitchOfflineStatus = hasAuthoritativeTwitchStreamStatus && !isStreamLive;
+  const hasConfirmedKickOfflineStatus =
+    routePlatform === "kick" &&
+    isStreamMetadataSettled &&
+    !isChannelError &&
+    !isStreamError &&
+    (hasRouteMatchedStreamOfflineEvidence ||
+      (hasRouteMatchedChannelOfflineEvidence && !playback?.url));
+  const hasConfirmedOfflineMetadata =
+    routePlatform === "twitch"
+      ? hasAuthoritativeTwitchOfflineStatus ||
+        (!hasTerminalTwitchMetadataError &&
+          isStreamMetadataSettled &&
+          !isStreamLive &&
+          isStreamSuccess === undefined &&
+          isStreamError === undefined)
+      : hasConfirmedKickOfflineStatus;
+  const hasConfirmedLiveMetadata =
+    (hasAuthoritativeTwitchStreamStatus && hasRouteMatchedStreamLiveEvidence) ||
+    (isStreamMetadataSettled && isStreamLive);
+  const shouldSuppressPendingTwitchPlayback =
+    routePlatform === "twitch" &&
+    isStreamMetadataPending &&
+    !hasRouteMatchedStreamLiveEvidence &&
+    !hasRouteMatchedChannelLiveEvidence;
   const streamIdentity = `${routePlatform}:${normalizeChannelLogin(channelName)}`;
   const playbackIdentity = `${streamIdentity}:${playbackRevision}`;
   const confirmedOfflineStreamRef = useRef<string | null>(null);
   const lastPlaybackIdentityRef = useRef(playbackIdentity);
+  const currentPlaybackIdentityRef = useRef(playbackIdentity);
+
+  useLayoutEffect(() => {
+    currentPlaybackIdentityRef.current = playbackIdentity;
+  }, [playbackIdentity]);
+
+  useEffect(() => {
+    if (routePlatform !== "kick" || !hasRouteMatchedStreamOfflineEvidence) return;
+    removeFollowedStreamFromCache(queryClient, routePlatform, channelName);
+  }, [channelName, hasRouteMatchedStreamOfflineEvidence, queryClient, routePlatform]);
 
   useEffect(() => {
     if (lastPlaybackIdentityRef.current === playbackIdentity) return;
@@ -226,10 +369,11 @@ export function StreamPage() {
         return;
       }
 
-      livePlaybackRecheckRef.current = {
+      const recheck = {
         streamIdentity,
         playbackRevision,
       };
+      livePlaybackRecheckRef.current = recheck;
 
       logger.debug("Page:Stream", "rechecking live playback", {
         platform: routePlatform,
@@ -238,9 +382,117 @@ export function StreamPage() {
         message: reason.message,
         playbackRevision,
       });
-      reloadPlayback();
+      if (routePlatform !== "kick") {
+        reloadPlayback();
+        return;
+      }
+
+      void (async () => {
+        try {
+          const result = await refetchStream();
+          if (livePlaybackRecheckRef.current !== recheck) return;
+          if (currentPlaybackIdentityRef.current !== playbackIdentity) return;
+
+          const refreshedStream = result.data;
+          const refreshedStreamMatchesRoute =
+            refreshedStream != null &&
+            refreshedStream.platform === routePlatform &&
+            normalizeChannelLogin(refreshedStream.channelName) ===
+              normalizeChannelLogin(channelName);
+          if (!result.isError && refreshedStreamMatchesRoute && refreshedStream.isLive === false) {
+            return;
+          }
+
+          reloadPlayback();
+        } catch {
+          if (
+            livePlaybackRecheckRef.current === recheck &&
+            currentPlaybackIdentityRef.current === playbackIdentity
+          ) {
+            reloadPlayback();
+          }
+        }
+      })();
     },
-    [channelName, playbackRevision, reloadPlayback, routePlatform, streamIdentity]
+    [
+      channelName,
+      playbackIdentity,
+      playbackRevision,
+      refetchStream,
+      reloadPlayback,
+      routePlatform,
+      streamIdentity,
+    ]
+  );
+
+  const recheckTwitchStreamStatus = useCallback(
+    (reason: { code: string; message?: string }) => {
+      const lastRecheck = twitchStatusRecheckRef.current;
+      if (
+        lastRecheck?.streamIdentity === streamIdentity &&
+        lastRecheck.playbackRevision === playbackRevision
+      ) {
+        logger.debug("Page:Stream", "Twitch status recheck already attempted for revision", {
+          channelName,
+          code: reason.code,
+          playbackRevision,
+        });
+        return;
+      }
+
+      const recheck = {
+        streamIdentity,
+        playbackRevision,
+      };
+      twitchStatusRecheckRef.current = recheck;
+
+      logger.debug("Page:Stream", "rechecking Twitch stream status", {
+        channelName,
+        code: reason.code,
+        message: reason.message,
+        playbackRevision,
+      });
+      void (async () => {
+        try {
+          const result = await refetchStream();
+          if (twitchStatusRecheckRef.current !== recheck) return;
+
+          if (currentPlaybackIdentityRef.current !== playbackIdentity) {
+            twitchStatusRecheckRef.current = null;
+            return;
+          }
+
+          if (result.isError) {
+            twitchStatusRecheckRef.current = null;
+            return;
+          }
+
+          const refreshedStream = result.data;
+          const refreshedStreamMatchesRoute =
+            refreshedStream != null &&
+            refreshedStream.platform === routePlatform &&
+            normalizeChannelLogin(refreshedStream.channelName) ===
+              normalizeChannelLogin(channelName);
+
+          if (refreshedStreamMatchesRoute && refreshedStream.isLive === true) {
+            reloadPlayback();
+          }
+        } catch {
+          if (twitchStatusRecheckRef.current === recheck) {
+            twitchStatusRecheckRef.current = null;
+          }
+        }
+      })();
+    },
+    [
+      channelName,
+      playbackIdentity,
+      playbackRevision,
+      refetchStream,
+      reloadPlayback,
+      routePlatform,
+      streamIdentity,
+    ]
   );
 
   const handlePlayerError = useCallback(
@@ -259,10 +511,7 @@ export function StreamPage() {
           error.code === "STREAM_OFFLINE" ||
           error.code === "DECODER_STALL");
       if (isStreamLive && isTwitchWatchdogSignal) {
-        logger.debug("Page:Stream", "ignoring Twitch watchdog signal while metadata is live", {
-          code: error.code,
-          channelName,
-        });
+        recheckTwitchStreamStatus({ code: error.code, message: error.message });
         return;
       }
 
@@ -312,35 +561,78 @@ export function StreamPage() {
       setPlayerError(error);
     },
     [
-      channelName,
       isUsingProxy,
       isStreamLive,
       routePlatform,
       triggerProxyFallback,
       setTheaterModeActive,
       recheckLivePlayback,
+      recheckTwitchStreamStatus,
     ]
   );
+
+  useEffect(() => {
+    if (!registerDockedConfig) return;
+
+    return registerDockedConfig({
+      muted: isClipDialogOpen,
+      isTheater,
+      startedAt: detailStreamData?.startedAt,
+      onError: handlePlayerError,
+      onRefresh: reloadPlayback,
+      onToggleTheater: handleToggleTheater,
+    });
+  }, [
+    handlePlayerError,
+    handleToggleTheater,
+    isClipDialogOpen,
+    isTheater,
+    registerDockedConfig,
+    reloadPlayback,
+    detailStreamData?.startedAt,
+  ]);
 
   const hasPlayback = Boolean(playback?.url);
   const shouldHoldLivePlayback =
     hasConfirmedLiveMetadata && blockedPlaybackRevision === playbackRevision;
-  const shouldSuppressPlayback = hasConfirmedOfflineMetadata || shouldHoldLivePlayback;
+  const shouldSuppressPlayback =
+    hasConfirmedOfflineMetadata || shouldHoldLivePlayback || shouldSuppressPendingTwitchPlayback;
   const effectiveStreamUrl = shouldSuppressPlayback
     ? ""
     : playback?.url || (isStreamLive && playback?.url ? playback.url : "");
   const hasEffectiveStreamUrl = Boolean(effectiveStreamUrl);
-  const offlineCategoryName = channelData?.categoryName || streamData?.categoryName;
-  const offlineStreamTitle = channelData?.lastStreamTitle || streamData?.title;
+  const overlayChannelData =
+    channelDataMatchesRoute && !isChannelPlaceholderData ? channelData : undefined;
+  const overlayStreamData =
+    streamDataMatchesRoute && !isStreamPlaceholderData ? streamData : undefined;
+  const overlayDisplayName =
+    overlayChannelData?.displayName || overlayStreamData?.channelDisplayName;
+  const overlayAvatarUrl = overlayChannelData?.avatarUrl || overlayStreamData?.channelAvatar;
+  const overlayBannerUrl = overlayChannelData?.bannerUrl;
+  const overlayCategoryName = overlayChannelData?.categoryName || overlayStreamData?.categoryName;
+  const overlayStreamTitle = overlayChannelData?.lastStreamTitle || overlayStreamData?.title;
+  const shouldShowMetadataErrorOverlay =
+    !isPlaybackLoading && !hasEffectiveStreamUrl && !playerError && hasTerminalTwitchMetadataError;
+  const shouldShowPlaybackErrorOverlay =
+    !isPlaybackLoading &&
+    !isStreamMetadataPending &&
+    !hasEffectiveStreamUrl &&
+    !playerError &&
+    Boolean(playbackError) &&
+    !hasTerminalTwitchMetadataError &&
+    !hasConfirmedOfflineMetadata &&
+    !shouldHoldLivePlayback;
   const shouldShowPlayerErrorOverlay = Boolean(playerError) && hasConfirmedOfflineMetadata;
   const shouldShowOfflineOverlay =
     !isPlaybackLoading &&
     !hasEffectiveStreamUrl &&
     !playerError &&
-    (hasConfirmedOfflineMetadata || shouldHoldLivePlayback);
+    (hasConfirmedOfflineMetadata || (shouldHoldLivePlayback && isStreamMetadataSettled));
   const shouldMountLivePlayer =
     canMountHeavyContent &&
     hasEffectiveStreamUrl &&
+    !shouldShowMetadataErrorOverlay &&
+    !shouldShowPlaybackErrorOverlay &&
     !shouldShowPlayerErrorOverlay &&
     !shouldShowOfflineOverlay;
 
@@ -413,11 +705,10 @@ export function StreamPage() {
   // Memoize subscriber badges to prevent KickChat from re-mounting when channelData refetches
   // Arrays are compared by reference in React, so we serialize to detect actual changes
   const memoizedSubscriberBadges = useMemo(() => {
-    const badges = routePlatform === "kick" ? channelData?.subscriberBadges : undefined;
+    const badges = routePlatform === "kick" ? detailChannelData?.subscriberBadges : undefined;
     // Only update reference if badges actually changed
     return badges;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routePlatform, channelData?.subscriberBadges]);
+  }, [routePlatform, detailChannelData?.subscriberBadges]);
 
   // Memoize stream info to prevent effect from running on every streamData update
   // streamData changes every 30s (viewer count), but we only care about title/category changes
@@ -425,22 +716,22 @@ export function StreamPage() {
     () => ({
       platform: routePlatform,
       channelName: channelName,
-      channelDisplayName: channelData?.displayName || channelName,
-      channelAvatar: channelData?.avatarUrl,
+      channelDisplayName: detailChannelData?.displayName || channelName,
+      channelAvatar: detailChannelData?.avatarUrl,
       streamUrl: effectiveStreamUrl,
-      title: streamData?.title,
-      categoryName: streamData?.categoryName,
-      viewerCount: streamData?.viewerCount,
+      title: detailStreamData?.title,
+      categoryName: detailStreamData?.categoryName,
+      viewerCount: detailStreamData?.viewerCount,
     }),
     [
       routePlatform,
       channelName,
-      channelData?.displayName,
-      channelData?.avatarUrl,
+      detailChannelData?.displayName,
+      detailChannelData?.avatarUrl,
       effectiveStreamUrl,
-      streamData?.title,
-      streamData?.categoryName,
-      streamData?.viewerCount,
+      detailStreamData?.title,
+      detailStreamData?.categoryName,
+      detailStreamData?.viewerCount,
       // Intentionally exclude viewerCount - it changes every 30s but we don't need to update PiP for that
     ]
   );
@@ -476,10 +767,11 @@ export function StreamPage() {
         >
           {/* Video Player Area */}
           <div
+            id={hasPersistentPlayerShell ? "persistent-live-player-dock" : undefined}
             className={`${isTheater ? "h-full aspect-video max-w-full" : "aspect-video shrink-0 w-full"} bg-black relative`}
           >
             {/* Platform-specific live stream players */}
-            {shouldMountLivePlayer && (
+            {shouldMountLivePlayer && !hasPersistentPlayerShell && (
               <Suspense fallback={null}>
                 {routePlatform === "kick" ? (
                   <KickLivePlayer
@@ -490,8 +782,8 @@ export function StreamPage() {
                     onReady={() => logger.debug("Page:Stream", "kick live player ready")}
                     onError={handlePlayerError}
                     isTheater={isTheater}
-                    onToggleTheater={() => setTheaterModeActive(!isTheater)}
-                    startedAt={streamData?.startedAt}
+                    onToggleTheater={handleToggleTheater}
+                    startedAt={detailStreamData?.startedAt}
                     channelName={channelName}
                     onRefresh={reloadPlayback}
                   />
@@ -505,17 +797,19 @@ export function StreamPage() {
                     onReady={() => logger.debug("Page:Stream", "twitch live player ready")}
                     onError={handlePlayerError}
                     isTheater={isTheater}
-                    onToggleTheater={() => setTheaterModeActive(!isTheater)}
+                    onToggleTheater={handleToggleTheater}
                     onRefresh={reloadPlayback}
                   />
                 )}
               </Suspense>
             )}
             {/* Show loading only when fetching data */}
-            {(isPlaybackLoading || isChannelLoading || isStreamLoading) &&
+            {(isPlaybackLoading || isStreamMetadataPending) &&
               !effectiveStreamUrl &&
               !playbackError &&
-              !playerError && (
+              !playerError &&
+              !hasTerminalTwitchMetadataError &&
+              !hasConfirmedOfflineMetadata && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black z-20 pointer-events-none">
                   <div className="flex flex-col items-center gap-2">
                     {routePlatform === "kick" ? <KickLoadingSpinner /> : <TwitchLoadingSpinner />}
@@ -523,19 +817,40 @@ export function StreamPage() {
                 </div>
               )}
 
+            {shouldShowMetadataErrorOverlay && (
+              <OfflineOverlay
+                platform={routePlatform}
+                channelName={channelName}
+                displayName={overlayDisplayName}
+                avatarUrl={overlayAvatarUrl}
+                bannerUrl={overlayBannerUrl}
+                statusMessage="Unable to check stream status"
+                onCheckAgain={handleCheckAgain}
+              />
+            )}
+
+            {shouldShowPlaybackErrorOverlay && (
+              <OfflineOverlay
+                platform={routePlatform}
+                channelName={channelName}
+                displayName={overlayDisplayName}
+                avatarUrl={overlayAvatarUrl}
+                bannerUrl={overlayBannerUrl}
+                statusMessage="Unable to load stream"
+                onCheckAgain={handlePlaybackCheckAgain}
+              />
+            )}
+
             {shouldShowPlayerErrorOverlay && (
               <OfflineOverlay
                 platform={routePlatform}
                 channelName={channelName}
-                displayName={channelData?.displayName}
-                avatarUrl={channelData?.avatarUrl}
-                bannerUrl={channelData?.bannerUrl}
-                categoryName={offlineCategoryName}
-                lastStreamTitle={offlineStreamTitle}
-                onCheckAgain={() => {
-                  setPlayerError(null);
-                  reloadPlayback();
-                }}
+                displayName={overlayDisplayName}
+                avatarUrl={overlayAvatarUrl}
+                bannerUrl={overlayBannerUrl}
+                categoryName={overlayCategoryName}
+                lastStreamTitle={overlayStreamTitle}
+                onCheckAgain={handleCheckAgain}
               />
             )}
             {/* Show offline only after metadata confirms the stream is offline.
@@ -545,21 +860,21 @@ export function StreamPage() {
               <OfflineOverlay
                 platform={routePlatform}
                 channelName={channelName}
-                displayName={channelData?.displayName}
-                avatarUrl={channelData?.avatarUrl}
-                bannerUrl={channelData?.bannerUrl}
-                categoryName={offlineCategoryName}
-                lastStreamTitle={offlineStreamTitle}
-                onCheckAgain={reloadPlayback}
+                displayName={overlayDisplayName}
+                avatarUrl={overlayAvatarUrl}
+                bannerUrl={overlayBannerUrl}
+                categoryName={overlayCategoryName}
+                lastStreamTitle={overlayStreamTitle}
+                onCheckAgain={handleCheckAgain}
               />
             )}
           </div>
 
           <div className={`${isTheater ? "hidden" : "block"} p-6 space-y-6`}>
             <StreamInfo
-              channel={channelData || null}
-              stream={streamData}
-              isLoading={isChannelLoading}
+              channel={detailChannelData}
+              stream={detailStreamData}
+              isLoading={isChannelLoading || Boolean(isChannelPlaceholderData)}
             />
 
             {canMountHeavyContent && (
@@ -567,8 +882,8 @@ export function StreamPage() {
                 <RelatedContent
                   platform={routePlatform}
                   channelName={channelName}
-                  channelData={channelData}
-                  streamStartedAt={streamData?.startedAt}
+                  channelData={detailChannelData}
+                  streamStartedAt={detailStreamData?.startedAt}
                   onClipSelectionChange={setIsClipDialogOpen}
                 />
               </Suspense>

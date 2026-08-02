@@ -14,6 +14,8 @@ import { logger } from "@/lib/cross-logger";
 import {
   type AuthToken,
   type BufferPreferences,
+  type CaptionPreferences,
+  DEFAULT_CAPTION_PREFERENCES,
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   DEFAULT_WINDOW_BOUNDS,
@@ -27,6 +29,8 @@ import {
   type TwitchUser,
   type UserPreferences,
 } from "../../shared/auth-types";
+import type { DownloadQueueSnapshot } from "../../shared/download-types";
+import type { StreamRecordingJournalV2 } from "../../shared/stream-recording-types";
 
 import { dbService, type PendingFollowAction, type PendingFollowWrite } from "./database-service";
 
@@ -53,6 +57,50 @@ function isLegacyLatencyFirstBufferPreferences(value: unknown): boolean {
   );
 }
 
+function normalizeCaptionPreferences(value: unknown): CaptionPreferences {
+  const stored = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const preferredLanguage = stored.preferredLanguage;
+  const localModelId = stored.localModelId;
+  const textSizePercent = stored.textSizePercent;
+  const backgroundOpacityPercent = stored.backgroundOpacityPercent;
+
+  return {
+    enabled:
+      typeof stored.enabled === "boolean"
+        ? stored.enabled
+        : DEFAULT_CAPTION_PREFERENCES.enabled,
+    source:
+      stored.source === "platform" || stored.source === "local"
+        ? stored.source
+        : DEFAULT_CAPTION_PREFERENCES.source,
+    preferredLanguage:
+      preferredLanguage === null ||
+      (typeof preferredLanguage === "string" &&
+        /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(preferredLanguage))
+        ? preferredLanguage
+        : DEFAULT_CAPTION_PREFERENCES.preferredLanguage,
+    localModelId:
+      localModelId === null ||
+      (typeof localModelId === "string" && /^[a-z0-9][a-z0-9._-]*$/i.test(localModelId))
+        ? localModelId
+        : DEFAULT_CAPTION_PREFERENCES.localModelId,
+    textSizePercent:
+      typeof textSizePercent === "number" &&
+      Number.isFinite(textSizePercent) &&
+      textSizePercent >= 75 &&
+      textSizePercent <= 200
+        ? textSizePercent
+        : DEFAULT_CAPTION_PREFERENCES.textSizePercent,
+    backgroundOpacityPercent:
+      typeof backgroundOpacityPercent === "number" &&
+      Number.isFinite(backgroundOpacityPercent) &&
+      backgroundOpacityPercent >= 0 &&
+      backgroundOpacityPercent <= 100
+        ? backgroundOpacityPercent
+        : DEFAULT_CAPTION_PREFERENCES.backgroundOpacityPercent,
+  };
+}
+
 function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
   const notificationPreferences: NotificationPreferences = {
     ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -66,6 +114,7 @@ function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
     ...DEFAULT_USER_PREFERENCES,
     ...stored,
     notifications: notificationPreferences,
+    captions: normalizeCaptionPreferences(stored.captions),
   };
   if (isLegacyLatencyFirstBufferPreferences(hydrated.buffer)) {
     return { ...hydrated, buffer: DEFAULT_USER_PREFERENCES.buffer };
@@ -79,6 +128,8 @@ const defaults: StorageSchema = {
   twitchUser: null,
   kickUser: null,
   localFollows: [],
+  downloadQueue: { jobs: [] },
+  streamRecordingJournal: { version: 2, state: "empty", session: null },
   preferences: DEFAULT_USER_PREFERENCES,
   lastActiveTab: "home",
   windowBounds: DEFAULT_WINDOW_BOUNDS,
@@ -579,7 +630,10 @@ class StorageService {
    */
   updatePreferences(updates: Partial<UserPreferences>): UserPreferences {
     const current = this.getPreferences();
-    const updated = { ...current, ...updates };
+    const normalizedUpdates = updates.captions
+      ? { ...updates, captions: normalizeCaptionPreferences(updates.captions) }
+      : updates;
+    const updated = { ...current, ...normalizedUpdates };
     this.storeInstance.set("preferences", updated);
     return updated;
   }
@@ -605,6 +659,26 @@ class StorageService {
    */
   saveWindowBounds(bounds: StorageSchema["windowBounds"]): void {
     this.storeInstance.set("windowBounds", bounds);
+  }
+
+  // ========== Downloads Queue (Electron Store) ==========
+
+  getDownloadQueue(): DownloadQueueSnapshot {
+    return this.storeInstance.get("downloadQueue") ?? { jobs: [] };
+  }
+
+  saveDownloadQueue(snapshot: DownloadQueueSnapshot): void {
+    this.storeInstance.set("downloadQueue", snapshot);
+  }
+
+  // ========== Stream Recording Recovery Journal (Electron Store) ==========
+
+  getStreamRecordingJournal(): unknown {
+    return this.storeInstance.get("streamRecordingJournal");
+  }
+
+  saveStreamRecordingJournal(journal: StreamRecordingJournalV2): void {
+    this.storeInstance.set("streamRecordingJournal", journal);
   }
 
   // ========== Generic Storage (Electron Store) ==========

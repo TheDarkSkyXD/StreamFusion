@@ -15,7 +15,12 @@ import type {
   UserPreferences,
 } from "./auth-types";
 import type { SubscriberEligibilityRequest } from "./chat-types";
+import type { ClipDownloadRequest, VideoDownloadRequest } from "./download-types";
+import type { LocalCaptionPcmChunk, LocalCaptionSessionIdentity } from "./local-caption-types";
 import type { SlotQualityMode } from "./slot-types";
+import type { StreamRecordingRequest } from "./stream-recording-types";
+import type { TimeoutActionBinding, TimeoutSubmitInput } from "./timeout-moderation-types";
+import type { TwitchApiCommand } from "./twitch-api-types";
 import type {
   KickAccountCreatedRequest,
   KickChannelRequest,
@@ -35,6 +40,7 @@ export const IPC_CHANNELS = {
   APP_GET_ENVIRONMENT: "app:get-environment",
   APP_QUIT: "app:quit",
   APP_RELAUNCH: "app:relaunch",
+  CONNECTIVITY_CHECK: "connectivity:check",
   /**
    * Main → renderer push fired at the start of `app.before-quit`. The
    * renderer responds with an aggressive teardown (drop chat sockets, stop
@@ -95,9 +101,6 @@ export const IPC_CHANNELS = {
   AUTH_SYNC_FOLLOWS: "auth:sync-follows",
 
   // Auth - Device Code Flow (Twitch)
-  AUTH_DCF_START: "auth:dcf-start",
-  AUTH_DCF_POLL: "auth:dcf-poll",
-  AUTH_DCF_CANCEL: "auth:dcf-cancel",
   AUTH_DCF_STATUS: "auth:dcf-status",
 
   // Auth - Status
@@ -109,6 +112,13 @@ export const IPC_CHANNELS = {
    * checks `event.senderFrame.url` like the other privileged channels.
    */
   AUTH_TOKEN_STATUS: "auth:token-status",
+
+  // Main-owned Twitch Helix capability boundary.
+  TWITCH_API_EXECUTE: "twitch-api:execute",
+  TWITCH_EVENTSUB_START: "twitch-eventsub:start",
+  TWITCH_EVENTSUB_STOP: "twitch-eventsub:stop",
+  TWITCH_EVENTSUB_EVENT: "twitch-eventsub:event",
+  TWITCH_EVENTSUB_STATE: "twitch-eventsub:state",
 
   // Public user profile reads (main-process Platform boundary)
   USER_PROFILE_TWITCH_IDENTITY: "user-profile:twitch-identity",
@@ -192,6 +202,46 @@ export const IPC_CHANNELS = {
   CLIPS_GET_BY_CHANNEL: "clips:get-by-channel",
   CLIPS_GET_PLAYBACK_URL: "clips:get-playback-url",
 
+  // ========== Downloads ==========
+  DOWNLOADS_GET_QUEUE: "downloads:get-queue",
+  DOWNLOADS_DOWNLOAD_CLIP: "downloads:download-clip",
+  DOWNLOADS_DOWNLOAD_VIDEO: "downloads:download-video",
+  DOWNLOADS_PAUSE: "downloads:pause",
+  DOWNLOADS_RESUME: "downloads:resume",
+  DOWNLOADS_CANCEL: "downloads:cancel",
+  DOWNLOADS_RETRY: "downloads:retry",
+  DOWNLOADS_REMOVE: "downloads:remove",
+  DOWNLOADS_SHOW_IN_FOLDER: "downloads:show-in-folder",
+  DOWNLOADS_OPEN_FILE: "downloads:open-file",
+  DOWNLOADS_DELETE_FILE: "downloads:delete-file",
+  DOWNLOADS_QUEUE_CHANGED: "downloads:queue-changed",
+
+  // ========== Stream Recording ==========
+  STREAM_RECORDING_GET_STATE: "stream-recording:get-state",
+  STREAM_RECORDING_START: "stream-recording:start",
+  STREAM_RECORDING_STOP: "stream-recording:stop",
+  STREAM_RECORDING_PAUSE: "stream-recording:pause",
+  STREAM_RECORDING_RESUME: "stream-recording:resume",
+  STREAM_RECORDING_RESUME_INTERRUPTED: "stream-recording:resume-interrupted",
+  STREAM_RECORDING_FINALIZE_INTERRUPTED: "stream-recording:finalize-interrupted",
+  STREAM_RECORDING_DISMISS_INTERRUPTED: "stream-recording:dismiss-interrupted",
+  STREAM_RECORDING_OPEN_COMPLETED: "stream-recording:open-completed",
+  STREAM_RECORDING_SHOW_COMPLETED: "stream-recording:show-completed",
+  STREAM_RECORDING_DISMISS_NOTICE: "stream-recording:dismiss-notice",
+  STREAM_RECORDING_STATE_CHANGED: "stream-recording:state-changed",
+
+  // ========== Local Captions ==========
+  LOCAL_CAPTIONS_MODEL_GET_STATE: "local-captions:model-get-state",
+  LOCAL_CAPTIONS_MODEL_DOWNLOAD: "local-captions:model-download",
+  LOCAL_CAPTIONS_MODEL_CANCEL: "local-captions:model-cancel",
+  LOCAL_CAPTIONS_MODEL_REMOVE: "local-captions:model-remove",
+  LOCAL_CAPTIONS_MODEL_STATE: "local-captions:model-state",
+  LOCAL_CAPTIONS_SESSION_START: "local-captions:session-start",
+  LOCAL_CAPTIONS_AUDIO_PUSH: "local-captions:audio-push",
+  LOCAL_CAPTIONS_SESSION_STOP: "local-captions:session-stop",
+  LOCAL_CAPTIONS_RESULT: "local-captions:result",
+  LOCAL_CAPTIONS_RECOGNIZER_STATE: "local-captions:recognizer-state",
+
   // ========== VOD Lookup (for clip-to-VOD navigation) ==========
   VIDEOS_GET_BY_LIVESTREAM_ID: "videos:get-by-livestream-id",
 
@@ -240,6 +290,8 @@ export const IPC_CHANNELS = {
   MODLOG_INSERT: "modlog:insert",
   MODLOG_QUERY: "modlog:query",
   MODLOG_SWEEP_RETENTION: "modlog:sweep-retention",
+  MODERATION_TIMEOUT_SNAPSHOT: "moderation:timeout-snapshot",
+  MODERATION_TIMEOUT_SUBMIT: "moderation:timeout-submit",
 
   // ========== Retention Settings ==========
   RETENTION_GET: "retention:get",
@@ -336,8 +388,10 @@ export const IPC_CHANNELS = {
   // linked / known account. See ADR-0004 and PRD #62.
   EMOTES_7TV_GET_USER_BY_CONNECTION: "emotes:7tv:get-user-by-connection",
   EMOTES_7TV_GET_GLOBAL_EMOTE_SET: "emotes:7tv:get-global-emote-set",
+  EMOTES_BTTV_GET_BADGES: "emotes:bttv:get-badges",
   EMOTES_BTTV_GET_GLOBAL: "emotes:bttv:get-global",
   EMOTES_BTTV_GET_USER_BY_TWITCH_ID: "emotes:bttv:get-user-by-twitch-id",
+  EMOTES_FFZ_GET_BADGES: "emotes:ffz:get-badges",
   EMOTES_FFZ_GET_GLOBAL: "emotes:ffz:get-global",
   EMOTES_FFZ_GET_ROOM: "emotes:ffz:get-room",
   EMOTES_KICK_GET_CHANNEL_EMOTES: "emotes:kick:get-channel-emotes",
@@ -372,8 +426,11 @@ export interface IpcPayloads {
 
   // Auth tokens
   [IPC_CHANNELS.AUTH_TOKEN_STATUS]: { platform: Platform };
-  [IPC_CHANNELS.AUTH_GET_TOKEN]: { platform: Platform };
-  [IPC_CHANNELS.AUTH_SAVE_TOKEN]: { platform: Platform; token: AuthToken };
+  [IPC_CHANNELS.TWITCH_API_EXECUTE]: TwitchApiCommand;
+  [IPC_CHANNELS.TWITCH_EVENTSUB_START]: { feedId: string; userId: string; channelId: string };
+  [IPC_CHANNELS.TWITCH_EVENTSUB_STOP]: { feedId: string };
+  [IPC_CHANNELS.AUTH_GET_TOKEN]: { platform: "kick" };
+  [IPC_CHANNELS.AUTH_SAVE_TOKEN]: { platform: "kick"; token: AuthToken };
   [IPC_CHANNELS.AUTH_CLEAR_TOKEN]: { platform: Platform };
   [IPC_CHANNELS.AUTH_HAS_TOKEN]: { platform: Platform };
   [IPC_CHANNELS.AUTH_IS_TOKEN_EXPIRED]: { platform: Platform };
@@ -413,6 +470,38 @@ export interface IpcPayloads {
 
   // Notifications
   [IPC_CHANNELS.NOTIFICATION_SHOW]: { title: string; body: string };
+
+  // Downloads
+  [IPC_CHANNELS.DOWNLOADS_DOWNLOAD_CLIP]: ClipDownloadRequest;
+  [IPC_CHANNELS.DOWNLOADS_DOWNLOAD_VIDEO]: VideoDownloadRequest;
+  [IPC_CHANNELS.DOWNLOADS_PAUSE]: { id: string };
+  [IPC_CHANNELS.DOWNLOADS_RESUME]: { id: string };
+  [IPC_CHANNELS.DOWNLOADS_CANCEL]: { id: string };
+  [IPC_CHANNELS.DOWNLOADS_RETRY]: { id: string };
+  [IPC_CHANNELS.DOWNLOADS_REMOVE]: { id: string };
+  [IPC_CHANNELS.DOWNLOADS_SHOW_IN_FOLDER]: { id: string };
+  [IPC_CHANNELS.DOWNLOADS_OPEN_FILE]: { id: string };
+  [IPC_CHANNELS.DOWNLOADS_DELETE_FILE]: { id: string };
+
+  // Stream Recording
+  [IPC_CHANNELS.STREAM_RECORDING_START]: StreamRecordingRequest;
+  [IPC_CHANNELS.STREAM_RECORDING_STOP]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_PAUSE]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_RESUME]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_RESUME_INTERRUPTED]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_FINALIZE_INTERRUPTED]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_DISMISS_INTERRUPTED]: {
+    sessionId: string;
+    confirmed?: boolean;
+  };
+  [IPC_CHANNELS.STREAM_RECORDING_OPEN_COMPLETED]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_SHOW_COMPLETED]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_DISMISS_NOTICE]: { sessionId: string };
+
+  // Local Captions
+  [IPC_CHANNELS.LOCAL_CAPTIONS_SESSION_START]: LocalCaptionSessionIdentity;
+  [IPC_CHANNELS.LOCAL_CAPTIONS_AUDIO_PUSH]: LocalCaptionPcmChunk;
+  [IPC_CHANNELS.LOCAL_CAPTIONS_SESSION_STOP]: LocalCaptionSessionIdentity;
 
   // App auto-update — auto-check toggle + frequency (U15). Either field is
   // optional so the renderer can update one without resending the other.
@@ -465,6 +554,8 @@ export interface IpcPayloads {
   [IPC_CHANNELS.KICK_CHAT_UNPIN_MESSAGE]: {
     channelSlug: string;
   };
+  [IPC_CHANNELS.MODERATION_TIMEOUT_SNAPSHOT]: TimeoutActionBinding;
+  [IPC_CHANNELS.MODERATION_TIMEOUT_SUBMIT]: TimeoutSubmitInput;
 
   // 7TV REST (main-process transport). Identifier is the platform's own
   // numeric id (Twitch user_id or Kick channel.id), NOT the slug.
@@ -520,6 +611,49 @@ export interface IpcPayloads {
     slotId: string;
     payload: { platform: Platform; channelName: string; playbackUrl: string };
   };
+}
+
+export interface BTTVBadgeCatalogEntry {
+  providerId: string;
+  badge: {
+    description: string;
+    svg: string;
+  };
+}
+
+export type BTTVBadgeCatalog = BTTVBadgeCatalogEntry[];
+
+export interface FFZImageUrls {
+  "1": string;
+  "2"?: string;
+  "4"?: string;
+}
+
+export interface FFZBadgeCatalog {
+  badges: Array<{
+    id: number;
+    title: string;
+    color: string;
+    slot?: number;
+    replaces?: string;
+    urls: FFZImageUrls;
+  }>;
+  users: Record<string, Array<string | number>>;
+}
+
+export interface FFZRoomResponse {
+  room: {
+    _id?: number;
+    twitch_id?: number | string;
+    id?: string;
+    is_group?: boolean;
+    display_name?: string;
+    set: number;
+    vip_badge?: FFZImageUrls | null;
+    mod_urls?: FFZImageUrls | null;
+    moderator_badge?: string | null;
+  };
+  sets: Record<string, unknown>;
 }
 
 // ========== Stream Proxy Types (Xtra port U11) ==========
@@ -613,6 +747,11 @@ export interface AppEnvironment {
   nodeVersion: string;
 }
 
+/** Result of the main-process end-to-end internet reachability probe. */
+export interface ConnectivityCheckResult {
+  reachable: boolean;
+}
+
 /**
  * Result of a `BUG_REPORT_WRITE` call. `filePath` is set on success; `error`
  * is set on failure. Both should never be populated simultaneously.
@@ -638,6 +777,15 @@ export interface AuthStatus {
   };
   isGuest: boolean;
 }
+
+export type TwitchAuthRefreshResult =
+  | {
+      success: true;
+      user: TwitchUser | null;
+      hasToken: boolean;
+      isExpired: boolean;
+    }
+  | { success: false; error: string };
 
 export type AuthSyncFollowsResult =
   | {

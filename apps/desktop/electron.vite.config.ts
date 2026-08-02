@@ -23,6 +23,7 @@ export default defineConfig(({ command, mode }) => {
             define: {
                 // Bake environment variables into the main process build
                 'process.env.TWITCH_CLIENT_ID': JSON.stringify(env.TWITCH_CLIENT_ID || ''),
+                'process.env.STREAMFUSION_WORKER_BASE_URL': JSON.stringify(env.STREAMFUSION_WORKER_BASE_URL || ''),
                 // Secrets are no longer baked in - handled by Cloudflare Worker
                 // 'process.env.TWITCH_CLIENT_SECRET': JSON.stringify(env.TWITCH_CLIENT_SECRET || ''), 
                 'process.env.KICK_CLIENT_ID': JSON.stringify(env.KICK_CLIENT_ID || ''),
@@ -51,7 +52,6 @@ export default defineConfig(({ command, mode }) => {
                         'electron-log',
                         'electron-updater',
                         'electron-util',
-                        'electron-trpc-link',
                         '@electron-toolkit/utils',
                         '@electron-toolkit/preload',
                         'chokidar',
@@ -64,10 +64,7 @@ export default defineConfig(({ command, mode }) => {
                         'reconnecting-websocket',
                         'pusher-js',
                         'tmi.js',
-                        '@trpc/server',
-                        '@trpc/client',
                         '@iarna/toml',
-                        '@repeaterjs/repeater',
                         'update-electron-app',
                         'zod',
                     ],

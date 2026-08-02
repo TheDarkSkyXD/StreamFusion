@@ -1,5 +1,5 @@
-import { useSearch } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 import {
   LuBell,
@@ -288,6 +288,25 @@ const TAB_META: Record<TabKey, { label: string; description: string; icon: typeo
   about: { label: "About", description: "Version & info", icon: LuCircleHelp },
 };
 
+const SETTINGS_GROUPS: ReadonlyArray<{ label: string; tabs: readonly TabKey[] }> = [
+  {
+    label: "Viewing",
+    tabs: ["playback", "player-controls", "buffer", "multiview"],
+  },
+  {
+    label: "Experience",
+    tabs: ["notifications", "chat", "predictions"],
+  },
+  {
+    label: "Accounts & Network",
+    tabs: ["adblock", "proxy", "integrations", "api-tokens"],
+  },
+  {
+    label: "System & Support",
+    tabs: ["updates", "about", "logs", "report-bug"],
+  },
+];
+
 // Searchable index of individual settings. Each entry's match haystack also
 // pulls in its tab's label/description, so typing a tab name surfaces every
 // row underneath. Keywords cover values a user might type that aren't in the
@@ -509,18 +528,26 @@ export function SettingsPage() {
   const canRenderSettingsPanel = useAfterFirstPaint();
   const appVersion = useAppVersion();
   const versionInfo = useAppVersionInfo();
+  const navigate = useNavigate();
   // Dev gate. While the env probe is in flight we conservatively treat the
   // build as prod so dev-only panels never flash in a packaged install.
   const [isDev, setIsDev] = useState(false);
+  const [isDevResolved, setIsDevResolved] = useState(false);
   useEffect(() => {
     let cancelled = false;
     window.electronAPI?.env
       ?.get()
       .then((env) => {
-        if (!cancelled) setIsDev(env.isDev);
+        if (!cancelled) {
+          setIsDev(env.isDev);
+          setIsDevResolved(true);
+        }
       })
       .catch(() => {
-        if (!cancelled) setIsDev(false);
+        if (!cancelled) {
+          setIsDev(false);
+          setIsDevResolved(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -534,9 +561,51 @@ export function SettingsPage() {
   const requestedTab = search.tab as (typeof SETTINGS_TABS)[number];
   const isValidTab = SETTINGS_TABS.includes(requestedTab);
   const requestedIsDevOnly = isValidTab && DEV_ONLY_TABS.has(requestedTab);
-  const initialTab =
-    isValidTab && (!requestedIsDevOnly || isDev) ? (requestedTab as string) : "playback";
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const urlActiveTab: TabKey =
+    isValidTab && (!requestedIsDevOnly || isDev) ? requestedTab : "playback";
+  const [pendingTab, setPendingTab] = useState<{ tab: TabKey; from: TabKey } | null>(null);
+  const activeTab = pendingTab?.from === urlActiveTab ? pendingTab.tab : urlActiveTab;
+  const contentScrollerRef = useRef<HTMLDivElement>(null);
+  const previousActiveTabRef = useRef(activeTab);
+
+  // The URL remains authoritative for deep links and Back/Forward navigation.
+  // A pending selection renders immediately only while the URL remains at the
+  // location it started from, so later history changes never show stale content.
+  useEffect(() => {
+    if (pendingTab && pendingTab.from !== urlActiveTab) setPendingTab(null);
+  }, [pendingTab, urlActiveTab]);
+
+  useEffect(() => {
+    if (previousActiveTabRef.current === activeTab) return;
+    previousActiveTabRef.current = activeTab;
+    if (contentScrollerRef.current) contentScrollerRef.current.scrollTop = 0;
+  }, [activeTab]);
+
+  const navigateToTab = useCallback(
+    (tab: TabKey, replace = false, optimistic = false) => {
+      if (optimistic) setPendingTab({ tab, from: urlActiveTab });
+      try {
+        void Promise.resolve(navigate({ to: "/settings", search: { tab }, replace })).catch(() => {
+          setPendingTab(null);
+        });
+      } catch {
+        setPendingTab(null);
+      }
+    },
+    [navigate, urlActiveTab]
+  );
+
+  // Keep the query parameter canonical while waiting for the environment
+  // probe before deciding whether a developer-only deep link is allowed.
+  useEffect(() => {
+    if (!isValidTab) {
+      navigateToTab("playback", true);
+      return;
+    }
+    if (requestedIsDevOnly && isDevResolved && !isDev) {
+      navigateToTab("playback", true);
+    }
+  }, [isValidTab, requestedIsDevOnly, isDevResolved, isDev, navigateToTab]);
 
   // ===== Settings search =====
   // Filters the sidebar to tabs containing matching settings and, within the
@@ -588,21 +657,16 @@ export function SettingsPage() {
     const firstMatch = SETTINGS_TABS.find(
       (t) => searchMatches.tabs!.has(t) && (!DEV_ONLY_TABS.has(t) || isDev)
     );
-    if (firstMatch) setActiveTab(firstMatch);
-  }, [searchMatches, activeTab, isDev]);
+    if (firstMatch) navigateToTab(firstMatch, true, true);
+  }, [searchMatches, activeTab, isDev, navigateToTab]);
 
   // True iff the currently active tab has at least one matching setting (or
   // search is inactive). When false, the content area renders an empty state.
   const activeTabHasMatches =
     !searchMatches.active || (searchMatches.tabs?.has(activeTab as TabKey) ?? false);
-
-  // If the active tab is dev-only and the env probe resolves to prod, snap
-  // back to the default tab so the panel area never renders dev-only content.
-  useEffect(() => {
-    if (!isDev && DEV_ONLY_TABS.has(activeTab as (typeof SETTINGS_TABS)[number])) {
-      setActiveTab("playback");
-    }
-  }, [isDev, activeTab]);
+  const hasVisibleTabMatches =
+    !searchMatches.active ||
+    SETTINGS_TABS.some((tab) => searchMatches.tabs?.has(tab) && (!DEV_ONLY_TABS.has(tab) || isDev));
 
   // Get auth state
   const { error, clearError } = useAuthError();
@@ -646,28 +710,6 @@ export function SettingsPage() {
     });
     notifySettingsSaved();
   };
-
-  // Updater state
-  const {
-    status,
-    updateInfo,
-    progress,
-    error: updateError,
-    allowPrerelease,
-    autoCheckEnabled,
-    checkFrequency,
-    isChecking,
-    isDownloading,
-    isUpdateAvailable,
-    isUpdateDownloaded,
-    hasError,
-    checkForUpdates,
-    downloadUpdate,
-    installUpdate,
-    setAllowPrerelease,
-    setAutoCheckEnabled,
-    setCheckFrequency,
-  } = useUpdater();
 
   const handleQualityChange = async (value: string) => {
     // Cast string to VideoQuality since we know the values are valid
@@ -929,25 +971,28 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="flex h-full bg-[#09090b] text-zinc-100 overflow-hidden">
+    <div className="flex h-full overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)]">
       {/* Sidebar Navigation */}
-      <div className="w-[280px] flex-shrink-0 flex flex-col border-r border-[#27272a] bg-[#121214]">
-        <div className="p-6 pb-2">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <IoMdSettings className="w-6 h-6 text-zinc-400" />
+      <aside className="flex w-[232px] flex-shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-background-secondary)]">
+        <div className="px-5 pb-2 pt-5">
+          <h1 className="flex items-center gap-2 text-xl font-bold">
+            <IoMdSettings
+              className="h-5 w-5 text-[var(--color-foreground-secondary)]"
+              aria-hidden
+            />
             Settings
           </h1>
-          <p className="text-zinc-500 text-xs font-medium mt-1 uppercase tracking-wide opacity-80">
-            App Settings & Project Settings
+          <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
+            Personalize your StreamFusion experience
           </p>
         </div>
 
         {/* Search bar — filters sidebar to tabs containing matches and hides
             non-matching rows within the active tab. */}
-        <div className="px-6 pt-3 pb-1">
+        <div className="px-4 pb-2 pt-3">
           <div className="relative">
             <LuSearch
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-foreground-muted)]"
               aria-hidden
             />
             <input
@@ -958,14 +1003,14 @@ export function SettingsPage() {
               aria-label="Search settings"
               autoComplete="off"
               spellCheck={false}
-              className="w-full rounded-lg border border-[#27272a] bg-[#18181b] pl-9 pr-9 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500/30 focus:border-zinc-500/40"
+              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] py-2 pl-9 pr-9 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-foreground-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
                 aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a]"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-elevated)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               >
                 <LuX className="w-3.5 h-3.5" />
               </button>
@@ -973,42 +1018,51 @@ export function SettingsPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-2 px-3 space-y-6">
-          {/* Section: APP SETTINGS */}
-          <div className="space-y-1">
-            <h3 className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 mt-4">
-              App Settings
-            </h3>
+        <nav
+          aria-label="Settings navigation"
+          className="flex-1 space-y-4 overflow-y-auto px-3 pb-4 pt-2"
+        >
+          {SETTINGS_GROUPS.map((group) => {
+            const visibleTabs = group.tabs.filter(
+              (tab) =>
+                (!DEV_ONLY_TABS.has(tab) || isDev) &&
+                (!searchMatches.active || searchMatches.tabs?.has(tab))
+            );
+            if (visibleTabs.length === 0) return null;
 
-            {SETTINGS_TABS.map((tab) => {
-              if (DEV_ONLY_TABS.has(tab) && !isDev) return null;
-              if (searchMatches.active && searchMatches.tabs && !searchMatches.tabs.has(tab))
-                return null;
-              const meta = TAB_META[tab];
-              return (
-                <SidebarItem
-                  key={tab}
-                  icon={meta.icon}
-                  label={meta.label}
-                  description={meta.description}
-                  isActive={activeTab === tab}
-                  onClick={() => setActiveTab(tab)}
-                />
-              );
-            })}
+            return (
+              <div key={group.label} className="space-y-1">
+                <h2 className="px-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-foreground-category)]">
+                  {group.label}
+                </h2>
+                {visibleTabs.map((tab) => {
+                  const meta = TAB_META[tab];
+                  return (
+                    <SidebarItem
+                      key={tab}
+                      tab={tab}
+                      icon={meta.icon}
+                      label={meta.label}
+                      isActive={activeTab === tab}
+                      onSelect={() => setPendingTab({ tab, from: urlActiveTab })}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
 
-            {searchMatches.active && searchMatches.tabs && searchMatches.tabs.size === 0 && (
-              <p className="px-3 py-6 text-sm text-zinc-500 text-center">
-                No settings match "{searchQuery}".
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+          {!hasVisibleTabMatches && (
+            <p className="px-2 py-6 text-center text-sm text-[var(--color-foreground-muted)]">
+              No settings match "{searchQuery}".
+            </p>
+          )}
+        </nav>
+      </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto bg-[#09090b]">
-        <div className="max-w-4xl p-8 py-10">
+      <div ref={contentScrollerRef} className="flex-1 overflow-y-auto bg-[var(--color-background)]">
+        <div className="mx-auto w-full max-w-5xl px-6 py-8 lg:px-10 lg:py-10">
           {!canRenderSettingsPanel ? (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -1046,7 +1100,7 @@ export function SettingsPage() {
             <>
               {/* Playback Tab */}
               {activeTab === "playback" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Playback</h2>
                     <p className="text-zinc-400">Manage your default stream viewing experience.</p>
@@ -1255,7 +1309,7 @@ export function SettingsPage() {
 
               {/* Notifications Tab */}
               {activeTab === "notifications" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Notifications</h2>
                     <p className="text-zinc-400">
@@ -1512,7 +1566,7 @@ export function SettingsPage() {
 
               {/* Player Controls Tab */}
               {activeTab === "player-controls" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Player controls</h2>
                     <p className="text-zinc-400">
@@ -1561,7 +1615,7 @@ export function SettingsPage() {
 
               {/* Buffer Tab */}
               {activeTab === "buffer" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Buffer</h2>
                     <p className="text-zinc-400">
@@ -1658,7 +1712,7 @@ export function SettingsPage() {
                   stream quality lands here in slice 08; today this tab only
                   surfaces the cap slider. */}
               {activeTab === "multiview" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Multiview</h2>
                     <p className="text-zinc-400">
@@ -1779,7 +1833,7 @@ export function SettingsPage() {
 
               {/* Chat Tab */}
               {activeTab === "chat" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Chat</h2>
                     <p className="text-zinc-400">
@@ -1793,7 +1847,7 @@ export function SettingsPage() {
 
               {/* Ad-Block Tab */}
               {activeTab === "adblock" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Ad-Block</h2>
                     <p className="text-zinc-400">
@@ -1841,7 +1895,7 @@ export function SettingsPage() {
 
               {/* Proxy Tab (U12 — drives the U11 main-process proxy) */}
               {activeTab === "proxy" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Proxy</h2>
                     <p className="text-zinc-400">
@@ -2046,7 +2100,7 @@ export function SettingsPage() {
 
               {/* Predictions Tab */}
               {activeTab === "predictions" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Predictions</h2>
                     <p className="text-zinc-400">
@@ -2089,7 +2143,7 @@ export function SettingsPage() {
 
               {/* Integrations Tab */}
               {activeTab === "integrations" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Integrations</h2>
                     <p className="text-zinc-400">Manage your connected accounts and services.</p>
@@ -2137,7 +2191,7 @@ export function SettingsPage() {
 
               {/* API / Tokens Tab (U14 — read-only token status) */}
               {activeTab === "api-tokens" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">API / Tokens</h2>
                     <p className="text-zinc-400">
@@ -2151,12 +2205,12 @@ export function SettingsPage() {
                       <ApiTokenPanel
                         platform="twitch"
                         label="Twitch"
-                        onOpenIntegrations={() => setActiveTab("integrations")}
+                        onOpenIntegrations={() => navigateToTab("integrations", false, true)}
                       />
                       <ApiTokenPanel
                         platform="kick"
                         label="Kick"
-                        onOpenIntegrations={() => setActiveTab("integrations")}
+                        onOpenIntegrations={() => navigateToTab("integrations", false, true)}
                       />
                     </>
                   )}
@@ -2165,207 +2219,18 @@ export function SettingsPage() {
 
               {/* Updates Tab */}
               {activeTab === "updates" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div>
-                    <h2 className="text-2xl font-bold mb-1">Updates</h2>
-                    <p className="text-zinc-400">
-                      Manage application updates and release channels.
-                    </p>
-                  </div>
-
-                  {anyRowVisible(
-                    "Allow Pre-release Updates",
-                    "Automatically check for updates",
-                    "Check frequency",
-                    "Check for Updates"
-                  ) && (
-                    <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
-                      <div className="p-6 border-b border-[#27272a]">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                            <LuRefreshCw className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-lg">Software Update</h3>
-                            <p className="text-sm text-zinc-500">
-                              Current Version: v{appVersion ?? "0.0.0"}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-6 space-y-6">
-                        {/* Pre-release Toggle */}
-                        {isRowVisible("Allow Pre-release Updates") && (
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-zinc-200">Allow Pre-release Updates</p>
-                              <p className="text-sm text-zinc-500 mt-1">
-                                Receive beta and preview versions before stable release
-                              </p>
-                            </div>
-                            <Switch
-                              checked={allowPrerelease}
-                              onCheckedChange={setAllowPrerelease}
-                              className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
-                              thumbClassName="data-[state=checked]:!bg-white"
-                            />
-                          </div>
-                        )}
-
-                        {/* Automatic Check Toggle */}
-                        {isRowVisible("Automatically check for updates") && (
-                          <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
-                            <div>
-                              <p className="font-medium text-zinc-200">
-                                Automatically check for updates
-                              </p>
-                              <p className="text-sm text-zinc-500 mt-1">
-                                Check for new versions in the background on a schedule
-                              </p>
-                            </div>
-                            <Switch
-                              aria-label="Automatically check for updates"
-                              checked={autoCheckEnabled}
-                              onCheckedChange={setAutoCheckEnabled}
-                              className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
-                              thumbClassName="data-[state=checked]:!bg-white"
-                            />
-                          </div>
-                        )}
-
-                        {/* Check Frequency */}
-                        {isRowVisible("Check frequency") && (
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p
-                                className={cn(
-                                  "font-medium",
-                                  autoCheckEnabled ? "text-zinc-200" : "text-zinc-500"
-                                )}
-                              >
-                                Check frequency
-                              </p>
-                              <p className="text-sm text-zinc-500 mt-1">
-                                How often to check when automatic updates are on
-                              </p>
-                            </div>
-                            <Select
-                              value={checkFrequency}
-                              onValueChange={(v) => setCheckFrequency(v as CheckFrequency)}
-                              disabled={!autoCheckEnabled}
-                            >
-                              <SelectTrigger
-                                aria-label="Check frequency"
-                                className="w-[180px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-blue-500/20 disabled:opacity-50"
-                              >
-                                <SelectValue placeholder="Select frequency" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
-                                <SelectItem value="hourly">Hourly</SelectItem>
-                                <SelectItem value="daily">Daily</SelectItem>
-                                <SelectItem value="weekly">Weekly</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-
-                        {/* Check Button */}
-                        {isRowVisible("Check for Updates") && (
-                          <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
-                            <div>
-                              <p className="font-medium text-zinc-200">Check for Updates</p>
-                              <p className="text-sm text-zinc-500 mt-1">
-                                {status === "idle" && "Click to check for available updates"}
-                                {status === "checking" && "Checking for updates..."}
-                                {status === "not-available" && "You are on the latest version"}
-                                {status === "available" &&
-                                  `Version ${updateInfo?.version} is available`}
-                                {status === "downloading" && "Downloading update..."}
-                                {status === "downloaded" && "Update ready to install"}
-                                {status === "error" && "Failed to check for updates"}
-                              </p>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={checkForUpdates}
-                              disabled={isChecking || isDownloading}
-                              className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
-                            >
-                              <LuRefreshCw
-                                className={`w-4 h-4 mr-2 ${isChecking ? "animate-spin" : ""}`}
-                              />
-                              Check Now
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* Errors */}
-                        {hasError && updateError && (
-                          <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
-                            <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <p className="text-sm">{updateError}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Update Available */}
-                        {isUpdateAvailable && updateInfo && (
-                          <div className="bg-[#18181b] rounded-lg border border-[#27272a] p-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-bold text-white">
-                                  {updateInfo.releaseName || `Version ${updateInfo.version}`}
-                                </p>
-                                {updateInfo.releaseDate && (
-                                  <p className="text-xs text-zinc-500 mt-0.5">
-                                    Released {new Date(updateInfo.releaseDate).toLocaleDateString()}
-                                  </p>
-                                )}
-                              </div>
-                              <Button size="sm" onClick={downloadUpdate} disabled={isDownloading}>
-                                <LuDownload className="w-4 h-4 mr-2" />
-                                Download Update
-                              </Button>
-                            </div>
-                            {updateInfo.releaseNotes && (
-                              <div className="text-sm text-zinc-400 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono bg-[#09090b] p-3 rounded border border-[#27272a]">
-                                {updateInfo.releaseNotes}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Downloading */}
-                        {isDownloading && progress && (
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span>Downloading...</span>
-                              <span>{Math.round(progress.percent)}%</span>
-                            </div>
-                            <Progress value={progress.percent} className="h-2" />
-                          </div>
-                        )}
-
-                        {/* Install */}
-                        {isUpdateDownloaded && (
-                          <Button onClick={installUpdate} className="w-full">
-                            <LuRocket className="w-4 h-4 mr-2" /> Restart & Install
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <UpdatesSettingsPanel
+                  appVersion={appVersion}
+                  anyRowVisible={anyRowVisible}
+                  isRowVisible={isRowVisible}
+                />
               )}
 
               {/* Logs Tab — dev-only. The sidebar item is hidden in prod and a
               deep-link `?tab=logs` is redirected away above, but this guard
               keeps the panel itself off in case `activeTab` lags behind. */}
               {isDev && activeTab === "logs" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Logs</h2>
                     <p className="text-zinc-400">
@@ -2380,7 +2245,7 @@ export function SettingsPage() {
 
               {/* Report Bug Tab — dev-only (gated by DEV_ONLY_TABS). */}
               {isDev && activeTab === "report-bug" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Report a Bug</h2>
                     <p className="text-zinc-400">
@@ -2394,7 +2259,7 @@ export function SettingsPage() {
 
               {/* About Tab */}
               {activeTab === "about" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">About</h2>
                     <p className="text-zinc-400">Application information.</p>
@@ -2436,52 +2301,253 @@ export function SettingsPage() {
   );
 }
 
-function SidebarItem({
-  icon: Icon,
-  label,
-  description,
-  isActive,
-  onClick,
+function UpdatesSettingsPanel({
+  appVersion,
+  anyRowVisible,
+  isRowVisible,
 }: {
-  icon: any;
-  label: string;
-  description: string;
-  isActive: boolean;
-  onClick: () => void;
+  appVersion: string | null | undefined;
+  anyRowVisible: (...labels: string[]) => boolean;
+  isRowVisible: (label: string) => boolean;
 }) {
+  const {
+    status,
+    updateInfo,
+    progress,
+    error: updateError,
+    allowPrerelease,
+    autoCheckEnabled,
+    checkFrequency,
+    isChecking,
+    isDownloading,
+    isUpdateAvailable,
+    isUpdateDownloaded,
+    hasError,
+    checkForUpdates,
+    downloadUpdate,
+    installUpdate,
+    setAllowPrerelease,
+    setAutoCheckEnabled,
+    setCheckFrequency,
+  } = useUpdater();
+
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-200 group relative",
-        isActive
-          ? "bg-[#3f3f46] text-white"
-          : "text-zinc-400 hover:bg-[#27272a] hover:text-zinc-200"
-      )}
-    >
-      <div
-        className={cn(
-          "p-2 rounded-md transition-colors",
-          isActive
-            ? "bg-[#18181b] text-white"
-            : "bg-[#18181b] text-zinc-500 group-hover:text-zinc-300 group-hover:bg-[#3f3f46]"
-        )}
-      >
-        <Icon size={24} strokeWidth={2.5} />
+    <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
+      <div>
+        <h2 className="text-2xl font-bold mb-1">Updates</h2>
+        <p className="text-zinc-400">Manage application updates and release channels.</p>
       </div>
 
-      <div className="flex-1 min-w-0">
-        <p className={cn("text-sm font-medium truncate", isActive ? "text-white" : "")}>{label}</p>
-        <p
-          className={cn(
-            "text-[11px] truncate mt-0.5",
-            isActive ? "text-zinc-300" : "text-zinc-600 group-hover:text-zinc-500"
-          )}
-        >
-          {description}
-        </p>
-      </div>
-    </button>
+      {anyRowVisible(
+        "Allow Pre-release Updates",
+        "Automatically check for updates",
+        "Check frequency",
+        "Check for Updates"
+      ) && (
+        <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
+          <div className="p-6 border-b border-[#27272a]">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                <LuRefreshCw className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Software Update</h3>
+                <p className="text-sm text-zinc-500">Current Version: v{appVersion ?? "0.0.0"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {isRowVisible("Allow Pre-release Updates") && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-zinc-200">Allow Pre-release Updates</p>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    Receive beta and preview versions before stable release
+                  </p>
+                </div>
+                <Switch
+                  checked={allowPrerelease}
+                  onCheckedChange={setAllowPrerelease}
+                  className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
+                  thumbClassName="data-[state=checked]:!bg-white"
+                />
+              </div>
+            )}
+
+            {isRowVisible("Automatically check for updates") && (
+              <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
+                <div>
+                  <p className="font-medium text-zinc-200">Automatically check for updates</p>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    Check for new versions in the background on a schedule
+                  </p>
+                </div>
+                <Switch
+                  aria-label="Automatically check for updates"
+                  checked={autoCheckEnabled}
+                  onCheckedChange={setAutoCheckEnabled}
+                  className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
+                  thumbClassName="data-[state=checked]:!bg-white"
+                />
+              </div>
+            )}
+
+            {isRowVisible("Check frequency") && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={cn("font-medium", autoCheckEnabled ? "text-zinc-200" : "text-zinc-500")}>
+                    Check frequency
+                  </p>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    How often to check when automatic updates are on
+                  </p>
+                </div>
+                <Select
+                  value={checkFrequency}
+                  onValueChange={(value) => setCheckFrequency(value as CheckFrequency)}
+                  disabled={!autoCheckEnabled}
+                >
+                  <SelectTrigger
+                    aria-label="Check frequency"
+                    className="w-[180px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-blue-500/20 disabled:opacity-50"
+                  >
+                    <SelectValue placeholder="Select frequency" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
+                    <SelectItem value="hourly">Hourly</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {isRowVisible("Check for Updates") && (
+              <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
+                <div>
+                  <p className="font-medium text-zinc-200">Check for Updates</p>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {status === "idle" && "Click to check for available updates"}
+                    {status === "checking" && "Checking for updates..."}
+                    {status === "not-available" && "You are on the latest version"}
+                    {status === "available" && `Version ${updateInfo?.version} is available`}
+                    {status === "downloading" && "Downloading update..."}
+                    {status === "downloaded" && "Update ready to install"}
+                    {status === "error" && "Failed to check for updates"}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={checkForUpdates}
+                  disabled={isChecking || isDownloading}
+                  className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
+                >
+                  <LuRefreshCw className={`w-4 h-4 mr-2 ${isChecking ? "animate-spin" : ""}`} />
+                  Check Now
+                </Button>
+              </div>
+            )}
+
+            {hasError && updateError && (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
+                <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm">{updateError}</p>
+                </div>
+              </div>
+            )}
+
+            {isUpdateAvailable && updateInfo && (
+              <div className="bg-[#18181b] rounded-lg border border-[#27272a] p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-white">
+                      {updateInfo.releaseName || `Version ${updateInfo.version}`}
+                    </p>
+                    {updateInfo.releaseDate && (
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Released {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <Button size="sm" onClick={downloadUpdate} disabled={isDownloading}>
+                    <LuDownload className="w-4 h-4 mr-2" />
+                    Download Update
+                  </Button>
+                </div>
+                {updateInfo.releaseNotes && (
+                  <div className="text-sm text-zinc-400 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono bg-[#09090b] p-3 rounded border border-[#27272a]">
+                    {updateInfo.releaseNotes}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isDownloading && progress && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Downloading...</span>
+                  <span>{Math.round(progress.percent)}%</span>
+                </div>
+                <Progress value={progress.percent} className="h-2" />
+              </div>
+            )}
+
+            {isUpdateDownloaded && (
+              <Button onClick={installUpdate} className="w-full">
+                <LuRocket className="w-4 h-4 mr-2" /> Restart & Install
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SidebarItem({
+  tab,
+  icon: Icon,
+  label,
+  isActive,
+  onSelect,
+}: {
+  tab: TabKey;
+  icon: any;
+  label: string;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <Link
+      to="/settings"
+      search={{ tab }}
+      onClick={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        onSelect();
+      }}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-inset motion-reduce:transition-none",
+        isActive
+          ? "bg-zinc-700 text-[var(--color-foreground)]"
+          : "text-[var(--color-foreground-secondary)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)]"
+      )}
+    >
+      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+    </Link>
   );
 }
 

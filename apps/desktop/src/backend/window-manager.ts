@@ -51,6 +51,10 @@ export function formatWindowStateSnapshot(snapshot: WindowStateSnapshot): string
   return JSON.stringify(snapshot);
 }
 
+export function shouldAutoOpenDevTools(argv: readonly string[] = process.argv): boolean {
+  return argv.includes("--open-devtools");
+}
+
 // In-memory only; window bounds do not yet survive across app restarts.
 let savedWindowState: WindowState | null = null;
 
@@ -310,9 +314,12 @@ class WindowManager {
       return { action: "deny" };
     });
 
-    // Development only: Open DevTools and register shortcuts
+    // Development only: keep DevTools available without paying for a second
+    // renderer on every normal launch.
     if (this.isDev) {
-      this.mainWindow.webContents.openDevTools();
+      if (shouldAutoOpenDevTools()) {
+        this.mainWindow.webContents.openDevTools();
+      }
       this.registerDevToolsShortcuts();
     }
 

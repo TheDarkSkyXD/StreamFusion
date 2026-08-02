@@ -192,7 +192,7 @@ const meta = {
       story: { inline: false },
       description: {
         component:
-          "The complete desktop shell: frameless title bar, top navigation, service banners, collapsible navigation, followed channels, and main content boundary.",
+          "The complete desktop shell: frameless title bar, top navigation, service status, collapsible navigation, followed channels, and main content boundary.",
       },
     },
   },
@@ -217,4 +217,8 @@ export const Offline: Story = {
 
 export const TheaterMode: Story = {
   decorators: [withShellState({ collapsed: true, theater: true })],
+};
+
+export const OfflineTheaterMode: Story = {
+  decorators: [withShellState({ collapsed: true, theater: true }), withNetworkState(false)],
 };

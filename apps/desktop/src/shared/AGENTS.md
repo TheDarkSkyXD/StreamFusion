@@ -63,15 +63,16 @@ Response types are declared separately (e.g., `AuthStatus`, `ProxyApplyResult`,
 
 ### Security Invariants
 
-- **Credentials never leave main.** `AUTH_GET_TOKEN` and
-  `AUTH_TOKEN_STATUS` return metadata (validity, expiry, scopes) and never
-  the raw token. `ProxyPreferences.hasCredentials` is an advisory boolean;
+- **Credentials remain in main, with one narrow chat exception.** `AUTH_GET_TOKEN`
+  is Kick-only and `AUTH_TOKEN_STATUS` returns metadata (validity, expiry,
+  scopes), never a raw Twitch token. `AUTH_GET_VALID_TWITCH_TOKEN` exists only
+  for renderer-owned Twitch IRC/Hermes sockets and must not be reused by Helix,
+  EventSub, emotes, or account features. `ProxyPreferences.hasCredentials` is an advisory boolean;
   the username/password only flow through `PROXY_SET_CREDENTIALS` (write-only).
 - **Sender origin is checked.** Privileged handlers in
   `backend/ipc/sender-origin.ts` validate `event.senderFrame.url` before
   acting. This is an enforcement detail in the backend, but the shape of
-  sensitive channels here reflects that constraint (no token-read channel
-  exists on the renderer side of the bridge).
+  sensitive channels here reflects that constraint.
 
 ---
 

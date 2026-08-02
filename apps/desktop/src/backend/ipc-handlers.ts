@@ -18,8 +18,11 @@ import { registerCategoryHandlers } from "./ipc/handlers/category-handlers";
 import { registerChannelHandlers } from "./ipc/handlers/channel-handlers";
 import { registerChatEligibilityHandlers } from "./ipc/handlers/chat-eligibility-handlers";
 import { registerChatHandlers } from "./ipc/handlers/chat-handlers";
+import { registerConnectivityHandlers } from "./ipc/handlers/connectivity-handlers";
+import { registerDownloadHandlers } from "./ipc/handlers/download-handlers";
 import { registerEmoteHandlers } from "./ipc/handlers/emote-handlers";
 import { registerKickChatHandlers } from "./ipc/handlers/kick-chat-handlers";
+import { registerLocalCaptionHandlers } from "./ipc/handlers/local-caption-handlers";
 import { registerLogHandlers } from "./ipc/handlers/log-handlers";
 import { registerModLogHandlers } from "./ipc/handlers/modlog-handlers";
 import { registerPlatformHealthHandlers } from "./ipc/handlers/platform-health-handlers";
@@ -27,33 +30,57 @@ import { applyPersistedProxyOnStart, registerProxyHandlers } from "./ipc/handler
 import { registerSearchHandlers } from "./ipc/handlers/search-handlers";
 import { registerSlotControllerHandlers } from "./ipc/handlers/slot-controller-handlers";
 import { registerStorageHandlers } from "./ipc/handlers/storage-handlers";
+import { registerStreamRecordingHandlers } from "./ipc/handlers/stream-recording-handlers";
 import { registerStreamHandlers } from "./ipc/handlers/stream-handlers";
 import { registerSystemHandlers } from "./ipc/handlers/system-handlers";
+import { registerTimeoutModerationHandlers } from "./ipc/handlers/timeout-moderation-handlers";
 import { registerTokenStatusHandlers } from "./ipc/handlers/token-status-handlers";
+import { registerTwitchApiHandlers } from "./ipc/handlers/twitch-api-handlers";
 import { registerUpdateHandlers } from "./ipc/handlers/update-handlers";
 import { registerUserProfileHandlers } from "./ipc/handlers/user-profile-handlers";
 import { registerVideoHandlers } from "./ipc/handlers/video-handlers";
+import { getLocalCaptionRuntime } from "./services/captions/local-caption-runtime";
+
+function registerIpcHandlerGroup(group: string, registrar: () => void): void {
+  try {
+    registrar();
+  } catch (error) {
+    logger.error("IPC:Bootstrap", "Failed to register IPC handler group", {
+      group,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : { message: String(error) },
+    });
+  }
+}
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Register all handlers
-  registerSystemHandlers(mainWindow);
-  registerAppHandlers();
-  registerStorageHandlers();
-  registerAuthHandlers(mainWindow);
-  registerStreamHandlers();
-  registerCategoryHandlers();
-  registerSearchHandlers();
-  registerChannelHandlers();
-  registerChatHandlers();
-  registerChatEligibilityHandlers();
-  registerKickChatHandlers();
-  registerEmoteHandlers();
-  registerModLogHandlers();
-  registerVideoHandlers();
-  registerAdBlockHandlers(mainWindow);
-  registerUpdateHandlers(mainWindow);
-  registerProxyHandlers();
-  registerPlatformHealthHandlers(mainWindow);
+  registerIpcHandlerGroup("system", () => registerSystemHandlers(mainWindow));
+  registerIpcHandlerGroup("app", registerAppHandlers);
+  registerIpcHandlerGroup("storage", registerStorageHandlers);
+  registerIpcHandlerGroup("auth", () => registerAuthHandlers(mainWindow));
+  registerIpcHandlerGroup("stream", registerStreamHandlers);
+  registerIpcHandlerGroup("category", registerCategoryHandlers);
+  registerIpcHandlerGroup("search", registerSearchHandlers);
+  registerIpcHandlerGroup("channel", registerChannelHandlers);
+  registerIpcHandlerGroup("chat", registerChatHandlers);
+  registerIpcHandlerGroup("connectivity", registerConnectivityHandlers);
+  registerIpcHandlerGroup("download", () => registerDownloadHandlers(mainWindow));
+  registerIpcHandlerGroup("stream-recording", () => registerStreamRecordingHandlers(mainWindow));
+  registerIpcHandlerGroup("local-caption", () =>
+    registerLocalCaptionHandlers(mainWindow, getLocalCaptionRuntime(mainWindow))
+  );
+  registerIpcHandlerGroup("chat-eligibility", registerChatEligibilityHandlers);
+  registerIpcHandlerGroup("kick-chat", registerKickChatHandlers);
+  registerIpcHandlerGroup("emote", registerEmoteHandlers);
+  registerIpcHandlerGroup("mod-log", registerModLogHandlers);
+  registerIpcHandlerGroup("video", registerVideoHandlers);
+  registerIpcHandlerGroup("ad-block", () => registerAdBlockHandlers(mainWindow));
+  registerIpcHandlerGroup("update", () => registerUpdateHandlers(mainWindow));
+  registerIpcHandlerGroup("proxy", registerProxyHandlers);
+  registerIpcHandlerGroup("platform-health", () => registerPlatformHealthHandlers(mainWindow));
   // Slice 05 (#56) dogfood flag: enables per-slot WebContentsViews when the
   // env var is set. Off by default in production. Set on slot-controller
   // BEFORE the handlers register so the very first createSlot call sees the
@@ -62,11 +89,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     setUseWebContentsViews(true);
     logger.info("IPC:Bootstrap", "WebContentsView-per-slot enabled by env flag");
   }
-  registerSlotControllerHandlers(mainWindow);
-  registerTokenStatusHandlers();
-  registerUserProfileHandlers();
-  registerLogHandlers();
-  registerBugReportHandlers(getBugReportsDir());
+  registerIpcHandlerGroup("slot-controller", () => registerSlotControllerHandlers(mainWindow));
+  registerIpcHandlerGroup("token-status", registerTokenStatusHandlers);
+  registerIpcHandlerGroup("timeout-moderation", registerTimeoutModerationHandlers);
+  registerIpcHandlerGroup("twitch-api", () => registerTwitchApiHandlers({ mainWindow }));
+  registerIpcHandlerGroup("user-profile", registerUserProfileHandlers);
+  registerIpcHandlerGroup("log", registerLogHandlers);
+  registerIpcHandlerGroup("bug-report", () => registerBugReportHandlers(getBugReportsDir()));
 
   // Apply the persisted outbound proxy at boot if the user enabled it (R20).
   // No-op when disabled/empty; never blocks startup (fire-and-forget).
@@ -78,5 +107,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // no token (clean install or post-logout state).
   twitchAuthService.scheduleProactiveRefresh();
 
-  logger.debug("IPC:Bootstrap", "All IPC handlers registered successfully");
+  logger.debug("IPC:Bootstrap", "IPC handler registration pass completed");
 }

@@ -71,6 +71,8 @@ export const Offline: Story = {
   args: {
     channel: makeChannel(2, {
       isLive: false,
+      followerCount: 196_800,
+      lastLiveAt: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(),
       lastStreamTitle: "Back tomorrow with a new city build",
     }),
     stream: null,

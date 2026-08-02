@@ -1,3 +1,5 @@
+import { sleep } from "@/lib/sleep";
+
 export type DevRelayRole = "host" | "browser";
 
 export interface RelayWebSocket {
@@ -38,7 +40,7 @@ export async function waitForRelaySocket<TSocket extends RelayWebSocket>(
   {
     maxAttempts = 60,
     retryDelayMs = 100,
-    wait = (delayMs) => new Promise<void>((resolve) => setTimeout(resolve, delayMs)),
+    wait = sleep,
   }: RelayConnectionOptions = {}
 ): Promise<TSocket> {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

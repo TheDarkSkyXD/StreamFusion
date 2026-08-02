@@ -32,7 +32,7 @@ Owns all reusable React hooks for the renderer process. Hooks here bridge Zustan
 |------|-------------|
 | `useIsTwitchMod.ts` | `true` when signed-in user moderates the channel (from `useModeratedChannelsStore`) OR is the broadcaster. Honors `useDevModOverrideStore.forceModRole`. Read-only — does not trigger hydration. |
 | `useIsKickMod.ts` | `true` only when signed-in user IS the broadcaster (Kick has no public "channels I moderate" API). Honors `forceModRole`. |
-| `useRequireModScopes.ts` | Reads the persisted Twitch token via IPC, checks for `moderator:manage:chat_messages` + `user:read:moderated_channels`. Exposes `promptReconnect(options?)` to open the re-consent dialog. Honors `useDevModOverrideStore.forceModScopes`. |
+| `useRequireModScopes.ts` | Reads Twitch scope metadata through `auth.tokenStatus`, checks required scopes, and never receives the raw token. Exposes `promptReconnect(options?)` to open the re-consent dialog. Honors `useDevModOverrideStore.forceModScopes`. |
 | `useModLog.ts` | Queries `window.electronAPI.modLog.query(...)` (SQLite in main process). Accepts `refreshCounter` — increment it after a mod action to force a read-after-write. |
 
 ### Platform integration

@@ -25,7 +25,7 @@
  * defensively — present when twitch.tv sends them, null otherwise.
  */
 
-import { sleep } from "@/lib/sleep";
+import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
 
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "../../../shared/chat-types";
@@ -57,6 +57,7 @@ export class TwitchHermesClient {
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
   private keepaliveMs = DEFAULT_KEEPALIVE_MS;
   private reconnectAttempts = 0;
+  private reconnectTimer: CancellableSleep | null = null;
   private subscriptionId: string | null = null;
   private emitter = new EventEmitter();
   private handledMessageIds = new Set<string>();
@@ -121,18 +122,26 @@ export class TwitchHermesClient {
   }
 
   private scheduleReconnect(): void {
-    if (!this.active) return;
+    if (!this.active || this.reconnectTimer !== null) return;
     const delay = Math.min(
       RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts,
       RECONNECT_MAX_DELAY_MS
     );
     this.reconnectAttempts += 1;
-    void sleep(delay).then(() => {
+    const reconnectTimer = createCancellableSleep(delay);
+    this.reconnectTimer = reconnectTimer;
+    void reconnectTimer.result.then((result) => {
+      if (!result.ok || this.reconnectTimer !== reconnectTimer) return;
+      this.reconnectTimer = null;
       this.connect();
     });
   }
 
   private clearTimers(): void {
+    if (this.reconnectTimer) {
+      this.reconnectTimer.cancel();
+      this.reconnectTimer = null;
+    }
     if (this.pongTimer) {
       clearTimeout(this.pongTimer);
       this.pongTimer = null;

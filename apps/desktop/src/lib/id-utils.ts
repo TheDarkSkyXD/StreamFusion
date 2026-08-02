@@ -169,3 +169,82 @@ export function dedupeChannelsByIdentity(channels: UnifiedChannel[]): UnifiedCha
 
   return deduped;
 }
+
+export function streamsMatchChannelIdentity(
+  a: Pick<UnifiedStream, "platform" | "channelId" | "channelName">,
+  b: Pick<UnifiedStream, "platform" | "channelId" | "channelName">
+): boolean {
+  if (a.platform !== b.platform) return false;
+  if (a.channelId && b.channelId && a.channelId === b.channelId) return true;
+  return Boolean(
+    a.channelName && b.channelName && a.channelName.toLowerCase() === b.channelName.toLowerCase()
+  );
+}
+
+function streamMetadataScore(stream: UnifiedStream): number {
+  let score = 0;
+  if (stream.channelId) score += 1;
+  if (stream.channelName) score += 1;
+  if (stream.channelDisplayName && stream.channelDisplayName !== stream.channelName) score += 1;
+  if (stream.channelAvatar) score += 2;
+  if (stream.thumbnailUrl) score += 2;
+  if (stream.title) score += 1;
+  if (stream.categoryId || stream.categoryName) score += 1;
+  if (stream.startedAt) score += 1;
+  if (stream.channelIsVerified) score += 1;
+  return score;
+}
+
+function mergeDuplicateStream(existing: UnifiedStream, incoming: UnifiedStream): UnifiedStream {
+  const incomingIsRicher = streamMetadataScore(incoming) > streamMetadataScore(existing);
+  const primary = incomingIsRicher ? incoming : existing;
+  const fallback = incomingIsRicher ? existing : incoming;
+
+  return {
+    ...fallback,
+    ...primary,
+    id: primary.id || fallback.id,
+    channelId: primary.channelId || fallback.channelId,
+    channelName: primary.channelName || fallback.channelName,
+    channelDisplayName: primary.channelDisplayName || fallback.channelDisplayName,
+    channelAvatar: primary.channelAvatar || fallback.channelAvatar,
+    channelIsVerified: Boolean(primary.channelIsVerified || fallback.channelIsVerified),
+    title: primary.title || fallback.title,
+    viewerCount: Math.max(primary.viewerCount || 0, fallback.viewerCount || 0),
+    thumbnailUrl: primary.thumbnailUrl || fallback.thumbnailUrl,
+    isLive: Boolean(primary.isLive || fallback.isLive),
+    startedAt: primary.startedAt || fallback.startedAt,
+    language: primary.language || fallback.language,
+    tags:
+      Array.isArray(primary.tags) && primary.tags.length > 0
+        ? primary.tags
+        : Array.isArray(fallback.tags)
+          ? fallback.tags
+          : [],
+    categoryId: primary.categoryId || fallback.categoryId,
+    categoryName: primary.categoryName || fallback.categoryName,
+  };
+}
+
+/**
+ * Collapse live results by broadcaster identity. Kick's authenticated and
+ * public endpoints can describe one channel with different numeric ids, but
+ * the platform-scoped channel slug remains the shared identity.
+ */
+export function dedupeStreamsByChannelIdentity(streams: UnifiedStream[]): UnifiedStream[] {
+  const deduped: UnifiedStream[] = [];
+
+  for (const stream of streams) {
+    const existingIndex = deduped.findIndex((candidate) =>
+      streamsMatchChannelIdentity(candidate, stream)
+    );
+    if (existingIndex === -1) {
+      deduped.push(stream);
+      continue;
+    }
+
+    deduped[existingIndex] = mergeDuplicateStream(deduped[existingIndex], stream);
+  }
+
+  return deduped;
+}

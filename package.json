@@ -15,5 +15,8 @@
         "lint": "npm run lint --workspace=streamfusion",
         "test": "npm test --workspace=streamfusion",
         "typecheck": "npm run typecheck --workspace=streamfusion"
+    },
+    "devDependencies": {
+        "@lavamoat/allow-scripts": "^5.1.0"
     }
 }

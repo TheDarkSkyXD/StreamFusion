@@ -1,5 +1,6 @@
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
+import type { Emote } from "@/backend/services/emotes/emote-types";
 import {
   Select,
   SelectContent,
@@ -8,6 +9,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  formatChatTimestamp,
+  getSevenTvPaintStyle,
+  resolveChatUsernameColor,
+} from "@/lib/chat-visuals";
 import { notifySettingsSaved } from "@/lib/settings-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -17,7 +24,15 @@ import {
   type DeletedMessageDisplayMode,
   type ModerationHighlightStyle,
 } from "@/shared/auth-types";
+import type { SevenTvPaint } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
+import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
+import { useEmoteStore } from "@/store/emote-store";
+import {
+  CHAT_PREVIEW_FALLBACK_BADGES,
+  CHAT_PREVIEW_FALLBACK_EMOTES,
+  CHAT_PREVIEW_OVERLAY_EMOTE_URL,
+} from "./chat-settings-preview-assets";
 
 /**
  * Chat settings, grouped. Backs the Settings → Chat tab (U6) and is reused by
@@ -337,6 +352,338 @@ function GroupCard({ title, children }: { title: string; children: ReactNode }) 
   );
 }
 
+const SAMPLE_CHAT_TIME = new Date(2026, 0, 1, 21, 5, 7);
+const SAMPLE_PAINT = {
+  id: "settings-preview-paint",
+  name: "Settings preview",
+  function: "linear-gradient",
+  angle: 120,
+  repeat: false,
+  stops: [
+    { at: 0, color: "rgba(169, 112, 255, 1)" },
+    { at: 0.52, color: "rgba(255, 255, 255, 1)" },
+    { at: 1, color: "rgba(83, 252, 24, 1)" },
+  ],
+  shadows: [{ xOffset: 0, yOffset: 1, radius: 3, color: "rgba(169, 112, 255, 0.45)" }],
+} satisfies SevenTvPaint;
+
+function PreviewFrame({ testId, children }: { testId: string; children: ReactNode }) {
+  return (
+    <div className="py-4" data-testid={testId}>
+      <div className="overflow-hidden rounded-lg border border-[#333333] bg-[#18181b]">
+        <div className="border-b border-[#333333] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+          Preview
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PreviewTooltip({
+  label,
+  content,
+  children,
+  className,
+}: {
+  label: string;
+  content: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          role="img"
+          tabIndex={0}
+          aria-label={label}
+          data-preview-tooltip-trigger=""
+          className={cn(
+            "inline-flex cursor-help border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-1 focus-visible:ring-white",
+            className
+          )}
+        >
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-64 text-xs font-medium">
+        {content}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function SampleEmote({
+  animated = false,
+  emote,
+  overlay = false,
+  provider,
+  size,
+}: {
+  animated?: boolean;
+  emote: Emote;
+  overlay?: boolean;
+  provider?: "7tv" | "bttv" | "ffz";
+  size: number;
+}) {
+  return (
+    <span
+      className="relative inline-flex shrink-0 align-middle"
+      data-preview-provider={provider}
+      style={{ width: size, height: size }}
+    >
+      <img
+        alt=""
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-0 size-full object-contain",
+          animated && "motion-safe:animate-pulse"
+        )}
+        decoding="async"
+        draggable={false}
+        loading="eager"
+        src={emote.urls.url2x}
+      />
+      {overlay && (
+        <PreviewTooltip
+          label="Overlay emote preview"
+          content="This stacked emote is controlled by the Overlay emotes setting."
+          className="absolute inset-0 size-full rounded-[4px]"
+        >
+          <img
+            alt=""
+            aria-hidden="true"
+            className="size-full object-contain"
+            decoding="async"
+            draggable={false}
+            src={CHAT_PREVIEW_OVERLAY_EMOTE_URL}
+          />
+        </PreviewTooltip>
+      )}
+    </span>
+  );
+}
+
+function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
+  const uncoloredUsernameColor = resolveChatUsernameColor({
+    platform: "twitch",
+    readableColorForUncolored: cd.readableColorForUncolored,
+    themeAdaptUsernameColor: cd.themeAdaptUsernameColor,
+    username: "NightOwl",
+  });
+  const chosenUsernameColor = resolveChatUsernameColor({
+    color: "#35214a",
+    platform: "twitch",
+    readableColorForUncolored: cd.readableColorForUncolored,
+    themeAdaptUsernameColor: cd.themeAdaptUsernameColor,
+    username: "DeepViolet",
+  });
+
+  return (
+    <PreviewFrame testId="appearance-chat-preview">
+      <div
+        className={cn("space-y-1 px-3 text-zinc-200", cd.density === "compact" ? "py-1.5" : "py-3")}
+        data-density={cd.density}
+        style={{ fontSize: `${cd.fontSizePx}px`, lineHeight: 1.35 }}
+      >
+        <div className="flex items-center gap-1.5">
+          {cd.timestamps && (
+            <span className="shrink-0 text-[0.75em] tabular-nums text-zinc-500">
+              {formatChatTimestamp(SAMPLE_CHAT_TIME, cd.timestampFormat)}
+            </span>
+          )}
+          <span className="font-bold" style={{ color: uncoloredUsernameColor }}>
+            NightOwl:
+          </span>
+          <span className="min-w-0 truncate">This chat setup feels right</span>
+          <SampleEmote emote={CHAT_PREVIEW_FALLBACK_EMOTES["7tv"]} size={cd.emoteSizePx} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="font-bold"
+            data-preview-adapted-color="true"
+            style={{ color: chosenUsernameColor }}
+          >
+            DeepViolet:
+          </span>
+          <span className="min-w-0 truncate text-zinc-400">low-contrast colors stay readable</span>
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
+  useEmoteStore((state) => state.emoteRevision);
+  useEmoteStore((state) => state.activeChannelId);
+  const badgeDefinitions = useChatCosmeticsStore((state) => state.badgeDefinitions);
+  const loadedEmotes = useEmoteStore.getState().getEmotesByProvider();
+  const providerEmotes = {
+    "7tv": loadedEmotes.get("7tv")?.[0] ?? CHAT_PREVIEW_FALLBACK_EMOTES["7tv"],
+    bttv: loadedEmotes.get("bttv")?.[0] ?? CHAT_PREVIEW_FALLBACK_EMOTES.bttv,
+    ffz: loadedEmotes.get("ffz")?.[0] ?? CHAT_PREVIEW_FALLBACK_EMOTES.ffz,
+  };
+  const providerBadges = useMemo(() => {
+    const loaded = [...badgeDefinitions.values()];
+    return {
+      "7tv":
+        loaded.find((badge) => badge.provider === "7tv") ?? CHAT_PREVIEW_FALLBACK_BADGES["7tv"],
+      bttv: loaded.find((badge) => badge.provider === "bttv") ?? CHAT_PREVIEW_FALLBACK_BADGES.bttv,
+      ffz: loaded.find((badge) => badge.provider === "ffz") ?? CHAT_PREVIEW_FALLBACK_BADGES.ffz,
+    };
+  }, [badgeDefinitions]);
+  const fallbackColor = resolveChatUsernameColor({
+    color: "#9146ff",
+    platform: "twitch",
+    readableColorForUncolored: cd.readableColorForUncolored,
+    themeAdaptUsernameColor: cd.themeAdaptUsernameColor,
+    username: "PaintedPixel",
+  });
+  const usernameStyle = cd.enable7tvUsernamePaints
+    ? (getSevenTvPaintStyle(SAMPLE_PAINT, fallbackColor) ?? { color: fallbackColor })
+    : { color: fallbackColor };
+
+  return (
+    <PreviewFrame testId="emotes-chat-preview">
+      <div className="space-y-2 px-3 py-3 text-sm text-zinc-200">
+        <div className="flex items-center gap-1.5">
+          {cd.enable7tvBadges && (
+            <PreviewTooltip
+              label="7TV badge preview"
+              content="7TV badge. Controlled by the 7TV chat badges setting."
+              className="size-4 rounded-[3px]"
+            >
+              <span className="inline-flex size-4" data-preview-badge-provider="7tv">
+                <img
+                  alt=""
+                  className="size-4 object-contain"
+                  src={providerBadges["7tv"].imageUrl}
+                />
+              </span>
+            </PreviewTooltip>
+          )}
+          {cd.enableBttvBadges && (
+            <PreviewTooltip
+              label="BetterTTV badge preview"
+              content="BetterTTV badge. Controlled by the BetterTTV chat badges setting."
+              className="size-4 rounded-[3px]"
+            >
+              <span className="inline-flex size-4" data-preview-badge-provider="bttv">
+                <img alt="" className="size-4 object-contain" src={providerBadges.bttv.imageUrl} />
+              </span>
+            </PreviewTooltip>
+          )}
+          {cd.enableFfzBadges && (
+            <PreviewTooltip
+              label="FrankerFaceZ badge preview"
+              content="FrankerFaceZ badge. Controlled by the FrankerFaceZ chat badges setting."
+              className="size-4 rounded-[3px]"
+            >
+              <span className="inline-flex size-4" data-preview-badge-provider="ffz">
+                <img alt="" className="size-4 object-contain" src={providerBadges.ffz.imageUrl} />
+              </span>
+            </PreviewTooltip>
+          )}
+          {cd.enable7tvUsernamePaints ? (
+            <PreviewTooltip
+              label="7TV username paint preview"
+              content="7TV username paint. Controlled by the 7TV username paints setting."
+              className="rounded-[3px] font-bold"
+            >
+              <span data-preview-painted="true" style={usernameStyle}>
+                PaintedPixel:
+              </span>
+            </PreviewTooltip>
+          ) : (
+            <span className="font-bold" data-preview-painted="false" style={usernameStyle}>
+              PaintedPixel:
+            </span>
+          )}
+          <span className="text-zinc-400">great stream</span>
+          {cd.enable7tv && (
+            <SampleEmote
+              animated={cd.animatedEmotes}
+              emote={providerEmotes["7tv"]}
+              overlay={cd.overlayEmotes}
+              provider="7tv"
+              size={cd.emoteSizePx}
+            />
+          )}
+          {cd.enableBttv && (
+            <SampleEmote
+              animated={cd.animatedEmotes}
+              emote={providerEmotes.bttv}
+              overlay={cd.overlayEmotes}
+              provider="bttv"
+              size={cd.emoteSizePx}
+            />
+          )}
+          {cd.enableFfz && (
+            <SampleEmote
+              animated={cd.animatedEmotes}
+              emote={providerEmotes.ffz}
+              overlay={cd.overlayEmotes}
+              provider="ffz"
+              size={cd.emoteSizePx}
+            />
+          )}
+        </div>
+        {cd.systemMessageEmotes && (
+          <div className="flex items-center gap-1.5 rounded-md bg-[#202024] px-2 py-1 text-xs text-zinc-400">
+            <SampleEmote emote={providerEmotes["7tv"]} size={18} />
+            <span>System emotes are enabled</span>
+          </div>
+        )}
+      </div>
+    </PreviewFrame>
+  );
+}
+
+function EventsPreview({ cd }: { cd: ChatDisplayPreferences }) {
+  return (
+    <PreviewFrame testId="events-chat-preview">
+      <div className="space-y-1.5 px-3 py-3 text-xs text-zinc-300">
+        {cd.showUserNotices && (
+          <div className="rounded-md bg-[#252525] px-2 py-1.5">
+            <span className="font-semibold text-white">NightOwl</span> subscribed for 6 months
+          </div>
+        )}
+        {cd.showClearMsg && (
+          <PreviewTooltip
+            label="Deleted message preview"
+            content="Controlled by Deleted message display and Moderation highlight style."
+            className={cn(
+              "w-full px-2 py-1.5 text-left",
+              cd.moderationHighlightStyle === "cozy"
+                ? "rounded-md border border-[#f87171]/60 bg-[#211b1d]"
+                : "border-l border-[#f87171] bg-[#202024]"
+            )}
+          >
+            <span data-deleted-mode={cd.deletedMessageDisplay}>
+              {cd.deletedMessageDisplay === "tombstone"
+                ? "Message deleted"
+                : "Mod removed: keep chat friendly"}
+            </span>
+          </PreviewTooltip>
+        )}
+        {cd.showClearChat && <div className="text-zinc-500">Chat was cleared by a moderator</div>}
+        {cd.firstMsgHighlight && (
+          <div className="rounded-md border border-[#a970ff]/50 px-2 py-1 text-[#d8bfff]">
+            First message from a new chatter
+          </div>
+        )}
+        <div className="flex gap-1.5">
+          {cd.showPolls && <span className="rounded bg-[#2d2d32] px-2 py-1">Poll open</span>}
+          {cd.showPredictions && (
+            <span className="rounded bg-[#2d2d32] px-2 py-1">Prediction live</span>
+          )}
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
 // ───────────────────────────── the section ─────────────────────────────
 
 export function ChatSettingsSection({
@@ -350,12 +697,14 @@ export function ChatSettingsSection({
   const show = (g: ChatSettingsGroup) => !only || only.includes(g);
 
   return (
-    <div className={cn("space-y-6", className)}>
-      {show("appearance") && <AppearanceGroup />}
-      {show("emotes") && <EmotesGroup />}
-      {show("events") && <EventsGroup />}
-      {show("behavior") && <BehaviorGroup />}
-    </div>
+    <TooltipProvider delayDuration={250}>
+      <div className={cn("space-y-6", className)}>
+        {show("appearance") && <AppearanceGroup />}
+        {show("emotes") && <EmotesGroup />}
+        {show("events") && <EventsGroup />}
+        {show("behavior") && <BehaviorGroup />}
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -363,6 +712,7 @@ function AppearanceGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
     <GroupCard title="Appearance">
+      <AppearancePreview cd={cd} />
       <SwitchRow
         label="Readable color for uncolored users"
         description="Assign a deterministic readable color to chatters with no chosen color."
@@ -384,8 +734,14 @@ function AppearanceGroup() {
         label="Timestamp format"
         value={cd.timestampFormat}
         options={[
-          { value: "HH:mm", label: "24-hour" },
-          { value: "h:mm a", label: "12-hour" },
+          { value: "H:mm", label: "24-hour · 9:05" },
+          { value: "HH:mm", label: "24-hour · 09:05" },
+          { value: "H:mm:ss", label: "24-hour · 9:05:07" },
+          { value: "HH:mm:ss", label: "24-hour · 09:05:07" },
+          { value: "h:mm a", label: "12-hour · 9:05 AM" },
+          { value: "hh:mm a", label: "12-hour · 09:05 AM" },
+          { value: "h:mm:ss a", label: "12-hour · 9:05:07 AM" },
+          { value: "hh:mm:ss a", label: "12-hour · 09:05:07 AM" },
         ]}
         onChange={(v) => set("timestampFormat", v)}
       />
@@ -423,9 +779,7 @@ function EmotesGroup() {
   const nextLoadNote = "Applies on next channel load.";
   return (
     <GroupCard title="Emotes & badges">
-      <div className="py-3 text-xs text-zinc-600 leading-relaxed">
-        Third-party emotes currently affect the emote picker. In-message rendering is upcoming.
-      </div>
+      <EmotesPreview cd={cd} />
       <SwitchRow
         label="7TV emotes"
         note={nextLoadNote}
@@ -443,6 +797,30 @@ function EmotesGroup() {
         note={nextLoadNote}
         checked={cd.enableFfz}
         onChange={(v) => set("enableFfz", v)}
+      />
+      <SwitchRow
+        label="7TV chat badges"
+        description="Show 7TV profile badges next to Twitch usernames."
+        checked={cd.enable7tvBadges}
+        onChange={(v) => set("enable7tvBadges", v)}
+      />
+      <SwitchRow
+        label="7TV username paints"
+        description="Use 7TV gradients, image textures, and shadows on Twitch usernames."
+        checked={cd.enable7tvUsernamePaints}
+        onChange={(v) => set("enable7tvUsernamePaints", v)}
+      />
+      <SwitchRow
+        label="BetterTTV chat badges"
+        description="Show BetterTTV profile badges next to Twitch usernames."
+        checked={cd.enableBttvBadges}
+        onChange={(v) => set("enableBttvBadges", v)}
+      />
+      <SwitchRow
+        label="FrankerFaceZ chat badges"
+        description="Show FFZ global badges and channel-specific moderator or VIP artwork."
+        checked={cd.enableFfzBadges}
+        onChange={(v) => set("enableFfzBadges", v)}
       />
       <SwitchRow
         label="Animated emotes"
@@ -563,6 +941,7 @@ function EventsGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
     <GroupCard title="Messages & events">
+      <EventsPreview cd={cd} />
       <RangeRow
         label="Message limit"
         description="Messages kept in the buffer before the oldest are removed."

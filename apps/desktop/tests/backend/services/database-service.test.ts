@@ -505,6 +505,8 @@ describeDb("DatabaseService platform-source follows", () => {
 });
 
 describeDb("DatabaseService upsertSyncedFollows", () => {
+  // Guards: additive Kick sync consolidates only exact stable broadcaster identities,
+  // including legacy slug-keyed rows whose canonical avatar path exposes that ID.
   // Helper to build a minimal "fetched follow" row.
   const fetched = (channelId: string, channelName: string, displayName = channelName) => ({
     platform: "kick",
@@ -570,6 +572,68 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 1, removedCount: 0 });
     const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
     expect(rows.map((r) => r.channelId).sort()).toEqual(["411439", "999"]);
+  });
+
+  it("consolidates renamed legacy Kick rows by stable broadcaster identity during additive sync", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "abby201",
+        channelName: "abby201",
+        displayName: "Abby201",
+        profileImage: "https://files.kick.com/images/user/110821336/profile_image/old.webp",
+      },
+      "kick"
+    );
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "abbyapple",
+        channelName: "abbyapple",
+        displayName: "AbbyApple",
+        profileImage: "https://files.kick.com/images/user/110821336/profile_image/new.webp",
+      },
+      "kick"
+    );
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "unrelated",
+        channelName: "unrelated",
+        displayName: "Unrelated",
+        profileImage: "https://files.kick.com/images/user/999/profile_image/avatar.webp",
+      },
+      "kick"
+    );
+
+    const result = svc.upsertSyncedFollows(
+      "kick",
+      [
+        {
+          platform: "kick",
+          channelId: "110821336",
+          channelName: "abbyapple",
+          displayName: "AbbyApple",
+          profileImage: "https://files.kick.com/images/user/110821336/profile_image/current.webp",
+        },
+      ],
+      { pruneAbsent: false }
+    );
+
+    expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 0, removedCount: 2 });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          channelId: "110821336",
+          channelName: "abbyapple",
+          displayName: "AbbyApple",
+        }),
+        expect.objectContaining({ channelId: "unrelated", channelName: "unrelated" }),
+      ])
+    );
   });
 
   it("external unfollow is auto-detected when the authoritative fetched list is empty", () => {

@@ -39,6 +39,12 @@
   --color-border: #333333;
   --color-ring: #ffffff;
 
+  /* Codex-style scrollbar tokens */
+  --scrollbar-size: 10px;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.26);
+  --scrollbar-thumb-active: rgba(255, 255, 255, 0.34);
+
   /* shadcn/ui token bridge — maps shadcn's semantic tokens onto the StreamFusion
      palette so shadcn components (pasted or added via `npx shadcn add`) render
      in-theme. Purely additive; the --color-* tokens above are untouched. */
@@ -273,54 +279,50 @@ body {
   animation: var(--animate-pulse-soft);
 }
 
-/* Hide scrollbar for Chrome, Safari and Opera */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* Universal native scrollbar. The transparent border keeps the thumb inset, then
+   narrows on hover so it grows without changing the scroll container's layout. */
+*:not(.no-scrollbar)::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
-/* Hide scrollbar for IE, Edge and Firefox */
-.no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
-/* KickTalk-style chat scrollbar (mirrors KickTalk's `*::-webkit-scrollbar`
-   rules from Input.scss with the --scrollbar-thumb value from the dark theme). */
-.chat-scrollbar::-webkit-scrollbar {
-  width: 10px;
-}
-.chat-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #90909077;
-  border-radius: 2px;
-  background-clip: content-box;
-}
-
-.pinned-message-scrollbar {
-  scrollbar-color: #90909077 transparent;
-  scrollbar-width: thin;
-}
-
-.pinned-message-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.pinned-message-scrollbar::-webkit-scrollbar-track {
+*:not(.no-scrollbar)::-webkit-scrollbar-track,
+*:not(.no-scrollbar)::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-.pinned-message-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #90909077;
-  border-radius: 2px;
-  background-clip: content-box;
+*:not(.no-scrollbar)::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  background-color: var(--scrollbar-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 9999px;
 }
 
-.pinned-message-scrollbar::-webkit-scrollbar-button,
-.pinned-message-scrollbar::-webkit-scrollbar-button:single-button,
-.pinned-message-scrollbar::-webkit-scrollbar-button:vertical:start:decrement,
-.pinned-message-scrollbar::-webkit-scrollbar-button:vertical:end:increment {
+*:not(.no-scrollbar)::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+  border-width: 1px;
+}
+
+*:not(.no-scrollbar)::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+  border-width: 1px;
+}
+
+*:not(.no-scrollbar)::-webkit-scrollbar-button {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
   background: transparent !important;
   -webkit-appearance: none;
+}
+
+/* Intentionally hidden scrollbars remain available for opt-in compact surfaces. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+release/
+coverage/
+.vite/
+storybook-static/
+src/global.css

@@ -258,13 +258,31 @@ class MockWebSocket {
 }
 
 // Guards: stop() during CONNECTING — closing a WebSocket before the handshake completes triggers the browser's spec-required "WebSocket is closed before the connection is established" console error. Under React StrictMode dev double-invoke the mount-cleanup runs synchronously after the initial effect, so close() lands while readyState=0. The lifecycle tests assert close is deferred to onopen, that consumer state events stay coherent (only "disconnected" fires; no spurious "connected" after the deferred close), and that hung-handshake / CLOSING / CLOSED branches behave correctly.
+// Guards: stop() physically clears a pending Hermes reconnect delay so a stopped client cannot later create another socket.
 describe("TwitchHermesClient lifecycle (start/stop)", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
   });
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("clears the pending reconnect timer and does not reconnect after stop", async () => {
+    vi.useFakeTimers();
+    const client = new TwitchHermesClient("12345");
+    client.start();
+    const ws = MockWebSocket.instances[0];
+
+    ws._failHandshake();
+    expect(vi.getTimerCount()).toBe(1);
+
+    client.stop();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(MockWebSocket.instances).toHaveLength(1);
   });
 
   it("does not call close() while the WebSocket is still CONNECTING — defers to onopen so the browser does not log 'closed before connection established'", () => {

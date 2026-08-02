@@ -54,6 +54,9 @@ export function routerMock(
   } = {}
 ) {
   const pathname = overrides.pathname ?? '/';
+  const navigate = vi.fn();
+  const back = vi.fn();
+  const router = { navigate, history: { back } };
   return {
     // biome-ignore lint/suspicious/noExplicitAny: test shim.
     Link: ({ to, params, search, children, className, onClick, ...rest }: any) => (
@@ -64,17 +67,22 @@ export function routerMock(
         data-params={params ? JSON.stringify(params) : undefined}
         data-search={search ? JSON.stringify(search) : undefined}
         className={className}
-        onClick={onClick}
+        onClick={(event) => {
+          onClick?.(event);
+          if (event.defaultPrevented) return;
+          event.preventDefault();
+          navigate({ to, params, search });
+        }}
         {...rest}
       >
         {children}
       </a>
     ),
-    useNavigate: () => vi.fn(),
+    useNavigate: () => navigate,
     useLocation: () => ({ pathname }),
     useParams: () => overrides.params ?? {},
     useSearch: () => overrides.search ?? {},
-    useRouter: () => ({ navigate: vi.fn(), history: { back: vi.fn() } }),
+    useRouter: () => router,
     useRouterState: () => ({ location: { pathname } }),
     Outlet: () => null,
   };
@@ -120,6 +128,27 @@ export function installElectronAPIMock(): any {
       },
     }
   );
+
+  stub.twitch = {
+    execute: vi.fn(async (command: { operation?: string }) => {
+      if (command.operation === 'get-moderated-channels') return { ok: true, data: [] };
+      if (command.operation === 'resolve-channel') return { ok: true, data: null };
+      if (command.operation === 'get-chat-settings') return { ok: true, data: null };
+      if (command.operation?.includes('emote') || command.operation === 'get-users') {
+        return { ok: true, data: { data: [], pagination: {} } };
+      }
+      if (command.operation === 'get-polls' || command.operation === 'get-predictions') {
+        return { ok: true, data: { data: [] } };
+      }
+      return { ok: true, data: undefined };
+    }),
+    eventSub: {
+      start: vi.fn(async () => ({ ok: true, data: undefined })),
+      stop: vi.fn(async () => true),
+      onEvent: vi.fn(() => () => undefined),
+      onState: vi.fn(() => () => undefined),
+    },
+  };
 
   Object.defineProperty(window, 'electronAPI', {
     configurable: true,

@@ -21,8 +21,9 @@ vi.mock("electron", () => ({
   shell: { openExternal: async () => undefined },
 }));
 
-import { formatWindowStateSnapshot } from "@/backend/window-manager";
+import { formatWindowStateSnapshot, shouldAutoOpenDevTools } from "@/backend/window-manager";
 
+// Guards: development launches must not create a second DevTools renderer unless explicitly requested
 describe("formatWindowStateSnapshot", () => {
   it("renders a snapshot as compact JSON in the exact key order the spec mandates", () => {
     const out = formatWindowStateSnapshot({
@@ -43,5 +44,15 @@ describe("formatWindowStateSnapshot", () => {
     });
     expect(out).toContain('"maximized":true');
     expect(out).toContain('"fullscreen":true');
+  });
+});
+
+describe("shouldAutoOpenDevTools", () => {
+  it("keeps DevTools closed for a normal development launch", () => {
+    expect(shouldAutoOpenDevTools(["electron", ".", "--remote-debugging-port=9236"])).toBe(false);
+  });
+
+  it("allows an explicit debugging launch to open DevTools", () => {
+    expect(shouldAutoOpenDevTools(["electron", ".", "--open-devtools"])).toBe(true);
   });
 });

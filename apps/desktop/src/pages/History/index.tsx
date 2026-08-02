@@ -95,6 +95,7 @@ export function HistoryPage() {
     thumbnailUrl: item.thumbnail || "",
     url: item.playbackUrl,
     embedUrl: item.playbackUrl,
+    shareUrl: item.shareUrl,
     channelSlug: item.channelName,
     channelName: item.channelDisplayName || item.channelName,
     channelAvatar: item.channelAvatar || null,
@@ -162,6 +163,7 @@ export function HistoryPage() {
             channelDisplayName: item.channelDisplayName || item.channelName,
             channelAvatar: item.channelAvatar || undefined,
             thumbnail: item.thumbnail || undefined,
+            shareUrl: item.shareUrl,
           },
         });
         return;

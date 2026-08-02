@@ -1,0 +1,86 @@
+import js from "@eslint/js";
+import prettier from "eslint-config-prettier";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
+import unusedImports from "eslint-plugin-unused-imports";
+import globals from "globals";
+import tseslint from "typescript-eslint";
+
+const sourceFiles = ["src/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
+const typedSourceFiles = ["src/**/*.{ts,tsx}"];
+const reactSourceFiles = ["src/**/*.{jsx,tsx}"];
+
+export default tseslint.config(
+  {
+    ignores: [
+      "node_modules/**",
+      "dist/**",
+      "out/**",
+      "release/**",
+      "coverage/**",
+      ".vite/**",
+      "storybook-static/**",
+    ],
+  },
+  {
+    ...js.configs.recommended,
+    files: sourceFiles,
+    languageOptions: {
+      ...js.configs.recommended.languageOptions,
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+  },
+  ...tseslint.configs.recommended.map((config) => ({
+    ...config,
+    files: typedSourceFiles,
+  })),
+  {
+    files: sourceFiles,
+    plugins: {
+      "react-hooks": reactHooks,
+      "unused-imports": unusedImports,
+    },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      "no-unused-vars": "off",
+      "prefer-const": "warn",
+      "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-non-null-assertion": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "unused-imports/no-unused-imports": "warn",
+    },
+  },
+  {
+    files: reactSourceFiles,
+    plugins: {
+      react,
+    },
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+    rules: {
+      ...react.configs.recommended.rules,
+      ...react.configs["jsx-runtime"].rules,
+      "react/display-name": "off",
+      "react/no-array-index-key": "off",
+      "react/no-unescaped-entities": "off",
+      "react/prop-types": "off",
+    },
+  },
+  prettier
+);

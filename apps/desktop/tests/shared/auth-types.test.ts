@@ -17,6 +17,7 @@ import {
   type PredictionPreferences,
   type ProxyPreferences,
   TWITCH_APP_SCOPES,
+  TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES,
   TWITCH_MOD_ACTION_SCOPES,
   type UserPreferences,
 } from "@/shared/auth-types";
@@ -43,6 +44,24 @@ describe("Twitch OAuth scope constants", () => {
   it("keeps the mod-action subset inside the full app scope set", () => {
     const appScopes = new Set(TWITCH_APP_SCOPES);
     for (const scope of TWITCH_MOD_ACTION_SCOPES) {
+      expect(appScopes.has(scope)).toBe(true);
+    }
+  });
+
+  it("keeps every channel.moderate EventSub scope inside the canonical app set", () => {
+    expect(TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES).toEqual([
+      "moderator:read:blocked_terms",
+      "moderator:read:chat_settings",
+      "moderator:read:unban_requests",
+      "moderator:manage:banned_users",
+      "moderator:manage:chat_messages",
+      "moderator:manage:warnings",
+      "moderator:read:moderators",
+      "moderator:read:vips",
+    ]);
+
+    const appScopes = new Set(TWITCH_APP_SCOPES);
+    for (const scope of TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES) {
       expect(appScopes.has(scope)).toBe(true);
     }
   });
@@ -93,6 +112,7 @@ describe("PredictionPreferences defaults (U1)", () => {
   });
 });
 
+// Guards: third-party badge and 7TV paint cosmetics remain independently enabled by default.
 describe("ChatDisplayPreferences defaults (U1)", () => {
   it("defaults messageLimit to 600 (the per-channel cap from PRD #62's chat-store dual-shape migration)", () => {
     // Was 100 in the flat-array era to defend the 5 GB-spike fix. The
@@ -106,6 +126,15 @@ describe("ChatDisplayPreferences defaults (U1)", () => {
   it("defaults recentMessagesLimit to 200", () => {
     expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit).toBe(200);
     expect(DEFAULT_USER_PREFERENCES.chatDisplay.recentMessagesLimit).toBe(200);
+  });
+
+  it("enables each third-party badge and 7TV username paint preference by default", () => {
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES).toMatchObject({
+      enable7tvBadges: true,
+      enable7tvUsernamePaints: true,
+      enableBttvBadges: true,
+      enableFfzBadges: true,
+    });
   });
 
   it("wires chatDisplay onto the top-level UserPreferences shape", () => {

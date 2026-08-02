@@ -39,6 +39,10 @@ vi.mock("@/components/ui/follow-button", () => ({
 import { StreamInfo } from "@/components/stream/stream-info";
 
 // Guards: stream page channel heading renders the verified/partner badge larger than compact list badges.
+// Guards: offline channel metadata shows known follower totals to every viewer instead of stale stream title/category data.
+// Guards: offline channel metadata turns a valid last-live timestamp into readable relative time.
+// Guards: offline channel metadata hides missing or malformed values instead of showing fabricated placeholders.
+// Guards: a non-live stream payload uses offline metadata, while a live payload retains title, category, and viewer stats.
 describe("StreamInfo", () => {
   beforeEach(() => {
     authMock.useUserInfo.mockReturnValue({
@@ -82,7 +86,7 @@ describe("StreamInfo", () => {
     expect(screen.getByLabelText("Twitch verified")).toHaveClass("h-5", "w-5");
   });
 
-  it("does not invent offline title or category placeholders", () => {
+  it("does not invent offline metadata placeholders", () => {
     renderWithProviders(
       <StreamInfo
         channel={fixtures.channel({ categoryName: undefined, lastStreamTitle: undefined })}
@@ -91,9 +95,98 @@ describe("StreamInfo", () => {
       />
     );
 
-    expect(screen.getByText("Offline")).toBeInTheDocument();
+    expect(screen.queryByText("Offline")).not.toBeInTheDocument();
     expect(screen.queryByText("No title set")).not.toBeInTheDocument();
     expect(screen.queryByText("Variety")).not.toBeInTheDocument();
+  });
+
+  it("shows follower count to a guest when the channel is offline", () => {
+    renderWithProviders(
+      <StreamInfo
+        channel={fixtures.channel({
+          followerCount: 196_800,
+          lastStreamTitle: "Yesterday's title",
+          categoryName: "Just Chatting",
+        })}
+        stream={null}
+        isLoading={false}
+      />
+    );
+
+    expect(screen.getByText("196.8K followers")).toBeInTheDocument();
+    expect(screen.queryByText("Yesterday's title")).not.toBeInTheDocument();
+    expect(screen.queryByText("Just Chatting")).not.toBeInTheDocument();
+  });
+
+  it("shows when an offline channel was last live", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-02T18:00:00Z"));
+
+    try {
+      const channel = {
+        ...fixtures.channel(),
+        lastLiveAt: "2026-08-02T07:00:00Z",
+      };
+
+      renderWithProviders(<StreamInfo channel={channel} stream={null} isLoading={false} />);
+
+      expect(screen.getByText("Last live 11 hours ago")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hides a malformed last-live timestamp", () => {
+    const channel = {
+      ...fixtures.channel(),
+      lastLiveAt: "not-a-timestamp",
+    };
+
+    renderWithProviders(<StreamInfo channel={channel} stream={null} isLoading={false} />);
+
+    expect(screen.queryByText(/Last live/i)).not.toBeInTheDocument();
+  });
+
+  it("treats a non-live stream payload as offline", () => {
+    renderWithProviders(
+      <StreamInfo
+        channel={fixtures.channel({ followerCount: 42 })}
+        stream={fixtures.stream({
+          isLive: false,
+          title: "Ended stream title",
+          categoryName: "Ended category",
+        })}
+        isLoading={false}
+      />
+    );
+
+    expect(screen.getByText("42 followers")).toBeInTheDocument();
+    expect(screen.queryByText("Ended stream title")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ended category")).not.toBeInTheDocument();
+  });
+
+  it("keeps live title, category, and viewer stats in place", () => {
+    renderWithProviders(
+      <StreamInfo
+        channel={fixtures.channel({
+          followerCount: 999,
+          lastLiveAt: "2026-08-01T07:00:00Z",
+        })}
+        stream={fixtures.stream({
+          isLive: true,
+          title: "Current stream title",
+          categoryName: "Current category",
+          viewerCount: 1_234,
+        })}
+        isLoading={false}
+      />
+    );
+
+    expect(screen.getByText("Current stream title")).toBeInTheDocument();
+    expect(screen.getByText("Current category")).toBeInTheDocument();
+    expect(screen.getByText("1.2K")).toBeInTheDocument();
+    expect(screen.queryByText("999 followers")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Last live/i)).not.toBeInTheDocument();
   });
 
   it("renders owner Kick profile with followers instead of follow action or stream metadata", () => {

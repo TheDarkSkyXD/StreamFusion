@@ -38,12 +38,22 @@ import type {
   SubscriberEligibilityResult,
   TwitchBadgeCatalog,
 } from "../shared/chat-types";
+import type {
+  ClipDownloadRequest,
+  DownloadJob,
+  DownloadQueueSnapshot,
+  VideoDownloadRequest,
+} from "../shared/download-types";
 import {
   type AppEnvironment,
   type AuthStatus,
   type AuthSyncFollowsResult,
+  type BTTVBadgeCatalog,
   type BugReportResult,
   type CheckFrequency,
+  type ConnectivityCheckResult,
+  type FFZBadgeCatalog,
+  type FFZRoomResponse,
   IPC_CHANNELS,
   type ProxyApplyConfig,
   type ProxyApplyResult,
@@ -51,6 +61,15 @@ import {
   type TokenStatusResult,
   type VersionInfo,
 } from "../shared/ipc-channels";
+import type {
+  LocalCaptionActionResult,
+  LocalCaptionAudioPushResult,
+  LocalCaptionModelActionResult,
+  LocalCaptionModelState,
+  LocalCaptionPcmChunk,
+  LocalCaptionRecognizerState,
+  LocalCaptionResult,
+} from "../shared/local-caption-types";
 import type {
   ModerationHistoryResult,
   ModLogInsertResult,
@@ -65,6 +84,13 @@ import type {
   SlotQualityConfig,
   SlotQualityMode,
 } from "../shared/slot-types";
+import type {
+  TimeoutActionBinding,
+  TimeoutSnapshotResult,
+  TimeoutSubmitInput,
+  TimeoutSubmitResult,
+} from "../shared/timeout-moderation-types";
+import type { TwitchApiCommand, TwitchApiResult } from "../shared/twitch-api-types";
 import type {
   AccountCreatedFieldState,
   KickAccountCreatedRequest,
@@ -88,6 +114,12 @@ const electronAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
   getVersionInfo: (): Promise<VersionInfo> => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION_INFO),
   getName: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_NAME),
+
+  // ========== Internet Connectivity ==========
+  connectivity: {
+    check: (): Promise<ConnectivityCheckResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTIVITY_CHECK),
+  },
 
   // ========== Window Controls ==========
   minimizeWindow: (): void => ipcRenderer.send(IPC_CHANNELS.WINDOW_MINIMIZE),
@@ -148,49 +180,6 @@ const electronAPI = {
       }
     },
 
-    // Device Code Flow (Twitch) - for desktop apps without redirect URI
-    startDeviceCodeFlow: async (): Promise<{
-      userCode: string;
-      verificationUri: string;
-      deviceCode: string;
-      expiresIn: number;
-      interval: number;
-    }> => {
-      const result = (await ipcRenderer.invoke(IPC_CHANNELS.AUTH_DCF_START)) as {
-        success: boolean;
-        error?: string;
-        userCode?: string;
-        verificationUri?: string;
-        deviceCode?: string;
-        expiresIn?: number;
-        interval?: number;
-      };
-      if (!result.success) {
-        throw new Error(result.error || "Failed to start device code flow");
-      }
-      return {
-        userCode: result.userCode!,
-        verificationUri: result.verificationUri!,
-        deviceCode: result.deviceCode!,
-        expiresIn: result.expiresIn!,
-        interval: result.interval!,
-      };
-    },
-    pollDeviceCode: async (
-      deviceCode: string,
-      interval: number,
-      expiresIn: number
-    ): Promise<void> => {
-      const result = (await ipcRenderer.invoke(IPC_CHANNELS.AUTH_DCF_POLL, {
-        deviceCode,
-        interval,
-        expiresIn,
-      })) as { success: boolean; error?: string };
-      if (!result.success) {
-        throw new Error(result.error || "Device code polling failed");
-      }
-    },
-    cancelDeviceCodeFlow: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.AUTH_DCF_CANCEL),
     onDeviceCodeStatus: (
       callback: (data: { status: string; message?: string }) => void
     ): (() => void) => {
@@ -215,9 +204,9 @@ const electronAPI = {
     },
 
     // Token management
-    getToken: (platform: Platform): Promise<AuthToken | null> =>
+    getToken: (platform: "kick"): Promise<AuthToken | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_TOKEN, { platform }),
-    saveToken: (platform: Platform, token: AuthToken): Promise<void> =>
+    saveToken: (platform: "kick", token: AuthToken): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_SAVE_TOKEN, { platform, token }),
     clearToken: (platform: Platform): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_CLEAR_TOKEN, { platform }),
@@ -244,7 +233,7 @@ const electronAPI = {
     // Twitch operations
     logoutTwitch: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT_TWITCH),
-    refreshTwitchToken: (): Promise<{ success: boolean; token?: AuthToken; error?: string }> =>
+    refreshTwitchToken: (): Promise<import("../shared/ipc-channels").TwitchAuthRefreshResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_REFRESH_TWITCH),
     getValidTwitchToken: (): Promise<string | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_VALID_TWITCH_TOKEN),
@@ -315,6 +304,38 @@ const electronAPI = {
     // scopes ONLY — never a token value (enforced by TokenStatusResult).
     tokenStatus: (platform: Platform): Promise<TokenStatusResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_TOKEN_STATUS, { platform }),
+  },
+
+  // ========== Twitch API (main-owned credentials + transport) ==========
+  twitch: {
+    execute: (command: TwitchApiCommand): Promise<TwitchApiResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.TWITCH_API_EXECUTE, command),
+    eventSub: {
+      start: (params: {
+        feedId: string;
+        userId: string;
+        channelId: string;
+      }): Promise<TwitchApiResult> =>
+        ipcRenderer.invoke(IPC_CHANNELS.TWITCH_EVENTSUB_START, params),
+      stop: (feedId: string): Promise<boolean> =>
+        ipcRenderer.invoke(IPC_CHANNELS.TWITCH_EVENTSUB_STOP, { feedId }),
+      onEvent: (callback: (event: { feedId: string; payload: unknown }) => void): (() => void) => {
+        const handler = (
+          _event: Electron.IpcRendererEvent,
+          payload: { feedId: string; payload: unknown }
+        ) => callback(payload);
+        ipcRenderer.on(IPC_CHANNELS.TWITCH_EVENTSUB_EVENT, handler);
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.TWITCH_EVENTSUB_EVENT, handler);
+      },
+      onState: (callback: (event: { feedId: string; state: string }) => void): (() => void) => {
+        const handler = (
+          _event: Electron.IpcRendererEvent,
+          payload: { feedId: string; state: string }
+        ) => callback(payload);
+        ipcRenderer.on(IPC_CHANNELS.TWITCH_EVENTSUB_STATE, handler);
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.TWITCH_EVENTSUB_STATE, handler);
+      },
+    },
   },
 
   // ========== Local Follows ==========
@@ -583,6 +604,7 @@ const electronAPI = {
         description: string;
         type: string;
         platform: string;
+        shareUrl?: string;
       };
       error?: string;
     }> => ipcRenderer.invoke(IPC_CHANNELS.VIDEOS_GET_METADATA, params),
@@ -604,6 +626,7 @@ const electronAPI = {
         channelSlug: string;
         channelName: string;
         category: string;
+        shareUrl?: string;
       };
       error?: string;
     }> => ipcRenderer.invoke(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID, params),
@@ -633,6 +656,79 @@ const electronAPI = {
       clipUrl?: string;
     }): Promise<{ success: boolean; data?: { url: string; format: string }; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL, params),
+  },
+
+  // ========== Downloads ==========
+  downloads: {
+    getQueue: (): Promise<DownloadQueueSnapshot> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_GET_QUEUE),
+    downloadClip: (
+      request: ClipDownloadRequest
+    ): Promise<{ success: boolean; jobId?: string; cancelled?: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_DOWNLOAD_CLIP, request),
+    downloadVideo: (
+      request: VideoDownloadRequest
+    ): Promise<{ success: boolean; jobId?: string; cancelled?: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_DOWNLOAD_VIDEO, request),
+    pause: (id: string): Promise<{ success: boolean; job?: DownloadJob; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_PAUSE, { id }),
+    resume: (id: string): Promise<{ success: boolean; job?: DownloadJob; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_RESUME, { id }),
+    cancel: (id: string): Promise<{ success: boolean; job?: DownloadJob; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_CANCEL, { id }),
+    retry: (id: string): Promise<{ success: boolean; job?: DownloadJob; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_RETRY, { id }),
+    remove: (id: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_REMOVE, { id }),
+    showInFolder: (id: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_SHOW_IN_FOLDER, { id }),
+    openFile: (id: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_OPEN_FILE, { id }),
+    deleteFile: (id: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DOWNLOADS_DELETE_FILE, { id }),
+    onQueueChanged: (callback: (snapshot: DownloadQueueSnapshot) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, snapshot: DownloadQueueSnapshot) =>
+        callback(snapshot);
+      ipcRenderer.on(IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, handler);
+    },
+  },
+
+  // ========== Local Captions ==========
+  localCaptions: {
+    getModelState: (): Promise<LocalCaptionModelState> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_GET_STATE),
+    downloadModel: (): Promise<LocalCaptionModelActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_DOWNLOAD),
+    cancelModelDownload: (): Promise<LocalCaptionActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_CANCEL),
+    removeModel: (): Promise<LocalCaptionModelActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_REMOVE),
+    start: (sessionId: string, generation: number): Promise<LocalCaptionActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOCAL_CAPTIONS_SESSION_START, { sessionId, generation }),
+    pushAudio: (chunk: LocalCaptionPcmChunk): Promise<LocalCaptionAudioPushResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOCAL_CAPTIONS_AUDIO_PUSH, chunk),
+    stop: (sessionId: string, generation: number): Promise<LocalCaptionActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.LOCAL_CAPTIONS_SESSION_STOP, { sessionId, generation }),
+    onModelState: (callback: (state: LocalCaptionModelState) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: LocalCaptionModelState) =>
+        callback(state);
+      ipcRenderer.on(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_STATE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_STATE, handler);
+    },
+    onRecognizerState: (callback: (state: LocalCaptionRecognizerState) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: LocalCaptionRecognizerState) =>
+        callback(state);
+      ipcRenderer.on(IPC_CHANNELS.LOCAL_CAPTIONS_RECOGNIZER_STATE, handler);
+      return () =>
+        ipcRenderer.removeListener(IPC_CHANNELS.LOCAL_CAPTIONS_RECOGNIZER_STATE, handler);
+    },
+    onResult: (callback: (result: LocalCaptionResult) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, result: LocalCaptionResult) =>
+        callback(result);
+      ipcRenderer.on(IPC_CHANNELS.LOCAL_CAPTIONS_RESULT, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.LOCAL_CAPTIONS_RESULT, handler);
+    },
   },
 
   // ========== Chat ==========
@@ -788,13 +884,17 @@ const electronAPI = {
     get7TVGlobalEmoteSet: (): Promise<unknown> =>
       ipcRenderer.invoke(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET),
     bttv: {
+      getBadges: (): Promise<BTTVBadgeCatalog> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_BADGES),
       getGlobal: (): Promise<unknown> => ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL),
       getUserByTwitchId: (channelId: string): Promise<unknown | null> =>
         ipcRenderer.invoke(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID, { channelId }),
     },
     ffz: {
+      getBadges: (): Promise<FFZBadgeCatalog> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_BADGES),
       getGlobal: (): Promise<unknown> => ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL),
-      getRoom: (opts: { name?: string; channelId?: string }): Promise<unknown | null> =>
+      getRoom: (opts: { name?: string; channelId?: string }): Promise<FFZRoomResponse | null> =>
         ipcRenderer.invoke(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM, opts),
     },
     kick: {
@@ -1050,6 +1150,14 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.MODLOG_QUERY, { filters }),
     sweepRetention: (now?: number): Promise<number> =>
       ipcRenderer.invoke(IPC_CHANNELS.MODLOG_SWEEP_RETENTION, { now }),
+  },
+
+  // ========== State-aware Moderation ==========
+  moderation: {
+    createTimeoutSnapshot: (binding: TimeoutActionBinding): Promise<TimeoutSnapshotResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODERATION_TIMEOUT_SNAPSHOT, binding),
+    submitTimeout: (input: TimeoutSubmitInput): Promise<TimeoutSubmitResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODERATION_TIMEOUT_SUBMIT, input),
   },
 
   // ========== Retention Settings ==========

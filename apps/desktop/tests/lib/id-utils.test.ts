@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { channelsMatch, dedupeChannelsByIdentity } from "@/lib/id-utils";
+import {
+  channelsMatch,
+  dedupeChannelsByIdentity,
+  dedupeStreamsByChannelIdentity,
+} from "@/lib/id-utils";
 
 describe("channelsMatch", () => {
   it("returns false across platforms even when id and username both match", () => {
@@ -118,5 +122,54 @@ describe("dedupeChannelsByIdentity", () => {
     ]);
 
     expect(channels).toHaveLength(2);
+  });
+});
+
+describe("dedupeStreamsByChannelIdentity", () => {
+  it("dedupes same-platform live results with different ids but the same broadcaster slug", () => {
+    const base = {
+      platform: "kick" as const,
+      channelDisplayName: "xQc",
+      channelAvatar: "",
+      title: "LIVE",
+      viewerCount: 6300,
+      thumbnailUrl: "",
+      isLive: true,
+      startedAt: null,
+      language: "en",
+      tags: [],
+    };
+
+    const streams = dedupeStreamsByChannelIdentity([
+      { ...base, id: "remote-live", channelId: "kick-user-id", channelName: "xqc" },
+      { ...base, id: "public-live", channelId: "kick-channel-id", channelName: "XQC" },
+    ]);
+
+    expect(streams).toHaveLength(1);
+    expect(streams[0]).toMatchObject({ platform: "kick", channelName: "xqc" });
+  });
+
+  it("keeps same-named Twitch and Kick broadcasters separate", () => {
+    const base = {
+      id: "live",
+      channelId: "channel",
+      channelName: "xqc",
+      channelDisplayName: "xQc",
+      channelAvatar: "",
+      title: "LIVE",
+      viewerCount: 6300,
+      thumbnailUrl: "",
+      isLive: true,
+      startedAt: null,
+      language: "en",
+      tags: [],
+    };
+
+    expect(
+      dedupeStreamsByChannelIdentity([
+        { ...base, platform: "twitch" },
+        { ...base, platform: "kick" },
+      ])
+    ).toHaveLength(2);
   });
 });

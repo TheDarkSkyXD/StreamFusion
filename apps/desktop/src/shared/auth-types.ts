@@ -4,6 +4,8 @@
  * Shared type definitions for authentication across main and renderer processes.
  */
 
+import type { DownloadQueueSnapshot } from "./download-types";
+
 // ========== Platform Types ==========
 
 export type Platform = "twitch" | "kick";
@@ -15,6 +17,8 @@ export interface AuthToken {
   refreshToken?: string;
   expiresAt?: number; // Unix timestamp in milliseconds
   scope?: string[];
+  /** OAuth grant family that issued this persisted token. */
+  authFlow?: "device-code";
 }
 
 export interface EncryptedToken {
@@ -65,6 +69,63 @@ export const TWITCH_APP_SCOPES = [
 ] as const;
 
 export type TwitchAppScope = (typeof TWITCH_APP_SCOPES)[number];
+
+/**
+ * Canonical scope from each permission group required by
+ * `channel.moderate` EventSub v2.
+ */
+export const TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES = [
+  "moderator:read:blocked_terms",
+  "moderator:read:chat_settings",
+  "moderator:read:unban_requests",
+  "moderator:manage:banned_users",
+  "moderator:manage:chat_messages",
+  "moderator:manage:warnings",
+  "moderator:read:moderators",
+  "moderator:read:vips",
+] as const satisfies readonly TwitchAppScope[];
+
+/**
+ * Twitch accepts either permission in the first six groups. `canonical`
+ * is the scope StreamFusion requests when reconnecting.
+ */
+export const TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPE_GROUPS = [
+  {
+    canonical: "moderator:read:blocked_terms",
+    accepted: ["moderator:read:blocked_terms", "moderator:manage:blocked_terms"],
+  },
+  {
+    canonical: "moderator:read:chat_settings",
+    accepted: ["moderator:read:chat_settings", "moderator:manage:chat_settings"],
+  },
+  {
+    canonical: "moderator:read:unban_requests",
+    accepted: ["moderator:read:unban_requests", "moderator:manage:unban_requests"],
+  },
+  {
+    canonical: "moderator:manage:banned_users",
+    accepted: ["moderator:read:banned_users", "moderator:manage:banned_users"],
+  },
+  {
+    canonical: "moderator:manage:chat_messages",
+    accepted: ["moderator:read:chat_messages", "moderator:manage:chat_messages"],
+  },
+  {
+    canonical: "moderator:manage:warnings",
+    accepted: ["moderator:read:warnings", "moderator:manage:warnings"],
+  },
+  {
+    canonical: "moderator:read:moderators",
+    accepted: ["moderator:read:moderators"],
+  },
+  {
+    canonical: "moderator:read:vips",
+    accepted: ["moderator:read:vips"],
+  },
+] as const satisfies ReadonlyArray<{
+  canonical: (typeof TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES)[number];
+  accepted: readonly string[];
+}>;
 
 export const KICK_APP_SCOPES = [
   "user:read",
@@ -372,7 +433,15 @@ export interface ProxyPreferences {
   hasCredentials: boolean;
 }
 
-export type TimestampFormat = "HH:mm" | "h:mm a";
+export type TimestampFormat =
+  | "H:mm"
+  | "HH:mm"
+  | "H:mm:ss"
+  | "HH:mm:ss"
+  | "h:mm a"
+  | "hh:mm a"
+  | "h:mm:ss a"
+  | "hh:mm:ss a";
 export type ChatDensity = "cozy" | "compact";
 export type ChatPauseMode = "scroll" | "mouseover" | "alt" | "mouseover-alt";
 export type DeletedMessageDisplayMode = "tombstone" | "message" | "compact" | "audit";
@@ -384,7 +453,8 @@ export type ModerationHighlightStyle = "compact" | "cozy";
  * Its own top-level group — distinct from the legacy `ChatPreferences`
  * (position/size) — so older installs hydrate the whole group with defaults
  * under the shallow top-level preferences merge. Appearance fields live-apply
- * to the renderer; emote-provider and event toggles apply on the next channel
+ * to the renderer. Badge and username-paint cosmetics are render-time switches
+ * and live-apply; emote-provider and event toggles apply on the next channel
  * load. (Xtra port — see plan U1–U5.)
  */
 export interface ChatDisplayPreferences {
@@ -407,6 +477,10 @@ export interface ChatDisplayPreferences {
   enable7tv: boolean;
   enableBttv: boolean;
   enableFfz: boolean;
+  enable7tvBadges: boolean;
+  enable7tvUsernamePaints: boolean;
+  enableBttvBadges: boolean;
+  enableFfzBadges: boolean;
   /** Play animated emotes vs. render a static frame. */
   animatedEmotes: boolean;
   /** Stack zero-width / overlay emotes on the previous emote. */
@@ -494,6 +568,15 @@ export interface PlaybackAdvancedPreferences {
   allowHevc: boolean;
 }
 
+export interface CaptionPreferences {
+  enabled: boolean;
+  source: "platform" | "local";
+  preferredLanguage: string | null;
+  localModelId: string | null;
+  textSizePercent: number;
+  backgroundOpacityPercent: number;
+}
+
 export interface UserPreferences {
   theme: Theme;
   language: string;
@@ -512,6 +595,8 @@ export interface UserPreferences {
   proxy: ProxyPreferences;
   /** Advanced Twitch stream-token controls, ad-block path only (Xtra port, U13). */
   playbackAdvanced: PlaybackAdvancedPreferences;
+  /** Durable logical caption selection and appearance; runtime track/session state is excluded. */
+  captions: CaptionPreferences;
   startMinimized: boolean;
   minimizeToTray: boolean;
 }
@@ -537,6 +622,12 @@ export interface StorageSchema {
 
   // Local follows (for guest mode)
   localFollows: LocalFollow[];
+
+  // Persisted clip and VOD download history/state
+  downloadQueue: DownloadQueueSnapshot;
+
+  // Durable active/interrupted Stream Recording recovery state
+  streamRecordingJournal: unknown;
 
   // User preferences
   preferences: UserPreferences;
@@ -667,6 +758,10 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   enable7tv: true,
   enableBttv: true,
   enableFfz: true,
+  enable7tvBadges: true,
+  enable7tvUsernamePaints: true,
+  enableBttvBadges: true,
+  enableFfzBadges: true,
   animatedEmotes: true,
   overlayEmotes: true,
   systemMessageEmotes: true,
@@ -696,6 +791,15 @@ export const DEFAULT_PLAYBACK_ADVANCED_PREFERENCES: PlaybackAdvancedPreferences 
   allowHevc: false,
 };
 
+export const DEFAULT_CAPTION_PREFERENCES: CaptionPreferences = {
+  enabled: false,
+  source: "platform",
+  preferredLanguage: null,
+  localModelId: null,
+  textSizePercent: 100,
+  backgroundOpacityPercent: 80,
+};
+
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   theme: "dark",
   language: "en",
@@ -709,6 +813,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   buffer: DEFAULT_BUFFER_PREFERENCES,
   proxy: DEFAULT_PROXY_PREFERENCES,
   playbackAdvanced: DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
+  captions: DEFAULT_CAPTION_PREFERENCES,
   startMinimized: false,
   minimizeToTray: true,
 };

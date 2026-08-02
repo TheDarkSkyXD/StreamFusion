@@ -4,6 +4,7 @@ import { LuMenu } from "react-icons/lu";
 
 import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
 import { ProfileDropdown } from "@/components/auth";
+import { RecordingGlobalIndicator } from "@/components/recording/recording-global-indicator";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 
@@ -54,6 +55,8 @@ export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) 
 
       {/* Right side - Notifications + User */}
       <div className="flex items-center justify-end gap-4 ml-4">
+        <RecordingGlobalIndicator />
+
         {/* Notifications Dropdown */}
         <NotificationsDropdown />
 

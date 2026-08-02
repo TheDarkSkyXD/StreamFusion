@@ -1,5 +1,5 @@
-# Force LF line endings on text source files. Biome (apps/desktop/biome.json)
-# pins `lineEnding: "lf"`, so a CRLF-checked-out file fails `biome format`
+# Force LF line endings on text source files. Prettier (apps/desktop/.prettierrc.json)
+# pins `endOfLine: "lf"`, so a CRLF-checked-out file fails `prettier --check`
 # even on a clean tree. This file makes git store + check out matching paths
 # with LF on every platform, eliminating the Windows CRLF drift.
 #

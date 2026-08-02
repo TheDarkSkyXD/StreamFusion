@@ -1,12 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
+import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import { logger } from "@/renderer/logging/logger";
 
-import type { UnifiedStream } from "../../backend/api/unified/platform-types";
+import type { UnifiedChannel, UnifiedStream } from "../../backend/api/unified/platform-types";
 import type { Platform } from "../../shared/auth-types";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
+import { deletePersistedSnapshot, savePersistedSnapshot } from "./persisted-snapshot";
 
 export const STREAM_KEYS = {
   all: ["streams"] as const,
@@ -18,6 +21,47 @@ export const STREAM_KEYS = {
   byChannel: (username: string, platform: Platform) =>
     [...STREAM_KEYS.all, "channel", platform, username] as const,
 };
+
+const KICK_FOLLOWED_STATUS_REFETCH_INTERVAL_MS = 15_000;
+const KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS = 10_000;
+
+export function removeFollowedStreamFromCache(
+  client: QueryClient,
+  platform: Platform,
+  channelName: string
+): void {
+  const normalizedChannelName = channelName.trim().toLowerCase();
+  for (const queryKey of [STREAM_KEYS.followed(platform), STREAM_KEYS.followed()]) {
+    client.setQueryData<UnifiedStream[] | undefined>(queryKey, (streams) =>
+      streams?.filter(
+        (stream) =>
+          stream.platform !== platform ||
+          stream.channelName.trim().toLowerCase() !== normalizedChannelName
+      )
+    );
+  }
+}
+
+export interface FollowedStreamSnapshotIdentity {
+  platform: Platform | "all";
+  twitchUserId: string;
+  kickUserId: string;
+  follows: readonly string[];
+}
+
+export function createFollowedStreamSnapshotIdentity(
+  platform: Platform | undefined,
+  twitchUserId: string,
+  kickUserId: string,
+  follows: ReadonlyArray<Pick<UnifiedChannel, "platform" | "id">>
+): FollowedStreamSnapshotIdentity {
+  return {
+    platform: platform ?? "all",
+    twitchUserId,
+    kickUserId,
+    follows: follows.map((follow) => `${follow.platform}:${follow.id}`).sort(),
+  };
+}
 
 export function useTopStreams(platform?: Platform, limit: number = 20) {
   const queryKey = STREAM_KEYS.top(platform, limit);
@@ -72,12 +116,27 @@ function useStreamsByCategory(categoryId: string, platform?: Platform, limit: nu
 export function useFollowedStreams(
   platform?: Platform,
   limit: number = 20,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean; snapshotIdentity?: FollowedStreamSnapshotIdentity } = {}
 ) {
   const queryKey = STREAM_KEYS.followed(platform);
+  const snapshotIdentityKey = options.snapshotIdentity
+    ? JSON.stringify(options.snapshotIdentity)
+    : undefined;
+  const currentIdentityKeyRef = useRef(snapshotIdentityKey);
+  currentIdentityKeyRef.current = snapshotIdentityKey;
+  const successfulResultRef = useRef<
+    | {
+        data: UnifiedStream[];
+        sourceIdentityKey?: string;
+        persistedIdentityKey?: string;
+      }
+    | undefined
+  >(undefined);
+  const cacheOptions = getQueryCacheOptions("followedStreamStatus");
   const query = useQuery({
     queryKey,
     queryFn: async () => {
+      const sourceIdentityKey = currentIdentityKeyRef.current;
       const response = await window.electronAPI.streams.getFollowed({ platform, limit });
       if (response.error) {
         // If it fails (e.g. auth error, network), we just return empty list so UI doesn't break
@@ -87,11 +146,55 @@ export function useFollowedStreams(
         });
         return [];
       }
-      return response.data as UnifiedStream[];
+      const streams = dedupeStreamsByChannelIdentity(response.data as UnifiedStream[]);
+      successfulResultRef.current = {
+        data: streams,
+        sourceIdentityKey,
+      };
+      return streams;
     },
     enabled: options.enabled,
-    ...getQueryCacheOptions("followedStreamStatus"),
+    ...cacheOptions,
+    refetchInterval:
+      platform === "kick" ? KICK_FOLLOWED_STATUS_REFETCH_INTERVAL_MS : cacheOptions.refetchInterval,
   });
+  const { refetch } = query;
+
+  useEffect(() => {
+    const successfulResult = successfulResultRef.current;
+    const snapshotIdentity = options.snapshotIdentity;
+    if (!query.dataUpdatedAt || !snapshotIdentity || !snapshotIdentityKey || !successfulResult)
+      return;
+    if (
+      successfulResult.sourceIdentityKey !== undefined &&
+      successfulResult.sourceIdentityKey !== snapshotIdentityKey
+    )
+      return;
+    if (successfulResult.persistedIdentityKey === snapshotIdentityKey) return;
+
+    successfulResult.persistedIdentityKey = snapshotIdentityKey;
+    const slot = `followed-streams:${platform ?? "all"}`;
+    const persistence =
+      successfulResult.data.length > 0
+        ? savePersistedSnapshot(slot, snapshotIdentity, successfulResult.data)
+        : deletePersistedSnapshot(slot);
+    void persistence.catch((error) => {
+      logger.warn("Hook:Queries:Streams", "failed to persist followed streams", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, [options.snapshotIdentity, platform, query.dataUpdatedAt, snapshotIdentityKey]);
+
+  const lastSettledIdentityKeyRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!snapshotIdentityKey) return;
+    const previousIdentityKey = lastSettledIdentityKeyRef.current;
+    lastSettledIdentityKeyRef.current = snapshotIdentityKey;
+    if (previousIdentityKey && previousIdentityKey !== snapshotIdentityKey) {
+      void refetch();
+    }
+  }, [refetch, snapshotIdentityKey]);
+
   useQueryCachePerformance({
     data: query.data,
     enabled: options.enabled,
@@ -104,6 +207,7 @@ export function useFollowedStreams(
 
 export function useStreamByChannel(username: string, platform: Platform) {
   const queryKey = STREAM_KEYS.byChannel(username, platform);
+  const cacheOptions = getQueryCacheOptions("streamChannelDetail");
   const query = useQuery({
     queryKey,
     queryFn: async () => {
@@ -111,10 +215,12 @@ export function useStreamByChannel(username: string, platform: Platform) {
       if (response.error) {
         throw new Error(response.error as unknown as string);
       }
-      return response.data as UnifiedStream;
+      return response.data as UnifiedStream | null;
     },
     enabled: !!username && !!platform,
-    ...getQueryCacheOptions("streamChannelDetail"),
+    ...cacheOptions,
+    refetchInterval:
+      platform === "kick" ? KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS : cacheOptions.refetchInterval,
     retry: false, // Don't retry - stream might simply be offline
   });
   useQueryCachePerformance({

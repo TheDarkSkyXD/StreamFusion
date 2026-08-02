@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   KICK_IMAGE_SCHEME,
-  resolveProxiedImageSrc,
+  resolveProxiedSrc,
   TWITCH_IMAGE_SCHEME,
 } from "@/lib/proxied-image-url";
 import { cn } from "@/lib/utils";
@@ -68,21 +68,11 @@ function chooseProxy(url: string): ProxyScheme | null {
   }
 }
 
-function toBase64Url(value: string): string {
-  // btoa accepts only Latin-1 bytes; encode as UTF-8 first so CDN URLs with
-  // non-ASCII characters round-trip safely.
-  const utf8 = String.fromCharCode(...new TextEncoder().encode(value));
-  return btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function resolveProxiedSrc(src: string, scheme: ProxyScheme): string {
-  return resolveProxiedImageSrc(src) ?? `${scheme}://image?u=${toBase64Url(src)}`;
-}
-
-function resolveSrc(src: string | undefined | null): string | null {
+function resolveSrc(src: string | undefined | null, proxy?: ProxyScheme): string | null {
   if (!src || src.trim() === "") return null;
   if (src.startsWith("data:")) return src;
   if (!src.startsWith("http")) return null;
+  if (proxy) return resolveProxiedSrc(src, proxy);
   const scheme = chooseProxy(src);
   if (scheme) {
     return resolveProxiedSrc(src, scheme);
@@ -118,6 +108,8 @@ interface ProxiedImageProps {
    * Use "eager" for above-the-fold images that should load immediately.
    */
   loading?: "lazy" | "eager";
+  /** Native fetch priority hint for images needed in the current viewport. */
+  fetchPriority?: "high" | "low" | "auto";
   /**
    * Intrinsic image dimensions. Recommended for grid cards/avatars so Chromium
    * can reserve layout space (no CLS) and defer offscreen decode.
@@ -129,6 +121,8 @@ interface ProxiedImageProps {
    * broken URLs (e.g. purged Kick VOD thumbnails).
    */
   onProxyError?: () => void;
+  /** Force a platform image protocol after the caller has validated the source URL. */
+  proxy?: "kick" | "twitch";
 }
 
 export function ProxiedImage({
@@ -138,11 +132,20 @@ export function ProxiedImage({
   fallback,
   fallbackClassName = "",
   loading = "lazy",
+  fetchPriority,
   width,
   height,
   onProxyError,
+  proxy,
 }: ProxiedImageProps) {
-  const resolvedSrc = useMemo(() => resolveSrc(src), [src]);
+  const resolvedSrc = useMemo(
+    () =>
+      resolveSrc(
+        src,
+        proxy === "kick" ? KICK_IMAGE_SCHEME : proxy === "twitch" ? TWITCH_IMAGE_SCHEME : undefined
+      ),
+    [proxy, src]
+  );
   const imgRef = useRef<HTMLImageElement | null>(null);
   const seenSrcRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -217,6 +220,7 @@ export function ProxiedImage({
       alt={alt}
       className={cn(!isLoaded && "animate-pulse bg-[var(--color-background-elevated)]", className)}
       loading={loading}
+      fetchPriority={fetchPriority}
       decoding="async"
       {...(width !== undefined ? { width } : {})}
       {...(height !== undefined ? { height } : {})}

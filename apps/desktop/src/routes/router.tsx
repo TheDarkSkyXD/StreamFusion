@@ -25,6 +25,7 @@ import {
   StreamPage,
   VideoPage,
 } from "@/pages";
+import { validateCategoryDetailSearch } from "@/routes/category-detail-search";
 
 // Loading fallback for lazy-loaded pages
 const PageLoader = () => (
@@ -33,12 +34,21 @@ const PageLoader = () => (
   </div>
 );
 
-// Wrap lazy component with Suspense
-const withSuspense = (Component: React.ComponentType) => () => (
-  <Suspense fallback={<PageLoader />}>
-    <Component />
-  </Suspense>
-);
+// Wrap lazy component with Suspense while keeping route chunk loading opt-in.
+export const withSuspense = (
+  Component: React.ComponentType & { preload?: () => Promise<unknown> },
+  { forwardPreload = false }: { forwardPreload?: boolean } = {}
+) => {
+  const SuspenseComponent = () => (
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  );
+
+  return forwardPreload
+    ? Object.assign(SuspenseComponent, { preload: Component.preload })
+    : SuspenseComponent;
+};
 
 // Root layout (wraps everything)
 const rootRoute = createRootRoute({
@@ -86,9 +96,7 @@ const categoriesRoute = createRoute({
 const categoryDetailRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/categories/$platform/$categoryId",
-  validateSearch: (search: Record<string, unknown>): { otherId?: string } => ({
-    otherId: typeof search.otherId === "string" ? search.otherId : undefined,
-  }),
+  validateSearch: validateCategoryDetailSearch,
   component: withSuspense(CategoryDetailPage),
 });
 
@@ -110,7 +118,7 @@ const streamRoute = createRoute({
     const tab = search.tab;
     return tab === "home" || tab === "videos" || tab === "clips" ? { tab } : {};
   },
-  component: withSuspense(StreamPage),
+  component: withSuspense(StreamPage, { forwardPreload: true }),
 });
 
 // Video viewing page (VOD)
@@ -134,6 +142,7 @@ const videoRoute = createRoute({
     tags?: string[];
     language?: string;
     isMature?: boolean;
+    shareUrl?: string;
   } => ({
     src: (search.src as string) || undefined, // Direct HLS URL (for Kick VODs)
     title: (search.title as string) || undefined,
@@ -149,6 +158,7 @@ const videoRoute = createRoute({
     tags: (search.tags as string[]) || undefined,
     language: (search.language as string) || undefined,
     isMature: search.isMature === true || search.isMature === "true" || undefined,
+    shareUrl: (search.shareUrl as string) || undefined,
   }),
   component: withSuspense(VideoPage),
 });

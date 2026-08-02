@@ -11,6 +11,7 @@ interface StreamGridProps {
   streams?: UnifiedStream[];
   isLoading?: boolean;
   emptyMessage?: string;
+  datasetKey?: string;
   className?: string;
   skeletons?: number;
   activeStream?: Pick<UnifiedStream, "platform" | "channelName"> | null;

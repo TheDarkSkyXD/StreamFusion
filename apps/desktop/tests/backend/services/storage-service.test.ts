@@ -38,11 +38,14 @@ vi.mock("@/backend/services/database-service", () => ({
 
 import { dbService } from "@/backend/services/database-service";
 import { storageService } from "@/backend/services/storage-service";
+import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
 import {
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
 } from "@/shared/auth-types";
+import type { DownloadQueueSnapshot } from "@/shared/download-types";
+import type { StreamRecordingJournalV2 } from "@/shared/stream-recording-types";
 
 const kickPlatformRows = [
   { id: "r1", platform: "kick", channelId: "411439", channelName: "summit1g", source: "kick" },
@@ -238,5 +241,68 @@ describe("storageService.getPreferences - notification defaults migration", () =
       sound: false,
       favoriteChannelsOnly: true,
     });
+  });
+});
+
+// Guards: Downloads queue snapshots survive service consumers through the typed persistent store contract.
+describe("storageService download queue persistence", () => {
+  it("saves and reloads the complete Downloads queue snapshot", () => {
+    const snapshot: DownloadQueueSnapshot = {
+      jobs: [
+        {
+          id: "clip-job-1",
+          kind: "clip",
+          platform: "kick",
+          sourceId: "clip-1",
+          title: "Clip",
+          channelName: "streamer",
+          status: "paused",
+          progress: { percent: 25, transferredBytes: 250, totalBytes: 1000 },
+          destinationPath: "D:/Videos/clip.mp4",
+          createdAt: "2026-07-31T10:00:00.000Z",
+          updatedAt: "2026-07-31T10:01:00.000Z",
+        },
+      ],
+    };
+
+    storageService.saveDownloadQueue(snapshot);
+
+    expect(storageService.getDownloadQueue()).toEqual(snapshot);
+  });
+});
+
+// Guards: Recording startup can hydrate an empty V2 journal and persist later session state.
+describe("storageService Stream Recording journal persistence", () => {
+  it("provides the default V2 journal and round-trips an active session", () => {
+    const sessionStore = createStreamRecordingSessionStore({ storage: storageService });
+
+    expect(sessionStore.getJournal()).toEqual({
+      version: 2,
+      state: "empty",
+      session: null,
+    });
+
+    const journal: StreamRecordingJournalV2 = {
+      version: 2,
+      state: "active",
+      session: {
+        id: "recording-session-1",
+        platform: "twitch",
+        channelName: "streamer",
+        title: "Live stream",
+        status: "recording",
+        destinationPath: "D:/Videos/streamer",
+        qualityLabel: "Source",
+        capturedDurationSeconds: 12,
+        sections: [],
+        gaps: [],
+        createdAt: "2026-08-02T16:49:00.000Z",
+        updatedAt: "2026-08-02T16:49:12.000Z",
+      },
+    };
+
+    storageService.saveStreamRecordingJournal(journal);
+
+    expect(storageService.getStreamRecordingJournal()).toEqual(journal);
   });
 });

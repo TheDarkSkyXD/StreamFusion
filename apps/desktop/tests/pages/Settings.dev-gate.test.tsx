@@ -133,7 +133,7 @@ describe("SettingsPage — dev gate for LogsSection", () => {
     renderWithProviders(<SettingsPage />);
     await waitFor(() => expect(get).toHaveBeenCalled());
 
-    expect(screen.queryByText(/in-app log viewer & diagnostics/i)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Logs" })).toBeNull();
   });
 
   it("shows the Logs sidebar item in dev (isDev:true)", async () => {
@@ -141,7 +141,7 @@ describe("SettingsPage — dev gate for LogsSection", () => {
     renderWithProviders(<SettingsPage />);
     await waitFor(() => expect(get).toHaveBeenCalled());
 
-    expect(screen.getByText(/in-app log viewer & diagnostics/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
   });
 
   it("mounts LogsSection when the Logs tab is active in dev", async () => {
@@ -150,7 +150,7 @@ describe("SettingsPage — dev gate for LogsSection", () => {
     renderWithProviders(<SettingsPage />);
     await waitFor(() => expect(get).toHaveBeenCalled());
 
-    await user.click(screen.getByText("Logs"));
+    await user.click(screen.getByRole("link", { name: "Logs" }));
     expect(screen.getByTestId("logs-section")).toBeInTheDocument();
   });
 
@@ -167,8 +167,8 @@ describe("SettingsPage — dev gate for LogsSection", () => {
     const devUser = userEvent.setup();
     renderWithProviders(<SettingsPage />);
     await waitFor(() => expect(devCase.get).toHaveBeenCalled());
-    expect(screen.getByText("Report Bug")).toBeInTheDocument();
-    await devUser.click(screen.getByText("Report Bug"));
+    expect(screen.getByRole("link", { name: "Report Bug" })).toBeInTheDocument();
+    await devUser.click(screen.getByRole("link", { name: "Report Bug" }));
     expect(screen.getByTestId("bug-report-section")).toBeInTheDocument();
   });
 
@@ -176,7 +176,7 @@ describe("SettingsPage — dev gate for LogsSection", () => {
     const prodCase = installEnvMock(false);
     renderWithProviders(<SettingsPage />);
     await waitFor(() => expect(prodCase.get).toHaveBeenCalled());
-    expect(screen.queryByText("Report Bug")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Report Bug" })).toBeNull();
     expect(screen.queryByTestId("bug-report-section")).toBeNull();
   });
 });

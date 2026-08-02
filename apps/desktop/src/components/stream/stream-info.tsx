@@ -10,7 +10,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useUnifiedCategoryLink } from "@/hooks/queries/useCategories";
 import { useUserInfo } from "@/hooks/useAuth";
 import { useInterval } from "@/hooks/useInterval";
-import { formatLanguageLabel, formatUptime, formatViewerCount } from "@/lib/utils";
+import {
+  formatLanguageLabel,
+  formatRelativeTime,
+  formatUptime,
+  formatViewerCount,
+} from "@/lib/utils";
 import type { KickUser, TwitchUser } from "@/shared/auth-types";
 import { StreamVerifiedBadge } from "./stream-verified-badge";
 
@@ -95,7 +100,10 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
   const displayTitle = stream?.title || channel?.lastStreamTitle || channel?.bio || "Offline";
   const displayCategory = stream?.categoryName || channel?.categoryName || "";
   const isOwnerView = isAuthenticatedChannel(channel, twitchUser, kickUser);
+  const isOffline = !stream?.isLive;
   const followerLabel = formatFollowerLabel(channel?.followerCount);
+  const lastLiveLabel =
+    isOffline && channel?.lastLiveAt ? formatRelativeTime(channel.lastLiveAt) : null;
 
   if (isLoading || !channel) {
     return (
@@ -135,18 +143,23 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
             <StreamVerifiedBadge platform={channel.platform} className="h-5 w-5" />
           )}
         </h1>
-        {isOwnerView && followerLabel && (
+        {(isOffline || isOwnerView) && followerLabel && (
           <div className="mt-1 flex items-center gap-1.5 text-sm text-[var(--color-foreground-muted)]">
             <LuUsers className="w-4 h-4" />
             <span className="font-semibold text-white">{followerLabel}</span>
           </div>
         )}
-        {!isOwnerView && (
+        {lastLiveLabel && (
+          <p className="mt-1 text-sm font-bold text-white">
+            Last live {lastLiveLabel}
+          </p>
+        )}
+        {!isOffline && !isOwnerView && (
           <>
-            {/* Use stream title if live, otherwise fall back to channel's last stream title */}
+            {/* Prefer the current title, with channel metadata as a live-data fallback. */}
             <p className="text-white font-bold truncate pr-4">{displayTitle}</p>
             <div className="text-[var(--color-foreground-muted)] text-sm capitalize flex flex-wrap items-center gap-2 mt-1">
-              {/* Use stream category if live, otherwise fall back to channel's last known category */}
+              {/* Prefer the current category, with the channel's last known category as fallback. */}
               {displayCategory &&
                 (linkCategoryId ? (
                   <Link

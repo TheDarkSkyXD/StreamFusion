@@ -43,9 +43,10 @@ Every `on` registration returns a cleanup function (`() => ipcRenderer.removeLis
 - **Channel constants only**: every `ipcRenderer.invoke / send / on` call uses
   a constant from `IPC_CHANNELS` (`shared/ipc-channels.ts`). String literals
   are never used inline.
-- **No raw objects returned**: sensitive data (token values, passwords) is
-  never returned. `proxy.hasCredentials` and `auth.tokenStatus` return only
-  boolean/metadata — never the credential itself.
+- **No general raw-token reads**: `auth.getToken` is Kick-only and
+  `auth.tokenStatus` returns metadata. The sole Twitch raw-token exception is
+  `auth.getValidTwitchToken`, reserved for renderer-owned IRC/Hermes sockets;
+  Helix, EventSub, emotes, and account work must stay behind main-process IPC.
 - **Error surfacing**: `invoke`-based methods that can fail structurally
   (OAuth, device-code flow) throw rather than returning `{ success: false }`,
   so callers use normal `try/catch` instead of inspecting result shapes.

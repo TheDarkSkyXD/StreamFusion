@@ -45,13 +45,15 @@ export function useInfiniteStreamsByCategory(
   platform?: Platform,
   limit: number = 20,
   categoryName?: string,
-  language?: string
+  language?: string,
+  datasetKey?: string
 ) {
   const queryKey = [
     ...STREAM_KEYS.byCategory(categoryId, platform),
     "infinite",
     categoryName,
     language,
+    ...(datasetKey === undefined ? [] : [datasetKey]),
   ] as const;
   const enabled = !!categoryId || !!categoryName;
   const query = useInfiniteQuery({

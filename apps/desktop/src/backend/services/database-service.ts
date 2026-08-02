@@ -4,6 +4,10 @@ import Database from "better-sqlite3";
 import { app } from "electron";
 
 import { logger } from "@/lib/cross-logger";
+import {
+  firstValidKickBroadcasterUserId,
+  getKickBroadcasterUserIdFromAvatar,
+} from "@/lib/kick-channel-identity";
 import type { Platform } from "../../shared/auth-types";
 import type {
   ModLogCoverageRecord,
@@ -460,6 +464,36 @@ export class DatabaseService {
       .all(platform, platform)
       .map(this.mapFollowFromDb);
 
+    const getKickStableIdentity = (follow: {
+      channelId: string;
+      profileImage?: string;
+    }): string | null =>
+      firstValidKickBroadcasterUserId(
+        getKickBroadcasterUserIdFromAvatar(follow.profileImage),
+        follow.channelId
+      );
+
+    const sameKickStableIdentity = (
+      existing: { channelId: string; profileImage?: string },
+      fetched: { channelId: string; profileImage?: string }
+    ): boolean => {
+      if (platform !== "kick") return false;
+      const existingIdentity = getKickStableIdentity(existing);
+      const fetchedIdentity = getKickStableIdentity(fetched);
+      return Boolean(existingIdentity && fetchedIdentity && existingIdentity === fetchedIdentity);
+    };
+
+    const existingMatchesPending = (
+      existing: { channelId: string; channelName: string },
+      pending: { channel_id: string; slug: string }
+    ): boolean =>
+      existing.channelId === pending.channel_id ||
+      Boolean(
+        existing.channelName &&
+          pending.slug &&
+          existing.channelName.toLowerCase() === pending.slug.toLowerCase()
+      );
+
     const fetchedMatchesPending = (
       fetched: { channelId: string; channelName: string },
       pending: { channel_id: string; slug: string }
@@ -472,7 +506,13 @@ export class DatabaseService {
       ) {
         return true;
       }
-      return false;
+      return (
+        platform === "kick" &&
+        existingPlatformRows.some(
+          (existing) =>
+            existingMatchesPending(existing, pending) && sameKickStableIdentity(existing, fetched)
+        )
+      );
     };
 
     const existingMatchesFetched = (
@@ -482,6 +522,7 @@ export class DatabaseService {
       if (existing.channelId && fetched.channelId && existing.channelId === fetched.channelId) {
         return true;
       }
+      if (sameKickStableIdentity(existing, fetched)) return true;
       if (
         existing.channelName &&
         fetched.channelName &&
@@ -511,6 +552,21 @@ export class DatabaseService {
         )
       : [];
 
+    const renamedKickRows =
+      platform === "kick"
+        ? existingPlatformRows.filter((existing) =>
+            toAdopt.some(
+              (fetched) =>
+                sameKickStableIdentity(existing, fetched) &&
+                (existing.channelId !== fetched.channelId ||
+                  existing.channelName.toLowerCase() !== fetched.channelName.toLowerCase())
+            )
+          )
+        : [];
+    const rowsToRemove = new Map(
+      [...stalePlatformRows, ...renamedKickRows].map((row) => [row.id, row])
+    );
+
     // addedCount = adopted rows that didn't already exist as platform-source.
     const addedCount = toAdopt.filter(
       (f) => !existingPlatformRows.some((existing) => existingMatchesFetched(existing, f))
@@ -518,7 +574,7 @@ export class DatabaseService {
 
     const txn = this.database.transaction(() => {
       const delFollow = this.database.prepare("DELETE FROM local_follows WHERE id = ?");
-      for (const row of stalePlatformRows) {
+      for (const row of rowsToRemove.values()) {
         delFollow.run(row.id);
       }
       for (const follow of toAdopt) {
@@ -551,7 +607,7 @@ export class DatabaseService {
       accountCount: Number(accountCount),
       pendingCount: Number(pendingCount),
       addedCount,
-      removedCount: stalePlatformRows.length,
+      removedCount: rowsToRemove.size,
     };
   }
 
