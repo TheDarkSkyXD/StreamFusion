@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+import { renderWithProviders as render } from "../../test-utils";
 
 vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
   useUserProfile: vi.fn(() => ({

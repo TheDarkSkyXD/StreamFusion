@@ -3,10 +3,11 @@ import { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { Emote, EmoteProvider } from "../../../backend/services/emotes/emote-types";
 import type { ChatPlatform } from "../../../shared/chat-types";
-import { useEmoteStore } from "../../../store/emote-store";
+import { getEmoteViewerScopeKey, useEmoteStore } from "../../../store/emote-store";
 import { EmoteImage } from "../EmoteImage";
 
-const MAX_QUICK_EMOTES = 11;
+const MAX_QUICK_EMOTES = 9;
+const EMPTY_RECENT_EMOTES: Emote[] = [];
 const QUICK_EMOTE_PROVIDERS: Record<ChatPlatform, EmoteProvider[]> = {
   kick: ["kick", "7tv"],
   twitch: ["twitch", "7tv", "bttv", "ffz"],
@@ -22,16 +23,21 @@ function isGlobalQuickEmote(emote: Emote): boolean {
 
 interface QuickEmoteActionBarProps {
   platform: ChatPlatform;
+  viewerUserId?: string;
   onSelect: (emote: Emote) => void;
   disabled?: boolean;
 }
 
 export const QuickEmoteActionBar: React.FC<QuickEmoteActionBarProps> = memo(
-  ({ platform, onSelect, disabled = false }) => {
+  ({ platform, viewerUserId, onSelect, disabled = false }) => {
+    const viewerScopeKey = getEmoteViewerScopeKey({
+      platform,
+      userId: viewerUserId ?? null,
+    });
     const { recentEmotes, activeChannelId, loadedChannels, loadedGlobalPlatforms, emoteRevision } =
       useEmoteStore(
         useShallow((state) => ({
-          recentEmotes: state.recentEmotes,
+          recentEmotes: state.recentEmotesByScope[viewerScopeKey] ?? EMPTY_RECENT_EMOTES,
           activeChannelId: state.activeChannelId,
           loadedChannels: state.loadedChannels,
           loadedGlobalPlatforms: state.loadedGlobalPlatforms,
@@ -127,7 +133,7 @@ export const QuickEmoteActionBar: React.FC<QuickEmoteActionBarProps> = memo(
     return (
       <div
         data-testid="quick-emote-action-bar"
-        className="flex h-8 min-h-8 items-center gap-1 overflow-hidden px-1"
+        className="flex h-8 min-h-8 items-center gap-2 overflow-hidden px-1"
         aria-label="Quick emotes"
       >
         {quickEmotes.map((emote, index) => {
@@ -142,7 +148,7 @@ export const QuickEmoteActionBar: React.FC<QuickEmoteActionBarProps> = memo(
               aria-label={`Use ${emote.name}`}
               data-testid="quick-emote-button"
               data-emote-key={key}
-              className="group flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] border border-transparent bg-transparent p-0.5 opacity-85 transition-[background-color,border-color,opacity,transform] duration-150 ease-out hover:border-white/20 hover:bg-white/[0.08] hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] disabled:cursor-not-allowed disabled:opacity-40"
+              className="group flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-white/10 bg-[#252525] p-0.5 opacity-90 transition-[background-color,border-color,opacity,transform] duration-150 ease-out hover:border-white/20 hover:bg-[#2d2d2d] hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] disabled:cursor-not-allowed disabled:opacity-40"
               style={{ animationDelay: `${Math.min(index, 8) * 12}ms` }}
             >
               <EmoteImage

@@ -1,21 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const getMock = vi.fn();
-
-vi.mock("@/lib/api-client", () => ({
-  api: {
-    get: (...args: unknown[]) => getMock(...args),
-  },
-}));
+const executeMock = vi.fn();
 
 import { twitchEmoteProvider } from "@/backend/services/emotes/twitch-emotes";
 
 function mockJsonOnce(value: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.resolve(value) });
+  executeMock.mockResolvedValueOnce({ ok: true, data: value });
 }
 
 function mockRejectOnce(err: unknown) {
-  getMock.mockReturnValueOnce({ json: () => Promise.reject(err) });
+  executeMock.mockRejectedValueOnce(err);
 }
 
 function makeTwitchEmote(overrides: Record<string, unknown> = {}) {
@@ -36,7 +30,13 @@ function makeTwitchEmote(overrides: Record<string, unknown> = {}) {
 
 describe("TwitchEmoteProvider", () => {
   beforeEach(() => {
-    getMock.mockReset();
+    executeMock.mockReset();
+    vi.stubGlobal("window", {
+      electronAPI: {
+        twitch: { execute: executeMock },
+        auth: {},
+      },
+    });
   });
 
   afterEach(() => {
@@ -44,9 +44,13 @@ describe("TwitchEmoteProvider", () => {
   });
 
   describe("configure", () => {
-    it("marks provider as configured with valid credentials", () => {
-      twitchEmoteProvider.configure("client-id", "access-token");
+    it("marks the IPC-backed provider as configured", () => {
+      twitchEmoteProvider.configure();
       expect(twitchEmoteProvider.configured).toBe(true);
+    });
+
+    it("does not accept renderer-owned Twitch credentials", () => {
+      expect(twitchEmoteProvider.configure.length).toBe(0);
     });
   });
 
@@ -63,15 +67,14 @@ describe("TwitchEmoteProvider", () => {
     });
 
     it("fetches and transforms global emotes", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       mockJsonOnce({
         data: [makeTwitchEmote(), makeTwitchEmote({ id: "emote-2", name: "PogChamp" })],
       });
 
       const result = await twitchEmoteProvider.fetchGlobalEmotes();
 
-      expect(getMock).toHaveBeenCalledTimes(1);
-      expect(getMock.mock.calls[0][0]).toBe("https://api.twitch.tv/helix/chat/emotes/global");
+      expect(executeMock).toHaveBeenCalledWith({ operation: "get-global-emotes" });
       expect(result).toHaveLength(2);
       expect(result[0].provider).toBe("twitch");
       expect(result[0].isGlobal).toBe(true);
@@ -80,7 +83,7 @@ describe("TwitchEmoteProvider", () => {
     });
 
     it("uses animated format when available", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       mockJsonOnce({
         data: [makeTwitchEmote({ format: ["static", "animated"] })],
       });
@@ -92,7 +95,7 @@ describe("TwitchEmoteProvider", () => {
     });
 
     it("returns empty array on API error", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       mockRejectOnce(new Error("API error"));
 
       await expect(twitchEmoteProvider.fetchGlobalEmotes()).resolves.toEqual([]);
@@ -101,7 +104,7 @@ describe("TwitchEmoteProvider", () => {
 
   describe("fetchChannelEmotes", () => {
     it("fetches channel emotes with broadcaster_id", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       mockJsonOnce({
         data: [
           makeTwitchEmote({
@@ -115,7 +118,10 @@ describe("TwitchEmoteProvider", () => {
 
       const result = await twitchEmoteProvider.fetchChannelEmotes("12345");
 
-      expect(getMock.mock.calls[0][0]).toContain("broadcaster_id=12345");
+      expect(executeMock).toHaveBeenCalledWith({
+        operation: "get-channel-emotes",
+        broadcasterId: "12345",
+      });
       expect(result).toHaveLength(1);
       expect(result[0].isGlobal).toBe(false);
       expect(result[0].channelId).toBe("12345");
@@ -124,7 +130,7 @@ describe("TwitchEmoteProvider", () => {
     });
 
     it("returns empty array on 404", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       mockRejectOnce({ response: { status: 404 } });
 
       const result = await twitchEmoteProvider.fetchChannelEmotes("999");
@@ -132,44 +138,46 @@ describe("TwitchEmoteProvider", () => {
     });
 
     it("returns empty array on non-404 error", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       mockRejectOnce(new Error("server error"));
 
       await expect(twitchEmoteProvider.fetchChannelEmotes("999")).resolves.toEqual([]);
     });
 
-    it("refreshes the Twitch token before fetching channel emotes when the bridge is available", async () => {
-      twitchEmoteProvider.configure("cid", "stale-token");
+    it("fetches channel emotes without exposing the Twitch token to the renderer provider", async () => {
+      twitchEmoteProvider.configure();
       const getValidTwitchToken = vi.fn().mockResolvedValue("fresh-token");
       vi.stubGlobal("window", {
         electronAPI: {
           auth: { getValidTwitchToken },
+          twitch: { execute: executeMock },
         },
       });
       mockJsonOnce({ data: [] });
 
       await twitchEmoteProvider.fetchChannelEmotes("999");
 
-      expect(getValidTwitchToken).toHaveBeenCalledTimes(1);
-      expect(getMock.mock.calls[0][1]).toMatchObject({
-        headers: {
-          "Client-ID": "cid",
-          Authorization: "Bearer fresh-token",
-        },
+      expect(getValidTwitchToken).not.toHaveBeenCalled();
+      expect(executeMock).toHaveBeenCalledWith({
+        operation: "get-channel-emotes",
+        broadcasterId: "999",
       });
     });
   });
 
   describe("fetchEmoteSet", () => {
     it("fetches emote set by ID", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       mockJsonOnce({
         data: [makeTwitchEmote({ id: "set-emote", name: "SetEmote" })],
       });
 
       const result = await twitchEmoteProvider.fetchEmoteSet("set-123");
 
-      expect(getMock.mock.calls[0][0]).toContain("emote_set_id=set-123");
+      expect(executeMock).toHaveBeenCalledWith({
+        operation: "get-emote-set",
+        emoteSetId: "set-123",
+      });
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("SetEmote");
     });
@@ -177,7 +185,7 @@ describe("TwitchEmoteProvider", () => {
 
   describe("fetchUserEmotes", () => {
     it("skips the scoped user-emotes request when tokenStatus lacks user:read:emotes", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       const tokenStatus = vi.fn(async () => ({
         connected: true,
         valid: true,
@@ -192,6 +200,7 @@ describe("TwitchEmoteProvider", () => {
             getTwitchUser,
             getValidTwitchToken: vi.fn(async () => "fresh-token"),
           },
+          twitch: { execute: executeMock },
         },
       });
 
@@ -200,17 +209,18 @@ describe("TwitchEmoteProvider", () => {
       expect(result).toEqual([]);
       expect(tokenStatus).toHaveBeenCalledWith("twitch");
       expect(getTwitchUser).not.toHaveBeenCalled();
-      expect(getMock).not.toHaveBeenCalled();
+      expect(executeMock).not.toHaveBeenCalled();
     });
 
     it("fetches signed-in user's non-global emotes across pages", async () => {
-      twitchEmoteProvider.configure("cid", "token");
+      twitchEmoteProvider.configure();
       vi.stubGlobal("window", {
         electronAPI: {
           auth: {
             getTwitchUser: vi.fn(async () => ({ id: "user-123" })),
             getValidTwitchToken: vi.fn(async () => "fresh-token"),
           },
+          twitch: { execute: executeMock },
         },
       });
       mockJsonOnce({
@@ -255,10 +265,21 @@ describe("TwitchEmoteProvider", () => {
 
       const result = await twitchEmoteProvider.fetchUserEmotes();
 
-      expect(getMock).toHaveBeenCalledTimes(3);
-      expect(getMock.mock.calls[0][0]).toContain("/helix/chat/emotes/user?user_id=user-123");
-      expect(getMock.mock.calls[1][0]).toContain("after=next");
-      expect(getMock.mock.calls[2][0]).toContain("/helix/users?id=owner-1&id=owner-2");
+      expect(executeMock).toHaveBeenCalledTimes(3);
+      expect(executeMock.mock.calls[0][0]).toEqual({
+        operation: "get-user-emotes",
+        userId: "user-123",
+        after: undefined,
+      });
+      expect(executeMock.mock.calls[1][0]).toEqual({
+        operation: "get-user-emotes",
+        userId: "user-123",
+        after: "next",
+      });
+      expect(executeMock.mock.calls[2][0]).toEqual({
+        operation: "get-users",
+        userIds: ["owner-1", "owner-2"],
+      });
       expect(result.map((emote) => emote.name)).toEqual(["StreamerSub", "FollowerWave"]);
       expect(result.every((emote) => emote.availability === "user")).toBe(true);
       expect(result.map((emote) => emote.owner?.displayName)).toEqual([

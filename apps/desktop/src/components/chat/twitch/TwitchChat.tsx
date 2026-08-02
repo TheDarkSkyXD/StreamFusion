@@ -1,33 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
+import { SevenTvCosmeticsClient } from "@/backend/services/chat/seven-tv-cosmetics-client";
 import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
 import { logger } from "@/renderer/logging/logger";
 import { router } from "@/routes/router";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { UnifiedPrediction } from "@/shared/chat-types";
-import { getTwitchEventSubClient } from "../../../backend/api/platforms/twitch/twitch-eventsub-client";
-import type { ChannelModerateEvent } from "../../../backend/api/platforms/twitch/twitch-eventsub-types";
-import {
-  pinChatMessage,
-  unpinChatMessage,
-  updatePinnedChatMessage,
-} from "../../../backend/api/platforms/twitch/twitch-gql-pin-mutations";
-import {
-  banUser,
-  clearChat as clearChatHelix,
-  deleteChatMessage,
-  type HelixModResult,
-  runCommercial,
-  setShieldMode,
-  startRaid,
-  timeoutUser,
-  unbanUser,
-  updateChatSettings,
-  warnUser,
-} from "../../../backend/api/platforms/twitch/twitch-helix-moderation-mutations";
+import type { TwitchChannelModeratePayload } from "@/shared/twitch-api-types";
 import { substituteThirdPartyEmotes } from "../../../backend/services/chat/third-party-emote-enrich";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
 import {
@@ -36,10 +19,11 @@ import {
 } from "../../../backend/services/chat/twitch-pin-poller";
 import { initializeTwitchEmotes } from "../../../backend/services/emotes";
 import { modLogWriter } from "../../../backend/services/mod-log-writer";
+import { MOD_LOG_QUERY_KEYS } from "../../../hooks/mod-log-query-keys";
 import { useChatRoomState } from "../../../hooks/useChatRoomState";
 import { useChatSettingsSync } from "../../../hooks/useChatSettingsSync";
 import { useInterval } from "../../../hooks/useInterval";
-import { useIsTwitchMod } from "../../../hooks/useIsTwitchMod";
+import { useHasActualTwitchModAuthority, useIsTwitchMod } from "../../../hooks/useIsTwitchMod";
 import { useManagedTimeout } from "../../../hooks/useManagedTimeout";
 import { useRequireModScopes } from "../../../hooks/useRequireModScopes";
 import type {
@@ -56,6 +40,7 @@ import type {
   UserNotice,
 } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
+import { useChatCosmeticsStore } from "../../../store/chat-cosmetics-store";
 import { buildChannelKey, useChatStore } from "../../../store/chat-store";
 import { useDevModOverrideStore } from "../../../store/dev-mod-override-store";
 import { useEmoteStore } from "../../../store/emote-store";
@@ -63,6 +48,7 @@ import { useModeratedChannelsStore } from "../../../store/moderated-channels-sto
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { useRenderCount } from "../../dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { ChatComposerFooter } from "../ChatComposerFooter";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
 import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
@@ -74,6 +60,7 @@ import { appendRecentRaid, type RaidTarget, RaidTargetPicker } from "../mod/Raid
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { EngagementTab } from "../mod/tabs/EngagementTab";
 import { ModLogTab } from "../mod/tabs/ModLogTab";
+import { StateAwareTimeoutAction } from "../mod/UserPopout/StateAwareTimeoutAction";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
@@ -115,14 +102,10 @@ type PendingTwitchModAction =
 const DEFAULT_TWITCH_PIN_DURATION_SECONDS = 30 * 60;
 const TWITCH_BADGE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-/** Human-readable timeout duration (toast label). Mirrors the small helper
- *  in ChatMessage.tsx; inlined here rather than exported to keep U11's
- *  surface-area minimal per the plan's "Do NOT modify ChatMessage.tsx" rule. */
-function formatTimeoutLabel(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86_400)}d`;
+function normalizeCosmeticUrl(url: string): string {
+  if (url.startsWith("//")) return `https:${url}`;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `https://${url}`;
 }
 
 function getNoticeHighlightKind(type: UserNotice["type"]): ChatHighlightKind {
@@ -177,6 +160,7 @@ function createConnectionStatusMessage(
 
 export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) => {
   useRenderCount("TwitchChat");
+  const queryClient = useQueryClient();
   // Chat store — subscribe only to fields read in render; actions have stable refs.
   // Narrow to a boolean so IRC PING heartbeats / disconnect-state churn don't
   // re-render the whole chat subtree on every tick.
@@ -235,6 +219,27 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     (state) =>
       state.preferences?.chatDisplay?.showTwitchPinDurationDialog ??
       DEFAULT_CHAT_DISPLAY_PREFERENCES.showTwitchPinDurationDialog
+  );
+  const enable7tvBadges = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.enable7tvBadges ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.enable7tvBadges
+  );
+  const enable7tvUsernamePaints = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.enable7tvUsernamePaints ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.enable7tvUsernamePaints
+  );
+  const enableSevenTvCosmetics = enable7tvBadges || enable7tvUsernamePaints;
+  const enableBttvBadges = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.enableBttvBadges ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.enableBttvBadges
+  );
+  const enableFfzBadges = useAuthStore(
+    (state) =>
+      state.preferences?.chatDisplay?.enableFfzBadges ??
+      DEFAULT_CHAT_DISPLAY_PREFERENCES.enableFfzBadges
   );
   const [pinnedMessage, setPinnedMessage] = useState<NormalizedPinnedMessage | null>(null);
   const [showPinned, setShowPinned] = useState(true);
@@ -299,7 +304,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // Mod-role gating for Pin/Unpin actions. Both hooks return safe defaults
   // when the user isn't signed in or doesn't moderate the current channel.
   const isMod = useIsTwitchMod(channelId);
-  const { hasModScopes, loading: modScopesLoading, promptReconnect } = useRequireModScopes();
+  const hasActualModAuthority = useHasActualTwitchModAuthority(channelId);
+  const {
+    hasModScopes,
+    hasChannelModerateEventSubScopes,
+    missingChannelModerateEventSubScopes,
+    loading: modScopesLoading,
+    promptReconnect,
+  } = useRequireModScopes();
+  const eventSubScopePromptKeyRef = useRef<string | null>(null);
   // Moderator's own Twitch user id — required for every Helix mod-action call
   // as the `moderator_id` query param. Pulled from the auth store rather than
   // re-fetched per call.
@@ -332,12 +345,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     let cancelled = false;
     void (async () => {
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!clientId) return;
       try {
-        const token = await window.electronAPI.auth.getToken("twitch");
-        if (cancelled || !token?.accessToken) return;
-        await hydrateModeratedChannels(twitchUser.id, token.accessToken, clientId);
+        if (cancelled) return;
+        await hydrateModeratedChannels(twitchUser.id);
       } catch {
         // AuthProvider also hydrates this cache; direct chat-page refresh is best-effort.
       }
@@ -349,52 +359,59 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   }, [channelId, twitchUser?.id, hydrateModeratedChannels, isModeratedChannelsStale]);
 
   useEffect(() => {
-    if (!channelId || !twitchUser?.id || !isMod || !hasModScopes || modScopesLoading) return;
+    if (!channelId || !twitchUser?.id || !hasActualModAuthority || modScopesLoading) return;
+    if (!hasChannelModerateEventSubScopes) {
+      const promptKey = `${channelId}:${[...missingChannelModerateEventSubScopes].sort().join(",")}`;
+      if (eventSubScopePromptKeyRef.current !== promptKey) {
+        eventSubScopePromptKeyRef.current = promptKey;
+        promptReconnect({ missingScopes: missingChannelModerateEventSubScopes });
+      }
+      return;
+    }
+    eventSubScopePromptKeyRef.current = null;
 
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
+    const feedId = `chat-moderation:${channelId}:${twitchUser.id}`;
+    const unsubscribeEvent = window.electronAPI.twitch.eventSub.onEvent((message) => {
+      if (message.feedId !== feedId) return;
+      const payload = message.payload as TwitchChannelModeratePayload;
+      void modLogWriter
+        .ingestEventSubModerate(
+          payload as Parameters<typeof modLogWriter.ingestEventSubModerate>[0]
+        )
+        .catch((error) => {
+          logger.warn("UI:Chat:Twitch", "channel.moderate history persistence failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      const event = payload.event;
+      if (event.action !== "delete") return;
+      if (event.broadcaster_user_id && event.broadcaster_user_id !== channelId) return;
+
+      const deleted = event.delete;
+      if (!deleted?.message_id) return;
+
+      const moderatorUsername = event.moderator_user_login?.trim() || event.moderator_user_id;
+      const moderator: ChatUserPresentation | undefined = moderatorUsername
+        ? {
+            userId: event.moderator_user_id || moderatorUsername,
+            username: moderatorUsername,
+            displayName: event.moderator_user_name?.trim() || moderatorUsername,
+            badges: [],
+          }
+        : undefined;
+
+      markMessageDeletedByModerator(deleted.message_id, moderator);
+    });
 
     void (async () => {
       try {
-        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-        if (!clientId) return;
-
-        const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-        if (cancelled || !accessToken) return;
-
-        const client = getTwitchEventSubClient(accessToken, twitchUser.id, {
-          clientId,
-          tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
-        });
-        unsubscribe = client.subscribe<ChannelModerateEvent>(
-          "channel.moderate",
+        const result = await window.electronAPI.twitch.eventSub.start({
+          feedId,
+          userId: twitchUser.id,
           channelId,
-          (payload) => {
-            void modLogWriter.ingestEventSubModerate(payload).catch((error) => {
-              logger.warn("UI:Chat:Twitch", "channel.moderate history persistence failed", {
-                error: error instanceof Error ? error.message : String(error),
-              });
-            });
-            const event = payload.event;
-            if (event.action !== "delete") return;
-            if (event.broadcaster_user_id && event.broadcaster_user_id !== channelId) return;
-
-            const deleted = event.delete;
-            if (!deleted?.message_id) return;
-
-            const moderatorUsername = event.moderator_user_login?.trim() || event.moderator_user_id;
-            const moderator: ChatUserPresentation | undefined = moderatorUsername
-              ? {
-                  userId: event.moderator_user_id || moderatorUsername,
-                  username: moderatorUsername,
-                  displayName: event.moderator_user_name?.trim() || moderatorUsername,
-                  badges: [],
-                }
-              : undefined;
-
-            markMessageDeletedByModerator(deleted.message_id, moderator);
-          }
-        );
+        });
+        if (!cancelled && !result.ok) throw new Error(result.error.message);
       } catch (error) {
         logger.warn("UI:Chat:Twitch", "twitch moderation EventSub subscribe failed", {
           error: error instanceof Error ? error.message : String(error),
@@ -404,84 +421,63 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
+      unsubscribeEvent();
+      void window.electronAPI.twitch.eventSub.stop(feedId);
     };
   }, [
     channelId,
-    hasModScopes,
-    isMod,
+    hasActualModAuthority,
+    hasChannelModerateEventSubScopes,
     markMessageDeletedByModerator,
+    missingChannelModerateEventSubScopes,
     modScopesLoading,
+    promptReconnect,
     twitchUser?.id,
   ]);
 
   const handleDeleteMessage = useCallback(
     async (message: ChatMessage) => {
-      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      if (!channelId || !twitchUser?.id || !clientId) {
+      if (!channelId || !twitchUser?.id) {
         toast.error("Couldn't delete message", {
           description: "Channel or moderator identity not loaded",
         });
         return;
       }
 
-      const runDelete = (accessToken: string) =>
-        deleteChatMessage({
-          accessToken,
-          clientId,
+      const runDelete = () =>
+        window.electronAPI.twitch.execute({
+          operation: "delete-chat-message",
           broadcasterId: channelId,
           moderatorId: twitchUser.id,
           messageId: message.id,
         });
 
       try {
-        const token = await window.electronAPI.auth.getToken("twitch");
-        if (!token?.accessToken) {
-          toast.error("Sign in to Twitch to take this action");
-          return;
-        }
-
-        const result = await runDelete(token.accessToken);
+        const result = await runDelete();
         if (result.ok) {
           markMessageDeletedByModerator(message.id, currentModeratorPresentation());
           showModActionSuccessToast("Deleted message");
           return;
         }
-        if (result.kind === "missing-scopes") {
+        if (result.error.code === "unauthorized") {
           promptReconnect({
-            missingScopes:
-              result.missingScopes.length > 0
-                ? result.missingScopes
-                : ["moderator:manage:chat_messages"],
+            missingScopes: ["moderator:manage:chat_messages"],
             onReconnected: async () => {
-              const fresh = await window.electronAPI.auth.getToken("twitch");
-              if (!fresh?.accessToken) return;
-              const retry = await runDelete(fresh.accessToken);
+              const retry = await runDelete();
               if (retry.ok) {
                 markMessageDeletedByModerator(message.id, currentModeratorPresentation());
                 showModActionSuccessToast("Deleted message");
               } else {
                 toast.error("Couldn't delete message", {
-                  description: retry.message,
+                  description: retry.error.message,
                 });
               }
             },
           });
           return;
         }
-        if (result.kind === "forbidden") {
-          toast.error("Action forbidden", { description: result.message });
-          return;
-        }
-        if (result.kind === "rate-limited") {
-          const retry = result.retryAfterSeconds;
-          toast.error(
-            retry !== null ? `Rate-limited, retry in ${retry}s` : "Rate-limited, retry shortly"
-          );
-          return;
-        }
         toast.error("Couldn't delete message", {
-          description: result.message ?? result.kind,
+          description: result.error.message,
         });
       } catch (error) {
         toast.error("Couldn't delete message", {
@@ -521,6 +517,119 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   }, []);
   // Track channelId for emote cleanup
   const currentChannelIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!channelId || !enableSevenTvCosmetics) return;
+    useChatCosmeticsStore.getState().acquireSevenTvChannel(channelId);
+    const client = new SevenTvCosmeticsClient(channelId, (event) => {
+      useChatCosmeticsStore.getState().applySevenTvEvent(channelId, event);
+    });
+    client.connect();
+    return () => {
+      client.disconnect();
+      useChatCosmeticsStore.getState().releaseSevenTvChannel(channelId);
+    };
+  }, [channelId, enableSevenTvCosmetics]);
+
+  useEffect(() => {
+    if (!enableBttvBadges) return;
+    const store = useChatCosmeticsStore.getState();
+    if (!store.beginGlobalProviderLoad("bttv")) return;
+    const getBttvBadges = window.electronAPI.emotes.bttv.getBadges;
+    if (typeof getBttvBadges !== "function") {
+      store.failGlobalProviderLoad("bttv");
+      return;
+    }
+    void getBttvBadges()
+      .then((catalog) => {
+        store.setGlobalProviderBadges(
+          "bttv",
+          catalog.map((entry) => ({
+            userId: entry.providerId,
+            badge: {
+              id: `bttv:${entry.providerId}`,
+              provider: "bttv" as const,
+              providerId: entry.providerId,
+              title: entry.badge.description || "BetterTTV badge",
+              imageUrl: normalizeCosmeticUrl(entry.badge.svg),
+            },
+          }))
+        );
+      })
+      .catch(() => store.failGlobalProviderLoad("bttv"));
+  }, [enableBttvBadges]);
+
+  useEffect(() => {
+    if (!enableFfzBadges) return;
+    const store = useChatCosmeticsStore.getState();
+    if (!store.beginGlobalProviderLoad("ffz")) return;
+    const getFfzBadges = window.electronAPI.emotes.ffz.getBadges;
+    if (typeof getFfzBadges !== "function") {
+      store.failGlobalProviderLoad("ffz");
+      return;
+    }
+    void getFfzBadges()
+      .then((catalog) => {
+        const definitions = new Map(catalog.badges.map((badge) => [String(badge.id), badge]));
+        const assignments = Object.entries(catalog.users).flatMap(([badgeId, userIds]) => {
+          const badge = definitions.get(badgeId);
+          if (!badge) return [];
+          return userIds.map((userId) => ({
+            userId: String(userId),
+            badge: {
+              id: `ffz:${badgeId}`,
+              provider: "ffz" as const,
+              providerId: badgeId,
+              title: badge.title || "FrankerFaceZ badge",
+              imageUrl: normalizeCosmeticUrl(badge.urls["4"] ?? badge.urls["2"] ?? badge.urls["1"]),
+              slot: badge.slot,
+              replaces: badge.replaces,
+              color: badge.color,
+            },
+          }));
+        });
+        store.setGlobalProviderBadges("ffz", assignments);
+      })
+      .catch(() => store.failGlobalProviderLoad("ffz"));
+  }, [enableFfzBadges]);
+
+  useEffect(() => {
+    if (!channelId) return;
+    const store = useChatCosmeticsStore.getState();
+    if (!enableFfzBadges) {
+      store.setFfzRoleBadges(channelId, {});
+      return;
+    }
+    let active = true;
+    const getFfzRoom = window.electronAPI.emotes.ffz.getRoom;
+    if (typeof getFfzRoom === "function") {
+      void getFfzRoom({ name: channel, channelId })
+        .then((room) => {
+          if (!active) return;
+          const roleBadge = (
+            role: "moderator" | "vip",
+            urls?: { "1": string; "2"?: string; "4"?: string } | null
+          ) =>
+            urls
+              ? {
+                  id: `ffz:room-${role}`,
+                  provider: "ffz" as const,
+                  providerId: `room-${role}`,
+                  title: `FrankerFaceZ ${role === "vip" ? "VIP" : "Moderator"}`,
+                  imageUrl: normalizeCosmeticUrl(urls["4"] ?? urls["2"] ?? urls["1"]),
+                }
+              : undefined;
+          store.setFfzRoleBadges(channelId, {
+            moderator: roleBadge("moderator", room?.room.mod_urls),
+            vip: roleBadge("vip", room?.room.vip_badge),
+          });
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      active = false;
+    };
+  }, [channel, channelId, enableFfzBadges]);
 
   // Initial Connection & Channel Joining
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadGlobalEmotes, setActiveChannel, and applyProviderPrefs are intentionally excluded — they would re-trigger the connect effect; applyProviderPrefs is called with an imperative getState() read inside the body to avoid making it reactive.
@@ -568,7 +677,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         // get "Login unsuccessful".
         const accessToken = await window.electronAPI.auth.getValidTwitchToken();
         const twitchUser = await window.electronAPI.auth.getTwitchUser();
-        const twitchClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
 
         // Check if component is still mounted after async calls
         if (!isMounted) return;
@@ -578,7 +686,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           await twitchChatService.connect({
             accessToken,
             user: twitchUser,
-            clientId: twitchClientId,
             // Re-fetch a fresh token before every reconnect so Twitch IRC's
             // OAuth-expiry-triggered disconnects don't trap us in a loop of
             // "Login unsuccessful" with the original stale token.
@@ -594,18 +701,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           }
 
           // Initialize Twitch Emotes
-          if (twitchClientId) {
-            await initializeTwitchEmotes(twitchClientId, accessToken);
-            // Sync 7TV/BTTV/FFZ enablement to the viewer's prefs BEFORE the
-            // global load so disabled providers are excluded from this fetch
-            // (next-load semantics, R10). Read prefs imperatively to avoid
-            // adding a reactive dep that would re-trigger the connect effect.
-            applyProviderPrefs(
-              useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
-            );
-            // Reload global emotes now that we have credentials
-            if (isMounted) await loadGlobalEmotes("twitch", { force: true });
-          }
+          await initializeTwitchEmotes();
+          // Sync 7TV/BTTV/FFZ enablement to the viewer's prefs BEFORE the
+          // global load so disabled providers are excluded from this fetch.
+          applyProviderPrefs(
+            useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
+          );
+          if (isMounted) await loadGlobalEmotes("twitch", { force: true });
 
           if (!isMounted) return;
 
@@ -629,6 +731,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               // Connection was aborted, don't continue
               return;
             }
+
+            // Guest quick emotes have no authenticated recent-emote history,
+            // so ensure Twitch globals are available before the channel joins.
+            await initializeTwitchEmotes();
+            applyProviderPrefs(
+              useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
+            );
+            if (isMounted) await loadGlobalEmotes("twitch");
+            if (!isMounted) return;
 
             await joinAndSeed(channel, channelId);
           }
@@ -744,23 +855,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     setActiveChannel(channelId);
 
     void (async () => {
-      const twitchClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-      let accessToken: string | null = null;
-
-      if (twitchClientId) {
-        try {
-          accessToken = await window.electronAPI.auth.getValidTwitchToken();
-        } catch (error) {
-          logger.warn("UI:Chat:Twitch", "failed to initialize Twitch emotes before channel load", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
+      await initializeTwitchEmotes();
       if (cancelled) return;
-
-      if (twitchClientId && accessToken) {
-        await initializeTwitchEmotes(twitchClientId, accessToken);
-      }
       if (!cancelled) {
         loadChannelEmotes(channelId, channel, "twitch");
       }
@@ -803,7 +899,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           await twitchChatService.connect({
             accessToken,
             user: twitchUser,
-            clientId: import.meta.env.VITE_TWITCH_CLIENT_ID,
             tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
           });
           if (cancelled) return;
@@ -1192,47 +1287,38 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const handlePinMessage = useCallback(
     async (message: ChatMessage, durationSeconds: number | null) => {
       const messageId = message.id;
-      const runPin = async (accessToken: string) => {
-        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-        if (!channelId || !clientId || !twitchUser?.id) return null;
-        return pinChatMessage(
-          channelId,
-          twitchUser.id,
+      const runPin = async () => {
+        if (!channelId || !twitchUser?.id) return null;
+        return window.electronAPI.twitch.execute({
+          operation: "pin-message",
+          broadcasterId: channelId,
+          moderatorId: twitchUser.id,
           messageId,
           durationSeconds,
-          accessToken,
-          clientId
-        );
+        });
       };
 
-      const token = await window.electronAPI.auth.getToken("twitch");
-      if (!token?.accessToken) return;
-      const result = await runPin(token.accessToken);
+      const result = await runPin();
       if (!result) return;
       if (result.ok) {
         setPinDialogMessage(null);
         toast.success("Pinned message");
-      } else if (result.kind === "unauthenticated" || result.kind === "missing-scopes") {
+      } else if (result.error.code === "unauthorized") {
         setPinDialogMessage(null);
         promptReconnect({
-          missingScopes:
-            result.kind === "missing-scopes"
-              ? result.missingScopes
-              : ["moderator:manage:chat_messages"],
+          missingScopes: ["moderator:manage:chat_messages"],
           onReconnected: async () => {
-            const fresh = await window.electronAPI.auth.getToken("twitch");
-            if (!fresh?.accessToken) return;
-            const retry = await runPin(fresh.accessToken);
+            const retry = await runPin();
             if (retry?.ok) toast.success("Pinned message");
             else if (retry)
               toast.error("Couldn't pin message", {
-                description: retry.message ?? retry.kind,
+                description: retry.error.message,
               });
           },
         });
       } else {
         toast.error("Couldn't pin message", {
-          description: result.message ?? result.kind,
+          description: result.error.message,
         });
         setPinDialogMessage(null);
       }
@@ -1325,47 +1411,35 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               isMod && pinnedMessage.messageId && twitchUser?.id && channelId
                 ? async () => {
                     setPinMenuBusy(true);
-                    const runUnpin = async (accessToken: string) => {
-                      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                      if (!clientId || !twitchUser?.id || !channelId) return null;
-                      return unpinChatMessage(
-                        channelId,
-                        twitchUser.id,
-                        pinnedMessage.messageId,
-                        accessToken,
-                        clientId
-                      );
+                    const runUnpin = async () => {
+                      if (!twitchUser?.id || !channelId) return null;
+                      return window.electronAPI.twitch.execute({
+                        operation: "unpin-message",
+                        broadcasterId: channelId,
+                        moderatorId: twitchUser.id,
+                        messageId: pinnedMessage.messageId,
+                      });
                     };
                     if (!modScopesLoading && !hasModScopes) {
                       promptReconnect({
                         missingScopes: ["moderator:manage:chat_messages"],
                         onReconnected: async () => {
-                          const fresh = await window.electronAPI.auth.getToken("twitch");
-                          if (!fresh?.accessToken) return;
-                          const retry = await runUnpin(fresh.accessToken);
+                          const retry = await runUnpin();
                           if (retry?.ok) setPinnedMessage(null);
                         },
                       });
                       return;
                     }
                     try {
-                      const token = await window.electronAPI.auth.getToken("twitch");
-                      if (!token?.accessToken) return;
-                      const result = await runUnpin(token.accessToken);
+                      const result = await runUnpin();
                       if (!result) return;
                       if (result.ok) {
                         // Optimistic local clear, poller will reconcile on
                         // the next tick when Twitch confirms.
                         setPinnedMessage(null);
-                      } else if (
-                        result.kind === "unauthenticated" ||
-                        result.kind === "missing-scopes"
-                      ) {
+                      } else if (result.error.code === "unauthorized") {
                         promptReconnect({
-                          missingScopes:
-                            result.kind === "missing-scopes"
-                              ? result.missingScopes
-                              : ["moderator:manage:chat_messages"],
+                          missingScopes: ["moderator:manage:chat_messages"],
                         });
                       }
                     } catch (error) {
@@ -1384,17 +1458,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               isMod && pinnedMessage.messageId && twitchUser?.id && channelId
                 ? async (durationSeconds) => {
                     setPinMenuBusy(true);
-                    const runUpdatePin = async (accessToken: string) => {
-                      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                      if (!clientId || !twitchUser?.id || !channelId) return null;
-                      return updatePinnedChatMessage(
-                        channelId,
-                        twitchUser.id,
-                        pinnedMessage.messageId,
+                    const runUpdatePin = async () => {
+                      if (!twitchUser?.id || !channelId) return null;
+                      return window.electronAPI.twitch.execute({
+                        operation: "update-pin",
+                        broadcasterId: channelId,
+                        moderatorId: twitchUser.id,
+                        messageId: pinnedMessage.messageId,
                         durationSeconds,
-                        accessToken,
-                        clientId
-                      );
+                      });
                     };
                     const applyOptimisticDuration = () => {
                       const pinnedAt = new Date().toISOString();
@@ -1414,15 +1486,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                         promptReconnect({
                           missingScopes: ["moderator:manage:chat_messages"],
                           onReconnected: async () => {
-                            const fresh = await window.electronAPI.auth.getToken("twitch");
-                            if (!fresh?.accessToken) return;
-                            const retry = await runUpdatePin(fresh.accessToken);
+                            const retry = await runUpdatePin();
                             if (retry?.ok) {
                               applyOptimisticDuration();
                               toast.success("Pinned message updated");
                             } else if (retry) {
                               toast.error("Couldn't update pinned message", {
-                                description: retry.message ?? retry.kind,
+                                description: retry.error.message,
                               });
                             }
                           },
@@ -1430,26 +1500,18 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                         return;
                       }
 
-                      const token = await window.electronAPI.auth.getToken("twitch");
-                      if (!token?.accessToken) return;
-                      const result = await runUpdatePin(token.accessToken);
+                      const result = await runUpdatePin();
                       if (!result) return;
                       if (result.ok) {
                         applyOptimisticDuration();
                         toast.success("Pinned message updated");
-                      } else if (
-                        result.kind === "unauthenticated" ||
-                        result.kind === "missing-scopes"
-                      ) {
+                      } else if (result.error.code === "unauthorized") {
                         promptReconnect({
-                          missingScopes:
-                            result.kind === "missing-scopes"
-                              ? result.missingScopes
-                              : ["moderator:manage:chat_messages"],
+                          missingScopes: ["moderator:manage:chat_messages"],
                         });
                       } else {
                         toast.error("Couldn't update pinned message", {
-                          description: result.message ?? result.kind,
+                          description: result.error.message,
                         });
                       }
                     } catch (error) {
@@ -1466,7 +1528,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             currentChannelContext={currentChannelContext}
           />
         )}
-        <ModerationFixtureLauncher channel={channel} channelId={channelId} />
+        <ModerationFixtureLauncher />
         <ChatMessageList
           key={`twitch-${channel}`}
           channelKey={channelKey}
@@ -1532,26 +1594,25 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         />
       </div>
 
-      <div className="border-t border-[var(--color-border)]">
+      <ChatComposerFooter>
         {/* Footer composer owns message send actions and quick chat settings. */}
-        <div className="p-2">
-          <ChatInput
-            ref={chatInputRef}
-            platform="twitch"
-            channel={channel}
-            channelId={channelId ?? null}
-            canSend={isAuthenticated && isTwitchConnected}
-            isAuthenticated={isAuthenticated}
-            onAuthRequired={() => loginTwitch()}
-            viewerCanBypassRoomModes={isMod}
-            checkSubscriberEligibility={(request) =>
-              window.electronAPI.chat.checkSubscriberEligibility(request)
-            }
-            showModViewLink={isAuthenticated && isMod}
-            onSendEligibilityChange={handleSendEligibilityChange}
-          />
-        </div>
-      </div>
+        <ChatInput
+          ref={chatInputRef}
+          platform="twitch"
+          channel={channel}
+          channelId={channelId ?? null}
+          canSend={isAuthenticated && isTwitchConnected}
+          isAuthenticated={isAuthenticated}
+          viewerUserId={isAuthenticated ? twitchUser?.id : undefined}
+          onAuthRequired={() => loginTwitch()}
+          viewerCanBypassRoomModes={isMod}
+          checkSubscriberEligibility={(request) =>
+            window.electronAPI.chat.checkSubscriberEligibility(request)
+          }
+          showModViewLink={isAuthenticated && isMod}
+          onSendEligibilityChange={handleSendEligibilityChange}
+        />
+      </ChatComposerFooter>
     </div>
   );
 
@@ -1593,6 +1654,42 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         {pendingModAction && channelId && twitchUser
           ? (() => {
               const action = pendingModAction;
+              if (action.kind === "messageScoped" && action.actionType === "timeout") {
+                return (
+                  <StateAwareTimeoutAction
+                    presentation="dialog"
+                    open
+                    onOpenChange={(nextOpen) => {
+                      if (!nextOpen) setPendingModAction(null);
+                    }}
+                    binding={{
+                      platform: "twitch",
+                      channelId,
+                      channelSlug: channel,
+                      targetUserId: action.message.userId,
+                      targetUsername: action.message.username,
+                      selectedMessageId: action.message.id,
+                      action: "timeout",
+                    }}
+                    displayName={action.message.displayName || action.message.username}
+                    targetPreview={
+                      <div>
+                        <div className="line-clamp-2">{action.message.rawContent || ""}</div>
+                        <div className="mt-1 text-xs text-[var(--color-foreground-muted)]">
+                          from @{action.message.username}
+                        </div>
+                      </div>
+                    }
+                    onPendingChange={setModActionBusy}
+                    onSuccess={async () => {
+                      markUserUnbannable(action.message.userId);
+                      await queryClient.invalidateQueries({
+                        queryKey: MOD_LOG_QUERY_KEYS.channel("twitch", channelId),
+                      });
+                    }}
+                  />
+                );
+              }
               // Choose actionType for the dialog copy lookup. Chat-mode toggles
               // reuse a single actionType per kind regardless of on/off — only
               // shield has an explicit shieldOff variant for CTA clarity.
@@ -1672,8 +1769,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                 );
               }
 
-              const needsTimeoutSlot =
-                action.kind === "messageScoped" && action.actionType === "timeout";
               const needsWarnSlot = action.kind === "messageScoped" && action.actionType === "warn";
               const needsSlowModeSlot =
                 action.kind === "stripChatMode" &&
@@ -1703,154 +1798,151 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                       warnReason.trim().length > MAX_TWITCH_WARN_REASON_LENGTH)
                   }
                   extraSlot={
-                    needsTimeoutSlot
+                    needsWarnSlot
                       ? ({ onDataChange, disabled }) => (
-                          <TimeoutDurationPicker
-                            disabled={disabled}
-                            onChange={(s) => onDataChange({ durationSeconds: s })}
-                          />
-                        )
-                      : needsWarnSlot
-                        ? ({ onDataChange, disabled }) => (
-                            <div className="space-y-2">
-                              <label
-                                htmlFor="twitch-warn-reason"
-                                className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
-                              >
-                                Warning reason
-                              </label>
-                              <textarea
-                                id="twitch-warn-reason"
-                                value={warnReason}
-                                maxLength={MAX_TWITCH_WARN_REASON_LENGTH}
-                                disabled={disabled}
-                                onChange={(event) => {
-                                  const next = event.currentTarget.value;
-                                  setWarnReason(next);
-                                  onDataChange({ reason: next });
-                                }}
-                                className="min-h-24 w-full resize-none rounded-md border border-[var(--color-border)] bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-[var(--color-foreground-muted)] focus:border-[#9146FF] focus:ring-1 focus:ring-[#9146FF]"
-                                placeholder="Reason shown to the user"
-                              />
-                              <div className="text-right text-xs text-[var(--color-foreground-muted)]">
-                                {warnReason.trim().length}/{MAX_TWITCH_WARN_REASON_LENGTH}
-                              </div>
+                          <div className="space-y-2">
+                            <label
+                              htmlFor="twitch-warn-reason"
+                              className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
+                            >
+                              Warning reason
+                            </label>
+                            <textarea
+                              id="twitch-warn-reason"
+                              value={warnReason}
+                              maxLength={MAX_TWITCH_WARN_REASON_LENGTH}
+                              disabled={disabled}
+                              onChange={(event) => {
+                                const next = event.currentTarget.value;
+                                setWarnReason(next);
+                                onDataChange({ reason: next });
+                              }}
+                              className="min-h-24 w-full resize-none rounded-md border border-[var(--color-border)] bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-[var(--color-foreground-muted)] focus:border-[#9146FF] focus:ring-1 focus:ring-[#9146FF]"
+                              placeholder="Reason shown to the user"
+                            />
+                            <div className="text-right text-xs text-[var(--color-foreground-muted)]">
+                              {warnReason.trim().length}/{MAX_TWITCH_WARN_REASON_LENGTH}
                             </div>
+                          </div>
+                        )
+                      : needsSlowModeSlot
+                        ? ({ onDataChange, disabled }) => (
+                            <TimeoutDurationPicker
+                              disabled={disabled}
+                              onChange={(s) => onDataChange({ durationSeconds: s })}
+                            />
                           )
-                        : needsSlowModeSlot
+                        : needsFollowersSlot
                           ? ({ onDataChange, disabled }) => (
                               <TimeoutDurationPicker
                                 disabled={disabled}
                                 onChange={(s) => onDataChange({ durationSeconds: s })}
                               />
                             )
-                          : needsFollowersSlot
+                          : needsRaidSlot
                             ? ({ onDataChange, disabled }) => (
-                                <TimeoutDurationPicker
+                                <RaidTargetPicker
+                                  selfBroadcasterId={twitchUser.id}
                                   disabled={disabled}
-                                  onChange={(s) => onDataChange({ durationSeconds: s })}
+                                  onChange={(target) => onDataChange(target)}
                                 />
                               )
-                            : needsRaidSlot
-                              ? ({ onDataChange, disabled }) => (
-                                  <RaidTargetPicker
-                                    selfBroadcasterId={twitchUser.id}
-                                    disabled={disabled}
-                                    onChange={(target) => onDataChange(target)}
-                                  />
-                                )
-                              : undefined
+                            : undefined
                   }
                   onConfirm={async (extraData) => {
                     if (!pendingModAction) return;
-                    const runMessageAction = async (
-                      accessToken: string,
-                      clientId: string
-                    ): Promise<HelixModResult<unknown>> => {
+                    const runMessageAction = async () => {
                       if (action.kind !== "messageScoped") {
                         throw new Error("unreachable");
                       }
                       const ctx = {
-                        accessToken,
-                        clientId,
                         broadcasterId: channelId,
                         moderatorId: twitchUser.id,
                       };
                       switch (action.actionType) {
                         case "ban":
-                          return banUser({ ...ctx, userId: action.message.userId });
-                        case "timeout": {
-                          const seconds =
-                            (extraData as { durationSeconds?: number } | undefined)
-                              ?.durationSeconds ?? 600;
-                          return timeoutUser({
+                          return window.electronAPI.twitch.execute({
+                            operation: "ban-user",
                             ...ctx,
                             userId: action.message.userId,
-                            durationSeconds: seconds,
                           });
-                        }
+                        case "timeout":
+                          throw new Error("Timeout must use the state-aware moderation IPC");
                         case "warn": {
                           const reason =
                             (extraData as { reason?: string } | undefined)?.reason ?? warnReason;
-                          return warnUser({
+                          return window.electronAPI.twitch.execute({
+                            operation: "warn-user",
                             ...ctx,
                             userId: action.message.userId,
                             reason,
                           });
                         }
                         case "unban":
-                          return unbanUser({ ...ctx, userId: action.message.userId });
+                          return window.electronAPI.twitch.execute({
+                            operation: "unban-user",
+                            ...ctx,
+                            userId: action.message.userId,
+                          });
                         case "delete":
-                          return deleteChatMessage({
+                          return window.electronAPI.twitch.execute({
+                            operation: "delete-chat-message",
                             ...ctx,
                             messageId: action.message.id,
                           });
                       }
                     };
 
-                    const runStripAction = async (
-                      accessToken: string,
-                      clientId: string
-                    ): Promise<HelixModResult<unknown>> => {
+                    const runStripAction = async () => {
                       const ctx = {
-                        accessToken,
-                        clientId,
                         broadcasterId: channelId,
                         moderatorId: twitchUser.id,
                       };
                       if (action.kind === "strip") {
                         switch (action.actionType) {
                           case "clear":
-                            return clearChatHelix(ctx);
+                            return window.electronAPI.twitch.execute({
+                              operation: "clear-chat",
+                              ...ctx,
+                            });
                           case "raid": {
                             const target = extraData as RaidTarget | null | undefined;
                             if (!target) {
                               return {
-                                ok: false,
-                                kind: "network",
-                                message: "Pick a target channel first",
+                                ok: false as const,
+                                error: {
+                                  code: "invalid-input" as const,
+                                  message: "Pick a target channel first",
+                                },
                               };
                             }
-                            return startRaid({
-                              accessToken,
-                              clientId,
+                            return window.electronAPI.twitch.execute({
+                              operation: "start-raid",
                               fromBroadcasterId: channelId,
                               toBroadcasterId: target.broadcasterId,
                             });
                           }
                           case "commercial":
-                            return runCommercial({
-                              accessToken,
-                              clientId,
+                            return window.electronAPI.twitch.execute({
+                              operation: "run-commercial",
                               broadcasterId: channelId,
                               length: 60,
                             });
                           case "shield":
-                            return setShieldMode({ ...ctx, active: true });
+                            return window.electronAPI.twitch.execute({
+                              operation: "set-shield-mode",
+                              ...ctx,
+                              active: true,
+                            });
                           case "shieldOff":
-                            return setShieldMode({ ...ctx, active: false });
+                            return window.electronAPI.twitch.execute({
+                              operation: "set-shield-mode",
+                              ...ctx,
+                              active: false,
+                            });
                           case "uniqueChat":
-                            return updateChatSettings({
+                            return window.electronAPI.twitch.execute({
+                              operation: "update-chat-settings",
                               ...ctx,
                               settings: {
                                 unique_chat_mode: !action.currentlyActive,
@@ -1866,7 +1958,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                               ? ((extraData as { durationSeconds?: number } | undefined)
                                   ?.durationSeconds ?? 30)
                               : undefined;
-                            return updateChatSettings({
+                            return window.electronAPI.twitch.execute({
+                              operation: "update-chat-settings",
                               ...ctx,
                               settings: {
                                 slow_mode: turnOn,
@@ -1883,7 +1976,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                             const minutes = turnOn
                               ? Math.max(0, Math.floor((seconds ?? 600) / 60))
                               : undefined;
-                            return updateChatSettings({
+                            return window.electronAPI.twitch.execute({
+                              operation: "update-chat-settings",
                               ...ctx,
                               settings: {
                                 follower_mode: turnOn,
@@ -1892,12 +1986,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                             });
                           }
                           case "subscribers-only":
-                            return updateChatSettings({
+                            return window.electronAPI.twitch.execute({
+                              operation: "update-chat-settings",
                               ...ctx,
                               settings: { subscriber_mode: turnOn },
                             });
                           case "emote-only":
-                            return updateChatSettings({
+                            return window.electronAPI.twitch.execute({
+                              operation: "update-chat-settings",
                               ...ctx,
                               settings: { emote_mode: turnOn },
                             });
@@ -1911,14 +2007,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
                     setModActionBusy(true);
                     try {
-                      const token = await window.electronAPI.auth.getToken("twitch");
-                      const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                      if (!token?.accessToken || !clientId) {
-                        setPendingModAction(null);
-                        toast.error("Sign in to Twitch to take this action");
-                        return;
-                      }
-                      const result = await runAction(token.accessToken, clientId);
+                      const result = await runAction();
                       if (result.ok) {
                         // Optimistic room-state writeback so the strip flips its
                         // toggles immediately. The Helix call has already
@@ -1983,14 +2072,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                               currentModeratorPresentation()
                             );
                             showModActionSuccessToast("Deleted message");
-                          } else {
-                            markUserUnbannable(action.message.userId);
-                            const seconds =
-                              (extraData as { durationSeconds?: number } | undefined)
-                                ?.durationSeconds ?? 600;
-                            showModActionSuccessToast(
-                              `Timed out ${username} for ${formatTimeoutLabel(seconds)}`
-                            );
                           }
                         } else if (action.kind === "strip") {
                           toast.success("Done");
@@ -2000,21 +2081,19 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                         return;
                       }
 
-                      if (result.kind === "missing-scopes") {
+                      if (result.error.code === "unauthorized") {
                         setPendingModAction(null);
                         setWarnReason("");
                         promptReconnect({
                           missingScopes:
-                            result.missingScopes.length > 0
-                              ? result.missingScopes
-                              : action.kind === "messageScoped" && action.actionType === "warn"
-                                ? [TWITCH_WARN_SCOPE]
-                                : result.missingScopes,
+                            action.kind === "messageScoped" && action.actionType === "warn"
+                              ? [TWITCH_WARN_SCOPE]
+                              : action.kind === "messageScoped" &&
+                                  (action.actionType === "ban" || action.actionType === "unban")
+                                ? ["moderator:manage:banned_users"]
+                                : ["moderator:manage:chat_messages"],
                           onReconnected: async () => {
-                            const fresh = await window.electronAPI.auth.getToken("twitch");
-                            const freshClientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-                            if (!fresh?.accessToken || !freshClientId) return;
-                            const retry = await runAction(fresh.accessToken, freshClientId);
+                            const retry = await runAction();
                             if (retry.ok) {
                               if (
                                 action.kind === "messageScoped" &&
@@ -2028,28 +2107,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
                               }
                             } else
                               toast.error("Action still failed after reconnect", {
-                                description: retry.message,
+                                description: retry.error.message,
                               });
                           },
                         });
                         return;
                       }
-                      if (result.kind === "forbidden") {
-                        toast.error("Action forbidden", { description: result.message });
-                        return;
-                      }
-                      if (result.kind === "rate-limited") {
-                        const retry = result.retryAfterSeconds;
-                        toast.error(
-                          retry !== null
-                            ? `Rate-limited, retry in ${retry}s`
-                            : "Rate-limited, retry shortly"
-                        );
-                        return;
-                      }
                       setPendingModAction(null);
                       toast.error("Couldn't complete action", {
-                        description: result.message ?? result.kind,
+                        description: result.error.message,
                       });
                     } finally {
                       setModActionBusy(false);

@@ -1086,7 +1086,6 @@ describe("PinnedMessageBanner", () => {
     expect(expandedScrollArea.getAttribute("style")).toContain("overflow-x: hidden");
     expect(expandedScrollArea.getAttribute("style")).toContain("overflow-y: scroll");
     expect(expandedScrollArea.getAttribute("style")).toContain("margin-inline-end: -10px");
-    expect(expandedScrollArea.getAttribute("style")).toContain("scrollbar-color:");
     expect(expandedScrollArea.getAttribute("style")).not.toContain("mask-image:");
     expect(expandedScrollArea.className).toContain("pinned-message-scrollbar");
   });

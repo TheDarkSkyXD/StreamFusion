@@ -51,35 +51,27 @@ describe("InfoBanner", () => {
   it("renders Followers Only Mode [5m] when only followersOnly: 5", () => {
     mockRoomState({ followersOnly: 5 });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Followers Only Mode [5m]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Followers Only Mode [5m]");
     // Tooltip lists it (even when collapsed it's rendered as a Radix portal
     // when open — but Radix mounts content lazily; we still verify the
     // row exists in the DOM by querying the testid that's rendered when
     // the Tooltip opens. We open via focus below.)
     const icon = screen.getByTestId("info-banner-icon");
     fireEvent.focus(icon);
-    expect(tooltipRow("followers")).toHaveTextContent(
-      "Followers Only Mode Enabled [5m]",
-    );
+    expect(tooltipRow("followers")).toHaveTextContent("Followers Only Mode Enabled [5m]");
   });
 
   it("renders Followers Only Mode (no bracket) when followersOnly: 0", () => {
     mockRoomState({ followersOnly: 0 });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Followers Only Mode",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Followers Only Mode");
     expect(screen.getByTestId("info-banner-primary").textContent).not.toContain("[");
   });
 
   it("followers precedence wins over slow when both active; tooltip lists both", () => {
     mockRoomState({ followersOnly: 5, slowMode: 30 });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Followers Only Mode [5m]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Followers Only Mode [5m]");
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(tooltipRow("followers")).toBeInTheDocument();
     expect(tooltipRow("slow")).toHaveTextContent("Slow Mode Enabled [30s]");
@@ -87,16 +79,8 @@ describe("InfoBanner", () => {
 
   it("skips follower-only and shows subscribers-only when the authenticated viewer follows", () => {
     mockRoomState({ followersOnly: 5, subscribersOnly: true });
-    render(
-      <InfoBanner
-        platform="twitch"
-        channelId="123"
-        viewerSatisfiesFollowerOnly={true}
-      />,
-    );
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Subscribers Only Mode",
-    );
+    render(<InfoBanner platform="twitch" channelId="123" viewerSatisfiesFollowerOnly={true} />);
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Subscribers Only Mode");
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(screen.queryByTestId("info-banner-tooltip-row-followers")).toBeNull();
     expect(tooltipRow("subscribers")).toBeInTheDocument();
@@ -104,16 +88,8 @@ describe("InfoBanner", () => {
 
   it("skips follower-only and shows slow mode when the authenticated viewer follows", () => {
     mockRoomState({ followersOnly: 5, slowMode: 30 });
-    render(
-      <InfoBanner
-        platform="twitch"
-        channelId="123"
-        viewerSatisfiesFollowerOnly={true}
-      />,
-    );
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Slow Mode [30s]",
-    );
+    render(<InfoBanner platform="twitch" channelId="123" viewerSatisfiesFollowerOnly={true} />);
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Slow Mode [30s]");
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(screen.queryByTestId("info-banner-tooltip-row-followers")).toBeNull();
     expect(tooltipRow("slow")).toBeInTheDocument();
@@ -122,11 +98,7 @@ describe("InfoBanner", () => {
   it("renders no banner when followed-account follower-only is the only active mode", () => {
     mockRoomState({ followersOnly: 5 });
     const { container } = render(
-      <InfoBanner
-        platform="twitch"
-        channelId="123"
-        viewerSatisfiesFollowerOnly={true}
-      />,
+      <InfoBanner platform="twitch" channelId="123" viewerSatisfiesFollowerOnly={true} />
     );
     expect(container.firstChild).toBeNull();
   });
@@ -134,39 +106,16 @@ describe("InfoBanner", () => {
   it("subscribers precedence wins over emoteOnly; tooltip lists both", () => {
     mockRoomState({ subscribersOnly: true, emoteOnly: true });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Subscribers Only Mode",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Subscribers Only Mode");
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(tooltipRow("subscribers")).toBeInTheDocument();
     expect(tooltipRow("emoteOnly")).toBeInTheDocument();
   });
 
-  it("renders Twitch phone verification as a strict chat blocker", () => {
-    mockRoomState({ twitchVerification: "phone", slowMode: 30 });
-    render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Phone Verification Required"
-    );
-    fireEvent.focus(screen.getByTestId("info-banner-icon"));
-    expect(tooltipRow("twitchVerification")).toHaveTextContent(
-      "Phone Verification Required"
-    );
-    expect(tooltipRow("slow")).toBeInTheDocument();
-  });
-
-  it("ignores Twitch verification mode on Kick", () => {
-    mockRoomState({ twitchVerification: "phone" });
-    const { container } = render(<InfoBanner platform="kick" channelId="42" />);
-    expect(container.firstChild).toBeNull();
-  });
-
   it("renders Account Age Mode [3m] on Kick when accountAge: 3", () => {
     mockRoomState({ accountAge: 3 });
     render(<InfoBanner platform="kick" channelId="42" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Account Age Mode [3m]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Account Age Mode [3m]");
   });
 
   it("ignores accountAge on Twitch even when set (defensive platform asymmetry)", () => {
@@ -181,25 +130,19 @@ describe("InfoBanner", () => {
   it("formats slowMode 90s as `1m 30s`", () => {
     mockRoomState({ slowMode: 90 });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Slow Mode [1m 30s]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Slow Mode [1m 30s]");
   });
 
   it("formats slowMode 60s as `1m` (no trailing 0s)", () => {
     mockRoomState({ slowMode: 60 });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Slow Mode [1m]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Slow Mode [1m]");
   });
 
   it("renders Unique Chat Mode on Twitch when only uniqueChat active", () => {
     mockRoomState({ uniqueChat: true });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Unique Chat Mode",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Unique Chat Mode");
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(tooltipRow("uniqueChat")).toHaveTextContent("Unique Chat Mode Enabled");
   });
@@ -207,17 +150,13 @@ describe("InfoBanner", () => {
   it("renders Shield Mode on Twitch when only shieldMode active", () => {
     mockRoomState({ shieldMode: true });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Shield Mode",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Shield Mode");
   });
 
   it("uniqueChat does NOT displace followers as primary; both appear in tooltip", () => {
     mockRoomState({ followersOnly: 5, uniqueChat: true });
     render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Followers Only Mode [5m]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Followers Only Mode [5m]");
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(tooltipRow("followers")).toBeInTheDocument();
     expect(tooltipRow("uniqueChat")).toBeInTheDocument();
@@ -242,9 +181,9 @@ describe("InfoBanner", () => {
     // are sufficient because we don't await; Radix tears down synchronously
     // on blur for non-portaled trees.)
     // Use queryAllByTestId to be tolerant of either teardown timing.
-    expect(
-      screen.queryAllByTestId("info-banner-tooltip-row-followers").length,
-    ).toBeLessThanOrEqual(1);
+    expect(screen.queryAllByTestId("info-banner-tooltip-row-followers").length).toBeLessThanOrEqual(
+      1
+    );
   });
 
   it("precedence chain verified tabularly: followers → subscribers → accountAge → emoteOnly → slow", () => {
@@ -257,9 +196,7 @@ describe("InfoBanner", () => {
       slowMode: 30,
     });
     const { rerender } = render(<InfoBanner platform="kick" channelId="42" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Followers Only Mode [5m]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Followers Only Mode [5m]");
 
     // Drop followers — subscribers wins.
     mockRoomState({
@@ -271,43 +208,35 @@ describe("InfoBanner", () => {
     rerender(
       <TooltipProvider>
         <InfoBanner platform="kick" channelId="42" />
-      </TooltipProvider>,
+      </TooltipProvider>
     );
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Subscribers Only Mode",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Subscribers Only Mode");
 
     // Drop subscribers — accountAge wins (Kick only).
     mockRoomState({ accountAge: 3, emoteOnly: true, slowMode: 30 });
     rerender(
       <TooltipProvider>
         <InfoBanner platform="kick" channelId="42" />
-      </TooltipProvider>,
+      </TooltipProvider>
     );
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Account Age Mode [3m]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Account Age Mode [3m]");
 
     // Drop accountAge — emoteOnly wins.
     mockRoomState({ emoteOnly: true, slowMode: 30 });
     rerender(
       <TooltipProvider>
         <InfoBanner platform="kick" channelId="42" />
-      </TooltipProvider>,
+      </TooltipProvider>
     );
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Emote Only Mode",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Emote Only Mode");
 
     // Drop emoteOnly — slow wins.
     mockRoomState({ slowMode: 30 });
     rerender(
       <TooltipProvider>
         <InfoBanner platform="kick" channelId="42" />
-      </TooltipProvider>,
+      </TooltipProvider>
     );
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent(
-      "Slow Mode [30s]",
-    );
+    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Slow Mode [30s]");
   });
 });

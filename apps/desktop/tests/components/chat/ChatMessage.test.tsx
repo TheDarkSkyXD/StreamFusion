@@ -1,12 +1,17 @@
 import { act, fireEvent, render as rtlRender, screen } from "@testing-library/react";
-import type { ReactElement } from "react";
+import { Profiler, type ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  type TimestampFormat,
+} from "@/shared/auth-types";
 import type { ChatBadge, ChatMessage as ChatMessageType } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
+import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
 
 // Seed the chatDisplay prefs the renderer reads. Leaving the store at its
 // natural null default (the afterEach reset) gives DEFAULT_CHAT_DISPLAY_PREFERENCES.
@@ -25,6 +30,7 @@ function render(ui: ReactElement) {
 }
 
 beforeEach(() => {
+  useChatCosmeticsStore.getState().reset();
   // Reset chatDisplay to defaults before each render so the existing tests see
   // the shipped defaults (timestamps off) and new-test overrides don't leak.
   useAuthStore.setState((s) => ({
@@ -109,6 +115,187 @@ describe("ChatMessage", () => {
     render(<ChatMessage message={baseMessage({ badges })} />);
 
     expect(screen.getAllByRole("img", { name: /^badge-/ })).toHaveLength(6);
+  });
+
+  it("keeps official role semantics while ordering enabled provider badges after Twitch badges", () => {
+    const official = [badge("moderator")];
+    const cosmetics = useChatCosmeticsStore.getState();
+    cosmetics.setGlobalProviderBadges("bttv", [
+      {
+        userId: "u1",
+        badge: {
+          id: "bttv:pro",
+          provider: "bttv",
+          providerId: "pro",
+          title: "Pro",
+          imageUrl: "bttv.png",
+        },
+      },
+    ]);
+    cosmetics.setGlobalProviderBadges("ffz", [
+      {
+        userId: "u1",
+        badge: {
+          id: "ffz:dev",
+          provider: "ffz",
+          providerId: "dev",
+          title: "Dev",
+          imageUrl: "ffz.png",
+        },
+      },
+    ]);
+    cosmetics.applySevenTvEvent("channel-1", {
+      type: "badge.upsert",
+      badge: {
+        id: "7tv:founder",
+        provider: "7tv",
+        providerId: "founder",
+        title: "Founder",
+        imageUrl: "7tv.png",
+      },
+    });
+    cosmetics.applySevenTvEvent("channel-1", {
+      type: "assignment.upsert",
+      assignment: { userId: "u1", kind: "badge", cosmeticId: "founder" },
+    });
+    cosmetics.setFfzRoleBadges("channel-1", {
+      moderator: {
+        id: "ffz:room-moderator",
+        provider: "ffz",
+        providerId: "room-moderator",
+        title: "FFZ Moderator",
+        imageUrl: "ffz-mod.png",
+      },
+    });
+
+    render(
+      <ChatMessage
+        message={baseMessage({ badges: official })}
+        currentChannelContext={{ channelId: "channel-1", channelSlug: "ninja" }}
+      />
+    );
+
+    expect(screen.getAllByRole("img").map((image) => image.getAttribute("alt"))).toEqual([
+      "moderator",
+      "FrankerFaceZ: Dev",
+      "BetterTTV: Pro",
+      "7TV: Founder",
+    ]);
+    expect(screen.getByAltText("moderator")).toHaveAttribute("src", "ffz-mod.png");
+    expect(official).toEqual([badge("moderator")]);
+    expect(screen.getByTestId("moderator-chat-highlight")).toBeInTheDocument();
+  });
+
+  it("removes a disabled provider at render time without changing official badges", () => {
+    setChatDisplay({ enableBttvBadges: false });
+    useChatCosmeticsStore.getState().setGlobalProviderBadges("bttv", [
+      {
+        userId: "u1",
+        badge: {
+          id: "bttv:pro",
+          provider: "bttv",
+          providerId: "pro",
+          title: "Pro",
+          imageUrl: "bttv.png",
+        },
+      },
+    ]);
+    render(
+      <ChatMessage
+        message={baseMessage({ badges: [badge("subscriber")] })}
+        currentChannelContext={{ channelId: "channel-1", channelSlug: "ninja" }}
+      />
+    );
+    expect(screen.getByAltText("subscriber")).toBeInTheDocument();
+    expect(screen.queryByAltText("BetterTTV: Pro")).toBeNull();
+  });
+
+  it("uses assigned FFZ replacements in official slots and orders remaining badges by slot", () => {
+    const cosmetics = useChatCosmeticsStore.getState();
+    cosmetics.setGlobalProviderBadges("ffz", [
+      {
+        userId: "u1",
+        badge: {
+          id: "ffz:bot",
+          provider: "ffz",
+          providerId: "bot",
+          title: "Bot",
+          imageUrl: "bot.png",
+          replaces: "moderator",
+          slot: 1,
+          color: "#00ad03",
+        },
+      },
+      {
+        userId: "u1",
+        badge: {
+          id: "ffz:late",
+          provider: "ffz",
+          providerId: "late",
+          title: "Late",
+          imageUrl: "late.png",
+          slot: 20,
+          color: "#abcdef",
+        },
+      },
+      {
+        userId: "u1",
+        badge: {
+          id: "ffz:early",
+          provider: "ffz",
+          providerId: "early",
+          title: "Early",
+          imageUrl: "early.png",
+          slot: 10,
+          color: "#123456",
+        },
+      },
+    ]);
+
+    render(
+      <ChatMessage
+        message={baseMessage({ badges: [badge("moderator")] })}
+        currentChannelContext={{ channelId: "channel-1", channelSlug: "ninja" }}
+      />
+    );
+
+    expect(screen.getAllByRole("img").map((image) => image.getAttribute("alt"))).toEqual([
+      "moderator",
+      "FrankerFaceZ: Early",
+      "FrankerFaceZ: Late",
+    ]);
+    expect(screen.getByAltText("moderator")).toHaveAttribute("src", "bot.png");
+    expect(screen.getByAltText("moderator")).toHaveStyle({ backgroundColor: "rgb(0, 173, 3)" });
+    expect(screen.queryByAltText("FrankerFaceZ: Bot")).toBeNull();
+    expect(screen.getByTestId("moderator-chat-highlight")).toBeInTheDocument();
+  });
+
+  it("does not rerender for an unrelated cosmetic definition", () => {
+    let commitCount = 0;
+    render(
+      <Profiler id="chat-message" onRender={() => commitCount++}>
+        <ChatMessage
+          message={baseMessage()}
+          currentChannelContext={{ channelId: "channel-1", channelSlug: "ninja" }}
+        />
+      </Profiler>
+    );
+    const initialCommitCount = commitCount;
+
+    act(() => {
+      useChatCosmeticsStore.getState().applySevenTvEvent("channel-1", {
+        type: "badge.upsert",
+        badge: {
+          id: "7tv:unrelated",
+          provider: "7tv",
+          providerId: "unrelated",
+          title: "Unrelated",
+          imageUrl: "unrelated.png",
+        },
+      });
+    });
+
+    expect(commitCount).toBe(initialCommitCount);
   });
 
   it("keeps the message colon attached to a long username", () => {
@@ -555,26 +742,36 @@ describe("ChatMessage", () => {
 });
 
 describe("ChatMessage chatDisplay appearance (U2)", () => {
-  // 2026-05-24T14:05:00 local — distinguishes 12h (2:05 PM) from 24h (14:05).
-  const FIXED_TS = new Date(2026, 4, 24, 14, 5, 0).getTime();
+  // Guards: every persisted Xtra timestamp format renders deterministically in local time,
+  // including padding, seconds, and uppercase AM/PM, while invalid dates stay harmless.
+  const FIXED_TS = new Date(2026, 4, 24, 9, 5, 7).getTime();
 
   it("hides the timestamp when timestamps is false (default)", () => {
     render(<ChatMessage message={baseMessage({ timestamp: FIXED_TS as unknown as Date })} />);
-    expect(screen.queryByText(/14:05|2:05/)).toBeNull();
+    expect(screen.queryByText(/9:05|09:05/)).toBeNull();
   });
 
-  it("shows a 24-hour timestamp when format is HH:mm", () => {
-    setChatDisplay({ timestamps: true, timestampFormat: "HH:mm" });
+  it.each<[TimestampFormat, string]>([
+    ["H:mm", "9:05"],
+    ["HH:mm", "09:05"],
+    ["H:mm:ss", "9:05:07"],
+    ["HH:mm:ss", "09:05:07"],
+    ["h:mm a", "9:05 AM"],
+    ["hh:mm a", "09:05 AM"],
+    ["h:mm:ss a", "9:05:07 AM"],
+    ["hh:mm:ss a", "09:05:07 AM"],
+  ])("renders %s as %s", (timestampFormat, expected) => {
+    setChatDisplay({ timestamps: true, timestampFormat });
     render(<ChatMessage message={baseMessage({ timestamp: FIXED_TS as unknown as Date })} />);
-    expect(screen.getByText("14:05")).toBeInTheDocument();
+    expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
-  it("shows a 12-hour timestamp when format is h:mm a", () => {
-    setChatDisplay({ timestamps: true, timestampFormat: "h:mm a" });
-    render(<ChatMessage message={baseMessage({ timestamp: FIXED_TS as unknown as Date })} />);
-    // jsdom renders e.g. "2:05 PM"; match the 12-hour shape, not the 24-hour one.
-    expect(screen.getByText(/\b2:05\s?PM/i)).toBeInTheDocument();
-    expect(screen.queryByText("14:05")).toBeNull();
+  it("does not crash or show an invalid timestamp for an invalid date", () => {
+    setChatDisplay({ timestamps: true, timestampFormat: "HH:mm:ss" });
+    const { container } = render(
+      <ChatMessage message={baseMessage({ timestamp: new Date("invalid") })} />
+    );
+    expect(container).not.toHaveTextContent("Invalid Date");
   });
 
   it("applies fontSizePx to the message row as an inline style", () => {

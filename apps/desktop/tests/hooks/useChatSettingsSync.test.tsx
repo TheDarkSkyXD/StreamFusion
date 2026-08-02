@@ -76,12 +76,14 @@ const getByUsernameMock = vi.fn<
     error?: string;
   }>
 >();
+const twitchExecuteMock = vi.fn();
 
 beforeEach(() => {
   // biome-ignore lint/suspicious/noExplicitAny: jest-style window install
   const w = (globalThis as any).window ?? ((globalThis as any).window = {});
   w.electronAPI = {
     channels: { getByUsername: getByUsernameMock },
+    twitch: { execute: twitchExecuteMock },
     auth: {
       // Hook calls getValidTwitchToken() before getChatSettings; returning a
       // stable string keeps the Bearer-auth path happy without exercising the
@@ -108,6 +110,17 @@ beforeEach(() => {
   resetInFlight();
   resetProvenance();
   getChatSettingsMock.mockReset();
+  twitchExecuteMock.mockReset();
+  twitchExecuteMock.mockImplementation(async (command: { broadcasterId?: string }) => {
+    const legacy = await getChatSettingsMock(command.broadcasterId);
+    if (!legacy.ok) {
+      return {
+        ok: false,
+        error: { code: "unauthorized", message: legacy.message ?? "Twitch request failed" },
+      };
+    }
+    return { ok: true, data: legacy.payload };
+  });
   getByUsernameMock.mockReset();
 });
 
@@ -241,9 +254,9 @@ describe("chatSettingsToPatch (Kick)", () => {
 
 describe("useChatSettingsSync — initial fetch", () => {
   it("fetches Twitch chat settings and writes the translated patch on success", async () => {
-    getChatSettingsMock.mockResolvedValueOnce({
+    twitchExecuteMock.mockResolvedValueOnce({
       ok: true,
-      payload: { broadcaster_id: "123", slow_mode: true, slow_mode_wait_time: 30 },
+      data: { broadcaster_id: "123", slow_mode: true, slow_mode_wait_time: 30 },
     });
 
     renderHook(() =>
@@ -254,6 +267,10 @@ describe("useChatSettingsSync — initial fetch", () => {
       expect(useRoomStateStore.getState().entries["twitch:123"]?.slowMode).toBe(30);
     });
     expect(getProvenance("twitch:123")).toBe("fetch");
+    expect(twitchExecuteMock).toHaveBeenCalledWith({
+      operation: "get-chat-settings",
+      broadcasterId: "123",
+    });
   });
 
   it("fetch failure does NOT write to store and does not throw", async () => {

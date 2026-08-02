@@ -18,6 +18,7 @@ interface MockState {
   activeChannelId: string | null;
   favoriteEmotes: Emote[];
   recentEmotes: Emote[];
+  recentEmotesByScope: Record<string, Emote[]>;
   isLoading: boolean;
   emotesByProvider: Map<EmoteProvider, Emote[]>;
   getEmotesByProvider: () => Map<EmoteProvider, Emote[]>;
@@ -36,6 +37,7 @@ const mockState: MockState = {
   activeChannelId: null,
   favoriteEmotes: [],
   recentEmotes: [],
+  recentEmotesByScope: {},
   isLoading: false,
   emotesByProvider: new Map(),
   getEmotesByProvider: () => mockState.emotesByProvider,
@@ -48,6 +50,13 @@ const mockState: MockState = {
 };
 
 vi.mock("@/store/emote-store", () => ({
+  getEmoteViewerScopeKey: ({
+    platform,
+    userId,
+  }: {
+    platform: "twitch" | "kick";
+    userId: string | null;
+  }) => `${platform}:${userId ?? "guest"}`,
   useEmoteStore: (selector?: (s: MockState) => unknown) =>
     selector ? selector(mockState) : mockState,
 }));
@@ -61,6 +70,7 @@ vi.mock("sonner", () => ({
 beforeEach(() => {
   // Reset state
   mockState.recentEmotes = [];
+  mockState.recentEmotesByScope = {};
   mockState.favoriteEmotes = [];
   mockState.emotesByProvider = new Map();
   mockState.favoriteIds = new Set();
@@ -665,7 +675,9 @@ describe("EmotePickerPopover", () => {
   });
 
   it("pins Frequently Used and Favorites at the top of the body", () => {
-    mockState.recentEmotes = [makeEmote({ id: "k1", name: "kickHype", provider: "kick" })];
+    mockState.recentEmotesByScope["kick:guest"] = [
+      makeEmote({ id: "k1", name: "kickHype", provider: "kick" }),
+    ];
     mockState.favoriteEmotes = [makeEmote({ id: "k2", name: "kickFav", provider: "kick" })];
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ["kick", [makeEmote({ id: "k3", name: "kickEmote", provider: "kick" })]],
@@ -686,7 +698,7 @@ describe("EmotePickerPopover", () => {
   });
 
   it("filters Frequently Used to scope providers", () => {
-    mockState.recentEmotes = [
+    mockState.recentEmotesByScope["kick:guest"] = [
       makeEmote({ id: "k1", name: "kickHype", provider: "kick" }),
       makeEmote({ id: "s1", name: "PogChamp", provider: "7tv" }),
     ];
@@ -698,7 +710,7 @@ describe("EmotePickerPopover", () => {
   });
 
   it("does not bury native Kick global emotes under empty pinned sections", () => {
-    mockState.recentEmotes = [];
+    mockState.recentEmotesByScope["kick:guest"] = [];
     mockState.favoriteEmotes = [];
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       [
@@ -754,7 +766,9 @@ describe("EmotePickerPopover", () => {
 
   it("renders a Frequently Used sub-section button that scrolls to the pinned section", () => {
     const scrollIntoView = mockElementScrollIntoView();
-    mockState.recentEmotes = [makeEmote({ id: "k-r", name: "oftenUsed", provider: "kick" })];
+    mockState.recentEmotesByScope["kick:guest"] = [
+      makeEmote({ id: "k-r", name: "oftenUsed", provider: "kick" }),
+    ];
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ["kick", [makeEmote({ id: "k1", name: "kickHype", provider: "kick" })]],
     ]);
@@ -981,7 +995,9 @@ describe("EmotePickerPopover", () => {
 
   it("sub-section navigation (thirdParty twitch): click 7TV scrolls without hiding BTTV/FFZ", () => {
     const scrollIntoView = mockElementScrollIntoView();
-    mockState.recentEmotes = [makeEmote({ id: "s-r", name: "recentSTV", provider: "7tv" })];
+    mockState.recentEmotesByScope["twitch:guest"] = [
+      makeEmote({ id: "s-r", name: "recentSTV", provider: "7tv" }),
+    ];
     mockState.favoriteEmotes = [makeEmote({ id: "s-f", name: "favSTV", provider: "7tv" })];
     mockState.emotesByProvider = new Map<EmoteProvider, Emote[]>([
       ["7tv", [makeEmote({ id: "s1", name: "PogChamp", provider: "7tv" })]],
@@ -1518,7 +1534,7 @@ describe("EmotePickerPopover", () => {
     const btn = screen.getByLabelText("subOnly");
     fireEvent.click(btn);
     expect(onSelect).toHaveBeenCalledWith(emote);
-    expect(mockState.addRecentEmote).toHaveBeenCalledWith(emote);
+    expect(mockState.addRecentEmote).not.toHaveBeenCalled();
   });
 
   it("locks subscriber-only native emotes when viewerIsSubscribed=undefined", () => {

@@ -45,12 +45,10 @@ export function ensureEmoteProvidersInitialized(): void {
 }
 
 /**
- * Configure Twitch provider with credentials and initialize
- * @param clientId - Twitch Client ID
- * @param accessToken - Twitch OAuth access token
+ * Enable the Twitch provider. Its Helix requests cross the typed main-process bridge.
  */
-export async function initializeTwitchEmotes(clientId: string, accessToken: string): Promise<void> {
-  twitchEmoteProvider.configure(clientId, accessToken);
+export async function initializeTwitchEmotes(): Promise<void> {
+  twitchEmoteProvider.configure();
 }
 
 /**

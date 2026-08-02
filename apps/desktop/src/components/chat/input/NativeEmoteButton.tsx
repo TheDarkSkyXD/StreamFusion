@@ -38,6 +38,7 @@ interface NativeEmoteButtonProps {
   channel: string;
   channelId: string | null;
   kickUserId?: string | null;
+  viewerUserId?: string;
   isOpen: boolean;
   onOpenRequest: () => void;
   onEmoteSelect: (emote: Emote) => void;
@@ -58,6 +59,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
   channel,
   channelId,
   kickUserId,
+  viewerUserId,
   isOpen,
   onOpenRequest,
   onEmoteSelect,
@@ -145,6 +147,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
         channelId={channelId}
         channelName={channel}
         kickUserId={kickUserId}
+        viewerUserId={viewerUserId}
         viewerIsSubscribed={viewerIsSubscribed}
         channelAvatarUrl={channelAvatarUrl}
         channelLabel={channelLabel}

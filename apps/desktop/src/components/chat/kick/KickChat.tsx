@@ -1,7 +1,9 @@
+import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
+import { MOD_LOG_QUERY_KEYS } from "@/hooks/mod-log-query-keys";
 import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
@@ -43,6 +45,7 @@ import { useModeratedChannelsStore } from "../../../store/moderated-channels-sto
 import { useRoomStateStore } from "../../../store/room-state-store";
 import { useRenderCount } from "../../dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { ChatComposerFooter } from "../ChatComposerFooter";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
 import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
@@ -52,6 +55,7 @@ import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConf
 import { showModActionSuccessToast } from "../mod/mod-action-toast";
 import { TimeoutDurationPicker } from "../mod/TimeoutDurationPicker";
 import { ModLogTab } from "../mod/tabs/ModLogTab";
+import { StateAwareTimeoutAction } from "../mod/UserPopout/StateAwareTimeoutAction";
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
@@ -86,15 +90,6 @@ type PendingKickModAction =
       currentlyActive: boolean;
     }
   | { kind: "strip"; actionType: "clear" };
-
-/** Human-readable timeout duration (toast label). Inlined to keep U11's
- *  surface-area minimal (see TwitchChat.tsx for the same helper). */
-function formatTimeoutLabel(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86_400)}d`;
-}
 
 function getNoticeHighlightKind(type: UserNotice["type"]): ChatHighlightKind {
   switch (type) {
@@ -144,15 +139,6 @@ async function banKickUserViaKickWebSession(
   username: string
 ): Promise<KickModResult> {
   const result = await window.electronAPI.kickChat.banUser(channelSlug, username);
-  return kickWebMutationToKickModResult(result);
-}
-
-async function timeoutKickUserViaKickWebSession(
-  channelSlug: string,
-  username: string,
-  duration: number
-): Promise<KickModResult> {
-  const result = await window.electronAPI.kickChat.timeoutUser(channelSlug, username, duration);
   return kickWebMutationToKickModResult(result);
 }
 
@@ -223,6 +209,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   retryBadgeCatalog = () => {},
 }) => {
   useRenderCount("KickChat");
+  const queryClient = useQueryClient();
   // Chat store — subscribe only to fields read in render; actions have stable refs.
   // Narrow to a boolean so Pusher heartbeats / disconnect-state churn don't re-render
   // the whole chat subtree on every tick.
@@ -1321,28 +1308,27 @@ export const KickChat: React.FC<KickChatProps> = ({
         />
       </div>
 
-      <div className="border-t border-[var(--color-border)]">
+      <ChatComposerFooter>
         {/* Footer composer owns message send actions and quick chat settings. */}
-        <div className="p-2">
-          <ChatInput
-            ref={chatInputRef}
-            platform="kick"
-            channel={channel}
-            channelId={kickRoomKey || null}
-            chatroomId={chatroomId}
-            kickUserId={kickUserId}
-            canSend={isAuthenticated && isKickConnected}
-            isAuthenticated={isAuthenticated}
-            onAuthRequired={() => loginKick()}
-            viewerCanBypassRoomModes={isMod}
-            checkSubscriberEligibility={(request) =>
-              window.electronAPI.chat.checkSubscriberEligibility(request)
-            }
-            showModViewLink={isAuthenticated && isMod}
-            onSendEligibilityChange={handleSendEligibilityChange}
-          />
-        </div>
-      </div>
+        <ChatInput
+          ref={chatInputRef}
+          platform="kick"
+          channel={channel}
+          channelId={kickRoomKey || null}
+          chatroomId={chatroomId}
+          kickUserId={kickUserId}
+          canSend={isAuthenticated && isKickConnected}
+          isAuthenticated={isAuthenticated}
+          viewerUserId={isAuthenticated && kickUser ? String(kickUser.id) : undefined}
+          onAuthRequired={() => loginKick()}
+          viewerCanBypassRoomModes={isMod}
+          checkSubscriberEligibility={(request) =>
+            window.electronAPI.chat.checkSubscriberEligibility(request)
+          }
+          showModViewLink={isAuthenticated && isMod}
+          onSendEligibilityChange={handleSendEligibilityChange}
+        />
+      </ChatComposerFooter>
     </div>
   );
 
@@ -1378,6 +1364,42 @@ export const KickChat: React.FC<KickChatProps> = ({
         {pendingModAction
           ? (() => {
               const action = pendingModAction;
+              if (action.kind === "messageScoped" && action.actionType === "timeout") {
+                return (
+                  <StateAwareTimeoutAction
+                    presentation="dialog"
+                    open
+                    onOpenChange={(nextOpen) => {
+                      if (!nextOpen) setPendingModAction(null);
+                    }}
+                    binding={{
+                      platform: "kick",
+                      channelId: channelId ?? "",
+                      channelSlug: channel,
+                      targetUserId: action.message.userId,
+                      targetUsername: action.message.username,
+                      selectedMessageId: action.message.id,
+                      action: "timeout",
+                    }}
+                    displayName={action.message.displayName || action.message.username}
+                    targetPreview={
+                      <div>
+                        <div className="line-clamp-2">{action.message.rawContent || ""}</div>
+                        <div className="mt-1 text-xs text-[var(--color-foreground-muted)]">
+                          from @{action.message.username}
+                        </div>
+                      </div>
+                    }
+                    onPendingChange={setModActionBusy}
+                    onSuccess={async () => {
+                      markUserUnbannable(action.message.userId);
+                      await queryClient.invalidateQueries({
+                        queryKey: MOD_LOG_QUERY_KEYS.channel("kick", channelId ?? ""),
+                      });
+                    }}
+                  />
+                );
+              }
               let actionType: ModActionType;
               let targetPreview: React.ReactNode;
               if (action.kind === "messageScoped") {
@@ -1415,8 +1437,6 @@ export const KickChat: React.FC<KickChatProps> = ({
                 );
               }
 
-              const needsTimeoutSlot =
-                action.kind === "messageScoped" && action.actionType === "timeout";
               const needsSlowSlot =
                 action.kind === "stripChatMode" &&
                 action.modeKind === "slow-mode" &&
@@ -1436,7 +1456,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                   targetPreview={targetPreview}
                   busy={modActionBusy}
                   extraSlot={
-                    needsTimeoutSlot || needsSlowSlot || needsFollowersSlot
+                    needsSlowSlot || needsFollowersSlot
                       ? ({ onDataChange, disabled }) => (
                           <TimeoutDurationPicker
                             disabled={disabled}
@@ -1531,22 +1551,8 @@ export const KickChat: React.FC<KickChatProps> = ({
                           case "ban":
                             messageResult = await banKickUserViaKickWebSession(channel, username);
                             break;
-                          case "timeout": {
-                            const seconds =
-                              (extraData as { durationSeconds?: number } | undefined)
-                                ?.durationSeconds ?? 600;
-                            // Kick's API takes `duration` in MINUTES; our picker
-                            // emits seconds. The "10s" preset would round down to
-                            // 0 minutes via integer division; Kick rejects that,
-                            // so we clamp the floor to 1 minute.
-                            const minutes = Math.max(1, Math.floor(seconds / 60));
-                            messageResult = await timeoutKickUserViaKickWebSession(
-                              channel,
-                              username,
-                              minutes
-                            );
-                            break;
-                          }
+                          case "timeout":
+                            throw new Error("Timeout must use the state-aware moderation IPC");
                           case "unban":
                             messageResult = await unbanKickUserViaKickWebSession(channel, username);
                             break;
@@ -1567,11 +1573,6 @@ export const KickChat: React.FC<KickChatProps> = ({
                         result = messageResult;
                         if (result.ok) {
                           if (channelId && kickUser) {
-                            const durationSeconds =
-                              action.actionType === "timeout"
-                                ? ((extraData as { durationSeconds?: number } | undefined)
-                                    ?.durationSeconds ?? 600)
-                                : null;
                             void modLogWriter
                               .record({
                                 platform: "kick",
@@ -1582,7 +1583,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                                 targetUsername: username,
                                 moderatorUserId: String(kickUser.id),
                                 moderatorUsername: kickUser.username,
-                                durationSeconds,
+                                durationSeconds: null,
                                 reason:
                                   action.actionType === "delete"
                                     ? action.message.rawContent || null
@@ -1611,14 +1612,6 @@ export const KickChat: React.FC<KickChatProps> = ({
                             toast.success(`Unbanned ${username}`);
                           } else if (action.actionType === "delete") {
                             showModActionSuccessToast("Deleted message");
-                          } else {
-                            markUserUnbannable(action.message.userId);
-                            const seconds =
-                              (extraData as { durationSeconds?: number } | undefined)
-                                ?.durationSeconds ?? 600;
-                            showModActionSuccessToast(
-                              `Timed out ${username} for ${formatTimeoutLabel(seconds)}`
-                            );
                           }
                           return;
                         }

@@ -1,54 +1,160 @@
 /**
  * Kick native channel emotes via main-process transport.
  *
- * These Kick web endpoints commonly return 404 for channels with no emote set
- * or renamed/missing channels. Keeping the fetches in main prevents expected
- * 404 probes from showing as red renderer DevTools network errors.
+ * These legacy Kick web endpoints run through the persistent Kick session so
+ * they reuse the same Cloudflare and authenticated browser state as other
+ * kick.com reads without surfacing expected failures in renderer DevTools.
  */
 
-import { net } from "electron";
+import { session } from "electron";
 
+import { acquireKickRequestSlot } from "@/backend/api/platforms/kick/kick-network-health";
 import { logger } from "@/backend/logging/logger";
 
 const KICK_WEB_BASE = "https://kick.com";
-const REQUEST_TIMEOUT_MS = 5000;
+const KICK_PUBLIC_PARTITION = "persist:kick_public";
+const REQUEST_TIMEOUT_MS = 5_000;
+const CACHE_TTL_MS = 30 * 60 * 1_000;
+const TRANSIENT_FAILURE_COOLDOWN_MS = 30_000;
 
 export interface KickChannelEmotesPayload {
   emoteSets?: unknown;
   channelData?: unknown;
 }
 
-async function readJson(res: Response, context: string): Promise<unknown | null> {
-  try {
-    return await res.json();
-  } catch (error) {
-    logger.warn("Emote:Kick", "Kick emote endpoint returned non-JSON response", {
-      context,
-      status: res.status,
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message, stack: error.stack }
-          : String(error),
-    });
-    return null;
-  }
+interface CacheEntry {
+  payload: KickChannelEmotesPayload;
+  cachedAt: number;
 }
 
-async function fetchJson(url: string, headers: Record<string, string>): Promise<Response | null> {
+interface CompactError {
+  name: string;
+  message: string;
+}
+
+const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<KickChannelEmotesPayload | null>>();
+let transientFailureCooldownUntil = 0;
+
+function compactError(error: unknown): CompactError {
+  if (error instanceof Error || error instanceof DOMException) {
+    return { name: error.name, message: error.message };
+  }
+  return { name: "Error", message: String(error) };
+}
+
+function httpError(status: number): CompactError {
+  return { name: "HttpError", message: `HTTP ${status}` };
+}
+
+function isTransientStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  return response.json();
+}
+
+function warnRequestFailure(
+  slug: string,
+  endpoint: "emotes" | "channel",
+  error: CompactError,
+  servedStale: boolean
+): void {
+  logger.warn("Emote:Kick", "Kick emote request failed", {
+    slug,
+    endpoint,
+    error,
+    servedStale,
+  });
+}
+
+async function fetchUncached(
+  slug: string,
+  accessToken: string | undefined,
+  stale: KickChannelEmotesPayload | null
+): Promise<KickChannelEmotesPayload | null> {
+  const kickSession = session.fromPartition(KICK_PUBLIC_PARTITION);
+  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const baseHeaders: Record<string, string> = {
+    Accept: "application/json",
+    Referer: "https://kick.com/",
+    "User-Agent": kickSession.getUserAgent(),
+  };
+  const encodedSlug = encodeURIComponent(slug);
+  const releaseSlot = await acquireKickRequestSlot();
+  let endpoint: "emotes" | "channel" = "emotes";
+
   try {
-    return await net.fetch(url, {
-      headers,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    const emotesResponse = await kickSession.fetch(`${KICK_WEB_BASE}/emotes/${encodedSlug}`, {
+      credentials: "include",
+      headers: baseHeaders,
+      signal,
     });
+
+    if (emotesResponse.ok) {
+      const emoteSets = await readJson(emotesResponse);
+      if (!Array.isArray(emoteSets)) {
+        warnRequestFailure(
+          slug,
+          endpoint,
+          { name: "PayloadError", message: "Unexpected Kick emote payload" },
+          Boolean(stale)
+        );
+        return stale;
+      }
+      if (emoteSets.length > 0) {
+        return { emoteSets };
+      }
+    } else if (emotesResponse.status !== 404) {
+      const transient = isTransientStatus(emotesResponse.status);
+      if (transient) transientFailureCooldownUntil = Date.now() + TRANSIENT_FAILURE_COOLDOWN_MS;
+      warnRequestFailure(slug, endpoint, httpError(emotesResponse.status), Boolean(stale));
+      return stale;
+    }
+
+    endpoint = "channel";
+    const channelResponse = await kickSession.fetch(
+      `${KICK_WEB_BASE}/api/v1/channels/${encodedSlug}`,
+      {
+        credentials: "include",
+        headers: {
+          ...baseHeaders,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        signal,
+      }
+    );
+
+    if (!channelResponse.ok) {
+      if (channelResponse.status === 404) return stale;
+      const transient = isTransientStatus(channelResponse.status);
+      if (transient) transientFailureCooldownUntil = Date.now() + TRANSIENT_FAILURE_COOLDOWN_MS;
+      warnRequestFailure(slug, endpoint, httpError(channelResponse.status), Boolean(stale));
+      return stale;
+    }
+
+    const channelData = await readJson(channelResponse);
+    if (!isRecord(channelData)) {
+      warnRequestFailure(
+        slug,
+        endpoint,
+        { name: "PayloadError", message: "Unexpected Kick channel payload" },
+        Boolean(stale)
+      );
+      return stale;
+    }
+    return { channelData };
   } catch (error) {
-    logger.warn("Emote:Kick", "Kick emote endpoint request failed", {
-      url,
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message, stack: error.stack }
-          : String(error),
-    });
-    return null;
+    transientFailureCooldownUntil = Date.now() + TRANSIENT_FAILURE_COOLDOWN_MS;
+    warnRequestFailure(slug, endpoint, compactError(error), Boolean(stale));
+    return stale;
+  } finally {
+    releaseSlot();
   }
 }
 
@@ -63,47 +169,36 @@ export async function fetchKickChannelEmotes(
   slug: string,
   accessToken?: string
 ): Promise<KickChannelEmotesPayload | null> {
-  const normalizedSlug = slug.trim();
+  const normalizedSlug = slug.trim().toLowerCase();
   if (!normalizedSlug) return null;
 
-  const encodedSlug = encodeURIComponent(normalizedSlug);
-  const baseHeaders = {
-    Accept: "application/json",
-    Referer: "https://kick.com/",
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  };
-
-  const emotesRes = await fetchJson(`${KICK_WEB_BASE}/emotes/${encodedSlug}`, baseHeaders);
-  if (emotesRes?.ok) {
-    const emoteSets = await readJson(emotesRes, "emotes");
-    return emoteSets ? { emoteSets } : null;
+  const now = Date.now();
+  const cached = cache.get(normalizedSlug);
+  if (cached && now - cached.cachedAt < CACHE_TTL_MS) {
+    return cached.payload;
   }
-  if (emotesRes && emotesRes.status !== 404) {
-    logger.info("Emote:Kick", "Kick emotes endpoint unavailable", {
-      slug: normalizedSlug,
-      status: emotesRes.status,
-    });
+  if (now < transientFailureCooldownUntil) {
+    return cached?.payload ?? null;
   }
 
-  const channelHeaders = {
-    ...baseHeaders,
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-  };
-  const channelRes = await fetchJson(
-    `${KICK_WEB_BASE}/api/v1/channels/${encodedSlug}`,
-    channelHeaders
+  const pending = inFlight.get(normalizedSlug);
+  if (pending) return pending;
+
+  const request = fetchUncached(normalizedSlug, accessToken, cached?.payload ?? null).then(
+    (payload) => {
+      if (payload && payload !== cached?.payload) {
+        cache.set(normalizedSlug, { payload, cachedAt: Date.now() });
+      }
+      return payload;
+    }
   );
-  if (channelRes?.ok) {
-    const channelData = await readJson(channelRes, "channel");
-    return channelData ? { channelData } : null;
-  }
-  if (channelRes && channelRes.status !== 404) {
-    logger.info("Emote:Kick", "Kick channel emote fallback unavailable", {
-      slug: normalizedSlug,
-      status: channelRes.status,
-    });
-  }
+  inFlight.set(normalizedSlug, request);
 
-  return null;
+  try {
+    return await request;
+  } finally {
+    if (inFlight.get(normalizedSlug) === request) {
+      inFlight.delete(normalizedSlug);
+    }
+  }
 }

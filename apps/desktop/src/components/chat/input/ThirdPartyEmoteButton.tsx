@@ -27,6 +27,7 @@ interface ThirdPartyEmoteButtonProps {
   channel: string;
   channelId: string | null;
   kickUserId?: string | null;
+  viewerUserId?: string;
   isOpen: boolean;
   onOpenRequest: () => void;
   onEmoteSelect: (emote: Emote) => void;
@@ -43,6 +44,7 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
   channel,
   channelId,
   kickUserId,
+  viewerUserId,
   isOpen,
   onOpenRequest,
   onEmoteSelect,
@@ -97,6 +99,7 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
         channelId={channelId}
         channelName={channel}
         kickUserId={kickUserId}
+        viewerUserId={viewerUserId}
         channelAvatarUrl={channelAvatarUrl}
         channelLabel={channelLabel}
       />

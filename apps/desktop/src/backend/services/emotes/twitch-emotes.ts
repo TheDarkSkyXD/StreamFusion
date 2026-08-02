@@ -5,7 +5,6 @@
  * channel emotes, and emote sets.
  */
 
-import { api } from "@/lib/api-client";
 // Cross-logger: this module is imported by renderer code via the emotes
 // barrel. Using @/backend/logging/logger would drag electron-log/main into
 // the renderer bundle and crash with `__dirname is not defined`.
@@ -50,16 +49,12 @@ const TWITCH_USER_EMOTE_SCOPE = "user:read:emotes";
 class TwitchEmoteProvider implements EmoteProviderService {
   readonly name = "twitch" as const;
 
-  private clientId: string = "";
-  private accessToken: string = "";
   private isConfigured = false;
 
   /**
    * Configure the provider with API credentials
    */
-  configure(clientId: string, accessToken: string): void {
-    this.clientId = clientId;
-    this.accessToken = accessToken;
+  configure(): void {
     this.isConfigured = true;
   }
 
@@ -67,34 +62,15 @@ class TwitchEmoteProvider implements EmoteProviderService {
    * Check if provider is configured
    */
   get configured(): boolean {
-    return this.isConfigured && !!this.clientId && !!this.accessToken;
+    return this.isConfigured;
   }
 
-  private async getFreshAccessToken(): Promise<string | null> {
-    if (!this.clientId) return null;
-
-    const authApi = typeof window !== "undefined" ? window.electronAPI?.auth : undefined;
-    if (authApi?.getValidTwitchToken) {
-      try {
-        const freshToken = await authApi.getValidTwitchToken();
-        if (freshToken) {
-          this.accessToken = freshToken;
-          this.isConfigured = true;
-          return freshToken;
-        }
-      } catch (error) {
-        logger.warn("Emote:Twitch", "Failed to refresh token before emote fetch", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return this.accessToken || null;
-  }
-
-  private markUnauthorized(): void {
-    this.accessToken = "";
-    this.isConfigured = false;
+  private async execute<T>(
+    command: Parameters<Window["electronAPI"]["twitch"]["execute"]>[0]
+  ): Promise<T> {
+    const result = await window.electronAPI.twitch.execute(command);
+    if (!result.ok) throw new Error(result.error.message);
+    return result.data as T;
   }
 
   /**
@@ -111,23 +87,12 @@ class TwitchEmoteProvider implements EmoteProviderService {
     }
 
     try {
-      const accessToken = await this.getFreshAccessToken();
-      if (!accessToken) return [];
-
-      const data = await api
-        .get("https://api.twitch.tv/helix/chat/emotes/global", {
-          headers: {
-            "Client-ID": this.clientId,
-            Authorization: `Bearer ${accessToken}`,
-          },
-        })
-        .json<TwitchApiResponse<TwitchEmoteResponse>>();
+      const data = await this.execute<TwitchApiResponse<TwitchEmoteResponse>>({
+        operation: "get-global-emotes",
+      });
 
       return data.data.map((emote) => this.transformEmote(emote, true, undefined, "global"));
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        this.markUnauthorized();
-      }
+    } catch (error) {
       logger.warn("Emote:Twitch", "Failed to fetch global emotes", {
         error:
           error instanceof Error
@@ -153,26 +118,13 @@ class TwitchEmoteProvider implements EmoteProviderService {
     }
 
     try {
-      const accessToken = await this.getFreshAccessToken();
-      if (!accessToken) return [];
-
-      const data = await api
-        .get(`https://api.twitch.tv/helix/chat/emotes?broadcaster_id=${channelId}`, {
-          headers: {
-            "Client-ID": this.clientId,
-            Authorization: `Bearer ${accessToken}`,
-          },
-        })
-        .json<TwitchApiResponse<TwitchEmoteResponse>>();
+      const data = await this.execute<TwitchApiResponse<TwitchEmoteResponse>>({
+        operation: "get-channel-emotes",
+        broadcasterId: channelId,
+      });
 
       return data.data.map((emote) => this.transformEmote(emote, false, channelId, "channel"));
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return []; // Channel has no emotes
-      }
-      if (error.response?.status === 401) {
-        this.markUnauthorized();
-      }
+    } catch (error) {
       logger.warn("Emote:Twitch", "Failed to fetch channel emotes", {
         channelId,
         error:
@@ -193,14 +145,10 @@ class TwitchEmoteProvider implements EmoteProviderService {
     }
 
     try {
-      const data = await api
-        .get(`https://api.twitch.tv/helix/chat/emotes/set?emote_set_id=${emoteSetId}`, {
-          headers: {
-            "Client-ID": this.clientId,
-            Authorization: `Bearer ${this.accessToken}`,
-          },
-        })
-        .json<TwitchApiResponse<TwitchEmoteResponse>>();
+      const data = await this.execute<TwitchApiResponse<TwitchEmoteResponse>>({
+        operation: "get-emote-set",
+        emoteSetId,
+      });
 
       return data.data.map((emote) => this.transformEmote(emote, false, undefined, "channel"));
     } catch (error) {
@@ -246,25 +194,15 @@ class TwitchEmoteProvider implements EmoteProviderService {
     }
 
     try {
-      const accessToken = await this.getFreshAccessToken();
-      if (!accessToken) return [];
-
       const emotes: Emote[] = [];
       let cursor: string | undefined;
 
       do {
-        const url = new URL("https://api.twitch.tv/helix/chat/emotes/user");
-        url.searchParams.set("user_id", twitchUser.id);
-        if (cursor) url.searchParams.set("after", cursor);
-
-        const page = await api
-          .get(url.toString(), {
-            headers: {
-              "Client-ID": this.clientId,
-              Authorization: `Bearer ${accessToken}`,
-            },
-          })
-          .json<TwitchApiResponse<TwitchEmoteResponse>>();
+        const page = await this.execute<TwitchApiResponse<TwitchEmoteResponse>>({
+          operation: "get-user-emotes",
+          userId: twitchUser.id,
+          after: cursor,
+        });
 
         for (const emote of page.data) {
           if (this.isGlobalUserEmote(emote)) continue;
@@ -276,7 +214,7 @@ class TwitchEmoteProvider implements EmoteProviderService {
       const ownerIds = [
         ...new Set(emotes.map((emote) => emote.owner?.id).filter((id): id is string => !!id)),
       ];
-      const owners = await this.fetchUserMetadata(ownerIds, accessToken);
+      const owners = await this.fetchUserMetadata(ownerIds);
 
       return this.dedupeEmotes(
         emotes.map((emote) => {
@@ -285,11 +223,7 @@ class TwitchEmoteProvider implements EmoteProviderService {
           return owner ? { ...emote, owner } : emote;
         })
       );
-    } catch (error: any) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        logger.info("Emote:Twitch", "User emotes unavailable; token may need user:read:emotes");
-        return [];
-      }
+    } catch (error) {
       logger.warn("Emote:Twitch", "Failed to fetch user emotes", {
         error:
           error instanceof Error
@@ -347,28 +281,18 @@ class TwitchEmoteProvider implements EmoteProviderService {
   }
 
   private async fetchUserMetadata(
-    userIds: string[],
-    accessToken: string
+    userIds: string[]
   ): Promise<Map<string, NonNullable<Emote["owner"]>>> {
     const owners = new Map<string, NonNullable<Emote["owner"]>>();
     for (let i = 0; i < userIds.length; i += 100) {
       const batch = userIds.slice(i, i + 100);
       if (batch.length === 0) continue;
 
-      const url = new URL("https://api.twitch.tv/helix/users");
-      for (const id of batch) {
-        url.searchParams.append("id", id);
-      }
-
       try {
-        const page = await api
-          .get(url.toString(), {
-            headers: {
-              "Client-ID": this.clientId,
-              Authorization: `Bearer ${accessToken}`,
-            },
-          })
-          .json<TwitchApiResponse<TwitchUserResponse>>();
+        const page = await this.execute<TwitchApiResponse<TwitchUserResponse>>({
+          operation: "get-users",
+          userIds: batch,
+        });
 
         for (const user of page.data) {
           owners.set(user.id, {

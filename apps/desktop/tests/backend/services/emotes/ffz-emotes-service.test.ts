@@ -34,9 +34,50 @@ vi.mock("electron", () => ({
 }));
 
 import {
+  fetchFFZBadges,
   fetchFFZGlobalEmotes,
   fetchFFZRoom,
 } from "@/backend/services/emotes/ffz-emotes-service";
+
+describe("fetchFFZBadges", () => {
+  beforeEach(() => {
+    mockState.state.responseQueue.length = 0;
+    mockState.state.fetchCalls.length = 0;
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Guards: the Twitch chat badge catalog preserves FFZ's badge-to-user mapping.
+  it("hits /v1/badges/ids and returns the parsed catalog on 200", async () => {
+    const catalog = {
+      badges: [
+        {
+          id: 1,
+          title: "FFZ Developer",
+          color: "#ff0000",
+          urls: {
+            "1": "https://cdn.frankerfacez.com/badge/1/1",
+            "4": "https://cdn.frankerfacez.com/badge/1/4",
+          },
+        },
+      ],
+      users: { "1": ["11111", 22222] },
+    };
+    mockState.state.responseQueue.push({ kind: "ok", body: JSON.stringify(catalog) });
+
+    const result = await fetchFFZBadges();
+
+    expect(mockState.state.fetchCalls[0]!.url).toBe("https://api.frankerfacez.com/v1/badges/ids");
+    expect(result).toEqual(catalog);
+  });
+
+  it("throws when the badge catalog request fails", async () => {
+    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+
+    await expect(fetchFFZBadges()).rejects.toThrow(/503/);
+  });
+});
 
 describe("fetchFFZGlobalEmotes", () => {
   beforeEach(() => {

@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { installElectronAPIMock } from "../../test-utils";
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
+import { installElectronAPIMock, renderWithProviders } from "../../test-utils";
 
 // U11 — capture ChatMessageList callbacks so tests can simulate toolbar clicks.
 const lastListProps: {
@@ -59,6 +60,11 @@ function setMockChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   mockChatDisplay.value = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...overrides };
 }
 
+const mockAuthState = {
+  kickUser: { id: 42, username: "modder", slug: "modder" },
+  kickConnected: false,
+};
+
 vi.mock("@/store/auth-store", () => {
   // KickChat's `isAuthenticated` is a useAuthStore selector reading
   // `kickConnected && !kickReconnectRequired` (commit 9c4bbf7). Without
@@ -69,8 +75,7 @@ vi.mock("@/store/auth-store", () => {
   // selectors) and imperatively (handleUserNotice via getState()), so the
   // getter pulls from the mutable holder above on every access.
   const buildState = () => ({
-    kickUser: { id: 42, username: "modder", slug: "modder" },
-    kickConnected: false,
+    ...mockAuthState,
     kickReconnectRequired: false,
     twitchConnected: false,
     twitchReconnectRequired: false,
@@ -202,10 +207,11 @@ vi.mock("@/components/chat/ChatMessageList", () => ({
   },
 }));
 
-const chatInputProps: { canSend?: boolean } = {};
+const chatInputProps: { canSend?: boolean; viewerUserId?: string } = {};
 vi.mock("@/components/chat/ChatInput", () => ({
-  ChatInput: (props: { canSend?: boolean }) => {
+  ChatInput: (props: { canSend?: boolean; viewerUserId?: string }) => {
     chatInputProps.canSend = props.canSend;
+    chatInputProps.viewerUserId = props.viewerUserId;
     return (
       <div data-testid="chat-input">
         input
@@ -217,14 +223,13 @@ vi.mock("@/components/chat/ChatInput", () => ({
   },
 }));
 
-import { KickChat } from "@/components/chat/kick/KickChat";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { kickChatService } from "@/backend/services/chat/kick-chat";
 import { kickPredictionsService } from "@/backend/services/chat/kick-predictions-service";
+import { KickChat } from "@/components/chat/kick/KickChat";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 
-function renderKickChat(ui: ReactElement) {
-  return render(ui, { wrapper: TooltipProvider });
+function renderKickChat(ui: ReactElement, queryClient?: QueryClient) {
+  return renderWithProviders(ui, { queryClient });
 }
 
 // Guards: loading state — canSend stays false while the Pusher connection is in 'disconnected' state and the kick token is still resolving, so the chat input doesn't accept input bound for the void
@@ -232,9 +237,10 @@ function renderKickChat(ui: ReactElement) {
 // Guards: error/reconnect path — canSend remains false even after the connection flips to 'connected' until isAuthenticated catches up, so the input gates correctly on Pusher drop / reconnect cycles
 // Guards: empty messages — message list still renders the virtuoso shell (see ChatMessageList tests); chat input still renders, gear chrome still visible in viewer single-tab path (U7)
 // Guards: U5 prefs — sub notices / polls / prediction banner each suppress when their visibility pref is false, surface when true. Silent drops here look like "Kick subs aren't firing" — a high-blast UX failure
-// Guards: U11 mod actions — Timeout routes through the Electron Kick web session and keeps the seconds→minutes clamp so a 10s preset doesn't round to 0 minutes.
+// Guards: U11 mod actions — Timeout uses typed state-aware IPC and never retries the legacy Kick web session.
 // Guards: Kick pin actions use the original chat message sender, surface auth/API failures, and keep retryable failures visible instead of silently leaving the dialog stuck
 // Guards: final-view cleanup skips prediction unsubscribe frames before closing the shared chat Pusher socket, preventing pusher-js "WebSocket is already in CLOSING or CLOSED state" console errors on unmount
+// Guards: the full-width composer footer paints above the message scroller so chat text cannot show behind its quick-emote row or padding.
 describe("KickChat", () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
@@ -253,8 +259,10 @@ describe("KickChat", () => {
     api.kickChat.unpinMessage = vi.fn(async () => ({ ok: true }));
     storeState.connectionStatus.kick.state = "disconnected";
     storeState.connectionStatus.twitch.state = "disconnected";
+    mockAuthState.kickConnected = false;
     storeState.messagesByChannel = {};
     chatInputProps.canSend = undefined;
+    chatInputProps.viewerUserId = undefined;
     lastListProps.onBan = undefined;
     lastListProps.onTimeout = undefined;
     lastListProps.onUnban = undefined;
@@ -292,6 +300,14 @@ describe("KickChat", () => {
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+  });
+
+  it("occludes the message scroller behind the full composer footer", () => {
+    renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
+
+    const footer = screen.getByTestId("chat-composer-footer");
+    expect(footer).toHaveClass("relative", "z-10", "w-full", "shrink-0", "bg-[#191919]");
+    expect(footer).toContainElement(screen.getByTestId("chat-input"));
   });
 
   it("passes the per-channel key to ChatMessageList", () => {
@@ -337,7 +353,9 @@ describe("KickChat", () => {
   });
 
   it("seeds Kick moderator state immediately when the signed-in user is the broadcaster", async () => {
-    renderKickChat(<KickChat channel="xqc" channelId="411439" chatroomId={12345} kickUserId="42" />);
+    renderKickChat(
+      <KickChat channel="xqc" channelId="411439" chatroomId={12345} kickUserId="42" />
+    );
 
     await waitFor(() =>
       expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("xqc")).toBe(true)
@@ -432,7 +450,9 @@ describe("KickChat", () => {
 
   it("releases predictions without socket frames before releasing the final shared Kick chat socket", () => {
     mockIsKickMod.value = false;
-    const { unmount } = renderKickChat(<KickChat channel="xqc" channelId="12345" chatroomId={12345} />);
+    const { unmount } = renderKickChat(
+      <KickChat channel="xqc" channelId="12345" chatroomId={12345} />
+    );
 
     unmount();
 
@@ -484,6 +504,20 @@ describe("KickChat", () => {
     unmount();
   });
 
+  it("scopes quick emotes to authenticated Kick identity, not chat connectivity", () => {
+    mockAuthState.kickConnected = true;
+    storeState.connectionStatus.kick.state = "disconnected";
+    const { rerender } = renderKickChat(
+      <KickChat channel="xqc" channelId="411439" chatroomId={12345} />
+    );
+
+    expect(chatInputProps.viewerUserId).toBe("42");
+
+    mockAuthState.kickConnected = false;
+    rerender(<KickChat channel="xqc" channelId="411439" chatroomId={12345} />);
+    expect(chatInputProps.viewerUserId).toBeUndefined();
+  });
+
   // ---------- U11 — Kick mod-action seconds→minutes conversion ----------
   const fakeMessage = {
     id: "k-msg-1",
@@ -500,55 +534,108 @@ describe("KickChat", () => {
     rawContent: "pin this",
   } as const;
 
-  it("Confirming a Timeout dialog calls the Electron Kick web session with duration in minutes", async () => {
-    renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
+  it("routes timeout confirmation through the typed state-aware IPC boundary", async () => {
+    const availableSnapshot = {
+      state: "available" as const,
+      snapshotId: "kick-snapshot",
+      verifiedAt: Date.now(),
+      actorRole: "moderator" as const,
+      policy: {
+        durationUnit: "minutes" as const,
+        minDuration: 1,
+        maxDuration: 10_080,
+        supportsReason: true,
+        maxReasonLength: 100,
+      },
+    };
+    let finishTargetRefresh!: () => void;
+    window.electronAPI.moderation.createTimeoutSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce(availableSnapshot)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishTargetRefresh = () => resolve(availableSnapshot);
+        })
+      );
+    window.electronAPI.moderation.submitTimeout = vi.fn(async () => ({
+      state: "success" as const,
+      attemptId: "attempt-1",
+    }));
+    let finishHistoryRefresh!: () => void;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishHistoryRefresh = resolve;
+      })
+    );
+    renderKickChat(
+      <KickChat channel="xqc" channelId="channel-123" chatroomId={12345} />,
+      queryClient
+    );
     act(() => {
       lastListProps.onTimeout?.(fakeMessage);
     });
-    // TimeoutDurationPicker defaults to 10 minutes (600s) → 10 minutes after
-    // the seconds→minutes conversion in KickChat.
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Time out$/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /^Time out$/ }));
-    await waitFor(() => expect(window.electronAPI.kickChat.timeoutUser).toHaveBeenCalledTimes(1));
-    expect(window.electronAPI.kickChat.timeoutUser).toHaveBeenCalledWith("xqc", "baduser", 10);
+    await waitFor(() =>
+      expect(window.electronAPI.moderation.submitTimeout).toHaveBeenCalledWith({
+        snapshotId: "kick-snapshot",
+        duration: 10,
+      })
+    );
+    expect(window.electronAPI.moderation.createTimeoutSnapshot).toHaveBeenCalledWith({
+      platform: "kick",
+      channelId: "channel-123",
+      channelSlug: "xqc",
+      targetUserId: "kuser-9",
+      targetUsername: "baduser",
+      selectedMessageId: "k-msg-1",
+      action: "timeout",
+    });
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Refreshing moderation history");
+
+    await act(async () => {
+      finishTargetRefresh();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Refreshing moderation history");
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["modLog", "kick", "channel-123"],
+    });
+    await act(async () => {
+      finishHistoryRefresh();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("history refreshed");
+    expect(window.electronAPI.kickChat.timeoutUser).not.toHaveBeenCalled();
     expect(timeoutKickUserMock).not.toHaveBeenCalled();
+    expect(recordModActionMock).not.toHaveBeenCalled();
   });
 
-  it("records a Kick timeout only after the platform confirms the action", async () => {
+  it("uses Kick's minute policy and never renders the unsupported 10s preset", async () => {
+    window.electronAPI.moderation.createTimeoutSnapshot = vi.fn(async () => ({
+      state: "available" as const,
+      snapshotId: "kick-snapshot",
+      verifiedAt: Date.now(),
+      actorRole: "moderator" as const,
+      policy: {
+        durationUnit: "minutes" as const,
+        minDuration: 1,
+        maxDuration: 10_080,
+        supportsReason: true,
+        maxReasonLength: 100,
+      },
+    }));
     renderKickChat(<KickChat channel="xqc" channelId="channel-123" chatroomId={12345} />);
     act(() => {
       lastListProps.onTimeout?.(fakeMessage);
     });
-    fireEvent.click(screen.getByRole("button", { name: /^Time out$/ }));
-
-    await waitFor(() =>
-      expect(recordModActionMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          platform: "kick",
-          channelId: "channel-123",
-          channelSlug: "xqc",
-          action: "timeout",
-          targetUserId: "kuser-9",
-          targetUsername: "baduser",
-          moderatorUserId: "42",
-          moderatorUsername: "modder",
-          durationSeconds: 600,
-          source: "local",
-        })
-      )
-    );
-  });
-
-  it("The 10s preset is clamped to 1 minute before calling Kick (sub-minute not supported)", async () => {
-    renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
-    act(() => {
-      lastListProps.onTimeout?.(fakeMessage);
-    });
-    // Click the "10s" chip — the dialog's TimeoutDurationPicker renders 6 chips.
-    fireEvent.click(screen.getByRole("button", { name: /^10s$/ }));
-    fireEvent.click(screen.getByRole("button", { name: /^Time out$/ }));
-    await waitFor(() => expect(window.electronAPI.kickChat.timeoutUser).toHaveBeenCalledTimes(1));
-    // 10 seconds / 60 → 0 minutes; Math.max(1, …) clamps to 1.
-    expect(window.electronAPI.kickChat.timeoutUser).toHaveBeenCalledWith("xqc", "baduser", 1);
+    await screen.findByRole("heading", { name: /^Time out user$/ });
+    expect(screen.queryByRole("button", { name: /^10s$/ })).toBeNull();
   });
 
   it("Delete toolbar click deletes immediately without opening a confirmation dialog", async () => {

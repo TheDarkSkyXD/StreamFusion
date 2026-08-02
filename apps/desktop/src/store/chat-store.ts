@@ -256,6 +256,12 @@ interface ChatState {
    * wrong chronological order.
    */
   prependMessages: (channelKey: string, messages: ChatMessage[]) => void;
+  /**
+   * Authoritatively replace one channel's bucket with persisted historical
+   * messages. Unlike prependMessages, this intentionally discards any stale
+   * bucket contents from a previous channel intent.
+   */
+  replaceHistoricalMessages: (channelKey: string, messages: ChatMessage[]) => void;
   clearMessages: (channelKey: string) => void;
   dropChannel: (channelKey: string) => void;
   deleteMessage: (channelKey: string, messageId: string, metadata?: DeletionMetadata) => void;
@@ -538,6 +544,23 @@ export const useChatStore = create<ChatState>()(
           return {
             messagesByChannel: { ...state.messagesByChannel, [channelKey]: bucketTrimmed },
             usersByChannel: mergeKnownUsersFromMessages(state.usersByChannel, channelKey, fresh),
+          };
+        });
+      },
+
+      replaceHistoricalMessages: (channelKey, messages) => {
+        set((state) => {
+          const replacementUsers = mergeKnownUsersFromMessages({}, channelKey, messages)[channelKey];
+          const usersByChannel = { ...state.usersByChannel };
+          if (replacementUsers) {
+            usersByChannel[channelKey] = replacementUsers;
+          } else {
+            delete usersByChannel[channelKey];
+          }
+
+          return {
+            messagesByChannel: { ...state.messagesByChannel, [channelKey]: [...messages] },
+            usersByChannel,
           };
         });
       },

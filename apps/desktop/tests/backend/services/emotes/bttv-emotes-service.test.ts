@@ -33,9 +33,45 @@ vi.mock("electron", () => ({
 }));
 
 import {
+  fetchBTTVBadges,
   fetchBTTVGlobalEmotes,
   fetchBTTVUserByTwitchId,
 } from "@/backend/services/emotes/bttv-emotes-service";
+
+describe("fetchBTTVBadges", () => {
+  beforeEach(() => {
+    mockState.state.responseQueue.length = 0;
+    mockState.state.fetchCalls.length = 0;
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Guards: the Twitch chat badge catalog comes from BTTV's cached badge endpoint unchanged.
+  it("hits /3/cached/badges and returns the parsed catalog on 200", async () => {
+    const badges = [
+      {
+        providerId: "user123",
+        badge: {
+          description: "BTTV Developer",
+          svg: "https://cdn.betterttv.net/badge/developer.svg",
+        },
+      },
+    ];
+    mockState.state.responseQueue.push({ kind: "ok", body: JSON.stringify(badges) });
+
+    const result = await fetchBTTVBadges();
+
+    expect(mockState.state.fetchCalls[0]!.url).toBe("https://api.betterttv.net/3/cached/badges");
+    expect(result).toEqual(badges);
+  });
+
+  it("throws when the badge catalog request fails", async () => {
+    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+
+    await expect(fetchBTTVBadges()).rejects.toThrow(/503/);
+  });
+});
 
 describe("fetchBTTVGlobalEmotes", () => {
   beforeEach(() => {

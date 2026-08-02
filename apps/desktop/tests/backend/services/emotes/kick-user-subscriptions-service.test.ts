@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchKickWebApiGetMock = vi.hoisted(() => vi.fn());
+const isKickWebApiReadyMock = vi.hoisted(() => vi.fn(async () => true));
 const loggerMock = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
@@ -8,6 +9,7 @@ const loggerMock = vi.hoisted(() => ({
 
 vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
   fetchKickWebApiGet: fetchKickWebApiGetMock,
+  isKickWebApiReady: isKickWebApiReadyMock,
 }));
 
 vi.mock("@/backend/logging/logger", () => ({
@@ -18,12 +20,14 @@ import { fetchKickUserSubscriptions } from "@/backend/services/emotes/kick-user-
 
 beforeEach(() => {
   fetchKickWebApiGetMock.mockReset();
+  isKickWebApiReadyMock.mockReset();
+  isKickWebApiReadyMock.mockResolvedValue(true);
   loggerMock.info.mockReset();
   loggerMock.warn.mockReset();
 });
 
 // Guards: Kick subscribed-channel emotes must fetch the web-only subscriptions
-// endpoint through the Kick web session and pass null, not throw, on failures.
+// endpoint through an already-ready Kick web session and pass null, not throw or warm a hidden window, on failures.
 describe("fetchKickUserSubscriptions", () => {
   it("parses the subscriptions payload from the Kick web-session request", async () => {
     fetchKickWebApiGetMock.mockResolvedValue({
@@ -64,5 +68,23 @@ describe("fetchKickUserSubscriptions", () => {
 
     expect(result).toBeNull();
     expect(loggerMock.warn).toHaveBeenCalledOnce();
+  });
+
+  it("returns immediately without starting hidden-window warmup when the web session is not ready", async () => {
+    isKickWebApiReadyMock.mockResolvedValue(false);
+
+    const result = await fetchKickUserSubscriptions();
+
+    expect(result).toBeNull();
+    expect(fetchKickWebApiGetMock).not.toHaveBeenCalled();
+  });
+
+  it("contains warmup failures instead of rejecting the IPC handler", async () => {
+    fetchKickWebApiGetMock.mockRejectedValue(
+      new Error("send-window-warmup-timeout: predicate did not resolve within 10s")
+    );
+
+    await expect(fetchKickUserSubscriptions()).resolves.toBeNull();
+    expect(loggerMock.info).toHaveBeenCalledOnce();
   });
 });

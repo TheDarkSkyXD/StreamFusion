@@ -8,7 +8,7 @@
  * + StreamFusion's Radix `Tooltip` primitive (no SCSS).
  *
  * Precedence for the visible label (R14):
- *   followersOnly → twitchVerification → subscribersOnly → accountAge → emoteOnly → slowMode
+ *   followersOnly → subscribersOnly → accountAge → emoteOnly → slowMode
  *
  * The Twitch-only modes `uniqueChat` and `shieldMode` never displace any of
  * the strict modes above. They contribute to the tooltip list when active and only
@@ -61,12 +61,6 @@ interface ActiveMode {
   tooltipLabel: string;
 }
 
-function getTwitchVerificationLabel(requirement: "phone" | "email" | "account"): string {
-  if (requirement === "phone") return "Phone Verification Required";
-  if (requirement === "email") return "Email Verification Required";
-  return "Verified Accounts Only Chat";
-}
-
 export interface InfoBannerProps {
   platform: ChatPlatform;
   channelId: string | null;
@@ -93,15 +87,6 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
       key: "followers",
       label: n > 0 ? `Followers Only Mode [${n}m]` : "Followers Only Mode",
       tooltipLabel: n > 0 ? `Followers Only Mode Enabled [${n}m]` : "Followers Only Mode Enabled",
-    });
-  }
-
-  if (platform === "twitch" && state.twitchVerification !== null) {
-    const label = getTwitchVerificationLabel(state.twitchVerification);
-    active.push({
-      key: "twitchVerification",
-      label,
-      tooltipLabel: label,
     });
   }
 

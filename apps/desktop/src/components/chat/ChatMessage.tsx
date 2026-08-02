@@ -1,18 +1,22 @@
 import { Ban, Check, Clock3, Trash2, TriangleAlert } from "lucide-react";
 import type React from "react";
 import { memo, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { formatChatTimestamp } from "@/lib/chat-visuals";
 import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   type DeletedMessageDisplayMode,
   type TimestampFormat,
 } from "../../shared/auth-types";
 import type {
+  ChatCosmeticBadge,
   ChatHighlightKind,
   ChatMessage as ChatMessageType,
   ChatPlatform,
   ContentFragment,
 } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
+import { useChatCosmeticsStore } from "../../store/chat-cosmetics-store";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { BitsHighlight } from "./BitsHighlight";
 import { ChatBadge } from "./ChatBadge";
@@ -81,6 +85,9 @@ const PROTECTED_BADGE_SET_IDS = new Set([
 
 const INLINE_MOD_BUTTON_CLASS =
   "inline-flex h-5 w-4 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[#d3d3d9] hover:bg-[rgba(83,83,95,0.48)] hover:text-white active:bg-[rgba(83,83,95,0.55)] focus:outline-none focus-visible:ring-1 focus-visible:ring-white";
+const EMPTY_COSMETIC_BADGES: ChatCosmeticBadge[] = [];
+const COSMETIC_PROVIDER_ORDER = { ffz: 0, bttv: 1, "7tv": 2 } as const;
+const COSMETIC_PROVIDER_LABEL = { ffz: "FrankerFaceZ", bttv: "BetterTTV", "7tv": "7TV" } as const;
 
 function IconActionTooltip({ label, children }: { label: string; children: React.ReactElement }) {
   return (
@@ -477,14 +484,96 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       message,
       currentChannelContext
     );
+    const cosmeticKey =
+      message.platform === "twitch" && currentChannelContext
+        ? `${currentChannelContext.channelId}:${message.userId}`
+        : null;
+    const assignedCosmeticBadges = useChatCosmeticsStore(
+      useShallow((state) => {
+        if (message.platform !== "twitch") return EMPTY_COSMETIC_BADGES;
+        const badgeIds = [
+          ...(state.globalUserBadgeAssignments.get(message.userId) ?? []),
+          ...(cosmeticKey ? (state.userBadgeAssignments.get(cosmeticKey) ?? []) : []),
+        ];
+        return badgeIds.flatMap((id) => {
+          const badge = state.badgeDefinitions.get(id);
+          return badge ? [badge] : [];
+        });
+      })
+    );
+    const ffzRoleBadges = useChatCosmeticsStore((state) =>
+      message.platform === "twitch" && currentChannelContext
+        ? state.ffzRoleBadges.get(currentChannelContext.channelId)
+        : undefined
+    );
     const displayBadges = useMemo(() => {
-      if (!isKickBroadcasterMessage) return message.badges;
-      return message.badges.filter((badge) => badge.setId !== "moderator");
-    }, [isKickBroadcasterMessage, message.badges]);
+      const official = isKickBroadcasterMessage
+        ? message.badges.filter((badge) => badge.setId !== "moderator")
+        : message.badges;
+      if (message.platform !== "twitch" || !cd.enableFfzBadges) return official;
+      return official.map((badge) => {
+        const assignedReplacement = assignedCosmeticBadges.find(
+          (cosmetic) => cosmetic.provider === "ffz" && cosmetic.replaces === badge.setId
+        );
+        const roomReplacement =
+          badge.setId === "moderator"
+            ? ffzRoleBadges?.moderator
+            : badge.setId === "vip"
+              ? ffzRoleBadges?.vip
+              : undefined;
+        const replacement = assignedReplacement ?? roomReplacement;
+        return replacement
+          ? { ...badge, imageUrl: replacement.imageUrl, backgroundColor: replacement.color }
+          : badge;
+      });
+    }, [
+      assignedCosmeticBadges,
+      cd.enableFfzBadges,
+      ffzRoleBadges,
+      isKickBroadcasterMessage,
+      message.badges,
+      message.platform,
+    ]);
+    const cosmeticBadges = useMemo(() => {
+      if (message.platform !== "twitch") return [];
+      return assignedCosmeticBadges
+        .filter((badge) => {
+          if (badge.provider === "ffz") return cd.enableFfzBadges;
+          if (badge.provider === "bttv") return cd.enableBttvBadges;
+          return cd.enable7tvBadges;
+        })
+        .filter(
+          (badge) =>
+            !badge.replaces || !message.badges.some((official) => official.setId === badge.replaces)
+        )
+        .sort((left, right) => {
+          if (left.provider === "ffz" && right.provider === "ffz") {
+            return (left.slot ?? Number.MAX_SAFE_INTEGER) - (right.slot ?? Number.MAX_SAFE_INTEGER);
+          }
+          return COSMETIC_PROVIDER_ORDER[left.provider] - COSMETIC_PROVIDER_ORDER[right.provider];
+        })
+        .map((badge) => ({
+          setId: badge.id,
+          version: "1",
+          imageUrl: badge.imageUrl,
+          title: `${COSMETIC_PROVIDER_LABEL[badge.provider]}: ${badge.title}`,
+          backgroundColor: badge.color,
+        }));
+    }, [
+      cd.enable7tvBadges,
+      cd.enableBttvBadges,
+      cd.enableFfzBadges,
+      assignedCosmeticBadges,
+      message.badges,
+      message.platform,
+    ]);
     const renderableBadges = useMemo(() => {
-      const orderedBadges = orderRenderableBadges(displayBadges, message.platform);
+      const orderedBadges = [
+        ...orderRenderableBadges(displayBadges, message.platform),
+        ...cosmeticBadges,
+      ];
       return badgeLimit == null ? orderedBadges : orderedBadges.slice(0, badgeLimit);
-    }, [badgeLimit, displayBadges, message.platform]);
+    }, [badgeLimit, cosmeticBadges, displayBadges, message.platform]);
     const mentionsViewer = useMemo(
       () =>
         message.type === "message" &&
@@ -748,10 +837,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       canShowMessageModActions &&
       Boolean(
         inlineBanAction ||
-          inlineTimeoutAction ||
-          inlineWarnAction ||
-          inlineUnbanAction ||
-          inlineDeleteAction
+        inlineTimeoutAction ||
+        inlineWarnAction ||
+        inlineUnbanAction ||
+        inlineDeleteAction
       );
     const updateMessageRowHover = (target: EventTarget | null) => {
       const targetElement = target instanceof Element ? target : null;
@@ -963,17 +1052,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
 
 ChatMessage.displayName = "ChatMessage";
 
-// Memoized timestamp component. Format follows `chatDisplay.timestampFormat`:
-// "HH:mm" = 24-hour (hour12:false), "h:mm a" = 12-hour with AM/PM.
+// Memoized because timestamps are repeated across every visible chat row.
 const Timestamp: React.FC<{ timestamp: Date; format: TimestampFormat }> = memo(
   ({ timestamp, format }) => {
-    const formattedTime = useMemo(() => {
-      return new Date(timestamp).toLocaleTimeString([], {
-        hour: format === "h:mm a" ? "numeric" : "2-digit",
-        minute: "2-digit",
-        hour12: format === "h:mm a",
-      });
-    }, [timestamp, format]);
+    const formattedTime = useMemo(
+      () => formatChatTimestamp(timestamp, format),
+      [timestamp, format]
+    );
+
+    if (!formattedTime) return null;
 
     return (
       <span className="text-xs text-foreground font-bold mr-1 select-none align-middle inline-block">

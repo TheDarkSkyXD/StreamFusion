@@ -101,7 +101,6 @@ const EXPANDED_SCROLL_AREA_STYLE: React.CSSProperties = {
   overflowX: "hidden",
   overflowY: "scroll",
   position: "relative",
-  scrollbarColor: "rgba(255, 255, 255, 0.4) transparent",
 };
 const TWITCH_PIN_DURATION_OPTIONS = [
   { label: "1 minute", value: 60 },

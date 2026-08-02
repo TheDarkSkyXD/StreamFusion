@@ -22,14 +22,12 @@
  */
 
 import { useEffect } from "react";
-import { withTwitchHelixRetry } from "@/backend/api/platforms/twitch/helix-retry";
-import { getChatSettings } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
-import type { ChatSettingsPayload } from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 import type { KickChatroomSettings, UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { kickChatService } from "@/backend/services/chat/kick-chat";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { logger } from "@/renderer/logging/logger";
 import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@/shared/chat-types";
+import type { TwitchChatSettings } from "@/shared/twitch-api-types";
 import { type RoomState, roomStateKey, useRoomStateStore } from "@/store/room-state-store";
 
 // ---------------------------------------------------------------------------
@@ -84,7 +82,7 @@ export const __debugProvenance = new Map<string, Provenance>();
  */
 export function chatSettingsToPatch(
   platform: "twitch",
-  payload: ChatSettingsPayload
+  payload: TwitchChatSettings
 ): Partial<RoomState>;
 export function chatSettingsToPatch(
   platform: "kick",
@@ -92,15 +90,15 @@ export function chatSettingsToPatch(
 ): Partial<RoomState>;
 export function chatSettingsToPatch(
   platform: ChatPlatform,
-  payload: ChatSettingsPayload | KickChatroomSettings
+  payload: TwitchChatSettings | KickChatroomSettings
 ): Partial<RoomState> {
   if (platform === "twitch") {
-    return twitchChatSettingsToPatch(payload as ChatSettingsPayload);
+    return twitchChatSettingsToPatch(payload as TwitchChatSettings);
   }
   return kickChatroomSettingsToPatch(payload as KickChatroomSettings);
 }
 
-function twitchChatSettingsToPatch(payload: ChatSettingsPayload): Partial<RoomState> {
+function twitchChatSettingsToPatch(payload: TwitchChatSettings): Partial<RoomState> {
   const patch: Partial<RoomState> = {};
 
   // Slow mode — enable flag first, duration second. A stale leftover
@@ -310,21 +308,17 @@ async function fetchPatchFor(
     // app that minted it — Twitch returns 401 if they don't match. The
     // VITE_-prefixed copy of TWITCH_CLIENT_ID is the only client_id the
     // renderer can read; without it we can't make a well-formed Helix call.
-    const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
-    if (!accessToken || !clientId) {
-      return null;
-    }
-    const result = await withTwitchHelixRetry(
-      { accessToken, clientId, broadcasterId: channelId, signal },
-      getChatSettings
-    );
+    const result = await window.electronAPI.twitch.execute({
+      operation: "get-chat-settings",
+      broadcasterId: channelId,
+    });
+    if (signal.aborted) return null;
     if (!result.ok) {
       // Non-2xx is a soft-failure for the banner. Treat exactly the same as
       // a network error — the banner stays hidden.
       return null;
     }
-    return chatSettingsToPatch("twitch", result.payload);
+    return chatSettingsToPatch("twitch", result.data as TwitchChatSettings);
   }
 
   // Kick — read the cached UnifiedChannel and pull `chatroomSettings`. The

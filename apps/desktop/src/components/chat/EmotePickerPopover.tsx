@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-types";
 import { useManagedTimeout } from "../../hooks/useManagedTimeout";
-import { useEmoteStore } from "../../store/emote-store";
+import { getEmoteViewerScopeKey, useEmoteStore } from "../../store/emote-store";
 import { KickIcon } from "../icons/PlatformIcons";
 import { ProxiedImage } from "../ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -26,6 +26,7 @@ import { EmoteImage } from "./EmoteImage";
 
 export type EmotePickerScope = "native" | "thirdParty";
 export type EmotePickerPlatform = "twitch" | "kick";
+const EMPTY_RECENT_EMOTES: Emote[] = [];
 
 interface EmotePickerPopoverProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ interface EmotePickerPopoverProps {
   channelId?: string | null;
   channelName?: string | null;
   kickUserId?: string | null;
+  viewerUserId?: string;
   /**
    * Only consulted by Kick-native. `undefined` = unknown → no lock overlay.
    * `false` + emote.subscribersOnly === true → lock overlay.
@@ -699,6 +701,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   channelId,
   channelName,
   kickUserId,
+  viewerUserId,
   viewerIsSubscribed,
   channelAvatarUrl,
   channelLabel,
@@ -729,6 +732,10 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     }, [])
   );
 
+  const viewerScopeKey = getEmoteViewerScopeKey({
+    platform,
+    userId: viewerUserId ?? null,
+  });
   const {
     recentEmotes,
     favoriteEmotes,
@@ -738,7 +745,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     emoteRevision,
   } = useEmoteStore(
     useShallow((state) => ({
-      recentEmotes: state.recentEmotes,
+      recentEmotes: state.recentEmotesByScope[viewerScopeKey] ?? EMPTY_RECENT_EMOTES,
       favoriteEmotes: state.favoriteEmotes,
       activeChannelId: state.activeChannelId,
       loadedChannels: state.loadedChannels,
@@ -746,7 +753,6 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       emoteRevision: state.emoteRevision,
     }))
   );
-  const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
   const toggleFavorite = useEmoteStore((state) => state.toggleFavorite);
   const isFavorite = useEmoteStore((state) => state.isFavorite);
   const getEmotesByProvider = useEmoteStore((state) => state.getEmotesByProvider);
@@ -1184,10 +1190,9 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   /* ----------------------------- handlers ---------------------------- */
   const handleEmoteClick = useCallback(
     (emote: Emote) => {
-      addRecentEmote(emote);
       onSelect(emote);
     },
-    [addRecentEmote, onSelect]
+    [onSelect]
   );
 
   const handleLockedEmoteClick = useCallback((emote: Emote) => {

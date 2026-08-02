@@ -8,12 +8,13 @@
  * test suites.
  */
 
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
+const twitchChatListeners = vi.hoisted(() => new Map<string, Set<(event: unknown) => void>>());
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -101,12 +102,14 @@ const emoteStoreState = vi.hoisted(() => ({
     isAnimated: boolean;
     isZeroWidth: boolean;
   }>,
+  recentEmotesByScope: {} as Record<string, Emote[]>,
   isLoading: false,
   getProviderEmotes: () => [],
   getEmotesByProvider: () => new Map(),
   getEmotesByProviderForChannel: (_channelId: string) => new Map(),
   getAllEmotes: () => [],
   addRecentEmote: vi.fn(),
+  claimLegacyRecentEmotes: vi.fn(),
   toggleFavorite: vi.fn(),
   isFavorite: () => false,
 }));
@@ -141,6 +144,17 @@ vi.mock("@/backend/services/chat/twitch-chat", () => ({
     sendMessage: vi.fn(async () => true),
     sendAction: vi.fn(async () => true),
     sendReply: vi.fn(async () => true),
+    on: vi.fn((event: string, listener: (payload: unknown) => void) => {
+      const listeners = twitchChatListeners.get(event) ?? new Set();
+      listeners.add(listener);
+      twitchChatListeners.set(event, listeners);
+    }),
+    off: vi.fn((event: string, listener: (payload: unknown) => void) => {
+      twitchChatListeners.get(event)?.delete(listener);
+    }),
+    emit: vi.fn((event: string, payload: unknown) => {
+      twitchChatListeners.get(event)?.forEach((listener) => listener(payload));
+    }),
   },
 }));
 
@@ -167,7 +181,16 @@ vi.mock("@/store/emote-store", () => {
   };
   useEmoteStore.getState = () => emoteStoreState;
   useEmoteStore.subscribe = () => () => {};
-  return { useEmoteStore };
+  return {
+    getEmoteViewerScopeKey: ({
+      platform,
+      userId,
+    }: {
+      platform: "twitch" | "kick";
+      userId: string | null;
+    }) => `${platform}:${userId ?? "guest"}`,
+    useEmoteStore,
+  };
 });
 
 // Mock InfoBanner — we control its visibility per test via the impl.
@@ -252,15 +275,18 @@ beforeEach(() => {
   emoteStoreState.activeChannelId = null;
   emoteStoreState.favoriteEmotes = [];
   emoteStoreState.recentEmotes = [];
+  emoteStoreState.recentEmotesByScope = {};
   emoteStoreState.getEmotesByProvider = () => new Map();
   emoteStoreState.getEmotesByProviderForChannel = () => new Map();
   emoteStoreState.getAllEmotes = () => [];
   emoteStoreState.addRecentEmote.mockClear();
+  emoteStoreState.claimLegacyRecentEmotes.mockClear();
   emoteStoreState.toggleFavorite.mockClear();
   toastErrorMock.mockReset();
   vi.mocked(twitchChatService.sendMessage).mockClear();
   vi.mocked(twitchChatService.sendReply).mockClear();
   vi.mocked(twitchChatService.sendAction).mockClear();
+  twitchChatListeners.clear();
   vi.mocked(kickChatService.sendMessage).mockClear();
   useRoomStateStore.setState({ entries: {} });
   useFollowStore.setState({ localFollows: [], sourceByKey: new Map() });
@@ -274,6 +300,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  Reflect.deleteProperty(window, "electronAPI");
 });
 
 function renderWithTooltipProvider(ui: React.ReactElement) {
@@ -550,60 +577,7 @@ describe("ChatInput — basics", () => {
     expect(getEditor()).toHaveAttribute("contenteditable", "false");
   });
 
-  it('shows "Log in to chat" placeholder when canSend=false', () => {
-    infoBannerImpl.mockReturnValue(null);
-    renderInput({ canSend: false });
-    expect(getEditor(/log in to chat/i)).toBeInTheDocument();
-    expect(screen.getByText("Log in to chat")).toBeInTheDocument();
-  });
-
-  it("lets signed-out Twitch viewers keep a draft and open auth from Enter", async () => {
-    infoBannerImpl.mockReturnValue(null);
-    const onAuthRequired = vi.fn(async () => {});
-    renderInput({ canSend: false, isAuthenticated: false, onAuthRequired });
-    const editor = getEditor(/log in to chat/i);
-
-    expect(editor).toHaveAttribute("contenteditable", "true");
-
-    act(() => {
-      editor.focus();
-      fireEvent.keyDown(editor, { key: "h" });
-      fireEvent.keyDown(editor, { key: "i" });
-    });
-
-    await act(async () => {
-      fireEvent.keyDown(editor, { key: "Enter" });
-    });
-
-    expect(onAuthRequired).toHaveBeenCalledWith("twitch");
-    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent("Log in to chat");
-    expect(editor).toHaveTextContent("hi");
-    expect(document.activeElement).toBe(editor);
-  });
-
-  it("lets signed-out Kick viewers keep a draft and open auth from Enter", async () => {
-    infoBannerImpl.mockReturnValue(null);
-    const onAuthRequired = vi.fn(async () => {});
-    renderInput({ platform: "kick", canSend: false, isAuthenticated: false, onAuthRequired });
-    const editor = getEditor(/sign in to chat/i);
-
-    act(() => {
-      editor.focus();
-      fireEvent.keyDown(editor, { key: "y" });
-      fireEvent.keyDown(editor, { key: "o" });
-    });
-
-    await act(async () => {
-      fireEvent.keyDown(editor, { key: "Enter" });
-    });
-
-    expect(onAuthRequired).toHaveBeenCalledWith("kick");
-    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent("Sign in to chat");
-    expect(editor).toHaveTextContent("yo");
-    expect(document.activeElement).toBe(editor);
-  });
-
-  it("keeps reply state when auth blocks a send", async () => {
+  it("keeps reply state when the login surface opens auth", async () => {
     infoBannerImpl.mockReturnValue(null);
     const onAuthRequired = vi.fn(async () => {});
     const ref = createRef<ChatInputHandle>();
@@ -636,16 +610,13 @@ describe("ChatInput — basics", () => {
       isAction: false,
     };
     act(() => ref.current?.replyTo(msg));
-    const editor = getEditor(/log in to chat/i);
-    typeInEditor(editor, "reply draft");
 
     await act(async () => {
-      fireEvent.keyDown(editor, { key: "Enter" });
+      fireEvent.click(screen.getByRole("button", { name: "Log in to chat" }));
     });
 
     expect(onAuthRequired).toHaveBeenCalledWith("twitch");
     expect(screen.getByTestId("reply-preview")).toBeInTheDocument();
-    expect(editor).toHaveTextContent("reply draft");
   });
 
   // Guards: reply sends must include the visible @username in both the wire message and optimistic echo; otherwise it only appears after chat refresh.
@@ -748,6 +719,162 @@ describe("ChatInput — basics", () => {
         parentMessageBody: "hello there",
       }
     );
+  });
+});
+
+// Guards: a focused composer cannot accept key or paste mutations after auth changes to guest mode.
+// Guards: Twitch and Kick guests get a keyboard-accessible login surface with consistent copy.
+// Guards: guest login masks draft chrome while preserving the draft for auth recovery.
+describe("ChatInput - guest authentication gate", () => {
+  it.each([
+    "twitch",
+    "kick",
+  ] as const)("uses the same guest login button copy on %s", (platform) => {
+    renderInput({ platform, canSend: false, isAuthenticated: false });
+
+    expect(screen.getAllByRole("button", { name: "Log in to chat" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Sign in to chat" })).not.toBeInTheDocument();
+  });
+
+  it("does not accept keyboard text after a focused composer becomes guest-only", () => {
+    const { rerender } = renderInput({ canSend: true, isAuthenticated: true });
+    const editor = getEditor();
+    typeInEditor(editor, "draft");
+    act(() => editor.focus());
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="ninja"
+          platform="twitch"
+          channelId="12345"
+          canSend={false}
+          isAuthenticated={false}
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.getByRole("button", { name: "Log in to chat" })).toHaveFocus();
+    const lockedEditor = screen.getByTestId("chat-rich-input");
+    fireEvent.keyDown(lockedEditor, { key: "x" });
+
+    expect(lockedEditor.textContent).toBe("draft");
+  });
+
+  it("does not accept pasted text after a focused composer becomes guest-only", () => {
+    const { rerender } = renderInput({ canSend: true, isAuthenticated: true });
+    const editor = getEditor();
+    typeInEditor(editor, "draft");
+    act(() => editor.focus());
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="ninja"
+          platform="twitch"
+          channelId="12345"
+          canSend={false}
+          isAuthenticated={false}
+        />
+      </TooltipProvider>
+    );
+
+    const lockedEditor = screen.getByTestId("chat-rich-input");
+    fireEvent.paste(lockedEditor, {
+      clipboardData: { getData: () => " pasted" },
+    });
+
+    expect(lockedEditor.textContent).toBe("draft");
+  });
+
+  it("fully masks draft chrome in guest mode without discarding the draft", () => {
+    const { rerender } = renderInput({
+      canSend: true,
+      isAuthenticated: true,
+      maxLength: 100,
+    });
+    typeInEditor(getEditor(), "draft");
+    expect(screen.getByText("95")).toBeInTheDocument();
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="ninja"
+          platform="twitch"
+          channelId="12345"
+          canSend={false}
+          isAuthenticated={false}
+          maxLength={100}
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.getByRole("button", { name: "Log in to chat" })).toHaveClass("bg-[#191919]");
+    expect(screen.queryByText("95")).not.toBeInTheDocument();
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="ninja"
+          platform="twitch"
+          channelId="12345"
+          canSend
+          isAuthenticated
+          maxLength={100}
+        />
+      </TooltipProvider>
+    );
+
+    expect(getEditor().textContent).toBe("draft");
+    expect(screen.getByText("95")).toBeInTheDocument();
+  });
+
+  it("uses a clickable Twitch login surface while the underlying composer stays inert", async () => {
+    const onAuthRequired = vi.fn();
+
+    renderInput({
+      platform: "twitch",
+      canSend: false,
+      isAuthenticated: false,
+      onAuthRequired,
+    });
+
+    const editor = screen.getByTestId("chat-rich-input");
+    expect(editor).toHaveAttribute("contenteditable", "false");
+    expect(editor).toHaveAttribute("aria-readonly", "true");
+
+    await act(async () => {
+      fireEvent.click(editor);
+    });
+    expect(onAuthRequired).not.toHaveBeenCalled();
+
+    const loginButton = screen.getByRole("button", { name: "Log in to chat" });
+    await act(async () => {
+      fireEvent.click(loginButton);
+    });
+    expect(onAuthRequired).toHaveBeenCalledWith("twitch");
+  });
+
+  it("uses a keyboard-accessible Kick login surface", async () => {
+    const onAuthRequired = vi.fn();
+    const user = userEvent.setup();
+
+    renderInput({
+      platform: "kick",
+      canSend: false,
+      isAuthenticated: false,
+      onAuthRequired,
+    });
+
+    const editor = screen.getByTestId("chat-rich-input");
+    expect(editor).toHaveAttribute("contenteditable", "false");
+    expect(editor).toHaveAttribute("aria-readonly", "true");
+
+    const loginButton = screen.getByRole("button", { name: "Log in to chat" });
+    loginButton.focus();
+    await user.keyboard("{Enter}");
+
+    expect(onAuthRequired).toHaveBeenCalledWith("kick");
   });
 });
 
@@ -1095,36 +1222,190 @@ describe("ChatInput — subscriber-only preflight", () => {
 
 // Guards: platform send rejections become the same single blocker banner as preflight restrictions.
 describe("ChatInput — send rejection blockers", () => {
-  it("uses Twitch phone-verification copy when Twitch rejects the send", async () => {
+  it("restores the rejected draft and blocks retries after Twitch reports phone verification", async () => {
     infoBannerImpl.mockReturnValue(null);
-    vi.mocked(twitchChatService.sendMessage).mockRejectedValueOnce(
-      new Error("This room requires a verified phone number to chat")
-    );
-    const onOpenChannelPage = vi.fn(async () => {});
-    renderInput({ isAuthenticated: true, canSend: true, onOpenChannelPage });
+    renderInput({ isAuthenticated: true, canSend: true, viewerUserId: "viewer-1" });
     const editor = getEditor();
     typeInEditor(editor, "phone gated");
 
     await act(async () => {
       fireEvent.keyDown(editor, { key: "Enter" });
     });
+    expect(editor).toHaveTextContent("");
 
-    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent(
-      "Add a phone number to chat on Twitch"
-    );
-    const blocker = screen.getByTestId("chat-send-blocker");
-    expect(within(blocker).getByRole("button", { name: /open twitch/i })).toBeInTheDocument();
-    expect(editor).toHaveTextContent("phone gated");
-    expect(screen.queryByText("This room requires a verified phone number to chat")).toBeNull();
-
-    await act(async () => {
-      fireEvent.click(within(blocker).getByRole("button", { name: /open twitch/i }));
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "phone",
+      });
     });
 
-    expect(onOpenChannelPage).toHaveBeenCalledWith("twitch", "ninja");
+    const blocker = screen.getByTestId("twitch-verification-card");
+    expect(blocker).toHaveTextContent("Verified Accounts Only Chat");
+    expect(blocker).toHaveTextContent("requires phone verification");
+    expect(editor).toHaveTextContent("phone gated");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(twitchChatService.sendMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("uses Twitch email-verification copy when Twitch rejects the send", async () => {
+  it("ignores viewer restrictions emitted for another Twitch channel", () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput({ isAuthenticated: true, canSend: true, viewerUserId: "viewer-1" });
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "shroud",
+        channelId: "67890",
+        restriction: "verification",
+        requirement: "phone",
+      });
+    });
+
+    expect(screen.queryByTestId("twitch-verification-card")).toBeNull();
+  });
+
+  it("keeps the authoritative room-mode banner visible with the viewer blocker", () => {
+    infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Slow Mode [30s]</div>);
+    renderInput({ isAuthenticated: true, canSend: true, viewerUserId: "viewer-1" });
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "phone",
+      });
+    });
+
+    expect(screen.getByTestId("info-banner-stub")).toHaveTextContent("Slow Mode [30s]");
+    expect(screen.getByTestId("twitch-verification-card")).toBeInTheDocument();
+  });
+
+  it("clears the viewer restriction when the account or channel context changes", () => {
+    infoBannerImpl.mockReturnValue(null);
+    const { rerender } = renderInput({
+      isAuthenticated: true,
+      canSend: true,
+      viewerUserId: "viewer-1",
+    });
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "phone",
+      });
+    });
+    expect(screen.getByTestId("twitch-verification-card")).toBeInTheDocument();
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="ninja"
+          platform="twitch"
+          channelId="12345"
+          isAuthenticated
+          canSend
+          viewerUserId="viewer-2"
+        />
+      </TooltipProvider>
+    );
+    expect(screen.queryByTestId("twitch-verification-card")).toBeNull();
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "phone",
+      });
+    });
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="shroud"
+          platform="twitch"
+          channelId="67890"
+          isAuthenticated
+          canSend
+          viewerUserId="viewer-2"
+        />
+      </TooltipProvider>
+    );
+    expect(screen.queryByTestId("twitch-verification-card")).toBeNull();
+  });
+
+  it("dismisses the blocker for one retry and shows it again after another rejection", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput({ isAuthenticated: true, canSend: true, viewerUserId: "viewer-1" });
+    const editor = getEditor();
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "phone",
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss verification notice" }));
+    expect(screen.queryByTestId("twitch-verification-card")).toBeNull();
+
+    typeInEditor(editor, "retry me");
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+    expect(twitchChatService.sendMessage).toHaveBeenCalledOnce();
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "phone",
+      });
+    });
+    expect(screen.getByTestId("twitch-verification-card")).toBeInTheDocument();
+    expect(editor).toHaveTextContent("retry me");
+  });
+
+  it("opens Twitch security settings from Verify Account", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const openExternal = vi.fn(async () => {});
+    window.electronAPI = { openExternal } as unknown as typeof window.electronAPI;
+    renderInput({ isAuthenticated: true, canSend: true, viewerUserId: "viewer-1" });
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "verification",
+        requirement: "phone",
+      });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Verify Account" }));
+    });
+
+    expect(openExternal).toHaveBeenCalledWith("https://www.twitch.tv/settings/security");
+  });
+
+  it("uses the verification card when Twitch rejects the send promise", async () => {
     infoBannerImpl.mockReturnValue(null);
     vi.mocked(twitchChatService.sendMessage).mockRejectedValueOnce(
       new Error("This room requires a verified email address to chat")
@@ -1137,8 +1418,8 @@ describe("ChatInput — send rejection blockers", () => {
       fireEvent.keyDown(editor, { key: "Enter" });
     });
 
-    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent(
-      "Verify your email to chat on Twitch"
+    expect(screen.getByTestId("twitch-verification-card")).toHaveTextContent(
+      "requires email verification"
     );
     expect(editor).toHaveTextContent("email gated");
   });
@@ -1662,7 +1943,28 @@ describe("ChatInput — emote dialogs", () => {
 // Guards: quick emote strip shows platform global emotes when no recent emotes exist.
 // Guards: recently used emotes stay first and can come from any provider available on the current platform.
 // Guards: selecting a quick emote sends it immediately and promotes it to frequently used without touching drafts.
+// Guards: each quick emote has its own visible tile and spacing instead of one flat gray strip.
 describe("ChatInput — quick emote action bar", () => {
+  it.each([
+    "twitch",
+    "kick",
+  ] as const)("renders spaced %s quick emote tiles without a full-width gray strip", (platform) => {
+    const globalEmote = makeQuickEmote({
+      id: platform === "twitch" ? "25" : "1730762",
+      name: platform === "twitch" ? "Kappa" : "KEKW",
+      provider: platform,
+    });
+    emoteStoreState.getEmotesByProvider = () =>
+      new Map<EmoteProvider, Emote[]>([[platform, [globalEmote]]]);
+
+    renderInput({ platform });
+
+    expect(screen.getByTestId("chat-emote-action-row")).not.toHaveClass("bg-[#252525]");
+    expect(screen.getByTestId("quick-emote-action-bar")).toHaveClass("gap-2");
+    expect(screen.getByTestId("quick-emote-button")).toHaveClass("border-white/10", "bg-[#252525]");
+    expect(screen.getByTestId("chat-input-text-row")).toHaveClass("bg-[#191919]");
+  });
+
   it("shows global emotes as the fallback quick row", () => {
     const globalTwitch = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     const channelTwitch = makeQuickEmote({
@@ -1686,6 +1988,23 @@ describe("ChatInput — quick emote action bar", () => {
     ]);
   });
 
+  it("limits the quick row to nine complete emote tiles", () => {
+    const kickEmotes = Array.from({ length: 11 }, (_, index) =>
+      makeQuickEmote({
+        id: `kick-${index + 1}`,
+        name: `KickEmote${index + 1}`,
+        provider: "kick",
+      })
+    );
+    emoteStoreState.getEmotesByProvider = () =>
+      new Map<EmoteProvider, Emote[]>([["kick", kickEmotes]]);
+
+    renderInput({ platform: "kick" });
+
+    expect(screen.getAllByTestId("quick-emote-button")).toHaveLength(9);
+    expect(screen.queryByRole("button", { name: "Use KickEmote10" })).not.toBeInTheDocument();
+  });
+
   it("uses Kick-sized 24px emote art", () => {
     const globalTwitch = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProvider = () =>
@@ -1704,7 +2023,7 @@ describe("ChatInput — quick emote action bar", () => {
       isGlobal: false,
     });
     const globalTwitch = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
-    emoteStoreState.recentEmotes = [recentSevenTv];
+    emoteStoreState.recentEmotesByScope["twitch:guest"] = [recentSevenTv];
     emoteStoreState.getEmotesByProvider = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [globalTwitch]]]);
 
@@ -1713,6 +2032,68 @@ describe("ChatInput — quick emote action bar", () => {
     expect(screen.getAllByTestId("quick-emote-button").map((button) => button.ariaLabel)).toEqual([
       "Use recentSTV",
       "Use Kappa",
+    ]);
+  });
+
+  // Guards: signing back into the same platform account restores its quick-emote row,
+  // while guest or another account's recent choices stay isolated.
+  it("shows recent emotes for the authenticated Twitch viewer", () => {
+    const accountRecent = makeQuickEmote({
+      id: "account-r",
+      name: "accountRecent",
+      provider: "twitch",
+      isGlobal: false,
+    });
+    const guestRecent = makeQuickEmote({
+      id: "guest-r",
+      name: "guestRecent",
+      provider: "twitch",
+      isGlobal: false,
+    });
+    const otherAccountRecent = makeQuickEmote({
+      id: "other-r",
+      name: "otherRecent",
+      provider: "twitch",
+      isGlobal: false,
+    });
+    emoteStoreState.recentEmotes = [guestRecent];
+    emoteStoreState.recentEmotesByScope = {
+      "twitch:viewer-1": [accountRecent],
+      "twitch:viewer-2": [otherAccountRecent],
+      "twitch:guest": [guestRecent],
+    };
+
+    const { rerender } = renderInput({ viewerUserId: "viewer-1" });
+
+    expect(screen.getAllByTestId("quick-emote-button").map((button) => button.ariaLabel)).toEqual([
+      "Use accountRecent",
+    ]);
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput channel="ninja" platform="twitch" channelId="12345" />
+      </TooltipProvider>
+    );
+    expect(screen.getAllByTestId("quick-emote-button").map((button) => button.ariaLabel)).toEqual([
+      "Use guestRecent",
+    ]);
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput channel="ninja" platform="twitch" channelId="12345" viewerUserId="viewer-2" />
+      </TooltipProvider>
+    );
+    expect(screen.getAllByTestId("quick-emote-button").map((button) => button.ariaLabel)).toEqual([
+      "Use otherRecent",
+    ]);
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput channel="ninja" platform="twitch" channelId="12345" viewerUserId="viewer-1" />
+      </TooltipProvider>
+    );
+    expect(screen.getAllByTestId("quick-emote-button").map((button) => button.ariaLabel)).toEqual([
+      "Use accountRecent",
     ]);
   });
 
@@ -1740,7 +2121,10 @@ describe("ChatInput — quick emote action bar", () => {
         },
       ]);
     });
-    expect(emoteStoreState.addRecentEmote).toHaveBeenCalledWith(globalTwitch);
+    expect(emoteStoreState.addRecentEmote).toHaveBeenCalledWith(
+      { platform: "twitch", userId: null },
+      globalTwitch
+    );
     expect(getEditor().textContent).toBe("draft");
   });
 
@@ -1772,7 +2156,10 @@ describe("ChatInput — quick emote action bar", () => {
         ]
       );
     });
-    expect(emoteStoreState.addRecentEmote).toHaveBeenCalledWith(kickEmote);
+    expect(emoteStoreState.addRecentEmote).toHaveBeenCalledWith(
+      { platform: "kick", userId: null },
+      kickEmote
+    );
   });
 });
 

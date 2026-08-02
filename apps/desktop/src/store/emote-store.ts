@@ -27,6 +27,20 @@ let emoteNameMapCache: {
   map: Map<string, Emote>;
 } | null = null;
 
+export interface EmoteViewerScope {
+  platform: Platform;
+  userId: string | null;
+}
+
+const PLATFORM_RECENT_PROVIDERS: Record<Platform, ReadonlySet<EmoteProvider>> = {
+  twitch: new Set(["twitch", "7tv", "bttv", "ffz"]),
+  kick: new Set(["kick", "7tv"]),
+};
+
+export function getEmoteViewerScopeKey(scope: EmoteViewerScope): string {
+  return `${scope.platform}:${scope.userId ?? "guest"}`;
+}
+
 interface EmoteState {
   /** Whether emotes are currently loading (UI hint only; not used as a gate) */
   isLoading: boolean;
@@ -44,6 +58,10 @@ interface EmoteState {
   loadedChannels: Set<string>;
   /** Recently used emotes (for quick access) */
   recentEmotes: Emote[];
+  /** Recently used emotes isolated by platform and authenticated viewer. */
+  recentEmotesByScope: Record<string, Emote[]>;
+  /** Pre-account-scoping data, claimable once by the first authenticated viewer per platform. */
+  legacyRecentEmotesByPlatform: Partial<Record<Platform, Emote[]>>;
   /** Maximum number of recent emotes to track */
   maxRecentEmotes: number;
   /** Favorite emotes */
@@ -75,8 +93,13 @@ interface EmoteState {
   ) => Promise<void>;
   unloadChannelEmotes: (channelId: string) => void;
   setActiveChannel: (channelId: string | null) => void;
-  addRecentEmote: (emote: Emote) => void;
-  clearRecentEmotes: () => void;
+  addRecentEmote: {
+    (emote: Emote): void;
+    (scope: EmoteViewerScope, emote: Emote): void;
+  };
+  getRecentEmotes: (scope: EmoteViewerScope) => Emote[];
+  claimLegacyRecentEmotes: (scope: EmoteViewerScope) => void;
+  clearRecentEmotes: (scope?: EmoteViewerScope) => void;
   toggleFavorite: (emote: Emote) => void;
   isFavorite: (emoteId: string) => boolean;
   searchEmotes: (query: string, limit?: number) => Emote[];
@@ -84,6 +107,14 @@ interface EmoteState {
   getEmotesByProviderForChannel: (channelId: string) => Map<EmoteProvider, Emote[]>;
   getAllEmotes: () => Emote[];
   getEmoteNameMap: () => Map<string, Emote>;
+}
+
+interface PersistedEmoteState {
+  recentEmotes: Emote[];
+  recentEmotesByScope: Record<string, Emote[]>;
+  legacyRecentEmotesByPlatform: Partial<Record<Platform, Emote[]>>;
+  maxRecentEmotes: number;
+  favoriteEmotes: Emote[];
 }
 
 export const useEmoteStore = create<EmoteState>()(
@@ -95,6 +126,8 @@ export const useEmoteStore = create<EmoteState>()(
       emoteRevision: 0,
       loadedChannels: new Set(),
       recentEmotes: [],
+      recentEmotesByScope: {},
+      legacyRecentEmotesByPlatform: {},
       maxRecentEmotes: 20,
       favoriteEmotes: [],
       activeChannelId: null,
@@ -243,7 +276,38 @@ export const useEmoteStore = create<EmoteState>()(
 
       setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
 
-      addRecentEmote: (emote) => {
+      addRecentEmote: (scopeOrEmote: EmoteViewerScope | Emote, scopedEmote?: Emote) => {
+        if (scopedEmote) {
+          const scope = scopeOrEmote as EmoteViewerScope;
+          const scopeKey = getEmoteViewerScopeKey(scope);
+          set((state) => {
+            const ownsScope = Object.hasOwn(state.recentEmotesByScope, scopeKey);
+            const canClaimLegacy =
+              !ownsScope &&
+              scope.userId !== null &&
+              Object.hasOwn(state.legacyRecentEmotesByPlatform, scope.platform);
+            const current = ownsScope
+              ? (state.recentEmotesByScope[scopeKey] ?? [])
+              : canClaimLegacy
+                ? (state.legacyRecentEmotesByPlatform[scope.platform] ?? [])
+                : [];
+            const filtered = current.filter(
+              (emote) => emote.id !== scopedEmote.id || emote.provider !== scopedEmote.provider
+            );
+            const remainingLegacy = { ...state.legacyRecentEmotesByPlatform };
+            if (canClaimLegacy) delete remainingLegacy[scope.platform];
+            return {
+              recentEmotesByScope: {
+                ...state.recentEmotesByScope,
+                [scopeKey]: [scopedEmote, ...filtered].slice(0, state.maxRecentEmotes),
+              },
+              legacyRecentEmotesByPlatform: remainingLegacy,
+            };
+          });
+          return;
+        }
+
+        const emote = scopeOrEmote as Emote;
         set((state) => {
           // Remove if already exists (to move to front)
           const filtered = state.recentEmotes.filter((e) => e.id !== emote.id);
@@ -253,7 +317,42 @@ export const useEmoteStore = create<EmoteState>()(
         });
       },
 
-      clearRecentEmotes: () => set({ recentEmotes: [] }),
+      getRecentEmotes: (scope) => get().recentEmotesByScope[getEmoteViewerScopeKey(scope)] ?? [],
+
+      claimLegacyRecentEmotes: (scope) => {
+        if (!scope.userId) return;
+        const scopeKey = getEmoteViewerScopeKey(scope);
+        set((state) => {
+          if (Object.hasOwn(state.recentEmotesByScope, scopeKey)) return state;
+          const legacy = state.legacyRecentEmotesByPlatform[scope.platform];
+          if (!legacy) return state;
+          const remainingLegacy = { ...state.legacyRecentEmotesByPlatform };
+          delete remainingLegacy[scope.platform];
+          return {
+            recentEmotesByScope: {
+              ...state.recentEmotesByScope,
+              [scopeKey]: legacy,
+            },
+            legacyRecentEmotesByPlatform: remainingLegacy,
+          };
+        });
+      },
+
+      clearRecentEmotes: (scope) => {
+        if (!scope) {
+          set({ recentEmotes: [] });
+          return;
+        }
+        const scopeKey = getEmoteViewerScopeKey(scope);
+        set((state) => {
+          return {
+            recentEmotesByScope: {
+              ...state.recentEmotesByScope,
+              [scopeKey]: [],
+            },
+          };
+        });
+      },
 
       toggleFavorite: (emote) => {
         set((state) => {
@@ -321,8 +420,39 @@ export const useEmoteStore = create<EmoteState>()(
     }),
     {
       name: "emote-storage",
+      version: 1,
+      migrate: (persistedState, version) => {
+        const state = (persistedState ?? {}) as Partial<PersistedEmoteState>;
+        if (version >= 1 || state.recentEmotesByScope) {
+          return {
+            recentEmotes: state.recentEmotes ?? [],
+            recentEmotesByScope: state.recentEmotesByScope ?? {},
+            legacyRecentEmotesByPlatform: state.legacyRecentEmotesByPlatform ?? {},
+            maxRecentEmotes: state.maxRecentEmotes ?? 20,
+            favoriteEmotes: state.favoriteEmotes ?? [],
+          };
+        }
+
+        const legacyRecentEmotes = Array.isArray(state.recentEmotes) ? state.recentEmotes : [];
+        return {
+          recentEmotes: legacyRecentEmotes,
+          recentEmotesByScope: {},
+          legacyRecentEmotesByPlatform: {
+            twitch: legacyRecentEmotes.filter((emote) =>
+              PLATFORM_RECENT_PROVIDERS.twitch.has(emote.provider)
+            ),
+            kick: legacyRecentEmotes.filter((emote) =>
+              PLATFORM_RECENT_PROVIDERS.kick.has(emote.provider)
+            ),
+          },
+          maxRecentEmotes: state.maxRecentEmotes ?? 20,
+          favoriteEmotes: state.favoriteEmotes ?? [],
+        };
+      },
       partialize: (state) => ({
         recentEmotes: state.recentEmotes,
+        recentEmotesByScope: state.recentEmotesByScope,
+        legacyRecentEmotesByPlatform: state.legacyRecentEmotesByPlatform,
         maxRecentEmotes: state.maxRecentEmotes,
         favoriteEmotes: state.favoriteEmotes,
       }),

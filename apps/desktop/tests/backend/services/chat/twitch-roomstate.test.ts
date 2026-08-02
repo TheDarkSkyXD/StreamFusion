@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  noticeMsgIdToRoomStatePatch,
-  roomStateTagsToPatch,
-} from "@/backend/services/chat/twitch-roomstate";
+import { roomStateTagsToPatch } from "@/backend/services/chat/twitch-roomstate";
 
 // Guards: Twitch IRC ROOMSTATE tag semantics — `followers-only: "-1"` means OFF (not "follow for -1 minutes"); `slow: "0"` means OFF; r9k/emote-only/subs-only are booleans. These are easy to flip the wrong direction when refactoring; the test pins each branch explicitly.
 
@@ -84,25 +81,5 @@ describe("roomStateTagsToPatch", () => {
 
   it("only room-id present → empty patch (room-id is not a mode field)", () => {
     expect(roomStateTagsToPatch({ "room-id": "12345" })).toEqual({});
-  });
-});
-
-// Guards: Twitch verified-chat is not exposed in Helix chat settings or ROOMSTATE;
-// the stable IRC surface is the NOTICE msg-id emitted when the viewer is blocked.
-describe("noticeMsgIdToRoomStatePatch", () => {
-  it("phone verification notice -> twitchVerification: phone", () => {
-    expect(noticeMsgIdToRoomStatePatch("msg_requires_verified_phone_number")).toEqual({
-      twitchVerification: "phone",
-    });
-  });
-
-  it("email verification notice -> twitchVerification: email", () => {
-    expect(noticeMsgIdToRoomStatePatch("msg_verified_email")).toEqual({
-      twitchVerification: "email",
-    });
-  });
-
-  it("unrelated notice -> empty patch", () => {
-    expect(noticeMsgIdToRoomStatePatch("subs_on")).toEqual({});
   });
 });

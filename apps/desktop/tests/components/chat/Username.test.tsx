@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Username } from "@/components/chat/Username";
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
+import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
 
 // Drive Username's chatDisplay-derived behavior by seeding the auth store.
 // Mirrors the PredictionBanner test's preferences-merge idiom.
@@ -18,6 +19,7 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 }
 
 beforeEach(() => {
+  useChatCosmeticsStore.getState().reset();
   // Reset to default prefs before each render so chatDisplay branching is
   // predictable and no prior test's overrides leak in (mirrors PredictionBanner).
   useAuthStore.setState((s) => ({
@@ -96,6 +98,122 @@ describe("Username", () => {
 });
 
 describe("Username chatDisplay (U2)", () => {
+  it("renders a repeating 7TV gradient and shadows with a solid-color fallback", () => {
+    const cosmetics = useChatCosmeticsStore.getState();
+    cosmetics.applySevenTvEvent("channel-1", {
+      type: "paint.upsert",
+      paint: {
+        id: "paint-1",
+        name: "Sunset",
+        function: "linear-gradient",
+        angle: 90,
+        repeat: true,
+        stops: [
+          { at: 0, color: "rgba(255, 0, 0, 1)" },
+          { at: 1, color: "rgba(0, 0, 255, 1)" },
+        ],
+        shadows: [{ xOffset: 1, yOffset: 2, radius: 3, color: "rgba(0, 0, 0, 0.5)" }],
+      },
+    });
+    cosmetics.applySevenTvEvent("channel-1", {
+      type: "assignment.upsert",
+      assignment: { userId: "1", kind: "paint", cosmeticId: "paint-1" },
+    });
+
+    render(
+      <Username
+        userId="1"
+        username="ninja"
+        displayName="Ninja"
+        color="#ff0000"
+        platform="twitch"
+        currentChannelContext={{ channelId: "channel-1", channelSlug: "ninja" }}
+      />
+    );
+
+    const name = screen.getByText("Ninja");
+    expect(name.style.backgroundImage).toContain("repeating-linear-gradient(0deg");
+    expect(name.style.textShadow).toContain("1px 2px 3px");
+    expect(name.style.backgroundColor).toBe("rgb(255, 0, 0)");
+    expect(name.style.backgroundClip).toBe("text");
+  });
+
+  it("renders radial and URL paints but falls back for malformed or disabled paints", () => {
+    const cosmetics = useChatCosmeticsStore.getState();
+    const assign = (
+      paint: Parameters<typeof cosmetics.applySevenTvEvent>[1] & { type: "paint.upsert" }
+    ) => {
+      cosmetics.applySevenTvEvent("channel-1", paint);
+      cosmetics.applySevenTvEvent("channel-1", {
+        type: "assignment.upsert",
+        assignment: { userId: "1", kind: "paint", cosmeticId: paint.paint.id },
+      });
+    };
+    assign({
+      type: "paint.upsert",
+      paint: {
+        id: "radial",
+        name: "Radial",
+        function: "radial-gradient",
+        stops: [
+          { at: 0, color: "rgba(1, 2, 3, 1)" },
+          { at: 1, color: "rgba(4, 5, 6, 1)" },
+        ],
+        shadows: [],
+      },
+    });
+    const props = {
+      userId: "1",
+      username: "ninja",
+      displayName: "Ninja",
+      color: "#ff0000",
+      platform: "twitch" as const,
+      currentChannelContext: { channelId: "channel-1", channelSlug: "ninja" },
+    };
+    const { rerender } = render(<Username {...props} />);
+    expect(screen.getByText("Ninja").style.backgroundImage).toContain("radial-gradient(circle");
+
+    act(() => {
+      assign({
+        type: "paint.upsert",
+        paint: {
+          id: "url",
+          name: "Texture",
+          function: "url",
+          imageUrl: "https://cdn.7tv.app/paint.webp",
+          stops: [],
+          shadows: [],
+        },
+      });
+    });
+    rerender(<Username {...props} />);
+    expect(screen.getByText("Ninja").style.backgroundImage).toContain(
+      "https://cdn.7tv.app/paint.webp"
+    );
+    expect(screen.getByText("Ninja").style.backgroundColor).toBe("rgb(255, 0, 0)");
+
+    act(() => {
+      assign({
+        type: "paint.upsert",
+        paint: {
+          id: "malformed",
+          name: "Malformed",
+          function: "url",
+          imageUrl: "javascript:alert(1)",
+          stops: [],
+          shadows: [],
+        },
+      });
+    });
+    rerender(<Username {...props} />);
+    expect(screen.getByText("Ninja").style.backgroundImage).toBe("");
+    expect(screen.getByText("Ninja")).toHaveStyle({ color: "rgb(255, 0, 0)" });
+
+    act(() => setChatDisplay({ enable7tvUsernamePaints: false }));
+    rerender(<Username {...props} />);
+    expect(screen.getByText("Ninja").style.backgroundImage).toBe("");
+    expect(screen.getByText("Ninja")).toHaveStyle({ color: "rgb(255, 0, 0)" });
+  });
   it("assigns a deterministic readable color to an uncolored user", () => {
     // readableColorForUncolored defaults true.
     render(<Username userId="1" username="ninja" displayName="Ninja" platform="twitch" />);

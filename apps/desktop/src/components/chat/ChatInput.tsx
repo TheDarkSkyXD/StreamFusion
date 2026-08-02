@@ -27,7 +27,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { BsGear } from "react-icons/bs";
-import { LuShield } from "react-icons/lu";
+import { LuShield, LuTriangleAlert, LuX } from "react-icons/lu";
 import { toast } from "sonner";
 import { logger } from "@/renderer/logging/logger";
 import { KickChatSendError, kickChatService } from "../../backend/services/chat/kick-chat";
@@ -42,6 +42,8 @@ import type {
   ReplyInfo,
   SubscriberEligibilityRequest,
   SubscriberEligibilityResult,
+  TwitchVerificationRequirement,
+  ViewerChatSendRestrictionEvent,
 } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { useEmoteStore } from "../../store/emote-store";
@@ -91,6 +93,8 @@ export interface ChatInputProps {
   canSend?: boolean;
   /** Whether the viewer has a platform auth session. Defaults to `canSend` for legacy callers. */
   isAuthenticated?: boolean;
+  /** Stable ID for the connected platform account. Omitted for guests or disconnected sessions. */
+  viewerUserId?: string;
   /** Called when an unauthenticated viewer attempts to send. */
   onAuthRequired?: (platform: ChatPlatform) => void | Promise<void>;
   /** True when known app state says this viewer can bypass room-mode restrictions. */
@@ -117,6 +121,14 @@ interface ReplyState {
   username: string;
   displayName: string;
   content: string;
+}
+
+interface SubmittedDraft {
+  contextKey: string;
+  message: string;
+  emoteSlots: Emote[];
+  cursorPosition: number;
+  reply: ReplyState | null;
 }
 
 // ========== Chat Commands ==========
@@ -164,18 +176,22 @@ type RoomSendBlockerKind =
   | "followersOnly"
   | "subscribersOnly"
   | "twitchSubscriptionScopes"
-  | "twitchVerification"
   | "emoteOnly"
   | "slowMode";
 interface SendBlockerCopy {
   message: string;
   action: string | null;
 }
-interface ClassifiedSendBlocker {
-  kind: RoomSendBlockerKind;
-  copy: SendBlockerCopy;
-  cooldownSeconds?: number;
-}
+type ClassifiedSendBlocker =
+  | {
+      kind: "twitchVerification";
+      verificationRequirement: TwitchVerificationRequirement;
+    }
+  | {
+      kind: RoomSendBlockerKind;
+      copy: SendBlockerCopy;
+      cooldownSeconds?: number;
+    };
 
 /** Single Private Use Area code point that stands in for an inserted emote
  *  inside the editor state. Anything outside the PUA can be safely
@@ -184,6 +200,7 @@ interface ClassifiedSendBlocker {
  *  order), so rich editor helpers count an emote as ONE character. */
 const EMOTE_CHAR = "";
 const PLATFORM_CHAT_MESSAGE_MAX_LENGTH = 500;
+const TWITCH_SECURITY_URL = "https://www.twitch.tv/settings/security";
 
 /** Build ContentFragments from the rich editor value + emote slots, mirroring
  *  what the Kick parser produces for inbound `[emote:id:name]` markers.
@@ -367,19 +384,19 @@ function classifySendRejection(platform: ChatPlatform, err: unknown): Classified
     if (lower.includes("verified") && lower.includes("phone")) {
       return {
         kind: "twitchVerification",
-        copy: { message: "Add a phone number to chat on Twitch", action: "Open Twitch" },
+        verificationRequirement: "phone",
       };
     }
     if (lower.includes("verified") && lower.includes("email")) {
       return {
         kind: "twitchVerification",
-        copy: { message: "Verify your email to chat on Twitch", action: "Open Twitch" },
+        verificationRequirement: "email",
       };
     }
     if (lower.includes("verified")) {
       return {
         kind: "twitchVerification",
-        copy: { message: "Verify your Twitch account to chat", action: "Open Twitch" },
+        verificationRequirement: "account",
       };
     }
   }
@@ -718,6 +735,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       placeholder = "Send a message...",
       canSend = true,
       isAuthenticated,
+      viewerUserId,
       onAuthRequired,
       viewerCanBypassRoomModes = false,
       onOpenChannelPage,
@@ -748,6 +766,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [showAuthBlocker, setShowAuthBlocker] = useState(false);
     const [activeRoomBlocker, setActiveRoomBlocker] = useState<RoomSendBlockerKind | null>(null);
     const [activeBlockerCopy, setActiveBlockerCopy] = useState<SendBlockerCopy | null>(null);
+    const [twitchVerificationRequirement, setTwitchVerificationRequirement] =
+      useState<TwitchVerificationRequirement | null>(null);
     const [slowCooldownUntilMs, setSlowCooldownUntilMs] = useState(0);
     const [slowCooldownDurationMs, setSlowCooldownDurationMs] = useState(0);
     const [nowMs, setNowMs] = useState(() => Date.now());
@@ -755,6 +775,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     // Refs
     const editorRef = useRef<HTMLDivElement>(null);
+    const authButtonRef = useRef<HTMLButtonElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const subscriberEligibilityContextRef = useRef("");
     const thirdPartyPopoverAnchorRef = useRef<HTMLElement | null>(null);
@@ -762,6 +783,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const messageRef = useRef(message);
     const emoteSlotsRef = useRef(emoteSlots);
     const cursorPositionRef = useRef(cursorPosition);
+    const twitchVerificationRequirementRef = useRef<TwitchVerificationRequirement | null>(null);
+    const lastSubmittedDraftRef = useRef<SubmittedDraft | null>(null);
+    const previousViewerChatContextRef = useRef("");
     messageRef.current = message;
     emoteSlotsRef.current = emoteSlots;
     cursorPositionRef.current = cursorPosition;
@@ -777,6 +801,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const sourceByKey = useFollowStore((state) => state.sourceByKey);
     const roomState = useChatRoomState(platform, channelId);
     const viewerIsAuthenticated = isAuthenticated ?? canSend;
+    const editorIsLocked = disabled || !viewerIsAuthenticated;
     const currentChannel = useMemo(
       () => ({
         platform,
@@ -786,9 +811,47 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       [channel, channelId, platform]
     );
     const subscriberEligibilityContext = `${platform}:${channelId ?? ""}:${channel}`;
+    const viewerChatContext = `${platform}:${channelId ?? ""}:${channel.toLowerCase()}:${viewerUserId ?? "guest"}`;
     useLayoutEffect(() => {
       subscriberEligibilityContextRef.current = subscriberEligibilityContext;
     }, [subscriberEligibilityContext]);
+    useEffect(() => {
+      if (previousViewerChatContextRef.current === viewerChatContext) return;
+      previousViewerChatContextRef.current = viewerChatContext;
+      twitchVerificationRequirementRef.current = null;
+      lastSubmittedDraftRef.current = null;
+      setTwitchVerificationRequirement(null);
+    }, [viewerChatContext]);
+    useEffect(() => {
+      if (platform !== "twitch") return;
+
+      const handleViewerSendRestriction = (event: ViewerChatSendRestrictionEvent) => {
+        const normalizedEventChannel = event.channel.replace(/^#/, "").toLowerCase();
+        const normalizedCurrentChannel = channel.replace(/^#/, "").toLowerCase();
+        const matchesCurrentChannel = channelId
+          ? event.channelId === channelId
+          : normalizedEventChannel === normalizedCurrentChannel;
+        if (!matchesCurrentChannel) return;
+
+        twitchVerificationRequirementRef.current = event.requirement;
+        setTwitchVerificationRequirement(event.requirement);
+
+        const submittedDraft = lastSubmittedDraftRef.current;
+        if (!submittedDraft || submittedDraft.contextKey !== viewerChatContext) return;
+        messageRef.current = submittedDraft.message;
+        emoteSlotsRef.current = submittedDraft.emoteSlots;
+        cursorPositionRef.current = submittedDraft.cursorPosition;
+        setMessage(submittedDraft.message);
+        setEmoteSlots(submittedDraft.emoteSlots);
+        setCursorPosition(submittedDraft.cursorPosition);
+        setReply(submittedDraft.reply);
+      };
+
+      twitchChatService.on("viewerSendRestriction", handleViewerSendRestriction);
+      return () => {
+        twitchChatService.off("viewerSendRestriction", handleViewerSendRestriction);
+      };
+    }, [channel, channelId, platform, viewerChatContext]);
     const viewerFollowsChannel = useMemo(() => {
       if (!viewerIsAuthenticated) return false;
       const matchingFollow = localFollows.find((follow) => channelsMatch(follow, currentChannel));
@@ -809,10 +872,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       sourceByKey,
       viewerIsAuthenticated,
     ]);
-    const authCopy =
-      platform === "twitch"
-        ? { message: "Log in to chat", action: "Log in" }
-        : { message: "Sign in to chat", action: "Sign in" };
+    const authCopy = {
+      message: "Log in to chat",
+      action: platform === "twitch" ? "Log in" : "Sign in",
+    };
     const slowModeRemainingMs = Math.max(0, slowCooldownUntilMs - nowMs);
     const slowModeRemainingSeconds = Math.max(0, Math.ceil(slowModeRemainingMs / 1000));
     const showSlowModeCountdown = slowModeRemainingMs > 0 && slowCooldownDurationMs > 0;
@@ -830,30 +893,24 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 message: "Reconnect Twitch to check subscriber-only chat",
                 action: "Reconnect Twitch",
               }
-            : activeRoomBlocker === "twitchVerification"
-              ? { message: "Verify your Twitch account to chat", action: "Open Twitch" }
-              : activeRoomBlocker === "emoteOnly"
-                ? { message: "Emote-only chat is enabled", action: null }
-                : activeRoomBlocker === "slowMode"
-                  ? {
-                      message:
-                        slowModeRemainingSeconds > 0
-                          ? `Slow mode active. Wait ${formatSlowModeWait(slowModeRemainingSeconds)}.`
-                          : "Slow mode is active. Try again in a moment.",
-                      action: null,
-                    }
-                  : null);
+            : activeRoomBlocker === "emoteOnly"
+              ? { message: "Emote-only chat is enabled", action: null }
+              : activeRoomBlocker === "slowMode"
+                ? {
+                    message:
+                      slowModeRemainingSeconds > 0
+                        ? `Slow mode active. Wait ${formatSlowModeWait(slowModeRemainingSeconds)}.`
+                        : "Slow mode is active. Try again in a moment.",
+                    action: null,
+                  }
+                : null);
     const proactiveRoomRestrictionReason =
       !viewerCanBypassRoomModes &&
       roomState.followersOnly !== null &&
       roomState.followersOnly >= 0 &&
       !viewerFollowsChannel
         ? "Followers-only chat is enabled"
-        : !viewerCanBypassRoomModes &&
-            platform === "twitch" &&
-            roomState.twitchVerification !== null
-          ? "Verify your Twitch account to chat"
-          : undefined;
+        : undefined;
     const sendEligibility = useMemo(
       () =>
         resolveChatSendEligibility({
@@ -861,7 +918,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           canSend,
           disabled,
           roomRestrictionReason:
-            roomBlockerCopy?.message ??
+            (twitchVerificationRequirement
+              ? "Verify your Twitch account to chat"
+              : roomBlockerCopy?.message) ??
             (slowModeRemainingSeconds > 0 && !viewerCanBypassRoomModes
               ? `Slow mode active. Wait ${formatSlowModeWait(slowModeRemainingSeconds)}.`
               : proactiveRoomRestrictionReason),
@@ -872,6 +931,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         proactiveRoomRestrictionReason,
         roomBlockerCopy?.message,
         slowModeRemainingSeconds,
+        twitchVerificationRequirement,
         viewerCanBypassRoomModes,
         viewerIsAuthenticated,
       ]
@@ -883,7 +943,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       (activeRoomBlocker === "followersOnly" &&
         roomState.followersOnly !== null &&
         roomState.followersOnly >= 0) ||
-      (activeRoomBlocker === "twitchVerification" && roomState.twitchVerification !== null) ||
       (activeRoomBlocker === "subscribersOnly" && roomState.subscribersOnly) ||
       (activeRoomBlocker === "emoteOnly" && roomState.emoteOnly) ||
       (activeRoomBlocker === "slowMode" && roomState.slowMode !== null && roomState.slowMode > 0);
@@ -894,6 +953,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const emoteAutocomplete = useContextualEmoteMode();
     const mentionAutocomplete = useMentionAutocomplete();
     const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
+    const claimLegacyRecentEmotes = useEmoteStore((state) => state.claimLegacyRecentEmotes);
+    useEffect(() => {
+      if (!viewerUserId) return;
+      claimLegacyRecentEmotes({ platform, userId: viewerUserId });
+    }, [claimLegacyRecentEmotes, platform, viewerUserId]);
     const { checkTrigger: checkEmoteAutocompleteTrigger, isActive: isEmoteAutocompleteActive } =
       emoteAutocomplete;
     const { checkTrigger: checkMentionAutocompleteTrigger, isActive: isMentionAutocompleteActive } =
@@ -913,6 +977,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         setEditorCaret(editor, cursorPosition);
       }
     }, [message, emoteSlots, cursorPosition]);
+
+    useLayoutEffect(() => {
+      if (viewerIsAuthenticated || document.activeElement !== editorRef.current) return;
+      authButtonRef.current?.focus();
+    }, [viewerIsAuthenticated]);
 
     useEffect(() => {
       if (slowCooldownUntilMs <= Date.now()) return;
@@ -1022,7 +1091,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       try {
         await onAuthRequired?.(platform);
       } finally {
-        editorRef.current?.focus();
+        if (authButtonRef.current) {
+          authButtonRef.current.focus();
+        } else {
+          editorRef.current?.focus();
+        }
       }
     }, [onAuthRequired, platform]);
 
@@ -1032,19 +1105,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         if (roomState.followersOnly !== null && roomState.followersOnly >= 0) {
           return viewerFollowsChannel ? null : "followersOnly";
         }
-        if (platform === "twitch" && roomState.twitchVerification !== null) {
-          return "twitchVerification";
-        }
         return roomState.emoteOnly && !isEmoteOnlyDraft(draftMessage) ? "emoteOnly" : null;
       },
-      [
-        platform,
-        roomState.emoteOnly,
-        roomState.followersOnly,
-        roomState.twitchVerification,
-        viewerCanBypassRoomModes,
-        viewerFollowsChannel,
-      ]
+      [roomState.emoteOnly, roomState.followersOnly, viewerCanBypassRoomModes, viewerFollowsChannel]
     );
 
     const getSubscriberSendBlocker = useCallback(async (): Promise<
@@ -1098,6 +1161,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const handleClassifiedSendBlocker = useCallback(
       (sendBlocker: ClassifiedSendBlocker) => {
+        if (sendBlocker.kind === "twitchVerification") {
+          twitchVerificationRequirementRef.current = sendBlocker.verificationRequirement;
+          setTwitchVerificationRequirement(sendBlocker.verificationRequirement);
+          return;
+        }
         if (sendBlocker.kind === "slowMode" && sendBlocker.cooldownSeconds !== undefined) {
           startSlowModeCooldown(sendBlocker.cooldownSeconds);
           showRoomSendBlocker("slowMode");
@@ -1132,6 +1200,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
       await handleOpenChannelPage();
     }, [activeRoomBlocker, handleOpenChannelPage, onAuthRequired]);
+
+    const handleDismissTwitchVerification = useCallback(() => {
+      twitchVerificationRequirementRef.current = null;
+      setTwitchVerificationRequirement(null);
+      editorRef.current?.focus();
+    }, []);
+
+    const handleVerifyTwitchAccount = useCallback(async () => {
+      try {
+        await window.electronAPI?.openExternal?.(TWITCH_SECURITY_URL);
+      } finally {
+        editorRef.current?.focus();
+      }
+    }, []);
 
     const replaceSelection = useCallback(
       (insertText: string, insertSlot?: Emote) => {
@@ -1252,7 +1334,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           return;
         }
 
-        addRecentEmote(emote);
+        addRecentEmote({ platform, userId: viewerUserId ?? null }, emote);
 
         const insertAt = startPos !== undefined ? startPos : cursorPosition;
         const replaceUpTo = endPos !== undefined ? endPos : cursorPosition;
@@ -1283,7 +1365,16 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         emoteAutocomplete.deactivate();
         setActiveDialog(null);
       },
-      [message, emoteSlots, cursorPosition, emoteAutocomplete, disabled, addRecentEmote]
+      [
+        message,
+        emoteSlots,
+        cursorPosition,
+        emoteAutocomplete,
+        disabled,
+        addRecentEmote,
+        platform,
+        viewerUserId,
+      ]
     );
 
     // Handle mention selection
@@ -1407,6 +1498,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           await handleAuthRequired();
           return;
         }
+        if (twitchVerificationRequirement) return;
         const roomBlocker = getRoomSendBlocker(quickMessage);
         if (roomBlocker === "followersOnly") {
           showRoomSendBlocker(roomBlocker);
@@ -1430,7 +1522,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         if (!canSend) return;
 
         const localFragments = serializeFragments(quickMessage, quickSlots);
-        addRecentEmote(emote);
+        addRecentEmote({ platform, userId: viewerUserId ?? null }, emote);
         setIsSending(true);
         setError(null);
 
@@ -1462,6 +1554,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       },
       [
         addRecentEmote,
+        platform,
+        viewerUserId,
         canSend,
         disabled,
         getRoomSendBlocker,
@@ -1471,10 +1565,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         handleClassifiedSendBlocker,
         isSending,
         maxLength,
-        platform,
         sendChatPayload,
         showRoomSendBlocker,
         startSlowModeCooldown,
+        twitchVerificationRequirement,
         viewerIsAuthenticated,
       ]
     );
@@ -1497,6 +1591,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         await handleAuthRequired();
         return;
       }
+      if (twitchVerificationRequirement) return;
       const roomBlocker = getRoomSendBlocker(message);
       if (roomBlocker === "followersOnly") {
         showRoomSendBlocker(roomBlocker);
@@ -1524,6 +1619,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       // delivery replaces the echo. Twitch's IRC echo carries the parsed
       // emote tags from tmi.js, so it doesn't need this.
       const localFragments = serializeFragments(message, emoteSlots);
+
+      lastSubmittedDraftRef.current = {
+        contextKey: viewerChatContext,
+        message,
+        emoteSlots: [...emoteSlots],
+        cursorPosition,
+        reply,
+      };
 
       setIsSending(true);
       setError(null);
@@ -1573,6 +1676,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           await sendChatPayload(trimmedMessage, localFragments);
         }
 
+        if (twitchVerificationRequirementRef.current) return;
+
         setMessage("");
         setEmoteSlots([]);
         startSlowModeCooldown();
@@ -1616,7 +1721,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       sendChatPayload,
       showRoomSendBlocker,
       startSlowModeCooldown,
+      twitchVerificationRequirement,
+      viewerChatContext,
       viewerIsAuthenticated,
+      cursorPosition,
+      reply,
     ]);
 
     // Handle key press — Enter sends; Shift+Enter inserts newline (default
@@ -1770,16 +1879,28 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const composerDisabled = disabled;
     const sendUnavailable = viewerIsAuthenticated && !canSend;
     const slowModeSendLocked = showSlowModeCountdown && !viewerCanBypassRoomModes;
+    const verificationSendLocked = twitchVerificationRequirement !== null;
     const canSubmit =
       !composerDisabled &&
       !sendUnavailable &&
       !isSending &&
       !isOverLimit &&
       !slowModeSendLocked &&
+      !verificationSendLocked &&
       serializeMessage(message, emoteSlots, platform).trim().length > 0;
     const shouldDimSubmit =
-      composerDisabled || sendUnavailable || isSending || isOverLimit || slowModeSendLocked;
-    const submitDisabled = composerDisabled || sendUnavailable || isSending || slowModeSendLocked;
+      composerDisabled ||
+      sendUnavailable ||
+      isSending ||
+      isOverLimit ||
+      slowModeSendLocked ||
+      verificationSendLocked;
+    const submitDisabled =
+      composerDisabled ||
+      sendUnavailable ||
+      isSending ||
+      slowModeSendLocked ||
+      verificationSendLocked;
     const handlePaste = useCallback(
       (e: React.ClipboardEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -1814,6 +1935,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               fallback={
                 <QuickEmoteActionBar
                   platform={platform}
+                  viewerUserId={viewerUserId}
                   onSelect={handleQuickEmoteSend}
                   disabled={disabled || isSending}
                 />
@@ -1822,6 +1944,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           ) : (
             <QuickEmoteActionBar
               platform={platform}
+              viewerUserId={viewerUserId}
               onSelect={handleQuickEmoteSend}
               disabled={disabled || isSending}
             />
@@ -1834,6 +1957,48 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           channelId={channelId}
           viewerSatisfiesFollowerOnly={viewerFollowsChannel}
         />
+
+        {platform === "twitch" && twitchVerificationRequirement && (
+          <div
+            data-testid="twitch-verification-card"
+            role="alert"
+            className="mb-1 rounded-md border border-[var(--color-border,rgba(83,83,95,0.48))] bg-[#18181b] p-3 text-[#efeff1]"
+          >
+            <div className="flex items-start gap-2">
+              <LuTriangleAlert
+                aria-hidden="true"
+                className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#ffca61]"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="font-bold">Verified Accounts Only Chat</div>
+                <p className="mt-2 text-sm leading-5 text-[#dedee3]">
+                  {twitchVerificationRequirement === "phone"
+                    ? `${channel} requires phone verification to participate in Chat. Please verify your account with a mobile phone number to continue. You'll only need to complete this step once per account.`
+                    : twitchVerificationRequirement === "email"
+                      ? `${channel} requires email verification to participate in Chat. Please verify your email address to continue.`
+                      : `${channel} requires account verification to participate in Chat. Please verify your Twitch account to continue.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss verification notice"
+                onClick={handleDismissTwitchVerification}
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-[#adadb8] hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <LuX aria-hidden="true" className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={handleVerifyTwitchAccount}
+                className="rounded-full bg-[#9146ff] px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-[#772ce8] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                Verify Account
+              </button>
+            </div>
+          </div>
+        )}
 
         {showAuthBlocker && !viewerIsAuthenticated && (
           <div
@@ -1885,35 +2050,48 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             {/* Rich editor: inserted emotes are real inline nodes, so Chromium
             places the caret after the image instead of over a hidden placeholder. */}
             <div className="relative flex flex-1 self-stretch items-center">
-              {!message && (
+              {!message && viewerIsAuthenticated && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-start text-left text-sm font-bold leading-[1.5] text-neutral-300">
-                  {viewerIsAuthenticated ? placeholder : authCopy.message}
+                  {placeholder}
                 </div>
+              )}
+              {!viewerIsAuthenticated && (
+                <button
+                  ref={authButtonRef}
+                  type="button"
+                  aria-label={authCopy.message}
+                  onClick={handleAuthRequired}
+                  className="absolute inset-0 z-10 flex cursor-pointer items-center justify-start bg-[#191919] text-left text-sm font-bold leading-[1.5] text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-inset"
+                >
+                  {authCopy.message}
+                </button>
               )}
               <div
                 ref={editorRef}
                 role="textbox"
                 aria-label={viewerIsAuthenticated ? placeholder : authCopy.message}
                 aria-multiline="true"
-                aria-disabled={disabled}
-                contentEditable={!disabled}
+                aria-disabled={disabled || undefined}
+                aria-readonly={editorIsLocked}
+                aria-hidden={!viewerIsAuthenticated || undefined}
+                contentEditable={!editorIsLocked}
                 suppressContentEditableWarning={true}
                 data-testid="chat-rich-input"
-                onBeforeInput={handleBeforeInput}
-                onInput={syncEditorFromDom}
+                onBeforeInput={editorIsLocked ? undefined : handleBeforeInput}
+                onInput={editorIsLocked ? undefined : syncEditorFromDom}
                 onKeyUp={updateCursorFromSelection}
                 onMouseUp={updateCursorFromSelection}
                 onFocus={handleEditorFocus}
                 onBlur={handleEditorBlur}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
+                onKeyDown={editorIsLocked ? undefined : handleKeyDown}
+                onPaste={editorIsLocked ? undefined : handlePaste}
                 className="no-scrollbar relative min-h-6 max-h-[120px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-sm leading-[1.5] text-white caret-white focus:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                 style={{ wordBreak: "break-word" }}
               />
             </div>
 
             {/* Character Counter */}
-            {message.length > 0 && (
+            {message.length > 0 && viewerIsAuthenticated && (
               <span
                 className={`flex-shrink-0 text-xs ${
                   isOverLimit
@@ -1950,6 +2128,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                   channel={channel}
                   channelId={channelId}
                   kickUserId={kickUserId}
+                  viewerUserId={viewerUserId}
                   isOpen={activeDialog === "native"}
                   onOpenRequest={handleNativeOpenRequest}
                   onEmoteSelect={handleEmoteSelect}
@@ -1967,6 +2146,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                   channel={channel}
                   channelId={channelId}
                   kickUserId={kickUserId}
+                  viewerUserId={viewerUserId}
                   isOpen={activeDialog === "thirdParty"}
                   onOpenRequest={handleThirdPartyOpenRequest}
                   onEmoteSelect={handleEmoteSelect}

@@ -88,6 +88,8 @@ function resetStore(): void {
     emoteRevision: 0,
     loadedChannels: new Set(),
     recentEmotes: [],
+    recentEmotesByScope: {},
+    legacyRecentEmotesByPlatform: {},
     favoriteEmotes: [],
     activeChannelId: null,
   });
@@ -198,6 +200,109 @@ describe("emote-store loadGlobalEmotes", () => {
 
 describe("emote-store persisted picker state", () => {
   // Guards: favorite, frequently-used, and quick-bar emote state survives app restart.
+  // Guards: signing out and back into the same platform account restores that account's quick emotes.
+  it("restores a Twitch account's recent emotes after guest activity", () => {
+    const accountScope = { platform: "twitch" as const, userId: "viewer-1" };
+    const guestScope = { platform: "twitch" as const, userId: null };
+    const accountEmote = makeEmote({ id: "account-1", name: "AccountWave", provider: "twitch" });
+    const guestEmote = makeEmote({ id: "guest-1", name: "GuestWave", provider: "twitch" });
+
+    useEmoteStore.getState().addRecentEmote(accountScope, accountEmote);
+    useEmoteStore.getState().addRecentEmote(guestScope, guestEmote);
+
+    expect(useEmoteStore.getState().getRecentEmotes(accountScope)).toEqual([accountEmote]);
+    expect(useEmoteStore.getState().getRecentEmotes(guestScope)).toEqual([guestEmote]);
+  });
+
+  it("keeps Twitch and Kick accounts isolated across an app restart", async () => {
+    const twitchA = { platform: "twitch" as const, userId: "twitch-a" };
+    const twitchB = { platform: "twitch" as const, userId: "twitch-b" };
+    const kickA = { platform: "kick" as const, userId: "kick-a" };
+    const twitchEmote = makeEmote({ id: "shared-id", name: "TwitchWave", provider: "twitch" });
+    const kickEmote = makeEmote({ id: "shared-id", name: "KickWave", provider: "kick" });
+
+    useEmoteStore.getState().addRecentEmote(twitchA, twitchEmote);
+    useEmoteStore.getState().addRecentEmote(kickA, kickEmote);
+
+    expect(useEmoteStore.getState().getRecentEmotes(twitchB)).toEqual([]);
+
+    vi.resetModules();
+    const { useEmoteStore: freshEmoteStore } = await import("@/store/emote-store");
+
+    expect(freshEmoteStore.getState().getRecentEmotes(twitchA)).toEqual([twitchEmote]);
+    expect(freshEmoteStore.getState().getRecentEmotes(kickA)).toEqual([kickEmote]);
+    expect(freshEmoteStore.getState().getRecentEmotes(twitchB)).toEqual([]);
+  });
+
+  it("clears only the requested viewer's recent emotes", () => {
+    const viewerA = { platform: "kick" as const, userId: "viewer-a" };
+    const viewerB = { platform: "kick" as const, userId: "viewer-b" };
+    const emoteA = makeEmote({ id: "a", provider: "kick" });
+    const emoteB = makeEmote({ id: "b", provider: "kick" });
+
+    useEmoteStore.getState().addRecentEmote(viewerA, emoteA);
+    useEmoteStore.getState().addRecentEmote(viewerB, emoteB);
+    useEmoteStore.getState().clearRecentEmotes(viewerA);
+
+    expect(useEmoteStore.getState().getRecentEmotes(viewerA)).toEqual([]);
+    expect(useEmoteStore.getState().getRecentEmotes(viewerB)).toEqual([emoteB]);
+  });
+
+  it("does not collide when two providers use the same emote id", () => {
+    const scope = { platform: "twitch" as const, userId: "viewer" };
+    const twitchEmote = makeEmote({ id: "same", name: "Native", provider: "twitch" });
+    const sevenTvEmote = makeEmote({ id: "same", name: "ThirdParty", provider: "7tv" });
+
+    useEmoteStore.getState().addRecentEmote(scope, twitchEmote);
+    useEmoteStore.getState().addRecentEmote(scope, sevenTvEmote);
+
+    expect(useEmoteStore.getState().getRecentEmotes(scope)).toEqual([sevenTvEmote, twitchEmote]);
+  });
+
+  it("claims a legacy platform row atomically when the first account emote is selected", () => {
+    const scope = { platform: "twitch" as const, userId: "viewer" };
+    const legacyEmote = makeEmote({ id: "legacy", name: "Legacy", provider: "twitch" });
+    const selectedEmote = makeEmote({ id: "selected", name: "Selected", provider: "7tv" });
+    useEmoteStore.setState({
+      legacyRecentEmotesByPlatform: { twitch: [legacyEmote] },
+    });
+
+    useEmoteStore.getState().addRecentEmote(scope, selectedEmote);
+
+    expect(useEmoteStore.getState().getRecentEmotes(scope)).toEqual([selectedEmote, legacyEmote]);
+    expect(useEmoteStore.getState().legacyRecentEmotesByPlatform.twitch).toBeUndefined();
+  });
+
+  it("migrates a legacy storage blob for one-time Twitch and Kick account claims", async () => {
+    const twitchEmote = makeEmote({ id: "legacy-t", name: "LegacyTwitch", provider: "twitch" });
+    const kickEmote = makeEmote({ id: "legacy-k", name: "LegacyKick", provider: "kick" });
+    localStorage.setItem(
+      "emote-storage",
+      JSON.stringify({
+        state: {
+          recentEmotes: [twitchEmote, kickEmote],
+          maxRecentEmotes: 20,
+          favoriteEmotes: [],
+        },
+        version: 0,
+      })
+    );
+
+    vi.resetModules();
+    const { useEmoteStore: migratedStore } = await import("@/store/emote-store");
+    const twitchScope = { platform: "twitch" as const, userId: "twitch-viewer" };
+    const kickScope = { platform: "kick" as const, userId: "kick-viewer" };
+
+    migratedStore.getState().claimLegacyRecentEmotes(twitchScope);
+    migratedStore.getState().claimLegacyRecentEmotes(kickScope);
+
+    expect(migratedStore.getState().getRecentEmotes(twitchScope)).toEqual([twitchEmote]);
+    expect(migratedStore.getState().getRecentEmotes(kickScope)).toEqual([kickEmote]);
+    expect(
+      migratedStore.getState().getRecentEmotes({ platform: "twitch", userId: "different-viewer" })
+    ).toEqual([]);
+  });
+
   it("hydrates recent and favorite emotes from persisted storage without persisting load caches", async () => {
     const recentEmote = makeEmote({ id: "recent-1", name: "RecentWave", provider: "kick" });
     const favoriteEmote = makeEmote({ id: "favorite-1", name: "FavoriteStar", provider: "7tv" });

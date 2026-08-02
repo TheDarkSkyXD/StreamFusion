@@ -8,6 +8,7 @@ interface ChatBadgeProps {
     title?: string;
     setId?: string;
     version?: string;
+    backgroundColor?: string;
   };
   platform?: "twitch" | "kick";
 }
@@ -25,6 +26,9 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
     platform === "kick"
       ? "inline-block h-[calc(1em*(18/13))] w-[calc(1em*(18/13))] object-contain align-middle cursor-pointer"
       : "h-4 w-4 object-contain inline-block align-middle cursor-pointer";
+  const backgroundColor = /^#[\da-f]{6}$/i.test(badge.backgroundColor ?? "")
+    ? badge.backgroundColor
+    : undefined;
 
   // Capture position once on hover-enter — tooltip is anchored, doesn't follow the cursor.
   // Previously onMouseMove fired ~60 Hz allocating a fresh {x,y} object per frame.
@@ -58,6 +62,7 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
         decoding="async"
         fetchPriority="low"
         className={badgeClassName}
+        style={{ backgroundColor }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       />

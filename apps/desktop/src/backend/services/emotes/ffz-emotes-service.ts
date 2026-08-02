@@ -5,7 +5,15 @@
 
 import { net } from "electron";
 
+import type { FFZBadgeCatalog, FFZRoomResponse } from "@/shared/ipc-channels";
+
 const FFZ_V1_BASE = "https://api.frankerfacez.com/v1";
+
+export async function fetchFFZBadges(): Promise<FFZBadgeCatalog> {
+  const res = await net.fetch(`${FFZ_V1_BASE}/badges/ids`);
+  if (!res.ok) throw new Error(`FFZ badge fetch failed: ${res.status} ${res.statusText}`);
+  return res.json();
+}
 
 export async function fetchFFZGlobalEmotes(): Promise<unknown> {
   const res = await net.fetch(`${FFZ_V1_BASE}/set/global`);
@@ -16,7 +24,7 @@ export async function fetchFFZGlobalEmotes(): Promise<unknown> {
 export async function fetchFFZRoom(opts: {
   name?: string;
   channelId?: string;
-}): Promise<unknown | null> {
+}): Promise<FFZRoomResponse | null> {
   const url = opts.name
     ? `${FFZ_V1_BASE}/room/${opts.name.toLowerCase()}`
     : `${FFZ_V1_BASE}/room/id/${opts.channelId}`;
