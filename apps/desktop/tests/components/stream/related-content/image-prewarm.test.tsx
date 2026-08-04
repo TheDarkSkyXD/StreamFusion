@@ -18,7 +18,16 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   useNavigate: () => vi.fn(),
-  useSearch: () => ({ tab: mocks.activeTab.current }),
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: {
+      location: { search: { tab: "clips" | "videos" | undefined } };
+    }) => unknown;
+  }) =>
+    select({
+      location: { search: { tab: mocks.activeTab.current } },
+    }),
 }));
 
 vi.mock("@/components/stream/related-content/ClipCard", () => ({

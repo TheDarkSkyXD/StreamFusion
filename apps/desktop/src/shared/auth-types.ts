@@ -23,6 +23,8 @@ export interface AuthToken {
 
 export interface EncryptedToken {
   encrypted: string; // Base64 encoded encrypted token
+  /** Absent only on records written before the encoding discriminator existed. */
+  encoding?: "safeStorage" | "base64";
   iv?: string; // Initialization vector if needed
 }
 
@@ -200,6 +202,61 @@ export interface LocalFollow {
   source?: FollowSource;
 }
 
+export interface KickAccountFollowWriteRequest {
+  action: "follow" | "unfollow";
+  follow: Omit<LocalFollow, "id" | "followedAt"> & { platform: "kick" };
+}
+
+export interface TwitchAccountFollowWriteRequest {
+  action: "follow" | "unfollow";
+  follow: Omit<LocalFollow, "id" | "followedAt"> & { platform: "twitch" };
+}
+
+export type AccountFollowWriteRequest =
+  KickAccountFollowWriteRequest | TwitchAccountFollowWriteRequest;
+
+export interface KickAccountFollowWriteSnapshot {
+  status: "pending" | "retrying" | "auth-paused" | "failed";
+  action: "follow" | "unfollow";
+  target: {
+    platform: "kick";
+    channelId: string;
+    channelName: string;
+  };
+  createdAt: string;
+  attemptedAt: string;
+  nextAttemptAt: string;
+  expiresAt: string;
+  attemptCount: number;
+  lastError: string | null;
+}
+
+export type KickAccountFollowWriteResult =
+  | {
+      status: "confirmed" | "pending" | "auth-paused" | "failed";
+      activeFollows: LocalFollow[];
+    }
+  | {
+      status: "rejected";
+      activeFollows: LocalFollow[];
+      error: string;
+    };
+
+export type AccountFollowWriteResult = KickAccountFollowWriteResult;
+
+export interface KickAccountFollowWriteChangedEvent {
+  status: "confirmed" | "pending" | "auth-paused" | "failed";
+  action: "follow" | "unfollow";
+  target: {
+    platform: "kick";
+    channelId: string;
+    channelName: string;
+  };
+  activeFollows: LocalFollow[];
+  /** Sanitized backend reason code for terminal account-write failures. */
+  reason?: string;
+}
+
 export interface LiveNotificationPayload {
   id: string;
   platform: Platform;
@@ -212,11 +269,7 @@ export interface LiveNotificationPayload {
 }
 
 export type DesktopNotificationPermissionStatus =
-  | "granted"
-  | "denied"
-  | "default"
-  | "unsupported"
-  | "unknown";
+  "granted" | "denied" | "default" | "unsupported" | "unknown";
 
 export type LiveNotificationCoverageIssueReason =
   | "eventsub-failed"
@@ -268,7 +321,8 @@ export interface KickFollow {
 // ========== Preferences Types ==========
 
 export type Theme = "light" | "dark" | "system";
-export type VideoQuality = "auto" | "1440p" | "2k" | "1080p" | "720p" | "480p" | "360p" | "160p";
+export type VideoQuality =
+  "auto" | "highest" | "1440p" | "2k" | "1080p" | "720p" | "480p" | "360p" | "160p";
 export type ChatPosition = "right" | "left" | "hidden";
 export type ChatSize = "small" | "medium" | "large";
 
@@ -434,15 +488,8 @@ export interface ProxyPreferences {
 }
 
 export type TimestampFormat =
-  | "H:mm"
-  | "HH:mm"
-  | "H:mm:ss"
-  | "HH:mm:ss"
-  | "h:mm a"
-  | "hh:mm a"
-  | "h:mm:ss a"
-  | "hh:mm:ss a";
-export type ChatDensity = "cozy" | "compact";
+  "H:mm" | "HH:mm" | "H:mm:ss" | "HH:mm:ss" | "h:mm a" | "hh:mm a" | "h:mm:ss a" | "hh:mm:ss a";
+export type ChatDensity = "cozy" | "compact" | "loose";
 export type ChatPauseMode = "scroll" | "mouseover" | "alt" | "mouseover-alt";
 export type DeletedMessageDisplayMode = "tombstone" | "message" | "compact" | "audit";
 export type ModerationHighlightStyle = "compact" | "cozy";
@@ -469,11 +516,16 @@ export interface ChatDisplayPreferences {
   fontSizePx: number; // ~10-20
   emoteSizePx: number; // ~16-56
   density: ChatDensity;
+  hoverSmooth: boolean;
   /** Twitch-style pause-chat trigger. Scrolling the chat pane always pauses. */
   pauseMode: ChatPauseMode;
   /** Docked chat panel width as a percentage of the stream area (Stream/MultiStream pages, U2). */
   chatWidthPct: number; // 0-100
+  /** Quick appearance width preset for the chat panel. */
+  chatWidthPx: 280 | 340 | 420;
   // Emotes & badges
+  /** Show the quick-emote action bar. */
+  quickEmotes: boolean;
   enable7tv: boolean;
   enableBttv: boolean;
   enableFfz: boolean;
@@ -519,13 +571,7 @@ export interface ChatDisplayPreferences {
  * not re-imported here to keep this shared types module dependency-free.
  */
 export type PlaybackAdvancedPlayerType =
-  | "default"
-  | "site"
-  | "embed"
-  | "popout"
-  | "autoplay"
-  | "picture-by-picture"
-  | "thunderdome";
+  "default" | "site" | "embed" | "popout" | "autoplay" | "picture-by-picture" | "thunderdome";
 
 /**
  * Advanced Twitch stream-token controls, applied ONLY through the ad-block
@@ -609,6 +655,9 @@ export interface StorageSchema {
     twitch?: EncryptedToken;
     kick?: EncryptedToken;
   };
+
+  // Legacy Twitch client credential used only for account follow writes.
+  twitchFollowWriteToken?: EncryptedToken;
 
   // App tokens (encrypted, for client credentials flow)
   appTokens?: {
@@ -752,9 +801,12 @@ export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   fontSizePx: 16,
   emoteSizePx: 28,
   density: "cozy",
+  hoverSmooth: true,
   pauseMode: "scroll",
   chatWidthPct: 30,
+  chatWidthPx: 340,
   // Emotes & badges
+  quickEmotes: true,
   enable7tv: true,
   enableBttv: true,
   enableFfz: true,

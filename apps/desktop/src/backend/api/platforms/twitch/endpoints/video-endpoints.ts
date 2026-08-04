@@ -39,6 +39,31 @@ export async function getVideosByUser(
   };
 }
 
+/** Get videos by native Twitch game/category ID. */
+export async function getVideosByGame(
+  client: TwitchRequestor,
+  gameId: string,
+  options: PaginationOptions & { sort?: "time" | "views" } = {}
+): Promise<PaginatedResult<TwitchApiVideo>> {
+  const params = new URLSearchParams({
+    game_id: gameId,
+    first: String(options.first || 20),
+  });
+
+  if (options.after) params.set("after", options.after);
+  if (options.sort) params.set("sort", options.sort);
+
+  const data = await client.request<TwitchApiResponse<TwitchApiVideo>>(
+    `/videos?${params.toString()}`
+  );
+  const first = options.first || 20;
+
+  return {
+    data: data.data,
+    cursor: data.data.length >= first ? data.pagination?.cursor : undefined,
+  };
+}
+
 /**
  * Get a single video by ID
  */

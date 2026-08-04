@@ -26,3 +26,7 @@ export function normalizeSearchTokens(query: string): string[] {
 export function normalizeSearchQuery(query: string): string {
   return normalizeSearchTokens(query).join(" ");
 }
+
+export function compactSearchIdentity(value: string): string {
+  return normalizeSearchTokens(value).join("");
+}

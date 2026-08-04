@@ -274,6 +274,7 @@ describe('chat-store updateConnectionStatus', () => {
   });
 });
 
+// Guards: Same-turn live arrivals coalesce into one subscriber update within a 60 Hz frame budget while retaining ordered dedupe and trim behavior.
 describe('chat-store addMessageBatched', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -282,6 +283,7 @@ describe('chat-store addMessageBatched', () => {
 
   afterEach(() => {
     useChatStore.getState().cleanupBatching();
+    setMessageLimitPref(undefined);
     vi.useRealTimers();
   });
 
@@ -295,6 +297,41 @@ describe('chat-store addMessageBatched', () => {
 
     vi.advanceTimersByTime(DEFAULT_BATCHING_INTERVAL_MS);
     expect(messageIdsFor()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('publishes a coalesced live burst within one 60 Hz frame budget', () => {
+    const channelKey = defaultChannelKey();
+    setMessageLimitPref(20);
+    useChatStore
+      .getState()
+      .prependMessages(
+        channelKey,
+        Array.from({ length: 20 }, (_, index) => makeMessage(`seed-${index}`))
+      );
+
+    const publishedIds: string[][] = [];
+    const unsubscribe = useChatStore.subscribe(
+      (state) => state.messagesByChannel[channelKey],
+      (messages) => publishedIds.push(messages.map((message) => message.id))
+    );
+
+    try {
+      const add = useChatStore.getState().addMessageBatched;
+      for (let index = 0; index <= 10; index++) {
+        add(makeMessage(`live-${index}`), channelKey);
+      }
+      add(makeMessage('live-5'), channelKey);
+
+      expect(publishedIds).toHaveLength(0);
+
+      vi.advanceTimersByTime(1000 / 60);
+
+      expect(publishedIds).toEqual([
+        Array.from({ length: 10 }, (_, index) => `live-${index + 1}`),
+      ]);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it('falls through to addMessage immediately when batching is disabled', () => {
@@ -560,6 +597,24 @@ describe('chat-store paused cap is per-channel', () => {
     expect(bucketA).toHaveLength(150);
     // B is not paused → cap = 50 → trimmed to ≤ 50 + TRIM_BUFFER.
     expect(bucketB.length).toBeLessThanOrEqual(50 + TRIM_BUFFER);
+  });
+
+  it('trims a paused backlog to the live limit before return-to-live scrolling', () => {
+    setMessageLimitPref(50);
+    const channelKey = buildChannelKey('twitch', 'xqc');
+    useChatStore.getState().setPaused(channelKey, true);
+    for (let index = 0; index < 80; index++) {
+      useChatStore
+        .getState()
+        .addMessage({ ...makeMessage(`paused-${index}`, 'twitch'), channel: 'xqc' });
+    }
+
+    useChatStore.getState().trimChannelToMessageLimit(channelKey);
+
+    expect(messageIdsFor(channelKey)).toEqual(
+      Array.from({ length: 50 }, (_, index) => `paused-${index + 30}`)
+    );
+    expect(useChatStore.getState().pausedChannels.has(channelKey)).toBe(true);
   });
 });
 

@@ -33,11 +33,15 @@ interface AuthError {
   platform?: Platform;
 }
 
+type PreferenceUpdateResult = { success: true } | { success: false };
+export type TwitchAuthPhase = "opening" | "waiting" | "finishing" | null;
+
 interface AuthState {
   // Twitch
   twitchUser: TwitchUser | null;
   twitchConnected: boolean;
   twitchLoading: boolean;
+  twitchAuthPhase: TwitchAuthPhase;
   /**
    * Set when the main process's refresh chain hits a permanent failure
    * (invalid_grant or similar). The session is dead but we keep twitchUser
@@ -88,7 +92,7 @@ interface AuthState {
 
   // Actions - Preferences
   loadPreferences: () => Promise<void>;
-  updatePreferences: (updates: Partial<UserPreferences>) => Promise<void>;
+  updatePreferences: (updates: Partial<UserPreferences>) => Promise<PreferenceUpdateResult | void>;
 }
 
 // ========== Store ==========
@@ -98,6 +102,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   twitchUser: null,
   twitchConnected: false,
   twitchLoading: false,
+  twitchAuthPhase: null,
   twitchReconnectRequired: false,
 
   kickUser: null,
@@ -133,32 +138,31 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             // Re-fetch status after refresh
             status = await window.electronAPI.auth.getStatus();
           } else {
-            // Refresh failed - token is likely revoked or invalid
             logger.warn("Store:Auth", "twitch token refresh failed", {
               error: refreshResult.error,
             });
-            // Clear the invalid token and user data
-            await window.electronAPI.auth.clearToken("twitch");
-            await window.electronAPI.auth.clearTwitchUser();
-            // Re-fetch status
+            // The backend owns Twitch credential lifecycle and preserves the
+            // saved session when refresh failed transiently. Reconcile from
+            // its status instead of destroying credentials in the renderer.
             status = await window.electronAPI.auth.getStatus();
-            // Set error to notify user they need to reconnect
-            set({
-              error: {
-                code: "TOKEN_EXPIRED",
-                message: "Your Twitch session has expired. Please reconnect your account.",
-                platform: "twitch",
-              },
-            });
           }
         } catch (refreshError) {
           logger.error("Store:Auth", "twitch token refresh error", {
             error: refreshError instanceof Error ? refreshError.message : String(refreshError),
           });
-          // Clear invalid credentials
-          await window.electronAPI.auth.clearToken("twitch");
-          await window.electronAPI.auth.clearTwitchUser();
+          // The backend decides whether this was transient or permanent and
+          // has already preserved or cleared the token accordingly.
           status = await window.electronAPI.auth.getStatus();
+        }
+
+        if (!status.twitch.hasToken && status.twitch.user !== null) {
+          set({
+            error: {
+              code: "TOKEN_EXPIRED",
+              message: "Your Twitch session has expired. Please reconnect your account.",
+              platform: "twitch",
+            },
+          });
         }
       }
 
@@ -207,6 +211,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({
         twitchUser: status.twitch.user,
         twitchConnected: status.twitch.connected,
+        twitchReconnectRequired: !status.twitch.hasToken && status.twitch.user !== null,
         kickUser: status.kick.user,
         kickConnected: status.kick.connected,
         isGuest: status.isGuest,
@@ -328,13 +333,24 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return;
     }
 
-    set({ twitchLoading: true, error: null });
+    set({ twitchLoading: true, twitchAuthPhase: "opening", error: null });
+    const stopDeviceCodeStatus = window.electronAPI.auth.onDeviceCodeStatus(({ status }) => {
+      if (status === "pending") {
+        set({ twitchAuthPhase: "waiting" });
+      } else if (status === "authorized") {
+        set({ twitchAuthPhase: "finishing" });
+      } else if (status === "expired" || status === "error") {
+        set({ twitchAuthPhase: null });
+      }
+    });
     try {
       // Open popup window with Twitch login page
       await window.electronAPI.auth.openTwitchLogin();
+      set({ twitchAuthPhase: "finishing" });
 
       // After the window closes, refresh auth status to get updated user
       await get().refreshAuthStatus();
+      set({ twitchAuthPhase: null });
 
       // Warm the followed-streams cache so /following paints from cache on
       // first nav. The auth'd platform API returns the current followed list
@@ -395,7 +411,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             }
           : null,
         twitchLoading: false,
+        twitchAuthPhase: null,
       });
+    } finally {
+      stopDeviceCodeStatus();
     }
   },
 
@@ -409,7 +428,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ twitchLoading: true });
     try {
       // Use the proper logout function that revokes the token
-      await window.electronAPI.auth.logoutTwitch();
+      const result = await window.electronAPI.auth.logoutTwitch();
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to logout from Twitch");
+      }
 
       // Drop renderer-side caches that still hold the now-revoked account's
       // follows. Backend already cleared account-source rows; without this,
@@ -417,8 +439,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // not invalidate data) and the in-memory useFollowStore copy (only
       // hydrated at app boot) until the next restart.
       removePlatformAccountCaches(queryClient, "twitch");
-      await useFollowStore.getState().hydrate();
-
       set({
         twitchUser: null,
         twitchConnected: false,
@@ -426,6 +446,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         twitchLoading: false,
         isGuest: !get().kickUser,
       });
+
+      await useFollowStore.getState().hydrate();
     } catch (error) {
       logger.error("Store:Auth", "failed to logout from twitch", {
         error:
@@ -456,6 +478,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await window.electronAPI.auth.openKickLogin();
       // After the window closes, refresh auth status
       await get().refreshAuthStatus();
+      if (get().kickConnected) {
+        await useFollowStore.getState().hydrate();
+      }
     } catch (error) {
       logger.error("Store:Auth", "failed to open kick login", {
         error:
@@ -572,6 +597,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             ? { name: error.name, message: error.message, stack: error.stack }
             : String(error),
       });
+      throw error;
     }
   },
 
@@ -746,6 +772,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       const updated = await window.electronAPI.preferences.update(updates);
       set({ preferences: updated });
+      return { success: true };
     } catch (error) {
       logger.error("Store:Auth", "failed to update preferences", {
         error:
@@ -753,6 +780,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             ? { name: error.name, message: error.message, stack: error.stack }
             : String(error),
       });
+      return { success: false };
     }
   },
 }));

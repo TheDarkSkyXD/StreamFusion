@@ -1,4 +1,8 @@
 import { logger } from "@/backend/logging/logger";
+import {
+  firstValidKickBroadcasterUserId,
+  getKickBroadcasterUserIdFromAvatar,
+} from "@/lib/kick-channel-identity";
 import type { LocalFollow } from "../../shared/auth-types";
 import type { UnifiedChannel } from "../api/unified/platform-types";
 import { dbService } from "./database-service";
@@ -6,6 +10,7 @@ import { storageService } from "./storage-service";
 
 type KickFollowRepairClient = {
   getChannelsByBroadcasterIds(broadcasterUserIds: number[]): Promise<UnifiedChannel[]>;
+  getChannelsBySlugs?(slugs: string[]): Promise<UnifiedChannel[]>;
   getPublicChannel(slug: string): Promise<UnifiedChannel | null>;
 };
 
@@ -52,11 +57,7 @@ function readVerificationCache(): KickFollowVerificationCache {
 
   const entries: Record<string, KickFollowVerificationEntry> = {};
   for (const [broadcasterId, entry] of Object.entries(candidate.entries)) {
-    if (
-      entry &&
-      typeof entry.isVerified === "boolean" &&
-      Number.isFinite(entry.verifiedAt)
-    ) {
+    if (entry && typeof entry.isVerified === "boolean" && Number.isFinite(entry.verifiedAt)) {
       entries[broadcasterId] = entry;
     }
   }
@@ -82,22 +83,24 @@ async function commitVerificationCache(
 ): Promise<void> {
   if (attemptedCount === 0 && updates.size === 0) return;
 
-  const commit = verificationCacheCommitTail.catch(() => undefined).then(() => {
-    const latest = readVerificationCache();
+  const commit = verificationCacheCommitTail
+    .catch(() => undefined)
+    .then(() => {
+      const latest = readVerificationCache();
 
-    for (const [broadcasterId, update] of updates) {
-      const existing = latest.entries[broadcasterId];
-      if (!existing || existing.verifiedAt <= update.verifiedAt) {
-        latest.entries[broadcasterId] = update;
+      for (const [broadcasterId, update] of updates) {
+        const existing = latest.entries[broadcasterId];
+        if (!existing || existing.verifiedAt <= update.verifiedAt) {
+          latest.entries[broadcasterId] = update;
+        }
       }
-    }
 
-    latest.nextBackfillIndex =
-      rotationSize > 0
-        ? (latest.nextBackfillIndex + attemptedCount) % rotationSize
-        : latest.nextBackfillIndex;
-    dbService.set(KICK_FOLLOW_VERIFICATION_CACHE_KEY, latest);
-  });
+      latest.nextBackfillIndex =
+        rotationSize > 0
+          ? (latest.nextBackfillIndex + attemptedCount) % rotationSize
+          : latest.nextBackfillIndex;
+      dbService.set(KICK_FOLLOW_VERIFICATION_CACHE_KEY, latest);
+    });
 
   verificationCacheCommitTail = commit.catch(() => undefined);
   await commit;
@@ -132,8 +135,11 @@ function getKickRepairBroadcasterUserId(
   follow: LocalFollow,
   allKickFollows: LocalFollow[]
 ): string | null {
-  const directId = parseKickBroadcasterUserId(follow.channelId);
-  if (directId) return directId.toString();
+  const directId = firstValidKickBroadcasterUserId(
+    getKickBroadcasterUserIdFromAvatar(follow.profileImage),
+    follow.channelId
+  );
+  if (directId) return directId;
 
   const slug = follow.channelName?.toLowerCase();
   if (!slug) return null;
@@ -142,12 +148,34 @@ function getKickRepairBroadcasterUserId(
     (candidate) =>
       candidate.id !== follow.id &&
       candidate.channelName?.toLowerCase() === slug &&
-      parseKickBroadcasterUserId(candidate.channelId)
+      firstValidKickBroadcasterUserId(
+        getKickBroadcasterUserIdFromAvatar(candidate.profileImage),
+        candidate.channelId
+      )
   );
 
   return siblingWithStableId
-    ? (parseKickBroadcasterUserId(siblingWithStableId.channelId)?.toString() ?? null)
+    ? firstValidKickBroadcasterUserId(
+        getKickBroadcasterUserIdFromAvatar(siblingWithStableId.profileImage),
+        siblingWithStableId.channelId
+      )
     : null;
+}
+
+function preserveStoredDisplayName(current: UnifiedChannel, follow: LocalFollow): UnifiedChannel {
+  const currentDisplayName = current.displayName?.trim();
+  const storedDisplayName = follow.displayName?.trim();
+  const username = current.username.trim();
+
+  if (
+    currentDisplayName === username &&
+    storedDisplayName &&
+    storedDisplayName.toLowerCase() === username.toLowerCase()
+  ) {
+    return { ...current, displayName: storedDisplayName };
+  }
+
+  return current;
 }
 
 export async function repairKickFollowSlugs(
@@ -161,25 +189,44 @@ export async function repairKickFollowSlugs(
       .filter(Boolean)
   );
   const ids = repairIds.map(Number);
-
-  if (ids.length === 0) {
-    return new Map();
-  }
+  const unresolvedSlugs = uniqueByLowercase(
+    follows
+      .filter((follow) => !getKickRepairBroadcasterUserId(follow, allKickFollows))
+      .map((follow) => follow.channelName)
+  );
 
   let channels: UnifiedChannel[] = [];
-  try {
-    channels = await kickClient.getChannelsByBroadcasterIds(ids);
-  } catch (error) {
-    logger.warn("IPC:KickFollowRepair", "Failed to resolve Kick follow slugs by broadcaster ID", {
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message, stack: error.stack }
-          : String(error),
-    });
-    return new Map();
+  if (ids.length > 0) {
+    try {
+      channels = await kickClient.getChannelsByBroadcasterIds(ids);
+    } catch (error) {
+      logger.warn("IPC:KickFollowRepair", "Failed to resolve Kick follow slugs by broadcaster ID", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+    }
+  }
+
+  let slugChannels: UnifiedChannel[] = [];
+  if (unresolvedSlugs.length > 0 && kickClient.getChannelsBySlugs) {
+    try {
+      slugChannels = await kickClient.getChannelsBySlugs(unresolvedSlugs);
+    } catch (error) {
+      logger.warn("IPC:KickFollowRepair", "Failed to resolve legacy Kick follows by slug", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+    }
   }
 
   const channelsById = new Map(channels.map((channel) => [channel.id, channel]));
+  const channelsBySlug = new Map(
+    slugChannels.map((channel) => [channel.username.toLowerCase(), channel])
+  );
   const cache = readVerificationCache();
   const now = Date.now();
   const verificationByBroadcasterId = new Map<string, boolean>();
@@ -256,12 +303,13 @@ export async function repairKickFollowSlugs(
 
   for (const follow of follows) {
     const repairId = getKickRepairBroadcasterUserId(follow, allKickFollows);
-    if (!repairId) continue;
-
-    const current = channelsById.get(repairId);
+    const resolved = repairId
+      ? channelsById.get(repairId)
+      : channelsBySlug.get(follow.channelName.toLowerCase());
+    const current = resolved ? preserveStoredDisplayName(resolved, follow) : undefined;
     if (!current?.username) continue;
 
-    const isVerified = verificationByBroadcasterId.get(repairId);
+    const isVerified = repairId ? verificationByBroadcasterId.get(repairId) : undefined;
     channelsByFollowId.set(
       follow.id,
       isVerified === undefined ? current : { ...current, isVerified }
@@ -315,7 +363,13 @@ export async function resolveKickFollowPlaybackSlug(
     (candidate) => candidate.channelName.toLowerCase() === requestedSlug.toLowerCase()
   );
 
-  if (!follow || !parseKickBroadcasterUserId(follow.channelId)) {
+  if (
+    !follow ||
+    !firstValidKickBroadcasterUserId(
+      getKickBroadcasterUserIdFromAvatar(follow.profileImage),
+      follow.channelId
+    )
+  ) {
     return null;
   }
 

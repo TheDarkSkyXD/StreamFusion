@@ -32,7 +32,12 @@ import {
 import type { DownloadQueueSnapshot } from "../../shared/download-types";
 import type { StreamRecordingJournalV2 } from "../../shared/stream-recording-types";
 
-import { dbService, type PendingFollowAction, type PendingFollowWrite } from "./database-service";
+import {
+  dbService,
+  type PendingFollowAction,
+  type PendingFollowWrite,
+  type PendingFollowWriteStatus,
+} from "./database-service";
 
 // ========== Default Values ==========
 
@@ -101,6 +106,19 @@ function normalizeCaptionPreferences(value: unknown): CaptionPreferences {
   };
 }
 
+function isAuthToken(value: unknown): value is AuthToken {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    "accessToken" in value &&
+    typeof value.accessToken === "string" &&
+    (!("refreshToken" in value) || typeof value.refreshToken === "string") &&
+    (!("expiresAt" in value) || typeof value.expiresAt === "number") &&
+    (!("scope" in value) ||
+      (Array.isArray(value.scope) && value.scope.every((scope) => typeof scope === "string"))) &&
+    (!("authFlow" in value) || value.authFlow === "device-code")
+  );
+}
+
 function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
   const notificationPreferences: NotificationPreferences = {
     ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -114,6 +132,10 @@ function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
     ...DEFAULT_USER_PREFERENCES,
     ...stored,
     notifications: notificationPreferences,
+    chatDisplay: {
+      ...DEFAULT_USER_PREFERENCES.chatDisplay,
+      ...(stored.chatDisplay ?? {}),
+    },
     captions: normalizeCaptionPreferences(stored.captions),
   };
   if (isLegacyLatencyFirstBufferPreferences(hydrated.buffer)) {
@@ -184,25 +206,48 @@ class StorageService {
     if (!this.isEncryptionAvailable) {
       // Fallback: Store as base64 (less secure, but works in dev)
       logger.warn("Service:Storage", "safeStorage not available, using base64 fallback");
-      return { encrypted: Buffer.from(token).toString("base64") };
+      return { encrypted: Buffer.from(token).toString("base64"), encoding: "base64" };
     }
 
     const encrypted = safeStorage.encryptString(token);
-    return { encrypted: encrypted.toString("base64") };
+    return { encrypted: encrypted.toString("base64"), encoding: "safeStorage" };
   }
 
   /**
    * Decrypt an encrypted token
    */
-  private decryptToken(encryptedToken: EncryptedToken): string {
+  private decryptToken(encryptedToken: EncryptedToken): {
+    tokenString: string;
+    encoding: "safeStorage" | "base64";
+  } {
     const buffer = Buffer.from(encryptedToken.encrypted, "base64");
 
-    if (!this.isEncryptionAvailable) {
-      // Fallback: Decode from base64
-      return buffer.toString("utf8");
+    if (encryptedToken.encoding === "safeStorage") {
+      if (!this.isEncryptionAvailable) {
+        throw new Error("safeStorage is unavailable for an encrypted token");
+      }
+      return { tokenString: safeStorage.decryptString(buffer), encoding: "safeStorage" };
     }
 
-    return safeStorage.decryptString(buffer);
+    if (encryptedToken.encoding === "base64") {
+      return { tokenString: buffer.toString("utf8"), encoding: "base64" };
+    }
+
+    if (encryptedToken.encoding !== undefined) {
+      throw new Error("Unsupported token encoding");
+    }
+
+    // Legacy records were not marked. Prefer safeStorage when available, then
+    // defensively fall back to the old base64 representation.
+    if (this.isEncryptionAvailable) {
+      try {
+        return { tokenString: safeStorage.decryptString(buffer), encoding: "safeStorage" };
+      } catch {
+        return { tokenString: buffer.toString("utf8"), encoding: "base64" };
+      }
+    }
+
+    return { tokenString: buffer.toString("utf8"), encoding: "base64" };
   }
 
   /**
@@ -235,9 +280,17 @@ class StorageService {
     }
 
     try {
-      const tokenString = this.decryptToken(encrypted);
-      const token = JSON.parse(tokenString) as AuthToken;
-      this.tokenCache.set(platform, token);
+      const decrypted = this.decryptToken(encrypted);
+      const parsed: unknown = JSON.parse(decrypted.tokenString);
+      if (!isAuthToken(parsed)) {
+        throw new Error("Stored auth token is invalid");
+      }
+      const token = parsed;
+      if (decrypted.encoding === "base64" && this.isEncryptionAvailable) {
+        this.saveToken(platform, token);
+      } else {
+        this.tokenCache.set(platform, token);
+      }
       return token;
     } catch (error) {
       logger.error("Service:Storage", "Failed to decrypt token", {
@@ -251,12 +304,56 @@ class StorageService {
     }
   }
 
+  saveTwitchFollowWriteToken(token: AuthToken): void {
+    const encrypted = this.encryptToken(JSON.stringify(token));
+    this.storeInstance.set("twitchFollowWriteToken", encrypted);
+    logger.debug("Service:Storage", "Twitch follow-write token saved");
+  }
+
+  getTwitchFollowWriteToken(): AuthToken | null {
+    const encrypted = this.storeInstance.get("twitchFollowWriteToken");
+    if (!encrypted) return null;
+
+    try {
+      const decrypted = this.decryptToken(encrypted);
+      const parsed: unknown = JSON.parse(decrypted.tokenString);
+      if (!isAuthToken(parsed)) return null;
+      if (decrypted.encoding === "base64" && this.isEncryptionAvailable) {
+        this.storeInstance.set(
+          "twitchFollowWriteToken",
+          this.encryptToken(JSON.stringify(parsed))
+        );
+      }
+      return parsed;
+    } catch (error) {
+      logger.error("Service:Storage", "Failed to decrypt Twitch follow-write token", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+      return null;
+    }
+  }
+
+  clearTwitchFollowWriteToken(): void {
+    this.storeInstance.delete("twitchFollowWriteToken");
+    logger.debug("Service:Storage", "Twitch follow-write token cleared");
+  }
+
   /**
    * Check if a token exists for a platform
    */
   hasToken(platform: Platform): boolean {
     const tokens = this.storeInstance.get("authTokens") || {};
     return !!tokens[platform];
+  }
+
+  /**
+   * Check if a stored token can be decrypted and validated in this process.
+   */
+  hasUsableToken(platform: Platform): boolean {
+    return this.getToken(platform) !== null;
   }
 
   /**
@@ -293,6 +390,7 @@ class StorageService {
   clearAllTokens(): void {
     this.storeInstance.set("authTokens", {});
     this.storeInstance.set("appTokens", {});
+    this.storeInstance.delete("twitchFollowWriteToken");
     this.tokenCache.clear();
     logger.debug("Service:Storage", "All tokens cleared");
   }
@@ -325,8 +423,16 @@ class StorageService {
     }
 
     try {
-      const tokenString = this.decryptToken(encrypted);
-      return JSON.parse(tokenString) as AuthToken;
+      const decrypted = this.decryptToken(encrypted);
+      const parsed: unknown = JSON.parse(decrypted.tokenString);
+      if (!isAuthToken(parsed)) {
+        throw new Error("Stored app token is invalid");
+      }
+      if (decrypted.encoding === "base64" && this.isEncryptionAvailable) {
+        tokens[platform] = this.encryptToken(JSON.stringify(parsed));
+        this.storeInstance.set("appTokens", tokens);
+      }
+      return parsed;
     } catch (error) {
       logger.error("Service:Storage", "Failed to decrypt app token", {
         platform,
@@ -451,6 +557,10 @@ class StorageService {
    */
   getGuestFollowsByPlatform(platform: Platform): LocalFollow[] {
     return dbService.getFollowsByPlatformAndSource(platform, "guest");
+  }
+
+  invalidateKickAccountFollows(): void {
+    dbService.set(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY, false);
   }
 
   /**
@@ -585,9 +695,24 @@ class StorageService {
     channelId: string;
     slug: string;
     action: PendingFollowAction;
+    now?: Date;
     lastError?: string | null;
   }): void {
     dbService.addPendingFollowWrite(input);
+  }
+
+  updatePendingFollowWriteState(input: {
+    platform: Platform;
+    channelId: string;
+    slug: string;
+    action: PendingFollowAction;
+    status: PendingFollowWriteStatus;
+    attemptedAt?: Date;
+    nextAttemptAt?: Date;
+    attemptCount?: number;
+    lastError?: string | null;
+  }): boolean {
+    return dbService.updatePendingFollowWriteState(input);
   }
 
   /**

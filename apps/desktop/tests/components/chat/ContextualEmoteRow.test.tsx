@@ -165,15 +165,14 @@ describe("ContextualEmoteRow", () => {
     expect(onSelect).toHaveBeenCalledWith(usable, 0, 2);
   });
 
-  // Guards: horizontal keyboard navigation announces selection, inserts without sending, and Escape closes.
-  it("supports Left/Right, Tab or Enter insertion, and Escape", () => {
+  // Guards: keyboard navigation never inserts a contextual emote; insertion requires a pointer click.
+  it.each(["Tab", "Enter"] as const)("does not insert the active contextual emote with %s", (key) => {
     const first = emote("1", "Kappa", "twitch");
     const second = emote("2", "Keepo", "twitch");
     storeState.getEmotesByProviderForChannel.mockReturnValue(
       new Map([["twitch", [first, second]]])
     );
     const onSelect = vi.fn();
-    const onClose = vi.fn();
 
     render(
       <ContextualEmoteRow
@@ -182,7 +181,7 @@ describe("ContextualEmoteRow", () => {
         platform="twitch"
         channelId="channel-a"
         onSelect={onSelect}
-        onClose={onClose}
+        onClose={vi.fn()}
       />
     );
 
@@ -192,13 +191,45 @@ describe("ContextualEmoteRow", () => {
       "true"
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Keepo from Twitch selected, identity twitch:2. Enter to insert."
+      "Keepo from Twitch selected, identity twitch:2. Click to insert."
+    );
+    const insertionEvent = new KeyboardEvent("keydown", {
+      key,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(insertionEvent);
+
+    expect(insertionEvent.defaultPrevented).toBe(false);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  // Guards: Escape closes contextual emote mode and consumes the dismissing keypress.
+  it("closes contextual emote mode with Escape", () => {
+    storeState.getEmotesByProviderForChannel.mockReturnValue(
+      new Map([["twitch", [emote("1", "Kappa", "twitch")]]])
+    );
+    const onClose = vi.fn();
+
+    render(
+      <ContextualEmoteRow
+        inputValue=":K"
+        cursorPosition={2}
+        platform="twitch"
+        channelId="channel-a"
+        onSelect={vi.fn()}
+        onClose={onClose}
+      />
     );
 
-    fireEvent.keyDown(document, { key: "Tab" });
-    expect(onSelect).toHaveBeenCalledWith(second, 0, 2);
+    const escapeEvent = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(escapeEvent);
 
-    fireEvent.keyDown(document, { key: "Escape" });
+    expect(escapeEvent.defaultPrevented).toBe(true);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

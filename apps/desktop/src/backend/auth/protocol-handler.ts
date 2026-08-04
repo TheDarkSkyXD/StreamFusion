@@ -24,24 +24,35 @@ export interface OAuthCallback {
 
 export type OAuthCallbackHandler = (callback: OAuthCallback) => void;
 
+type MainWindow = Pick<BrowserWindow, "isMinimized" | "restore" | "focus">;
+
+export interface ProtocolHandlerOptions {
+  resolveMainWindow?: () => MainWindow | null;
+}
+
 // ========== Protocol Handler Class ==========
 
 class ProtocolHandler {
   private callbackHandlers: Map<Platform, OAuthCallbackHandler> = new Map();
   private isRegistered: boolean = false;
+  private resolveMainWindow: () => MainWindow | null = () =>
+    BrowserWindow.getAllWindows()[0] ?? null;
 
   /**
    * Register the custom protocol with the operating system
    * Must be called before app is ready for production builds,
    * but works after ready in development
    */
-  registerProtocol(): boolean {
+  registerProtocol(options: ProtocolHandlerOptions = {}): boolean {
     if (this.isRegistered) {
       logger.debug("Auth:Protocol", "Protocol already registered");
       return true;
     }
 
     try {
+      this.resolveMainWindow =
+        options.resolveMainWindow ?? (() => BrowserWindow.getAllWindows()[0] ?? null);
+
       // Register as the default protocol handler for streamfusion://
       // This will handle URLs like streamfusion://auth/twitch/callback?code=xxx
       if (process.defaultApp) {
@@ -79,6 +90,7 @@ class ProtocolHandler {
     if (this.isRegistered) {
       app.removeAsDefaultProtocolClient(PROTOCOL_SCHEME);
       this.isRegistered = false;
+      this.resolveMainWindow = () => BrowserWindow.getAllWindows()[0] ?? null;
       logger.debug("Auth:Protocol", "Unregistered protocol", { scheme: `${PROTOCOL_SCHEME}://` });
     }
   }
@@ -95,31 +107,24 @@ class ProtocolHandler {
       this.handleProtocolUrl(url);
     });
 
-    // Windows/Linux: Handle protocol URLs when app is already running
-    // The second instance will pass the URL to the first instance
-    const gotTheLock = app.requestSingleInstanceLock();
-
-    if (!gotTheLock) {
-      // Another instance is running, quit this one
-      app.quit();
-    } else {
-      app.on("second-instance", (_event, commandLine) => {
-        // Someone tried to run a second instance, we should focus our window
-        const mainWindow = BrowserWindow.getAllWindows()[0];
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) {
-            mainWindow.restore();
-          }
-          mainWindow.focus();
+    // Windows/Linux: the startup lifecycle owns the single-instance lock.
+    // This handler receives the second launch's command line in the primary.
+    app.on("second-instance", (_event, commandLine) => {
+      // Someone tried to run a second instance, we should focus our window
+      const mainWindow = this.resolveMainWindow();
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore();
         }
+        mainWindow.focus();
+      }
 
-        // Find the protocol URL in command line arguments
-        const url = commandLine.find((arg) => arg.startsWith(PROTOCOL_PREFIX));
-        if (url) {
-          this.handleProtocolUrl(url);
-        }
-      });
-    }
+      // Find the protocol URL in command line arguments
+      const url = commandLine.find((arg) => arg.startsWith(PROTOCOL_PREFIX));
+      if (url) {
+        this.handleProtocolUrl(url);
+      }
+    });
 
     // Also check if app was opened via protocol URL on startup
     const url = process.argv.find((arg) => arg.startsWith(PROTOCOL_PREFIX));
@@ -140,7 +145,7 @@ class ProtocolHandler {
       const parsed = new URL(url);
 
       // Expected format: streamfusion://auth/{platform}/callback?code=xxx&state=xxx
-      const pathParts = parsed.pathname.split("/").filter(Boolean);
+      const pathParts = [parsed.hostname, ...parsed.pathname.split("/")].filter(Boolean);
 
       if (pathParts.length < 2 || pathParts[0] !== "auth") {
         logger.warn("Auth:Protocol", "Invalid protocol URL path", { pathname: parsed.pathname });

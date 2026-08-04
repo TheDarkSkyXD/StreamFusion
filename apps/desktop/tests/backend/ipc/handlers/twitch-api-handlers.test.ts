@@ -25,6 +25,7 @@ beforeEach(() => {
 });
 
 // Guards: renderer Twitch reads cross only an allowlisted capability boundary without credentials.
+// Guards: opaque user-emote cursors get provider-sized headroom without widening unrelated Twitch inputs.
 describe("Twitch API IPC handlers", () => {
   it("maps a channel lookup capability to the main-owned Twitch service", async () => {
     const service = {
@@ -107,6 +108,49 @@ describe("Twitch API IPC handlers", () => {
     );
 
     expect(service.execute).toHaveBeenCalledWith(payload);
+  });
+
+  it("bounds opaque user-emote cursors without widening other pagination inputs", async () => {
+    const service = {
+      execute: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+      startEventSubFeed: vi.fn(),
+      stopEventSubFeed: vi.fn(),
+    };
+    registerTwitchApiHandlers({ service });
+    const invoke = handlerFor(IPC_CHANNELS.TWITCH_API_EXECUTE);
+    const event = { senderFrame: { url: "file:///app/index.html" } };
+    const acceptedCursor = "c".repeat(8 * 1024);
+
+    await expect(
+      invoke(event, {
+        operation: "get-user-emotes",
+        userId: "200",
+        after: acceptedCursor,
+      })
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      invoke(event, {
+        operation: "get-user-emotes",
+        userId: "200",
+        after: `${acceptedCursor}x`,
+      })
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid-input" } });
+    await expect(
+      invoke(event, {
+        operation: "get-unban-requests",
+        broadcasterId: "100",
+        moderatorId: "200",
+        status: "pending",
+        after: "c".repeat(513),
+      })
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid-input" } });
+
+    expect(service.execute).toHaveBeenCalledTimes(1);
+    expect(service.execute).toHaveBeenCalledWith({
+      operation: "get-user-emotes",
+      userId: "200",
+      after: acceptedCursor,
+    });
   });
 
   it("accepts only structured moderation dashboard read capabilities", async () => {

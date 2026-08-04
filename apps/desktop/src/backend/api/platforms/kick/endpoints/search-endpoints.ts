@@ -1,4 +1,5 @@
 import { logger } from "@/backend/logging/logger";
+import { compactSearchIdentity } from "@/search/search-normalization";
 import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-types";
 import type { KickRequestor } from "../kick-requestor";
 import type { PaginatedResult, PaginationOptions } from "../kick-types";
@@ -11,15 +12,24 @@ const PUBLIC_SEARCH_TIMEOUT_MS = 3000;
 const LIVE_SEARCH_PAGE_SIZE = 100;
 const LIVE_SEARCH_MAX_PAGES_PER_REQUEST = 5;
 
-type ChannelSearchOptions = PaginationOptions & {
+export type ChannelSearchOptions = PaginationOptions & {
   after?: string;
   first?: number;
+  liveOnly?: boolean;
 };
 
 function streamMatchesQuery(stream: UnifiedStream, normalizedQuery: string): boolean {
   const channelName = stream.channelName.toLowerCase();
   const displayName = stream.channelDisplayName.toLowerCase();
-  return channelName.includes(normalizedQuery) || displayName.includes(normalizedQuery);
+  if (channelName.includes(normalizedQuery) || displayName.includes(normalizedQuery)) return true;
+
+  const compactQuery = compactSearchIdentity(normalizedQuery);
+  return (
+    compactQuery.length > 0 &&
+    [channelName, displayName].some((identity) =>
+      compactSearchIdentity(identity).startsWith(compactQuery)
+    )
+  );
 }
 
 function streamToChannel(stream: UnifiedStream): UnifiedChannel {
@@ -34,7 +44,78 @@ function streamToChannel(stream: UnifiedStream): UnifiedChannel {
     isLive: true,
     isVerified: !!stream.channelIsVerified,
     isPartner: false,
+    accountStatus: "active",
   };
+}
+
+async function fetchPublicSearchPayload(searchQuery: string): Promise<any | null> {
+  const searchEndpoints =
+    searchQuery.length < 3
+      ? [
+          `https://kick.com/api/search/channel?searched_word=${encodeURIComponent(searchQuery)}`,
+          `https://kick.com/api/v1/search?q=${encodeURIComponent(searchQuery)}`,
+          `https://kick.com/api/search?searched_word=${encodeURIComponent(searchQuery)}`,
+        ]
+      : [`https://kick.com/api/search?searched_word=${encodeURIComponent(searchQuery)}`];
+
+  for (const searchUrl of searchEndpoints) {
+    try {
+      const { net } = require("electron");
+      const res: Response = await net.fetch(searchUrl, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Referer: "https://kick.com/",
+          Origin: "https://kick.com",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        signal: AbortSignal.timeout(PUBLIC_SEARCH_TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const body = await res.text();
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed && (Array.isArray(parsed) || parsed.channels || parsed.data)) {
+            logger.debug("Kick:Endpoints:Search", "Step 2: Got results from endpoint", {
+              searchUrl,
+            });
+            return parsed;
+          }
+        } catch (_e) {
+          if (body.trim().startsWith("<")) {
+            logger.warn(
+              "Kick:Endpoints:Search",
+              "Step 2: Endpoint returned HTML (likely bot protection)"
+            );
+          }
+        }
+      } else if (res.status >= 400 && res.status < 500) {
+        logger.debug("Kick:Endpoints:Search", "Step 2: Endpoint returned 4xx; trying next", {
+          searchUrl,
+          status: res.status,
+        });
+      }
+    } catch (_e) {
+      logger.debug("Kick:Endpoints:Search", "Step 2: Endpoint error; trying next", {
+        searchUrl,
+      });
+    }
+  }
+
+  return null;
+}
+
+function publicSearchChannels(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (payload?.channels && Array.isArray(payload.channels)) return payload.channels;
+  if (payload?.data && Array.isArray(payload.data)) return payload.data;
+  if (payload) {
+    logger.debug("Kick:Endpoints:Search", "Step 2: Unknown response structure", {
+      keys: Object.keys(payload),
+    });
+  }
+  return [];
 }
 
 /**
@@ -85,14 +166,20 @@ export async function searchChannels(
     const followerCount = existing.followerCount ?? newChannel.followerCount;
     const isVerified = existing.isVerified || newChannel.isVerified;
     const isPartner = existing.isPartner || newChannel.isPartner;
+    const accountStatus =
+      existing.accountStatus === "suspended" || newChannel.accountStatus === "suspended"
+        ? "suspended"
+        : isAuthoritativeSource && newChannel.accountStatus
+          ? newChannel.accountStatus
+          : existing.accountStatus || newChannel.accountStatus;
 
     // Always prefer the entry with an avatar, but keep the authoritative live status
     if (hasAvatar(newChannel) && !hasAvatar(existing)) {
-      return { ...newChannel, isLive, isVerified, isPartner, followerCount };
+      return { ...newChannel, isLive, isVerified, isPartner, accountStatus, followerCount };
     }
     // If existing has avatar but new doesn't, keep existing but merge avatar if new has one
     if (hasAvatar(existing)) {
-      return { ...existing, isLive, isVerified, isPartner, followerCount };
+      return { ...existing, isLive, isVerified, isPartner, accountStatus, followerCount };
     }
     // Neither has avatar, keep existing with merged data
     return {
@@ -101,6 +188,7 @@ export async function searchChannels(
       avatarUrl: newChannel.avatarUrl || existing.avatarUrl,
       isVerified,
       isPartner,
+      accountStatus,
       followerCount,
     };
   };
@@ -121,100 +209,23 @@ export async function searchChannels(
         query: normalizedQuery,
       });
 
-      // Try alternative endpoint first for short queries
-      const searchEndpoints =
-        normalizedQuery.length < 3
-          ? [
-              `https://kick.com/api/search/channel?searched_word=${encodeURIComponent(normalizedQuery)}`,
-              `https://kick.com/api/v1/search?q=${encodeURIComponent(normalizedQuery)}`,
-              `https://kick.com/api/search?searched_word=${encodeURIComponent(normalizedQuery)}`,
-            ]
-          : [`https://kick.com/api/search?searched_word=${encodeURIComponent(normalizedQuery)}`];
+      const originalPayloadPromise = fetchPublicSearchPayload(normalizedQuery);
+      const compactQuery = compactSearchIdentity(normalizedQuery);
+      const compactPayloadPromise =
+        compactQuery.length >= 3 && compactQuery !== normalizedQuery
+          ? fetchPublicSearchPayload(compactQuery)
+          : Promise.resolve(null);
 
-      let data: any = null;
-
-      for (const searchUrl of searchEndpoints) {
-        if (data) break; // Found results, stop trying
-
-        try {
-          const { net } = require("electron");
-          // Kick's search endpoint typically responds in ~3s (Cloudflare adds
-          // 1-2s on top of the API). The previous 1500ms cap meant the request
-          // was aborted before any data arrived, which made search fall back
-          // to Step 4 (top-streams fuzzy match) only — and Step 4 has no
-          // follower counts. 6000ms covers the observed p99 latency while
-          // still bounding worst-case wait. Non-200 statuses still resolve
-          // immediately via the response path, so this only kicks in for
-          // genuinely slow/hanging requests.
-          const res: Response = await net.fetch(searchUrl, {
-            headers: {
-              Accept: "application/json",
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              Referer: "https://kick.com/",
-              Origin: "https://kick.com",
-              "X-Requested-With": "XMLHttpRequest",
-            },
-            signal: AbortSignal.timeout(PUBLIC_SEARCH_TIMEOUT_MS),
-          });
-          if (res.ok) {
-            const body = await res.text();
-            try {
-              const parsed = JSON.parse(body);
-              if (parsed && (Array.isArray(parsed) || parsed.channels || parsed.data)) {
-                logger.debug("Kick:Endpoints:Search", "Step 2: Got results from endpoint", {
-                  searchUrl,
-                });
-                data = parsed;
-              }
-            } catch (_e) {
-              // Common case: 200 OK but body is cloudflare HTML
-              if (body.trim().startsWith("<")) {
-                logger.warn(
-                  "Kick:Endpoints:Search",
-                  "Step 2: Endpoint returned HTML (likely bot protection)"
-                );
-              }
-            }
-          } else {
-            // Try next endpoint on 4xx errors
-            if (res.status >= 400 && res.status < 500) {
-              logger.debug("Kick:Endpoints:Search", "Step 2: Endpoint returned 4xx; trying next", {
-                searchUrl,
-                status: res.status,
-              });
-            }
-          }
-        } catch (_e) {
-          // timeout or network error — try next endpoint
-          logger.debug("Kick:Endpoints:Search", "Step 2: Endpoint error; trying next", {
-            searchUrl,
-          });
-        }
-      }
-
-      if (!data) {
+      const [data, compactPayload] = await Promise.all([
+        originalPayloadPromise,
+        compactPayloadPromise,
+      ]);
+      if (!data && !compactPayload) {
         logger.debug("Kick:Endpoints:Search", "Step 2: No results from any search endpoint");
       }
 
-      // Handle different response formats:
-      // - Direct array of results
-      // - Object with 'channels' array
-      // - Object with 'data' array
-      let channelsArray: any[] = [];
-      if (data) {
-        if (Array.isArray(data)) {
-          channelsArray = data;
-        } else if (data.channels && Array.isArray(data.channels)) {
-          channelsArray = data.channels;
-        } else if (data.data && Array.isArray(data.data)) {
-          channelsArray = data.data;
-        } else {
-          logger.debug("Kick:Endpoints:Search", "Step 2: Unknown response structure", {
-            keys: Object.keys(data),
-          });
-        }
-      }
+      const channelsArray = publicSearchChannels(data);
+      channelsArray.push(...publicSearchChannels(compactPayload));
 
       if (channelsArray.length > 0) {
         logger.debug("Kick:Endpoints:Search", "Step 2: Found results", {
@@ -225,14 +236,6 @@ export async function searchChannels(
           // Try different possible ID and slug fields
           const channelId = (item.id || item.user_id || item.channel_id)?.toString();
           const channelSlug = item.slug || item.channel_slug || item.username;
-
-          // Skip banned accounts - they shouldn't appear in search results
-          if (item.is_banned === true) {
-            logger.debug("Kick:Endpoints:Search", "Step 2: Skipping banned channel", {
-              channelSlug,
-            });
-            continue;
-          }
 
           // The user object may contain the profile picture
           const userObj = item.user || {};
@@ -290,6 +293,7 @@ export async function searchChannels(
                 item.isPartner ||
                 false,
               isPartner: item.partner || item.is_partner || item.isPartner || false,
+              accountStatus: item.is_banned === true ? "suspended" : "active",
               followerCount: rawFollowers,
             };
 
@@ -332,11 +336,16 @@ export async function searchChannels(
     }
   }
 
-  // 4. Page through live channels and include every slug/display-name match
-  // encountered. This is what lets the Search Results page keep loading Kick
-  // channel matches for one-letter queries instead of stopping at page 1.
+  // 4. Page through live channels only when the direct sources found no
+  // candidates (or this is a cursor continuation). The directory is expensive
+  // and was previously scanned on every search, even after the public search
+  // had already supplied useful suggestions.
   let nextCursor: string | undefined;
-  try {
+  const hasLiveCandidate = Array.from(results.values()).some((channel) => channel.isLive);
+  const shouldSearchLiveDirectory =
+    isContinuationPage || results.size === 0 || (_options.liveOnly && !hasLiveCandidate);
+  if (shouldSearchLiveDirectory) {
+    try {
     logger.debug("Kick:Endpoints:Search", "Step 4: Checking live stream pages for fuzzy matches", {
       cursor: cursorIn,
       requestedLimit,
@@ -379,10 +388,11 @@ export async function searchChannels(
 
       if (matchesFound >= requestedLimit) break;
     }
-  } catch (e) {
-    logger.warn("Kick:Endpoints:Search", "Failed to fetch live stream pages for search fallback", {
-      error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
-    });
+    } catch (e) {
+      logger.warn("Kick:Endpoints:Search", "Failed to fetch live stream pages for search fallback", {
+        error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+      });
+    }
   }
 
   // Live status is set authoritatively downstream in

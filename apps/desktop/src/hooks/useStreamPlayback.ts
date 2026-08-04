@@ -54,6 +54,11 @@ function getPlaybackCacheKey(platform: Platform, identifier: string): string {
   return `${platform}:${identifier.toLowerCase()}`;
 }
 
+function hasReusablePlayback(platform: Platform, identifier: string): boolean {
+  const entry = playbackCache.get(getPlaybackCacheKey(platform, identifier));
+  return Boolean(entry?.inFlightFetch || (entry?.playback && Date.now() < entry.expiresAt));
+}
+
 function requestSharedPlaybackReload(key: string): void {
   playbackCache.delete(key);
   playbackReloadListeners.get(key)?.forEach((listener) => listener());
@@ -504,7 +509,9 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     // Calculate stagger delay based on instance order.
     // This spreads out API requests when multiple streams load simultaneously.
     const instanceOrder = activeInstances.get(instanceId) ?? 0;
-    const staggerDelay = instanceOrder * STAGGER_DELAY_MS;
+    const staggerDelay = hasReusablePlayback(platform, identifier)
+      ? 0
+      : instanceOrder * STAGGER_DELAY_MS;
 
     if (staggerDelay > 0) {
       logger.debug("Hook:StreamPlayback", "staggering fetch", {

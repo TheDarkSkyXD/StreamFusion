@@ -1267,6 +1267,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const handleReply = useCallback((message: ChatMessage) => {
     chatInputRef.current?.replyTo(message);
   }, []);
+  const handleCopyToChat = useCallback((message: string) => {
+    chatInputRef.current?.setDraft(message);
+  }, []);
   const handleViewUserChannel = useCallback(
     (platform: "twitch" | "kick", resolved: { username: string }) => {
       void router.navigate({
@@ -1280,9 +1283,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     () => ({
       replyEligibility: isAuthenticated ? sendEligibility : null,
       onReply: handleReply,
+      onCopyToChat: handleCopyToChat,
       onViewChannel: handleViewUserChannel,
     }),
-    [handleReply, handleViewUserChannel, isAuthenticated, sendEligibility]
+    [handleCopyToChat, handleReply, handleViewUserChannel, isAuthenticated, sendEligibility]
   );
   const handlePinMessage = useCallback(
     async (message: ChatMessage, durationSeconds: number | null) => {

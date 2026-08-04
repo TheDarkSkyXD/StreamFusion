@@ -3,6 +3,16 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test-utils";
 
+const toastSuccessMock = vi.hoisted(() => vi.fn());
+const toastErrorMock = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccessMock(...args),
+    error: (...args: unknown[]) => toastErrorMock(...args),
+  },
+}));
+
 // Mock the profile fetcher BEFORE importing the popout — the hook runs an
 // effect on mount and we don't want it touching the network.
 vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => {
@@ -54,6 +64,8 @@ function pendingProfileState() {
 }
 
 beforeEach(() => {
+  toastSuccessMock.mockReset();
+  toastErrorMock.mockReset();
   mockedUseUserProfile.mockReset();
   useChatStore.setState({ messagesByChannel: {} });
   useAuthStore.setState({ twitchUser: null, kickUser: null });
@@ -147,6 +159,8 @@ function renderPopout(
 // Guards: Recent chat stays channel-scoped, rich, author-truthful, and capped at four row badges.
 // Guards: Exact selected-message targets survive live insertion/pruning and change only deliberately.
 // Guards: Live matching inserts respect reduced motion and badge catalog states stay independently truthful.
+// Guards: Copy message writes visible text to the clipboard and reports both success and failure with a toast.
+// Guards: Copy message to chat passes exact visible text to the composer action without sending it.
 describe("UserPopout", () => {
   it("shows qualified moderation history for platform-confirmed authority without using profile badges", async () => {
     mockedUseUserProfile.mockReturnValue(pendingProfileState());
@@ -373,6 +387,7 @@ describe("UserPopout", () => {
   it("exposes the complete authenticated selected-message public action footer", () => {
     const openingMessage = makeMessage("selected", "streamer", "hello Kappa");
     const onReply = vi.fn();
+    const onCopyToChat = vi.fn();
     const onViewChannel = vi.fn();
     mockedUseUserProfile.mockReturnValue({
       ...pendingProfileState(),
@@ -391,14 +406,46 @@ describe("UserPopout", () => {
     renderPopout(true, "twitch", undefined, "alice", openingMessage, undefined, {
       replyEligibility: { state: "eligible" },
       onReply,
+      onCopyToChat,
       onViewChannel,
     });
 
     expect(screen.getByRole("button", { name: "Reply" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Copy message" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Copy message to chat" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Translate · Coming Soon" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "View Channel" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Open Alice on Twitch" })).toBeEnabled();
+  });
+
+  it("copies the selected visible message into chat without writing to the clipboard", () => {
+    const openingMessage = makeMessage("selected", "streamer", "Hello from Alice");
+    const onCopyToChat = vi.fn();
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("kick", "streamer")]: [{ ...openingMessage, platform: "kick" }],
+      },
+    });
+
+    renderPopout(
+      true,
+      "kick",
+      undefined,
+      "alice",
+      { ...openingMessage, platform: "kick" },
+      undefined,
+      {
+        replyEligibility: { state: "eligible" },
+        onReply: vi.fn(),
+        onCopyToChat,
+        onViewChannel: vi.fn(),
+      }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Copy message to chat" }));
+
+    expect(onCopyToChat).toHaveBeenCalledWith("Hello from Alice");
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
   });
 
   it("copies only the deliberately selected row's visible rich content and confirms success", async () => {
@@ -434,15 +481,34 @@ describe("UserPopout", () => {
     });
 
     renderPopout(true, "twitch", undefined, "alice", openingMessage);
-    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
 
     await waitFor(() =>
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
         "Hello Kappa @bob visible link Cheer100"
       )
     );
+    expect(toastSuccessMock).toHaveBeenCalledWith("Message copied");
     expect(screen.getByText("Message copied")).toBeInTheDocument();
     expect(screen.getByTestId("user-popout")).toBeInTheDocument();
+  });
+
+  it("reports clipboard failures without claiming the message was copied", async () => {
+    const openingMessage = makeMessage("selected", "streamer", "copy me");
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("denied"));
+    mockedUseUserProfile.mockReturnValue(pendingProfileState());
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [openingMessage],
+      },
+    });
+
+    renderPopout(true, "twitch", undefined, "alice", openingMessage);
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith("Couldn’t copy message"));
+    expect(toastSuccessMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Couldn’t copy message")).toBeInTheDocument();
   });
 
   it("copies a deleted tombstone instead of retained hidden content and removes Copy when deleted rows are hidden", async () => {
@@ -469,7 +535,7 @@ describe("UserPopout", () => {
     }));
 
     const { unmount } = renderPopout(true, "twitch", undefined, "alice", deleted);
-    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
     await waitFor(() =>
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Message deleted")
     );
@@ -487,7 +553,7 @@ describe("UserPopout", () => {
     }));
     renderPopout(true, "twitch", undefined, "alice", deleted);
 
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy message" })).toBeNull();
   });
 
   it("hides Reply for guests, exposes the shared disabled reason for ineligible viewers, and omits message actions without a selection", () => {
@@ -513,7 +579,7 @@ describe("UserPopout", () => {
       }
     );
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Copy message" })).toBeEnabled();
     unmount();
 
     renderPopout(true, "twitch", undefined, "alice", openingMessage, undefined, {
@@ -541,7 +607,7 @@ describe("UserPopout", () => {
     });
 
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy message" })).toBeNull();
   });
 
   it("keeps profile navigation on the clicked chatter while Reply and Copy target the selected true author", async () => {
@@ -582,7 +648,7 @@ describe("UserPopout", () => {
       onViewChannel,
     });
     fireEvent.click(screen.getByRole("button", { name: "Reply" }));
-    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
     fireEvent.click(screen.getByRole("button", { name: "View Channel" }));
     fireEvent.click(screen.getByRole("button", { name: "Open Alice on Twitch" }));
 
@@ -1040,24 +1106,24 @@ describe("UserPopout", () => {
     });
   });
 
-  it.each([
-    "unavailable",
-    "failed",
-  ] as const)("keeps the chat-known Kick profile link available when channel enrichment is %s", (channelState) => {
-    mockedUseUserProfile.mockReturnValue({
-      ...pendingProfileState(),
-      channel: { state: channelState, message: "Unavailable" },
-    });
+  it.each(["unavailable", "failed"] as const)(
+    "keeps the chat-known Kick profile link available when channel enrichment is %s",
+    (channelState) => {
+      mockedUseUserProfile.mockReturnValue({
+        ...pendingProfileState(),
+        channel: { state: channelState, message: "Unavailable" },
+      });
 
-    renderPopout(true, "kick", undefined, "AntithesisOfSpace");
-    fireEvent.click(screen.getByRole("button", { name: "Open AntithesisOfSpace on Kick" }));
+      renderPopout(true, "kick", undefined, "AntithesisOfSpace");
+      fireEvent.click(screen.getByRole("button", { name: "Open AntithesisOfSpace on Kick" }));
 
-    expect(window.electronAPI.openExternal).toHaveBeenCalledWith(
-      "https://kick.com/antithesisofspace"
-    );
-    expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Couldn’t verify · Retry" })).toBeEnabled();
-  });
+      expect(window.electronAPI.openExternal).toHaveBeenCalledWith(
+        "https://kick.com/antithesisofspace"
+      );
+      expect(screen.getByRole("button", { name: "View Channel" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Couldn’t verify · Retry" })).toBeEnabled();
+    }
+  );
 
   it("preserves a chat-event Kick avatar when official enrichment has no avatar", () => {
     mockedUseUserProfile.mockReturnValue({

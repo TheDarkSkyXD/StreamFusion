@@ -46,6 +46,10 @@ export interface CancelChatReplayWindowRequest {
   requestId: string;
 }
 
+export interface CancelChatReplayWindowResult {
+  cancelled: boolean;
+}
+
 export interface VideoPlaybackSnapshot {
   currentTime: number;
   isPlaying: boolean;
@@ -64,3 +68,7 @@ export type ChatReplayWindowResult =
   | { capability: "empty"; platform: Platform; videoId: string }
   | { capability: "unsupported"; platform: Platform; videoId: string }
   | { capability: "transient-failure"; platform: Platform; videoId: string; reason: string };
+
+export type ChatReplayIpcWindowResult =
+  | { success: true; data: ChatReplayWindowResult }
+  | { success: false; error: string };

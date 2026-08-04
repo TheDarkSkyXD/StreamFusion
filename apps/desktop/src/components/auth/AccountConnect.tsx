@@ -14,6 +14,20 @@ import {
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useKickAuth, useTwitchAuth } from "@/hooks/useAuth";
 import type { Platform } from "@/shared/auth-types";
+import type { TwitchAuthPhase } from "@/store/auth-store";
+
+function twitchLoadingLabel(phase: TwitchAuthPhase): string {
+  switch (phase) {
+    case "opening":
+      return "Opening Twitch authorization...";
+    case "waiting":
+      return "Waiting for Twitch authorization...";
+    case "finishing":
+      return "Finishing Twitch connection...";
+    default:
+      return "Connecting...";
+  }
+}
 
 /**
  * AccountConnect Component
@@ -31,6 +45,7 @@ export function AccountConnect() {
         connected={twitch.connected}
         user={twitch.user}
         loading={twitch.loading}
+        loadingLabel={twitchLoadingLabel(twitch.authPhase)}
         onConnect={twitch.login}
         onDisconnect={twitch.logout}
       />
@@ -52,6 +67,7 @@ interface PlatformCardProps {
   connected: boolean;
   user: any;
   loading: boolean;
+  loadingLabel?: string;
   onConnect: () => void;
   onDisconnect: () => void;
   disabled?: boolean;
@@ -63,6 +79,7 @@ function PlatformCard({
   connected,
   user,
   loading,
+  loadingLabel,
   onConnect,
   onDisconnect,
   disabled,
@@ -151,7 +168,7 @@ function PlatformCard({
             className="w-full gap-2"
           >
             <LuPower className="h-4 w-4" />
-            Disconnect
+            {loading ? "Disconnecting..." : "Disconnect"}
           </Button>
         ) : (
           <Button
@@ -168,7 +185,7 @@ function PlatformCard({
             onClick={disabled ? undefined : onConnect}
             disabled={loading || disabled}
           >
-            {loading ? "Connecting..." : `Connect ${platformName}`}
+            {loading ? (loadingLabel ?? "Connecting...") : `Connect ${platformName}`}
             {!loading && !disabled && <LuExternalLink className="h-4 w-4" />}
           </Button>
         )}

@@ -2,6 +2,10 @@ import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import { dedupeChannelsByIdentity } from "@/lib/id-utils";
+import {
+  firstValidKickBroadcasterUserId,
+  getKickBroadcasterUserIdFromAvatar,
+} from "@/lib/kick-channel-identity";
 import type { KickUser, Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { UnifiedChannel } from "../../api/unified/platform-types";
@@ -55,7 +59,7 @@ export function registerChannelHandlers(): void {
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        let channel = null;
+        let channel: UnifiedChannel | null = null;
 
         if (params.platform === "twitch") {
           const channels = await twitchClient.getChannelsById([params.channelId]);
@@ -97,7 +101,7 @@ export function registerChannelHandlers(): void {
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        let channel = null;
+        let channel: UnifiedChannel | null = null;
         const requestedUsername = params.username.trim().toLowerCase();
 
         if (params.platform === "twitch") {
@@ -123,20 +127,46 @@ export function registerChannelHandlers(): void {
             }
           }
         } else if (params.platform === "kick") {
-          channel = await kickClient.getChannel(params.username);
+          let authoritativeNotFoundFollowId: string | undefined;
+          const staleFollow = storageService
+            .getActiveFollowsByPlatform("kick")
+            .find(
+              (follow) =>
+                follow.channelName.toLowerCase() === requestedUsername && follow.source === "kick"
+            );
+          try {
+            channel = await kickClient.getChannel(params.username);
+          } catch (error) {
+            if (!staleFollow) throw error;
+
+            channel = {
+              id: staleFollow.channelId,
+              platform: "kick",
+              username: staleFollow.channelName,
+              displayName: staleFollow.displayName || staleFollow.channelName,
+              avatarUrl: staleFollow.profileImage || "",
+              isLive: false,
+              isVerified: false,
+              isPartner: false,
+              kickUserId:
+                firstValidKickBroadcasterUserId(
+                  getKickBroadcasterUserIdFromAvatar(staleFollow.profileImage),
+                  staleFollow.channelId
+                ) ?? undefined,
+              accountStatus: "unavailable",
+            };
+          }
           if (!channel) {
-            const staleFollow = storageService
-              .getActiveFollowsByPlatform("kick")
-              .find(
-                (follow) =>
-                  follow.channelName.toLowerCase() === requestedUsername &&
-                  Number.isSafeInteger(Number(follow.channelId)) &&
-                  Number(follow.channelId) > 0
-              );
-            if (staleFollow) {
+            const broadcasterUserId = staleFollow
+              ? firstValidKickBroadcasterUserId(
+                  getKickBroadcasterUserIdFromAvatar(staleFollow.profileImage),
+                  staleFollow.channelId
+                )
+              : null;
+            if (staleFollow && broadcasterUserId) {
               channel =
                 (
-                  await kickClient.getChannelsByBroadcasterIds([Number(staleFollow.channelId)])
+                  await kickClient.getChannelsByBroadcasterIds([Number(broadcasterUserId)])
                 )[0] || null;
               if (channel && channel.username.toLowerCase() !== requestedUsername) {
                 storageService.updateLocalFollow(staleFollow.id, {
@@ -144,8 +174,76 @@ export function registerChannelHandlers(): void {
                   displayName: channel.displayName,
                   profileImage: channel.avatarUrl,
                 });
+                storageService.upsertSyncedFollows(
+                  "kick",
+                  [
+                    {
+                      platform: "kick",
+                      channelId: channel.kickUserId ?? channel.id,
+                      channelName: channel.username,
+                      displayName: channel.displayName,
+                      profileImage: channel.avatarUrl,
+                    },
+                  ],
+                  { pruneAbsent: false }
+                );
               }
             }
+            if (!channel) {
+              const accountStatus = await kickClient.getOfficialChannelAccountStatus(
+                params.username
+              );
+              if (accountStatus === "not_found" && staleFollow && !broadcasterUserId) {
+                authoritativeNotFoundFollowId = staleFollow.id;
+              } else if (staleFollow) {
+                channel = {
+                  id: staleFollow.channelId,
+                  platform: "kick",
+                  username: staleFollow.channelName,
+                  displayName: staleFollow.displayName || staleFollow.channelName,
+                  avatarUrl: staleFollow.profileImage || "",
+                  isLive: false,
+                  isVerified: false,
+                  isPartner: false,
+                  kickUserId: broadcasterUserId ?? undefined,
+                  accountStatus: "unavailable",
+                };
+              }
+            }
+          }
+          try {
+            const statusSearch = await kickClient.searchChannels(params.username, { limit: 10 });
+            const suspendedChannel = statusSearch?.data?.find(
+              (candidate) =>
+                candidate.username.toLowerCase() === requestedUsername &&
+                candidate.accountStatus === "suspended"
+            );
+            if (suspendedChannel) {
+              channel = {
+                ...channel,
+                ...suspendedChannel,
+                id: channel?.id || suspendedChannel.id,
+                kickUserId:
+                  channel?.kickUserId || suspendedChannel.kickUserId || suspendedChannel.id,
+                avatarUrl: suspendedChannel.avatarUrl || channel?.avatarUrl || "",
+                displayName:
+                  suspendedChannel.displayName || channel?.displayName || params.username,
+                isLive: false,
+                accountStatus: "suspended",
+              };
+            }
+          } catch (error) {
+            logger.debug("IPC:Channel", "Kick suspension lookup was unavailable", {
+              username: params.username,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          if (authoritativeNotFoundFollowId && channel?.accountStatus !== "suspended") {
+            storageService.removeLocalFollow(authoritativeNotFoundFollowId);
+            channel = null;
+          }
+          if (channel && !channel.accountStatus) {
+            channel = { ...channel, accountStatus: "active" };
           }
           channel = enrichOwnKickChannel(channel, params.username, storageService.getKickUser());
         }
@@ -192,20 +290,79 @@ export function registerChannelHandlers(): void {
           const follows = storageService.getActiveFollowsByPlatform("kick");
           const repairedChannels = await repairKickFollowSlugs(kickClient, follows);
 
-          channels = follows.map((follow) => {
-            const current = repairedChannels.get(follow.id);
+          channels = (
+            await Promise.all(
+              follows.map(async (follow): Promise<UnifiedChannel | null> => {
+                const current = repairedChannels.get(follow.id);
+                let suspendedChannel: UnifiedChannel | undefined;
 
-            return {
-              id: follow.channelId,
-              platform: "kick",
-              username: current?.username || follow.channelName,
-              displayName: current?.displayName || follow.displayName || follow.channelName,
-              avatarUrl: current?.avatarUrl || follow.profileImage || "",
-              isLive: current?.isLive || false,
-              isVerified: current?.isVerified || false,
-              isPartner: current?.isPartner || false,
-            };
-          });
+                try {
+                  const statusSearch = await kickClient.searchChannels(follow.channelName, {
+                    limit: 10,
+                  });
+                  suspendedChannel = statusSearch?.data?.find(
+                    (candidate) =>
+                      candidate.username.toLowerCase() === follow.channelName.toLowerCase() &&
+                      candidate.accountStatus === "suspended"
+                  );
+                } catch (error) {
+                  logger.debug(
+                    "IPC:Channel",
+                    "Kick followed-channel status lookup was unavailable",
+                    {
+                      username: follow.channelName,
+                      error: error instanceof Error ? error.message : String(error),
+                    }
+                  );
+                }
+
+                const providerChannel = suspendedChannel || current;
+                const broadcasterUserId = firstValidKickBroadcasterUserId(
+                  providerChannel?.kickUserId,
+                  getKickBroadcasterUserIdFromAvatar(
+                    providerChannel?.avatarUrl || follow.profileImage
+                  ),
+                  follow.channelId
+                );
+
+                if (!providerChannel) {
+                  let officialStatus;
+                  try {
+                    officialStatus = await kickClient.getOfficialChannelAccountStatus(
+                      follow.channelName
+                    );
+                  } catch (error) {
+                    logger.debug("IPC:Channel", "Official Kick account lookup was unavailable", {
+                      username: follow.channelName,
+                      error: error instanceof Error ? error.message : String(error),
+                    });
+                  }
+                  if (officialStatus === "not_found" && !broadcasterUserId) {
+                    storageService.removeLocalFollow(follow.id);
+                    return null;
+                  }
+                }
+
+                return {
+                  id: follow.channelId,
+                  platform: "kick",
+                  username: providerChannel?.username || follow.channelName,
+                  displayName:
+                    providerChannel?.displayName || follow.displayName || follow.channelName,
+                  avatarUrl: providerChannel?.avatarUrl || follow.profileImage || "",
+                  isLive: suspendedChannel ? false : current?.isLive || false,
+                  isVerified: providerChannel?.isVerified || false,
+                  isPartner: providerChannel?.isPartner || false,
+                  kickUserId: broadcasterUserId ?? undefined,
+                  accountStatus: suspendedChannel
+                    ? "suspended"
+                    : current
+                      ? "active"
+                      : "unavailable",
+                };
+              })
+            )
+          ).filter((channel): channel is UnifiedChannel => channel !== null);
         }
 
         return { success: true, data: dedupeChannelsByIdentity(channels) };

@@ -21,7 +21,12 @@ describe("useStreamRecordingActions", () => {
       sessionId: "recording-session-1",
     }));
     const { result } = renderHook(() => useStreamRecordingActions());
-    const request = { platform: "twitch" as const, channelName: "ninja", title: "Stream" };
+    const request = {
+      platform: "twitch" as const,
+      channelName: "ninja",
+      streamId: "stream-live-123",
+      title: "Stream",
+    };
 
     await act(async () => {
       await expect(result.current.start(request)).resolves.toEqual({
@@ -54,7 +59,12 @@ describe("useStreamRecordingActions", () => {
 
     await act(async () => {
       await expect(
-        result.current.start({ platform: "twitch", channelName: "ninja", title: "Second" })
+        result.current.start({
+          platform: "twitch",
+          channelName: "ninja",
+          streamId: "stream-live-456",
+          title: "Second",
+        })
       ).resolves.toEqual(blocked);
     });
 
@@ -78,6 +88,23 @@ describe("useStreamRecordingActions", () => {
     expect(api.streamRecording.resume).toHaveBeenCalledWith("recording-session-1");
     expect(api.downloads.pause).not.toHaveBeenCalled();
     expect(api.downloads.resume).not.toHaveBeenCalled();
+  });
+
+  it("returns a visible failure instead of leaving Resume stuck when IPC rejects", async () => {
+    const api = installElectronAPIMock();
+    api.streamRecording.resume = vi.fn(async () => {
+      throw new Error("main process unavailable");
+    });
+    const { result } = renderHook(() => useStreamRecordingActions());
+
+    await act(async () => {
+      await expect(result.current.resume("recording-session-1")).resolves.toEqual({
+        success: false,
+        error: "main process unavailable",
+      });
+    });
+
+    expect(toast.error).toHaveBeenCalledTimes(1);
   });
 
   it("stops and opens the transient result only through recording-scoped commands", async () => {
@@ -107,6 +134,21 @@ describe("useStreamRecordingActions", () => {
     expect(api.streamRecording.dismissNotice).toHaveBeenCalledWith("recording-session-1");
     expect(api.downloads.openFile).not.toHaveBeenCalled();
     expect(api.downloads.showInFolder).not.toHaveBeenCalled();
+  });
+
+  it("discards only through the recording bridge", async () => {
+    const api = installElectronAPIMock();
+    api.streamRecording.discard = vi.fn(async () => ({ success: true }));
+    const { result } = renderHook(() => useStreamRecordingActions());
+
+    await act(async () => {
+      await expect(result.current.discard("recording-session-1")).resolves.toEqual({
+        success: true,
+      });
+    });
+
+    expect(api.streamRecording.discard).toHaveBeenCalledWith("recording-session-1");
+    expect(api.downloads.deleteFile).not.toHaveBeenCalled();
   });
 
   it("resumes, finalizes, and explicitly dismisses an interrupted session through recovery IPC", async () => {

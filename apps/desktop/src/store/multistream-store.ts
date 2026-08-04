@@ -11,6 +11,14 @@ export interface MultiStreamConfig {
   volume: number;
 }
 
+export interface FavoriteStreamRef {
+  platform: Platform;
+  channelId: string;
+  channelName: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
 export type LayoutMode = "grid" | "focus";
 
 /**
@@ -30,11 +38,11 @@ export const DEFAULT_MULTIVIEW_CAP = 4;
 export const DEFAULT_BACKGROUND_QUALITY: BackgroundQuality = "auto-low";
 
 /**
- * Persisted schema version for the multistream-store. Bumped from 0 -> 1 in
- * slice 03 to introduce `MultiviewCap` + `BackgroundQuality`. The migration
- * preserves all prior user preferences (streams, chat target, chat openness).
+ * Persisted schema version for the multistream-store. Version 1 introduced
+ * `MultiviewCap` + `BackgroundQuality`; version 2 adds MultiView favorites.
+ * Migrations preserve prior user preferences.
  */
-export const MULTISTREAM_STORE_VERSION = 1;
+export const MULTISTREAM_STORE_VERSION = 2;
 
 interface MultiStreamState {
   // Streams
@@ -44,6 +52,11 @@ interface MultiStreamState {
   updateStream: (streamId: string, updates: Partial<MultiStreamConfig>) => void;
   reorderStreams: (startIndex: number, endIndex: number) => void;
   clearStreams: () => void;
+
+  // MultiView-only favorites
+  favoriteStreams: FavoriteStreamRef[];
+  toggleFavorite: (favorite: FavoriteStreamRef) => void;
+  isFavorite: (favorite: FavoriteStreamRef) => boolean;
 
   // Layout
   layout: LayoutMode;
@@ -89,6 +102,18 @@ function isBackgroundQuality(v: unknown): v is BackgroundQuality {
   return typeof v === "string" && VALID_BACKGROUND_QUALITIES.has(v as BackgroundQuality);
 }
 
+function favoriteStreamsMatch(left: FavoriteStreamRef, right: FavoriteStreamRef): boolean {
+  if (left.platform !== right.platform) return false;
+
+  const leftChannelId = left.channelId.trim();
+  const rightChannelId = right.channelId.trim();
+  if (leftChannelId && rightChannelId) return leftChannelId === rightChannelId;
+
+  const leftChannelName = left.channelName.trim().toLowerCase();
+  const rightChannelName = right.channelName.trim().toLowerCase();
+  return Boolean(leftChannelName && rightChannelName && leftChannelName === rightChannelName);
+}
+
 /**
  * Migrate a persisted multistream-store payload to the current schema.
  * Pure function; exported so the persist middleware AND the migration test
@@ -97,17 +122,27 @@ function isBackgroundQuality(v: unknown): v is BackgroundQuality {
  * v0 -> v1: introduce MultiviewCap (default 4) and BackgroundQuality
  * ('auto-low'). All other prior preferences are preserved as-is. Out-of-range
  * values found in a partially-corrupt payload are clamped, not discarded.
+ * v1 -> v2: introduce persistent MultiView favorites (default empty).
  */
 export function migrateMultiStreamState(
   persisted: unknown,
   _version: number
 ): Pick<
   MultiStreamState,
-  "streams" | "layout" | "isChatOpen" | "chatStreamId" | "multiviewCap" | "backgroundQuality"
+  | "streams"
+  | "favoriteStreams"
+  | "layout"
+  | "isChatOpen"
+  | "chatStreamId"
+  | "multiviewCap"
+  | "backgroundQuality"
 > {
   const p = (persisted ?? {}) as Record<string, unknown>;
 
   const streams = Array.isArray(p.streams) ? (p.streams as MultiStreamConfig[]) : [];
+  const favoriteStreams = Array.isArray(p.favoriteStreams)
+    ? (p.favoriteStreams as FavoriteStreamRef[])
+    : [];
   const layout: LayoutMode = p.layout === "focus" ? "focus" : "grid";
   const isChatOpen = typeof p.isChatOpen === "boolean" ? p.isChatOpen : true;
   const chatStreamId = typeof p.chatStreamId === "string" ? p.chatStreamId : null;
@@ -122,6 +157,7 @@ export function migrateMultiStreamState(
 
   return {
     streams,
+    favoriteStreams,
     layout,
     isChatOpen,
     chatStreamId,
@@ -132,8 +168,9 @@ export function migrateMultiStreamState(
 
 export const useMultiStreamStore = create<MultiStreamState>()(
   persist(
-    (set, _get) => ({
+    (set, get) => ({
       streams: [],
+      favoriteStreams: [],
       layout: "grid",
       focusedStreamId: null,
       isChatOpen: true,
@@ -195,6 +232,19 @@ export const useMultiStreamStore = create<MultiStreamState>()(
 
       clearStreams: () => set({ streams: [], chatStreamId: null, focusedStreamId: null }),
 
+      toggleFavorite: (favorite) =>
+        set((state) => ({
+          favoriteStreams: state.favoriteStreams.some((candidate) =>
+            favoriteStreamsMatch(candidate, favorite)
+          )
+            ? state.favoriteStreams.filter(
+                (candidate) => !favoriteStreamsMatch(candidate, favorite)
+              )
+            : [...state.favoriteStreams, favorite],
+        })),
+      isFavorite: (favorite) =>
+        get().favoriteStreams.some((candidate) => favoriteStreamsMatch(candidate, favorite)),
+
       setLayout: (layout) => set({ layout }),
       setFocusedStream: (focusedStreamId) =>
         set({ focusedStreamId, layout: focusedStreamId ? "focus" : "grid" }),
@@ -227,6 +277,7 @@ export const useMultiStreamStore = create<MultiStreamState>()(
       migrate: (persisted, version) => migrateMultiStreamState(persisted, version),
       partialize: (state) => ({
         streams: state.streams,
+        favoriteStreams: state.favoriteStreams,
         layout: "grid",
         isChatOpen: state.isChatOpen,
         multiviewCap: state.multiviewCap,

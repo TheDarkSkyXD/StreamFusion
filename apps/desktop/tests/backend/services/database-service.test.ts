@@ -507,6 +507,7 @@ describeDb("DatabaseService platform-source follows", () => {
 describeDb("DatabaseService upsertSyncedFollows", () => {
   // Guards: additive Kick sync consolidates only exact stable broadcaster identities,
   // including legacy slug-keyed rows whose canonical avatar path exposes that ID.
+  // Guards: conflicting stable Kick identities never collapse through a same-slug fallback.
   // Helper to build a minimal "fetched follow" row.
   const fetched = (channelId: string, channelName: string, displayName = channelName) => ({
     platform: "kick",
@@ -636,6 +637,41 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     );
   });
 
+  it("replaces a same-slug Kick row when authoritative stable identity changes", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "legacy-channel-a",
+        channelName: "SharedSlug",
+        displayName: "Original Creator",
+        profileImage: "https://files.kick.com/images/user/111/profile_image/original.webp",
+      },
+      "kick"
+    );
+
+    const result = svc.upsertSyncedFollows("kick", [
+      {
+        platform: "kick",
+        channelId: "222",
+        channelName: "sharedslug",
+        displayName: "Different Creator",
+        profileImage: "https://files.kick.com/images/user/222/profile_image/current.webp",
+      },
+    ]);
+
+    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 1, removedCount: 1 });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({
+        channelId: "222",
+        channelName: "sharedslug",
+        displayName: "Different Creator",
+      }),
+    ]);
+  });
+
   it("does not treat an unproven numeric Kick channel id as a broadcaster rename", () => {
     const svc = new DatabaseService();
     svc.initialize();
@@ -726,29 +762,83 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     expect(alice?.displayName).toBe("Alice (new banner)");
   });
 
-  it("does NOT adopt a fetched row blocked by a pending unfollow tombstone", () => {
+  it("keeps fresh remote state authoritative while an unfollow intent is pending", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "411439",
+        channelName: "summit1g",
+        displayName: "Summit1G stale",
+        profileImage: "https://example.com/stale.jpg",
+      },
+      "kick"
+    );
+    const guest = svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "guest-kick",
+        channelName: "guestkick",
+        displayName: "Guest Kick",
+        profileImage: "",
+      },
+      "guest"
+    );
+    const twitch = svc.addFollow(
+      {
+        platform: "twitch",
+        channelId: "twitch-1",
+        channelName: "summit1g",
+        displayName: "Summit1G on Twitch",
+        profileImage: "",
+      },
+      "twitch"
+    );
     svc.addPendingFollowWrite({
       platform: "kick",
-      channelId: "411439",
-      slug: "summit1g",
+      channelId: "legacy-kick-id",
+      slug: "SUMMIT1G",
       action: "unfollow",
     });
 
-    const result = svc.upsertSyncedFollows("kick", [fetched("411439", "summit1g")]);
+    const result = svc.upsertSyncedFollows(
+      "kick",
+      [
+        {
+          ...fetched("411439", "summit1g", "Summit1G refreshed"),
+          profileImage: "https://example.com/refreshed.jpg",
+        },
+      ],
+      { pruneAbsent: true }
+    );
 
-    expect(result).toEqual({ accountCount: 0, pendingCount: 1, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
+    expect(result).toEqual({ accountCount: 1, pendingCount: 1, addedCount: 0, removedCount: 0 });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({
+        channelId: "411439",
+        channelName: "summit1g",
+        displayName: "Summit1G refreshed",
+        profileImage: "https://example.com/refreshed.jpg",
+      }),
+    ]);
+    expect(svc.getPendingFollowWritesByPlatform("kick")).toEqual([
+      expect.objectContaining({
+        channelId: "legacy-kick-id",
+        slug: "SUMMIT1G",
+        action: "unfollow",
+      }),
+    ]);
+    expect(svc.getFollowsByPlatformAndSource("kick", "guest")).toEqual([guest]);
+    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toEqual([twitch]);
   });
 
-  it("matches pending unfollow via slug bridge when fetched row carries a different channel.id (dual-id)", () => {
+  it("keeps a dual-id pending unfollow while adopting the fresh same-slug row", () => {
     // Regression: kick-guest-follows-dual-id-bridge-2026-05-15.md.
     // Pending row stored with numeric id "999" + slug "ramees"; platform
     // returns the same slug with a different numeric id "12345". Slug
-    // matching must still block adoption.
+    // matching must keep the unresolved intent without hiding remote state.
     const svc = new DatabaseService();
     svc.initialize();
 
@@ -761,7 +851,11 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     const result = svc.upsertSyncedFollows("kick", [fetched("12345", "ramees")]);
 
-    expect(result).toEqual({ accountCount: 0, pendingCount: 1, addedCount: 0, removedCount: 0 });
+    expect(result).toEqual({ accountCount: 1, pendingCount: 1, addedCount: 1, removedCount: 0 });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({ channelId: "12345", channelName: "ramees" }),
+    ]);
+    expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
   });
 
   it("clears pending follow when fetched list confirms the push landed externally", () => {
@@ -851,10 +945,11 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     // Platform shows summit1g (unfollow didn't land), no ramees (follow didn't land).
     const result = svc.upsertSyncedFollows("kick", [fetched("411439", "summit1g")]);
 
-    // summit1g blocked by tombstone; ramees can't be adopted (not in fetched).
-    expect(result.accountCount).toBe(0);
+    // Fresh sync still owns confirmed state: summit1g is adopted while both
+    // unresolved intents remain.
+    expect(result.accountCount).toBe(1);
     expect(result.pendingCount).toBe(2);
-    expect(result.addedCount).toBe(0);
+    expect(result.addedCount).toBe(1);
     expect(result.removedCount).toBe(0);
   });
 
@@ -896,7 +991,102 @@ describeDb("DatabaseService retention_settings helpers", () => {
   });
 });
 
+// Guards: pending follow writes have deterministic retry state and a ten-minute expiry window.
 describeDb("DatabaseService pending_follow_writes helpers", () => {
+  it("stores deterministic default pending state from the supplied clock", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    const now = new Date("2026-07-04T03:20:00.000Z");
+
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "12345",
+      slug: "ramees",
+      action: "follow",
+      now,
+    });
+
+    expect(svc.getAllPendingFollowWrites()[0]).toMatchObject({
+      status: "pending",
+      createdAt: "2026-07-04T03:20:00.000Z",
+      attemptedAt: "2026-07-04T03:20:00.000Z",
+      nextAttemptAt: "2026-07-04T03:20:00.000Z",
+      expiresAt: "2026-07-04T03:30:00.000Z",
+      attemptCount: 0,
+      lastError: null,
+    });
+  });
+
+  it("migrates legacy pending rows in place with deterministic retry state", () => {
+    const dbPath = path.join(currentTmpDir, "streamfusion.db");
+    const old = new Database(dbPath);
+    old.exec(`
+      CREATE TABLE pending_follow_writes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        platform TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('follow', 'unfollow')),
+        attempted_at TEXT NOT NULL,
+        last_error TEXT,
+        UNIQUE(platform, channel_id, action)
+      );
+      INSERT INTO pending_follow_writes (
+        platform, channel_id, slug, action, attempted_at, last_error
+      ) VALUES (
+        'kick', '12345', 'ramees', 'follow',
+        '2026-07-04T03:20:00.000Z', 'legacy failure'
+      );
+    `);
+    old.close();
+
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    expect(svc.getAllPendingFollowWrites()[0]).toMatchObject({
+      status: "pending",
+      createdAt: "2026-07-04T03:20:00.000Z",
+      attemptedAt: "2026-07-04T03:20:00.000Z",
+      nextAttemptAt: "2026-07-04T03:20:00.000Z",
+      expiresAt: "2026-07-04T03:30:00.000Z",
+      attemptCount: 0,
+      lastError: "legacy failure",
+    });
+  });
+
+  it("updates retry state through the dual-id bridge", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "12345",
+      slug: "ramees",
+      action: "follow",
+      now: new Date("2026-07-04T03:20:00.000Z"),
+    });
+
+    const updated = svc.updatePendingFollowWriteState({
+      platform: "kick",
+      channelId: "ramees",
+      slug: "ramees",
+      action: "follow",
+      status: "retrying",
+      attemptedAt: new Date("2026-07-04T03:20:01.000Z"),
+      nextAttemptAt: new Date("2026-07-04T03:20:03.000Z"),
+      attemptCount: 1,
+      lastError: "network-error",
+    });
+
+    expect(updated).toBe(true);
+    expect(svc.getAllPendingFollowWrites()[0]).toMatchObject({
+      status: "retrying",
+      attemptedAt: "2026-07-04T03:20:01.000Z",
+      nextAttemptAt: "2026-07-04T03:20:03.000Z",
+      attemptCount: 1,
+      lastError: "network-error",
+    });
+  });
+
   it("addPendingFollowWrite stores a row with all fields populated", () => {
     const svc = new DatabaseService();
     svc.initialize();

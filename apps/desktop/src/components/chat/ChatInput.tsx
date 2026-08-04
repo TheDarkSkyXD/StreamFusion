@@ -48,6 +48,7 @@ import type {
 import { useAuthStore } from "../../store/auth-store";
 import { useEmoteStore } from "../../store/emote-store";
 import { useFollowStore } from "../../store/follow-store";
+import { useChatDisplay } from "../settings/ChatSettingsSection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import {
   TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS,
@@ -173,11 +174,7 @@ function parseCommand(message: string): ParsedCommand | null {
 
 type ActiveDialog = "native" | "thirdParty" | null;
 type RoomSendBlockerKind =
-  | "followersOnly"
-  | "subscribersOnly"
-  | "twitchSubscriptionScopes"
-  | "emoteOnly"
-  | "slowMode";
+  "followersOnly" | "subscribersOnly" | "twitchSubscriptionScopes" | "emoteOnly" | "slowMode";
 interface SendBlockerCopy {
   message: string;
   action: string | null;
@@ -200,6 +197,7 @@ type ClassifiedSendBlocker =
  *  order), so rich editor helpers count an emote as ONE character. */
 const EMOTE_CHAR = "";
 const PLATFORM_CHAT_MESSAGE_MAX_LENGTH = 500;
+const QUICK_EMOTE_SEND_THROTTLE_MS = 50;
 const TWITCH_SECURITY_URL = "https://www.twitch.tv/settings/security";
 
 /** Build ContentFragments from the rich editor value + emote slots, mirroring
@@ -785,7 +783,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const cursorPositionRef = useRef(cursorPosition);
     const twitchVerificationRequirementRef = useRef<TwitchVerificationRequirement | null>(null);
     const lastSubmittedDraftRef = useRef<SubmittedDraft | null>(null);
+    const isSendingRef = useRef(false);
     const previousViewerChatContextRef = useRef("");
+    const lastQuickEmoteSendRef = useRef<{
+      contextKey: string;
+      sentAt: number;
+    } | null>(null);
+    const slowModeQuickEmoteSendTokenByContextRef = useRef<Map<string, symbol> | null>(null);
+    if (slowModeQuickEmoteSendTokenByContextRef.current === null) {
+      slowModeQuickEmoteSendTokenByContextRef.current = new Map();
+    }
+    const slowModeQuickEmoteSendTokenByContext = slowModeQuickEmoteSendTokenByContextRef.current;
     messageRef.current = message;
     emoteSlotsRef.current = emoteSlots;
     cursorPositionRef.current = cursorPosition;
@@ -950,6 +958,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       !showAuthBlocker && viewerIsAuthenticated && roomBlockerCopy && !roomModeCoveredByInfoBanner;
 
     // Autocomplete hooks
+    const { cd: chatDisplay } = useChatDisplay();
     const emoteAutocomplete = useContextualEmoteMode();
     const mentionAutocomplete = useMentionAutocomplete();
     const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
@@ -1110,19 +1119,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       [roomState.emoteOnly, roomState.followersOnly, viewerCanBypassRoomModes, viewerFollowsChannel]
     );
 
-    const getSubscriberSendBlocker = useCallback(async (): Promise<
+    const getSubscriberSendBlocker = useCallback((): Promise<
       RoomSendBlockerKind | "stale" | null
-    > => {
+    > | null => {
       if (viewerCanBypassRoomModes || !roomState.subscribersOnly || !checkSubscriberEligibility) {
         return null;
       }
 
       const requestedContext = subscriberEligibilityContextRef.current;
-      const result = await checkSubscriberEligibility({ platform, channel, channelId });
-      if (subscriberEligibilityContextRef.current !== requestedContext) return "stale";
-      if (result.status === "notSubscribed") return "subscribersOnly";
-      if (result.status === "missingScopes") return "twitchSubscriptionScopes";
-      return null;
+      return checkSubscriberEligibility({ platform, channel, channelId }).then((result) => {
+        if (subscriberEligibilityContextRef.current !== requestedContext) return "stale";
+        if (result.status === "notSubscribed") return "subscribersOnly";
+        if (result.status === "missingScopes") return "twitchSubscriptionScopes";
+        return null;
+      });
     }, [
       channel,
       channelId,
@@ -1132,10 +1142,22 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       viewerCanBypassRoomModes,
     ]);
 
-    const getSlowModeSendBlocker = useCallback((): RoomSendBlockerKind | null => {
-      if (viewerCanBypassRoomModes) return null;
-      return slowCooldownUntilMs > Date.now() ? "slowMode" : null;
-    }, [slowCooldownUntilMs, viewerCanBypassRoomModes]);
+    const getSlowModeSendBlocker = useCallback(
+      (ownedToken?: symbol): RoomSendBlockerKind | null => {
+        if (viewerCanBypassRoomModes) return null;
+        const activeToken = slowModeQuickEmoteSendTokenByContext.get(viewerChatContext);
+        return (activeToken !== undefined && activeToken !== ownedToken) ||
+          slowCooldownUntilMs > Date.now()
+          ? "slowMode"
+          : null;
+      },
+      [
+        slowCooldownUntilMs,
+        slowModeQuickEmoteSendTokenByContext,
+        viewerCanBypassRoomModes,
+        viewerChatContext,
+      ]
+    );
 
     const startSlowModeCooldown = useCallback(
       (seconds = roomState.slowMode ?? 0) => {
@@ -1427,9 +1449,29 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       [message]
     );
 
-    useImperativeHandle(ref, () => ({ replyTo: handleReply, mentionUser }), [
+    const setDraft = useCallback((draft: string) => {
+      const cursor = draft.length;
+      flushSync(() => {
+        messageRef.current = draft;
+        emoteSlotsRef.current = [];
+        cursorPositionRef.current = cursor;
+        setMessage(draft);
+        setEmoteSlots([]);
+        setCursorPosition(cursor);
+        setError(null);
+      });
+      const editor = editorRef.current;
+      if (editor) {
+        renderEditorDom(editor, draft, []);
+        editor.focus();
+        setEditorCaret(editor, cursor);
+      }
+    }, []);
+
+    useImperativeHandle(ref, () => ({ replyTo: handleReply, mentionUser, setDraft }), [
       handleReply,
       mentionUser,
+      setDraft,
     ]);
 
     const clearReply = useCallback(() => {
@@ -1482,7 +1524,21 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const handleQuickEmoteSend = useCallback(
       async (emote: Emote) => {
-        if (disabled || isSending) return;
+        if (disabled) return;
+        const now = performance.now();
+        const lastQuickEmoteSend = lastQuickEmoteSendRef.current;
+        const lastQuickEmoteSendAt =
+          lastQuickEmoteSend?.contextKey === viewerChatContext ? lastQuickEmoteSend.sentAt : null;
+        if (
+          lastQuickEmoteSendAt !== null &&
+          now - lastQuickEmoteSendAt < QUICK_EMOTE_SEND_THROTTLE_MS
+        ) {
+          return;
+        }
+        lastQuickEmoteSendRef.current = {
+          contextKey: viewerChatContext,
+          sentAt: now,
+        };
 
         const quickMessage = EMOTE_CHAR;
         const quickSlots = [emote];
@@ -1504,52 +1560,83 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           showRoomSendBlocker(roomBlocker);
           return;
         }
-        const subscriberBlocker = await getSubscriberSendBlocker();
-        if (subscriberBlocker === "stale") return;
-        if (subscriberBlocker) {
-          showRoomSendBlocker(subscriberBlocker);
-          return;
+        const initialSlowModeBlocker = getSlowModeSendBlocker();
+        const slowModeSendToken =
+          initialSlowModeBlocker === null &&
+          !viewerCanBypassRoomModes &&
+          roomState.slowMode !== null &&
+          roomState.slowMode > 0
+            ? Symbol(viewerChatContext)
+            : null;
+        if (slowModeSendToken !== null) {
+          slowModeQuickEmoteSendTokenByContext.set(viewerChatContext, slowModeSendToken);
         }
-        if (roomBlocker) {
-          showRoomSendBlocker(roomBlocker);
-          return;
-        }
-        const slowModeBlocker = getSlowModeSendBlocker();
-        if (slowModeBlocker) {
-          showRoomSendBlocker(slowModeBlocker);
-          return;
-        }
-        if (!canSend) return;
-
-        const localFragments = serializeFragments(quickMessage, quickSlots);
-        addRecentEmote({ platform, userId: viewerUserId ?? null }, emote);
-        setIsSending(true);
-        setError(null);
 
         try {
-          await sendChatPayload(trimmedMessage, localFragments);
-          startSlowModeCooldown();
-          setActiveRoomBlocker(null);
-          setActiveBlockerCopy(null);
-          setReply(null);
-          editorRef.current?.focus();
-        } catch (err) {
-          const sendBlocker = classifySendRejection(platform, err);
-          if (sendBlocker) {
-            handleClassifiedSendBlocker(sendBlocker);
-            logger.info("UI:Chat:Input", "quick emote send blocked by room restriction", {
-              blocker: sendBlocker.kind,
+          let subscriberBlocker: RoomSendBlockerKind | "stale" | null;
+          try {
+            subscriberBlocker = await getSubscriberSendBlocker();
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Failed to verify chat access";
+            setError(errorMessage);
+            logger.error("UI:Chat:Input", "failed to verify subscriber eligibility", {
+              error: err instanceof Error ? err.message : String(err),
             });
             return;
           }
+          if (subscriberBlocker === "stale") return;
+          if (subscriberBlocker) {
+            showRoomSendBlocker(subscriberBlocker);
+            return;
+          }
+          if (roomBlocker) {
+            showRoomSendBlocker(roomBlocker);
+            return;
+          }
+          if (initialSlowModeBlocker) {
+            showRoomSendBlocker(initialSlowModeBlocker);
+            return;
+          }
+          const slowModeBlocker = getSlowModeSendBlocker(slowModeSendToken ?? undefined);
+          if (slowModeBlocker) {
+            showRoomSendBlocker(slowModeBlocker);
+            return;
+          }
+          if (!canSend) return;
 
-          const errorMessage = err instanceof Error ? err.message : "Failed to send message";
-          setError(errorMessage);
-          logger.error("UI:Chat:Input", "failed to send quick emote", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+          try {
+            const localFragments = serializeFragments(quickMessage, quickSlots);
+            addRecentEmote({ platform, userId: viewerUserId ?? null }, emote);
+            setError(null);
+            await sendChatPayload(trimmedMessage, localFragments);
+            startSlowModeCooldown();
+            setActiveRoomBlocker(null);
+            setActiveBlockerCopy(null);
+            setReply(null);
+            editorRef.current?.focus();
+          } catch (err) {
+            const sendBlocker = classifySendRejection(platform, err);
+            if (sendBlocker) {
+              handleClassifiedSendBlocker(sendBlocker);
+              logger.info("UI:Chat:Input", "quick emote send blocked by room restriction", {
+                blocker: sendBlocker.kind,
+              });
+              return;
+            }
+
+            const errorMessage = err instanceof Error ? err.message : "Failed to send message";
+            setError(errorMessage);
+            logger.error("UI:Chat:Input", "failed to send quick emote", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         } finally {
-          setIsSending(false);
+          if (
+            slowModeSendToken !== null &&
+            slowModeQuickEmoteSendTokenByContext.get(viewerChatContext) === slowModeSendToken
+          ) {
+            slowModeQuickEmoteSendTokenByContext.delete(viewerChatContext);
+          }
         }
       },
       [
@@ -1563,12 +1650,15 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         getSlowModeSendBlocker,
         handleAuthRequired,
         handleClassifiedSendBlocker,
-        isSending,
         maxLength,
+        roomState.slowMode,
         sendChatPayload,
         showRoomSendBlocker,
+        slowModeQuickEmoteSendTokenByContext,
         startSlowModeCooldown,
         twitchVerificationRequirement,
+        viewerCanBypassRoomModes,
+        viewerChatContext,
         viewerIsAuthenticated,
       ]
     );
@@ -1581,7 +1671,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       // plain text). The chat server has no awareness of our private emote marker.
       const serialized = serializeMessage(message, emoteSlots, platform);
       const trimmedMessage = serialized.trim();
-      if (!trimmedMessage || isSending) return;
+      if (!trimmedMessage || isSendingRef.current) return;
       if (serialized.length > maxLength) {
         showMessageTooLongToast(maxLength);
         editorRef.current?.focus();
@@ -1597,22 +1687,62 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         showRoomSendBlocker(roomBlocker);
         return;
       }
-      const subscriberBlocker = await getSubscriberSendBlocker();
-      if (subscriberBlocker === "stale") return;
+      isSendingRef.current = true;
+      const subscriberCheck = getSubscriberSendBlocker();
+      if (subscriberCheck) setIsSending(true);
+      let subscriberBlocker: RoomSendBlockerKind | "stale" | null;
+      try {
+        subscriberBlocker = subscriberCheck ? await subscriberCheck : null;
+      } catch (err) {
+        isSendingRef.current = false;
+        setIsSending(false);
+        const errorMessage = err instanceof Error ? err.message : "Failed to verify chat access";
+        setError(errorMessage);
+        logger.error("UI:Chat:Input", "failed to verify subscriber eligibility", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
+      if (subscriberBlocker === "stale") {
+        isSendingRef.current = false;
+        setIsSending(false);
+        return;
+      }
       if (subscriberBlocker) {
+        isSendingRef.current = false;
+        setIsSending(false);
         showRoomSendBlocker(subscriberBlocker);
         return;
       }
       if (roomBlocker) {
+        isSendingRef.current = false;
+        setIsSending(false);
         showRoomSendBlocker(roomBlocker);
         return;
       }
       const slowModeBlocker = getSlowModeSendBlocker();
       if (slowModeBlocker) {
+        isSendingRef.current = false;
+        setIsSending(false);
         showRoomSendBlocker(slowModeBlocker);
         return;
       }
-      if (!canSend) return;
+      if (!canSend) {
+        isSendingRef.current = false;
+        setIsSending(false);
+        return;
+      }
+
+      const parsedCommand = parseCommand(trimmedMessage);
+      if (parsedCommand) {
+        const commandConfig = CHAT_COMMANDS[parsedCommand.command as keyof typeof CHAT_COMMANDS];
+        if (!commandConfig || !(commandConfig.platforms as readonly string[]).includes(platform)) {
+          isSendingRef.current = false;
+          setIsSending(false);
+          setError(`Unknown command: /${parsedCommand.command}`);
+          return;
+        }
+      }
 
       // Pre-rendered fragments for the Kick optimistic local echo so the
       // user's own message shows emote IMAGES (not raw text) until the Pusher
@@ -1620,29 +1750,54 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       // emote tags from tmi.js, so it doesn't need this.
       const localFragments = serializeFragments(message, emoteSlots);
 
-      lastSubmittedDraftRef.current = {
+      const submittedDraft: SubmittedDraft = {
         contextKey: viewerChatContext,
         message,
         emoteSlots: [...emoteSlots],
         cursorPosition,
         reply,
       };
+      lastSubmittedDraftRef.current = submittedDraft;
 
-      setIsSending(true);
-      setError(null);
+      flushSync(() => {
+        messageRef.current = "";
+        emoteSlotsRef.current = [];
+        cursorPositionRef.current = 0;
+        setIsSending(true);
+        setError(null);
+        setMessage("");
+        setEmoteSlots([]);
+        setActiveRoomBlocker(null);
+        setActiveBlockerCopy(null);
+        setReply(null);
+        setCursorPosition(0);
+      });
+      if (editorRef.current) {
+        renderEditorDom(editorRef.current, "", []);
+        editorRef.current.focus();
+      }
+
+      const restoreSubmittedDraft = () => {
+        if (messageRef.current.length > 0 || emoteSlotsRef.current.length > 0) return;
+        flushSync(() => {
+          messageRef.current = submittedDraft.message;
+          emoteSlotsRef.current = submittedDraft.emoteSlots;
+          cursorPositionRef.current = submittedDraft.cursorPosition;
+          setMessage(submittedDraft.message);
+          setEmoteSlots(submittedDraft.emoteSlots);
+          setCursorPosition(submittedDraft.cursorPosition);
+          setReply(submittedDraft.reply);
+        });
+        if (editorRef.current) {
+          renderEditorDom(editorRef.current, submittedDraft.message, submittedDraft.emoteSlots);
+          editorRef.current.focus();
+          setEditorCaret(editorRef.current, submittedDraft.cursorPosition);
+        }
+      };
 
       try {
-        const parsedCommand = parseCommand(trimmedMessage);
-
         if (parsedCommand) {
           const { command, args } = parsedCommand;
-          const cmdConfig = CHAT_COMMANDS[command as keyof typeof CHAT_COMMANDS];
-
-          if (!cmdConfig || !(cmdConfig.platforms as readonly string[]).includes(platform)) {
-            setError(`Unknown command: /${command}`);
-            setIsSending(false);
-            return;
-          }
 
           if (command === "me") {
             const actionMessage = args.join(" ");
@@ -1676,17 +1831,15 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           await sendChatPayload(trimmedMessage, localFragments);
         }
 
-        if (twitchVerificationRequirementRef.current) return;
+        if (twitchVerificationRequirementRef.current) {
+          restoreSubmittedDraft();
+          return;
+        }
 
-        setMessage("");
-        setEmoteSlots([]);
         startSlowModeCooldown();
-        setActiveRoomBlocker(null);
-        setActiveBlockerCopy(null);
-        setReply(null);
-        setCursorPosition(0);
         editorRef.current?.focus();
       } catch (err) {
+        restoreSubmittedDraft();
         const sendBlocker = classifySendRejection(platform, err);
         if (sendBlocker) {
           handleClassifiedSendBlocker(sendBlocker);
@@ -1702,6 +1855,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           error: err instanceof Error ? err.message : String(err),
         });
       } finally {
+        isSendingRef.current = false;
         setIsSending(false);
       }
     }, [
@@ -1713,7 +1867,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       getSlowModeSendBlocker,
       handleAuthRequired,
       handleClassifiedSendBlocker,
-      isSending,
       platform,
       channel,
       kickUser,
@@ -1802,7 +1955,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         if (
           isMentionAutocompleteActive ||
           (isEmoteAutocompleteActive &&
-            (contextualEmoteMatch?.explicit || contextualEmoteResultCount > 0))
+            (contextualEmoteMatch?.explicit || contextualEmoteResultCount > 0) &&
+            e.key !== "Enter")
         ) {
           return;
         }
@@ -1920,8 +2074,30 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           />
         )}
 
-        <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
-          {showContextualEmoteRow ? (
+        {showContextualEmoteRow ? (
+          chatDisplay.quickEmotes ? (
+            <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
+              <ContextualEmoteRow
+                inputValue={message}
+                cursorPosition={cursorPosition}
+                platform={platform}
+                channelId={channelId}
+                viewerIsSubscribed={viewerIsSubscribed}
+                keyboardActive={isEditorFocused}
+                onResultCountChange={setContextualEmoteResultCount}
+                onSelect={handleEmoteSelect}
+                onClose={emoteAutocomplete.deactivate}
+                fallback={
+                  <QuickEmoteActionBar
+                    platform={platform}
+                    viewerUserId={viewerUserId}
+                    onSelect={handleQuickEmoteSend}
+                    disabled={disabled || isSending}
+                  />
+                }
+              />
+            </div>
+          ) : (
             <ContextualEmoteRow
               inputValue={message}
               cursorPosition={cursorPosition}
@@ -1932,24 +2108,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               onResultCountChange={setContextualEmoteResultCount}
               onSelect={handleEmoteSelect}
               onClose={emoteAutocomplete.deactivate}
-              fallback={
-                <QuickEmoteActionBar
-                  platform={platform}
-                  viewerUserId={viewerUserId}
-                  onSelect={handleQuickEmoteSend}
-                  disabled={disabled || isSending}
-                />
-              }
             />
-          ) : (
-            <QuickEmoteActionBar
-              platform={platform}
-              viewerUserId={viewerUserId}
-              onSelect={handleQuickEmoteSend}
-              disabled={disabled || isSending}
-            />
-          )}
-        </div>
+          )
+        ) : (
+          chatDisplay.quickEmotes && (
+            <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
+              <QuickEmoteActionBar
+                platform={platform}
+                viewerUserId={viewerUserId}
+                onSelect={handleQuickEmoteSend}
+                disabled={disabled || isSending}
+              />
+            </div>
+          )
+        )}
 
         {/* InfoBanner — renders null when no chat-room modes are active. */}
         <InfoBanner
@@ -2188,8 +2360,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           <div
             data-testid="chat-input-action-row"
             className={`relative flex items-center gap-2 animate-slide-and-fade-in ${
-              showSlowModeCountdown ? "justify-between" : "justify-end"
-            }`}
+              showChatSettings ? "z-20" : ""
+            } ${showSlowModeCountdown ? "justify-between" : "justify-end"}`}
           >
             {showSlowModeCountdown && (
               <p
@@ -2259,16 +2431,22 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 Chat
               </button>
             </div>
-            {showChatSettings && (
-              <ChatQuickSettingsPopover
-                platform={platform}
-                placement="top"
-                triggerRef={settingsButtonRef}
-                onClose={() => setShowChatSettings(false)}
-              />
-            )}
           </div>
         </div>
+
+        {showChatSettings && (
+          <div
+            data-testid="chat-quick-settings-overlay-anchor"
+            className="absolute inset-x-0 bottom-full z-50 mb-12 h-0 max-w-full"
+          >
+            <ChatQuickSettingsPopover
+              platform={platform}
+              placement="top"
+              triggerRef={settingsButtonRef}
+              onClose={() => setShowChatSettings(false)}
+            />
+          </div>
+        )}
 
         {/* Error Message */}
         {error && <div className="absolute -bottom-6 left-0 text-xs text-red-500">{error}</div>}
@@ -2282,6 +2460,8 @@ ChatInput.displayName = "ChatInput";
 // Export a method type for external reply / mention triggering
 export type ChatInputHandle = {
   replyTo: (message: ChatMessage) => void;
+  /** Replace the editable composer text without sending it. */
+  setDraft: (message: string) => void;
   /** Prepend "@username " into the input and focus it. Used by the
    *  pinned-message Reply action where IRC reply-to threading isn't needed. */
   mentionUser: (username: string) => void;

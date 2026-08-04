@@ -52,7 +52,7 @@ async function renderFixture(search: string) {
       [buildChannelKey("twitch", "streamer")]: [openingMessage],
     },
   });
-  const relayCall = vi.fn(async (path: readonly string[]) => {
+  const relayCall = vi.fn(async (path: readonly string[], _args: readonly unknown[]) => {
     switch (path.join(".")) {
       case "userProfiles.getTwitchIdentity":
         return {
@@ -269,7 +269,7 @@ describe("browser user-profile fixture", () => {
     } else {
       expect(reply).toBeEnabled();
     }
-    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Copy message" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Translate · Coming Soon" })).toBeDisabled();
   });
 

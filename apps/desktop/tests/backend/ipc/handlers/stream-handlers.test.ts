@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { createIsolatedDatabaseTestLifecycle } from "../../../helpers/database-test-lifecycle";
 
 vi.mock("electron", () => ({
+  app: { getPath: vi.fn() },
   ipcMain: { handle: vi.fn() },
 }));
 
@@ -24,6 +26,7 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
     isAuthenticated: vi.fn(),
     getFollowedStreams: vi.fn(),
     getPublicStreamBySlug: vi.fn(),
+    getPublicChannel: vi.fn(),
     getChannelsByBroadcasterIds: vi.fn(),
     getStreamsByBroadcasterIds: vi.fn(),
   },
@@ -69,7 +72,7 @@ vi.mock("@/backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
@@ -79,9 +82,16 @@ import {
   registerStreamHandlers,
   shouldDeferKickStartupFollowedStreamScan,
 } from "@/backend/ipc/handlers/stream-handlers";
+import { dbService } from "@/backend/services/database-service";
 import { storageService } from "@/backend/services/storage-service";
 
 type Handler = (event: unknown, params?: unknown) => Promise<unknown>;
+
+const databaseLifecycle = createIsolatedDatabaseTestLifecycle(
+  dbService,
+  (directory) => vi.mocked(app.getPath).mockReturnValue(directory),
+  "streamfusion-stream-handlers-"
+);
 
 function getHandler(channel: string): Handler {
   const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
@@ -92,10 +102,15 @@ function getHandler(channel: string): Handler {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  databaseLifecycle.initialize();
   vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
   vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([]);
   registerStreamHandlers();
+});
+
+afterEach(() => {
+  databaseLifecycle.dispose();
 });
 
 describe("registerStreamHandlers", () => {
@@ -344,6 +359,15 @@ describe("STREAMS_GET_FOLLOWED", () => {
         avatarUrl: "https://example.com/new.jpg",
       },
     ] as any);
+    vi.mocked(kickClient.getPublicChannel).mockResolvedValue({
+      id: "123",
+      platform: "kick",
+      username: "new-slug",
+      displayName: "New Slug",
+      avatarUrl: "https://example.com/new.jpg",
+      kickUserId: "123",
+      isVerified: false,
+    } as any);
     vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([
       {
         id: "stream-123",
@@ -493,6 +517,7 @@ describe("STREAMS_GET_FOLLOWED", () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
       platform === "kick" ? ([{ channelId: "12345", channelName: "xqc" }] as any) : []
     );
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([]);
     vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([
       {
         id: "public-live-id",

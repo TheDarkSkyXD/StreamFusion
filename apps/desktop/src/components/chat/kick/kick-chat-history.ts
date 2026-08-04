@@ -31,6 +31,7 @@ import type {
 } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
 import { buildChannelKey } from "../../../store/chat-store";
+import { resolveChatDisplayPreferences } from "../chat-display-preferences";
 
 export interface SeedKickChatHistoryParams {
   /** Kick channel's internal db id (from `UnifiedChannel.id`). */
@@ -68,7 +69,7 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
   // U5 — `recentMessagesOnJoin` gates the recent-message seed; `recentMessagesLimit`
   // caps how many seed. The pinned-message restore below is a distinct feature
   // (its own banner) and is not gated by this toggle.
-  const cd = useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  const cd = resolveChatDisplayPreferences(useAuthStore.getState().preferences?.chatDisplay);
   const seedRecent = cd.recentMessagesOnJoin;
   const limit =
     Number.isFinite(cd.recentMessagesLimit) && cd.recentMessagesLimit > 0

@@ -1,7 +1,35 @@
-import { describe, expect, it, vi } from "vitest";
-import { createChatReplayIpcHandlers } from "@/backend/ipc/handlers/chat-replay-handlers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createChatReplayIpcHandlers,
+  registerChatReplayHandlers,
+} from "@/backend/ipc/handlers/chat-replay-handlers";
+import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
+const electronMocks = vi.hoisted(() => ({ handle: vi.fn() }));
+
+vi.mock("electron", () => ({ ipcMain: { handle: electronMocks.handle } }));
+
+// Guards: the production preload replay methods reach named main-process load and cancel handlers.
 describe("Chat Replay IPC handlers", () => {
+  beforeEach(() => {
+    electronMocks.handle.mockReset();
+  });
+
+  it("registers the replay load and cancellation channels", () => {
+    registerChatReplayHandlers({ loadWindow: vi.fn() });
+
+    expect(electronMocks.handle).toHaveBeenNthCalledWith(
+      1,
+      IPC_CHANNELS.VIDEOS_GET_CHAT_REPLAY_WINDOW,
+      expect.any(Function)
+    );
+    expect(electronMocks.handle).toHaveBeenNthCalledWith(
+      2,
+      IPC_CHANNELS.VIDEOS_CANCEL_CHAT_REPLAY_WINDOW,
+      expect.any(Function)
+    );
+  });
+
   it.each([
     null,
     {},

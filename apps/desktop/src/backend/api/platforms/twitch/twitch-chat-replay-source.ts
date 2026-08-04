@@ -26,6 +26,7 @@ export interface TwitchChatReplayRequest {
   videoId: string;
   offsetSeconds?: number;
   cursor?: string;
+  signal?: AbortSignal;
 }
 
 export type TwitchChatReplayFailureKind =
@@ -172,6 +173,7 @@ export function parseTwitchChatReplayPage(
 export async function fetchTwitchChatReplayPage(
   request: TwitchChatReplayRequest
 ): Promise<TwitchChatReplayResult> {
+  const timeout = AbortSignal.timeout(10_000);
   const response = await fetch(TWITCH_GQL_ENDPOINT, {
     method: "POST",
     headers: {
@@ -189,7 +191,7 @@ export async function fetchTwitchChatReplayPage(
         query: VIDEO_COMMENTS_QUERY,
       },
     ]),
-    signal: AbortSignal.timeout(10_000),
+    signal: request.signal ? AbortSignal.any([request.signal, timeout]) : timeout,
   });
   if (!response.ok) {
     const kind: TwitchChatReplayFailureKind =

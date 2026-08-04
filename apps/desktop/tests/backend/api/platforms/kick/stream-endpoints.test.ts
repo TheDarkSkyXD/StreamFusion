@@ -8,6 +8,7 @@ import { logger } from "@/backend/logging/logger";
 // Guards: stagger fires AFTER cache check — a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
 // Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
 // Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
+// Guards: official Kick hidden-count zero is replaced only by a positive legacy count from the same channel and live session.
 
 // Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
@@ -92,6 +93,153 @@ const LIVE_BODY = JSON.stringify({
   },
   playback_url: "https://playback.example.test/live/ac7ionman.m3u8?token=secret",
 });
+
+const TAZO_STARTED_AT = "2026-08-03T23:55:20Z";
+
+function createOfficialUserLivestream({
+  slug = "tazo",
+  userId = 230051,
+  viewerCount = 0,
+  startedAt = TAZO_STARTED_AT,
+}: {
+  slug?: string;
+  userId?: number;
+  viewerCount?: number;
+  startedAt?: string;
+} = {}) {
+  return {
+    broadcaster_user: {
+      id: userId,
+      username: slug === "tazo" ? "Tazo" : slug,
+      profile_picture: `https://example.com/${slug}-avatar.webp`,
+    },
+    category: { id: 15, name: "Just Chatting", thumbnail: "" },
+    channel: { slug },
+    has_mature_content: false,
+    id: `livestream-${slug}`,
+    language_code: "en",
+    started_at: startedAt,
+    tags: [],
+    thumbnail: `https://example.com/${slug}.webp`,
+    title: "Back in Japan",
+    viewer_count: viewerCount,
+  };
+}
+
+function createOfficialTopLivestream({
+  slug = "tazo",
+  userId = 230051,
+  viewerCount = 0,
+  startedAt = TAZO_STARTED_AT,
+}: {
+  slug?: string;
+  userId?: number;
+  viewerCount?: number;
+  startedAt?: string;
+} = {}) {
+  return {
+    broadcaster_user_id: userId,
+    channel_id: 227842,
+    slug,
+    broadcaster_display_name: slug === "tazo" ? "Tazo" : slug,
+    stream_title: "Back in Japan",
+    language: "en",
+    has_mature_content: false,
+    viewer_count: viewerCount,
+    thumbnail: `https://example.com/${slug}.webp`,
+    profile_picture: `https://example.com/${slug}-avatar.webp`,
+    started_at: startedAt,
+    custom_tags: [],
+    category: { id: 15, name: "Just Chatting", thumbnail: "" },
+  };
+}
+
+function createOfficialTopClient(streams = [createOfficialTopLivestream()]) {
+  return {
+    isAuthenticated: vi.fn(() => true),
+    request: vi.fn(async (path: string) => {
+      if (path.startsWith("/livestreams?")) return { data: streams };
+      if (path.startsWith("/users?")) {
+        return {
+          data: streams.map((stream) => ({
+            user_id: stream.broadcaster_user_id,
+            name: stream.broadcaster_display_name,
+            profile_picture: stream.profile_picture,
+          })),
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    }),
+  };
+}
+
+function createDirectStreamClient(officialViewerCount: number = 0) {
+  return {
+    isAuthenticated: vi.fn(() => false),
+    request: vi.fn(async (path: string) => {
+      if (path.startsWith("/channels?")) {
+        return {
+          data: [
+            {
+              broadcaster_user_id: 230051,
+              slug: "tazo",
+              channel_description: "",
+              banner_picture: null,
+              stream_title: "Back in Japan",
+              category: { id: 15, name: "Just Chatting", thumbnail: "" },
+              stream: {
+                is_live: true,
+                is_mature: false,
+                language: "en",
+                start_time: TAZO_STARTED_AT,
+                thumbnail: null,
+                viewer_count: officialViewerCount,
+                custom_tags: [],
+              },
+            },
+          ],
+        };
+      }
+      if (path.startsWith("/users/livestreams?")) {
+        return { data: [createOfficialUserLivestream({ viewerCount: officialViewerCount })] };
+      }
+      if (path.startsWith("/users?")) return { data: [] };
+      throw new Error(`Unexpected path: ${path}`);
+    }),
+  };
+}
+
+function createLegacyLiveBody({
+  slug = "tazo",
+  viewerCount = 512,
+  startTime = "2026-08-03 23:55:20",
+  createdAt = "2026-08-03 23:55:22",
+}: {
+  slug?: string;
+  viewerCount?: number;
+  startTime?: string;
+  createdAt?: string;
+} = {}): string {
+  return JSON.stringify({
+    id: 227842,
+    user_id: 230051,
+    slug,
+    user: { username: slug === "tazo" ? "Tazo" : slug },
+    livestream: {
+      id: 120551681,
+      channel_id: 227842,
+      session_title: "Back in Japan",
+      viewer_count: viewerCount,
+      viewers: viewerCount,
+      thumbnail: { url: `https://example.com/${slug}.webp` },
+      created_at: createdAt,
+      start_time: startTime,
+      language: "en",
+      custom_tags: [],
+      categories: [{ id: 15, name: "Just Chatting" }],
+    },
+  });
+}
 
 describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
   let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
@@ -250,6 +398,74 @@ describe("getStreamsByBroadcasterIds", () => {
     ]);
   });
 
+  it("returns the recovered public count for a followed channel with official zero", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
+    const { getStreamsByBroadcasterIds } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = {
+      request: vi.fn().mockResolvedValue({ data: [createOfficialUserLivestream()] }),
+    };
+
+    const result = await getStreamsByBroadcasterIds(client as any, [230051]);
+
+    expect(result).toEqual([
+      expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
+    ]);
+  });
+
+  it("limits legacy viewer-count recovery to four concurrent requests", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    const originalFetch = mockState.fakeFetch;
+    const pending: Array<{ url: string; resolve: (response: Response) => void }> = [];
+    mockState.fakeFetch = async (url: string) =>
+      new Promise<Response>((resolve) => pending.push({ url, resolve }));
+
+    try {
+      const { getStreamsByBroadcasterIds } =
+        await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      const officialStreams = Array.from({ length: 6 }, (_, index) =>
+        createOfficialUserLivestream({
+          slug: `zero-${index}`,
+          userId: 1_000 + index,
+        })
+      );
+      const resultPromise = getStreamsByBroadcasterIds(
+        { request: vi.fn().mockResolvedValue({ data: officialStreams }) } as any,
+        officialStreams.map((stream) => stream.broadcaster_user.id)
+      );
+
+      await vi.waitFor(() => expect(pending).toHaveLength(4));
+      for (const request of pending.slice(0, 4)) {
+        const slug = request.url.split("/").pop() as string;
+        const index = Number(slug.split("-").pop());
+        request.resolve(
+          new Response(createLegacyLiveBody({ slug, viewerCount: 100 + index }), { status: 200 })
+        );
+      }
+
+      await vi.waitFor(() => expect(pending).toHaveLength(6));
+      for (const request of pending.slice(4)) {
+        const slug = request.url.split("/").pop() as string;
+        const index = Number(slug.split("-").pop());
+        request.resolve(
+          new Response(createLegacyLiveBody({ slug, viewerCount: 100 + index }), { status: 200 })
+        );
+      }
+
+      const result = await resultPromise;
+      expect(result.map((stream) => stream.viewerCount)).toEqual([100, 101, 102, 103, 104, 105]);
+    } finally {
+      mockState.fakeFetch = originalFetch;
+    }
+  });
+
   it("keeps each bulk lookup within the documented 100-user limit", async () => {
     vi.resetModules();
     vi.useRealTimers();
@@ -274,6 +490,133 @@ describe("getStreamsByBroadcasterIds", () => {
 });
 
 describe("getStreamBySlug live-state authority", () => {
+  it("preserves a positive official count without requesting the legacy endpoint", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getStreamBySlug(createDirectStreamClient(42) as any, "tazo");
+
+    expect(result?.viewerCount).toBe(42);
+    expect(mockState.state.netRequestCalls).toHaveLength(0);
+  });
+
+  it("returns the positive public count for the same live session when official Kick reports zero", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: createLegacyLiveBody(),
+    });
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = createDirectStreamClient();
+
+    const result = await getStreamBySlug(client as any, "tazo");
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        channelId: "230051",
+        channelName: "tazo",
+        isLive: true,
+        viewerCount: 512,
+      })
+    );
+    expect(mockState.state.netRequestCalls).toEqual([
+      { url: "https://kick.com/api/v1/channels/tazo" },
+    ]);
+  });
+
+  it("preserves official zero when the public response belongs to another channel", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: createLegacyLiveBody({ slug: "another-channel" }),
+    });
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+
+    expect(result?.viewerCount).toBe(0);
+  });
+
+  it("preserves official zero when the public response is from an older live session", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: createLegacyLiveBody({
+        startTime: "2026-08-02 23:55:20",
+        createdAt: "2026-08-02 23:55:22",
+      }),
+    });
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+
+    expect(result?.viewerCount).toBe(0);
+  });
+
+  it("preserves official zero when legacy viewer-count recovery fails", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({ kind: "error", message: "Status 403" });
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+
+    expect(result?.viewerCount).toBe(0);
+  });
+
+  it("preserves official zero when the legacy channel is offline", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({ slug: "tazo", livestream: null }),
+    });
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+
+    expect(result?.viewerCount).toBe(0);
+  });
+
+  it("preserves official zero when the legacy count is nonpositive", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: createLegacyLiveBody({ viewerCount: 0 }),
+    });
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+
+    expect(result?.viewerCount).toBe(0);
+  });
+
   it("returns explicit offline evidence when the official channel response says the stream ended", async () => {
     vi.resetModules();
     vi.useRealTimers();
@@ -368,6 +711,63 @@ describe("getPublicTopStreams", () => {
     expect(result.data[0].channelName).toBe("alpha-0");
     expect(result.data[0].channelIsVerified).toBe(true);
     expect(result.cursor).toBe("livestream_next");
+  });
+});
+
+describe("getTopStreams official viewer counts", () => {
+  it("preserves a positive official top count without legacy recovery", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    const { getTopStreams } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getTopStreams(
+      createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42 })]) as any,
+      { limit: 20 }
+    );
+
+    expect(result.data[0]?.viewerCount).toBe(42);
+    expect(mockState.state.netRequestCalls).toHaveLength(0);
+  });
+
+  it("returns the positive public count when an official top stream reports zero", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
+    const { getTopStreams } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getTopStreams(createOfficialTopClient() as any, { limit: 20 });
+
+    expect(result.data).toEqual([
+      expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
+    ]);
+  });
+
+  it("returns the recovered count through the authenticated category surface", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
+    const { getStreamsByCategory } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = createOfficialTopClient();
+
+    const result = await getStreamsByCategory(client as any, "15", { limit: 20 });
+
+    expect(result.data).toEqual([
+      expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
+    ]);
+    expect(client.request).toHaveBeenCalledWith(
+      expect.stringContaining("category_id=15"),
+      undefined,
+      "app"
+    );
   });
 });
 

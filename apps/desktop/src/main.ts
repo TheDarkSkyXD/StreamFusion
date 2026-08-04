@@ -75,6 +75,8 @@ import {
 import { twitchManifestProxy } from "./backend/services/twitch-manifest-proxy";
 import { vaftPatternService } from "./backend/services/vaft-pattern-service";
 import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "./backend/shutdown-marker";
+import { startPrimaryInstance } from "./backend/startup/start-primary-instance";
+import { beginStartupSession } from "./backend/startup/startup-session-policy";
 import { windowManager } from "./backend/window-manager";
 import { setMainLogSink } from "./lib/cross-logger";
 import { IPC_CHANNELS } from "./shared/ipc-channels";
@@ -144,68 +146,78 @@ if (!isProduction) {
 // Dev repo-root anchor: `npm start` runs from apps/desktop/, so process.cwd()
 // is apps/desktop/, and the repo root is two levels up. We pass it
 // unconditionally; computeLogPaths only consumes it in dev.
-const sessionStamp = new Date().toISOString();
-const { logsDir, bugReportsDir, telemetryDir } = computeLogPaths({
-  isPackaged: app.isPackaged,
-  platform: process.platform,
-  exePath: app.getPath("exe"),
-  fallbackLogsPath: app.getPath("logs"),
-  projectRoot: path.resolve(process.cwd(), "..", ".."),
-});
-setBugReportsDir(bugReportsDir);
-setTelemetryDir(telemetryDir);
+let logsDir: string;
 
-// Tell Chromium to write its native logs (e.g. `ssl_client_socket_impl`
-// handshake failures, GPU errors) into a file we own. The native-stderr
-// intercept catches Node-side writes, but Chromium's C++ code writes
-// straight to the OS file descriptor and bypasses that path. Routing to
-// a file we can tail closes that gap. Filename mirrors the main session
-// log so on-disk lifecycle matches.
-const chromiumLogPath = path.join(
-  logsDir,
-  `streamfusion-chromium-${sessionStamp.replace(/[:.]/g, "-")}.log`
-);
-app.commandLine.appendSwitch("enable-logging", "file");
-app.commandLine.appendSwitch("log-file", chromiumLogPath);
+function initializeBeforeReady(): void {
+  const sessionStamp = new Date().toISOString();
+  const {
+    logsDir: sessionLogsDir,
+    bugReportsDir,
+    telemetryDir,
+  } = computeLogPaths({
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    exePath: app.getPath("exe"),
+    fallbackLogsPath: app.getPath("logs"),
+    projectRoot: path.resolve(process.cwd(), "..", ".."),
+  });
+  logsDir = sessionLogsDir;
+  setBugReportsDir(bugReportsDir);
+  setTelemetryDir(telemetryDir);
 
-initLogger({ logsDir, sessionStamp });
-initNoiseLogger({ logsDir, sessionStamp });
-initNetworkLogger({ logsDir, sessionStamp });
-installCrashHooks({ app });
-installConsoleIntercept();
+  // Tell Chromium to write its native logs (e.g. `ssl_client_socket_impl`
+  // handshake failures, GPU errors) into a file we own. The native-stderr
+  // intercept catches Node-side writes, but Chromium's C++ code writes
+  // straight to the OS file descriptor and bypasses that path. Routing to
+  // a file we can tail closes that gap. Filename mirrors the main session
+  // log so on-disk lifecycle matches.
+  const chromiumLogPath = path.join(
+    logsDir,
+    `streamfusion-chromium-${sessionStamp.replace(/[:.]/g, "-")}.log`
+  );
+  app.commandLine.appendSwitch("enable-logging", "file");
+  app.commandLine.appendSwitch("log-file", chromiumLogPath);
 
-// Wire dual-use modules (those imported by both main and renderer code) to the
-// real backend logger. They import `@/lib/cross-logger` instead of
-// `@/backend/logging/logger` to avoid dragging electron-log into the renderer
-// bundle; this call swaps in the real sink for main-process callers.
-setMainLogSink((level, tag, message, meta) => {
-  logger[level](tag, message, meta);
-});
+  initLogger({ logsDir, sessionStamp });
+  initNoiseLogger({ logsDir, sessionStamp });
+  initNetworkLogger({ logsDir, sessionStamp });
+  installCrashHooks({ app });
+  installConsoleIntercept();
 
-installNetworkLogRouter();
+  // Wire dual-use modules (those imported by both main and renderer code) to the
+  // real backend logger. They import `@/lib/cross-logger` instead of
+  // `@/backend/logging/logger` to avoid dragging electron-log into the renderer
+  // bundle; this call swaps in the real sink for main-process callers.
+  setMainLogSink((level, tag, message, meta) => {
+    logger[level](tag, message, meta);
+  });
 
-// Capture lines written directly to process.stderr / process.stdout by
-// native Chromium / Electron internals. Must come AFTER initLogger /
-// installConsoleIntercept / setMainLogSink so all logging routes are live
-// before native intercept goes hot — and once installed, lives for the
-// process lifetime (no uninstall on quit).
-installNativeStderrIntercept();
+  installNetworkLogRouter();
 
-// Tail the Chromium native log into the session log. Picks up the lines
-// that bypass process.stderr (ssl_client_socket_impl, gpu errors, etc.)
-// since they go straight to the OS file descriptor. The flags configured
-// above route those lines to chromiumLogPath; this watcher forwards each
-// append into `logger` under the "Chromium" tag.
-startChromiumLogTailer({ filePath: chromiumLogPath });
+  // Capture lines written directly to process.stderr / process.stdout by
+  // native Chromium / Electron internals. Must come AFTER initLogger /
+  // installConsoleIntercept / setMainLogSink so all logging routes are live
+  // before native intercept goes hot — and once installed, lives for the
+  // process lifetime (no uninstall on quit).
+  installNativeStderrIntercept();
 
-import("./backend/logging/platform-health-telemetry");
-void import("./backend/api/unified/status-page-poller").then((m) => m.initStatusPagePoller());
+  // Tail the Chromium native log into the session log. Picks up the lines
+  // that bypass process.stderr (ssl_client_socket_impl, gpu errors, etc.)
+  // since they go straight to the OS file descriptor. The flags configured
+  // above route those lines to chromiumLogPath; this watcher forwards each
+  // append into `logger` under the "Chromium" tag.
+  startChromiumLogTailer({ filePath: chromiumLogPath });
 
-logger.info("Main", "Logging initialized", {
-  logFile: getCurrentLogPath(),
-  networkLogFile: getCurrentNetworkPath(),
-  bugReportsDir,
-});
+  import("./backend/logging/platform-health-telemetry");
+  void import("./backend/api/unified/status-page-poller").then((m) => m.initStatusPagePoller());
+
+  protocolHandler.registerProtocol({ resolveMainWindow: () => windowManager.getMainWindow() });
+  logger.info("Main", "Logging initialized", {
+    logFile: getCurrentLogPath(),
+    networkLogFile: getCurrentNetworkPath(),
+    bugReportsDir,
+  });
+}
 
 // ============================================================================
 // CRASH-RESISTANT RUNTIME FLAGS
@@ -273,6 +285,11 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ]);
+
+startPrimaryInstance(app, {
+  beforeReady: initializeBeforeReady,
+  ready: initializeReady,
+});
 
 /**
  * Setup request interceptors for Kick CDN domains that require special headers
@@ -386,7 +403,7 @@ function setupRequestInterceptors(): void {
 let stopProcessMonitor: (() => void) | null = null;
 let devRelayServer: { close(): Promise<void> } | null = null;
 
-app.on("ready", async () => {
+async function initializeReady(): Promise<void> {
   if (process.env.STREAMFUSION_BROWSER_DEV === "1") {
     const { startConfiguredDevRelay } = await import("./backend/dev-relay/dev-relay-runtime");
     devRelayServer = await startConfiguredDevRelay({
@@ -459,24 +476,7 @@ app.on("ready", async () => {
     logger.warn("Main", "Failed to prune network log files", { error: String(error) });
   });
 
-  // Check if last shutdown was clean - if not, clear cache to fix potential corruption
-  // "Invalid cache (current) size" errors happen when cache metadata is inconsistent
-  const cleanShutdown = wasCleanShutdown();
-
-  if (!cleanShutdown) {
-    console.debug("🔍 Detected unclean shutdown, clearing cache to prevent corruption...");
-    try {
-      await session.defaultSession.clearCache();
-      console.debug("🧹 Cleared disk cache");
-    } catch (e) {
-      console.warn("⚠️ Failed to clear cache:", e);
-    }
-  } else {
-    console.debug("✅ Clean shutdown detected, preserving cache");
-  }
-
-  // Mark session as started (remove sentinel until clean shutdown)
-  markSessionStarted();
+  beginStartupSession({ wasCleanShutdown, markSessionStarted, logger });
 
   // Cert-error diagnostic logger. Custom partitions + the utility/network
   // process never touch session.defaultSession, so the proc has to fan out
@@ -512,9 +512,6 @@ app.on("ready", async () => {
   // Start the resource probe. Stored at module scope so before-quit can stop
   // it before the logger shuts down.
   stopProcessMonitor = startProcessMonitor();
-
-  // Register custom protocol handler for OAuth callbacks (streamfusion://)
-  protocolHandler.registerProtocol();
 
   // Register kick-image:// streaming image protocol (replaces base64 IPC proxy)
   registerKickImageProtocol();
@@ -592,7 +589,7 @@ app.on("ready", async () => {
   });
 
   console.debug("🌩️ StreamFusion main process started");
-});
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

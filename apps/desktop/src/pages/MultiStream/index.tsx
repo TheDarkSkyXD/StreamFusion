@@ -4,17 +4,16 @@ import { LuLayoutGrid, LuMaximize, LuMessageSquare } from "react-icons/lu";
 import { ChatPanel } from "@/components/chat";
 import { AddStreamDialog } from "@/components/multistream/add-stream-dialog";
 import { MultiStreamGrid } from "@/components/multistream/grid-layout";
+import { useChatDisplay } from "@/components/settings/ChatSettingsSection";
 import { Button } from "@/components/ui/button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useMultiStreamStore } from "@/store/multistream-store";
 
-const CHAT_CONTENT_WIDTH_PX = 340;
-const CHAT_BORDER_WIDTH_PX = 1;
-const CHAT_RAIL_WIDTH_PX = CHAT_CONTENT_WIDTH_PX + CHAT_BORDER_WIDTH_PX;
-
 export function MultiStreamPage() {
   const { streams, layout, setLayout, isChatOpen, toggleChat, chatStreamId } =
     useMultiStreamStore();
+  const { cd: chatDisplay } = useChatDisplay();
+  const chatRailWidthPx = chatDisplay.chatWidthPx;
   const streamsRef = useRef(streams);
   streamsRef.current = streams;
 
@@ -99,9 +98,10 @@ export function MultiStreamPage() {
           <div
             data-testid="multistream-chat-rail"
             style={{
-              width: CHAT_RAIL_WIDTH_PX,
-              minWidth: CHAT_RAIL_WIDTH_PX,
-              maxWidth: CHAT_RAIL_WIDTH_PX,
+              width: chatRailWidthPx,
+              minWidth: chatRailWidthPx,
+              maxWidth: chatRailWidthPx,
+              boxSizing: "border-box",
             }}
             className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
           >

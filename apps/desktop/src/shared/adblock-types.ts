@@ -11,6 +11,7 @@
 export interface ResolutionInfo {
   resolution: string; // e.g., "1920x1080"
   frameRate: number;
+  bandwidth: number;
   codecs: string; // e.g., "avc1.4D401F,mp4a.40.2" or "hev1.1.6.L120"
   url: string; // m3u8 URL for this quality
 }
@@ -116,12 +117,7 @@ export interface AdBlockConfig {
  * Player types that can be used to request access tokens
  */
 export type PlayerType =
-  | "site"
-  | "embed"
-  | "popout"
-  | "autoplay"
-  | "picture-by-picture"
-  | "thunderdome";
+  "site" | "embed" | "popout" | "autoplay" | "picture-by-picture" | "thunderdome";
 
 /**
  * Ad-block status for UI display
@@ -238,9 +234,9 @@ export const DEFAULT_ADBLOCK_CONFIG: AdBlockConfig = {
   backupPlayerTypes: ["embed", "popout", "autoplay", "picture-by-picture", "thunderdome"],
   fallbackPlayerType: "embed",
   forceAccessTokenPlayerType: "popout",
-  skipPlayerReloadOnHevc: false,
+  skipPlayerReloadOnHevc: true,
   alwaysReloadPlayerOnAd: false,
-  reloadPlayerAfterAd: true,
+  reloadPlayerAfterAd: false,
   playerReloadMinimalRequestsTime: 1500,
   playerReloadMinimalRequestsPlayerIndex: 2,
   isAdStrippingEnabled: true,

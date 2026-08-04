@@ -1,0 +1,7 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:600
+#EXTINF:2.000,
+https://d2nvs31859zcd8.cloudfront.net/ad/synthetic-600.ts?token=redacted
+

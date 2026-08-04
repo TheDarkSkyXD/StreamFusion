@@ -14,6 +14,10 @@ import type { TwitchApiCommand, TwitchApiResult } from "@/shared/twitch-api-type
 
 import { isAllowedSender } from "../sender-origin";
 
+// Twitch pagination cursors are opaque and have no documented size limit.
+// Keep a finite IPC boundary without coupling validation to one observed cursor.
+const TWITCH_USER_EMOTE_CURSOR_MAX_LENGTH = 8 * 1024;
+
 const commandSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("get-global-emotes") }).strict(),
   z
@@ -32,7 +36,7 @@ const commandSchema = z.discriminatedUnion("operation", [
     .object({
       operation: z.literal("get-user-emotes"),
       userId: z.string().trim().min(1).max(64),
-      after: z.string().max(512).optional(),
+      after: z.string().max(TWITCH_USER_EMOTE_CURSOR_MAX_LENGTH).optional(),
     })
     .strict(),
   z

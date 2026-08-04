@@ -9,6 +9,8 @@ const removeAsDefaultProtocolClient = vi.fn();
 const onHandlers = new Map<string, Function>();
 const requestSingleInstanceLock = vi.fn(() => true);
 const quit = vi.fn();
+const exit = vi.fn();
+const getAllWindows = vi.fn(() => [] as unknown[]);
 
 vi.mock("electron", () => ({
   app: {
@@ -19,9 +21,10 @@ vi.mock("electron", () => ({
       onHandlers.set(event, handler);
     }),
     quit: () => quit(),
+    exit: (code?: number) => exit(code),
   },
   BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
+    getAllWindows: () => getAllWindows(),
   },
 }));
 
@@ -33,17 +36,37 @@ vi.mock("@/backend/auth/oauth-config", () => ({
 import { protocolHandler } from "@/backend/auth/protocol-handler";
 
 beforeEach(() => {
+  protocolHandler.offCallback("twitch");
+  protocolHandler.offCallback("kick");
+  if (protocolHandler.registered) {
+    protocolHandler.unregisterProtocol();
+  }
   vi.clearAllMocks();
   onHandlers.clear();
+  getAllWindows.mockReturnValue([]);
 });
 
-// Node's URL parser treats `streamfusion://auth/...` as host=auth, path=/...
-// Use triple-slash `streamfusion:///auth/...` so `auth` stays in pathname where
-// handleProtocolUrl expects it. This matches how some OSes deliver protocol
-// URLs to Electron.
+// Keep the legacy triple-slash form covered alongside the documented two-slash URL.
 const BASE = "streamfusion:///auth";
 
 describe("handleProtocolUrl", () => {
+  it("parses the documented two-slash Twitch callback URL", () => {
+    const handler = vi.fn();
+    protocolHandler.onCallback("twitch", handler);
+
+    protocolHandler.handleProtocolUrl(
+      "streamfusion://auth/twitch/callback?code=DOCUMENTED_CODE&state=DOCUMENTED_STATE"
+    );
+
+    expect(handler).toHaveBeenCalledWith({
+      platform: "twitch",
+      code: "DOCUMENTED_CODE",
+      state: "DOCUMENTED_STATE",
+      error: undefined,
+      errorDescription: undefined,
+    });
+  });
+
   it("parses a valid Twitch callback and calls the registered handler", () => {
     const handler = vi.fn();
     protocolHandler.onCallback("twitch", handler);
@@ -188,6 +211,53 @@ describe("registerProtocol", () => {
     protocolHandler.registerProtocol();
     const result = protocolHandler.registerProtocol();
     expect(result).toBe(true);
+  });
+
+  it("registers protocol handling without acquiring or terminating an app instance", () => {
+    protocolHandler.registerProtocol();
+
+    expect(requestSingleInstanceLock).not.toHaveBeenCalled();
+    expect(quit).not.toHaveBeenCalled();
+    expect(exit).not.toHaveBeenCalled();
+  });
+});
+
+describe("second-instance handoff", () => {
+  it("restores a minimized primary window and forwards the deep link", () => {
+    const helperWindow = {
+      isMinimized: vi.fn(() => true),
+      restore: vi.fn(),
+      focus: vi.fn(),
+    };
+    const mainWindow = {
+      isMinimized: vi.fn(() => true),
+      restore: vi.fn(),
+      focus: vi.fn(),
+    };
+    const twitchCallback = vi.fn();
+    getAllWindows.mockReturnValue([helperWindow, mainWindow]);
+    protocolHandler.onCallback("twitch", twitchCallback);
+    protocolHandler.registerProtocol({ resolveMainWindow: () => mainWindow });
+
+    const secondInstanceHandler = onHandlers.get("second-instance");
+    expect(secondInstanceHandler).toBeTypeOf("function");
+
+    secondInstanceHandler?.({}, [`${BASE}/twitch/callback?code=SECOND_CODE&state=SECOND_STATE`]);
+
+    expect(mainWindow.isMinimized).toHaveBeenCalledOnce();
+    expect(mainWindow.restore).toHaveBeenCalledOnce();
+    expect(mainWindow.focus).toHaveBeenCalledOnce();
+    expect(helperWindow.isMinimized).not.toHaveBeenCalled();
+    expect(helperWindow.restore).not.toHaveBeenCalled();
+    expect(helperWindow.focus).not.toHaveBeenCalled();
+    expect(twitchCallback).toHaveBeenCalledOnce();
+    expect(twitchCallback).toHaveBeenCalledWith({
+      platform: "twitch",
+      code: "SECOND_CODE",
+      state: "SECOND_STATE",
+      error: undefined,
+      errorDescription: undefined,
+    });
   });
 });
 

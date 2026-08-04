@@ -65,12 +65,17 @@ export class KickStreamResolver {
    * Kick's API returns a playback_url even for offline channels, which causes 404 errors
    * when HLS.js tries to load the manifest.
    */
-  async getStreamPlaybackUrl(channelSlug: string): Promise<StreamPlayback> {
+  async getStreamPlaybackUrl(
+    channelSlug: string,
+    options: { forceRefresh?: boolean } = {}
+  ): Promise<StreamPlayback> {
     // Normalize slug to lowercase - Kick API is case-sensitive
     const normalizedSlug = channelSlug.toLowerCase();
     const startedAt = Date.now();
 
-    const cachedPlayback = getCachedKickLivePlayback(normalizedSlug);
+    const cachedPlayback = options.forceRefresh
+      ? null
+      : getCachedKickLivePlayback(normalizedSlug);
     if (cachedPlayback) {
       logger.info("Kick:StreamResolver", "resolved live playback URL", {
         channelSlug: normalizedSlug,

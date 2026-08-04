@@ -18,6 +18,10 @@ import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchAll, useSearchChannels } from "@/hooks/queries/useSearch";
 import { cn, formatDuration } from "@/lib/utils";
+import {
+  isExactChannelSearchMatch,
+  rankSearchChannels,
+} from "@/search/channel-search-contract";
 
 /* CATEGORIES SECTION */
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";
@@ -56,28 +60,52 @@ export function SearchPage() {
   const channelSearchKey = `${q.trim().toLowerCase()}|${channelSearchPlatform ?? "all"}`;
 
   // Pass platform filter to the query. Pass undefined if 'all'.
-  const { data, isLoading } = useSearchAll(q, channelSearchPlatform, 20);
+  const { data, isLoading } = useSearchAll(
+    q,
+    channelSearchPlatform,
+    20,
+    activeTab !== "channels"
+  );
   const {
     data: channelsInfiniteData,
     isLoading: channelsLoading,
     isFetchingNextPage: channelsFetchingNextPage,
     hasNextPage: channelsHasNextPage,
     fetchNextPage: fetchMoreChannels,
-  } = useSearchChannels(q, channelSearchPlatform, SEARCH_RESULTS_CHANNEL_PAGE_SIZE);
-
-  const results = data;
-  const rawChannelResults = React.useMemo(
-    () => channelsInfiniteData?.pages.flatMap((page) => page.data) ?? [],
-    [channelsInfiniteData]
+  } = useSearchChannels(
+    q,
+    channelSearchPlatform,
+    SEARCH_RESULTS_CHANNEL_PAGE_SIZE,
+    false,
+    activeTab === "channels"
   );
 
-  const allChannelResults = React.useMemo(() => {
-    const byKey = new Map<string, UnifiedChannel>();
-    for (const channel of rawChannelResults) {
-      byKey.set(`${channel.platform}-${channel.id}`, channel);
-    }
-    return Array.from(byKey.values());
-  }, [rawChannelResults]);
+  const results = data;
+  const channelPages = channelsInfiniteData?.pages;
+  const searchAllChannels = results?.channels;
+  const rawChannelResults = React.useMemo(
+    () =>
+      activeTab === "channels"
+        ? (channelPages?.flatMap((page) => page.data) ?? [])
+        : (searchAllChannels ?? []),
+    [activeTab, channelPages, searchAllChannels]
+  );
+
+  const allChannelResults = React.useMemo(
+    () =>
+      rankSearchChannels(
+        rawChannelResults.filter(
+          (channel) =>
+            typeof channel?.id === "string" &&
+            (channel.platform === "twitch" || channel.platform === "kick") &&
+            typeof channel.username === "string" &&
+            channel.username.trim().length > 0 &&
+            typeof channel.displayName === "string"
+        ),
+        q
+      ),
+    [rawChannelResults, q]
+  );
 
   const channelPaginationRef = React.useRef({
     key: "",
@@ -112,6 +140,7 @@ export function SearchPage() {
   React.useEffect(() => {
     if (
       !q.trim() ||
+      activeTab !== "channels" ||
       channelsExhaustedByRepeat ||
       !channelsHasNextPage ||
       channelsFetchingNextPage
@@ -122,6 +151,7 @@ export function SearchPage() {
     void fetchMoreChannels();
   }, [
     q,
+    activeTab,
     channelsExhaustedByRepeat,
     channelsFetchingNextPage,
     channelsHasNextPage,
@@ -229,15 +259,11 @@ export function SearchPage() {
   const { topMatches, otherMatches } = React.useMemo(() => {
     if (!filteredChannels || !q) return { topMatches: [], otherMatches: filteredChannels || [] };
 
-    const normalizedQuery = q.toLowerCase().trim();
     const top: UnifiedChannel[] = [];
     const others: UnifiedChannel[] = [];
 
     filteredChannels.forEach((channel) => {
-      const isExact =
-        channel.username.toLowerCase() === normalizedQuery ||
-        channel.displayName.toLowerCase() === normalizedQuery;
-      if (isExact) {
+      if (isExactChannelSearchMatch(channel, q)) {
         top.push(channel);
       } else {
         others.push(channel);
@@ -276,7 +302,7 @@ export function SearchPage() {
   const showTopMatches = (activeTab === "all" || activeTab === "channels") && topMatches.length > 0;
   const showChannels = (activeTab === "all" || activeTab === "channels") && otherMatches.length > 0;
   const showChannelLoading =
-    (activeTab === "all" || activeTab === "channels") &&
+    activeTab === "channels" &&
     (channelsLoading ||
       channelsFetchingNextPage ||
       (channelsHasNextPage && !channelsExhaustedByRepeat));

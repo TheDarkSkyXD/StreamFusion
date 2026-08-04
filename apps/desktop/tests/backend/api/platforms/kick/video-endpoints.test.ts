@@ -25,22 +25,23 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 // Guards: Kick VODs expose a public share URL only when the API supplies a canonical slug
 // Guards: malformed and unavailable Kick VOD responses fail closed without exposing deleted content
-// Guards: last-live fallback uses only source-backed timestamps from completed Kick VODs.
+// Guards: last-live fallback uses only trustworthy end timestamps from completed Kick VODs.
 describe("video-endpoints — getVideosByChannelSlug", () => {
   let getVideosByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug;
-  let getLatestCompletedVideoStartedAtByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getLatestCompletedVideoStartedAtByChannelSlug;
+  let getLatestCompletedVideoEndedAtByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getLatestCompletedVideoEndedAtByChannelSlug;
 
   beforeEach(async () => {
     vi.resetModules();
     mockNetFetch.mockReset();
     // Default: return empty array
     mockNetFetch.mockResolvedValue(jsonResponse([]));
-    ({ getVideosByChannelSlug, getLatestCompletedVideoStartedAtByChannelSlug } = await import(
+    ({ getVideosByChannelSlug, getLatestCompletedVideoEndedAtByChannelSlug } = await import(
       "@/backend/api/platforms/kick/endpoints/video-endpoints"
     ));
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -94,7 +95,7 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
     expect(result.cursor).toBe("next-cursor-value");
   });
 
-  it("returns the newest source-backed start time from a completed video", async () => {
+  it("returns the newest source-backed end time from a completed video", async () => {
     mockNetFetch.mockResolvedValueOnce(
       jsonResponse([
         {
@@ -131,12 +132,86 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
       ])
     );
 
-    const result = await getLatestCompletedVideoStartedAtByChannelSlug("offline-streamer");
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("offline-streamer");
 
-    expect(result).toBe("2026-08-01T15:30:00Z");
+    expect(result).toBe("2026-08-01T17:30:00.000Z");
   });
 
-  it("treats a source-backed VOD with no is_live field as completed", async () => {
+  it("returns the end time of a finalized eight-hour VOD instead of its start time", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-03T13:49:08Z"));
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 91,
+          session_title: "Recently ended stream",
+          duration: 28_907_000,
+          source: "https://example.com/recently-ended.m3u8",
+          is_live: false,
+          start_time: "2026-08-03 05:34:30",
+          created_at: "2026-08-03 05:34:34",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("iceposeidon");
+
+    expect(result).toBe("2026-08-03T13:36:17.000Z");
+  });
+
+  it("prefers a completed VOD's explicit end time over its derived end", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 92,
+          duration: 3_600_000,
+          source: "https://example.com/explicit-end.m3u8",
+          is_live: false,
+          created_at: "2026-08-03T10:00:00Z",
+          ended_at: "2026-08-03T11:05:00Z",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("explicit-end");
+
+    expect(result).toBe("2026-08-03T11:05:00Z");
+  });
+
+  it("uses an explicit end time when Kick omits the VOD live state", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 99,
+          ended_at: "2026-08-03T11:05:00Z",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("explicit-end-only");
+
+    expect(result).toBe("2026-08-03T11:05:00Z");
+  });
+
+  it("does not derive an end time from a VOD still marked live", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 93,
+          duration: 28_907_000,
+          source: "https://example.com/still-live.m3u8",
+          is_live: true,
+          created_at: "2026-08-03T05:34:30Z",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("still-live");
+
+    expect(result).toBeUndefined();
+  });
+
+  it("does not derive an end time when Kick omits the VOD live state", async () => {
     mockNetFetch.mockResolvedValueOnce(
       jsonResponse([
         {
@@ -149,9 +224,62 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
       ])
     );
 
-    const result = await getLatestCompletedVideoStartedAtByChannelSlug("offline-streamer");
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("offline-streamer");
 
-    expect(result).toBe("2026-08-01T18:00:00Z");
+    expect(result).toBeUndefined();
+  });
+
+  it("does not derive an end time from invalid start or duration data", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 94,
+          duration: 0,
+          is_live: false,
+          created_at: "2026-08-03T05:34:30Z",
+        },
+        {
+          id: 95,
+          duration: -1,
+          is_live: false,
+          created_at: "2026-08-03T05:34:30Z",
+        },
+        {
+          id: 96,
+          duration: "28907000",
+          is_live: false,
+          created_at: "2026-08-03T05:34:30Z",
+        },
+        {
+          id: 97,
+          duration: 28_907_000,
+          is_live: false,
+          created_at: "not-a-date",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("invalid-end-data");
+
+    expect(result).toBeUndefined();
+  });
+
+  it("does not use updated_at as a completed VOD end time", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 98,
+          duration: 0,
+          is_live: false,
+          created_at: "2026-08-03T05:34:30Z",
+          updated_at: "2026-08-03T13:36:17Z",
+        },
+      ])
+    );
+
+    const result = await getLatestCompletedVideoEndedAtByChannelSlug("updated-at-only");
+
+    expect(result).toBeUndefined();
   });
 
   it("handles raw array response (V2 format) and computes cursor from video count", async () => {

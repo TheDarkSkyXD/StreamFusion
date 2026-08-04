@@ -246,61 +246,61 @@ describe("pollForToken", () => {
     await expect(caught).resolves.toMatchObject({ message: "Invalid token response" });
   });
 
-  it.each([
-    "error",
-    "message",
-  ] as const)("keeps polling when authorization_pending is returned in %s", async (statusField) => {
-    let callCount = 0;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        callCount++;
-        if (callCount <= 2) {
-          return jsonResponse({ [statusField]: "authorization_pending" }, false, 400);
-        }
-        return jsonResponse({
-          access_token: "at",
-          token_type: "bearer",
-        });
-      })
-    );
+  it.each(["error", "message"] as const)(
+    "keeps polling when authorization_pending is returned in %s",
+    async (statusField) => {
+      let callCount = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          callCount++;
+          if (callCount <= 2) {
+            return jsonResponse({ [statusField]: "authorization_pending" }, false, 400);
+          }
+          return jsonResponse({
+            access_token: "at",
+            token_type: "bearer",
+          });
+        })
+      );
 
-    const statusChanges: string[] = [];
-    const promise = deviceCodeFlowService.pollForToken("dc", 1, 60, [], (status) => {
-      statusChanges.push(status);
-    });
+      const statusChanges: string[] = [];
+      const promise = deviceCodeFlowService.pollForToken("dc", 1, 60, [], (status) => {
+        statusChanges.push(status);
+      });
 
-    await vi.advanceTimersByTimeAsync(0);
-    await vi.advanceTimersByTimeAsync(1000);
-    await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(1000);
 
-    const token = await promise;
+      const token = await promise;
 
-    expect(token.accessToken).toBe("at");
-    expect(statusChanges.filter((s) => s === "pending").length).toBeGreaterThanOrEqual(1);
-  });
+      expect(token.accessToken).toBe("at");
+      expect(statusChanges.filter((s) => s === "pending").length).toBeGreaterThanOrEqual(1);
+    }
+  );
 
   // Guards: Twitch slow_down responses must change the cadence of future polls, not only mutate a dead local value.
-  it.each([
-    "error",
-    "message",
-  ] as const)("reschedules future polls five seconds later when slow_down is returned in %s", async (statusField) => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(jsonResponse({ [statusField]: "slow_down" }, false, 400))
-        .mockResolvedValueOnce(jsonResponse({ access_token: "at", token_type: "bearer" }))
-    );
+  it.each(["error", "message"] as const)(
+    "reschedules future polls five seconds later when slow_down is returned in %s",
+    async (statusField) => {
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValueOnce(jsonResponse({ [statusField]: "slow_down" }, false, 400))
+          .mockResolvedValueOnce(jsonResponse({ access_token: "at", token_type: "bearer" }))
+      );
 
-    const promise = deviceCodeFlowService.pollForToken("dc", 1, 60, []);
-    await vi.advanceTimersByTimeAsync(0);
+      const promise = deviceCodeFlowService.pollForToken("dc", 1, 60, []);
+      await vi.advanceTimersByTimeAsync(0);
 
-    expect(vi.mocked(createManagedInterval)).toHaveBeenLastCalledWith(expect.any(Function), 6000);
+      expect(vi.mocked(createManagedInterval)).toHaveBeenLastCalledWith(expect.any(Function), 6000);
 
-    await vi.advanceTimersByTimeAsync(6000);
-    await expect(promise).resolves.toMatchObject({ accessToken: "at" });
-  });
+      await vi.advanceTimersByTimeAsync(6000);
+      await expect(promise).resolves.toMatchObject({ accessToken: "at" });
+    }
+  );
 
   it("rejects on access_denied", async () => {
     vi.stubGlobal(
@@ -532,38 +532,71 @@ describe("runTwitchDeviceCodeLogin", () => {
     expect(token).toEqual(expect.objectContaining({ accessToken: "at", authFlow: "device-code" }));
   });
 
-  it("keeps a completed authorization successful when popup close races with token completion", async () => {
+  // Guards: a successful Twitch token response must win when activation closes the popup just before the token body settles.
+  it("keeps confirmed authorization successful when popup close races with token completion", async () => {
     let reportClosed: () => void = () => undefined;
     const popupClosed = new Promise<void>((resolve) => {
       reportClosed = resolve;
     });
-    let resolveToken: (token: { accessToken: string; authFlow: "device-code" }) => void = () =>
-      undefined;
-    const pollForToken = vi.fn(
-      async () =>
-        await new Promise<{ accessToken: string; authFlow: "device-code" }>((resolve) => {
-          resolveToken = resolve;
-        })
+    let reportTokenBodyRead: () => void = () => undefined;
+    const tokenBodyRead = new Promise<void>((resolve) => {
+      reportTokenBodyRead = resolve;
+    });
+    let resolveTokenBody: (body: unknown) => void = () => undefined;
+    let fetchCall = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        fetchCall++;
+        if (fetchCall === 1) {
+          return jsonResponse({
+            device_code: "dc",
+            user_code: "ABCD-EFGH",
+            verification_uri: "https://www.twitch.tv/activate",
+            expires_in: 900,
+            interval: 5,
+          });
+        }
+
+        return {
+          ok: true,
+          status: 200,
+          json: async () => {
+            reportTokenBodyRead();
+            return await new Promise<unknown>((resolve) => {
+              resolveTokenBody = resolve;
+            });
+          },
+        } as Response;
+      })
     );
+
     const login = runTwitchDeviceCodeLogin(["chat:read"], {
-      requestDeviceCode: vi.fn(async () => ({
-        deviceCode: "dc",
-        userCode: "ABCD-EFGH",
-        verificationUri: "https://www.twitch.tv/activate",
-        expiresIn: 900,
-        interval: 5,
-      })),
+      requestDeviceCode: (scopes) => deviceCodeFlowService.requestDeviceCode(scopes),
       openVerificationWindow: vi.fn(async () => ({
         closed: popupClosed,
         close: vi.fn(),
       })),
-      pollForToken,
+      pollForToken: (deviceCode, interval, expiresIn, scopes, onStatusChange, signal) =>
+        deviceCodeFlowService.pollForToken(
+          deviceCode,
+          interval,
+          expiresIn,
+          scopes,
+          onStatusChange,
+          signal
+        ),
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await tokenBodyRead;
 
-    resolveToken({ accessToken: "at", authFlow: "device-code" });
     reportClosed();
+    resolveTokenBody({
+      access_token: "at",
+      refresh_token: "rt",
+      token_type: "bearer",
+      expires_in: 14_400,
+      scope: "chat:read",
+    });
 
     await expect(login).resolves.toMatchObject({ accessToken: "at" });
   });

@@ -2,6 +2,11 @@ import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
+import type {
+  CategoryClipsRequest,
+  CategoryMediaResult,
+  CategoryVideosRequest,
+} from "../../../shared/category-media-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { KickStreamResolver } from "../../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../../api/platforms/twitch/twitch-stream-resolver";
@@ -610,6 +615,161 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
 }
 
 export function registerVideoHandlers(): void {
+  ipcMain.handle(
+    IPC_CHANNELS.CLIPS_GET_BY_CATEGORY,
+    async (_event, request: CategoryClipsRequest): Promise<CategoryMediaResult> => {
+      if (request.platform === "twitch") {
+        if (request.sort === "date") {
+          return {
+            success: false,
+            availability: "unsupported",
+            errorCode: "unsupported",
+            error: "Twitch Helix Category Clips does not support Most Recent ordering",
+          };
+        }
+
+        try {
+          const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
+          const result = await twitchClient.getClipsByGame(request.categoryId, {
+            first: request.limit,
+            after: request.cursor,
+          });
+          const users = await twitchClient.getUsersById([
+            ...new Set(result.data.map((clip) => clip.broadcaster_id)),
+          ]);
+          const usersById = new Map(users.map((user) => [user.id, user]));
+          return {
+            success: true,
+            availability: "available",
+            data: result.data.map((clip) => ({
+              id: clip.id,
+              title: clip.title,
+              duration: formatSeconds(clip.duration),
+              views: String(clip.view_count),
+              date: clip.created_at,
+              created_at: clip.created_at,
+              thumbnailUrl: clip.thumbnail_url,
+              platform: "twitch",
+              channelId: clip.broadcaster_id,
+              channelName: usersById.get(clip.broadcaster_id)?.login || clip.broadcaster_name,
+              channelAvatar: usersById.get(clip.broadcaster_id)?.profileImageUrl || "",
+              gameId: clip.game_id,
+              gameName: request.categoryName || "",
+              category: request.categoryName || "",
+              creatorName: clip.creator_name,
+              embedUrl: clip.embed_url,
+              url: clip.url,
+              shareUrl: clip.url,
+              language: clip.language,
+              vodId: clip.video_id,
+            })),
+            cursor: result.cursor,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            availability: "unavailable",
+            errorCode: "upstream-error",
+            error:
+              error instanceof Error ? error.message : "Failed to fetch Twitch Category Clips",
+          };
+        }
+      }
+      if (!request.categorySlug) {
+        return {
+          success: false,
+          availability: "unavailable",
+          errorCode: "invalid-request",
+          error: "Kick Category Clips require a category slug",
+        };
+      }
+
+      try {
+        const { kickClient } = await import("../../api/platforms/kick/kick-client");
+        const result = await kickClient.getClipsByCategory(request.categorySlug, {
+          limit: request.limit,
+          cursor: request.cursor,
+          sort: request.sort,
+          timeRange: request.timeRange,
+        });
+        return {
+          success: true,
+          availability: "available",
+          data: result.data,
+          cursor: result.cursor,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          availability: "unavailable",
+          errorCode: "upstream-error",
+          error: error instanceof Error ? error.message : "Failed to fetch Kick Category Clips",
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY,
+    async (_event, request: CategoryVideosRequest): Promise<CategoryMediaResult> => {
+      if (request.platform === "kick") {
+        return {
+          success: false,
+          availability: "unsupported",
+          errorCode: "unsupported",
+          error: "Kick does not provide a complete category-wide Video source",
+        };
+      }
+
+      try {
+        const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
+        const result = await twitchClient.getVideosByGame(request.categoryId, {
+          first: request.limit,
+          after: request.cursor,
+          sort: request.sort === "date" ? "time" : "views",
+        });
+        const users = await twitchClient.getUsersById([
+          ...new Set(result.data.map((video) => video.user_id)),
+        ]);
+        const usersById = new Map(users.map((user) => [user.id, user]));
+        return {
+          success: true,
+          availability: "available",
+          data: result.data.map((video) => ({
+            id: video.id,
+            title: video.title,
+            duration: video.duration,
+            views: String(video.view_count),
+            date: video.published_at,
+            created_at: video.published_at,
+            thumbnailUrl: video.thumbnail_url
+              .replace("%{width}", "320")
+              .replace("%{height}", "180"),
+            platform: "twitch",
+            channelId: video.user_id,
+            channelName: video.user_login,
+            channelAvatar: usersById.get(video.user_id)?.profileImageUrl || "",
+            gameId: video.game_id || request.categoryId,
+            gameName: video.game_name || request.categoryName || "",
+            category: video.game_name || request.categoryName || "",
+            url: video.url,
+            shareUrl: video.url,
+            language: video.language,
+          })),
+          cursor: result.cursor,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          availability: "unavailable",
+          errorCode: "upstream-error",
+          error:
+            error instanceof Error ? error.message : "Failed to fetch Twitch Category Videos",
+        };
+      }
+    }
+  );
+
   /**
    * Get playback URL for a VOD
    */

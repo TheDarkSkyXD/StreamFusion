@@ -31,6 +31,10 @@ import type { UnifiedChannel } from "../../../unified/platform-types";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";
 import type { KickLegacyApiFollowedChannel } from "../kick-types";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
+import {
+  fetchKickWebApiMutation,
+  type KickWebApiMutationResult,
+} from "../kick-send-window";
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
 
 const FOLLOWED_CHANNELS_URL = `${KICK_LEGACY_API_V2_BASE}/channels/followed`;
@@ -58,6 +62,44 @@ export const GRID_READY_PREDICATE = `(() => {
 export type FollowedChannelsResult =
   | { status: "ok"; channels: UnifiedChannel[]; canPruneAbsent: boolean }
   | { status: "error"; reason: ErrorReason };
+
+export type KickFollowWriteAction = "follow" | "unfollow";
+export type KickFollowWriteResult =
+  | { status: "ok" }
+  | { status: "indeterminate"; reason: "http-422" }
+  | { status: "error"; reason: "auth-failed" | "network-error" | "write-failed" };
+
+export async function writeKickAccountFollow(request: {
+  action: KickFollowWriteAction;
+  channelSlug: string;
+}): Promise<KickFollowWriteResult> {
+  const slug = request.channelSlug.trim().toLowerCase();
+  let result: KickWebApiMutationResult;
+  try {
+    result = await fetchKickWebApiMutation(
+      request.action === "follow" ? "POST" : "DELETE",
+      `/api/v2/channels/${encodeURIComponent(slug)}/follow`
+    );
+  } catch {
+    return { status: "error", reason: "network-error" };
+  }
+  if (!result.ok) {
+    // Kick's web follow route can answer 422 when the requested state is
+    // already applied. The response alone is neither success nor failure;
+    // the write service must confirm against a fresh followed-channel sync.
+    if (result.status === 422) return { status: "indeterminate", reason: "http-422" };
+    return {
+      status: "error",
+      reason:
+        result.kind === "auth-expired"
+          ? "auth-failed"
+          : result.kind === "network"
+            ? "network-error"
+            : "write-failed",
+    };
+  }
+  return { status: "ok" };
+}
 
 export type ErrorReason =
   | "no-token"
@@ -98,9 +140,10 @@ export function mapScrapedKickFollowedChannel(
   };
 }
 
-// Single-flight guard. A second caller arriving while a fetch is in flight
-// shares the same Promise rather than firing a duplicate request.
-let _inFlight: Promise<FollowedChannelsResult> | null = null;
+// Single-flight guard. Requests share work only when they allow the same
+// fallback behavior; an authoritative settlement must not inherit a weaker
+// bearer-only request from a background refresh.
+const _inFlightByFallback = new Map<boolean, Promise<FollowedChannelsResult>>();
 
 // Warn-once-per-session by failure class. Module-scoped Set lives until the
 // main process restarts. Prevents log spam if `syncFollowsOnLogin` fires on
@@ -120,11 +163,16 @@ const _warned = new Set<ErrorReason>();
 export async function getAllFollowedChannels(
   options: FollowedChannelsOptions = {}
 ): Promise<FollowedChannelsResult> {
-  if (_inFlight) return _inFlight;
-  _inFlight = _doFetch(options).finally(() => {
-    _inFlight = null;
+  const allowBrowserWindowFallback = options.allowBrowserWindowFallback === true;
+  const existing = _inFlightByFallback.get(allowBrowserWindowFallback);
+  if (existing) return existing;
+  const request = _doFetch(options).finally(() => {
+    if (_inFlightByFallback.get(allowBrowserWindowFallback) === request) {
+      _inFlightByFallback.delete(allowBrowserWindowFallback);
+    }
   });
-  return _inFlight;
+  _inFlightByFallback.set(allowBrowserWindowFallback, request);
+  return request;
 }
 
 async function _doFetch(options: FollowedChannelsOptions): Promise<FollowedChannelsResult> {

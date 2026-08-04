@@ -1,11 +1,12 @@
 import { act, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   fireEvent,
   fixtures,
   installElectronAPIMock,
-  renderWithProviders,
+  renderWithProviders as renderWithBaseProviders,
   routerMock,
   screen,
   waitFor,
@@ -83,6 +84,14 @@ import { CategoryDetailPage } from "@/pages/CategoryDetail";
 const useCategoryByIdMock = vi.mocked(useCategoryById);
 const useTopCategoriesMock = vi.mocked(useTopCategories);
 const useInfiniteStreamsByCategoryMock = vi.mocked(useInfiniteStreamsByCategory);
+let categoryDetailQueryClient: QueryClient;
+
+function renderWithProviders(
+  ui: Parameters<typeof renderWithBaseProviders>[0],
+  options?: Parameters<typeof renderWithBaseProviders>[1]
+) {
+  return renderWithBaseProviders(ui, { ...options, queryClient: categoryDetailQueryClient });
+}
 
 function emptyInfinite() {
   return {
@@ -106,6 +115,12 @@ function emptyInfinite() {
 function registerCategoryDetailTests(name: string, registerTests: () => void) {
   describe(`CategoryDetailPage ${name}`, () => {
     beforeEach(() => {
+      categoryDetailQueryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, refetchOnWindowFocus: false, gcTime: 0, staleTime: 0 },
+          mutations: { retry: false },
+        },
+      });
       categoryRouteState.platform = "twitch";
       categoryRouteState.categoryId = "cat-1";
       categorySearchState.tab = "live";
@@ -127,7 +142,8 @@ function registerCategoryDetailTests(name: string, registerTests: () => void) {
       useInfiniteStreamsByCategoryMock.mockReturnValue(emptyInfinite());
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+      await categoryDetailQueryClient.cancelQueries();
       vi.unstubAllGlobals();
     });
 

@@ -2,6 +2,8 @@ import type { BrowserWindow } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const registrars = vi.hoisted(() => ({
+  registerChatReplayHandlers: vi.fn(),
+  registerStorageHandlers: vi.fn(),
   registerStreamRecordingHandlers: vi.fn(),
   registerVideoHandlers: vi.fn(),
 }));
@@ -12,6 +14,8 @@ const loggerMock = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
 }));
+
+const resumePendingWrites = vi.hoisted(() => vi.fn());
 
 vi.mock("@/backend/logging/log-paths", () => ({ getBugReportsDir: () => "bug-reports" }));
 vi.mock("@/backend/logging/logger", () => ({ logger: loggerMock }));
@@ -37,6 +41,9 @@ vi.mock("@/backend/ipc/handlers/chat-eligibility-handlers", () => ({
   registerChatEligibilityHandlers: vi.fn(),
 }));
 vi.mock("@/backend/ipc/handlers/chat-handlers", () => ({ registerChatHandlers: vi.fn() }));
+vi.mock("@/backend/ipc/handlers/chat-replay-handlers", () => ({
+  registerChatReplayHandlers: registrars.registerChatReplayHandlers,
+}));
 vi.mock("@/backend/ipc/handlers/connectivity-handlers", () => ({
   registerConnectivityHandlers: vi.fn(),
 }));
@@ -63,7 +70,9 @@ vi.mock("@/backend/ipc/handlers/search-handlers", () => ({ registerSearchHandler
 vi.mock("@/backend/ipc/handlers/slot-controller-handlers", () => ({
   registerSlotControllerHandlers: vi.fn(),
 }));
-vi.mock("@/backend/ipc/handlers/storage-handlers", () => ({ registerStorageHandlers: vi.fn() }));
+vi.mock("@/backend/ipc/handlers/storage-handlers", () => ({
+  registerStorageHandlers: registrars.registerStorageHandlers,
+}));
 vi.mock("@/backend/ipc/handlers/stream-recording-handlers", () => ({
   registerStreamRecordingHandlers: registrars.registerStreamRecordingHandlers,
 }));
@@ -88,10 +97,15 @@ vi.mock("@/backend/ipc/handlers/video-handlers", () => ({
 vi.mock("@/backend/services/captions/local-caption-runtime", () => ({
   getLocalCaptionRuntime: vi.fn(() => ({})),
 }));
+vi.mock("@/backend/services/kick-follow-write-service", () => ({
+  kickFollowWriteService: { resumePendingWrites },
+}));
 
 import { registerIpcHandlers } from "@/backend/ipc-handlers";
 
 // Guards: one broken IPC domain must not leave later domains unregistered and the renderer half-functional.
+// Guards: Chat Replay load and cancellation handlers are installed during main-process IPC bootstrap.
+// Guards: startup resumes persisted Kick account writes once after storage IPC registration.
 describe("registerIpcHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -115,5 +129,14 @@ describe("registerIpcHandlers", () => {
         }),
       })
     );
+  });
+
+  it("registers Chat Replay and gives storage pushes the main window during IPC bootstrap", () => {
+    const mainWindow = {} as BrowserWindow;
+    registerIpcHandlers(mainWindow);
+
+    expect(registrars.registerChatReplayHandlers).toHaveBeenCalledOnce();
+    expect(registrars.registerStorageHandlers).toHaveBeenCalledWith(mainWindow);
+    expect(resumePendingWrites).toHaveBeenCalledOnce();
   });
 });

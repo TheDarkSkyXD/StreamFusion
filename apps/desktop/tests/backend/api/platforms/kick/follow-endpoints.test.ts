@@ -13,11 +13,14 @@ import { logger } from "@/backend/logging/logger";
 // Guards: single-flight Promise — two concurrent callers within the same tick
 // share the same fetch() call.
 // Guards: getAllFollowedChannels must try the cheap Bearer endpoint before opening a hidden BrowserWindow.
+// Guards: a fallback-enabled authoritative reconciliation must not inherit a weaker bearer-only in-flight request.
 // Guards: AbortController scope — timeout cancels in-flight fetch via abort
 // signal so the BrowserWindow mutex elsewhere is never starved by a hanging
 // request.
 // Guards: followed-channel ingestion persists a stable broadcaster user ID
 // whenever Kick exposes one directly or through its canonical avatar path.
+// Guards: authenticated Kick follow writes use only the canonical encoded channel follow path.
+// Guards: rejected or thrown Kick web-session writes are classified for retry without escaping.
 
 const mockToken = vi.hoisted(() => ({
   accessToken: "test-token-123",
@@ -29,11 +32,16 @@ const mockToken = vi.hoisted(() => ({
     "events:subscribe",
   ],
 }));
+const fetchKickWebApiMutationMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../../../src/backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(() => mockToken),
   },
+}));
+
+vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+  fetchKickWebApiMutation: fetchKickWebApiMutationMock,
 }));
 
 const { storageService } = await import("../../../../../src/backend/services/storage-service");
@@ -43,6 +51,7 @@ import {
   _tryBearerFetch,
   getAllFollowedChannels,
   mapScrapedKickFollowedChannel,
+  writeKickAccountFollow,
 } from "../../../../../src/backend/api/platforms/kick/endpoints/follow-endpoints";
 
 // Tests validate the Bearer-fetch path in isolation via _tryBearerFetch.
@@ -253,6 +262,34 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
     expect(resA).toEqual(resB);
   });
 
+  it("keeps fallback-enabled and bearer-only requests in separate single-flight lanes", async () => {
+    let resolveBearerOnly: (response: Response) => void = () => {};
+    let resolveWithFallback: (response: Response) => void = () => {};
+    fetchSpy
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          resolveBearerOnly = resolve;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          resolveWithFallback = resolve;
+        })
+      );
+
+    const bearerOnly = getAllFollowedChannels();
+    const withFallback = getAllFollowedChannels({ allowBrowserWindowFallback: true });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    resolveBearerOnly(jsonResponse({ data: [] }));
+    resolveWithFallback(jsonResponse({ data: [] }));
+
+    await expect(Promise.all([bearerOnly, withFallback])).resolves.toEqual([
+      { status: "ok", channels: [], canPruneAbsent: true },
+      { status: "ok", channels: [], canPruneAbsent: true },
+    ]);
+  });
+
   it("_tryBearerFetch includes Authorization Bearer header on the diagnostic fetch", async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ data: [] }));
 
@@ -281,5 +318,81 @@ describe("mapScrapedKickFollowedChannel", () => {
     expect(channel.id).toBe("110821336");
     expect(channel.kickUserId).toBe("110821336");
     expect(channel.username).toBe("abbyapple");
+  });
+});
+
+describe("writeKickAccountFollow", () => {
+  it("follows through the canonical encoded Kick web-session path", async () => {
+    fetchKickWebApiMutationMock.mockResolvedValueOnce({ ok: true, status: 200, body: "{}" });
+
+    await expect(
+      writeKickAccountFollow({ action: "follow", channelSlug: "Space Name" })
+    ).resolves.toEqual({ status: "ok" });
+    expect(fetchKickWebApiMutationMock).toHaveBeenCalledWith(
+      "POST",
+      "/api/v2/channels/space%20name/follow"
+    );
+  });
+
+  it("unfollows through the canonical encoded Kick web-session path", async () => {
+    fetchKickWebApiMutationMock.mockResolvedValueOnce({ ok: true, status: 200, body: "{}" });
+
+    await expect(
+      writeKickAccountFollow({ action: "unfollow", channelSlug: "Space Name" })
+    ).resolves.toEqual({ status: "ok" });
+    expect(fetchKickWebApiMutationMock).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v2/channels/space%20name/follow"
+    );
+  });
+
+  it("classifies an expired Kick web session as auth-failed", async () => {
+    fetchKickWebApiMutationMock.mockResolvedValueOnce({
+      ok: false,
+      kind: "auth-expired",
+      status: 401,
+      body: "",
+      message: "Session expired",
+    });
+
+    await expect(
+      writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })
+    ).resolves.toEqual({ status: "error", reason: "auth-failed" });
+  });
+
+  it("classifies a Kick web-session network failure as network-error", async () => {
+    fetchKickWebApiMutationMock.mockResolvedValueOnce({
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: "Window unavailable",
+    });
+
+    await expect(
+      writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })
+    ).resolves.toEqual({ status: "error", reason: "network-error" });
+  });
+
+  it("classifies another rejected Kick write with a stable retryable reason", async () => {
+    fetchKickWebApiMutationMock.mockResolvedValueOnce({
+      ok: false,
+      kind: "unknown",
+      status: 409,
+      body: "{}",
+      message: "Write rejected",
+    });
+
+    await expect(
+      writeKickAccountFollow({ action: "unfollow", channelSlug: "xqc" })
+    ).resolves.toEqual({ status: "error", reason: "write-failed" });
+  });
+
+  it("classifies a thrown Kick window warmup failure without leaking a rejection", async () => {
+    fetchKickWebApiMutationMock.mockRejectedValueOnce(new Error("send-window-warmup-timeout"));
+
+    await expect(
+      writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })
+    ).resolves.toEqual({ status: "error", reason: "network-error" });
   });
 });

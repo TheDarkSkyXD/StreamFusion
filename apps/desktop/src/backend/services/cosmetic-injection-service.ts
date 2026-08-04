@@ -26,7 +26,7 @@ const TWITCH_COSMETIC_CSS = `
 }
 
 /* Ensure video is always visible */
-video {
+video:not([data-streamfusion-ad-presentation-shielded]) {
   visibility: visible !important;
   opacity: 1 !important;
 }

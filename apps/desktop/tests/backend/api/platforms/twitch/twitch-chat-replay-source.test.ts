@@ -15,6 +15,7 @@ afterEach(() => vi.unstubAllGlobals());
 // Guards: cursor pagination preserves stable IDs, sender presentation, badges, and ordered content fragments
 // Guards: empty, unsupported, and transient source responses remain distinct capability outcomes
 // Guards: first-party replay requests remain anonymous and classify authentication, rate-limit, and transient HTTP failures
+// Guards: cancelling a replay window aborts the active Twitch network request without losing its timeout
 describe("Twitch Chat Replay source contract", () => {
   it("returns historical messages for a Video at playback offsets", () => {
     const result = parseTwitchChatReplayPage(observedPage, "video-redacted-001");
@@ -87,6 +88,30 @@ describe("Twitch Chat Replay source contract", () => {
       contentOffsetSeconds: 60,
       cursor: "cursor-redacted-prior",
     });
+  });
+
+  it("aborts the active request when the replay window is cancelled", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const signal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    const abortError = new DOMException("seek replaced", "AbortError");
+
+    const replayRequest = fetchTwitchChatReplayPage({
+      videoId: "video-redacted-001",
+      signal: controller.signal,
+    });
+    const requestSignal = fetchMock.mock.calls[0]?.[1]?.signal;
+    expect(requestSignal).not.toBe(controller.signal);
+
+    controller.abort(abortError);
+
+    await expect(replayRequest).rejects.toBe(abortError);
+    expect(requestSignal?.aborted).toBe(true);
   });
 
   it("classifies authentication, rate-limit, and transient HTTP failures", async () => {

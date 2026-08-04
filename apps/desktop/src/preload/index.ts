@@ -24,7 +24,11 @@ import type {
   StatusPageDetail,
 } from "../backend/api/unified/platform-health";
 import type {
+  AccountFollowWriteRequest,
+  AccountFollowWriteResult,
   AuthToken,
+  KickAccountFollowWriteSnapshot,
+  KickAccountFollowWriteChangedEvent,
   KickUser,
   LiveNotificationCoverageStatus,
   LiveNotificationPayload,
@@ -38,6 +42,17 @@ import type {
   SubscriberEligibilityResult,
   TwitchBadgeCatalog,
 } from "../shared/chat-types";
+import type {
+  CancelChatReplayWindowRequest,
+  CancelChatReplayWindowResult,
+  ChatReplayIpcWindowRequest,
+  ChatReplayIpcWindowResult,
+} from "../shared/chat-replay-types";
+import type {
+  CategoryClipsRequest,
+  CategoryMediaResult,
+  CategoryVideosRequest,
+} from "../shared/category-media-types";
 import type {
   ClipDownloadRequest,
   DownloadJob,
@@ -90,6 +105,13 @@ import type {
   TimeoutSubmitInput,
   TimeoutSubmitResult,
 } from "../shared/timeout-moderation-types";
+import type {
+  StreamRecordingActionResult,
+  StreamRecordingRecoveryActionResult,
+  StreamRecordingRequest,
+  StreamRecordingSnapshot,
+  StreamRecordingStartResult,
+} from "../shared/stream-recording-types";
 import type { TwitchApiCommand, TwitchApiResult } from "../shared/twitch-api-types";
 import type {
   AccountCreatedFieldState,
@@ -354,6 +376,20 @@ const electronAPI = {
     import: (follows: LocalFollow[]): Promise<number> =>
       ipcRenderer.invoke(IPC_CHANNELS.FOLLOWS_IMPORT, { follows }),
     clear: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.FOLLOWS_CLEAR),
+    getAccountWrites: (): Promise<KickAccountFollowWriteSnapshot[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.FOLLOWS_GET_ACCOUNT_WRITES),
+    writeAccount: (request: AccountFollowWriteRequest): Promise<AccountFollowWriteResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.FOLLOWS_WRITE_ACCOUNT, request),
+    onAccountWriteChanged: (
+      callback: (event: KickAccountFollowWriteChangedEvent) => void
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: KickAccountFollowWriteChangedEvent
+      ) => callback(payload);
+      ipcRenderer.on(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, handler);
+    },
   },
 
   // ========== User Preferences ==========
@@ -564,6 +600,9 @@ const electronAPI = {
 
   // ========== Discovery: Videos & Clips ==========
   videos: {
+    getByCategory: (request: CategoryVideosRequest): Promise<CategoryMediaResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY, request),
+
     getByChannel: (params: {
       platform: Platform;
       channelName: string;
@@ -630,9 +669,22 @@ const electronAPI = {
       };
       error?: string;
     }> => ipcRenderer.invoke(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID, params),
+
+    getChatReplayWindow: (
+      request: ChatReplayIpcWindowRequest
+    ): Promise<ChatReplayIpcWindowResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.VIDEOS_GET_CHAT_REPLAY_WINDOW, request),
+
+    cancelChatReplayWindow: (
+      request: CancelChatReplayWindowRequest
+    ): Promise<CancelChatReplayWindowResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.VIDEOS_CANCEL_CHAT_REPLAY_WINDOW, request),
   },
 
   clips: {
+    getByCategory: (request: CategoryClipsRequest): Promise<CategoryMediaResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CLIPS_GET_BY_CATEGORY, request),
+
     getByChannel: (params: {
       platform: Platform;
       channelName: string;
@@ -691,6 +743,46 @@ const electronAPI = {
         callback(snapshot);
       ipcRenderer.on(IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, handler);
+    },
+  },
+
+  // ========== Stream Recording ==========
+  streamRecording: {
+    getState: (): Promise<StreamRecordingSnapshot> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_GET_STATE),
+    start: (request: StreamRecordingRequest): Promise<StreamRecordingStartResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_START, request),
+    stop: (sessionId: string): Promise<StreamRecordingActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_STOP, { sessionId }),
+    discard: (sessionId: string): Promise<StreamRecordingActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_DISCARD, { sessionId }),
+    pause: (sessionId: string): Promise<StreamRecordingActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_PAUSE, { sessionId }),
+    resume: (sessionId: string): Promise<StreamRecordingActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_RESUME, { sessionId }),
+    resumeInterrupted: (sessionId: string): Promise<StreamRecordingRecoveryActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_RESUME_INTERRUPTED, { sessionId }),
+    finalizeInterrupted: (sessionId: string): Promise<StreamRecordingRecoveryActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_FINALIZE_INTERRUPTED, { sessionId }),
+    dismissInterrupted: (
+      sessionId: string,
+      confirmed: boolean
+    ): Promise<StreamRecordingRecoveryActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_DISMISS_INTERRUPTED, {
+        sessionId,
+        confirmed,
+      }),
+    openCompleted: (sessionId: string): Promise<StreamRecordingActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_OPEN_COMPLETED, { sessionId }),
+    showCompleted: (sessionId: string): Promise<StreamRecordingActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_SHOW_COMPLETED, { sessionId }),
+    dismissNotice: (sessionId: string): Promise<StreamRecordingActionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_RECORDING_DISMISS_NOTICE, { sessionId }),
+    onStateChanged: (callback: (snapshot: StreamRecordingSnapshot) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, snapshot: StreamRecordingSnapshot) =>
+        callback(snapshot);
+      ipcRenderer.on(IPC_CHANNELS.STREAM_RECORDING_STATE_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.STREAM_RECORDING_STATE_CHANGED, handler);
     },
   },
 

@@ -44,3 +44,29 @@ export async function getClipsByBroadcaster(
     cursor: data.data.length >= first ? data.pagination?.cursor : undefined,
   };
 }
+
+/** Get clips by native Twitch game/category ID. */
+export async function getClipsByGame(
+  client: TwitchRequestor,
+  gameId: string,
+  options: PaginationOptions = {}
+): Promise<PaginatedResult<TwitchApiClip>> {
+  const params = new URLSearchParams({
+    game_id: gameId,
+    first: String(options.first || 20),
+  });
+
+  if (options.after) params.set("after", options.after);
+  if (options.started_at) params.set("started_at", options.started_at);
+  if (options.ended_at) params.set("ended_at", options.ended_at);
+
+  const data = await client.request<TwitchApiResponse<TwitchApiClip>>(
+    `/clips?${params.toString()}`
+  );
+  const first = options.first || 20;
+
+  return {
+    data: data.data,
+    cursor: data.data.length >= first ? data.pagination?.cursor : undefined,
+  };
+}

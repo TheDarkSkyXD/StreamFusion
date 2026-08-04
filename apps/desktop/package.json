@@ -21,7 +21,7 @@
     "dist:win": "npm run build && electron-builder --win --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "lint": "eslint src/",
+    "lint": "eslint src/ tests/ \"*.config.{js,mjs,cjs,jsx,ts,tsx}\"",
     "lint:fix": "eslint src/ --fix && prettier --write src/",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",

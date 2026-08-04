@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useSyncExternalStore } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import { installElectronAPIMock } from "../../test-utils";
@@ -11,9 +12,8 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-// Mutable chatDisplay the mocked auth store hands back. updatePreferences
-// captures the patch so the spread-preserved single-field write can be
-// asserted (AE4 — gear + tab edit the same global group).
+// Mirror the store's reactive preference source while updatePreferences captures
+// the spread-preserved single-field write (AE4: gear + tab edit the same group).
 const updatePreferencesMock = vi.fn(async () => undefined);
 const mockChatDisplay: { value: ChatDisplayPreferences } = {
   value: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES },
@@ -25,23 +25,36 @@ const mockAuthUsers: {
   kickUser: null,
   twitchUser: null,
 };
+const mockAuthStoreListeners = new Set<() => void>();
 
 vi.mock("@/store/auth-store", () => {
-  // useChatDisplay reads `preferences?.chatDisplay` reactively AND pulls the
-  // freshest value imperatively via getState() inside the writer, so both the
-  // selector and getState resolve from the mutable holder.
   const buildState = () => ({
     kickUser: mockAuthUsers.kickUser,
     preferences: { chatDisplay: mockChatDisplay.value },
     twitchUser: mockAuthUsers.twitchUser,
     updatePreferences: updatePreferencesMock,
   });
-  const useAuthStore = (selector?: (s: ReturnType<typeof buildState>) => unknown) => {
-    const state = buildState();
-    return selector ? selector(state) : state;
+  const subscribe = (listener: () => void) => {
+    mockAuthStoreListeners.add(listener);
+    return () => mockAuthStoreListeners.delete(listener);
   };
-  (useAuthStore as unknown as { getState: () => ReturnType<typeof buildState> }).getState = () =>
-    buildState();
+  const useAuthStore = (selector: (state: ReturnType<typeof buildState>) => unknown) => {
+    return useSyncExternalStore(
+      subscribe,
+      () => selector(buildState()),
+      () => selector(buildState())
+    );
+  };
+  Object.assign(useAuthStore, {
+    getState: buildState,
+    setState: (nextState: Partial<ReturnType<typeof buildState>>) => {
+      if (nextState.preferences) {
+        mockChatDisplay.value = nextState.preferences.chatDisplay;
+      }
+      mockAuthStoreListeners.forEach((listener) => listener());
+    },
+    subscribe,
+  });
   return { useAuthStore };
 });
 
@@ -54,6 +67,9 @@ import { ChatQuickSettingsPopover } from "@/components/chat/ChatQuickSettingsPop
 // Guards: quick settings popup icons stay white instead of regressing to muted neutral.
 // Guards: Chat appearance keeps a Twitch-style preview and Kick-style font/emote size sliders instead of reverting to generic range rows.
 // Guards: quick settings exposes Twitch-style Pause Chat radio options and persists the selected pause trigger.
+// Guards: quick appearance controls expose their persisted state through accessible, immediately responsive controls.
+// Guards: reactive appearance edits retain keyboard focus and scroll position instead of remounting the quick-settings view.
+// Guards: Tight, Medium, and Loose preview rows use live-message padding without an additional density gap between rows.
 describe("ChatQuickSettingsPopover", () => {
   beforeEach(() => {
     installElectronAPIMock();
@@ -222,7 +238,7 @@ describe("ChatQuickSettingsPopover", () => {
       "data-density",
       "cozy"
     );
-    expect(screen.getByTestId("chat-preview-row-primary")).toHaveClass("py-1.5", "leading-5");
+    expect(screen.getByTestId("chat-preview-row-primary")).toHaveClass("py-1", "leading-5");
     const previewEmote = screen.getByRole("img", { name: /preview emote/i });
     expect(previewEmote).toHaveAttribute("data-emote-name", "Kappa");
     expect(previewEmote).toHaveAttribute(
@@ -254,8 +270,133 @@ describe("ChatQuickSettingsPopover", () => {
       `${DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx}px`
     );
     expect((emoteSizeRange as HTMLInputElement).value).toBe("1");
-    expect(screen.getByText("Density")).toBeInTheDocument();
-    expect(screen.getByText("Show timestamps")).toBeInTheDocument();
+    expect(screen.getByText("Message spacing")).toBeInTheDocument();
+    expect(screen.getByText("Timestamps")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-appearance-content")).toHaveClass(
+      "max-h-[calc(100vh-6rem)]",
+      "overflow-y-auto",
+      "overscroll-contain"
+    );
+  });
+
+  it("selects and persists a chat-width preset immediately", () => {
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+    const widthGroup = screen.getByRole("radiogroup", { name: "Chat width" });
+    expect(widthGroup).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "340px" })).toBeChecked();
+    expect(screen.getByText("Currently: 340px")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "420px" }));
+
+    expect(screen.getByRole("radio", { name: "420px" })).toBeChecked();
+    expect(screen.getByText("Currently: 420px")).toBeInTheDocument();
+    expect(updatePreferencesMock).toHaveBeenCalledWith({
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, chatWidthPx: 420 },
+    });
+  });
+
+  it("reflects non-default authoritative quick-appearance preferences", () => {
+    mockChatDisplay.value = {
+      ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+      chatWidthPx: 280,
+      timestamps: true,
+      hoverSmooth: false,
+      quickEmotes: false,
+    };
+
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+    expect(screen.getByRole("radio", { name: "280px" })).toBeChecked();
+    expect(screen.getByText("Currently: 280px")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Timestamps" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Hover smooth mode" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Quick Emotes" })).not.toBeChecked();
+  });
+
+  it("maps message-spacing choices to density and updates the preview immediately", () => {
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+    expect(screen.getByRole("radiogroup", { name: "Message spacing" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Medium" })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Loose" }));
+
+    expect(screen.getByRole("radio", { name: "Loose" })).toBeChecked();
+    expect(screen.getByTestId("chat-appearance-density-preview")).toHaveAttribute(
+      "data-density",
+      "loose"
+    );
+    expect(screen.getByTestId("chat-preview-row-primary")).toHaveClass("py-3", "leading-6");
+    expect(updatePreferencesMock).toHaveBeenCalledWith({
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, density: "loose" },
+    });
+  });
+
+  it("toggles and persists timestamps immediately through a named switch", () => {
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+    const timestampsSwitch = screen.getByRole("switch", { name: "Timestamps" });
+    expect(timestampsSwitch).not.toBeChecked();
+
+    fireEvent.click(timestampsSwitch);
+
+    expect(timestampsSwitch).toBeChecked();
+    expect(updatePreferencesMock).toHaveBeenCalledWith({
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, timestamps: true },
+    });
+  });
+
+  it("retains focus and scroll position when an appearance edit updates shared preferences", () => {
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+    const appearanceContent = screen.getByTestId("chat-appearance-content");
+    const timestampsSwitch = screen.getByRole("switch", { name: "Timestamps" });
+    appearanceContent.scrollTop = 160;
+    timestampsSwitch.focus();
+
+    fireEvent.click(timestampsSwitch);
+
+    const updatedAppearanceContent = screen.getByTestId("chat-appearance-content");
+    const updatedTimestampsSwitch = screen.getByRole("switch", { name: "Timestamps" });
+    expect(updatedTimestampsSwitch).toHaveFocus();
+    expect(updatedAppearanceContent).toBe(appearanceContent);
+    expect(updatedAppearanceContent.scrollTop).toBe(160);
+  });
+
+  it("toggles and persists hover smooth mode immediately through a named switch", () => {
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+    const hoverSmoothSwitch = screen.getByRole("switch", { name: "Hover smooth mode" });
+    expect(hoverSmoothSwitch).toBeChecked();
+
+    fireEvent.click(hoverSmoothSwitch);
+
+    expect(hoverSmoothSwitch).not.toBeChecked();
+    expect(updatePreferencesMock).toHaveBeenCalledWith({
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, hoverSmooth: false },
+    });
+  });
+
+  it("toggles and persists Quick Emotes immediately through a named switch", () => {
+    render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+    const quickEmotesSwitch = screen.getByRole("switch", { name: "Quick Emotes" });
+    expect(quickEmotesSwitch).toBeChecked();
+
+    fireEvent.click(quickEmotesSwitch);
+
+    expect(quickEmotesSwitch).not.toBeChecked();
+    expect(updatePreferencesMock).toHaveBeenCalledWith({
+      chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, quickEmotes: false },
+    });
   });
 
   it("shows compact density with tighter preview rows", () => {
@@ -268,8 +409,31 @@ describe("ChatQuickSettingsPopover", () => {
       "compact"
     );
     expect(screen.getByTestId("chat-preview-row-primary")).toHaveClass("py-0", "leading-4");
-    expect(screen.getByRole("button", { name: "Compact" })).toHaveClass("bg-[#3f3f46]");
+    expect(screen.getByRole("radio", { name: "Tight" })).toBeChecked();
   });
+
+  it.each([
+    ["compact", "py-0"],
+    ["cozy", "py-1"],
+    ["loose", "py-3"],
+  ] as const)(
+    "uses %s live-row padding without a parent density gap",
+    (density, rowPaddingClass) => {
+      mockChatDisplay.value = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, density };
+      render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
+      fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+
+      const preview = screen.getByTestId("chat-appearance-density-preview");
+      for (const row of [
+        screen.getByTestId("chat-preview-row-primary"),
+        screen.getByTestId("chat-preview-row-mod"),
+        screen.getByTestId("chat-preview-row-viewer"),
+      ]) {
+        expect(row).toHaveClass(rowPaddingClass);
+      }
+      expect(preview.className).not.toMatch(/space-y-/);
+    }
+  );
 
   it("uses the authenticated Twitch display name in the preview on Twitch streams", () => {
     mockAuthUsers.twitchUser = { displayName: "TwitchViewer", login: "twitchviewer" };
@@ -297,9 +461,13 @@ describe("ChatQuickSettingsPopover", () => {
     render(<ChatQuickSettingsPopover onClose={vi.fn()} />);
     expect(screen.queryByText(/message limit/i)).toBeNull();
     expect(screen.queryByText(/clear local chat/i)).toBeNull();
+    expect(screen.queryByText(/gifted sub leaderboard/i)).toBeNull();
+    expect(screen.queryByText(/events banner/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
     expect(screen.queryByText(/message limit/i)).toBeNull();
     expect(screen.queryByText(/clear local chat/i)).toBeNull();
+    expect(screen.queryByText(/gifted sub leaderboard/i)).toBeNull();
+    expect(screen.queryByText(/events banner/i)).toBeNull();
   });
 
   it('does NOT render a "show badges" control (no such chatDisplay field)', () => {

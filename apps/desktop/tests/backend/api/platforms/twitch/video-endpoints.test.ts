@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  getVideosByGame,
   getVideosByUser,
   getVideoById,
 } from "@/backend/api/platforms/twitch/endpoints/video-endpoints";
@@ -140,5 +141,23 @@ describe("getVideoById", () => {
 
     const endpoint = (client.request as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(endpoint).toContain("id=v123");
+  });
+});
+
+// Guards: Category Video discovery uses Twitch's native game identity and forwards the selected global sort.
+describe("getVideosByGame", () => {
+  it("requests the native game feed with pagination and Views ordering", async () => {
+    const client = makeClient({ data: [VIDEO], pagination: { cursor: "next-page" } });
+
+    const result = await getVideosByGame(client, "509658", {
+      first: 1,
+      after: "cursor-abc",
+      sort: "views",
+    });
+
+    expect(client.request).toHaveBeenCalledWith(
+      "/videos?game_id=509658&first=1&after=cursor-abc&sort=views"
+    );
+    expect(result).toEqual({ data: [VIDEO], cursor: "next-page" });
   });
 });

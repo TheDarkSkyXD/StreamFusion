@@ -365,6 +365,15 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     return GqlClient.gqlGetVideosByChannel(channelLogin, options);
   }
 
+  /** Get videos by native Twitch game/category ID through Helix. */
+  async getVideosByGame(
+    gameId: string,
+    options: PaginationOptions & { sort?: "time" | "views" } = {}
+  ): Promise<PaginatedResult<import("./twitch-types").TwitchApiVideo>> {
+    const VideoEndpoints = await import("./endpoints/video-endpoints");
+    return VideoEndpoints.getVideosByGame(this, gameId, options);
+  }
+
   /**
    * Get videos by user ID (legacy Helix - kept for backward compat)
    */
@@ -415,6 +424,15 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     options: PaginationOptions & { filter?: string } = {}
   ): Promise<PaginatedResult<UnifiedClip>> {
     return GqlClient.gqlGetClipsByChannel(channelLogin, options);
+  }
+
+  /** Get clips by native Twitch game/category ID through Helix. */
+  async getClipsByGame(
+    gameId: string,
+    options: PaginationOptions = {}
+  ): Promise<PaginatedResult<import("./twitch-types").TwitchApiClip>> {
+    const ClipEndpoints = await import("./endpoints/clip-endpoints");
+    return ClipEndpoints.getClipsByGame(this, gameId, options);
   }
 
   /**

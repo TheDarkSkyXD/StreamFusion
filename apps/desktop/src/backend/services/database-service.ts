@@ -34,6 +34,7 @@ import type {
 export type FollowSource = "guest" | Platform;
 
 export type PendingFollowAction = "follow" | "unfollow";
+export type PendingFollowWriteStatus = "pending" | "retrying" | "auth-paused" | "failed";
 
 /**
  * Tombstone-equivalent row tracking a push-sync write that hasn't yet been
@@ -52,8 +53,61 @@ export interface PendingFollowWrite {
   channelId: string;
   slug: string;
   action: PendingFollowAction;
+  status: PendingFollowWriteStatus;
+  createdAt: string;
   attemptedAt: string;
+  nextAttemptAt: string;
+  expiresAt: string;
+  attemptCount: number;
   lastError: string | null;
+}
+
+interface PendingFollowWriteDbRow {
+  id: number;
+  platform: string;
+  channel_id: string;
+  slug: string;
+  action: PendingFollowAction;
+  status: PendingFollowWriteStatus;
+  created_at: string;
+  attempted_at: string;
+  next_attempt_at: string;
+  expires_at: string;
+  attempt_count: number;
+  last_error: string | null;
+}
+
+function isPendingFollowWriteDbRow(value: unknown): value is PendingFollowWriteDbRow {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    "id" in value &&
+    typeof value.id === "number" &&
+    "platform" in value &&
+    typeof value.platform === "string" &&
+    "channel_id" in value &&
+    typeof value.channel_id === "string" &&
+    "slug" in value &&
+    typeof value.slug === "string" &&
+    "action" in value &&
+    (value.action === "follow" || value.action === "unfollow") &&
+    "status" in value &&
+    (value.status === "pending" ||
+      value.status === "retrying" ||
+      value.status === "auth-paused" ||
+      value.status === "failed") &&
+    "created_at" in value &&
+    typeof value.created_at === "string" &&
+    "attempted_at" in value &&
+    typeof value.attempted_at === "string" &&
+    "next_attempt_at" in value &&
+    typeof value.next_attempt_at === "string" &&
+    "expires_at" in value &&
+    typeof value.expires_at === "string" &&
+    "attempt_count" in value &&
+    typeof value.attempt_count === "number" &&
+    "last_error" in value &&
+    (typeof value.last_error === "string" || value.last_error === null)
+  );
 }
 
 /**
@@ -286,12 +340,59 @@ export class DatabaseService {
         channel_id TEXT NOT NULL,
         slug TEXT NOT NULL,
         action TEXT NOT NULL CHECK(action IN ('follow', 'unfollow')),
+        status TEXT NOT NULL CHECK(status IN ('pending', 'retrying', 'auth-paused', 'failed')),
+        created_at TEXT NOT NULL,
         attempted_at TEXT NOT NULL,
+        next_attempt_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
         last_error TEXT,
         UNIQUE(platform, channel_id, action)
       );
       CREATE INDEX IF NOT EXISTS idx_pending_writes_platform
         ON pending_follow_writes(platform);
+    `);
+
+    const pendingFollowWriteColumnInfo: unknown = this.database.pragma(
+      "table_info(pending_follow_writes)"
+    );
+    const pendingFollowWriteColumns = new Set(
+      (Array.isArray(pendingFollowWriteColumnInfo)
+        ? pendingFollowWriteColumnInfo
+        : []
+      ).flatMap((column: unknown) =>
+        typeof column === "object" &&
+        column !== null &&
+        "name" in column &&
+        typeof column.name === "string"
+          ? [column.name]
+          : []
+      )
+    );
+    const pendingFollowWriteMigrations: ReadonlyArray<readonly [string, string]> = [
+      [
+        "status",
+        "ALTER TABLE pending_follow_writes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'retrying', 'auth-paused', 'failed'))",
+      ],
+      ["created_at", "ALTER TABLE pending_follow_writes ADD COLUMN created_at TEXT"],
+      ["next_attempt_at", "ALTER TABLE pending_follow_writes ADD COLUMN next_attempt_at TEXT"],
+      ["expires_at", "ALTER TABLE pending_follow_writes ADD COLUMN expires_at TEXT"],
+      [
+        "attempt_count",
+        "ALTER TABLE pending_follow_writes ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
+      ],
+    ];
+    for (const [column, sql] of pendingFollowWriteMigrations) {
+      if (!pendingFollowWriteColumns.has(column)) this.database.exec(sql);
+    }
+    this.database.exec(`
+      UPDATE pending_follow_writes
+      SET created_at = COALESCE(created_at, attempted_at),
+          next_attempt_at = COALESCE(next_attempt_at, attempted_at),
+          expires_at = COALESCE(
+            expires_at,
+            strftime('%Y-%m-%dT%H:%M:%fZ', attempted_at, '+10 minutes')
+          );
     `);
 
     logger.debug("Service:DB", "SQLite Schema initialized");
@@ -410,8 +511,8 @@ export class DatabaseService {
    *   - Upserts every fetched row as `source = platform` (INSERT OR REPLACE).
    *     If a row already exists with the same (platform, channel_id, source)
    *     it gets the fresh display_name / profile_image — metadata-only refresh.
-   *   - SKIPS fetched rows blocked by a `pending_follow_writes` unfollow
-   *     tombstone — the user just clicked Unfollow in-app; don't re-adopt.
+   *   - Keeps every fetched row authoritative even while an unfollow is pending;
+   *     intent must not hide a follow the platform still reports as active.
    *   - Removes existing platform-source rows that are absent from a
    *     successful fetched list unless `pruneAbsent` is false.
    *   - Cleans up pending_follow_writes rows that reflect a now-confirmed
@@ -516,13 +617,19 @@ export class DatabaseService {
     };
 
     const existingMatchesFetched = (
-      existing: { channelId: string; channelName: string },
-      fetched: { channelId: string; channelName: string }
+      existing: { channelId: string; channelName: string; profileImage?: string },
+      fetched: { channelId: string; channelName: string; profileImage?: string }
     ): boolean => {
+      if (platform === "kick") {
+        const existingIdentity = getKickBroadcasterUserIdFromAvatar(existing.profileImage);
+        const fetchedIdentity = getKickStableIdentity(fetched);
+        if (existingIdentity && fetchedIdentity) {
+          return existingIdentity === fetchedIdentity;
+        }
+      }
       if (existing.channelId && fetched.channelId && existing.channelId === fetched.channelId) {
         return true;
       }
-      if (sameKickStableIdentity(existing, fetched)) return true;
       if (
         existing.channelName &&
         fetched.channelName &&
@@ -533,10 +640,7 @@ export class DatabaseService {
       return false;
     };
 
-    // Skip fetched rows blocked by a pending unfollow.
-    const toAdopt = fetchedFollows.filter(
-      (f) => !pendingUnfollows.some((p) => fetchedMatchesPending(f, p))
-    );
+    const toAdopt = fetchedFollows;
 
     // Pending rows resolved by external state — clear from the tombstone table.
     const pendingFollowsToRemove = pendingFollows.filter((p) =>
@@ -679,11 +783,21 @@ export class DatabaseService {
     channelId: string;
     slug: string;
     action: PendingFollowAction;
+    now?: Date;
     lastError?: string | null;
   }): void {
+    const now = input.now ?? new Date();
+    const nowIso = now.toISOString();
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
     const stmt = this.database.prepare(`
-      INSERT INTO pending_follow_writes (platform, channel_id, slug, action, attempted_at, last_error)
-      VALUES (@platform, @channelId, @slug, @action, @attemptedAt, @lastError)
+      INSERT INTO pending_follow_writes (
+        platform, channel_id, slug, action, status, created_at,
+        attempted_at, next_attempt_at, expires_at, attempt_count, last_error
+      )
+      VALUES (
+        @platform, @channelId, @slug, @action, @status, @createdAt,
+        @attemptedAt, @nextAttemptAt, @expiresAt, @attemptCount, @lastError
+      )
       ON CONFLICT(platform, channel_id, action) DO UPDATE SET
         attempted_at = excluded.attempted_at,
         last_error = excluded.last_error,
@@ -694,9 +808,51 @@ export class DatabaseService {
       channelId: input.channelId,
       slug: input.slug,
       action: input.action,
-      attemptedAt: new Date().toISOString(),
+      status: "pending",
+      createdAt: nowIso,
+      attemptedAt: nowIso,
+      nextAttemptAt: nowIso,
+      expiresAt,
+      attemptCount: 0,
       lastError: input.lastError ?? null,
     });
+  }
+
+  updatePendingFollowWriteState(input: {
+    platform: string;
+    channelId: string;
+    slug: string;
+    action: PendingFollowAction;
+    status: PendingFollowWriteStatus;
+    attemptedAt?: Date;
+    nextAttemptAt?: Date;
+    attemptCount?: number;
+    lastError?: string | null;
+  }): boolean {
+    const stmt = this.database.prepare(`
+      UPDATE pending_follow_writes
+      SET status = @status,
+          attempted_at = COALESCE(@attemptedAt, attempted_at),
+          next_attempt_at = COALESCE(@nextAttemptAt, next_attempt_at),
+          attempt_count = COALESCE(@attemptCount, attempt_count),
+          last_error = CASE WHEN @hasLastError = 1 THEN @lastError ELSE last_error END
+      WHERE platform = @platform
+        AND (channel_id = @channelId OR slug = @slug)
+        AND action = @action
+    `);
+    const info = stmt.run({
+      platform: input.platform,
+      channelId: input.channelId,
+      slug: input.slug,
+      action: input.action,
+      status: input.status,
+      attemptedAt: input.attemptedAt?.toISOString() ?? null,
+      nextAttemptAt: input.nextAttemptAt?.toISOString() ?? null,
+      attemptCount: input.attemptCount ?? null,
+      hasLastError: input.lastError === undefined ? 0 : 1,
+      lastError: input.lastError ?? null,
+    });
+    return info.changes > 0;
   }
 
   /**
@@ -733,14 +889,22 @@ export class DatabaseService {
     return stmt.all(platform).map(this.mapPendingWriteFromDb);
   }
 
-  private mapPendingWriteFromDb(row: any): PendingFollowWrite {
+  private mapPendingWriteFromDb(row: unknown): PendingFollowWrite {
+    if (!isPendingFollowWriteDbRow(row)) {
+      throw new Error("Invalid pending follow write row");
+    }
     return {
       id: Number(row.id),
       platform: row.platform,
       channelId: row.channel_id,
       slug: row.slug,
       action: row.action,
+      status: row.status,
+      createdAt: row.created_at,
       attemptedAt: row.attempted_at,
+      nextAttemptAt: row.next_attempt_at,
+      expiresAt: row.expires_at,
+      attemptCount: row.attempt_count,
       lastError: row.last_error ?? null,
     };
   }

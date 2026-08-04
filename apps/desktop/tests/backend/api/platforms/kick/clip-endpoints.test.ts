@@ -25,15 +25,17 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 // Guards: Kick clip responses construct the current public page URL instead of trusting legacy media fields
 // Guards: Kick clip listing degrades to empty results for missing channels and transport failures
+// Guards: Category Clip discovery uses Kick's native Category slug, sort, range, and cursor route.
 describe("clip-endpoints — getClipsByChannelSlug", () => {
   let getClipsByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByChannelSlug;
+  let getClipsByCategorySlug: typeof import("@/backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByCategorySlug;
 
   beforeEach(async () => {
     vi.resetModules();
     mockNetFetch.mockReset();
     // Default: return empty clips
     mockNetFetch.mockResolvedValue(jsonResponse({ clips: [] }));
-    ({ getClipsByChannelSlug } = await import(
+    ({ getClipsByChannelSlug, getClipsByCategorySlug } = await import(
       "@/backend/api/platforms/kick/endpoints/clip-endpoints"
     ));
   });
@@ -227,5 +229,25 @@ describe("clip-endpoints — getClipsByChannelSlug", () => {
 
     const options = mockNetFetch.mock.calls[0][1] as Record<string, unknown>;
     expect(options.signal).toBeDefined();
+  });
+
+  it("requests native Category Clips with the selected sort, range, and cursor", async () => {
+    await getClipsByCategorySlug("just-chatting", {
+      limit: 20,
+      cursor: "next-page",
+      sort: "views",
+      timeRange: "week",
+    });
+
+    expect(mockNetFetch).toHaveBeenCalledTimes(1);
+    expect(mockNetFetch.mock.calls[0][0]).toBe(
+      "https://kick.com/api/v2/categories/just-chatting/clips?cursor=next-page&limit=20&sort=view&time=week"
+    );
+  });
+
+  it("rejects Category Clip transport failures so IPC can distinguish unavailable from empty", async () => {
+    mockNetFetch.mockResolvedValueOnce(new Response("", { status: 503 }));
+
+    await expect(getClipsByCategorySlug("just-chatting")).rejects.toThrow("Status 503");
   });
 });

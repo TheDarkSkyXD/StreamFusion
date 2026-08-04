@@ -1,0 +1,9 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:101
+#EXT-X-PROGRAM-DATE-TIME:2026-01-01T00:00:40.000Z
+#EXTINF:2.000,live
+https://video-weaver.synthetic.invalid/v1/segment/live-101.ts
+#EXTINF:2.000,live
+https://video-weaver.synthetic.invalid/v1/segment/live-102.ts

@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ChatMessage as ChatMessageRow } from "@/components/chat/ChatMessage";
 import type { ChatSendEligibility } from "@/components/chat/chat-send-eligibility";
 import {
@@ -47,6 +48,7 @@ export interface UserPopoutPublicActions {
   /** Null means the guest viewer must not be offered Reply. */
   replyEligibility: ChatSendEligibility | null;
   onReply: (message: ChatMessage) => void;
+  onCopyToChat?: (message: string) => void;
   onViewChannel: (
     platform: "twitch" | "kick",
     channel: { id: string; username: string; displayName: string }
@@ -513,12 +515,18 @@ export function UserPopout({
                 onClick={() => {
                   void navigator.clipboard
                     .writeText(selectedVisibleContent)
-                    .then(() => setCopyStatus("copied"))
-                    .catch(() => setCopyStatus("failed"));
+                    .then(() => {
+                      setCopyStatus("copied");
+                      toast.success("Message copied");
+                    })
+                    .catch(() => {
+                      setCopyStatus("failed");
+                      toast.error("Couldn’t copy message");
+                    });
                 }}
               >
                 <Copy className="h-4 w-4" aria-hidden />
-                Copy
+                Copy message
               </button>
             ) : null}
             <span className="sr-only" aria-live="polite">
@@ -528,6 +536,18 @@ export function UserPopout({
                   ? "Couldn’t copy message"
                   : ""}
             </span>
+            {selectedVisibleContent !== null &&
+            publicActions?.replyEligibility &&
+            publicActions.onCopyToChat ? (
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                onClick={() => publicActions.onCopyToChat?.(selectedVisibleContent)}
+              >
+                <MessageSquareText className="h-4 w-4" aria-hidden />
+                Copy message to chat
+              </button>
+            ) : null}
             <button
               type="button"
               className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-white opacity-50"

@@ -66,6 +66,9 @@ describe("persistent player playback ownership", () => {
   beforeEach(() => {
     routerState.pathname = "/following";
     const electronAPI = installElectronAPIMock();
+    electronAPI.localCaptions.onModelState = vi.fn(() => vi.fn());
+    electronAPI.localCaptions.onRecognizerState = vi.fn(() => vi.fn());
+    electronAPI.localCaptions.onResult = vi.fn(() => vi.fn());
     getPlaybackUrlMock
       .mockReset()
       .mockResolvedValueOnce({

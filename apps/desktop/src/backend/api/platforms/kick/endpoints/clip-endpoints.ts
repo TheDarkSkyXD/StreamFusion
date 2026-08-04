@@ -5,6 +5,32 @@ import {
   type PaginationOptions,
 } from "../kick-types";
 
+async function fetchLegacyClipPage(url: string): Promise<{
+  clips: KickLegacyApiClip[];
+  cursor?: string;
+}> {
+  const { net } = require("electron");
+  const response = await net.fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Referer: "https://kick.com/",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (response.status === 404) return { clips: [] };
+  if (!response.ok) throw new Error(`Status ${response.status}`);
+
+  const data = await response.json();
+  return {
+    clips: data.clips || [],
+    cursor: data.nextCursor?.toString(),
+  };
+}
+
 /**
  * Get clips by channel slug using legacy API v2
  */
@@ -13,7 +39,6 @@ export async function getClipsByChannelSlug(
   options: PaginationOptions = {}
 ): Promise<PaginatedResult<any>> {
   try {
-    const { net } = require("electron");
     const limit = options.limit || 20;
     const cursor = options.cursor || 0; // V2 often uses cursor/offset
     // Map sort option: 'views' -> 'view', 'date' -> 'date' (Kick API uses 'view' not 'views')
@@ -21,34 +46,12 @@ export async function getClipsByChannelSlug(
 
     const url = `${KICK_LEGACY_API_V2_BASE}/channels/${slug}/clips?cursor=${cursor}&limit=${limit}&sort=${sortParam}`;
 
-    // Without this, hung connections wait ~21s for Chromium's TCP timeout
-    // before surfacing as ERR_CONNECTION_TIMED_OUT, blocking the Clips tab.
-    const response = await net.fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Referer: "https://kick.com/",
-        "X-Requested-With": "XMLHttpRequest",
-      },
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (response.status === 404) {
-      return { data: [] };
-    }
-    if (!response.ok) {
-      throw new Error(`Status ${response.status}`);
-    }
-    const data = await response.json();
-
     // Response shape: { clips: [...], nextCursor: ... }.
     // Trust Kick's nextCursor as the source of truth: Kick caps responses at
     // ~20 clips regardless of the requested `limit`, so `clips.length >= limit`
     // is an unreliable "end of stream" signal. If Kick returned a cursor,
     // there's more upstream.
-    const clips = data.clips || [];
-    const nextCursor = data.nextCursor ?? undefined;
+    const { clips, cursor: nextCursor } = await fetchLegacyClipPage(url);
     const publicChannelPath = encodeURIComponent(slug);
 
     return {
@@ -74,7 +77,7 @@ export async function getClipsByChannelSlug(
           channelSlug: c.channel?.slug || "",
         };
       }),
-      cursor: nextCursor?.toString(),
+      cursor: nextCursor,
     };
   } catch (_error) {
     // console.warn(`Failed to fetch clips for ${slug}:`, error);
@@ -82,6 +85,50 @@ export async function getClipsByChannelSlug(
     // But for now assume v2 works as per observations.
     return { data: [] };
   }
+}
+
+/** Get clips from Kick's legacy native Category feed. */
+export async function getClipsByCategorySlug(
+  categorySlug: string,
+  options: PaginationOptions = {}
+): Promise<PaginatedResult<any>> {
+  const limit = options.limit || 20;
+  const cursor = options.cursor || 0;
+  const sortParam = options.sort === "views" ? "view" : "date";
+  const timeParam = options.timeRange || "all";
+  const url = `${KICK_LEGACY_API_V2_BASE}/categories/${encodeURIComponent(categorySlug)}/clips?cursor=${encodeURIComponent(String(cursor))}&limit=${limit}&sort=${sortParam}&time=${timeParam}`;
+  const page = await fetchLegacyClipPage(url);
+
+  return {
+      data: page.clips.map((clip: KickLegacyApiClip) => {
+        const channelSlug = clip.channel?.slug || "";
+        const publicClipUrl = `https://kick.com/${encodeURIComponent(channelSlug)}/clips/${encodeURIComponent(clip.id)}`;
+
+        return {
+          id: clip.id,
+          title: clip.title,
+          duration: formatDuration(clip.duration),
+          views: clip.views?.toString() || clip.view_count?.toString() || "0",
+          date: new Date(clip.created_at).toLocaleDateString(),
+          created_at: clip.created_at,
+          creatorName: clip.creator?.username || clip.creator?.slug || "",
+          embedUrl: clip.video_url,
+          url: publicClipUrl,
+          shareUrl: publicClipUrl,
+          gameId: clip.category?.id?.toString() || "",
+          gameName: clip.category?.name || "Unknown",
+          category: clip.category?.name || "Unknown",
+          thumbnailUrl: clip.thumbnail_url,
+          vodId: clip.livestream_id || "",
+          channelId: clip.channel_id?.toString() || clip.channel?.id?.toString() || "",
+          channelName: channelSlug,
+          channelDisplayName: clip.channel?.username || channelSlug,
+          channelAvatar: clip.channel?.profile_pic || "",
+          platform: "kick",
+        };
+      }),
+      cursor: page.cursor,
+    };
 }
 
 function formatDuration(seconds: number): string {

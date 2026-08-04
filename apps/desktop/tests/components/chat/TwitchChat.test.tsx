@@ -362,6 +362,7 @@ const fakePrediction = {
 // Guards: Twitch chat loads badges with the watched channel id, not the signed-in user's id, so channel subscriber badges resolve for other broadcasters.
 // Guards: Twitch singleton message events from a previous channel are ignored after route-switch so old channel badges/messages cannot leak into the new channel bucket.
 // Guards: Twitch chat force-refreshes the active channel's badge catalog so custom subscriber badge updates appear without restarting the app.
+// Guards: restored Twitch sessions hand IRC the guarded token bridge at startup and re-query it before reconnecting, without publishing chat.
 // Guards: anonymous Twitch chat loads non-forced global emotes before joining so the guest quick-emote row is populated.
 // Guards: Twitch channel.moderate delete notifications attach the deleting moderator to retained deleted-message rows; IRC CLEARMSG alone cannot provide that actor.
 // Guards: the full-width composer footer paints above the message scroller so chat text cannot show behind its quick-emote row or padding.
@@ -463,6 +464,7 @@ describe("TwitchChat", () => {
     mockModScopes.loading = false;
     promptReconnectMock.mockReset();
     vi.mocked(twitchChatService.connect).mockClear();
+    vi.mocked(twitchChatService.sendMessage).mockClear();
     vi.mocked(twitchChatService.loadChannelBadges).mockClear();
     vi.mocked(twitchChatService.joinChannel).mockClear();
     vi.mocked(getTwitchEventSubClient).mockClear();
@@ -566,6 +568,38 @@ describe("TwitchChat", () => {
     await waitFor(() => expect(twitchChatService.loadChannelBadges).toHaveBeenCalled());
     expect(twitchChatService.loadChannelBadges).toHaveBeenCalledWith("ninja", "ninja-id");
     expect(twitchChatService.loadChannelBadges).not.toHaveBeenCalledWith("ninja", "mod-1");
+  });
+
+  it("uses the guarded token bridge for restored Twitch IRC auth and reconnects", async () => {
+    const restoredAccessToken = "opaque-restored-twitch-access-token";
+    const restoredUser = {
+      id: "restored-user-opaque-id",
+      login: "restored_login",
+      displayName: "Restored User",
+    };
+    const api = installElectronAPIMock();
+    mockAuthState.twitchConnected = true;
+    api.auth.getValidTwitchToken = vi.fn(async () => restoredAccessToken);
+    api.auth.getTwitchUser = vi.fn(async () => restoredUser);
+
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() => expect(twitchChatService.connect).toHaveBeenCalledTimes(1));
+    const connectOptions = vi.mocked(twitchChatService.connect).mock.calls[0]?.[0];
+    expect(connectOptions).toEqual(
+      expect.objectContaining({
+        accessToken: restoredAccessToken,
+        user: restoredUser,
+        tokenFetcher: expect.any(Function),
+      })
+    );
+
+    const tokenFetcher = connectOptions?.tokenFetcher;
+    if (!tokenFetcher) throw new Error("Expected restored IRC auth to include a token fetcher");
+    expect(api.auth.getValidTwitchToken).toHaveBeenCalledOnce();
+    await expect(tokenFetcher()).resolves.toBe(restoredAccessToken);
+    expect(api.auth.getValidTwitchToken).toHaveBeenCalledTimes(2);
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
   });
 
   it("force-refreshes active Twitch channel badges on an interval", () => {

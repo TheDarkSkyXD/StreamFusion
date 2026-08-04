@@ -52,6 +52,16 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   }));
 }
 
+function setLegacyChatDisplay(chatDisplay: Partial<ChatDisplayPreferences>) {
+  useAuthStore.setState((state) => ({
+    ...state,
+    preferences: {
+      ...(state.preferences ?? {}),
+      chatDisplay,
+    } as typeof state.preferences,
+  }));
+}
+
 function makeStoredMessage(id: string, channel: string, rawContent: string): ChatMessage {
   return {
     id,
@@ -72,6 +82,7 @@ function makeStoredMessage(id: string, channel: string, rawContent: string): Cha
   };
 }
 
+// Guards: legacy partial chat preferences still default recent-message history on before live Twitch chat joins.
 describe('seedTwitchChatHistory (U5 recent-messages-on-join)', () => {
   // biome-ignore lint/suspicious/noExplicitAny: test IPC surface.
   let api: any;
@@ -99,6 +110,24 @@ describe('seedTwitchChatHistory (U5 recent-messages-on-join)', () => {
     expect(prepend).toHaveBeenCalledTimes(1);
     expect(prepend.mock.calls[0][0]).toBe(buildChannelKey('twitch', 'ninja'));
     expect(prepend.mock.calls[0][1]).toHaveLength(5);
+  });
+
+  it('seeds history when legacy saved preferences omit the recent-messages toggle', async () => {
+    setLegacyChatDisplay({ timestamps: true });
+    api.chat.getTwitchHistory = vi.fn(async () => ({
+      success: true,
+      data: { rawMessages: makeRawMessages(2) },
+    }));
+    const prepend = vi.fn();
+
+    await seedTwitchChatHistory({
+      channel: 'ninja',
+      isMounted: () => true,
+      prependMessages: prepend,
+    });
+
+    expect(api.chat.getTwitchHistory).toHaveBeenCalledTimes(1);
+    expect(prepend.mock.calls[0][1]).toHaveLength(2);
   });
 
   it('does not fetch or seed when recentMessagesOnJoin is false', async () => {

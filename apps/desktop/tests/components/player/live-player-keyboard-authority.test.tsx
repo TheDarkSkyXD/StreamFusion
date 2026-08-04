@@ -8,8 +8,10 @@ import { TwitchVodPlayer } from "@/components/player/twitch/twitch-vod-player";
 
 const h = vi.hoisted(() => ({
   kickReady: null as null | (() => void),
+  kickControlProps: null as null | Record<string, unknown>,
   twitchReady: null as null | (() => void),
   twitchAudioProps: null as null | { muted?: boolean; volume?: number },
+  twitchControlProps: null as null | Record<string, unknown>,
   twitchVodReady: null as null | (() => void),
 }));
 
@@ -39,10 +41,16 @@ vi.mock("@/hooks/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn(
 vi.mock("@/store/adblock-store", () => ({ useAdBlockStore: () => false }));
 vi.mock("@/components/player/kick/uptime-readout", () => ({ UptimeReadout: () => null }));
 vi.mock("@/components/player/kick/kick-live-player-controls", () => ({
-  KickLivePlayerControls: () => null,
+  KickLivePlayerControls: (props: Record<string, unknown>) => {
+    h.kickControlProps = props;
+    return null;
+  },
 }));
 vi.mock("@/components/player/twitch/twitch-live-player-controls", () => ({
-  TwitchLivePlayerControls: () => null,
+  TwitchLivePlayerControls: (props: Record<string, unknown>) => {
+    h.twitchControlProps = props;
+    return null;
+  },
 }));
 vi.mock("@/components/player/twitch/ad-block-fallback-overlay", () => ({
   AdBlockFallbackOverlay: () => null,
@@ -91,6 +99,7 @@ function pressKey(key: string, target?: HTMLElement) {
   const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
   if (target) Object.defineProperty(event, "target", { value: target });
   window.dispatchEvent(event);
+  return event;
 }
 
 function installPlaybackSpies(video: HTMLVideoElement) {
@@ -164,6 +173,57 @@ describe.each([
     expect(pause).toHaveBeenCalledTimes(1);
   });
 });
+
+// Guards: live players leave left/right arrows unconsumed and expose no configurable seek authority.
+describe.each([
+  [
+    "Kick",
+    () => <KickLivePlayer streamUrl="https://example.test/kick.m3u8" />,
+    () => h.kickReady,
+    () => h.kickControlProps,
+  ],
+  [
+    "Twitch",
+    () => (
+      <TwitchLivePlayer
+        streamUrl="https://usher.ttvnw.net/api/channel/hls/example.m3u8"
+        channelName="example"
+      />
+    ),
+    () => h.twitchReady,
+    () => h.twitchControlProps,
+  ],
+] as const)(
+  "%s live player seek exclusion",
+  (_platform, renderPlayer, getReady, getControlProps) => {
+    it("does not expose or consume configurable seek actions", async () => {
+      const { getByTestId } = render(renderPlayer());
+      const video = getByTestId("live-video") as HTMLVideoElement;
+      video.currentTime = 120;
+
+      await waitFor(() => expect(getReady()).toBeTypeOf("function"));
+      act(() => getReady()?.());
+
+      let arrowLeft!: KeyboardEvent;
+      let arrowRight!: KeyboardEvent;
+      act(() => {
+        arrowLeft = pressKey("ArrowLeft");
+        arrowRight = pressKey("ArrowRight");
+      });
+
+      expect(video.currentTime).toBe(120);
+      expect(arrowLeft.defaultPrevented).toBe(false);
+      expect(arrowRight.defaultPrevented).toBe(false);
+
+      const controlProps = getControlProps();
+      expect(controlProps).not.toBeNull();
+      expect(controlProps).not.toHaveProperty("seekBackwardSeconds");
+      expect(controlProps).not.toHaveProperty("seekForwardSeconds");
+      expect(controlProps).not.toHaveProperty("onSeekBackward");
+      expect(controlProps).not.toHaveProperty("onSeekForward");
+    });
+  }
+);
 
 // Guards: ready Kick and Twitch VOD players retain Space/K playback shortcuts.
 // Guards: Space on a focused unrelated control cannot also toggle VOD playback.

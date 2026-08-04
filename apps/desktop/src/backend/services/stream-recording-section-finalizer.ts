@@ -107,6 +107,10 @@ export async function cleanupRecordingSectionPaths(paths: string[]): Promise<voi
   await Promise.allSettled(paths.map((filePath) => removeIfPresent(filePath)));
 }
 
+export async function deleteRecordingArtifactPaths(paths: string[]): Promise<void> {
+  await Promise.all(paths.map((filePath) => removeIfPresent(filePath)));
+}
+
 export async function createStreamRecordingArtifactIdentity(
   filePath: string
 ): Promise<StreamRecordingArtifactIdentity> {

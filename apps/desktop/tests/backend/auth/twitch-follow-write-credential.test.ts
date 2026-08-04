@@ -15,6 +15,34 @@ function pendingPromise(): Promise<void> {
 // Guards: Twitch follow writes must authorize the Switch/Xtra client through the standard
 // activation page, without exposing its device code through renderer IPC or logs.
 describe("Twitch follow-write credential", () => {
+  it("returns the account identity validated for the write credential", async () => {
+    const storage = {
+      get: vi.fn(() => ({ accessToken: "stored-follow-token" })),
+      save: vi.fn(),
+      clear: vi.fn(),
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          client_id: TWITCH_FOLLOW_WRITE_CLIENT_ID,
+          user_id: "write-account-42",
+          scopes: ["user_follows_edit"],
+        }),
+        { status: 200 }
+      )
+    );
+    const service = new TwitchFollowWriteCredentialService({
+      storage,
+      fetch: fetchMock,
+    });
+
+    await expect(service.getCredential()).resolves.toEqual({
+      clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID,
+      accessToken: "stored-follow-token",
+      userId: "write-account-42",
+    });
+  });
+
   it("prefills Twitch activation and polls until the device credential is authorized", async () => {
     const storage = { get: vi.fn(() => null), save: vi.fn(), clear: vi.fn() };
     const activationWindow = { closed: pendingPromise(), close: vi.fn() };
@@ -55,6 +83,7 @@ describe("Twitch follow-write credential", () => {
         new Response(
           JSON.stringify({
             client_id: TWITCH_FOLLOW_WRITE_CLIENT_ID,
+            user_id: "write-account-42",
             scopes: ["user_follows_edit"],
           }),
           { status: 200 }
@@ -70,30 +99,25 @@ describe("Twitch follow-write credential", () => {
     await expect(service.getCredential()).resolves.toEqual({
       clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID,
       accessToken: "xtra-device-token",
+      userId: "write-account-42",
     });
-    expect(openActivationWindow).toHaveBeenCalledWith(
-      "https://www.twitch.tv/activate",
-      "ABCD1234"
-    );
+    expect(openActivationWindow).toHaveBeenCalledWith("https://www.twitch.tv/activate", "ABCD1234");
     expect(delay).toHaveBeenCalledWith(1_000);
     expect(activationWindow.close).toHaveBeenCalledOnce();
     expect(storage.save).toHaveBeenCalledWith(
       expect.objectContaining({ accessToken: "xtra-device-token" })
     );
 
-    const fetchCalls = fetchMock.mock.calls as unknown as Array<[
-      string | URL | Request,
-      RequestInit?,
-    ]>;
+    const fetchCalls = fetchMock.mock.calls as unknown as Array<
+      [string | URL | Request, RequestInit?]
+    >;
     const deviceBody = String(fetchCalls[0][1]?.body);
     expect(deviceBody).toContain(
       "scopes=channel_read+chat%3Aread+user_blocks_edit+user_blocks_read+user_follows_edit+user_read"
     );
     const tokenBody = new URLSearchParams(String(fetchCalls[1][1]?.body));
     expect(tokenBody.get("device_code")).toBe("device-1");
-    expect(tokenBody.get("grant_type")).toBe(
-      "urn:ietf:params:oauth:grant-type:device_code"
-    );
+    expect(tokenBody.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:device_code");
   });
 
   it("shares one activation window across concurrent follow clicks", async () => {
@@ -120,6 +144,7 @@ describe("Twitch follow-write credential", () => {
         new Response(
           JSON.stringify({
             client_id: TWITCH_FOLLOW_WRITE_CLIENT_ID,
+            user_id: "write-account-42",
             scopes: ["user_follows_edit"],
           }),
           { status: 200 }
@@ -147,8 +172,16 @@ describe("Twitch follow-write credential", () => {
     );
 
     await expect(Promise.all([firstClick, secondClick])).resolves.toEqual([
-      { clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID, accessToken: "shared-token" },
-      { clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID, accessToken: "shared-token" },
+      {
+        clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID,
+        accessToken: "shared-token",
+        userId: "write-account-42",
+      },
+      {
+        clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID,
+        accessToken: "shared-token",
+        userId: "write-account-42",
+      },
     ]);
     expect(openActivationWindow).toHaveBeenCalledOnce();
     expect(storage.save).toHaveBeenCalledOnce();
@@ -240,9 +273,7 @@ describe("Twitch follow-write credential", () => {
           { status: 200 }
         )
       )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "slow_down" }), { status: 400 })
-      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "slow_down" }), { status: 400 }))
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -257,6 +288,7 @@ describe("Twitch follow-write credential", () => {
         new Response(
           JSON.stringify({
             client_id: TWITCH_FOLLOW_WRITE_CLIENT_ID,
+            user_id: "write-account-42",
             scopes: ["user_follows_edit"],
           }),
           { status: 200 }
@@ -272,6 +304,7 @@ describe("Twitch follow-write credential", () => {
     await expect(service.getCredential()).resolves.toEqual({
       clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID,
       accessToken: "token-after-slow-down",
+      userId: "write-account-42",
     });
     expect(delay).toHaveBeenCalledWith(6_000);
   });

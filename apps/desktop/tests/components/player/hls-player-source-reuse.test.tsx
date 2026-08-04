@@ -12,6 +12,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Guards: Quality selection changes must not reload the same HLS source during startup.
  * Guards: VOD/clip playback uses a stability-first HLS config instead of the low-latency live config.
  * Guards: HLS listeners are registered before source loading starts so cached VOD manifests cannot fire readiness events before the player hears them.
+ * Guards: the main live player applies Highest to the parsed manifest before startup can remain on a lower rendition.
+ * Guards: quality controls receive the actual HLS level after startup and recovery switches.
+ * Guards: Kick manifest refresh and recovery recompute semantic Highest instead of retaining a stale level index.
+ * Guards: late dock quality authority applies against an already-parsed manifest once, while mini and return preserve the existing session.
  */
 
 const fakeHlsModule = vi.hoisted(() => {
@@ -134,6 +138,111 @@ describe("HlsPlayer source reuse (slice 09)", () => {
     expect(hls.loadSource).toHaveBeenCalledTimes(1);
     expect(hls.attachMedia).toHaveBeenCalledTimes(1);
     expect(hls.currentLevel).toBe(0);
+  });
+
+  it("applies Highest to Source as soon as the live manifest is parsed", () => {
+    render(
+      <HlsPlayer
+        src="https://x.test/live.m3u8"
+        isLive
+        currentLevel="auto"
+        preferredQuality="highest"
+      />
+    );
+    const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
+    const levels = [
+      { width: 1280, height: 720, bitrate: 3_000_000, name: "720p60" },
+      { width: 1920, height: 1080, bitrate: 6_000_000, name: "1080p60 (Source)" },
+      { width: 852, height: 480, bitrate: 1_500_000, name: "480p" },
+    ];
+    hls.levels = levels;
+    const manifestHandler = hls.on.mock.calls.find(
+      ([event]) => event === fakeHlsModule.FakeHls.Events.MANIFEST_PARSED
+    )?.[1] as ((event: string, data: { levels: typeof levels }) => void) | undefined;
+
+    act(() => manifestHandler?.(fakeHlsModule.FakeHls.Events.MANIFEST_PARSED, { levels }));
+
+    expect(hls.currentLevel).toBe(1);
+  });
+
+  it("publishes the actual active HLS level after a level switch", () => {
+    const onActiveQualityChange = vi.fn();
+    render(
+      <HlsPlayer
+        src="https://x.test/live.m3u8"
+        isLive
+        onActiveQualityChange={onActiveQualityChange}
+      />
+    );
+    const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
+    const levelSwitchHandler = hls.on.mock.calls.find(
+      ([event]) => event === fakeHlsModule.FakeHls.Events.LEVEL_SWITCHED
+    )?.[1] as ((event: string, data: { level: number }) => void) | undefined;
+
+    act(() => levelSwitchHandler?.(fakeHlsModule.FakeHls.Events.LEVEL_SWITCHED, { level: 2 }));
+
+    expect(onActiveQualityChange).toHaveBeenCalledWith("2");
+  });
+
+  it("reapplies Highest across Kick fallback and recovery manifests", () => {
+    render(
+      <HlsPlayer
+        src="https://x.test/live.m3u8"
+        isLive
+        currentLevel="auto"
+        preferredQuality="highest"
+      />
+    );
+    const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
+    const manifestHandler = hls.on.mock.calls.find(
+      ([event]) => event === fakeHlsModule.FakeHls.Events.MANIFEST_PARSED
+    )?.[1] as
+      ((event: string, data: { levels: Array<Record<string, unknown>> }) => void) | undefined;
+    const emitManifest = (levels: Array<Record<string, unknown>>) => {
+      hls.levels = levels;
+      act(() => manifestHandler?.(fakeHlsModule.FakeHls.Events.MANIFEST_PARSED, { levels }));
+    };
+
+    emitManifest([
+      { width: 1280, height: 720, bitrate: 3_000_000, name: "720p60" },
+      { width: 1920, height: 1080, bitrate: 6_000_000, name: "1080p60 (Source)" },
+    ]);
+    expect(hls.currentLevel).toBe(1);
+    emitManifest([
+      { width: 1280, height: 720, bitrate: 3_000_000, name: "720p60" },
+      { width: 640, height: 360, bitrate: 800_000, name: "360p" },
+    ]);
+    expect(hls.currentLevel).toBe(0);
+    emitManifest([
+      { width: 852, height: 480, bitrate: 1_500_000, name: "480p" },
+      { width: 1920, height: 1080, bitrate: 6_000_000, name: "1080p60 (Source)" },
+    ]);
+    expect(hls.currentLevel).toBe(1);
+  });
+
+  it("applies late dock quality authority without reloading or resetting the session", () => {
+    const { rerender } = render(<HlsPlayer src="https://x.test/live.m3u8" isLive />);
+    const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
+    const levels = [
+      { width: 1280, height: 720, bitrate: 3_000_000, name: "720p60" },
+      { width: 1920, height: 1080, bitrate: 6_000_000, name: "1080p60 (Source)" },
+    ];
+    hls.levels = levels;
+    const manifestHandler = hls.on.mock.calls.find(
+      ([event]) => event === fakeHlsModule.FakeHls.Events.MANIFEST_PARSED
+    )?.[1] as ((event: string, data: { levels: typeof levels }) => void) | undefined;
+    act(() => manifestHandler?.(fakeHlsModule.FakeHls.Events.MANIFEST_PARSED, { levels }));
+    expect(hls.currentLevel).toBe(-1);
+
+    rerender(<HlsPlayer src="https://x.test/live.m3u8" isLive preferredQuality="highest" />);
+    expect(hls.currentLevel).toBe(1);
+    expect(hls.loadSource).toHaveBeenCalledTimes(1);
+
+    hls.currentLevel = 0;
+    rerender(<HlsPlayer src="https://x.test/live.m3u8" isLive />);
+    rerender(<HlsPlayer src="https://x.test/live.m3u8" isLive preferredQuality="highest" />);
+    expect(hls.currentLevel).toBe(0);
+    expect(hls.loadSource).toHaveBeenCalledTimes(1);
   });
 
   it("destroys the HLS instance on unmount", () => {

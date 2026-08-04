@@ -7,6 +7,7 @@
 
 import type {
   AuthToken,
+  KickAccountFollowWriteRequest,
   KickUser,
   LocalFollow,
   Platform,
@@ -15,6 +16,11 @@ import type {
   UserPreferences,
 } from "./auth-types";
 import type { SubscriberEligibilityRequest } from "./chat-types";
+import type {
+  CancelChatReplayWindowRequest,
+  ChatReplayIpcWindowRequest,
+} from "./chat-replay-types";
+import type { CategoryClipsRequest, CategoryVideosRequest } from "./category-media-types";
 import type { ClipDownloadRequest, VideoDownloadRequest } from "./download-types";
 import type { LocalCaptionPcmChunk, LocalCaptionSessionIdentity } from "./local-caption-types";
 import type { SlotQualityMode } from "./slot-types";
@@ -148,6 +154,9 @@ export const IPC_CHANNELS = {
   FOLLOWS_IS_FOLLOWING: "follows:is-following",
   FOLLOWS_IMPORT: "follows:import",
   FOLLOWS_CLEAR: "follows:clear",
+  FOLLOWS_GET_ACCOUNT_WRITES: "follows:get-account-writes",
+  FOLLOWS_WRITE_ACCOUNT: "follows:write-account",
+  FOLLOWS_ACCOUNT_WRITE_CHANGED: "follows:account-write-changed",
 
   // User Preferences
   PREFERENCES_GET: "preferences:get",
@@ -197,9 +206,13 @@ export const IPC_CHANNELS = {
   VIDEOS_GET_METADATA: "videos:get-metadata",
   VIDEOS_GET_PLAYBACK_URL: "videos:get-playback-url",
   VIDEOS_GET_BY_CHANNEL: "videos:get-by-channel",
+  VIDEOS_GET_BY_CATEGORY: "videos:get-by-category",
+  VIDEOS_GET_CHAT_REPLAY_WINDOW: "videos:get-chat-replay-window",
+  VIDEOS_CANCEL_CHAT_REPLAY_WINDOW: "videos:cancel-chat-replay-window",
 
   // ========== Discovery: Clips ==========
   CLIPS_GET_BY_CHANNEL: "clips:get-by-channel",
+  CLIPS_GET_BY_CATEGORY: "clips:get-by-category",
   CLIPS_GET_PLAYBACK_URL: "clips:get-playback-url",
 
   // ========== Downloads ==========
@@ -220,6 +233,7 @@ export const IPC_CHANNELS = {
   STREAM_RECORDING_GET_STATE: "stream-recording:get-state",
   STREAM_RECORDING_START: "stream-recording:start",
   STREAM_RECORDING_STOP: "stream-recording:stop",
+  STREAM_RECORDING_DISCARD: "stream-recording:discard",
   STREAM_RECORDING_PAUSE: "stream-recording:pause",
   STREAM_RECORDING_RESUME: "stream-recording:resume",
   STREAM_RECORDING_RESUME_INTERRUPTED: "stream-recording:resume-interrupted",
@@ -455,6 +469,7 @@ export interface IpcPayloads {
   [IPC_CHANNELS.FOLLOWS_UPDATE]: { id: string; updates: Partial<LocalFollow> };
   [IPC_CHANNELS.FOLLOWS_IS_FOLLOWING]: { platform: Platform; channelId: string };
   [IPC_CHANNELS.FOLLOWS_IMPORT]: { follows: LocalFollow[] };
+  [IPC_CHANNELS.FOLLOWS_WRITE_ACCOUNT]: KickAccountFollowWriteRequest;
 
   // Preferences
   [IPC_CHANNELS.PREFERENCES_UPDATE]: { updates: Partial<UserPreferences> };
@@ -483,9 +498,18 @@ export interface IpcPayloads {
   [IPC_CHANNELS.DOWNLOADS_OPEN_FILE]: { id: string };
   [IPC_CHANNELS.DOWNLOADS_DELETE_FILE]: { id: string };
 
+  // Chat Replay
+  [IPC_CHANNELS.VIDEOS_GET_CHAT_REPLAY_WINDOW]: ChatReplayIpcWindowRequest;
+  [IPC_CHANNELS.VIDEOS_CANCEL_CHAT_REPLAY_WINDOW]: CancelChatReplayWindowRequest;
+
+  // Category media
+  [IPC_CHANNELS.CLIPS_GET_BY_CATEGORY]: CategoryClipsRequest;
+  [IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY]: CategoryVideosRequest;
+
   // Stream Recording
   [IPC_CHANNELS.STREAM_RECORDING_START]: StreamRecordingRequest;
   [IPC_CHANNELS.STREAM_RECORDING_STOP]: { sessionId: string };
+  [IPC_CHANNELS.STREAM_RECORDING_DISCARD]: { sessionId: string };
   [IPC_CHANNELS.STREAM_RECORDING_PAUSE]: { sessionId: string };
   [IPC_CHANNELS.STREAM_RECORDING_RESUME]: { sessionId: string };
   [IPC_CHANNELS.STREAM_RECORDING_RESUME_INTERRUPTED]: { sessionId: string };

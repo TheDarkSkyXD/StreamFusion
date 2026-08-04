@@ -14,6 +14,17 @@
 
 import { logger } from "@/renderer/logging/logger";
 import {
+  createTwitchPlaylistAdDetector,
+  type TwitchPlaylistAdDetection,
+} from "@/lib/twitch-playlist-ad-detection";
+import {
+  findTwitchPlaylistAlignment,
+  keepTwitchRenditionResolution,
+  rankTwitchRenditionCandidates,
+  rankTwitchRenditions,
+  type TwitchRendition,
+} from "@/lib/twitch-rendition-continuity";
+import {
   type AccessTokenResponse,
   type AdBlockConfig,
   type AdBlockStatus,
@@ -41,6 +52,29 @@ const streamInfos = new Map<string, StreamInfo>();
  */
 const streamInfosByUrl = new Map<string, StreamInfo>();
 
+const playlistAdDetector = createTwitchPlaylistAdDetector();
+const detectionScopesByChannel = new Map<string, Set<string>>();
+
+interface PreparedBackup {
+  playerType: PlayerType;
+  rendition: TwitchRendition;
+  playlist: string;
+}
+
+interface RenditionSwitchState {
+  candidatePromise: Promise<void> | null;
+  readyCandidate: PreparedBackup | null;
+  servedBackup: PreparedBackup | null;
+  consecutiveMisses: number;
+  nextRetryAt: number;
+}
+
+const renditionSwitchStates = new Map<string, RenditionSwitchState>();
+const backupMasterPromises = new Map<string, Promise<BackupMaster[]>>();
+
+const BACKUP_MISS_RETRY_BASE_MS = 2_000;
+const BACKUP_MISS_RETRY_MAX_MS = 10_000;
+
 const missingResolutionFallbackLoggedChannels = new Set<string>();
 
 /**
@@ -52,6 +86,7 @@ let config: AdBlockConfig = { ...DEFAULT_ADBLOCK_CONFIG };
  * Status change callback
  */
 let onStatusChange: ((status: AdBlockStatus) => void) | null = null;
+const statusChangeSubscribers = new Map<string, Set<(status: AdBlockStatus) => void>>();
 
 /**
  * GQL Device ID for access token requests
@@ -161,6 +196,25 @@ function findResolutionInfoForMediaUrl(streamInfo: StreamInfo, url: string): Res
   return null;
 }
 
+function getRenditionScope(streamInfo: StreamInfo, resolution: ResolutionInfo): string {
+  return `${streamInfo.channelName}:${resolution.resolution}:${resolution.frameRate}:${resolution.bandwidth}:${resolution.codecs}`;
+}
+
+function getRenditionSwitchState(scope: string): RenditionSwitchState {
+  let state = renditionSwitchStates.get(scope);
+  if (!state) {
+    state = {
+      candidatePromise: null,
+      readyCandidate: null,
+      servedBackup: null,
+      consecutiveMisses: 0,
+      nextRetryAt: 0,
+    };
+    renditionSwitchStates.set(scope, state);
+  }
+  return state;
+}
+
 // ========== Public API ==========
 
 /**
@@ -186,6 +240,23 @@ export function updateAdBlockConfig(updates: Partial<AdBlockConfig>): void {
  */
 export function setStatusChangeCallback(callback: (status: AdBlockStatus) => void): void {
   onStatusChange = callback;
+}
+
+export function subscribeAdBlockStatus(
+  channelName: string,
+  callback: (status: AdBlockStatus) => void
+): () => void {
+  const channel = channelName.trim().toLowerCase();
+  const subscribers = statusChangeSubscribers.get(channel) ?? new Set();
+  subscribers.add(callback);
+  statusChangeSubscribers.set(channel, subscribers);
+
+  return () => {
+    subscribers.delete(callback);
+    if (subscribers.size === 0) {
+      statusChangeSubscribers.delete(channel);
+    }
+  };
 }
 
 /**
@@ -281,6 +352,7 @@ export function getBlankVideoDataUrl(): string {
  */
 export function clearStreamInfo(channelName: string): void {
   const lowerName = channelName.toLowerCase();
+  backupMasterPromises.delete(lowerName);
   const streamInfo = streamInfos.get(lowerName);
   if (streamInfo) {
     // Clear URL mappings
@@ -289,6 +361,11 @@ export function clearStreamInfo(channelName: string): void {
     });
     streamInfos.delete(lowerName);
     missingResolutionFallbackLoggedChannels.delete(lowerName);
+  }
+  detectionScopesByChannel.get(lowerName)?.forEach((scope) => playlistAdDetector.clear(scope));
+  detectionScopesByChannel.delete(lowerName);
+  for (const scope of renditionSwitchStates.keys()) {
+    if (scope.startsWith(`${lowerName}:`)) renditionSwitchStates.delete(scope);
   }
 
   // Also clear backend manifest proxy's stream info
@@ -312,7 +389,8 @@ export function clearStreamInfo(channelName: string): void {
 export async function processMasterPlaylist(
   url: string,
   text: string,
-  channelName: string
+  channelName: string,
+  playlistBaseUrl: string = url
 ): Promise<string> {
   if (!config.enabled) {
     return text;
@@ -323,6 +401,11 @@ export async function processMasterPlaylist(
 
   const lowerChannel = channelName.toLowerCase();
   let streamInfo = streamInfos.get(lowerChannel);
+
+  if (streamInfo?.encodingsM3U8 && streamInfo.encodingsM3U8 !== text) {
+    clearStreamInfo(lowerChannel);
+    streamInfo = undefined;
+  }
 
   // Extract server time for later replacement
   const serverTime = getServerTimeFromM3u8(text);
@@ -335,9 +418,11 @@ export async function processMasterPlaylist(
         const response = await fetch(firstUrl, { method: "HEAD" });
         if (response.status !== 200) {
           // Cached encodings are dead (stream probably restarted)
+          clearStreamInfo(lowerChannel);
           streamInfo = undefined;
         }
       } catch {
+        clearStreamInfo(lowerChannel);
         streamInfo = undefined;
       }
     }
@@ -345,7 +430,7 @@ export async function processMasterPlaylist(
 
   if (!streamInfo || !streamInfo.encodingsM3U8) {
     // Parse URL params
-    const urlObj = new URL(url);
+    const urlObj = new URL(url, playlistBaseUrl);
     const usherParams = urlObj.search;
 
     // Create new stream info
@@ -354,7 +439,7 @@ export async function processMasterPlaylist(
     streamInfos.set(lowerChannel, streamInfo);
 
     // Parse resolution info from playlist
-    parseResolutionsFromPlaylist(text, streamInfo);
+    parseResolutionsFromPlaylist(text, streamInfo, playlistBaseUrl);
 
     // Check for HEVC and create modified m3u8 if needed
     if (shouldCreateModifiedPlaylist(streamInfo)) {
@@ -395,44 +480,76 @@ function neutralizeTrackingUrls(text: string): string {
  *
  * Uses patterns from DEFAULT_DATERANGE_PATTERNS which are updated by VAFT pattern service
  */
-function detectAds(text: string, streamInfo: StreamInfo): { hasAds: boolean; method: string } {
-  // Primary detection: #EXT-X-DATERANGE with ad indicators (most reliable)
-  if (config.useDateRangeDetection) {
-    if (text.includes("#EXT-X-DATERANGE")) {
-      // Check all known DATERANGE patterns
-      for (const pattern of DEFAULT_DATERANGE_PATTERNS) {
-        if (text.includes(pattern)) {
-          return { hasAds: true, method: "DATERANGE" };
-        }
-      }
-    }
+function detectAds(
+  text: string,
+  streamInfo: StreamInfo,
+  mediaUrl: string
+): TwitchPlaylistAdDetection & { method: string } {
+  const scope = getPlaylistDetectionScope(streamInfo, mediaUrl);
+  let channelScopes = detectionScopesByChannel.get(streamInfo.channelName);
+  if (!channelScopes) {
+    channelScopes = new Set();
+    detectionScopesByChannel.set(streamInfo.channelName, channelScopes);
+  }
+  channelScopes.add(scope);
+
+  const bitrateMatch = text.match(/BANDWIDTH=(\d+)/);
+  const currentBitrate = bitrateMatch ? Number.parseInt(bitrateMatch[1], 10) : null;
+  const detection = playlistAdDetector.analyze(scope, text, {
+    dateRangePatterns: DEFAULT_DATERANGE_PATTERNS,
+    adSignifiers: Array.from(new Set([...DEFAULT_AD_SIGNIFIERS, config.adSignifier])),
+    useDateRangeDetection: config.useDateRangeDetection,
+    bitrate:
+      config.useBitrateDropDetection && streamInfo.lastKnownBitrate && currentBitrate
+        ? {
+            current: currentBitrate,
+            previous: streamInfo.lastKnownBitrate,
+            dropThreshold: config.bitrateDropThreshold,
+          }
+        : undefined,
+  });
+
+  if (detection.verdict !== "clean") {
+    logger.debug("Adblock:TwitchService", "playlist ad classification", {
+      ...detection.diagnostic,
+    });
   }
 
-  // Secondary detection: ad signifiers
-  for (const signifier of DEFAULT_AD_SIGNIFIERS) {
-    if (text.includes(signifier)) {
-      return { hasAds: true, method: "signifier" };
-    }
-  }
+  return { ...detection, method: detection.reasons[0] ?? "none" };
+}
 
-  // Also check configured signifier (backward compatibility)
-  if (text.includes(config.adSignifier)) {
-    return { hasAds: true, method: "stitched" };
-  }
+function getPlaylistDetectionScope(streamInfo: StreamInfo, mediaUrl: string): string {
+  const resolution = findResolutionInfoForMediaUrl(streamInfo, mediaUrl);
+  return resolution
+    ? getRenditionScope(streamInfo, resolution)
+    : `${streamInfo.channelName}:unknown`;
+}
 
-  // Tertiary detection: Bitrate drop (optional)
-  if (config.useBitrateDropDetection && streamInfo.lastKnownBitrate) {
-    const bitrateMatch = text.match(/BANDWIDTH=(\d+)/);
-    if (bitrateMatch) {
-      const currentBitrate = parseInt(bitrateMatch[1], 10);
-      const dropRatio = currentBitrate / streamInfo.lastKnownBitrate;
-      if (dropRatio < 1 - config.bitrateDropThreshold) {
-        return { hasAds: true, method: "bitrate-drop" };
-      }
-    }
-  }
+function promotePlaylistDetectionBaseline(
+  text: string,
+  streamInfo: StreamInfo,
+  mediaUrl: string
+): void {
+  playlistAdDetector.clear(getPlaylistDetectionScope(streamInfo, mediaUrl));
+  detectAds(text, streamInfo, mediaUrl);
+}
 
-  return { hasAds: false, method: "none" };
+function isExplicitCueInRecovery(text: string, detection: TwitchPlaylistAdDetection): boolean {
+  if (detection.verdict !== "suspected") return false;
+
+  const hasCueIn = text
+    .replace(/\r/g, "")
+    .split("\n")
+    .some((line) => line.trim() === "#EXT-X-CUE-IN");
+  if (!hasCueIn) return false;
+
+  return detection.reasons.every(
+    (reason) =>
+      reason === "discontinuity" ||
+      reason === "host-transition" ||
+      reason === "sequence-transition" ||
+      reason === "timing-transition"
+  );
 }
 
 /**
@@ -470,17 +587,29 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
   if (isMainProcessProxyActive) {
     const streamInfo = findStreamInfoForMediaUrl(url);
     if (streamInfo) {
-      const { hasAds } = detectAds(text, streamInfo);
+      const detection = detectAds(text, streamInfo, url);
+      const { hasAds } = detection;
+      const hasExplicitCueInRecovery = isExplicitCueInRecovery(text, detection);
       if (hasAds && !streamInfo.isShowingAd) {
         streamInfo.isShowingAd = true;
         streamInfo.adStartTime = Date.now();
         streamInfo.isMidroll = text.includes('"MIDROLL"') || text.includes('"midroll"');
         logger.debug("Adblock:TwitchService", "ad state showing (proxy handling replacement)");
         notifyStatusChange(streamInfo);
-      } else if (!hasAds && streamInfo.isShowingAd) {
+      } else if (
+        (detection.verdict === "clean" || hasExplicitCueInRecovery) &&
+        streamInfo.isShowingAd
+      ) {
+        if (hasExplicitCueInRecovery) {
+          promotePlaylistDetectionBaseline(text, streamInfo, url);
+        }
         streamInfo.isShowingAd = false;
-        streamInfo.adStartTime = null;
         streamInfo.isMidroll = false;
+        streamInfo.isStrippingAdSegments = false;
+        streamInfo.numStrippedAdSegments = 0;
+        streamInfo.activeBackupPlayerType = null;
+        streamInfo.isUsingFallbackMode = false;
+        streamInfo.adStartTime = null;
         logger.debug("Adblock:TwitchService", "ad state ended");
         notifyStatusChange(streamInfo);
       }
@@ -501,7 +630,9 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
   text = neutralizeTrackingUrls(text);
 
   // Use enhanced ad detection with multiple heuristics
-  const { hasAds: hasAdTags, method: detectionMethod } = detectAds(text, streamInfo);
+  const detection = detectAds(text, streamInfo, url);
+  const { hasAds: hasAdTags, method: detectionMethod } = detection;
+  const hasExplicitCueInRecovery = isExplicitCueInRecovery(text, detection);
 
   if (hasAdTags) {
     // We're in an ad break
@@ -553,39 +684,57 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
 
     // Try to get backup stream
     const backupResult = currentResolution
-      ? await tryGetBackupStream(streamInfo, currentResolution)
+      ? tryGetReadyBackupOrScheduleSearch(streamInfo, currentResolution, text)
       : null;
 
     if (backupResult) {
       text = backupResult;
-      // Check if backup STILL has ads (needs stripping)
-      const backupHasAds = backupResult.includes(config.adSignifier);
-      streamInfo.isUsingFallbackMode = backupHasAds; // TRUE if we're stripping
-      if (!backupHasAds) {
-        logger.debug("Adblock:TwitchService", "using clean backup stream", {
-          activeBackupPlayerType: streamInfo.activeBackupPlayerType,
-        });
-      } else {
-        logger.debug("Adblock:TwitchService", "backup has ads, entering stripping/fallback mode");
-        notifyStatusChange(streamInfo);
-      }
+      streamInfo.isUsingFallbackMode = false;
+      logger.debug("Adblock:TwitchService", "using clean aligned backup stream", {
+        activeBackupPlayerType: streamInfo.activeBackupPlayerType,
+      });
     } else {
-      // All backup types failed - enter fallback mode
-      if (!streamInfo.isUsingFallbackMode) {
-        streamInfo.isUsingFallbackMode = true;
-        logger.debug("Adblock:TwitchService", "all backup types failed, entering fallback mode");
-        notifyStatusChange(streamInfo);
-      }
+      streamInfo.isUsingFallbackMode = true;
+      text = stripAdSegments(text, false, streamInfo);
+      logger.debug("Adblock:TwitchService", "no clean aligned backup; stripping ad segments", {
+        outcome: "segment-stripping",
+        ...detection.diagnostic,
+      });
+      notifyStatusChange(streamInfo);
+      return text;
     }
-
-    // Strip ad segments if enabled
-    if (config.isAdStrippingEnabled || (isHevc && streamInfo.modifiedM3U8)) {
-      text = stripAdSegments(text, isHevc && !!streamInfo.modifiedM3U8, streamInfo);
+  } else if (
+    (detection.verdict === "clean" || hasExplicitCueInRecovery) &&
+    streamInfo.isShowingAd
+  ) {
+    const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
+    const switchState = currentResolution
+      ? getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution))
+      : null;
+    const restoredFromBackup = Boolean(switchState?.servedBackup);
+    if (
+      switchState?.servedBackup &&
+      !findTwitchPlaylistAlignment(switchState.servedBackup.playlist, text)
+    ) {
+      logger.debug("Adblock:TwitchService", "clean original is not aligned for restoration", {
+        outcome: "passthrough-unaligned",
+        ...detection.diagnostic,
+      });
+      return text;
     }
-  } else if (streamInfo.isShowingAd) {
+    if (switchState) {
+      switchState.servedBackup = null;
+      switchState.readyCandidate = null;
+      switchState.consecutiveMisses = 0;
+      switchState.nextRetryAt = 0;
+    }
+    if (hasExplicitCueInRecovery) {
+      promotePlaylistDetectionBaseline(text, streamInfo, url);
+    }
     // Ad has ended
     logger.debug("Adblock:TwitchService", "ads finished", { channelName: streamInfo.channelName });
     streamInfo.isShowingAd = false;
+    streamInfo.isMidroll = false;
     streamInfo.isStrippingAdSegments = false;
     streamInfo.numStrippedAdSegments = 0;
     streamInfo.activeBackupPlayerType = null;
@@ -595,12 +744,10 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     // Update bitrate baseline now that we're showing clean content
     updateBitrateBaseline(text, streamInfo);
 
-    if (streamInfo.isUsingModifiedM3U8 || config.reloadPlayerAfterAd) {
+    if (restoredFromBackup || streamInfo.isUsingModifiedM3U8 || config.reloadPlayerAfterAd) {
       streamInfo.isUsingModifiedM3U8 = false;
       streamInfo.lastPlayerReload = Date.now();
       notifyPlayerReload("ad-ended");
-    } else {
-      notifyPauseResume();
     }
 
     notifyStatusChange(streamInfo);
@@ -627,48 +774,28 @@ async function fetchWithTimeout(
   return fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
 }
 
-/**
- * Try a single player type for backup stream
- * Returns the clean m3u8 or null if failed/has ads
- */
-async function tryPlayerType(
-  streamInfo: StreamInfo,
-  currentResolution: ResolutionInfo,
-  playerType: PlayerType
-): Promise<{ playerType: PlayerType; m3u8: string } | null> {
-  try {
-    // Check cache first
-    let encodingsM3u8 = streamInfo.backupEncodingsCache.get(playerType);
+interface BackupMaster {
+  playerType: PlayerType;
+  playlist: string;
+}
 
+async function loadBackupMaster(
+  streamInfo: StreamInfo,
+  playerType: PlayerType
+): Promise<BackupMaster | null> {
+  try {
+    let encodingsM3u8 = streamInfo.backupEncodingsCache.get(playerType);
     if (!encodingsM3u8) {
       const accessToken = await getAccessToken(streamInfo.channelName, playerType);
       if (!accessToken) return null;
-
       const usherUrl = buildUsherUrl(streamInfo.channelName, accessToken, streamInfo.usherParams);
       const response = await fetchWithTimeout(usherUrl);
       if (response.status !== 200) return null;
-
       encodingsM3u8 = await response.text();
       streamInfo.backupEncodingsCache.set(playerType, encodingsM3u8);
     }
-
-    const streamUrl = getStreamUrlForResolution(encodingsM3u8, currentResolution);
-    if (!streamUrl) return null;
-
-    const response = await fetchWithTimeout(streamUrl);
-    if (response.status !== 200) return null;
-
-    const m3u8Text = await response.text();
-
-    // Check if this backup is clean (no ads)
-    if (!m3u8Text.includes(config.adSignifier)) {
-      return { playerType, m3u8: m3u8Text };
-    }
-
-    // Even if it has ads, keep it as potential fallback
-    return { playerType, m3u8: m3u8Text };
+    return { playerType, playlist: encodingsM3u8 };
   } catch (err) {
-    // Timeout or network error - fail fast, don't log excessively
     if ((err as Error).name !== "AbortError") {
       logger.debug("Adblock:TwitchService", "backup player type failed", {
         playerType,
@@ -679,57 +806,195 @@ async function tryPlayerType(
   }
 }
 
-/**
- * Try to get a backup stream without ads.
- *
- * Fires all player types concurrently but consumes their results in priority
- * order so the highest-quality clean backup (backupPlayerTypes is ordered
- * Source-first) is returned as soon as it resolves, instead of waiting for the
- * slowest player type to settle.
- */
-async function tryGetBackupStream(
-  streamInfo: StreamInfo,
-  currentResolution: ResolutionInfo
-): Promise<string | null> {
-  const isDoingMinimalRequests =
-    streamInfo.lastPlayerReload > Date.now() - config.playerReloadMinimalRequestsTime;
-  const startIndex = isDoingMinimalRequests ? config.playerReloadMinimalRequestsPlayerIndex : 0;
-  const playerTypesToTry = config.backupPlayerTypes.slice(startIndex);
+async function loadBackupMasters(streamInfo: StreamInfo): Promise<BackupMaster[]> {
+  const results = await Promise.all(
+    config.backupPlayerTypes.map((playerType) => loadBackupMaster(streamInfo, playerType))
+  );
+  return results.filter((result): result is BackupMaster => result !== null);
+}
 
-  // Start every player type in parallel...
-  const backupPromises = playerTypesToTry.map((playerType) =>
-    tryPlayerType(streamInfo, currentResolution, playerType)
+function getOrStartBackupMasterPreload(streamInfo: StreamInfo): Promise<BackupMaster[]> {
+  let mastersPromise = backupMasterPromises.get(streamInfo.channelName);
+  if (!mastersPromise) {
+    mastersPromise = loadBackupMasters(streamInfo);
+    backupMasterPromises.set(streamInfo.channelName, mastersPromise);
+    void mastersPromise
+      .then((masters) => {
+        if (
+          masters.length === 0 &&
+          backupMasterPromises.get(streamInfo.channelName) === mastersPromise
+        ) {
+          backupMasterPromises.delete(streamInfo.channelName);
+        }
+      })
+      .catch(() => {
+        if (backupMasterPromises.get(streamInfo.channelName) === mastersPromise) {
+          backupMasterPromises.delete(streamInfo.channelName);
+        }
+      });
+  }
+  return mastersPromise;
+}
+
+function analyzeBackupPlaylist(
+  streamInfo: StreamInfo,
+  candidate: { playerType: PlayerType; rendition: TwitchRendition },
+  playlist: string
+): TwitchPlaylistAdDetection {
+  const variantScope = getRenditionScope(streamInfo, candidate.rendition);
+  const scope = `${variantScope}:backup:${candidate.playerType}:${candidate.rendition.codecs}`;
+  let channelScopes = detectionScopesByChannel.get(streamInfo.channelName);
+  if (!channelScopes) {
+    channelScopes = new Set();
+    detectionScopesByChannel.set(streamInfo.channelName, channelScopes);
+  }
+  channelScopes.add(scope);
+  return playlistAdDetector.analyze(scope, playlist, {
+    dateRangePatterns: DEFAULT_DATERANGE_PATTERNS,
+    adSignifiers: Array.from(new Set([...DEFAULT_AD_SIGNIFIERS, config.adSignifier])),
+    useDateRangeDetection: config.useDateRangeDetection,
+  });
+}
+
+function hasPlayableSegmentReference(playlist: string): boolean {
+  const lines = playlist
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.trim());
+  let awaitingSegmentUri = false;
+  let segmentIsGap = false;
+
+  for (const line of lines) {
+    if (line.startsWith("#EXT-X-TWITCH-PREFETCH:")) {
+      if (line.slice("#EXT-X-TWITCH-PREFETCH:".length).trim()) return true;
+      continue;
+    }
+    if (line.startsWith("#EXTINF:")) {
+      awaitingSegmentUri = true;
+      segmentIsGap = false;
+      continue;
+    }
+    if (!awaitingSegmentUri) continue;
+    if (line === "#EXT-X-GAP") {
+      segmentIsGap = true;
+      continue;
+    }
+    if (line && !line.startsWith("#")) {
+      if (!segmentIsGap) return true;
+      awaitingSegmentUri = false;
+    }
+  }
+
+  return false;
+}
+
+async function prepareCleanBackup(
+  streamInfo: StreamInfo,
+  currentResolution: ResolutionInfo,
+  activePlaylist: string | null,
+  loadedMasters?: BackupMaster[]
+): Promise<PreparedBackup | null> {
+  const masters = loadedMasters ?? (await loadBackupMasters(streamInfo));
+  const candidates = rankTwitchRenditionCandidates(
+    keepTwitchRenditionResolution(
+      masters.flatMap(({ playerType, playlist }) =>
+        rankTwitchRenditions(playlist, currentResolution).map((rendition) => ({
+          ...rendition,
+          playerType,
+          rendition,
+        }))
+      ),
+      currentResolution
+    ),
+    currentResolution
   );
 
-  // ...but consume them in priority order and return on the first clean hit.
-  let fallbackResult: { playerType: PlayerType; m3u8: string } | null = null;
-  let anyResult: { playerType: PlayerType; m3u8: string } | null = null;
-  for (const promise of backupPromises) {
-    const result = await promise;
-    if (!result) continue;
-    if (!anyResult) {
-      anyResult = result;
+  for (const candidate of candidates) {
+    try {
+      const rendition = candidate.rendition;
+      const response = await fetchWithTimeout(rendition.url);
+      if (response.status !== 200) continue;
+      const playlist = await response.text();
+      if (!hasPlayableSegmentReference(playlist)) {
+        logger.debug("Adblock:TwitchService", "backup candidate is not playable", {
+          outcome: "unplayable-playlist",
+          playerType: candidate.playerType,
+          resolution: candidate.rendition.resolution,
+        });
+        continue;
+      }
+      if (activePlaylist && !findTwitchPlaylistAlignment(activePlaylist, playlist)) continue;
+      if (analyzeBackupPlaylist(streamInfo, candidate, playlist).verdict !== "clean") continue;
+      return { playerType: candidate.playerType, rendition, playlist };
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        logger.debug("Adblock:TwitchService", "backup rendition failed", {
+          playerType: candidate.playerType,
+          resolution: candidate.rendition.resolution,
+          frameRate: candidate.rendition.frameRate,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
-    if (!fallbackResult && result.playerType === config.fallbackPlayerType) {
-      fallbackResult = result;
-    }
-    if (!result.m3u8.includes(config.adSignifier)) {
-      streamInfo.activeBackupPlayerType = result.playerType;
-      logger.debug("Adblock:TwitchService", "using clean backup", {
-        playerType: result.playerType,
+  }
+  return null;
+}
+
+function tryGetReadyBackupOrScheduleSearch(
+  streamInfo: StreamInfo,
+  currentResolution: ResolutionInfo,
+  activePlaylist: string
+): string | null {
+  const state = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
+  const candidate = state.readyCandidate;
+  if (candidate && findTwitchPlaylistAlignment(activePlaylist, candidate.playlist)) {
+    state.servedBackup = candidate;
+    streamInfo.activeBackupPlayerType = candidate.playerType;
+    return candidate.playlist;
+  }
+
+  if (candidate) state.readyCandidate = null;
+  if (state.candidatePromise || Date.now() < state.nextRetryAt) return null;
+
+  const candidatePromise = getOrStartBackupMasterPreload(streamInfo)
+    .then((masters) => prepareCleanBackup(streamInfo, currentResolution, activePlaylist, masters))
+    .then((prepared) => {
+      if (streamInfos.get(streamInfo.channelName) !== streamInfo) return;
+      if (prepared) {
+        state.readyCandidate = prepared;
+        state.consecutiveMisses = 0;
+        state.nextRetryAt = 0;
+        return;
+      }
+
+      state.consecutiveMisses += 1;
+      state.nextRetryAt =
+        Date.now() +
+        Math.min(
+          BACKUP_MISS_RETRY_BASE_MS * 2 ** (state.consecutiveMisses - 1),
+          BACKUP_MISS_RETRY_MAX_MS
+        );
+    })
+    .catch((error: unknown) => {
+      if (streamInfos.get(streamInfo.channelName) !== streamInfo) return;
+      state.consecutiveMisses += 1;
+      state.nextRetryAt =
+        Date.now() +
+        Math.min(
+          BACKUP_MISS_RETRY_BASE_MS * 2 ** (state.consecutiveMisses - 1),
+          BACKUP_MISS_RETRY_MAX_MS
+        );
+      logger.debug("Adblock:TwitchService", "backup candidate search deferred", {
+        channelName: streamInfo.channelName,
+        retryInMs: state.nextRetryAt - Date.now(),
+        error: error instanceof Error ? error.message : String(error),
       });
-      return result.m3u8;
-    }
-  }
+    })
+    .finally(() => {
+      if (state.candidatePromise === candidatePromise) state.candidatePromise = null;
+    });
 
-  // No clean backup - prefer the configured fallback player type, else any result
-  // we got (even with ads, for segment stripping).
-  const chosen = fallbackResult ?? anyResult;
-  if (chosen) {
-    streamInfo.activeBackupPlayerType = chosen.playerType;
-    return chosen.m3u8;
-  }
-
+  state.candidatePromise = candidatePromise;
   return null;
 }
 
@@ -952,9 +1217,9 @@ async function consumeAdSegment(text: string, streamInfo: StreamInfo): Promise<v
     if (line.startsWith("#EXTINF") && i + 1 < lines.length) {
       if (!line.includes(",live") && !streamInfo.requestedAds.has(lines[i + 1])) {
         streamInfo.requestedAds.add(lines[i + 1]);
-        // Fetch in background to consume the ad
-        fetch(lines[i + 1])
-          .then((r) => r.blob())
+        void Promise.resolve()
+          .then(() => fetch(lines[i + 1]))
+          .then((response) => response?.blob?.())
           .catch(() => {});
         break;
       }
@@ -967,7 +1232,11 @@ async function consumeAdSegment(text: string, streamInfo: StreamInfo): Promise<v
 /**
  * Parse resolution info from master playlist
  */
-function parseResolutionsFromPlaylist(text: string, streamInfo: StreamInfo): void {
+function parseResolutionsFromPlaylist(
+  text: string,
+  streamInfo: StreamInfo,
+  playlistBaseUrl: string
+): void {
   const lines = text.replace(/\r/g, "").split("\n");
 
   for (let i = 0; i < lines.length - 1; i++) {
@@ -975,11 +1244,19 @@ function parseResolutionsFromPlaylist(text: string, streamInfo: StreamInfo): voi
       const attrs = parseAttributes(lines[i]);
       const resolution = attrs.RESOLUTION;
       if (resolution) {
+        const playlistReference = lines[i + 1].trim();
+        let playlistUrl = playlistReference;
+        try {
+          playlistUrl = new URL(playlistReference, playlistBaseUrl).href;
+        } catch {
+          // Preserve the original reference when a non-standard URL cannot be resolved.
+        }
         const resInfo: ResolutionInfo = {
           resolution,
           frameRate: parseFloat(attrs["FRAME-RATE"]) || 30,
+          bandwidth: Number.parseInt(attrs.BANDWIDTH, 10) || 0,
           codecs: attrs.CODECS || "",
-          url: lines[i + 1].trim(),
+          url: playlistUrl,
         };
         streamInfo.urls.set(resInfo.url, resInfo);
         streamInfo.resolutionList.push(resInfo);
@@ -1000,51 +1277,6 @@ function parseAttributes(str: string): Record<string, string> {
     result[match[1]] = match[2] ?? match[3];
   }
   return result;
-}
-
-/**
- * Get stream URL for a specific resolution from encodings playlist
- */
-function getStreamUrlForResolution(
-  encodingsM3u8: string,
-  targetResolution: ResolutionInfo
-): string | null {
-  const lines = encodingsM3u8.replace(/\r/g, "").split("\n");
-  const [targetWidth, targetHeight] = targetResolution.resolution.split("x").map(Number);
-
-  let matchedUrl: string | null = null;
-  let matchedFrameRate = false;
-  let closestUrl: string | null = null;
-  let closestDiff = Infinity;
-
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (lines[i].startsWith("#EXT-X-STREAM-INF") && lines[i + 1].includes(".m3u8")) {
-      const attrs = parseAttributes(lines[i]);
-      const resolution = attrs.RESOLUTION;
-      const frameRate = parseFloat(attrs["FRAME-RATE"]) || 30;
-
-      if (resolution) {
-        if (resolution === targetResolution.resolution) {
-          if (!matchedUrl || (!matchedFrameRate && frameRate === targetResolution.frameRate)) {
-            matchedUrl = lines[i + 1].trim();
-            matchedFrameRate = frameRate === targetResolution.frameRate;
-            if (matchedFrameRate) {
-              return matchedUrl;
-            }
-          }
-        }
-
-        const [width, height] = resolution.split("x").map(Number);
-        const diff = Math.abs(width * height - targetWidth * targetHeight);
-        if (diff < closestDiff) {
-          closestUrl = lines[i + 1].trim();
-          closestDiff = diff;
-        }
-      }
-    }
-  }
-
-  return matchedUrl || closestUrl;
 }
 
 /**
@@ -1143,18 +1375,27 @@ function createModifiedPlaylist(text: string, streamInfo: StreamInfo): string {
  * Notify status change
  */
 function notifyStatusChange(streamInfo: StreamInfo): void {
+  const status: AdBlockStatus = {
+    isActive: config.enabled,
+    isShowingAd: streamInfo.isShowingAd,
+    isMidroll: streamInfo.isMidroll,
+    isStrippingSegments: streamInfo.isStrippingAdSegments,
+    numStrippedSegments: streamInfo.numStrippedAdSegments,
+    activePlayerType: streamInfo.activeBackupPlayerType,
+    channelName: streamInfo.channelName,
+    isUsingFallbackMode: streamInfo.isUsingFallbackMode,
+    adStartTime: streamInfo.adStartTime,
+  };
+
   if (onStatusChange) {
-    onStatusChange({
-      isActive: config.enabled,
-      isShowingAd: streamInfo.isShowingAd,
-      isMidroll: streamInfo.isMidroll,
-      isStrippingSegments: streamInfo.isStrippingAdSegments,
-      numStrippedSegments: streamInfo.numStrippedAdSegments,
-      activePlayerType: streamInfo.activeBackupPlayerType,
-      channelName: streamInfo.channelName,
-      isUsingFallbackMode: streamInfo.isUsingFallbackMode,
-      adStartTime: streamInfo.adStartTime,
-    });
+    onStatusChange(status);
+  }
+
+  const subscribers = statusChangeSubscribers.get(streamInfo.channelName.trim().toLowerCase());
+  if (subscribers) {
+    for (const subscriber of subscribers) {
+      subscriber(status);
+    }
   }
 }
 
@@ -1162,24 +1403,16 @@ function notifyStatusChange(streamInfo: StreamInfo): void {
 export type PlayerReloadReason = "ad-started" | "ad-ended";
 
 let onPlayerReload: ((reason: PlayerReloadReason) => void) | null = null;
-let onPauseResume: (() => void) | null = null;
 
 export function setPlayerCallbacks(
   reloadCallback: (reason: PlayerReloadReason) => void,
-  pauseResumeCallback: () => void
+  _pauseResumeCallback: () => void
 ): void {
   onPlayerReload = reloadCallback;
-  onPauseResume = pauseResumeCallback;
 }
 
 function notifyPlayerReload(reason: PlayerReloadReason): void {
   if (onPlayerReload) {
     onPlayerReload(reason);
-  }
-}
-
-function notifyPauseResume(): void {
-  if (onPauseResume) {
-    onPauseResume();
   }
 }

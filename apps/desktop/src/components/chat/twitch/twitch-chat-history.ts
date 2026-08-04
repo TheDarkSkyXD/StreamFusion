@@ -23,6 +23,7 @@ import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../shared/auth-types";
 import type { ChatMessage } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
 import { buildChannelKey } from "../../../store/chat-store";
+import { resolveChatDisplayPreferences } from "../chat-display-preferences";
 
 export interface SeedTwitchChatHistoryParams {
   /** Channel login (slug) — recent-messages.robotty.de takes the login, not the broadcaster id. */
@@ -46,7 +47,7 @@ export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams)
   // U5 — viewer can disable history-on-join entirely, or cap how many recent
   // messages seed. Read prefs imperatively (this is a module function, not a
   // component) and bail before the network fetch when seeding is off.
-  const cd = useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+  const cd = resolveChatDisplayPreferences(useAuthStore.getState().preferences?.chatDisplay);
   if (!cd.recentMessagesOnJoin) return;
   const limit =
     Number.isFinite(cd.recentMessagesLimit) && cd.recentMessagesLimit > 0

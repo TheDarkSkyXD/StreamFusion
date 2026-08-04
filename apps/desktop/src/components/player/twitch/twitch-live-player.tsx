@@ -10,6 +10,8 @@ import type { AdBlockStatus } from "@/shared/adblock-types";
 import { useAdBlockStore } from "@/store/adblock-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
+import { useDockedPlayerConfig } from "../persistent-player-shell";
+import { qualityLevelToPreference } from "../quality-preference";
 import { useFullscreen } from "../hooks/use-fullscreen";
 import { useLocalLiveCaptions } from "../hooks/use-local-live-captions";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
@@ -48,6 +50,9 @@ export interface TwitchLivePlayerProps {
   compact?: boolean;
 }
 
+const NO_QUALITY_LEVELS: QualityLevel[] = [];
+const ignoreQualityChange = () => {};
+
 export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerProps>(
   function TwitchLivePlayer(props, forwardedVideoRef) {
     const {
@@ -68,6 +73,8 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       onRefresh,
       compact = false,
     } = props;
+    const isDockedChannelSurface = useDockedPlayerConfig() !== null;
+    const shouldApplySavedQuality = isDockedChannelSurface;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,7 +109,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     const [isReady, setIsReady] = useState(false);
     const [isPlaying, setIsPlaying] = useState(autoPlay);
     const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
-    const [currentQualityId, setCurrentQualityId] = useState<string>("auto");
+    const [activeQualityId, setActiveQualityId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [hasError, setHasError] = useState(false);
@@ -138,8 +145,28 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     // Track mute state before fallback mode for restoration
     const _preFallbackMuteRef = useRef<boolean>(false);
 
-    // Apply user's default quality preference
-    useDefaultQuality(availableQualities, currentQualityId, setCurrentQualityId);
+    const defaultQualityResult = useDefaultQuality(NO_QUALITY_LEVELS, "auto", ignoreQualityChange);
+    const defaultQuality = defaultQualityResult?.defaultQuality ?? "auto";
+
+    const [qualityPreference, setQualityPreference] = useState<string | null>(() =>
+      shouldApplySavedQuality ? String(defaultQuality) : null
+    );
+    const qualitySessionKeyRef = useRef(channelName);
+    const hasSeededSavedQualityRef = useRef(shouldApplySavedQuality);
+    useEffect(() => {
+      if (qualitySessionKeyRef.current !== channelName) {
+        qualitySessionKeyRef.current = channelName;
+        hasSeededSavedQualityRef.current = shouldApplySavedQuality;
+        setQualityPreference(shouldApplySavedQuality ? String(defaultQuality) : null);
+        setActiveQualityId(null);
+        return;
+      }
+
+      if (shouldApplySavedQuality && !hasSeededSavedQualityRef.current) {
+        hasSeededSavedQualityRef.current = true;
+        setQualityPreference(String(defaultQuality));
+      }
+    }, [channelName, defaultQuality, shouldApplySavedQuality]);
 
     // NOTE: Muting during ads is DISABLED - we want seamless ad blocking at the HLS level
     // The network-level blocking and HLS segment stripping should handle ads silently
@@ -252,6 +279,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     const handleQualityLevels = useCallback(
       (levels: QualityLevel[]) => {
         setAvailableQualities(levels);
+        setActiveQualityId(null);
         if (!isReady) {
           setIsReady(true);
           setIsLoading(false);
@@ -263,10 +291,22 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     const handleQualitySet = useCallback(
       (id: string) => {
-        setCurrentQualityId(id);
+        const level = availableQualities.find((qualityLevel) => qualityLevel.id === id);
+        if (!level) return;
+        setQualityPreference(qualityLevelToPreference(level));
+        const hls = hlsRef.current;
+        if (hls) {
+          if (id === "auto") {
+            hls.currentLevel = -1;
+          } else {
+            const levelIndex = Number.parseInt(id, 10);
+            if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < hls.levels.length) {
+              hls.currentLevel = levelIndex;
+            }
+          }
+        }
         if (onQualityChange) {
-          const level = availableQualities.find((q) => q.id === id);
-          if (level) onQualityChange(level);
+          onQualityChange(level);
         }
       },
       [availableQualities, onQualityChange]
@@ -313,8 +353,11 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             muted={isMuted}
             volume={volume / 100}
             autoPlay={autoPlay}
-            currentLevel={currentQualityId}
+            preferredQuality={
+              shouldApplySavedQuality && !compact ? (qualityPreference ?? undefined) : undefined
+            }
             onQualityLevels={handleQualityLevels}
+            onActiveQualityChange={setActiveQualityId}
             onAdBlockStatusChange={(status) => {
               setAdBlockStatus(status);
               onAdBlockStatusChange?.(status);
@@ -400,13 +443,18 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         )}
 
         {/* Ad-Block Status Overlay - Top Left */}
-        {adBlockStatus?.isShowingAd && !adBlockStatus?.isUsingFallbackMode && (
-          <div className="absolute top-2 left-2 z-40 pointer-events-none">
-            <span className="bg-black/80 text-white text-sm font-medium px-2 py-1 rounded">
+        {adBlockStatus?.isActive &&
+          (adBlockStatus.isShowingAd ||
+            adBlockStatus.isStrippingSegments ||
+            adBlockStatus.isUsingFallbackMode) && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute top-2 left-2 z-40 bg-black/80 text-white text-sm font-medium px-2 py-1 rounded pointer-events-none"
+            >
               {adBlockStatus.isMidroll ? "Blocking midroll ads" : "Blocking ads"}
-            </span>
-          </div>
-        )}
+            </div>
+          )}
 
         {/* Ad-Block Fallback Overlay - Full screen when all backup types failed */}
         {adBlockStatus && (
@@ -442,7 +490,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             volume={volume}
             muted={isMuted}
             qualities={availableQualities}
-            currentQualityId={currentQualityId}
+            currentQualityId={activeQualityId ?? "auto"}
             isFullscreen={isFullscreen}
             onTogglePlay={togglePlay}
             onToggleMute={toggleMute}

@@ -364,23 +364,38 @@ class TwitchAuthService {
    * Revoke the current token and logout
    */
   async logout(): Promise<boolean> {
+    const startedAt = Date.now();
     // Stop any pending proactive refresh first — the token is about to be
     // cleared and a fired timer would otherwise try to refresh nothing.
     this.cancelProactiveRefresh();
 
     const token = storageService.getToken(this.platform);
+    logger.info("Auth:Twitch", "Twitch logout stage", {
+      stage: "started",
+      tokenPresent: token !== null,
+      elapsedMs: 0,
+    });
 
     if (token) {
       // Revoke the token with Twitch
-      await tokenExchangeService.revokeToken({
+      const revoked = await tokenExchangeService.revokeToken({
         platform: this.platform,
         token: token.accessToken,
+      });
+      logger.info("Auth:Twitch", "Twitch logout stage", {
+        stage: "remote-revocation-settled",
+        revoked,
+        elapsedMs: Date.now() - startedAt,
       });
     }
 
     // Clear stored token and user data
     storageService.clearToken(this.platform);
     storageService.clearTwitchUser();
+    logger.info("Auth:Twitch", "Twitch logout stage", {
+      stage: "local-auth-cleared",
+      elapsedMs: Date.now() - startedAt,
+    });
 
     return true;
   }

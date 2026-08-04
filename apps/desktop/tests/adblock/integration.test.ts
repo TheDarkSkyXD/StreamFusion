@@ -7,7 +7,7 @@
 
 // Guards: end-to-end adblock pipeline — init → master playlist → media playlist → segment stripping → recovery sequence; this is the only test that exercises the full chain.
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -26,12 +26,11 @@ import {
   setAuthHeaders,
   isAdSegment,
   getBlankVideoDataUrl,
-} from '@/components/player/twitch/twitch-adblock-service';
+} from "@/components/player/twitch/twitch-adblock-service";
 
-import {
-  createStreamInfo,
-  DEFAULT_ADBLOCK_CONFIG,
-} from '@/shared/adblock-types';
+import { createStreamInfo, DEFAULT_ADBLOCK_CONFIG } from "@/shared/adblock-types";
+
+// Guards: clean aligned recovery resumes content without reloading or pause/resume interruption.
 
 // ==================== Test Data ====================
 
@@ -117,7 +116,7 @@ https://video-edge-abc.sfo03.abs.hls.ttvnw.net/v1/segment/CpAF-14012.ts`;
 
 // ==================== Integration Tests ====================
 
-describe('Integration: Full Ad-Block Lifecycle', () => {
+describe("Integration: Full Ad-Block Lifecycle", () => {
   let statusChanges: any[] = [];
   let playerReloadCalled = false;
   let pauseResumeCalled = false;
@@ -129,98 +128,102 @@ describe('Integration: Full Ad-Block Lifecycle', () => {
     pauseResumeCalled = false;
 
     initAdBlockService({ enabled: true, isAdStrippingEnabled: true });
-    setAuthHeaders('test-device-id');
-    
+    setAuthHeaders("test-device-id");
+
     // Set up callbacks
     setStatusChangeCallback((status) => {
       statusChanges.push({ ...status, timestamp: Date.now() });
     });
-    
+
     setPlayerCallbacks(
-      () => { playerReloadCalled = true; },
-      () => { pauseResumeCalled = true; }
+      () => {
+        playerReloadCalled = true;
+      },
+      () => {
+        pauseResumeCalled = true;
+      }
     );
 
     // Initialize stream
     mockFetch.mockResolvedValueOnce({ status: 200 });
     await processMasterPlaylist(
-      'https://usher.ttvnw.net/api/channel/hls/integrationtest.m3u8?token=abc&sig=xyz',
+      "https://usher.ttvnw.net/api/channel/hls/integrationtest.m3u8?token=abc&sig=xyz",
       REALISTIC_MASTER_PLAYLIST,
-      'integrationtest'
+      "integrationtest"
     );
   });
 
   afterEach(() => {
-    clearStreamInfo('integrationtest');
+    clearStreamInfo("integrationtest");
   });
 
-  describe('Stream Initialization', () => {
-    it('should initialize stream info on first master playlist', () => {
-      const status = getAdBlockStatus('integrationtest');
-      
+  describe("Stream Initialization", () => {
+    it("should initialize stream info on first master playlist", () => {
+      const status = getAdBlockStatus("integrationtest");
+
       expect(status.isActive).toBe(true);
       expect(status.isShowingAd).toBe(false);
       // channelName in status comes from streamInfo, which stores normalized channel name
       // It may be null if accessed before stream info is fully populated
     });
 
-    it('should parse all quality levels from master playlist', async () => {
+    it("should parse all quality levels from master playlist", async () => {
       // The master playlist has 3 quality levels
-      const status = getAdBlockStatus('integrationtest');
+      const status = getAdBlockStatus("integrationtest");
       expect(status.isActive).toBe(true);
     });
   });
 
-  describe('Clean Stream Playback', () => {
-    it('should pass through clean playlist without modification', async () => {
+  describe("Clean Stream Playback", () => {
+    it("should pass through clean playlist without modification", async () => {
       const result = await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         CLEAN_LIVE_PLAYLIST
       );
 
       // Should preserve all live segments
-      expect(result).toContain('CpAF-12345.ts');
-      expect(result).toContain('CpAF-12348.ts');
-      
-      const status = getAdBlockStatus('integrationtest');
+      expect(result).toContain("CpAF-12345.ts");
+      expect(result).toContain("CpAF-12348.ts");
+
+      const status = getAdBlockStatus("integrationtest");
       expect(status.isShowingAd).toBe(false);
     });
 
-    it('should preserve prefetch hints on clean streams', async () => {
+    it("should preserve prefetch hints on clean streams", async () => {
       const result = await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         CLEAN_LIVE_PLAYLIST
       );
 
-      expect(result).toContain('EXT-X-TWITCH-PREFETCH');
+      expect(result).toContain("EXT-X-TWITCH-PREFETCH");
     });
   });
 
-  describe('Preroll Ad Detection and Handling', () => {
-    it('should detect preroll ads on stream join', async () => {
+  describe("Preroll Ad Detection and Handling", () => {
+    it("should detect preroll ads on stream join", async () => {
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
 
-      const status = getAdBlockStatus('integrationtest');
+      const status = getAdBlockStatus("integrationtest");
       expect(status.isShowingAd).toBe(true);
       expect(status.isMidroll).toBe(false);
     });
 
-    it('should replace tracking URLs in preroll ads', async () => {
+    it("should replace tracking URLs in preroll ads", async () => {
       const result = await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
 
-      expect(result).not.toContain('ads.twitch.tv/track');
+      expect(result).not.toContain("ads.twitch.tv/track");
       expect(result).toContain('X-TV-TWITCH-AD-URL="https://twitch.tv"');
     });
 
-    it('should disable prefetch during preroll ads', async () => {
+    it("should disable prefetch during preroll ads", async () => {
       const result = await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
 
@@ -229,124 +232,123 @@ describe('Integration: Full Ad-Block Lifecycle', () => {
       expect(prefetchCount).toBe(0);
     });
 
-    it('should track ad start time', async () => {
+    it("should track ad start time", async () => {
       const beforeTime = Date.now();
-      
+
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
 
-      const status = getAdBlockStatus('integrationtest');
+      const status = getAdBlockStatus("integrationtest");
       expect(status.adStartTime).not.toBeNull();
       expect(status.adStartTime).toBeGreaterThanOrEqual(beforeTime);
     });
   });
 
-  describe('Midroll Ad Detection and Handling', () => {
-    it('should detect midroll ads', async () => {
+  describe("Midroll Ad Detection and Handling", () => {
+    it("should detect midroll ads", async () => {
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         MIDROLL_AD_PLAYLIST
       );
 
-      const status = getAdBlockStatus('integrationtest');
+      const status = getAdBlockStatus("integrationtest");
       expect(status.isShowingAd).toBe(true);
       expect(status.isMidroll).toBe(true);
     });
 
-    it('should preserve live segments in mixed midroll playlist', async () => {
+    it("should preserve live segments in mixed midroll playlist", async () => {
       const result = await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         MIDROLL_AD_PLAYLIST
       );
 
       // Live segment before ad should be preserved
-      expect(result).toContain('CpAF-13999.ts');
+      expect(result).toContain("CpAF-13999.ts");
     });
   });
 
-  describe('Ad to Content Transition', () => {
-    it('should detect when ads finish', async () => {
+  describe("Ad to Content Transition", () => {
+    it("should detect when ads finish", async () => {
       // First, show ad
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
 
-      let status = getAdBlockStatus('integrationtest');
+      let status = getAdBlockStatus("integrationtest");
       expect(status.isShowingAd).toBe(true);
 
       // Then, show clean content
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         POST_AD_PLAYLIST
       );
 
-      status = getAdBlockStatus('integrationtest');
+      status = getAdBlockStatus("integrationtest");
       expect(status.isShowingAd).toBe(false);
     });
 
-    it('should reset ad state after ads finish', async () => {
+    it("should reset ad state after ads finish", async () => {
       // Show ad
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         MIDROLL_AD_PLAYLIST
       );
 
       // Show clean content
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         POST_AD_PLAYLIST
       );
 
-      const status = getAdBlockStatus('integrationtest');
+      const status = getAdBlockStatus("integrationtest");
       // Core state should be reset - isShowingAd is the key indicator
       expect(status.isShowingAd).toBe(false);
       expect(status.adStartTime).toBeNull();
     });
 
-    it('should trigger pause/resume callback after ads', async () => {
+    it("should recover from ads without reloading or pausing playback", async () => {
       // Show ad then clean content
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
-      
+
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         POST_AD_PLAYLIST
       );
 
-      // Either reload or pause/resume should be called
-      // Based on reloadPlayerAfterAd config
-      expect(playerReloadCalled || pauseResumeCalled).toBe(true);
+      expect(playerReloadCalled).toBe(false);
+      expect(pauseResumeCalled).toBe(false);
     });
   });
 
-  describe('Status Change Callbacks', () => {
-    it('should emit status changes during ad detection', async () => {
+  describe("Status Change Callbacks", () => {
+    it("should emit status changes during ad detection", async () => {
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
 
       expect(statusChanges.length).toBeGreaterThan(0);
-      
+
       const lastStatus = statusChanges[statusChanges.length - 1];
       expect(lastStatus.isShowingAd).toBe(true);
     });
 
-    it('should emit status changes when ads finish', async () => {
+    it("should emit status changes when ads finish", async () => {
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       );
-      
+
       const adStatusCount = statusChanges.length;
-      
+
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         POST_AD_PLAYLIST
       );
 
@@ -355,28 +357,28 @@ describe('Integration: Full Ad-Block Lifecycle', () => {
   });
 });
 
-describe('Integration: Configuration Changes', () => {
+describe("Integration: Configuration Changes", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     initAdBlockService({ enabled: true });
 
     mockFetch.mockResolvedValueOnce({ status: 200 });
     await processMasterPlaylist(
-      'https://usher.ttvnw.net/api/channel/hls/configtest.m3u8?token=abc',
+      "https://usher.ttvnw.net/api/channel/hls/configtest.m3u8?token=abc",
       REALISTIC_MASTER_PLAYLIST,
-      'configtest'
+      "configtest"
     );
   });
 
   afterEach(() => {
-    clearStreamInfo('configtest');
+    clearStreamInfo("configtest");
   });
 
-  it('should disable ad-blocking when config disabled', async () => {
+  it("should disable ad-blocking when config disabled", async () => {
     updateAdBlockConfig({ enabled: false });
-    
+
     const result = await processMediaPlaylist(
-      'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+      "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
       PREROLL_AD_PLAYLIST
     );
 
@@ -384,15 +386,15 @@ describe('Integration: Configuration Changes', () => {
     expect(result).toBe(PREROLL_AD_PLAYLIST);
   });
 
-  it('should re-enable ad-blocking when config enabled', async () => {
+  it("should re-enable ad-blocking when config enabled", async () => {
     updateAdBlockConfig({ enabled: false });
     updateAdBlockConfig({ enabled: true });
-    
+
     expect(isAdBlockEnabled()).toBe(true);
   });
 });
 
-describe('Integration: Multiple Channels', () => {
+describe("Integration: Multiple Channels", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     initAdBlockService({ enabled: true });
@@ -400,54 +402,54 @@ describe('Integration: Multiple Channels', () => {
     // Set up two channels
     mockFetch.mockResolvedValueOnce({ status: 200 });
     await processMasterPlaylist(
-      'https://usher.ttvnw.net/api/channel/hls/channel1.m3u8?token=abc',
+      "https://usher.ttvnw.net/api/channel/hls/channel1.m3u8?token=abc",
       REALISTIC_MASTER_PLAYLIST,
-      'channel1'
+      "channel1"
     );
 
     mockFetch.mockResolvedValueOnce({ status: 200 });
     await processMasterPlaylist(
-      'https://usher.ttvnw.net/api/channel/hls/channel2.m3u8?token=xyz',
-      REALISTIC_MASTER_PLAYLIST.replace('CpEF-abc123', 'CpEF-def456'),
-      'channel2'
+      "https://usher.ttvnw.net/api/channel/hls/channel2.m3u8?token=xyz",
+      REALISTIC_MASTER_PLAYLIST.replace("CpEF-abc123", "CpEF-def456"),
+      "channel2"
     );
   });
 
   afterEach(() => {
-    clearStreamInfo('channel1');
-    clearStreamInfo('channel2');
+    clearStreamInfo("channel1");
+    clearStreamInfo("channel2");
   });
 
-  it('should track ad state independently per channel', async () => {
+  it("should track ad state independently per channel", async () => {
     // Channel 1 shows ad
     await processMediaPlaylist(
-      'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+      "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
       PREROLL_AD_PLAYLIST
     );
 
-    const status1 = getAdBlockStatus('channel1');
-    const status2 = getAdBlockStatus('channel2');
+    const status1 = getAdBlockStatus("channel1");
+    const status2 = getAdBlockStatus("channel2");
 
     expect(status1.isShowingAd).toBe(true);
     expect(status2.isShowingAd).toBe(false);
   });
 
-  it('should clear stream info independently', () => {
-    clearStreamInfo('channel1');
-    
+  it("should clear stream info independently", () => {
+    clearStreamInfo("channel1");
+
     // channel2 should still exist
-    const status2 = getAdBlockStatus('channel2');
+    const status2 = getAdBlockStatus("channel2");
     expect(status2.isActive).toBe(true);
   });
 });
 
-describe('Integration: StreamInfo Management', () => {
-  describe('createStreamInfo', () => {
-    it('should create properly initialized StreamInfo', () => {
-      const info = createStreamInfo('testchannel', '?token=abc');
+describe("Integration: StreamInfo Management", () => {
+  describe("createStreamInfo", () => {
+    it("should create properly initialized StreamInfo", () => {
+      const info = createStreamInfo("testchannel", "?token=abc");
 
-      expect(info.channelName).toBe('testchannel');
-      expect(info.usherParams).toBe('?token=abc');
+      expect(info.channelName).toBe("testchannel");
+      expect(info.usherParams).toBe("?token=abc");
       expect(info.isShowingAd).toBe(false);
       expect(info.isMidroll).toBe(false);
       expect(info.urls).toBeInstanceOf(Map);
@@ -456,39 +458,39 @@ describe('Integration: StreamInfo Management', () => {
       expect(info.requestedAds).toBeInstanceOf(Set);
     });
 
-    it('should initialize all required fields', () => {
-      const info = createStreamInfo('xqc', '?sig=xyz');
+    it("should initialize all required fields", () => {
+      const info = createStreamInfo("xqc", "?sig=xyz");
 
-      expect(info).toHaveProperty('encodingsM3U8', null);
-      expect(info).toHaveProperty('modifiedM3U8', null);
-      expect(info).toHaveProperty('isUsingModifiedM3U8', false);
-      expect(info).toHaveProperty('activeBackupPlayerType', null);
-      expect(info).toHaveProperty('isStrippingAdSegments', false);
-      expect(info).toHaveProperty('numStrippedAdSegments', 0);
-      expect(info).toHaveProperty('isUsingFallbackMode', false);
-      expect(info).toHaveProperty('adStartTime', null);
+      expect(info).toHaveProperty("encodingsM3U8", null);
+      expect(info).toHaveProperty("modifiedM3U8", null);
+      expect(info).toHaveProperty("isUsingModifiedM3U8", false);
+      expect(info).toHaveProperty("activeBackupPlayerType", null);
+      expect(info).toHaveProperty("isStrippingAdSegments", false);
+      expect(info).toHaveProperty("numStrippedAdSegments", 0);
+      expect(info).toHaveProperty("isUsingFallbackMode", false);
+      expect(info).toHaveProperty("adStartTime", null);
     });
   });
 });
 
-describe('Integration: Ad Segment Caching', () => {
+describe("Integration: Ad Segment Caching", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     initAdBlockService({ enabled: true, isAdStrippingEnabled: true });
 
     mockFetch.mockResolvedValueOnce({ status: 200 });
     await processMasterPlaylist(
-      'https://usher.ttvnw.net/api/channel/hls/cacheintegration.m3u8?token=abc',
+      "https://usher.ttvnw.net/api/channel/hls/cacheintegration.m3u8?token=abc",
       REALISTIC_MASTER_PLAYLIST,
-      'cacheintegration'
+      "cacheintegration"
     );
   });
 
   afterEach(() => {
-    clearStreamInfo('cacheintegration');
+    clearStreamInfo("cacheintegration");
   });
 
-  it('should cache ad segment URLs during stripping', async () => {
+  it("should cache ad segment URLs during stripping", async () => {
     // The fixture-level PREROLL_AD_PLAYLIST omits DISCONTINUITY; without it the
     // stripper keeps treating every segment as live (PROGRAM-DATE-TIME scope).
     // Real Twitch ad playlists have DISCONTINUITY before stitched ads — mirror
@@ -508,86 +510,86 @@ https://d2vjef5jvl6bfs.cloudfront.net/preroll/seg-0001.ts
 https://d2vjef5jvl6bfs.cloudfront.net/preroll/seg-0002.ts`;
 
     await processMediaPlaylist(
-      'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+      "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
       CACHE_TEST_PLAYLIST
     );
 
     // Ad segments should be cached
-    const isAd = isAdSegment('https://d2vjef5jvl6bfs.cloudfront.net/preroll/seg-0001.ts');
+    const isAd = isAdSegment("https://d2vjef5jvl6bfs.cloudfront.net/preroll/seg-0001.ts");
     expect(isAd).toBe(true);
   });
 
-  it('should provide blank video for cached ad segments', () => {
+  it("should provide blank video for cached ad segments", () => {
     const blankUrl = getBlankVideoDataUrl();
-    
+
     expect(blankUrl).toMatch(/^data:video\/mp4;base64,/);
   });
 });
 
-describe('Integration: Default Configuration Validation', () => {
-  it('should have sensible default values', () => {
+describe("Integration: Default Configuration Validation", () => {
+  it("should have sensible default values", () => {
     expect(DEFAULT_ADBLOCK_CONFIG.enabled).toBe(true);
-    expect(DEFAULT_ADBLOCK_CONFIG.adSignifier).toBe('stitched');
+    expect(DEFAULT_ADBLOCK_CONFIG.adSignifier).toBe("stitched");
     expect(DEFAULT_ADBLOCK_CONFIG.isAdStrippingEnabled).toBe(true);
-    expect(DEFAULT_ADBLOCK_CONFIG.reloadPlayerAfterAd).toBe(true);
+    expect(DEFAULT_ADBLOCK_CONFIG.reloadPlayerAfterAd).toBe(false);
   });
 
-  it('should have valid client ID format', () => {
+  it("should have valid client ID format", () => {
     expect(DEFAULT_ADBLOCK_CONFIG.clientId).toMatch(/^[a-z0-9]+$/);
     expect(DEFAULT_ADBLOCK_CONFIG.clientId.length).toBe(30);
   });
 
-  it('should have reasonable timing values', () => {
+  it("should have reasonable timing values", () => {
     expect(DEFAULT_ADBLOCK_CONFIG.playerReloadMinimalRequestsTime).toBeGreaterThan(0);
     expect(DEFAULT_ADBLOCK_CONFIG.playerBufferingDelay).toBeGreaterThan(0);
     expect(DEFAULT_ADBLOCK_CONFIG.playerBufferingMinRepeatDelay).toBeGreaterThan(0);
   });
 });
 
-describe('Integration: Error Recovery', () => {
+describe("Integration: Error Recovery", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     initAdBlockService({ enabled: true });
 
     mockFetch.mockResolvedValueOnce({ status: 200 });
     await processMasterPlaylist(
-      'https://usher.ttvnw.net/api/channel/hls/errorrecovery.m3u8?token=abc',
+      "https://usher.ttvnw.net/api/channel/hls/errorrecovery.m3u8?token=abc",
       REALISTIC_MASTER_PLAYLIST,
-      'errorrecovery'
+      "errorrecovery"
     );
   });
 
   afterEach(() => {
-    clearStreamInfo('errorrecovery');
+    clearStreamInfo("errorrecovery");
   });
 
-  it('should handle network errors gracefully', async () => {
-    mockFetch.mockRejectedValue(new Error('Network error'));
+  it("should handle network errors gracefully", async () => {
+    mockFetch.mockRejectedValue(new Error("Network error"));
 
     await expect(
       processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         PREROLL_AD_PLAYLIST
       )
     ).resolves.not.toThrow();
   });
 
-  it('should return processed playlist even on backup failures', async () => {
-    mockFetch.mockRejectedValue(new Error('Backup fetch failed'));
+  it("should return processed playlist even on backup failures", async () => {
+    mockFetch.mockRejectedValue(new Error("Backup fetch failed"));
 
     const result = await processMediaPlaylist(
-      'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+      "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
       PREROLL_AD_PLAYLIST
     );
 
-    expect(result).toContain('#EXTM3U');
+    expect(result).toContain("#EXTM3U");
   });
 
-  it('should maintain service state after errors', async () => {
-    mockFetch.mockRejectedValue(new Error('Error'));
+  it("should maintain service state after errors", async () => {
+    mockFetch.mockRejectedValue(new Error("Error"));
 
     await processMediaPlaylist(
-      'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+      "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
       PREROLL_AD_PLAYLIST
     );
 
@@ -595,44 +597,44 @@ describe('Integration: Error Recovery', () => {
   });
 });
 
-describe('Integration: Edge Cases', () => {
+describe("Integration: Edge Cases", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     initAdBlockService({ enabled: true });
 
     mockFetch.mockResolvedValueOnce({ status: 200 });
     await processMasterPlaylist(
-      'https://usher.ttvnw.net/api/channel/hls/edgecases.m3u8?token=abc',
+      "https://usher.ttvnw.net/api/channel/hls/edgecases.m3u8?token=abc",
       REALISTIC_MASTER_PLAYLIST,
-      'edgecases'
+      "edgecases"
     );
   });
 
   afterEach(() => {
-    clearStreamInfo('edgecases');
+    clearStreamInfo("edgecases");
   });
 
-  it('should handle empty playlist', async () => {
+  it("should handle empty playlist", async () => {
     const result = await processMediaPlaylist(
-      'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
-      ''
+      "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
+      ""
     );
 
-    expect(result).toBe('');
+    expect(result).toBe("");
   });
 
-  it('should handle playlist with only header', async () => {
+  it("should handle playlist with only header", async () => {
     const result = await processMediaPlaylist(
-      'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
-      '#EXTM3U'
+      "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
+      "#EXTM3U"
     );
 
-    expect(result).toContain('#EXTM3U');
+    expect(result).toContain("#EXTM3U");
   });
 
-  it('should handle unknown URL gracefully', async () => {
+  it("should handle unknown URL gracefully", async () => {
     const result = await processMediaPlaylist(
-      'https://unknown-url.example.com/playlist.m3u8',
+      "https://unknown-url.example.com/playlist.m3u8",
       CLEAN_LIVE_PLAYLIST
     );
 
@@ -640,17 +642,17 @@ describe('Integration: Edge Cases', () => {
     expect(result).toBe(CLEAN_LIVE_PLAYLIST);
   });
 
-  it('should handle rapid playlist updates', async () => {
+  it("should handle rapid playlist updates", async () => {
     // Simulate rapid polling
     for (let i = 0; i < 10; i++) {
       await processMediaPlaylist(
-        'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
+        "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         i % 2 === 0 ? PREROLL_AD_PLAYLIST : CLEAN_LIVE_PLAYLIST
       );
     }
 
     // Should not throw and should have valid state
-    const status = getAdBlockStatus('edgecases');
+    const status = getAdBlockStatus("edgecases");
     expect(status).toBeDefined();
   });
 });

@@ -1,4 +1,4 @@
-import { act, fireEvent } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, routerMock, screen } from "../../test-utils";
@@ -12,9 +12,15 @@ const searchMockState = vi.hoisted(() => ({
   channelsData: { pages: [] as { data: unknown[] }[] },
   channelsHasNextPage: false,
   channelsFetchNextPage: vi.fn(),
+  useSearchChannels: vi.fn(),
+  channelQueryOverrides: {} as Record<
+    string,
+    Record<string, unknown> | ((...args: unknown[]) => Record<string, unknown>)
+  >,
   categoriesData: { pages: [] as { data: unknown[] }[] },
   categoriesHasNextPage: false,
   categoriesFetchNextPage: vi.fn(),
+  useSearchCategories: vi.fn(),
 }));
 
 const historyMockState = vi.hoisted(() => ({
@@ -29,20 +35,30 @@ const historyMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/queries/useSearch", () => ({
-  useSearchChannels: () => ({
-    data: searchMockState.channelsData,
-    isLoading: false,
-    fetchNextPage: searchMockState.channelsFetchNextPage,
-    hasNextPage: searchMockState.channelsHasNextPage,
-    isFetchingNextPage: false,
-  }),
-  useSearchCategories: () => ({
-    data: searchMockState.categoriesData,
-    isLoading: false,
-    fetchNextPage: searchMockState.categoriesFetchNextPage,
-    hasNextPage: searchMockState.categoriesHasNextPage,
-    isFetchingNextPage: false,
-  }),
+  useSearchChannels: (...args: unknown[]) => {
+    searchMockState.useSearchChannels(...args);
+    const configuredOverride = searchMockState.channelQueryOverrides[String(args[1] ?? "all")];
+    const queryOverride =
+      typeof configuredOverride === "function" ? configuredOverride(...args) : configuredOverride;
+    return {
+      data: searchMockState.channelsData,
+      isLoading: false,
+      fetchNextPage: searchMockState.channelsFetchNextPage,
+      hasNextPage: searchMockState.channelsHasNextPage,
+      isFetchingNextPage: false,
+      ...(queryOverride ?? {}),
+    };
+  },
+  useSearchCategories: (...args: unknown[]) => {
+    searchMockState.useSearchCategories(...args);
+    return {
+      data: searchMockState.categoriesData,
+      isLoading: false,
+      fetchNextPage: searchMockState.categoriesFetchNextPage,
+      hasNextPage: searchMockState.categoriesHasNextPage,
+      isFetchingNextPage: false,
+    };
+  },
 }));
 
 vi.mock("@/hooks/useDebounce", () => ({
@@ -106,9 +122,12 @@ function resetSearchMock() {
   // Mirror useInfiniteQuery's contract: fetchNextPage returns a Promise.
   // The dropdown's scroll-latch uses .finally() on the result.
   searchMockState.channelsFetchNextPage = vi.fn(() => Promise.resolve());
+  searchMockState.useSearchChannels.mockClear();
+  searchMockState.channelQueryOverrides = {};
   searchMockState.categoriesData = { pages: [] };
   searchMockState.categoriesHasNextPage = false;
   searchMockState.categoriesFetchNextPage = vi.fn(() => Promise.resolve());
+  searchMockState.useSearchCategories.mockClear();
 }
 
 function resetHistoryMock() {
@@ -126,6 +145,13 @@ function resetHistoryMock() {
 // Guards: error/empty state — useSearchChannels / useSearchCategories returning empty pages leaves the dropdown without items; "See all results" CTA still renders so users have a way forward
 // Guards: 100-cap pagination class — when combined results hit the cap AND more remain, footer flips to "Show more"; the auto-fetch on near-bottom scroll halts (otherwise the dropdown would re-fetch indefinitely)
 // Guards: dedup absorption — when a page arrives with zero net new IDs (Twitch re-serves under a fresh cursor), the dropdown must not auto-fetch the next page. Without this the dropdown loops forever
+// Guards: an optional favorite action is a separate accessible control that never selects the channel or collapses the picker
+// Guards: channel-only pickers disable category IPC so hidden categories cannot consume platform-search capacity.
+// Guards: Twitch matches remain visible while the parallel Kick request is still loading.
+// Guards: live-only stream pickers pass their constraint through to platform search, preserving Kick fallback correctness.
+// Guards: inactive autocomplete tabs do not start provider work that cannot yet render.
+// Guards: one-letter cross-platform autocomplete retrieves enough exact/prefix candidates to render at least five Channels rows, excluding Best Match.
+// Guards: one-letter autocomplete does not relax substring/fuzzy relevance when the expanded provider page has fewer than five strong Channels candidates.
 describe("UnifiedSearchInput", () => {
   beforeEach(() => {
     resetSearchMock();
@@ -167,6 +193,37 @@ describe("UnifiedSearchInput", () => {
     expect(screen.queryByRole("tablist", { name: "Search type" })).not.toBeInTheDocument();
   });
 
+  it("does not enable category searches for a channel-only picker", () => {
+    renderWithProviders(<UnifiedSearchInput initialValue="ninja" showCategories={false} />);
+
+    expect(searchMockState.useSearchCategories).toHaveBeenCalledTimes(3);
+    expect(searchMockState.useSearchCategories.mock.calls.every((call) => call[3] === false)).toBe(
+      true
+    );
+  });
+
+  it("activates only the selected autocomplete result type", () => {
+    renderWithProviders(<UnifiedSearchInput initialValue="creator" />);
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    expect(searchMockState.useSearchCategories.mock.calls.every((call) => call[3] === false)).toBe(
+      true
+    );
+    expect(
+      searchMockState.useSearchChannels.mock.calls.some(
+        (call) => call[0] === "creator" && call[1] === "twitch"
+      )
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Categories" }));
+
+    expect(
+      searchMockState.useSearchCategories.mock.calls.slice(-3).every((call) => call[3] === true)
+    ).toBe(true);
+    expect(searchMockState.useSearchChannels.mock.calls.slice(-3).every((call) => call[0] === ""))
+      .toBe(true);
+  });
+
   it("filters channel-only picker suggestions to live channels when requested", () => {
     searchMockState.channelsData = {
       pages: [
@@ -201,6 +258,227 @@ describe("UnifiedSearchInput", () => {
 
     expect(screen.getByText("LiveMatch")).toBeInTheDocument();
     expect(screen.queryByText("OfflineMatch")).not.toBeInTheDocument();
+  });
+
+  it("requests live-only channel candidates for a stream picker", () => {
+    renderWithProviders(<UnifiedSearchInput initialValue="creator" showCategories={false} liveOnlyChannels />);
+
+    expect(searchMockState.useSearchChannels).toHaveBeenCalledTimes(3);
+    expect(searchMockState.useSearchChannels.mock.calls.every((call) => call[3] === true)).toBe(
+      true
+    );
+  });
+
+  it("keeps a ready Twitch match visible while Kick is still pending", () => {
+    const twitchMatch = { ...makeChannels(1, "twitch")[0], displayName: "TwitchMatch" };
+    searchMockState.channelQueryOverrides = {
+      twitch: { data: { pages: [{ data: [twitchMatch] }] }, isLoading: false },
+      kick: { data: { pages: [] }, isLoading: true },
+    };
+
+    renderWithProviders(<UnifiedSearchInput initialValue="match" showCategories={false} />);
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    expect(screen.getByText("TwitchMatch")).toBeInTheDocument();
+  });
+
+  it("continues a one-letter provider search until at least five Channels suggestions render", async () => {
+    const exact = {
+      ...makeChannels(1, "exact-a")[0],
+      platform: "kick" as const,
+      username: "a",
+      displayName: "A",
+    };
+    const prefixes = ["Atlas", "Aurora", "Axiom", "Alpine", "Arcade"].map((displayName, index) => ({
+      ...makeChannels(1, `a-prefix-${index}`)[0],
+      username: displayName.toLowerCase(),
+      displayName,
+    }));
+    searchMockState.channelQueryOverrides = {
+      twitch: {
+        data: { pages: [{ data: prefixes.slice(0, 3) }] },
+        hasNextPage: true,
+      },
+      kick: {
+        data: { pages: [{ data: [exact] }] },
+        hasNextPage: false,
+      },
+    };
+
+    const view = renderWithProviders(
+      <UnifiedSearchInput initialValue="a" showCategories={false} />
+    );
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    await waitFor(() => expect(searchMockState.channelsFetchNextPage).toHaveBeenCalledTimes(1));
+
+    searchMockState.channelQueryOverrides.twitch = {
+      data: {
+        pages: [{ data: prefixes.slice(0, 3) }, { data: prefixes.slice(3, 4) }],
+      },
+      hasNextPage: true,
+    };
+    view.rerender(<UnifiedSearchInput initialValue="a" showCategories={false} />);
+
+    await waitFor(() => expect(searchMockState.channelsFetchNextPage).toHaveBeenCalledTimes(2));
+
+    searchMockState.channelQueryOverrides.twitch = {
+      data: {
+        pages: [
+          { data: prefixes.slice(0, 3) },
+          { data: prefixes.slice(3, 4) },
+          { data: prefixes.slice(4) },
+        ],
+      },
+      hasNextPage: false,
+    };
+    view.rerender(<UnifiedSearchInput initialValue="a" showCategories={false} />);
+
+    const bestMatchSection = screen.getByRole("heading", { name: "Best Match" }).parentElement;
+    const channelsSection = screen.getByRole("heading", { name: "Channels" }).parentElement;
+    expect(bestMatchSection?.querySelectorAll("a")).toHaveLength(1);
+    expect(channelsSection?.querySelectorAll("a").length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("does not fill a one-letter Channels section with weak matches", () => {
+    const exact = {
+      ...makeChannels(1, "exact-a")[0],
+      username: "a",
+      displayName: "A",
+    };
+    const prefixes = ["Atlas", "Aurora", "Axiom"].map((displayName, index) => ({
+      ...makeChannels(1, `a-prefix-${index}`)[0],
+      username: displayName.toLowerCase(),
+      displayName,
+    }));
+    const substring = {
+      ...makeChannels(1, "substring-a")[0],
+      username: "beta",
+      displayName: "Beta",
+    };
+    const fuzzy = {
+      ...makeChannels(1, "fuzzy-a")[0],
+      username: "b",
+      displayName: "B",
+    };
+    searchMockState.channelQueryOverrides = {
+      twitch: { data: { pages: [{ data: [exact, ...prefixes, substring, fuzzy] }] } },
+      kick: { data: { pages: [] } },
+    };
+
+    renderWithProviders(<UnifiedSearchInput initialValue="a" showCategories={false} />);
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    const bestMatchSection = screen.getByRole("heading", { name: "Best Match" }).parentElement;
+    const channelsSection = screen.getByRole("heading", { name: "Channels" }).parentElement;
+    expect(bestMatchSection?.querySelectorAll("a")).toHaveLength(1);
+    expect(channelsSection?.querySelectorAll("a")).toHaveLength(3);
+    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
+    expect(screen.queryByText("B")).not.toBeInTheDocument();
+  });
+
+  it("uses exact, prefix, then substring relevance across provider suggestions", () => {
+    const exact = {
+      ...makeChannels(1, "exact")[0],
+      id: "exact-kick",
+      platform: "kick" as const,
+      username: "creator",
+      displayName: "Creator",
+      followerCount: 0,
+    };
+    const prefix = {
+      ...makeChannels(1, "prefix")[0],
+      id: "prefix-kick",
+      platform: "kick" as const,
+      username: "creatorstudio",
+      displayName: "Creator Studio",
+      followerCount: 20,
+    };
+    const substring = {
+      ...makeChannels(1, "substring")[0],
+      id: "substring-twitch",
+      username: "thecreator",
+      displayName: "The Creator",
+      followerCount: 1_000_000,
+      isLive: true,
+    };
+    searchMockState.channelQueryOverrides = {
+      twitch: { data: { pages: [{ data: [substring] }] } },
+      kick: { data: { pages: [{ data: [prefix, exact] }] } },
+    };
+
+    renderWithProviders(<UnifiedSearchInput initialValue="creator" showCategories={false} />);
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    const idByUsername = new Map(
+      [exact, prefix, substring].map((channel) => [channel.username, channel.id])
+    );
+    const orderedIds = screen
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("data-params"))
+      .filter((params): params is string => Boolean(params))
+      .map((params) => idByUsername.get(JSON.parse(params).channel))
+      .filter((id): id is string => Boolean(id));
+    expect(orderedIds).toEqual(["exact-kick", "prefix-kick", "substring-twitch"]);
+  });
+
+  it("renders a real zero follower count while omitting a missing count", () => {
+    const missing = {
+      ...makeChannels(1, "missing")[0],
+      username: "creatormissing",
+      displayName: "Creator Missing",
+      followerCount: undefined,
+    };
+    const realZero = {
+      ...makeChannels(1, "zero")[0],
+      username: "creatorzero",
+      displayName: "Creator Zero",
+      followerCount: 0,
+    };
+    searchMockState.channelsData = { pages: [{ data: [missing, realZero] }] };
+
+    renderWithProviders(
+      <UnifiedSearchInput initialValue="creator" platform="twitch" showCategories={false} />
+    );
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    const zeroRow = screen.getByText("Creator Zero").closest("a, button");
+    const missingRow = screen.getByText("Creator Missing").closest("a, button");
+    expect(zeroRow).toHaveTextContent("0 followers");
+    expect(missingRow).not.toHaveTextContent("followers");
+  });
+
+  it("keeps the favorite action separate from the channel selection button", () => {
+    const channel = { ...makeChannels(1, "favorite")[0], displayName: "FavoriteMatch" };
+    searchMockState.channelsData = { pages: [{ data: [channel] }] };
+    const onSelectChannel = vi.fn();
+    const onToggleChannelFavorite = vi.fn();
+
+    renderWithProviders(
+      <UnifiedSearchInput
+        initialValue="favorite"
+        platform="twitch"
+        showCategories={false}
+        onSelectChannel={onSelectChannel}
+        isChannelFavorite={() => false}
+        onToggleChannelFavorite={onToggleChannelFavorite}
+      />
+    );
+    fireEvent.focus(screen.getByRole("textbox"));
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add FavoriteMatch to favorites" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add FavoriteMatch to favorites" }));
+
+    expect(onToggleChannelFavorite).toHaveBeenCalledWith(channel);
+    expect(onSelectChannel).not.toHaveBeenCalled();
+    expect(screen.getByText("FavoriteMatch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add FavoriteMatch to favorites" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+
+    fireEvent.click(screen.getByText("FavoriteMatch").closest("button")!);
+    expect(onSelectChannel).toHaveBeenCalledWith(channel);
   });
 
   it("shows history for the selected search tab", () => {

@@ -13,6 +13,17 @@ import { session } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
+import {
+  createTwitchPlaylistAdDetector,
+  type TwitchPlaylistAdDetection,
+} from "@/lib/twitch-playlist-ad-detection";
+import {
+  findTwitchPlaylistAlignment,
+  keepTwitchRenditionResolution,
+  rankTwitchRenditionCandidates,
+  rankTwitchRenditions,
+  type TwitchRendition,
+} from "@/lib/twitch-rendition-continuity";
 import { httpClient } from "./http-client";
 import { vaftPatternService } from "./vaft-pattern-service";
 
@@ -32,12 +43,14 @@ interface ResolutionInfo {
 interface ProxyStreamInfo {
   channelName: string;
   encodingsM3u8: string | null;
-  last160pSegment: string | null;
-  baseline160pUrl: string | null;
   isInAdBreak: boolean;
   usherParams: string;
   resolutions: Map<string, ResolutionInfo>;
   lastKnownBitrate: number | null;
+  detectionScopes: Set<string>;
+  backupMastersPromise: Promise<BackupMaster[]> | null;
+  candidateStates: Map<string, ProxyCandidateState>;
+  servedBackups: Map<string, PreparedBackup>;
 }
 
 /**
@@ -62,6 +75,27 @@ const BACKUP_PLAYER_TYPES = [
 ] as const;
 type PlayerType = (typeof BACKUP_PLAYER_TYPES)[number];
 
+interface BackupMaster {
+  playerType: PlayerType;
+  playlist: string;
+}
+
+interface PreparedBackup {
+  playerType: PlayerType;
+  rendition: TwitchRendition;
+  playlist: string;
+}
+
+interface ProxyCandidateState {
+  candidatePromise: Promise<void> | null;
+  readyCandidate: PreparedBackup | null;
+  consecutiveMisses: number;
+  nextRetryAt: number;
+}
+
+const BACKUP_MISS_RETRY_BASE_MS = 2_000;
+const BACKUP_MISS_RETRY_MAX_MS = 10_000;
+
 /**
  * Twitch GQL Client ID
  */
@@ -74,6 +108,7 @@ const ACCESS_TOKEN_HASH = "ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be0
 
 class TwitchManifestProxyService {
   private streamInfos = new Map<string, ProxyStreamInfo>();
+  private playlistAdDetector = createTwitchPlaylistAdDetector();
   private isEnabled = true;
   private isRegistered = false;
   private stats: ProxyStats = {
@@ -185,7 +220,10 @@ class TwitchManifestProxyService {
    * Called when stream processing completes or on error
    */
   clearStreamInfo(channelName: string): void {
-    this.streamInfos.delete(channelName.toLowerCase());
+    const normalizedChannel = channelName.toLowerCase();
+    const streamInfo = this.streamInfos.get(normalizedChannel);
+    streamInfo?.detectionScopes?.forEach((scope) => this.playlistAdDetector.clear(scope));
+    this.streamInfos.delete(normalizedChannel);
   }
 
   /**
@@ -193,6 +231,7 @@ class TwitchManifestProxyService {
    */
   clearAllStreamInfos(): void {
     this.streamInfos.clear();
+    this.playlistAdDetector.clearAll();
   }
 
   /**
@@ -289,25 +328,28 @@ class TwitchManifestProxyService {
   }
 
   /**
-   * Process master playlist - extract resolution info and identify 160p stream
+   * Process master playlist and extract rendition metadata.
    */
   private processMasterPlaylist(url: string, text: string): string {
     const channelName = this.extractChannelName(url);
     if (!channelName) return text;
 
     const urlObj = new URL(url);
+    this.clearStreamInfo(channelName);
     const streamInfo: ProxyStreamInfo = {
       channelName,
       encodingsM3u8: text,
-      last160pSegment: null,
-      baseline160pUrl: null,
       isInAdBreak: false,
       usherParams: urlObj.search,
       resolutions: new Map(),
       lastKnownBitrate: null,
+      detectionScopes: new Set(),
+      backupMastersPromise: null,
+      candidateStates: new Map(),
+      servedBackups: new Map(),
     };
 
-    // Parse resolutions and find 160p stream
+    // Parse renditions used to preserve the active quality during backup selection.
     const lines = text.split("\n");
     for (let i = 0; i < lines.length - 1; i++) {
       if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
@@ -323,11 +365,6 @@ class TwitchManifestProxyService {
             codecs: attrs.CODECS || "",
             frameRate: parseFloat(attrs["FRAME-RATE"]) || 30,
           });
-
-          // Identify 160p stream (BANDWIDTH ~160000-400000)
-          if (bandwidth >= 160000 && bandwidth <= 400000) {
-            streamInfo.baseline160pUrl = streamUrl;
-          }
         }
       }
     }
@@ -352,7 +389,16 @@ class TwitchManifestProxyService {
     text = this.neutralizeTrackingUrls(text);
 
     // Detect ads using multiple heuristics
-    const hasAd = this.detectAds(text);
+    const detectionScope = this.getDetectionScope(streamInfo, url);
+    streamInfo.detectionScopes.add(detectionScope);
+    const detection = this.analyzeAds(text, detectionScope);
+    const hasAd = detection.hasAds;
+
+    if (detection.verdict !== "clean") {
+      logger.debug("Service:TwitchManifest", "Playlist ad classification", {
+        ...detection.diagnostic,
+      });
+    }
 
     if (hasAd) {
       this.stats.adsDetected++;
@@ -365,23 +411,32 @@ class TwitchManifestProxyService {
       }
 
       // Try backup stream first
-      const backupText = await this.tryGetBackupStream(streamInfo, url);
-      if (backupText && !this.detectAds(backupText)) {
+      const backupText = await this.tryGetBackupStream(streamInfo, url, text);
+      if (backupText) {
         this.stats.backupsFetched++;
         return backupText;
       }
-
-      // Fallback: Strip ad segments and replace with 160p
-      return this.replaceAdSegments(text, streamInfo);
-    } else if (streamInfo.isInAdBreak) {
+      logger.debug("Service:TwitchManifest", "No clean aligned backup; passing through", {
+        outcome: "passthrough",
+        ...detection.diagnostic,
+      });
+      return text;
+    } else if (detection.verdict === "clean" && streamInfo.isInAdBreak) {
+      const servedBackup = streamInfo.servedBackups.get(detectionScope);
+      if (servedBackup && !findTwitchPlaylistAlignment(servedBackup.playlist, text)) {
+        logger.debug("Service:TwitchManifest", "Clean original is not aligned for restoration", {
+          outcome: "passthrough-unaligned",
+          ...detection.diagnostic,
+        });
+        return text;
+      }
+      streamInfo.servedBackups.delete(detectionScope);
+      streamInfo.candidateStates.delete(detectionScope);
       streamInfo.isInAdBreak = false;
       logger.debug("Service:TwitchManifest", "Ad ended", {
         channelName: streamInfo.channelName,
       });
     }
-
-    // Store last valid 160p segment for replacement
-    this.updateBaseline160pSegment(text, streamInfo);
 
     return text;
   }
@@ -390,7 +445,7 @@ class TwitchManifestProxyService {
    * Detect ads using multiple heuristics
    * Uses dynamic patterns from VAFT pattern service when available
    */
-  private detectAds(text: string): boolean {
+  private analyzeAds(text: string, scopeId: string): TwitchPlaylistAdDetection {
     // Get patterns from VAFT pattern service (auto-updated)
     let dateRangePatterns: readonly string[];
     let adSignifiers: string[];
@@ -404,23 +459,10 @@ class TwitchManifestProxyService {
       adSignifiers = ["stitched"];
     }
 
-    // Primary: DATERANGE tags with ad indicators
-    if (text.includes("#EXT-X-DATERANGE")) {
-      for (const pattern of dateRangePatterns) {
-        if (text.includes(pattern)) {
-          return true;
-        }
-      }
-    }
-
-    // Secondary: ad signifiers (e.g., 'stitched')
-    for (const signifier of adSignifiers) {
-      if (text.includes(signifier)) {
-        return true;
-      }
-    }
-
-    return false;
+    return this.playlistAdDetector.analyze(scopeId, text, {
+      dateRangePatterns,
+      adSignifiers,
+    });
   }
 
   /**
@@ -434,141 +476,106 @@ class TwitchManifestProxyService {
       .replace(/(X-TV-TWITCH-AD-ROLL-TYPE=")[^"]*(")/g, `$1$2`);
   }
 
-  /**
-   * Replace ad segments with 160p content
-   */
-  private replaceAdSegments(text: string, streamInfo: ProxyStreamInfo): string {
-    if (!streamInfo.last160pSegment) {
-      // No 160p cached - just strip ad segments
-      return this.stripAdSegmentsMinimal(text);
-    }
-
-    const lines = text.split("\n");
-    const result: string[] = [];
-    let segmentsReplaced = 0;
-
-    let hasProgramDateTime = false;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Track program date time for live segment detection
-      if (line.startsWith("#EXT-X-DISCONTINUITY")) {
-        hasProgramDateTime = false;
-      }
-      if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME")) {
-        hasProgramDateTime = true;
-      }
-
-      // Detect ad segment
-      if (line.startsWith("#EXTINF") && i + 1 < lines.length) {
-        const segmentUrl = lines[i + 1];
-
-        // A segment is an ad if:
-        // 1. It's explicitly a known ad URL
-        // 2. OR it's NOT marked as live AND NOT part of a program date time block
-        const isLiveInfo = line.includes(",live") || hasProgramDateTime;
-        const isAdSegment = this.isKnownAdSegment(segmentUrl) || !isLiveInfo;
-
-        if (isAdSegment) {
-          // Keep EXTINF but replace segment URL with 160p
-          result.push(line);
-          result.push(streamInfo.last160pSegment);
-          segmentsReplaced++;
-          i++; // Skip original segment URL
-          continue;
-        }
-      }
-
-      // Remove prefetch during ads
-      if (streamInfo.isInAdBreak && line.startsWith("#EXT-X-TWITCH-PREFETCH:")) {
-        continue;
-      }
-
-      result.push(line);
-    }
-
-    this.stats.segmentsReplaced += segmentsReplaced;
-    return result.join("\n");
-  }
-
-  /**
-   * Strip ad segments minimally (when no 160p available)
-   */
-  private stripAdSegmentsMinimal(text: string): string {
-    const lines = text.split("\n");
-    const result: string[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Skip DATERANGE ad markers
-      if (
-        line.startsWith("#EXT-X-DATERANGE") &&
-        (line.includes("stitched-ad") || line.includes("amazon-ad"))
-      ) {
-        continue;
-      }
-
-      // Skip prefetch during ads
-      if (line.startsWith("#EXT-X-TWITCH-PREFETCH:")) {
-        continue;
-      }
-
-      result.push(line);
-    }
-
-    return result.join("\n");
-  }
-
-  /**
-   * Update baseline 160p segment from clean playlist
-   */
-  private updateBaseline160pSegment(text: string, streamInfo: ProxyStreamInfo): void {
-    // Only update from clean (non-ad) playlists
-    if (this.detectAds(text)) return;
-
-    const lines = text.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (lines[i].startsWith("#EXTINF") && lines[i].includes(",live")) {
-        const segmentUrl = lines[i + 1]?.trim();
-        if (segmentUrl?.startsWith("https://")) {
-          streamInfo.last160pSegment = segmentUrl;
-          break;
-        }
-      }
-    }
-  }
-
-  /**
-   * Try a single player type for backup stream (for parallel fetching)
-   */
-  private async tryPlayerTypeBackup(
+  private async loadBackupMaster(
     streamInfo: ProxyStreamInfo,
-    originalUrl: string,
     playerType: PlayerType
-  ): Promise<{ playerType: PlayerType; m3u8: string } | null> {
+  ): Promise<BackupMaster | null> {
     try {
       const token = await this.getAccessToken(streamInfo.channelName, playerType);
       if (!token) return null;
-
       const usherUrl = this.buildUsherUrl(streamInfo, token);
       const encodingsResponse = await this.fetchWithRetry(usherUrl);
       if (!encodingsResponse.ok) return null;
-
-      const encodingsM3u8 = await encodingsResponse.text();
-      const streamUrl = this.getMatchingStreamUrl(encodingsM3u8, originalUrl, streamInfo);
-      if (!streamUrl) return null;
-
-      const mediaResponse = await this.fetchWithRetry(streamUrl);
-      if (!mediaResponse.ok) return null;
-
-      const mediaText = await mediaResponse.text();
-      return { playerType, m3u8: mediaText };
+      return { playerType, playlist: await encodingsResponse.text() };
     } catch {
-      // Fail silently - other player types may succeed
       return null;
     }
+  }
+
+  private async loadBackupMasters(streamInfo: ProxyStreamInfo): Promise<BackupMaster[]> {
+    const results = await Promise.all(
+      BACKUP_PLAYER_TYPES.map((playerType) => this.loadBackupMaster(streamInfo, playerType))
+    );
+    return results.filter((result): result is BackupMaster => result !== null);
+  }
+
+  private getOrStartBackupMasterPreload(streamInfo: ProxyStreamInfo): Promise<BackupMaster[]> {
+    if (!streamInfo.backupMastersPromise) {
+      const mastersPromise = this.loadBackupMasters(streamInfo);
+      streamInfo.backupMastersPromise = mastersPromise;
+      void mastersPromise
+        .then((masters) => {
+          if (masters.length === 0 && streamInfo.backupMastersPromise === mastersPromise) {
+            streamInfo.backupMastersPromise = null;
+          }
+        })
+        .catch(() => {
+          if (streamInfo.backupMastersPromise === mastersPromise) {
+            streamInfo.backupMastersPromise = null;
+          }
+        });
+    }
+    return streamInfo.backupMastersPromise;
+  }
+
+  private getCandidateState(streamInfo: ProxyStreamInfo, scope: string): ProxyCandidateState {
+    let state = streamInfo.candidateStates.get(scope);
+    if (!state) {
+      state = {
+        candidatePromise: null,
+        readyCandidate: null,
+        consecutiveMisses: 0,
+        nextRetryAt: 0,
+      };
+      streamInfo.candidateStates.set(scope, state);
+    }
+    return state;
+  }
+
+  private async prepareCleanBackup(
+    streamInfo: ProxyStreamInfo,
+    originalUrl: string,
+    activePlaylist: string | null,
+    loadedMasters?: BackupMaster[]
+  ): Promise<PreparedBackup | null> {
+    const originalResolution = streamInfo.resolutions.get(originalUrl);
+    if (!originalResolution) return null;
+    const masters =
+      loadedMasters ??
+      (await (streamInfo.backupMastersPromise ?? this.loadBackupMasters(streamInfo)));
+    const candidates = rankTwitchRenditionCandidates(
+      keepTwitchRenditionResolution(
+        masters.flatMap(({ playerType, playlist }) =>
+          rankTwitchRenditions(playlist, originalResolution).map((rendition) => ({
+            ...rendition,
+            playerType,
+            rendition,
+          }))
+        ),
+        originalResolution
+      ),
+      originalResolution
+    );
+
+    for (const candidate of candidates) {
+      try {
+        const response = await this.fetchWithRetry(candidate.rendition.url);
+        if (!response.ok) continue;
+        const playlist = await response.text();
+        if (activePlaylist && !findTwitchPlaylistAlignment(activePlaylist, playlist)) continue;
+        const scope = `${this.getDetectionScope(streamInfo, originalUrl)}:backup:${candidate.playerType}:${candidate.rendition.resolution}:${candidate.rendition.frameRate}:${candidate.rendition.codecs}`;
+        streamInfo.detectionScopes.add(scope);
+        if (this.analyzeAds(playlist, scope).verdict !== "clean") continue;
+        return {
+          playerType: candidate.playerType,
+          rendition: candidate.rendition,
+          playlist,
+        };
+      } catch {
+        continue;
+      }
+    }
+    return null;
   }
 
   /**
@@ -583,29 +590,60 @@ class TwitchManifestProxyService {
    */
   private async tryGetBackupStream(
     streamInfo: ProxyStreamInfo,
-    originalUrl: string
+    originalUrl: string,
+    activePlaylist: string
   ): Promise<string | null> {
-    // Start every player type in parallel...
-    const backupPromises = BACKUP_PLAYER_TYPES.map((playerType) =>
-      this.tryPlayerTypeBackup(streamInfo, originalUrl, playerType)
-    );
-
-    // ...but consume them in priority order and return on the first clean hit.
-    let firstAvailable: { playerType: PlayerType; m3u8: string } | null = null;
-    for (const promise of backupPromises) {
-      const result = await promise;
-      if (!result) continue;
-      if (!firstAvailable) {
-        firstAvailable = result;
-      }
-      if (!this.detectAds(result.m3u8)) {
-        logger.debug("Service:TwitchManifest", "Using backup", { playerType: result.playerType });
-        return result.m3u8;
-      }
+    const scope = this.getDetectionScope(streamInfo, originalUrl);
+    const state = this.getCandidateState(streamInfo, scope);
+    const candidate = state.readyCandidate;
+    if (candidate && findTwitchPlaylistAlignment(activePlaylist, candidate.playlist)) {
+      streamInfo.servedBackups.set(scope, candidate);
+      return candidate.playlist;
     }
 
-    // No clean backup - return the highest-priority result for segment stripping.
-    return firstAvailable?.m3u8 ?? null;
+    if (candidate) state.readyCandidate = null;
+    if (state.candidatePromise || Date.now() < state.nextRetryAt) return null;
+
+    const candidatePromise = this.getOrStartBackupMasterPreload(streamInfo)
+      .then((masters) => this.prepareCleanBackup(streamInfo, originalUrl, activePlaylist, masters))
+      .then((prepared) => {
+        if (this.streamInfos.get(streamInfo.channelName) !== streamInfo) return;
+        if (prepared) {
+          state.readyCandidate = prepared;
+          state.consecutiveMisses = 0;
+          state.nextRetryAt = 0;
+          return;
+        }
+
+        state.consecutiveMisses += 1;
+        state.nextRetryAt =
+          Date.now() +
+          Math.min(
+            BACKUP_MISS_RETRY_BASE_MS * 2 ** (state.consecutiveMisses - 1),
+            BACKUP_MISS_RETRY_MAX_MS
+          );
+      })
+      .catch((error: unknown) => {
+        if (this.streamInfos.get(streamInfo.channelName) !== streamInfo) return;
+        state.consecutiveMisses += 1;
+        state.nextRetryAt =
+          Date.now() +
+          Math.min(
+            BACKUP_MISS_RETRY_BASE_MS * 2 ** (state.consecutiveMisses - 1),
+            BACKUP_MISS_RETRY_MAX_MS
+          );
+        logger.debug("Service:TwitchManifest", "Backup candidate search deferred", {
+          channelName: streamInfo.channelName,
+          retryInMs: state.nextRetryAt - Date.now(),
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        if (state.candidatePromise === candidatePromise) state.candidatePromise = null;
+      });
+
+    state.candidatePromise = candidatePromise;
+    return null;
   }
 
   /**
@@ -741,52 +779,6 @@ class TwitchManifestProxyService {
   }
 
   /**
-   * Get matching stream URL from backup encodings
-   */
-  private getMatchingStreamUrl(
-    encodingsM3u8: string,
-    originalUrl: string,
-    streamInfo: ProxyStreamInfo
-  ): string | null {
-    const originalRes = streamInfo.resolutions.get(originalUrl);
-    if (!originalRes) return null;
-
-    const lines = encodingsM3u8.split("\n");
-    let bestMatch: { url: string; score: number } | null = null;
-
-    for (let i = 0; i < lines.length - 1; i++) {
-      if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
-        const attrs = this.parseAttributes(lines[i]);
-        const resolution = attrs.RESOLUTION;
-        const bandwidth = parseInt(attrs.BANDWIDTH, 10);
-        const streamUrl = lines[i + 1].trim();
-
-        // Calculate match score
-        const resMatch = resolution === originalRes.resolution ? 1000 : 0;
-        const bwDiff = Math.abs(bandwidth - originalRes.bandwidth);
-        const score = resMatch - bwDiff / 1000;
-
-        if (!bestMatch || score > bestMatch.score) {
-          bestMatch = { url: streamUrl, score };
-        }
-      }
-    }
-
-    return bestMatch?.url || null;
-  }
-
-  /**
-   * Check if segment URL is a known ad segment
-   */
-  private isKnownAdSegment(url: string): boolean {
-    return (
-      (url.includes("cloudfront.net") && url.includes("/ad/")) ||
-      url.includes("amazon-ad") ||
-      url.includes("stitched-ad")
-    );
-  }
-
-  /**
    * Parse #EXT-X-STREAM-INF attributes
    */
   private parseAttributes(line: string): Record<string, string> {
@@ -818,6 +810,15 @@ class TwitchManifestProxyService {
       }
     }
     return null;
+  }
+
+  private getDetectionScope(streamInfo: ProxyStreamInfo, url: string): string {
+    for (const [streamUrl, resolution] of streamInfo.resolutions) {
+      if (url.includes(streamUrl) || streamUrl.includes(url)) {
+        return `${streamInfo.channelName}:${resolution.resolution}:${resolution.frameRate}:${resolution.bandwidth}:${resolution.codecs}`;
+      }
+    }
+    return `${streamInfo.channelName}:unknown`;
   }
 
   // ========== Public API ==========

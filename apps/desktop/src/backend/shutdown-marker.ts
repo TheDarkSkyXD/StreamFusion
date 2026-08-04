@@ -3,8 +3,9 @@
  *
  * Lives in its own module so both `main.ts` (normal `before-quit` path) and
  * `window-manager.ts` (force-kill on `unresponsive`) can call it without
- * forming a circular import. The next launch reads the sentinel via
- * `wasCleanShutdown()` to decide whether to wipe the disk cache.
+ * forming a circular import. The next launch reads the sentinel for startup
+ * diagnostics and removes it when the new session begins. Marker state never
+ * authorizes deletion of Chromium cache or other user data.
  */
 
 import * as fs from "node:fs";

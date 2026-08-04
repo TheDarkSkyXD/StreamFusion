@@ -3,8 +3,6 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { FaChevronRight } from "react-icons/fa";
 import {
   LuArrowLeft,
-  LuClock,
-  LuLayoutList,
   LuPalette,
   LuPause,
   LuSettings,
@@ -12,8 +10,10 @@ import {
   LuX,
 } from "react-icons/lu";
 
-import { SettingRow, SwitchRow, useChatDisplay } from "@/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "@/components/settings/ChatSettingsSection";
 import { ProxiedImage } from "@/components/ui/proxied-image";
+import { Switch } from "@/components/ui/switch";
+import { getChatDensityPresentation } from "@/lib/chat-density-presentation";
 import {
   type ChatDensity,
   type ChatPauseMode,
@@ -26,9 +26,10 @@ import { useAuthStore } from "@/store/auth-store";
  * Quick chat-settings popover (U7). Opened from the chat settings gear on BOTH
  * Twitch and Kick. Drill-in menu with a root view (Chat
  * appearance entry + More settings link) and an "appearance" sub-view (font,
- * emote size, density, timestamps). Writes back to the same global
- * `chatDisplay` group via U6's `useChatDisplay` writer (no duplicated
- * persistence). "More settings" deep-links to the full Chat tab.
+ * emote size, width, spacing, timestamps, hover smoothing, and quick emotes).
+ * Writes back to the same global `chatDisplay` group via U6's `useChatDisplay`
+ * writer (no duplicated persistence). "More settings" deep-links to the full
+ * Chat tab.
  *
  * Behavior (identical both platforms): the popover anchors to the gear and can
  * open down from a header or up from the chat footer, right-aligned so it
@@ -37,8 +38,9 @@ import { useAuthStore } from "@/store/auth-store";
  */
 
 const DENSITY_OPTIONS: { value: ChatDensity; label: string }[] = [
-  { value: "cozy", label: "Cozy" },
-  { value: "compact", label: "Compact" },
+  { value: "compact", label: "Tight" },
+  { value: "cozy", label: "Medium" },
+  { value: "loose", label: "Loose" },
 ];
 const PAUSE_OPTIONS: { value: ChatPauseMode; label: string }[] = [
   { value: "scroll", label: "Scroll Only" },
@@ -56,6 +58,11 @@ const EMOTE_SIZE_MIN = 16;
 const EMOTE_SIZE_MAX = 56;
 const EMOTE_SIZE_DEFAULT = DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx;
 const EMOTE_SIZE_STOPS = [EMOTE_SIZE_MIN, EMOTE_SIZE_DEFAULT, 42, EMOTE_SIZE_MAX];
+const CHAT_WIDTH_OPTIONS = [
+  { value: 280, label: "280px" },
+  { value: 340, label: "340px" },
+  { value: 420, label: "420px" },
+] as const;
 const PREVIEW_EMOTES: Record<ChatPlatform, { name: string; url: string }> = {
   twitch: {
     name: "Kappa",
@@ -135,7 +142,7 @@ export function ChatQuickSettingsPopover({
       ref={ref}
       role="dialog"
       aria-label="Quick chat settings"
-      // Right-aligned inside the chat input's action row; Kick-sized, but
+      // Right-aligned inside the caller's positioned anchor; Kick-sized, but
       // capped to the chat column so it cannot spill past narrow panels.
       className={`absolute right-0 z-50 w-[320px] max-w-full min-w-0 rounded-xl border border-neutral-700 bg-neutral-800 shadow-xl animate-in fade-in duration-200 ${
         placement === "top"
@@ -165,7 +172,12 @@ export function ChatQuickSettingsPopover({
           onChange={(v) => set("pauseMode", v)}
         />
       ) : (
-        <AppearanceView cd={cd} platform={platform} previewUsername={previewUsername} set={set} />
+        <AppearanceView
+          cd={cd}
+          platform={platform}
+          previewUsername={previewUsername}
+          set={set}
+        />
       )}
     </div>
   );
@@ -234,7 +246,7 @@ function RootView({
       <NavRow
         icon={<LuPalette size={ICON_SIZE} />}
         label="Chat appearance"
-        description="Font, emote size, density, timestamps."
+        description="Font, emotes, width, spacing, and more."
         onClick={onOpenAppearance}
       />
       <button
@@ -300,6 +312,72 @@ function PauseChatView({
   );
 }
 
+function SegmentedRadioGroup<T extends string | number>({
+  accessibleLabel,
+  footer,
+  label,
+  name,
+  onChange,
+  options,
+  value,
+}: {
+  accessibleLabel?: string;
+  footer?: React.ReactNode;
+  label: string;
+  name: string;
+  onChange: (value: T) => void;
+  options: readonly { label: string; value: T }[];
+  value: T;
+}) {
+  return (
+    <div className="border-b border-[var(--color-border)] px-4 py-3">
+      <h4 className="text-sm font-bold leading-5 text-white">{label}</h4>
+      <div
+        role="radiogroup"
+        aria-label={accessibleLabel ?? label}
+        className="mt-2 grid grid-cols-3 overflow-hidden rounded-md border border-neutral-600"
+      >
+        {options.map((option) => (
+          <label
+            key={option.value}
+            className="relative cursor-pointer border-r border-neutral-600 last:border-r-0"
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+              className="peer sr-only"
+            />
+            <span className="flex min-h-10 items-center justify-center px-2 text-sm font-semibold text-zinc-100 transition-colors peer-checked:bg-[#4a4d55] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-white">
+              {option.label}
+            </span>
+          </label>
+        ))}
+      </div>
+      {footer && <p className="mt-1 text-sm leading-5 text-zinc-400">{footer}</p>}
+    </div>
+  );
+}
+
+function QuickAppearanceSwitch({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-4 py-2">
+      <span className="text-sm font-semibold text-white">{label}</span>
+      <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
 function AppearanceView({
   cd,
   platform,
@@ -311,10 +389,15 @@ function AppearanceView({
   previewUsername: string;
   set: ChatDisplaySet;
 }) {
+  const { chatWidthPx, density, timestamps, hoverSmooth, quickEmotes } = cd;
+
   return (
-    <div>
+    <div
+      data-testid="chat-appearance-content"
+      className="max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain"
+    >
       <ChatAppearancePreview
-        density={cd.density}
+        density={density}
         fontSizePx={cd.fontSizePx}
         emoteSizePx={cd.emoteSizePx}
         platform={platform}
@@ -330,43 +413,37 @@ function AppearanceView({
           onChange={(v) => set("emoteSizePx", v)}
         />
       </div>
+      <SegmentedRadioGroup
+        accessibleLabel="Chat width"
+        footer={`Currently: ${chatWidthPx}px`}
+        label="Chat window width"
+        name="quick-chat-width"
+        options={CHAT_WIDTH_OPTIONS}
+        value={chatWidthPx}
+        onChange={(value) => void set("chatWidthPx", value)}
+      />
+      <SegmentedRadioGroup
+        label="Message spacing"
+        name="quick-chat-message-spacing"
+        options={DENSITY_OPTIONS}
+        value={density}
+        onChange={(value) => void set("density", value)}
+      />
       <div className="px-4 py-1 divide-y divide-[var(--color-border)]">
-        <SettingRow
-          label="Density"
-          icon={
-            <span className="text-white">
-              <LuLayoutList size={ICON_SIZE} />
-            </span>
-          }
-          control={
-            <div className="flex rounded-md border border-[var(--color-border)] overflow-hidden">
-              {DENSITY_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => set("density", o.value)}
-                  aria-pressed={cd.density === o.value}
-                  className={
-                    cd.density === o.value
-                      ? "px-3 py-1 text-xs font-medium bg-[#3f3f46] text-white transition-colors"
-                      : "px-3 py-1 text-xs font-medium text-zinc-100 hover:bg-neutral-700 hover:text-white transition-colors"
-                  }
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          }
+        <QuickAppearanceSwitch
+          label="Timestamps"
+          checked={timestamps}
+          onChange={(value) => void set("timestamps", value)}
         />
-        <SwitchRow
-          label="Show timestamps"
-          icon={
-            <span className="text-white">
-              <LuClock size={ICON_SIZE} />
-            </span>
-          }
-          checked={cd.timestamps}
-          onChange={(v) => set("timestamps", v)}
+        <QuickAppearanceSwitch
+          label="Hover smooth mode"
+          checked={hoverSmooth}
+          onChange={(value) => void set("hoverSmooth", value)}
+        />
+        <QuickAppearanceSwitch
+          label="Quick Emotes"
+          checked={quickEmotes}
+          onChange={(value) => void set("quickEmotes", value)}
         />
       </div>
     </div>
@@ -390,7 +467,6 @@ function ChatAppearancePreview({
   platform: ChatPlatform;
   username: string;
 }) {
-  const isCompact = density === "compact";
   const rows = [
     {
       badgeClassName: "bg-[#1f9dff]",
@@ -430,9 +506,7 @@ function ChatAppearancePreview({
       <div
         data-density={density}
         data-testid="chat-appearance-density-preview"
-        className={`mt-2 min-w-0 overflow-hidden text-white transition-[gap] duration-150 ${
-          isCompact ? "space-y-0" : "space-y-1"
-        }`}
+        className="mt-2 min-w-0 overflow-hidden text-white"
         style={{ fontSize: fontSizePx }}
       >
         {rows.map((row) => (
@@ -481,14 +555,16 @@ function ChatAppearancePreviewRow({
   usernameClassName: string;
   withEmote: boolean;
 }) {
+  const densityPresentation = getChatDensityPresentation(density);
   const isCompact = density === "compact";
+  const isLoose = density === "loose";
 
   return (
     <div
       data-testid={testId}
-      className={`flex min-w-0 items-center whitespace-nowrap transition-[padding,line-height] duration-150 ${
-        isCompact ? "gap-1 py-0 leading-4" : "gap-1.5 py-1.5 leading-5"
-      }`}
+      className={`flex min-w-0 items-center whitespace-nowrap ${
+        isCompact ? "gap-1 leading-4" : isLoose ? "gap-2 leading-6" : "gap-1.5 leading-5"
+      } ${densityPresentation.rowPaddingClass}`}
     >
       <span
         className={`inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm text-[9px] font-black leading-none text-white ${badgeClassName}`}

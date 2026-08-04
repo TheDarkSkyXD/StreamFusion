@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { getClipsByBroadcaster } from "@/backend/api/platforms/twitch/endpoints/clip-endpoints";
+import {
+  getClipsByBroadcaster,
+  getClipsByGame,
+} from "@/backend/api/platforms/twitch/endpoints/clip-endpoints";
 import type { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
 
 function makeClient(response: unknown): TwitchRequestor {
@@ -110,5 +113,24 @@ describe("getClipsByBroadcaster", () => {
     const result = await getClipsByBroadcaster(client, "b1");
 
     expect(result.data[0]).toEqual(CLIP);
+  });
+});
+
+// Guards: Category Clip discovery uses Twitch's native game identity and preserves range pagination.
+describe("getClipsByGame", () => {
+  it("requests the native game feed with cursor and time bounds", async () => {
+    const client = makeClient({ data: [CLIP], pagination: { cursor: "next-page" } });
+
+    const result = await getClipsByGame(client, "509658", {
+      first: 1,
+      after: "cursor-abc",
+      started_at: "2026-01-01T00:00:00Z",
+      ended_at: "2026-01-31T23:59:59Z",
+    });
+
+    expect(client.request).toHaveBeenCalledWith(
+      "/clips?game_id=509658&first=1&after=cursor-abc&started_at=2026-01-01T00%3A00%3A00Z&ended_at=2026-01-31T23%3A59%3A59Z"
+    );
+    expect(result).toEqual({ data: [CLIP], cursor: "next-page" });
   });
 });

@@ -84,7 +84,7 @@ function SearchFixtureProvider({ children }: { children: React.ReactNode }) {
 
     for (const platform of ["twitch", "kick"] as const) {
       client.setQueryData(
-        ["search", "channels", "nova", platform, false, 50],
+        ["search", "channels", "nova", platform, 50],
         envelope(
           platform,
           channels.filter((channel) => channel.platform === platform)
@@ -190,6 +190,17 @@ export const LiveChannelPicker: Story = {
     showCategories: false,
     showSearchTabs: false,
     liveOnlyChannels: true,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("textbox"));
+  },
+};
+
+export const LiveChannelPickerWithFavoriteActions: Story = {
+  args: {
+    ...LiveChannelPicker.args,
+    isChannelFavorite: () => false,
+    onToggleChannelFavorite: () => undefined,
   },
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole("textbox"));

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
+import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useFullscreen } from "../hooks/use-fullscreen";
@@ -59,6 +60,8 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hls, setHls] = useState<Hls | null>(null);
+  const rewindSeconds = useSeekIntervalStore((state) => state.rewindSeconds);
+  const forwardSeconds = useSeekIntervalStore((state) => state.forwardSeconds);
 
   // Persistent volume
   const { volume, isMuted, handleVolumeChange, handleToggleMute, syncFromVideoElement } = useVolume(
@@ -185,6 +188,19 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     video.currentTime = time;
   }, []);
 
+  const handleSeekBackward = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    handleSeek(Math.max(0, video.currentTime - rewindSeconds));
+  }, [handleSeek, rewindSeconds]);
+
+  const handleSeekForward = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const targetTime = video.currentTime + forwardSeconds;
+    handleSeek(Number.isFinite(video.duration) ? Math.min(video.duration, targetTime) : targetTime);
+  }, [forwardSeconds, handleSeek]);
+
   const handlePlaybackRateChange = useCallback((rate: number) => {
     const video = videoRef.current;
     if (!video) return;
@@ -226,6 +242,8 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     onVolumeUp: () => handleVolumeChange((v) => v + 10),
     onVolumeDown: () => handleVolumeChange((v) => v - 10),
     onToggleFullscreen: toggleFullscreen,
+    onSeekBackward: handleSeekBackward,
+    onSeekForward: handleSeekForward,
     disabled: !isKeyboardReady,
   });
 
@@ -290,6 +308,12 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
           currentTime={currentTime}
           duration={duration}
           onSeek={handleSeek}
+          seekBackwardSeconds={rewindSeconds}
+          seekForwardSeconds={forwardSeconds}
+          onSeekBackward={handleSeekBackward}
+          onSeekForward={handleSeekForward}
+          seekBackwardDisabled={currentTime <= 0}
+          seekForwardDisabled={Number.isFinite(duration) && currentTime >= duration}
           buffered={buffered}
           playbackRate={playbackRate}
           onPlaybackRateChange={handlePlaybackRateChange}

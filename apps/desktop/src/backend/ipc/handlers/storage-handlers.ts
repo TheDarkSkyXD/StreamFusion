@@ -1,11 +1,74 @@
-import { ipcMain } from "electron";
+import { type BrowserWindow, ipcMain } from "electron";
+import { z } from "zod";
 
-import type { LocalFollow, Platform, UserPreferences } from "../../../shared/auth-types";
+import { logger } from "@/backend/logging/logger";
+import type {
+  KickAccountFollowWriteSnapshot,
+  KickAccountFollowWriteResult,
+  LocalFollow,
+  Platform,
+  UserPreferences,
+} from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import { kickFollowWriteService } from "../../services/kick-follow-write-service";
 import { storageService } from "../../services/storage-service";
+import { twitchFollowWriteService } from "../../services/twitch-follow-write-service";
+import { isAllowedSender } from "../sender-origin";
 import { repairKickFollowSlugs } from "./kick-follow-repair";
 
-export function registerStorageHandlers(): void {
+const REJECTED_ACCOUNT_FOLLOW_WRITE: KickAccountFollowWriteResult = {
+  status: "rejected",
+  activeFollows: [],
+  error: "Rejected: caller is not the application renderer.",
+};
+
+const INVALID_ACCOUNT_FOLLOW_WRITE: KickAccountFollowWriteResult = {
+  status: "rejected",
+  activeFollows: [],
+  error: "Rejected: invalid Kick account follow request.",
+};
+
+function createAccountFollowWriteRequestSchema<TPlatform extends "kick" | "twitch">(
+  platform: TPlatform
+) {
+  return z
+    .object({
+      action: z.enum(["follow", "unfollow"]),
+      follow: z
+        .object({
+          platform: z.literal(platform),
+          channelId: z.string().trim().min(1),
+          channelName: z.string().trim().min(1),
+          displayName: z.string(),
+          profileImage: z.string(),
+          lastSeen: z.string().optional(),
+          isLive: z.boolean().optional(),
+          notifications: z.boolean().optional(),
+          source: z.enum(["guest", "twitch", "kick"]).optional(),
+        })
+        .strict(),
+    })
+    .strict();
+}
+
+const accountFollowWriteRequestSchema = z.union([
+  createAccountFollowWriteRequestSchema("kick"),
+  createAccountFollowWriteRequestSchema("twitch"),
+]);
+
+export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
+  if (mainWindow) {
+    kickFollowWriteService.onAccountWriteChanged((event) => {
+      try {
+        if (!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, event);
+        }
+      } catch {
+        logger.warn("IPC:Follows", "Could not forward account-write transition to renderer");
+      }
+    });
+  }
+
   // ========== Generic Storage (backward compatibility) ==========
   ipcMain.handle(IPC_CHANNELS.STORE_GET, (_event, { key }: { key: string }) => {
     return storageService.get(key as keyof typeof storageService.get);
@@ -54,22 +117,71 @@ export function registerStorageHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_ADD,
     (_event, { follow }: { follow: Omit<LocalFollow, "id" | "followedAt"> }) => {
-      // Kick account rows must come from sync, not a local click. Until a
-      // Kick-side follow write is confirmed, reject instead of creating a
-      // source="kick" row that would look like a real account follow.
-      if (follow.platform === "kick" && storageService.hasToken("kick")) {
+      // Account rows must come from sync, not a local click. Reject instead of
+      // creating a platform-source row before the remote write is confirmed.
+      if (storageService.hasToken(follow.platform)) {
+        const platformName = follow.platform === "kick" ? "Kick" : "Twitch";
         throw new Error(
-          "Kick account follows must be confirmed by Kick before they can be shown as followed."
+          `${platformName} account follows must be confirmed by ${platformName} before they can be shown as followed.`
         );
       }
-      const source = storageService.hasToken(follow.platform) ? follow.platform : "guest";
-      return storageService.addLocalFollow(follow, source);
+      return storageService.addLocalFollow(follow, "guest");
     }
   );
 
   ipcMain.handle(IPC_CHANNELS.FOLLOWS_REMOVE, (_event, { id }: { id: string }) => {
     return storageService.removeLocalFollow(id);
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.FOLLOWS_GET_ACCOUNT_WRITES,
+    (event): KickAccountFollowWriteSnapshot[] => {
+      if (!isAllowedSender(event) || !storageService.hasToken("kick")) return [];
+
+      return storageService.getPendingFollowWritesByPlatform("kick").map((write) => ({
+        status: write.status,
+        action: write.action,
+        target: {
+          platform: "kick",
+          channelId: write.channelId,
+          channelName: write.slug,
+        },
+        createdAt: write.createdAt,
+        attemptedAt: write.attemptedAt,
+        nextAttemptAt: write.nextAttemptAt,
+        expiresAt: write.expiresAt,
+        attemptCount: write.attemptCount,
+        lastError: write.lastError,
+      }));
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.FOLLOWS_WRITE_ACCOUNT,
+    async (event, request: unknown): Promise<KickAccountFollowWriteResult> => {
+      if (!isAllowedSender(event)) {
+        logger.warn("IPC:Follows", "FOLLOWS_WRITE_ACCOUNT rejected: disallowed sender origin");
+        return REJECTED_ACCOUNT_FOLLOW_WRITE;
+      }
+
+      const parsed = accountFollowWriteRequestSchema.safeParse(request);
+      if (!parsed.success) return INVALID_ACCOUNT_FOLLOW_WRITE;
+
+      if (parsed.data.follow.platform === "twitch") {
+        return twitchFollowWriteService.write(parsed.data.follow, parsed.data.action);
+      }
+
+      if (!storageService.hasToken("kick")) {
+        throw new Error("Kick authentication is required to update account follows.");
+      }
+
+      const outcome = await kickFollowWriteService.enqueue(parsed.data.follow, parsed.data.action);
+      return {
+        status: outcome.status,
+        activeFollows: storageService.getActiveFollowsByPlatform("kick"),
+      };
+    }
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_UPDATE,

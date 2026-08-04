@@ -7,6 +7,7 @@ import {
   persistInitialAuthToken,
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
+  syncTwitchFollowsAfterLogin,
 } from "@/backend/ipc/handlers/auth-handlers";
 
 describe("invalidateLegacyTwitchToken", () => {
@@ -86,12 +87,116 @@ describe("performTwitchDeviceCodeLogin", () => {
     expect(afterAuthenticated).toHaveBeenCalledTimes(1);
     expect(result).toEqual(user);
   });
+
+  it("closes the popup on token settlement before account refresh completes", async () => {
+    const token = {
+      accessToken: "at",
+      refreshToken: "rt",
+      authFlow: "device-code" as const,
+    };
+    const closePopup = vi.fn();
+    const saveToken = vi.fn(() => {
+      expect(closePopup).toHaveBeenCalledTimes(1);
+    });
+    let finishUserRefresh: (user: null) => void = () => undefined;
+    const userRefresh = new Promise<null>((resolve) => {
+      finishUserRefresh = resolve;
+    });
+    const afterAuthenticated = vi.fn(async () => {});
+
+    const login = performTwitchDeviceCodeLogin({
+      scopes: ["chat:read"],
+      requestDeviceCode: vi.fn(async () => ({
+        deviceCode: "dc",
+        userCode: "ABCD-EFGH",
+        verificationUri: "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
+        expiresIn: 900,
+        interval: 5,
+      })),
+      openVerificationWindow: vi.fn(async () => ({
+        closed: new Promise<void>(() => undefined),
+        close: closePopup,
+      })),
+      pollForToken: vi.fn(async () => token),
+      saveToken,
+      scheduleProactiveRefresh: vi.fn(),
+      fetchCurrentUser: vi.fn(async () => await userRefresh),
+      saveTwitchUser: vi.fn(),
+      afterAuthenticated,
+    });
+
+    await vi.waitFor(() => {
+      expect(closePopup).toHaveBeenCalledTimes(1);
+      expect(saveToken).toHaveBeenCalledTimes(1);
+    });
+    expect(afterAuthenticated).not.toHaveBeenCalled();
+
+    finishUserRefresh(null);
+    await expect(login).resolves.toBeNull();
+  });
+});
+
+describe("syncTwitchFollowsAfterLogin", () => {
+  it("prunes absent Twitch rows only from a successfully fetched authoritative snapshot", async () => {
+    const getFollows = vi.fn().mockResolvedValue([
+      {
+        id: "12345",
+        platform: "twitch",
+        username: "example_channel",
+        displayName: "Example Channel",
+        avatarUrl: "https://example.com/avatar.png",
+      },
+    ]);
+    const upsertSyncedFollows = vi.fn().mockReturnValue({
+      accountCount: 1,
+      pendingCount: 0,
+      addedCount: 0,
+      removedCount: 2,
+    });
+
+    await expect(syncTwitchFollowsAfterLogin(getFollows, { upsertSyncedFollows })).resolves.toEqual(
+      {
+        status: "ok",
+        count: 1,
+        pendingCount: 0,
+        addedCount: 0,
+        removedCount: 2,
+      }
+    );
+    expect(upsertSyncedFollows).toHaveBeenCalledWith(
+      "twitch",
+      [
+        {
+          platform: "twitch",
+          channelId: "12345",
+          channelName: "example_channel",
+          displayName: "Example Channel",
+          profileImage: "https://example.com/avatar.png",
+        },
+      ],
+      { pruneAbsent: true }
+    );
+  });
+
+  it("preserves prior Twitch rows when the authoritative fetch fails", async () => {
+    const getFollows = vi.fn().mockRejectedValue(new Error("temporary Twitch failure"));
+    const upsertSyncedFollows = vi.fn();
+
+    await expect(syncTwitchFollowsAfterLogin(getFollows, { upsertSyncedFollows })).resolves.toEqual(
+      {
+        status: "error",
+        reason: "twitch-follow-fetch-failed",
+      }
+    );
+    expect(upsertSyncedFollows).not.toHaveBeenCalled();
+  });
 });
 
 // Guards the A1 fix: a transient Cloudflare/Kasada/auth failure must NOT
 // trigger an account-follows clear, because that would silently wipe the
 // user's prior synced follow list. The "should-fix" reviewer rated this
 // the highest-impact behavioral change in the diff (testing finding T1).
+// Guards: successful Kick re-auth reconciles authoritative follows before resuming remaining writes.
 
 describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
   it("on getFollows error: returns the error AND does not touch storage", async () => {
@@ -274,6 +379,41 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
     });
   });
 
+  it("reconciles landed writes before resuming only the remaining auth-paused write", async () => {
+    const calls: string[] = [];
+    let pendingWrites = [
+      { channelId: "already-landed", status: "auth-paused" },
+      { channelId: "still-pending", status: "auth-paused" },
+    ];
+    const writeKickAccountFollow = vi.fn((channelId: string) => {
+      calls.push(`write:${channelId}`);
+    });
+    const getFollows = vi.fn(async () => {
+      calls.push("fetch-authoritative");
+      return {
+        status: "ok" as const,
+        canPruneAbsent: true,
+        channels: [],
+      };
+    });
+    const upsertSyncedFollows = vi.fn(() => {
+      calls.push("reconcile");
+      pendingWrites = pendingWrites.filter((write) => write.channelId !== "already-landed");
+      return { accountCount: 0, pendingCount: 1, addedCount: 0, removedCount: 0 };
+    });
+    const resumePendingWrites = vi.fn(() => {
+      calls.push("resume");
+      for (const write of pendingWrites) writeKickAccountFollow(write.channelId);
+    });
+
+    await syncKickFollowsAfterLogin(getFollows, { upsertSyncedFollows }, resumePendingWrites);
+
+    expect(calls).toEqual(["fetch-authoritative", "reconcile", "resume", "write:still-pending"]);
+    expect(writeKickAccountFollow).toHaveBeenCalledOnce();
+    expect(writeKickAccountFollow).toHaveBeenCalledWith("still-pending");
+    expect(writeKickAccountFollow).not.toHaveBeenCalledWith("already-landed");
+  });
+
   it("surfaces addedCount/removedCount from the storage call so the renderer can skip cache invalidation on no-op syncs", async () => {
     // The renderer-gate contract: the IPC payload carries the diff through so
     // the renderer only refetches the followed-channels query when something
@@ -331,7 +471,22 @@ describe("shouldDeferKickStartupFollowRefresh", () => {
 // Guards: callback scope metadata is stored as observed, never upgraded to an
 // unverified canonical grant. Official introspection is the scope truth source.
 // Guards: Twitch token persistence remains unchanged by Kick-specific normalization.
+// Guards: a new Kick credential invalidates the previous account follow snapshot before it can hydrate under another identity.
 describe("persistInitialAuthToken", () => {
+  it("invalidates the previous Kick follow snapshot when a new credential is persisted", () => {
+    const saveToken = vi.fn();
+    const invalidateKickAccountFollows = vi.fn();
+
+    persistInitialAuthToken(
+      "kick",
+      { accessToken: "at" },
+      { saveToken, invalidateKickAccountFollows }
+    );
+
+    expect(saveToken).toHaveBeenCalledWith("kick", { accessToken: "at" });
+    expect(invalidateKickAccountFollows).toHaveBeenCalledOnce();
+  });
+
   it("does not synthesize a Kick grant when the callback omits scope", () => {
     const saveToken = vi.fn();
 

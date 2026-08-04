@@ -28,6 +28,8 @@ function makeTwitchEmote(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// Guards: Twitch emote reads stay behind the credential-free main-process capability boundary and transform Helix responses into the shared emote shape.
+// Guards: user-emote reads require a validated token subject and scope, paginate all results, and preserve completed pages when a later page fails.
 describe("TwitchEmoteProvider", () => {
   beforeEach(() => {
     executeMock.mockReset();
@@ -212,13 +214,43 @@ describe("TwitchEmoteProvider", () => {
       expect(executeMock).not.toHaveBeenCalled();
     });
 
+    it("does not retry user emotes from a retained profile when restored auth is invalid", async () => {
+      twitchEmoteProvider.configure();
+      const tokenStatus = vi.fn(async () => ({
+        connected: true,
+        valid: false,
+        platform: "twitch" as const,
+        userId: "validated-user",
+        scopes: ["user:read:emotes"],
+      }));
+      const getTwitchUser = vi.fn(async () => ({ id: "retained-profile-user" }));
+      vi.stubGlobal("window", {
+        electronAPI: {
+          auth: { tokenStatus, getTwitchUser },
+          twitch: { execute: executeMock },
+        },
+      });
+
+      await expect(twitchEmoteProvider.fetchUserEmotes()).resolves.toEqual([]);
+      await expect(twitchEmoteProvider.fetchUserEmotes()).resolves.toEqual([]);
+
+      expect(tokenStatus).toHaveBeenCalledTimes(2);
+      expect(getTwitchUser).not.toHaveBeenCalled();
+      expect(executeMock).not.toHaveBeenCalled();
+    });
+
     it("fetches signed-in user's non-global emotes across pages", async () => {
       twitchEmoteProvider.configure();
       vi.stubGlobal("window", {
         electronAPI: {
           auth: {
-            getTwitchUser: vi.fn(async () => ({ id: "user-123" })),
-            getValidTwitchToken: vi.fn(async () => "fresh-token"),
+            tokenStatus: vi.fn(async () => ({
+              platform: "twitch" as const,
+              connected: true,
+              valid: true,
+              userId: "user-123",
+              scopes: ["user:read:emotes"],
+            })),
           },
           twitch: { execute: executeMock },
         },
@@ -290,6 +322,41 @@ describe("TwitchEmoteProvider", () => {
         "https://example.test/streamerone/avatar.webp",
         "https://example.test/followchan/avatar.webp",
       ]);
+    });
+
+    it("keeps user emotes from completed pages when a later page fails", async () => {
+      twitchEmoteProvider.configure();
+      vi.stubGlobal("window", {
+        electronAPI: {
+          auth: {
+            tokenStatus: vi.fn(async () => ({
+              platform: "twitch" as const,
+              connected: true,
+              valid: true,
+              userId: "user-123",
+              scopes: ["user:read:emotes"],
+            })),
+          },
+          twitch: { execute: executeMock },
+        },
+      });
+      mockJsonOnce({
+        data: [
+          makeTwitchEmote({
+            id: "sub-1",
+            name: "StreamerSub",
+            emote_type: "subscriptions",
+          }),
+        ],
+        pagination: { cursor: "next" },
+      });
+      mockRejectOnce(new Error("page two failed"));
+
+      const result = await twitchEmoteProvider.fetchUserEmotes();
+
+      expect(executeMock).toHaveBeenCalledTimes(2);
+      expect(result.map((emote) => emote.name)).toEqual(["StreamerSub"]);
+      expect(result[0].availability).toBe("user");
     });
   });
 

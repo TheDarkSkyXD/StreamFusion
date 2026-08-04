@@ -14,6 +14,7 @@ vi.mock("@/backend/services/database-service", () => ({
 vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
     getLocalFollowsByPlatform: vi.fn(),
+    getActiveFollowsByPlatform: vi.fn(),
     updateLocalFollow: vi.fn(),
   },
 }));
@@ -28,7 +29,10 @@ vi.mock("@/backend/logging/logger", () => ({
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { dbService } from "@/backend/services/database-service";
-import { repairKickFollowSlugs } from "@/backend/services/kick-follow-metadata-repair";
+import {
+  repairKickFollowSlugs,
+  resolveKickFollowPlaybackSlug,
+} from "@/backend/services/kick-follow-metadata-repair";
 import { storageService } from "@/backend/services/storage-service";
 import type { LocalFollow } from "@/shared/auth-types";
 
@@ -66,7 +70,100 @@ beforeEach(() => {
 });
 
 // Guards: verified metadata discovered during a slug repair survives later calls and process restarts under the stable Kick broadcaster ID.
+// Guards: legacy slug-keyed follows remain repairable for listing, scanning, and playback through the exact ID in their canonical avatar URL.
+// Guards: ID-less Kick follows hydrate by slug without replacing richer stored display-name casing with a lowercase slug fallback.
 describe("repairKickFollowSlugs verification metadata", () => {
+  it("repairs a slug-keyed follow through the broadcaster ID in its avatar URL", async () => {
+    const staleFollow = makeFollow({
+      id: "row-abby",
+      channelId: "abby201",
+      channelName: "abby201",
+      displayName: "Abby201",
+      profileImage: "https://files.kick.com/images/user/110821336/profile_image/conversion.webp",
+    });
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([staleFollow]);
+    const renamedChannel = makeChannel({
+      id: "110821336",
+      username: "abbyapple",
+      displayName: "AbbyApple",
+      avatarUrl: "https://files.kick.com/images/user/110821336/profile_image/current.webp",
+    });
+    const client = {
+      getChannelsByBroadcasterIds: vi.fn().mockResolvedValue([renamedChannel]),
+      getPublicChannel: vi.fn().mockResolvedValue({
+        ...renamedChannel,
+        kickUserId: "110821336",
+      }),
+    };
+
+    const repaired = await repairKickFollowSlugs(client, [staleFollow]);
+
+    expect(client.getChannelsByBroadcasterIds).toHaveBeenCalledWith([110821336]);
+    expect(repaired.get(staleFollow.id)?.username).toBe("abbyapple");
+  });
+
+  it("hydrates an ID-less follow by slug without downgrading stored display-name casing", async () => {
+    const legacyFollow = makeFollow({
+      id: "row-nickwhite",
+      channelId: "nickwhite",
+      channelName: "nickwhite",
+      displayName: "NickWhite",
+      profileImage: "",
+    });
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([legacyFollow]);
+    const slugChannel = makeChannel({
+      id: "123",
+      username: "nickwhite",
+      displayName: "nickwhite",
+      avatarUrl: "",
+    });
+    const client = {
+      getChannelsByBroadcasterIds: vi.fn().mockResolvedValue([]),
+      getChannelsBySlugs: vi.fn().mockResolvedValue([slugChannel]),
+      getPublicChannel: vi.fn().mockResolvedValue(null),
+    };
+
+    const repaired = await repairKickFollowSlugs(client, [legacyFollow]);
+
+    expect(client.getChannelsByBroadcasterIds).not.toHaveBeenCalled();
+    expect(client.getChannelsBySlugs).toHaveBeenCalledWith(["nickwhite"]);
+    expect(repaired.get(legacyFollow.id)).toMatchObject({
+      id: "123",
+      username: "nickwhite",
+      displayName: "NickWhite",
+    });
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("row-nickwhite", {
+      channelId: "123",
+    });
+  });
+
+  it("resolves playback for a renamed slug-keyed follow through its avatar identity", async () => {
+    const staleFollow = makeFollow({
+      id: "row-abby",
+      channelId: "abby201",
+      channelName: "abby201",
+      profileImage: "https://files.kick.com/images/user/110821336/profile_image/conversion.webp",
+    });
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([staleFollow]);
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([staleFollow]);
+    const renamedChannel = makeChannel({
+      id: "110821336",
+      username: "abbyapple",
+      displayName: "AbbyApple",
+    });
+    const client = {
+      getChannelsByBroadcasterIds: vi.fn().mockResolvedValue([renamedChannel]),
+      getPublicChannel: vi.fn().mockResolvedValue({
+        ...renamedChannel,
+        kickUserId: "110821336",
+      }),
+    };
+
+    const slug = await resolveKickFollowPlaybackSlug(client, "abby201");
+
+    expect(slug).toBe("abbyapple");
+  });
+
   it("persists verified metadata by stable broadcaster ID and reuses it after the slug is current", async () => {
     const staleFollow = makeFollow();
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([staleFollow]);

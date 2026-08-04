@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { useInterval } from "@/hooks/useInterval";
 import { RECORDING_LIFECYCLE_LABELS } from "@/lib/stream-recording-presentation";
 import type {
   StreamRecordingLifecycleState,
@@ -43,6 +44,7 @@ function toLifecycleState(snapshot: StreamRecordingSnapshot): StreamRecordingLif
 interface StreamRecordingStore {
   getSnapshot(): StreamRecordingLifecycleState;
   publish(snapshot: StreamRecordingSnapshot): void;
+  tick(): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -52,7 +54,38 @@ function createStreamRecordingStore(): StreamRecordingStore {
   return {
     getSnapshot: () => currentState,
     publish: (snapshot) => {
-      currentState = toLifecycleState(snapshot);
+      const nextState = toLifecycleState(snapshot);
+      const previousActive = currentState.active;
+      const nextActive = nextState.active;
+      if (
+        nextActive &&
+        previousActive?.sessionId &&
+        previousActive.sessionId === nextActive.sessionId
+      ) {
+        currentState = {
+          ...nextState,
+          active: {
+            ...nextActive,
+            capturedDurationSeconds: Math.max(
+              previousActive.capturedDurationSeconds ?? 0,
+              nextActive.capturedDurationSeconds ?? 0
+            ),
+          },
+        };
+      } else {
+        currentState = nextState;
+      }
+      for (const listener of listeners) listener();
+    },
+    tick: () => {
+      if (currentState.phase !== "recording") return;
+      currentState = {
+        ...currentState,
+        active: {
+          ...currentState.active,
+          capturedDurationSeconds: (currentState.active.capturedDurationSeconds ?? 0) + 1,
+        },
+      };
       for (const listener of listeners) listener();
     },
     subscribe: (listener) => {
@@ -64,6 +97,13 @@ function createStreamRecordingStore(): StreamRecordingStore {
 
 const fallbackStore = createStreamRecordingStore();
 const StreamRecordingContext = createContext<StreamRecordingStore | null>(null);
+
+function StreamRecordingElapsedClock({ store }: { store: StreamRecordingStore }) {
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  useInterval(store.tick, state.phase === "recording" ? 1_000 : null);
+
+  return null;
+}
 
 function StreamRecordingPhaseAnnouncer() {
   const state = useStreamRecordingState();
@@ -146,6 +186,7 @@ export function StreamRecordingProvider({ children }: { children: ReactNode }) {
 
   return (
     <StreamRecordingContext.Provider value={store}>
+      <StreamRecordingElapsedClock store={store} />
       <StreamRecordingPhaseAnnouncer />
       <StreamRecordingQualityAnnouncer />
       {children}

@@ -28,6 +28,35 @@ const MINI_PLAYER_WIDTH = 400;
 const MINI_PLAYER_HEIGHT = 225;
 const PADDING = 16;
 const MAX_REFRESH_ATTEMPTS = 2;
+
+function getPlayerErrorStatusCode(error: PlayerError): number | null {
+  if (!error.originalError || typeof error.originalError !== "object") return null;
+
+  const originalError = error.originalError as {
+    response?: { code?: unknown; status?: unknown };
+    networkDetails?: { status?: unknown };
+  };
+  const statusCode =
+    originalError.response?.code ??
+    originalError.response?.status ??
+    originalError.networkDetails?.status;
+  return typeof statusCode === "number" ? statusCode : null;
+}
+
+function shouldRefreshMiniPlayback(error: PlayerError): boolean {
+  if (error.shouldRefresh === true || error.code === "TOKEN_EXPIRED") return true;
+  if (error.code !== "STREAM_OFFLINE") return false;
+
+  const statusCode = getPlayerErrorStatusCode(error);
+  return statusCode !== 403 && statusCode !== 404;
+}
+
+function isExplicitPlaybackUnavailable(error: Error | null): boolean {
+  if (!error) return false;
+  const message = error.message.toLowerCase();
+  return message.includes("offline") || message.includes("not found");
+}
+
 export function MiniPlayer() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,24 +77,36 @@ export function MiniPlayer() {
   // Determine if this is a Twitch stream that needs ad-blocking
   const isTwitchStream = currentStream?.platform === "twitch";
   const isViewingStreamRoute = location.pathname.startsWith("/stream/");
-  const normalizedPathname = location.pathname.replace(/\/$/, "").toLowerCase();
-  const currentStreamPath = currentStream
-    ? `/stream/${currentStream.platform}/${currentStream.channelName}`.toLowerCase()
-    : "";
-  const isDocked = isViewingStreamRoute && normalizedPathname === currentStreamPath;
+  // Stream-to-stream navigation updates the route before the new stream has
+  // finished replacing the active player snapshot. Treat every stream route
+  // as docked so that brief identity mismatch cannot flash mini mode.
+  const isDocked = isViewingStreamRoute;
   const [playerHost] = useState(() => document.createElement("div"));
 
   // Keep one React portal container for the lifetime of the player. Moving this
   // host between the route dock and document.body preserves the video DOM node
   // (and therefore its HLS instance and buffered media) across navigation.
   useLayoutEffect(() => {
-    const target = isDocked
-      ? document.getElementById("persistent-live-player-dock")
-      : document.body;
-    if (!target) return;
+    const movePlayerHost = () => {
+      const target = isDocked
+        ? document.getElementById("persistent-live-player-dock")
+        : document.body;
+      if (!target) return false;
 
-    playerHost.dataset.playerMode = isDocked ? "docked" : "mini";
-    target.appendChild(playerHost);
+      playerHost.dataset.playerMode = isDocked ? "docked" : "mini";
+      playerHost.style.width = isDocked ? "100%" : "";
+      playerHost.style.height = isDocked ? "100%" : "";
+      target.appendChild(playerHost);
+      return true;
+    };
+
+    if (movePlayerHost()) return;
+
+    const observer = new MutationObserver(() => {
+      if (movePlayerHost()) observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [isDocked, playerHost]);
 
   useEffect(() => () => playerHost.remove(), [playerHost]);
@@ -81,16 +122,18 @@ export function MiniPlayer() {
     reloadAttempts,
   } = useStreamPlayback(platform, channelName);
 
-  // Keep the last verified URL only while its shared refresh is in flight.
-  // This keeps the live wrapper/video mounted until the replacement URL
-  // arrives, without falling back to the potentially expired PiP snapshot.
+  // Keep the last verified URL through loading and transient resolver failures.
+  // Only an explicit offline/not-found response may retire active playback.
   const playbackIdentity = `${platform}:${channelName.toLowerCase()}`;
   const lastVerifiedPlaybackRef = useRef({ identity: playbackIdentity, url: "" });
   if (lastVerifiedPlaybackRef.current.identity !== playbackIdentity) {
     lastVerifiedPlaybackRef.current = { identity: playbackIdentity, url: "" };
   }
   if (playback?.url) lastVerifiedPlaybackRef.current.url = playback.url;
-  const streamUrl = playback?.url || (isPlaybackLoading ? lastVerifiedPlaybackRef.current.url : "");
+  const hasExplicitUnavailablePlaybackError = isExplicitPlaybackUnavailable(playbackError);
+  const streamUrl =
+    playback?.url ||
+    (!hasExplicitUnavailablePlaybackError ? lastVerifiedPlaybackRef.current.url : "");
 
   // The live-player wrapper is the only owner that applies/synchronizes the
   // video element. Mini controls update the shared user preference only.
@@ -178,7 +221,7 @@ export function MiniPlayer() {
 
   useEffect(() => {
     if (!currentStream || isPlaybackLoading || playback?.url) return;
-    if (playbackError) {
+    if (playbackError && hasExplicitUnavailablePlaybackError) {
       logger.debug("Player:Mini", "closing PiP because playback is unavailable", {
         platform,
         channelName: currentStream.channelName,
@@ -186,7 +229,15 @@ export function MiniPlayer() {
       });
       closePip();
     }
-  }, [closePip, currentStream, isPlaybackLoading, platform, playback?.url, playbackError]);
+  }, [
+    closePip,
+    currentStream,
+    hasExplicitUnavailablePlaybackError,
+    isPlaybackLoading,
+    platform,
+    playback?.url,
+    playbackError,
+  ]);
 
   // Dragging handlers
   const handleMouseDown = useCallback(
@@ -302,15 +353,14 @@ export function MiniPlayer() {
 
   const handleError = useCallback(
     (error: PlayerError) => {
-      const shouldRefreshForLiveTwitchError =
-        isTwitchStream && (error.shouldRefresh === true || error.code === "TOKEN_EXPIRED");
-
-      if (shouldRefreshForLiveTwitchError && reloadAttempts < MAX_REFRESH_ATTEMPTS) {
-        logger.debug("Player:Mini", "refreshing URL after live twitch error", {
+      if (shouldRefreshMiniPlayback(error) && reloadAttempts < MAX_REFRESH_ATTEMPTS) {
+        logger.debug("Player:Mini", "refreshing URL after recoverable live-player error", {
+          platform,
           code: error.code,
           attempt: reloadAttempts + 1,
           maxAttempts: MAX_REFRESH_ATTEMPTS,
         });
+        setPlayerRecoveryRevision((revision) => revision + 1);
         reload();
         return;
       }
@@ -318,7 +368,7 @@ export function MiniPlayer() {
       logger.error("Player:Mini", "player error", { error });
       setHasError(true);
     },
-    [isTwitchStream, reload, reloadAttempts]
+    [platform, reload, reloadAttempts]
   );
 
   const handleConfirmedNetworkRecovery = useCallback(() => {
@@ -327,6 +377,8 @@ export function MiniPlayer() {
     reload();
   }, [reload]);
   usePlayerNetworkRecovery(hasError, handleConfirmedNetworkRecovery);
+
+  const miniPlayerButtonClass = "cursor-pointer disabled:cursor-not-allowed";
 
   // Don't render if not active or no stream
   if (!currentStream || !streamUrl) {
@@ -426,7 +478,10 @@ export function MiniPlayer() {
                   <button
                     type="button"
                     onClick={handleExpand}
-                    className="p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+                    className={cn(
+                      "p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors",
+                      miniPlayerButtonClass
+                    )}
                   >
                     <LuMaximize2 size={16} />
                   </button>
@@ -438,7 +493,10 @@ export function MiniPlayer() {
                   <button
                     type="button"
                     onClick={closePip}
-                    className="p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors"
+                    className={cn(
+                      "p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors",
+                      miniPlayerButtonClass
+                    )}
                   >
                     <LuX size={16} />
                   </button>
@@ -479,7 +537,10 @@ export function MiniPlayer() {
                       type="button"
                       onClick={togglePlay}
                       aria-label={isPlaying ? "Pause" : "Play"}
-                      className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                      className={cn(
+                        "p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors",
+                        miniPlayerButtonClass
+                      )}
                     >
                       {isPlaying ? <LuPause size={16} /> : <LuPlay size={16} />}
                     </button>
@@ -504,7 +565,10 @@ export function MiniPlayer() {
                             e.stopPropagation();
                             handleToggleMute();
                           }}
-                          className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors z-10"
+                          className={cn(
+                            "p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors z-10",
+                            miniPlayerButtonClass
+                          )}
                         >
                           {isMuted ? <LuVolumeX size={16} /> : <LuVolume2 size={16} />}
                         </button>

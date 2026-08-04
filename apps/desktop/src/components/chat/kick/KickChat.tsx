@@ -1151,6 +1151,9 @@ export const KickChat: React.FC<KickChatProps> = ({
   const handleReply = useCallback((message: ChatMessage) => {
     chatInputRef.current?.replyTo(message);
   }, []);
+  const handleCopyToChat = useCallback((message: string) => {
+    chatInputRef.current?.setDraft(message);
+  }, []);
   const handleViewUserChannel = useCallback(
     (platform: "twitch" | "kick", resolved: { username: string }) => {
       void router.navigate({
@@ -1164,9 +1167,10 @@ export const KickChat: React.FC<KickChatProps> = ({
     () => ({
       replyEligibility: isAuthenticated ? sendEligibility : null,
       onReply: handleReply,
+      onCopyToChat: handleCopyToChat,
       onViewChannel: handleViewUserChannel,
     }),
-    [handleReply, handleViewUserChannel, isAuthenticated, sendEligibility]
+    [handleCopyToChat, handleReply, handleViewUserChannel, isAuthenticated, sendEligibility]
   );
 
   // Stable callbacks for PredictionBanner — see TwitchChat for context.

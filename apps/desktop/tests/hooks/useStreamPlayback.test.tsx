@@ -26,11 +26,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   delete (window as unknown as { electronAPI?: unknown }).electronAPI;
 });
 
 // Guards: playback URL logging must report timing and host metadata without leaking signed URLs.
 // Guards: main stream and mini-player subscribers must share one in-flight playback request.
+// Guards: a subscriber reusing identical in-flight or cached playback must not wait for the cold multistream stagger.
 // Guards: sidebar/startup prefetch warms the same playback cache used by the player.
 // Guards: reload failure after a live stream ends clears the stale playback URL so pages can show their offline state instead of remounting the dead HLS URL.
 // Guards: changing stream identity never exposes the previous stream's playback URL during an intermediate render.
@@ -81,8 +83,9 @@ describe("useStreamPlayback", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
   });
 
-  it("reuses one backend request across subscribers and logs reuse timing", async () => {
+  it("reuses playback immediately across subscribers and logs reuse timing", async () => {
     vi.resetModules();
+    vi.useFakeTimers();
     let resolvePlayback!: (value: { success: true; data: { url: string; format: "hls" } }) => void;
     window.electronAPI!.streams.getPlaybackUrl = vi.fn(
       () =>
@@ -98,12 +101,24 @@ describe("useStreamPlayback", () => {
     const second = renderHook(() => useStreamPlayback("kick", "shared-channel"));
 
     expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(1);
-    resolvePlayback({
-      success: true,
-      data: { url: "https://media.example.test/live/stream.m3u8?token=secret", format: "hls" },
+    await act(async () => {
+      resolvePlayback({
+        success: true,
+        data: { url: "https://media.example.test/live/stream.m3u8?token=secret", format: "hls" },
+      });
+      await vi.advanceTimersByTimeAsync(0);
     });
-    await waitFor(() => expect(first.result.current.isLoading).toBe(false), WAIT_OPTS);
-    await waitFor(() => expect(second.result.current.isLoading).toBe(false), WAIT_OPTS);
+
+    expect(first.result.current.isLoading).toBe(false);
+    expect(second.result.current.isLoading).toBe(false);
+
+    const cached = renderHook(() => useStreamPlayback("kick", "shared-channel"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(cached.result.current.isLoading).toBe(false);
+    expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(1);
 
     expect(logger.info).toHaveBeenCalledWith(
       "Hook:StreamPlayback",

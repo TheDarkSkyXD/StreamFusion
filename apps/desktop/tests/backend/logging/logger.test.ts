@@ -224,7 +224,116 @@ describe("initLogger + getCurrentLogPath", () => {
 // logger.<level> — end-to-end file writes
 // ---------------------------------------------------------------------------
 
+// Guards: routine app info and warnings remain durable without obscuring terminal errors
+// Guards: console interception cannot bypass the main logger's error-only terminal transport
+// Guards: debug thresholds and structured metadata remain file-side concerns
 describe("logger.<level>", () => {
+  it("writes info and warn only to the file while error also reaches the terminal", async () => {
+    const originalWrite = process.stderr.write;
+    const terminalWrite = vi.fn().mockReturnValue(true);
+    process.stderr.write = terminalWrite as unknown as typeof process.stderr.write;
+
+    try {
+      const mod = await freshLoggerModule();
+      mod.initLogger({
+        logsDir: currentTmpDir,
+        sessionStamp: "2026-06-07T15:51:25.023Z",
+      });
+      mod.logger.info("Main", "routine context");
+      mod.logger.warn("Main", "recoverable warning");
+      mod.logger.error("Main", "actionable failure");
+
+      const terminalOutput = terminalWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
+      expect(terminalOutput).not.toContain("routine context");
+      expect(terminalOutput).not.toContain("recoverable warning");
+      expect(terminalOutput).toContain("[error] [Main] actionable failure");
+
+      const fileOutput = fs.readFileSync(mod.getCurrentLogPath(), "utf8");
+      expect(fileOutput).toContain("[info] [Main] routine context");
+      expect(fileOutput).toContain("[warn] [Main] recoverable warning");
+      expect(fileOutput).toContain("[error] [Main] actionable failure");
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+  });
+
+  it("writes debug only when the file level allows it and never to the terminal", async () => {
+    const originalWrite = process.stderr.write;
+    const terminalWrite = vi.fn().mockReturnValue(true);
+    process.stderr.write = terminalWrite as unknown as typeof process.stderr.write;
+
+    try {
+      const mod = await freshLoggerModule();
+      mod.initLogger({
+        logsDir: currentTmpDir,
+        sessionStamp: "2026-06-07T15:51:25.024Z",
+        level: "debug",
+      });
+      mod.logger.debug("Main", "diagnostic detail");
+
+      expect(terminalWrite).not.toHaveBeenCalled();
+      expect(fs.readFileSync(mod.getCurrentLogPath(), "utf8")).toContain(
+        "[debug] [Main] diagnostic detail"
+      );
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+  });
+
+  it("preserves pre-redacted structured metadata in the file and registered sinks", async () => {
+    const mod = await freshLoggerModule();
+    mod.initLogger({
+      logsDir: currentTmpDir,
+      sessionStamp: "2026-06-07T15:51:25.025Z",
+    });
+    const meta = {
+      authorization: "[REDACTED]",
+      request: { status: 429, retryable: true },
+    };
+    const sink = vi.fn();
+    const removeSink = mod.addLogSink(sink);
+
+    mod.logger.warn("Network:Request", "retry scheduled", meta);
+    removeSink();
+
+    expect(fs.readFileSync(mod.getCurrentLogPath(), "utf8")).toContain(
+      '[warn] [Network:Request] retry scheduled {"authorization":"[REDACTED]","request":{"status":429,"retryable":true}}'
+    );
+    expect(sink).toHaveBeenCalledOnce();
+    expect(sink.mock.calls[0]?.[0]).toMatchObject({
+      level: "warn",
+      tag: "Network:Request",
+      message: "retry scheduled",
+      meta,
+    });
+  });
+
+  it("keeps an intercepted console.warn in the file and out of the terminal", async () => {
+    const originalWrite = process.stderr.write;
+    const terminalWrite = vi.fn().mockReturnValue(true);
+    process.stderr.write = terminalWrite as unknown as typeof process.stderr.write;
+    let uninstall = (): void => undefined;
+
+    try {
+      const mod = await freshLoggerModule();
+      mod.initLogger({
+        logsDir: currentTmpDir,
+        sessionStamp: "2026-06-07T15:51:25.026Z",
+      });
+      const { installConsoleIntercept } = await import("@/backend/logging/console-intercept");
+      uninstall = installConsoleIntercept();
+      console.warn("intercepted warning");
+
+      expect(terminalWrite).not.toHaveBeenCalled();
+      expect(fs.readFileSync(mod.getCurrentLogPath(), "utf8")).toContain(
+        "[warn] [console] intercepted warning"
+      );
+    } finally {
+      uninstall();
+      process.stderr.write = originalWrite;
+    }
+  });
+
   it("writes a formatted info line to the session file", async () => {
     const mod = await freshLoggerModule();
     mod.initLogger({

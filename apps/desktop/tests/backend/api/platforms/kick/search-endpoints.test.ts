@@ -70,6 +70,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 // Guards: Kick channel search suggestions must not use the hidden BrowserWindow channel lookup path.
 // Guards: Kick full search should parallelize independent category/channel/stream work where possible.
+// Guards: channel suggestions skip the live-directory crawl unless empty, continued, or live-only lacks a live candidate.
+// Guards: an explicit Kick search is_banned signal remains visible as a machine-readable suspended channel.
+// Guards: a positively resolved Kick search account is classified active independently from live/offline state.
 describe("search-endpoints", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -129,6 +132,126 @@ describe("search-endpoints", () => {
       const found = result.data.find((c) => c.username === "search-result");
       expect(found).toBeDefined();
       expect(found!.followerCount).toBe(5000);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(getPublicTopStreams).not.toHaveBeenCalled();
+    });
+
+    it("starts original and compact first-page searches together and merges in variant order", async () => {
+      let resolveOriginal!: (response: Response) => void;
+      let resolveCompact!: (response: Response) => void;
+      const originalResponse = new Promise<Response>((resolve) => {
+        resolveOriginal = resolve;
+      });
+      const compactResponse = new Promise<Response>((resolve) => {
+        resolveCompact = resolve;
+      });
+      mockFetch
+        .mockImplementationOnce(() => originalResponse)
+        .mockImplementationOnce(() => compactResponse);
+
+      const pending = searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "ice poseidon"
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      const requestsStartedBeforeEitherResolved = mockFetch.mock.calls.length;
+
+      resolveOriginal(
+        jsonResponse({ channels: [{ id: 1, slug: "ice-poseidon", username: "Ice-Poseidon" }] })
+      );
+      resolveCompact(
+        jsonResponse({ channels: [{ id: 2, slug: "iceposeidon", username: "IcePoseidon" }] })
+      );
+      const result = await pending;
+
+      expect(requestsStartedBeforeEitherResolved).toBe(2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch.mock.calls.map(([url]) => url)).toEqual([
+        "https://kick.com/api/search?searched_word=ice%20poseidon",
+        "https://kick.com/api/search?searched_word=iceposeidon",
+      ]);
+      expect(result.data.map((channel) => channel.username)).toEqual([
+        "ice-poseidon",
+        "iceposeidon",
+      ]);
+    });
+
+    it("keeps compact first-page results when the original public request fails", async () => {
+      mockFetch
+        .mockRejectedValueOnce(new Error("original failed"))
+        .mockResolvedValueOnce(
+          jsonResponse({
+            channels: [{ id: 2, slug: "iceposeidon", username: "IcePoseidon" }],
+          })
+        );
+
+      const result = await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "ice poseidon"
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result.data.map((channel) => channel.username)).toEqual(["iceposeidon"]);
+    });
+
+    it("deduplicates variant responses by slug with deterministic original-query priority", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse({
+            channels: [
+              { id: 1, slug: "iceposeidon", username: "Original Format", followers_count: 10 },
+            ],
+          })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            channels: [
+              { id: 2, slug: "iceposeidon", username: "Compact Format", followers_count: 20 },
+            ],
+          })
+        );
+
+      const result = await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "ice poseidon"
+      );
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({
+          id: "1",
+          username: "iceposeidon",
+          displayName: "Original Format",
+          followerCount: 10,
+        })
+      );
+    });
+
+    it("does not add a compact retry when the compact identity is too short", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ channels: [] }));
+
+      await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "a b"
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://kick.com/api/search?searched_word=a%20b",
+        expect.any(Object)
+      );
+    });
+
+    it("does not repeat public query variants on continuation pages", async () => {
+      await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "ice poseidon",
+        { cursor: "100" }
+      );
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(getPublicTopStreams).toHaveBeenCalledWith({ limit: 100, cursor: "100" });
     });
 
     it("deduplicates by username (slug) across steps", async () => {
@@ -176,7 +299,7 @@ describe("search-endpoints", () => {
       expect(matches).toHaveLength(1);
     });
 
-    it("merges avatar from top streams with follower count from public search", async () => {
+    it("uses public suggestions without waiting for an avatar-only live-directory merge", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           channels: [
@@ -212,11 +335,44 @@ describe("search-endpoints", () => {
 
       const channel = result.data.find((c) => c.username === "merge-test");
       expect(channel).toBeDefined();
-      expect(channel!.avatarUrl).toBe("https://example.com/avatar.webp");
+      expect(channel!.avatarUrl).toBe("");
       expect(channel!.followerCount).toBe(10000);
+      expect(getPublicTopStreams).not.toHaveBeenCalled();
     });
 
-    it("preserves verified metadata when merging live stream fallback results", async () => {
+    it("falls back to the live directory when a live-only search has no live public candidate", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          channels: [{ id: 100, slug: "creator", username: "Creator", isLive: false }],
+        })
+      );
+      vi.mocked(getPublicTopStreams).mockResolvedValueOnce({
+        data: [
+          {
+            id: "stream-1",
+            platform: "kick",
+            channelId: "100",
+            channelName: "creator",
+            channelDisplayName: "Creator",
+            channelAvatar: "https://example.com/avatar.webp",
+            title: "Live",
+            viewerCount: 50,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+          } as any,
+        ],
+      });
+
+      const result = await searchChannels(createMockClient({ isAuthenticated: vi.fn(() => false) }), "creator", {
+        liveOnly: true,
+      });
+
+      expect(getPublicTopStreams).toHaveBeenCalledTimes(1);
+      expect(result.data.find((channel) => channel.username === "creator")?.isLive).toBe(true);
+    });
+
+    it("preserves public verified metadata without a live-directory fallback", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           channels: [
@@ -252,8 +408,8 @@ describe("search-endpoints", () => {
 
       const channel = result.data.find((c) => c.username === "verified-merge");
       expect(channel).toBeDefined();
-      expect(channel!.avatarUrl).toBe("https://example.com/avatar.webp");
       expect(channel!.isVerified).toBe(true);
+      expect(getPublicTopStreams).not.toHaveBeenCalled();
     });
 
     it("includes fuzzy matches from top streams (Step 4)", async () => {
@@ -283,6 +439,37 @@ describe("search-endpoints", () => {
       const found = result.data.find((c) => c.username === "fuzzy-match");
       expect(found).toBeDefined();
       expect(found!.isLive).toBe(true);
+      expect(found!.accountStatus).toBe("active");
+    });
+
+    it("matches compact live-directory identities for separated queries", async () => {
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ channels: [] }))
+        .mockResolvedValueOnce(jsonResponse({ channels: [] }));
+      vi.mocked(getPublicTopStreams).mockResolvedValueOnce({
+        data: [
+          {
+            id: "s1",
+            platform: "kick",
+            channelId: "300",
+            channelName: "iceposeidon",
+            channelDisplayName: "IcePoseidon",
+            channelAvatar: "https://example.com/ice.webp",
+            title: "Playing",
+            viewerCount: 1000,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+          } as any,
+        ],
+      });
+
+      const result = await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "ice poseidon"
+      );
+
+      expect(result.data.map((channel) => channel.username)).toEqual(["iceposeidon"]);
     });
 
     it("pages live-channel matches for one-letter Kick search results", async () => {
@@ -385,7 +572,7 @@ describe("search-endpoints", () => {
       expect(getChannel).not.toHaveBeenCalled();
     });
 
-    it("skips banned channels from search API results", async () => {
+    it("classifies an explicitly banned public-search account as suspended", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           channels: [
@@ -399,7 +586,68 @@ describe("search-endpoints", () => {
       const result = await searchChannels(client, "test");
 
       const banned = result.data.find((c) => c.username === "banned");
-      expect(banned).toBeUndefined();
+      expect(banned).toEqual(
+        expect.objectContaining({
+          displayName: "Banned",
+          accountStatus: "suspended",
+        })
+      );
+    });
+
+    it("preserves explicit suspension while merging official profile metadata", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          channels: [
+            {
+              id: 1,
+              slug: "banned-with-profile",
+              username: "BannedWithProfile",
+              is_banned: true,
+            },
+          ],
+        })
+      );
+      vi.mocked(getChannel).mockResolvedValueOnce({
+        id: "1",
+        platform: "kick",
+        username: "banned-with-profile",
+        displayName: "BannedWithProfile",
+        avatarUrl: "https://example.com/banned-with-profile.webp",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      });
+
+      const result = await searchChannels(createMockClient(), "banned-with-profile");
+
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          username: "banned-with-profile",
+          avatarUrl: "https://example.com/banned-with-profile.webp",
+          accountStatus: "suspended",
+        }),
+      ]);
+    });
+
+    it("classifies a positively resolved offline public-search account as active", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          channels: [{ id: 2, slug: "offline-channel", username: "OfflineChannel", isLive: false }],
+        })
+      );
+
+      const result = await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "offline-channel"
+      );
+
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          username: "offline-channel",
+          isLive: false,
+          accountStatus: "active",
+        }),
+      ]);
     });
 
     it("handles search API returning data in array format", async () => {

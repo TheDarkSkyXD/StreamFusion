@@ -18,13 +18,22 @@ const playerProps = vi.hoisted(() => ({
 }));
 
 const streamPlaybackMock = vi.hoisted(() => ({
-  useStreamPlayback: vi.fn(() => ({
-    playback: null as null | { url: string; format: "hls" | "dash" | "mp4" },
-    isLoading: false,
-    error: null as Error | null,
-    reload: vi.fn(),
-    reloadAttempts: 0,
-  })),
+  useStreamPlayback: vi.fn(
+    (): {
+      playback: null | { url: string; format: "hls" | "dash" | "mp4" };
+      isLoading: boolean;
+      error: Error | null;
+      reload: ReturnType<typeof vi.fn>;
+      reloadAttempts: number;
+      playbackRevision?: number;
+    } => ({
+      playback: null,
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    })
+  ),
 }));
 const networkStatusMock = vi.hoisted(() => ({ recoveryCount: 0 }));
 
@@ -118,6 +127,8 @@ function primePipStore() {
 }
 
 // Guards: live playback keeps the exact same player surface mounted while moving from the stream-page dock into mini-player mode.
+// Guards: returning to the same Kick or Twitch stream docks the existing player even when the route dock mounts after navigation.
+// Guards: switching directly between stream routes never flashes the previous stream as a corner mini-player while the next stream activates.
 // Guards: mini-player must not mount HLS from the persisted stream snapshot while a fresh playback URL is still resolving; stale Kick live-video tokens 403 when Following activates PiP.
 // Guards: mini-player closes stale PiP state when its fresh playback lookup reports the stream unavailable, preventing an offline stream from showing as LIVE.
 describe("MiniPlayer playback routing", () => {
@@ -159,10 +170,90 @@ describe("MiniPlayer playback routing", () => {
     renderWithProviders(<MiniPlayer />);
 
     const player = screen.getByTestId("hls-player");
+    const playerHost = player.closest("[data-player-mode='docked']");
     expect(dock).toContainElement(player);
+    expect(playerHost).toHaveStyle({ width: "100%", height: "100%" });
     expect(player).toHaveAttribute("data-controls", "full");
     dock.remove();
   });
+
+  it("keeps the player docked while switching directly to a different stream route", () => {
+    routerState.pathname = "/stream/kick/xqc";
+    primePipStore();
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    const dock = document.createElement("div");
+    dock.id = "persistent-live-player-dock";
+    document.body.append(dock);
+
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    const player = screen.getByTestId("hls-player");
+    const playerHost = player.closest("[data-player-mode='docked']");
+
+    routerState.pathname = "/stream/twitch/agent00";
+    rerender(<MiniPlayer />);
+
+    expect(screen.getByTestId("hls-player")).toBe(player);
+    expect(dock).toContainElement(player);
+    expect(player.closest("[data-player-mode='docked']")).toBe(playerHost);
+    expect(player).toHaveAttribute("data-controls", "full");
+    expect(document.querySelector("[data-player-mode='mini']")).toBeNull();
+    dock.remove();
+  });
+
+  it.each([
+    ["kick", "hls-player", "https://fresh.example.test/kick-live.m3u8"],
+    ["twitch", "twitch-hls-player", "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"],
+  ] as const)(
+    "docks the existing %s player when the matching route dock mounts late",
+    async (platform, playerTestId, playbackUrl) => {
+      routerState.pathname = "/settings";
+      usePipStore.setState({
+        currentStream: {
+          platform,
+          channelName: "xqc",
+          channelDisplayName: "xQc",
+          streamUrl: "https://stale.example.test/live.m3u8",
+        },
+        isPipActive: true,
+        isOnStreamPage: false,
+      });
+      streamPlaybackMock.useStreamPlayback.mockReturnValue({
+        playback: { url: playbackUrl, format: "hls" },
+        isLoading: false,
+        error: null,
+        reload: vi.fn(),
+        reloadAttempts: 0,
+      });
+
+      const { rerender } = renderWithProviders(<MiniPlayer />);
+      const player = screen.getByTestId(playerTestId);
+      const playerHost = player.closest("[data-player-mode='mini']") as HTMLElement;
+
+      routerState.pathname = `/stream/${platform}/xqc`;
+      rerender(<MiniPlayer />);
+      expect(screen.getByTestId(playerTestId)).toBe(player);
+
+      const dock = document.createElement("div");
+      dock.id = "persistent-live-player-dock";
+      document.body.append(dock);
+
+      try {
+        await waitFor(() => expect(dock).toContainElement(player));
+        expect(screen.getByTestId(playerTestId)).toBe(player);
+        expect(player.closest("[data-player-mode='docked']")).toBe(playerHost);
+        expect(playerHost).toHaveStyle({ width: "100%", height: "100%" });
+        expect(player).toHaveAttribute("data-controls", "full");
+      } finally {
+        dock.remove();
+      }
+    }
+  );
 
   it("moves the same live player surface from the stream-page dock into mini-player mode", () => {
     routerState.pathname = "/stream/kick/xqc";
@@ -182,7 +273,9 @@ describe("MiniPlayer playback routing", () => {
     const { rerender } = renderWithProviders(<MiniPlayer />);
 
     const dockedPlayer = screen.getByTestId("hls-player");
+    const playerHost = dockedPlayer.closest("[data-player-mode='docked']") as HTMLElement;
     expect(dock).toContainElement(dockedPlayer);
+    expect(playerHost).toHaveStyle({ width: "100%", height: "100%" });
     expect(dockedPlayer).toHaveAttribute("data-controls", "full");
 
     routerState.pathname = "/following";
@@ -192,6 +285,8 @@ describe("MiniPlayer playback routing", () => {
     expect(screen.getByTestId("hls-player")).toBe(dockedPlayer);
     expect(dockedPlayer).toHaveAttribute("data-controls", "compact");
     expect(dock).not.toContainElement(dockedPlayer);
+    expect(playerHost.style.width).toBe("");
+    expect(playerHost.style.height).toBe("");
 
     dock.remove();
   });
@@ -221,6 +316,8 @@ describe("MiniPlayer playback routing", () => {
 
     const { rerender } = renderWithProviders(<MiniPlayer />);
     const dockedPlayer = screen.getByTestId("twitch-hls-player");
+    const playerHost = dockedPlayer.closest("[data-player-mode='docked']");
+    expect(playerHost).toHaveStyle({ width: "100%", height: "100%" });
     expect(dockedPlayer).toHaveAttribute("data-controls", "full");
 
     routerState.pathname = "/following";
@@ -339,7 +436,7 @@ describe("MiniPlayer playback routing", () => {
     dock.remove();
   });
 
-  it("does not dock the previous player on a different stream route", () => {
+  it("does not show mini mode when a stream route opens with a previous player snapshot", () => {
     routerState.pathname = "/stream/kick/adin";
     primePipStore();
     usePipStore.setState({ isOnStreamPage: true });
@@ -357,8 +454,9 @@ describe("MiniPlayer playback routing", () => {
     renderWithProviders(<MiniPlayer />);
 
     const previousPlayer = screen.getByTestId("hls-player");
-    expect(dock).not.toContainElement(previousPlayer);
-    expect(previousPlayer).toHaveAttribute("data-controls", "compact");
+    expect(dock).toContainElement(previousPlayer);
+    expect(previousPlayer).toHaveAttribute("data-controls", "full");
+    expect(document.querySelector("[data-player-mode='mini']")).toBeNull();
     dock.remove();
   });
 
@@ -393,6 +491,35 @@ describe("MiniPlayer playback routing", () => {
 
     expect(screen.getByTestId("hls-player")).not.toBe(firstPlayer);
     dock.remove();
+  });
+
+  it("updates an ordinary playback refresh without replacing the live player", () => {
+    routerState.pathname = "/following";
+    primePipStore();
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/first.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+      playbackRevision: 1,
+    });
+
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    const persistentPlayer = screen.getByTestId("hls-player");
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/refreshed.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+      playbackRevision: 2,
+    });
+    rerender(<MiniPlayer />);
+
+    expect(screen.getByTestId("hls-player")).toBe(persistentPlayer);
+    expect(persistentPlayer).toHaveTextContent("https://fresh.example.test/refreshed.m3u8");
   });
 
   it("unmounts the live player surface when the mini player is closed", () => {
@@ -447,7 +574,7 @@ describe("MiniPlayer playback routing", () => {
     );
   });
 
-  it("does not reload Kick playback when mini-player HLS asks for a refresh", () => {
+  it("reloads Kick playback when mini-player HLS asks for a refresh", () => {
     const reload = vi.fn();
     routerState.pathname = "/following";
     streamPlaybackMock.useStreamPlayback.mockReturnValue({
@@ -460,6 +587,7 @@ describe("MiniPlayer playback routing", () => {
     primePipStore();
 
     renderWithProviders(<MiniPlayer />);
+    const failedPlayer = screen.getByTestId("hls-player");
 
     act(() => {
       playerProps.kick?.onError?.({
@@ -470,7 +598,9 @@ describe("MiniPlayer playback routing", () => {
       });
     });
 
-    expect(reload).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("hls-player")).not.toBe(failedPlayer);
+    expect(screen.queryByText("Stream unavailable")).not.toBeInTheDocument();
   });
 
   // Guards: confirmed connectivity recovery remounts only a mini-player whose HLS engine entered an error state.
@@ -544,6 +674,77 @@ describe("MiniPlayer playback routing", () => {
     });
 
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["kick", "hls-player", "https://fresh.example.test/live.m3u8"],
+    ["twitch", "twitch-hls-player", "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"],
+  ] as const)(
+    "rechecks %s playback instead of showing unavailable after a transient network failure",
+    (platform, playerTestId, playbackUrl) => {
+      const reload = vi.fn();
+      routerState.pathname = "/following";
+      streamPlaybackMock.useStreamPlayback.mockReturnValue({
+        playback: { url: playbackUrl, format: "hls" },
+        isLoading: false,
+        error: null,
+        reload,
+        reloadAttempts: 0,
+      });
+      usePipStore.setState({
+        currentStream: {
+          platform,
+          channelName: "xqc",
+          channelDisplayName: "xQc",
+          streamUrl: "https://stale.example.test/live.m3u8",
+        },
+        isPipActive: true,
+        isOnStreamPage: false,
+      });
+
+      renderWithProviders(<MiniPlayer />);
+
+      act(() => {
+        const props = platform === "kick" ? playerProps.kick : playerProps.twitch;
+        props?.onError?.({
+          code: "STREAM_OFFLINE",
+          message: "Stream offline or unavailable",
+          fatal: true,
+          originalError: { type: "networkError", details: "fragLoadError" },
+        });
+      });
+
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId(playerTestId)).toBeInTheDocument();
+      expect(screen.queryByText("Stream unavailable")).not.toBeInTheDocument();
+    }
+  );
+
+  it("shows unavailable for an explicit offline manifest response", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    primePipStore();
+
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.kick?.onError?.({
+        code: "STREAM_OFFLINE",
+        message: "Stream offline or unavailable",
+        fatal: true,
+        originalError: { response: { code: 404 } },
+      });
+    });
+
+    expect(reload).not.toHaveBeenCalled();
+    expect(screen.getByText("Stream unavailable")).toBeInTheDocument();
   });
 
   it("reloads Twitch playback when mini-player HLS reports a recoverable error", () => {
@@ -628,6 +829,36 @@ describe("MiniPlayer playback routing", () => {
     await waitFor(() => {
       expect(usePipStore.getState().currentStream).toBeNull();
       expect(usePipStore.getState().isPipActive).toBe(false);
+    });
+  });
+
+  it("keeps the verified mini-player alive when a playback refresh fails transiently", async () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    primePipStore();
+
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    const verifiedPlayer = screen.getByTestId("hls-player");
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: null,
+      isLoading: false,
+      error: new Error("Playback service temporarily unavailable"),
+      reload: vi.fn(),
+      reloadAttempts: 1,
+    });
+    rerender(<MiniPlayer />);
+
+    expect(screen.getByTestId("hls-player")).toBe(verifiedPlayer);
+    await waitFor(() => {
+      expect(usePipStore.getState().currentStream?.channelName).toBe("xqc");
+      expect(usePipStore.getState().isPipActive).toBe(true);
     });
   });
 

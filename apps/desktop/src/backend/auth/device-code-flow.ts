@@ -56,6 +56,8 @@ export interface TwitchDeviceCodeLoginDependencies {
   ) => Promise<AuthToken>;
 }
 
+const POPUP_CLOSED_ABORT_REASON = Symbol("twitch-device-auth-popup-closed");
+
 function buildTwitchVerificationUrl(device: DeviceCodeResult): string {
   let verificationUrl: URL;
   try {
@@ -87,12 +89,25 @@ export async function runTwitchDeviceCodeLogin(
   dependencies: TwitchDeviceCodeLoginDependencies,
   onStatusChange?: DeviceCodeStatusHandler
 ): Promise<AuthToken> {
+  const startedAt = Date.now();
+  logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
+    stage: "requesting-device-code",
+    elapsedMs: 0,
+  });
   const device = await dependencies.requestDeviceCode(scopes);
+  logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
+    stage: "device-code-received",
+    elapsedMs: Date.now() - startedAt,
+  });
   const popup = await dependencies.openVerificationWindow(buildTwitchVerificationUrl(device));
+  logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
+    stage: "popup-opened",
+    elapsedMs: Date.now() - startedAt,
+  });
   const cancellation = new AbortController();
-  void popup.closed.then(() => cancellation.abort());
+  void popup.closed.then(() => cancellation.abort(POPUP_CLOSED_ABORT_REASON));
   try {
-    return await dependencies.pollForToken(
+    const token = await dependencies.pollForToken(
       device.deviceCode,
       device.interval,
       device.expiresIn,
@@ -100,8 +115,17 @@ export async function runTwitchDeviceCodeLogin(
       onStatusChange,
       cancellation.signal
     );
+    logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
+      stage: "token-settled",
+      elapsedMs: Date.now() - startedAt,
+    });
+    return token;
   } finally {
     popup.close();
+    logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
+      stage: "popup-close-requested",
+      elapsedMs: Date.now() - startedAt,
+    });
   }
 }
 
@@ -265,17 +289,19 @@ class DeviceCodeFlowService {
     return new Promise((resolve, reject) => {
       let settled = false;
       let pollInFlight = false;
+      let cancellationRequested = false;
+      let finalConfirmationStarted = false;
 
       const stopTimer = (): void => {
         this.pollingInterval?.stop();
         this.pollingInterval = null;
       };
       const cleanup = (): void => {
-        if (this.cancelActivePoll === cancel) {
+        if (this.cancelActivePoll === hardCancel) {
           stopTimer();
           this.cancelActivePoll = null;
         }
-        signal?.removeEventListener("abort", cancel);
+        signal?.removeEventListener("abort", handleAbort);
       };
       const settleWithError = (error: Error): void => {
         if (settled) return;
@@ -289,26 +315,46 @@ class DeviceCodeFlowService {
         cleanup();
         resolve(token);
       };
-      const cancel = (): void => {
+      const settleAsCancelled = (): void => {
         onStatusChange?.("error", "Authorization cancelled");
         settleWithError(new Error("Authorization cancelled"));
       };
+      const hardCancel = (): void => {
+        settleAsCancelled();
+      };
 
-      this.cancelActivePoll = cancel;
-      if (signal?.aborted) {
-        cancel();
-        return;
+      function startFinalConfirmation(): void {
+        if (settled || finalConfirmationStarted) return;
+        finalConfirmationStarted = true;
+        void poll(true);
       }
-      signal?.addEventListener("abort", cancel, { once: true });
+      const requestSoftCancel = (): void => {
+        if (settled || cancellationRequested) return;
+        cancellationRequested = true;
+        stopTimer();
+        if (!pollInFlight) startFinalConfirmation();
+      };
+      const handleAbort = (): void => {
+        if (signal?.reason === POPUP_CLOSED_ABORT_REASON) {
+          requestSoftCancel();
+        } else {
+          hardCancel();
+        }
+      };
 
-      const poll = async () => {
+      const poll = async (finalConfirmation = false): Promise<void> => {
         if (settled || pollInFlight) return;
         pollInFlight = true;
+        let needsFinalConfirmation = false;
 
         // Check if expired
         if (Date.now() >= expiryTime) {
-          onStatusChange?.("expired", "Device code expired");
-          settleWithError(new Error("Device code expired. Please try again."));
+          if (cancellationRequested) {
+            settleAsCancelled();
+          } else {
+            onStatusChange?.("expired", "Device code expired");
+            settleWithError(new Error("Device code expired. Please try again."));
+          }
           pollInFlight = false;
           return;
         }
@@ -327,7 +373,7 @@ class DeviceCodeFlowService {
               "Content-Type": "application/x-www-form-urlencoded",
             },
             body: body.toString(),
-            signal,
+            signal: finalConfirmation ? undefined : signal,
           });
 
           const data = await response.json();
@@ -357,6 +403,15 @@ class DeviceCodeFlowService {
             logger.debug("Auth:DeviceCode", "User authorized! Token obtained");
             onStatusChange?.("authorized", "Authorization successful!");
             settleWithToken(token);
+            return;
+          }
+
+          if (cancellationRequested) {
+            if (finalConfirmation) {
+              settleAsCancelled();
+            } else {
+              needsFinalConfirmation = true;
+            }
             return;
           }
 
@@ -395,7 +450,16 @@ class DeviceCodeFlowService {
               return;
           }
         } catch (error) {
-          if (settled || signal?.aborted) return;
+          if (settled) return;
+          if (cancellationRequested) {
+            if (finalConfirmation) {
+              settleAsCancelled();
+            } else {
+              needsFinalConfirmation = true;
+            }
+            return;
+          }
+          if (signal?.aborted) return;
           logger.error("Auth:DeviceCode", "Polling error", {
             error:
               error instanceof Error
@@ -405,8 +469,16 @@ class DeviceCodeFlowService {
           // Network error - continue polling
         } finally {
           pollInFlight = false;
+          if (needsFinalConfirmation) startFinalConfirmation();
         }
       };
+
+      this.cancelActivePoll = hardCancel;
+      if (signal?.aborted) {
+        handleAbort();
+        return;
+      }
+      signal?.addEventListener("abort", handleAbort, { once: true });
 
       // Start polling
       void poll();

@@ -6,6 +6,7 @@
 // Guards: each supported third-party cosmetic has a clear live setting without stale rollout copy.
 // Guards: all eight Xtra timestamp formats remain selectable and persist without dropping siblings.
 // Guards: each visual settings group exposes one inert offline preview that reflects its current preferences.
+// Guards: full-settings preview rows use the same density padding as live chat, without a second parent gap.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UserPreferences } from "@/shared/auth-types";
@@ -96,6 +97,49 @@ describe("ChatSettingsSection", () => {
     expect(arg.chatDisplay.timestamps).toBe(false);
     expect(arg.chatDisplay.fontSizePx).toBe(13);
   });
+
+  it("exposes and persists Tight, Medium, and Loose message density", async () => {
+    renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Density" }));
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Tight",
+      "Medium",
+      "Loose",
+    ]);
+
+    fireEvent.click(screen.getByRole("option", { name: "Loose" }));
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledTimes(1));
+    expect(updatePreferences.mock.calls[0][0]).toMatchObject({
+      chatDisplay: { density: "loose" },
+    });
+
+  });
+
+  it.each([
+    ["compact", "py-0"],
+    ["cozy", "py-1"],
+    ["loose", "py-3"],
+  ] as const)(
+    "uses %s live-row padding without a parent density gap",
+    (density, rowPaddingClass) => {
+      setStore({
+        chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, density },
+        chat: { ...DEFAULT_CHAT_PREFERENCES },
+      });
+      renderWithProviders(<ChatSettingsSection only={["appearance"]} />);
+
+      const preview = screen.getByTestId("appearance-chat-preview");
+      const densityPreview = preview.querySelector(`[data-density='${density}']`)!;
+      const rows = Array.from(densityPreview.children);
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row).toHaveClass(rowPaddingClass);
+      }
+      expect(densityPreview.className).not.toMatch(/space-y-/);
+    }
+  );
 
   it("changing a range writes the numeric value with siblings intact", async () => {
     renderWithProviders(<ChatSettingsSection only={["appearance"]} />);

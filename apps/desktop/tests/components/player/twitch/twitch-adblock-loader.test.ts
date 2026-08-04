@@ -15,8 +15,12 @@ const {
   mockIsAdBlockEnabled: vi.fn<() => boolean>(() => true),
   mockIsAdSegment: vi.fn<(url: string) => boolean>(() => false),
   mockGetBlankVideoDataUrl: vi.fn<() => string>(() => "data:video/mp4;base64,AAAA"),
-  mockProcessMasterPlaylist: vi.fn<(url: string, text: string, channel: string) => Promise<string>>(async (_url: string, text: string) => text),
-  mockProcessMediaPlaylist: vi.fn<(url: string, text: string) => Promise<string>>(async (_url: string, text: string) => text),
+  mockProcessMasterPlaylist: vi.fn<
+    (url: string, text: string, channel: string, playlistBaseUrl?: string) => Promise<string>
+  >(async (_url: string, text: string) => text),
+  mockProcessMediaPlaylist: vi.fn<(url: string, text: string) => Promise<string>>(
+    async (_url: string, text: string) => text
+  ),
   mockSuperLoad: vi.fn(),
 }));
 
@@ -24,10 +28,9 @@ vi.mock("@/components/player/twitch/twitch-adblock-service", () => ({
   isAdBlockEnabled: () => mockIsAdBlockEnabled(),
   isAdSegment: (url: string) => mockIsAdSegment(url),
   getBlankVideoDataUrl: () => mockGetBlankVideoDataUrl(),
-  processMasterPlaylist: (url: string, text: string, channel: string) =>
-    mockProcessMasterPlaylist(url, text, channel),
-  processMediaPlaylist: (url: string, text: string) =>
-    mockProcessMediaPlaylist(url, text),
+  processMasterPlaylist: (url: string, text: string, channel: string, playlistBaseUrl?: string) =>
+    mockProcessMasterPlaylist(url, text, channel, playlistBaseUrl),
+  processMediaPlaylist: (url: string, text: string) => mockProcessMediaPlaylist(url, text),
 }));
 
 vi.mock("hls.js", () => {
@@ -41,7 +44,9 @@ vi.mock("hls.js", () => {
   DefaultLoader.prototype.load = mockSuperLoad;
 
   class FakeHls {
-    static isSupported() { return true; }
+    static isSupported() {
+      return true;
+    }
     static DefaultConfig = { loader: DefaultLoader };
     static Events = {
       MANIFEST_PARSED: "hlsManifestParsed",
@@ -96,7 +101,11 @@ describe("twitch-adblock-loader", () => {
 
       const originalOnSuccess = vi.fn();
       const context = { url: "https://usher.ttvnw.net/api/channel/hls/test.m3u8?token=abc" } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
       expect(mockSuperLoad).toHaveBeenCalled();
@@ -111,7 +120,11 @@ describe("twitch-adblock-loader", () => {
 
       const originalOnSuccess = vi.fn();
       const context = { url: "https://usher.ttvnw.net/api/channel/hls/test.m3u8?token=abc" } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -126,8 +139,14 @@ describe("twitch-adblock-loader", () => {
       const loader = new LoaderClass({} as any);
 
       const originalOnSuccess = vi.fn();
-      const context = { url: "https://usher.ttvnw.net/api/channel/hls/mychannel.m3u8?token=abc" } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const context = {
+        url: "https://usher.ttvnw.net/api/channel/hls/mychannel.m3u8?token=abc",
+      } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -156,7 +175,11 @@ describe("twitch-adblock-loader", () => {
       const context = {
         url: "https://usher.ttvnw.net/api/channel/jamiepinelive.m3u8?token=abc",
       } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -166,7 +189,8 @@ describe("twitch-adblock-loader", () => {
       expect(mockProcessMasterPlaylist).toHaveBeenCalledWith(
         context.url,
         "#EXTM3U",
-        "jamiepinelive"
+        "jamiepinelive",
+        context.url
       );
       expect(mockProcessMediaPlaylist).not.toHaveBeenCalled();
       expect(originalOnSuccess).toHaveBeenCalledWith(
@@ -184,8 +208,14 @@ describe("twitch-adblock-loader", () => {
       const loader = new LoaderClass({} as any);
 
       const originalOnSuccess = vi.fn();
-      const context = { url: "https://video-edge.example.com/playlist/1080p.m3u8?token=abc" } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const context = {
+        url: "https://video-edge.example.com/playlist/1080p.m3u8?token=abc",
+      } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -204,13 +234,127 @@ describe("twitch-adblock-loader", () => {
       );
     });
 
+    it("uses the final HLS response URL as the playlist ownership identity", async () => {
+      const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
+      const loader = new LoaderClass({} as any);
+      const context = {
+        url: "http://localhost:5173/proof/video-edge.ttvnw.net/high.m3u8",
+      } as any;
+      const callbacks = {
+        onSuccess: vi.fn(),
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
+
+      loader.load(context, {} as any, callbacks);
+      const passedCallbacks = mockSuperLoad.mock.calls[0][2];
+      const responseUrl = "http://127.0.0.1:18765/proof/video-edge.ttvnw.net/high.m3u8";
+      await passedCallbacks.onSuccess(
+        { data: "#EXTM3U\n#EXTINF:2,live", url: responseUrl },
+        {},
+        context,
+        null
+      );
+
+      expect(mockProcessMediaPlaylist).toHaveBeenCalledWith(responseUrl, "#EXTM3U\n#EXTINF:2,live");
+    });
+
+    it("ignores a non-HTTP response URL when the request context has a valid HTTPS playlist URL", async () => {
+      const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
+      const loader = new LoaderClass({} as any);
+      const context = {
+        url: "https://video-edge.ttvnw.net/proof/high.m3u8",
+      } as any;
+      const callbacks = {
+        onSuccess: vi.fn(),
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
+
+      loader.load(context, {} as any, callbacks);
+      const passedCallbacks = mockSuperLoad.mock.calls[0][2];
+      await passedCallbacks.onSuccess(
+        { data: "#EXTM3U\n#EXTINF:2,live", url: "ftp://untrusted.invalid/proof/high.m3u8" },
+        {},
+        context,
+        null
+      );
+
+      expect(mockProcessMediaPlaylist).toHaveBeenCalledWith(context.url, "#EXTM3U\n#EXTINF:2,live");
+    });
+
+    it("fails explicitly when a text master playlist has no absolute HTTP base URL", async () => {
+      const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
+      const loader = new LoaderClass({} as any);
+      const originalOnSuccess = vi.fn();
+      const onError = vi.fn();
+      const context = {
+        url: "/__streamfusion-proof/twitch-ad-frame/adframe-20260803-r6/usher.ttvnw.net/api/channel/hls/fixtureproof.m3u8",
+      } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError,
+        onTimeout: vi.fn(),
+      } as any;
+      const stats = { loaded: 123 } as any;
+      const networkDetails = { status: 200 };
+
+      loader.load(context, {} as any, callbacks);
+      const passedCallbacks = mockSuperLoad.mock.calls[0][2];
+      await passedCallbacks.onSuccess({ data: "#EXTM3U" }, stats, context, networkDetails);
+
+      expect.soft(onError).toHaveBeenCalledTimes(1);
+      expect.soft(onError).toHaveBeenCalledWith(
+        {
+          code: 0,
+          text: "Twitch ad-block playlist processing requires an absolute HTTP(S) base URL",
+        },
+        context,
+        networkDetails,
+        stats
+      );
+      expect.soft(originalOnSuccess).not.toHaveBeenCalled();
+      expect.soft(mockProcessMasterPlaylist).not.toHaveBeenCalled();
+      expect.soft(mockProcessMediaPlaylist).not.toHaveBeenCalled();
+    });
+
+    it("uses the final master response URL as the rendition resolution base", async () => {
+      const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
+      const loader = new LoaderClass({} as any);
+      const context = {
+        url: "http://localhost:5173/proof/usher.ttvnw.net/api/channel/hls/fixtureproof.m3u8",
+      } as any;
+      const callbacks = {
+        onSuccess: vi.fn(),
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
+
+      loader.load(context, {} as any, callbacks);
+      const passedCallbacks = mockSuperLoad.mock.calls[0][2];
+      const responseUrl =
+        "http://127.0.0.1:18765/proof/usher.ttvnw.net/api/channel/hls/fixtureproof.m3u8";
+      await passedCallbacks.onSuccess({ data: "#EXTM3U", url: responseUrl }, {}, context, null);
+
+      expect(mockProcessMasterPlaylist).toHaveBeenCalledWith(
+        context.url,
+        "#EXTM3U",
+        "fixtureproof",
+        responseUrl
+      );
+    });
+
     it("passes through non-string response data", async () => {
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
       const loader = new LoaderClass({} as any);
 
       const originalOnSuccess = vi.fn();
       const context = { url: "https://example.com/playlist.m3u8" } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -230,7 +374,11 @@ describe("twitch-adblock-loader", () => {
 
       const originalOnSuccess = vi.fn();
       const context = { url: "https://video-edge.example.com/playlist.m3u8" } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -249,8 +397,14 @@ describe("twitch-adblock-loader", () => {
       const loader = new LoaderClass({} as any);
 
       const originalOnSuccess = vi.fn();
-      const context = { url: "https://usher.ttvnw.net/api/channel/hls/extracted_channel.m3u8?token=abc" } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const context = {
+        url: "https://usher.ttvnw.net/api/channel/hls/extracted_channel.m3u8?token=abc",
+      } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -260,7 +414,8 @@ describe("twitch-adblock-loader", () => {
       expect(mockProcessMasterPlaylist).toHaveBeenCalledWith(
         context.url,
         "#EXTM3U",
-        "extracted_channel"
+        "extracted_channel",
+        context.url
       );
     });
 
@@ -274,7 +429,11 @@ describe("twitch-adblock-loader", () => {
       const context = {
         url: "https://usher.ttvnw.net/api/channel/JamiePineLive.m3u8?token=abc",
       } as any;
-      const callbacks = { onSuccess: originalOnSuccess, onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const callbacks = {
+        onSuccess: originalOnSuccess,
+        onError: vi.fn(),
+        onTimeout: vi.fn(),
+      } as any;
 
       loader.load(context, {} as any, callbacks);
 
@@ -284,7 +443,8 @@ describe("twitch-adblock-loader", () => {
       expect(mockProcessMasterPlaylist).toHaveBeenCalledWith(
         context.url,
         "#EXTM3U",
-        "jamiepinelive"
+        "jamiepinelive",
+        context.url
       );
     });
   });

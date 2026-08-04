@@ -6,6 +6,7 @@
  */
 
 import type { Platform } from "../../../shared/auth-types";
+import type { ChannelAccountStatus } from "../../../shared/channel-account-status-types";
 
 // ========== Stream Types ==========
 
@@ -42,11 +43,16 @@ export interface UnifiedChannel {
   isLive: boolean;
   isVerified: boolean;
   isPartner: boolean;
+  /**
+   * Account availability, independent from isLive. Required on authoritative
+   * Kick channel responses; omitted on providers that do not classify it.
+   */
+  accountStatus?: ChannelAccountStatus;
   followerCount?: number;
   subscriberCount?: number;
   viewCount?: number;
   createdAt?: string;
-  /** Published/created time of the newest trustworthy prior broadcast. */
+  /** End timestamp of the newest trustworthy prior stream; never a stream start timestamp. */
   lastLiveAt?: string;
   socialLinks?: SocialLink[];
   // Category info - represents the last set category for the channel

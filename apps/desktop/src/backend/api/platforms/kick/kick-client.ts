@@ -631,15 +631,19 @@ class KickClient implements KickRequestor, IPlatformReader {
 
   /**
    * Get channel info by slug
-   * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug[]=:slug
+   * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug=:slug
    */
   async getChannel(slug: string): Promise<UnifiedChannel | null> {
     return ChannelEndpoints.getChannel(this, slug);
   }
 
+  async getOfficialChannelAccountStatus(slug: string) {
+    return ChannelEndpoints.getOfficialKickChannelAccountStatus(this, slug);
+  }
+
   /**
    * Get multiple channels by their slugs
-   * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug[]=:slug&slug[]=:slug2
+   * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug=:slug&slug=:slug2
    */
   async getChannelsBySlugs(slugs: string[]): Promise<UnifiedChannel[]> {
     return ChannelEndpoints.getChannelsBySlugs(this, slugs);
@@ -647,7 +651,7 @@ class KickClient implements KickRequestor, IPlatformReader {
 
   /**
    * Get multiple channels by stable Kick broadcaster user IDs.
-   * https://docs.kick.com/apis/channels - GET /public/v1/channels?broadcaster_user_id[]=:id
+   * https://docs.kick.com/apis/channels - GET /public/v1/channels?broadcaster_user_id=:id
    */
   async getChannelsByBroadcasterIds(broadcasterUserIds: number[]): Promise<UnifiedChannel[]> {
     return ChannelEndpoints.getChannelsByBroadcasterIds(this, broadcasterUserIds);
@@ -667,7 +671,7 @@ class KickClient implements KickRequestor, IPlatformReader {
    */
   async searchChannels(
     query: string,
-    options: PaginationOptions = {}
+    options: SearchEndpoints.ChannelSearchOptions = {}
   ): Promise<PaginatedResult<UnifiedChannel>> {
     return SearchEndpoints.searchChannels(this, query, options);
   }
@@ -840,6 +844,14 @@ class KickClient implements KickRequestor, IPlatformReader {
    */
   async getClips(slug: string, options: PaginationOptions = {}): Promise<PaginatedResult<any>> {
     return ClipEndpoints.getClipsByChannelSlug(slug, options);
+  }
+
+  /** Get clips from Kick's native Category feed. */
+  async getClipsByCategory(
+    categorySlug: string,
+    options: PaginationOptions = {}
+  ): Promise<PaginatedResult<any>> {
+    return ClipEndpoints.getClipsByCategorySlug(categorySlug, options);
   }
 }
 

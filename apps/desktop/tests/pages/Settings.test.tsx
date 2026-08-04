@@ -4,14 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  DEFAULT_PLAYBACK_PREFERENCES,
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
 } from '@/shared/auth-types';
-import {
-  HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
-  useAppStore,
-} from '@/store/app-store';
+import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from '@/store/app-store';
 import { useFollowStore } from '@/store/follow-store';
 
 import {
@@ -65,11 +63,21 @@ vi.mock('@/hooks', () => ({
   }),
 }));
 
+const authErrorMock = vi.hoisted(() => ({
+  error: null as null | {
+    code: string;
+    message: string;
+    platform: 'twitch' | 'kick';
+  },
+  clearError: vi.fn(),
+}));
+
 vi.mock('@/hooks/useAuth', () => ({
-  useAuthError: () => ({ error: null, clearError: vi.fn() }),
+  useAuthError: () => ({ error: authErrorMock.error, clearError: authErrorMock.clearError }),
 }));
 
 const updatePreferences = vi.fn();
+const playback = { ...DEFAULT_PLAYBACK_PREFERENCES };
 // playerControls carries a non-default sibling (showQuality:false) so the spread-
 // preservation assertion below has something to prove: toggling one field must keep it.
 const playerControls = { ...DEFAULT_PLAYER_CONTROLS_PREFERENCES, showQuality: false };
@@ -92,7 +100,7 @@ vi.mock('@/store/auth-store', () => ({
   useAuthStore: (selector?: (s: unknown) => unknown) => {
     const state = {
       preferences: {
-        playback: { defaultQuality: 'auto', autoplay: true },
+        playback,
         playerControls,
         buffer,
         proxy,
@@ -120,9 +128,15 @@ vi.mock('@/components/auth', () => ({
 
 import { SettingsPage } from '@/pages/Settings';
 
+beforeEach(() => {
+  authErrorMock.error = null;
+  authErrorMock.clearError.mockReset();
+});
+
 describe('SettingsPage', () => {
   beforeEach(() => {
     updatePreferences.mockReset();
+    playback.defaultQuality = 'auto';
     useAppStore.setState({ homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS });
   });
 
@@ -137,6 +151,73 @@ describe('SettingsPage', () => {
     renderWithProviders(<SettingsPage />);
     expect(screen.getAllByText(/playback/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/accounts/i).length).toBeGreaterThan(0);
+  });
+
+  it('renders Twitch connection error title and body in high-contrast white', async () => {
+    authErrorMock.error = {
+      code: 'UNKNOWN_ERROR',
+      message: 'Failed to connect to Twitch. Please try again.',
+      platform: 'twitch',
+    };
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(screen.getByText('Integrations'));
+
+    expect(screen.getByText('Twitch Connection Error')).toHaveClass('text-white');
+    expect(screen.getByText('Failed to connect to Twitch. Please try again.')).toHaveClass(
+      'text-white'
+    );
+  });
+
+  it('renders Dismiss as a visible, keyboard-focusable button and clears the auth error', async () => {
+    authErrorMock.error = {
+      code: 'UNKNOWN_ERROR',
+      message: 'Failed to connect to Twitch. Please try again.',
+      platform: 'twitch',
+    };
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(screen.getByText('Integrations'));
+
+    const dismissButton = screen.getByRole('button', { name: 'Dismiss' });
+    expect(dismissButton).toHaveClass(
+      'min-h-10',
+      'cursor-pointer',
+      'border',
+      'bg-zinc-800',
+      'px-3',
+      'py-2',
+      'text-white',
+      'hover:bg-zinc-700',
+      'focus-visible:ring-2',
+      'active:bg-zinc-900',
+      'disabled:cursor-not-allowed'
+    );
+
+    await user.click(dismissButton);
+    expect(authErrorMock.clearError).toHaveBeenCalledOnce();
+  });
+});
+
+// Guards: Highest remains a visible saved playback preset rather than masquerading as Auto.
+describe('SettingsPage — Playback quality', () => {
+  beforeEach(() => {
+    updatePreferences.mockReset();
+    playback.defaultQuality = 'auto';
+  });
+
+  it('offers Highest and persists it without dropping playback siblings', () => {
+    renderWithProviders(<SettingsPage />);
+
+    const trigger = screen.getByRole('combobox', { name: 'Default Quality' });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('option', { name: 'Highest' }));
+
+    expect(updatePreferences).toHaveBeenCalledWith({
+      playback: { ...playback, defaultQuality: 'highest' },
+    });
   });
 });
 
@@ -548,10 +629,8 @@ describe('SettingsPage — Proxy tab (U12)', () => {
       apply:
         overrides?.apply ??
         vi.fn(async () => ({ applied: true, cleared: false, hasCredentials: false })),
-      setCredentials:
-        overrides?.setCredentials ?? vi.fn(async () => ({ hasCredentials: true })),
-      hasCredentials:
-        overrides?.hasCredentials ?? vi.fn(async () => ({ hasCredentials: false })),
+      setCredentials: overrides?.setCredentials ?? vi.fn(async () => ({ hasCredentials: true })),
+      hasCredentials: overrides?.hasCredentials ?? vi.fn(async () => ({ hasCredentials: false })),
     };
     api.proxy = proxyApi;
     return { api, proxyApi };
@@ -707,7 +786,9 @@ describe('SettingsPage — Advanced stream-token (U13, under Playback)', () => {
     expect(screen.getByText(/advanced \(stream token\)/i)).toBeInTheDocument();
     // The exact danger framing the plan requires.
     expect(
-      screen.getByText(/wrong values can break playback\. defaults match the current configuration/i)
+      screen.getByText(
+        /wrong values can break playback\. defaults match the current configuration/i
+      )
     ).toBeInTheDocument();
     // The three controls.
     expect(screen.getByText(/access-token player type/i)).toBeInTheDocument();
@@ -755,20 +836,22 @@ describe('SettingsPage — API / Tokens tab (U14)', () => {
   // documented TokenStatusResult shape per platform. The default auto-stub
   // returns `{data:[],error:null}`, which is the wrong shape for this panel.
   function installTokenStatusMock(
-    byPlatform: Partial<Record<'twitch' | 'kick', import('@/shared/ipc-channels').TokenStatusResult>>
+    byPlatform: Partial<
+      Record<'twitch' | 'kick', import('@/shared/ipc-channels').TokenStatusResult>
+    >
   ) {
     const api = installElectronAPIMock();
     const tokenStatus = vi.fn(async (platform: 'twitch' | 'kick') => {
-      return (
-        byPlatform[platform] ?? { platform, connected: false, valid: false }
-      );
+      return byPlatform[platform] ?? { platform, connected: false, valid: false };
     });
     api.auth = { tokenStatus };
     return { api, tokenStatus };
   }
 
   async function openApiTokensTab(
-    byPlatform: Partial<Record<'twitch' | 'kick', import('@/shared/ipc-channels').TokenStatusResult>>
+    byPlatform: Partial<
+      Record<'twitch' | 'kick', import('@/shared/ipc-channels').TokenStatusResult>
+    >
   ) {
     const mock = installTokenStatusMock(byPlatform);
     const user = userEvent.setup();
@@ -828,9 +911,7 @@ describe('SettingsPage — API / Tokens tab (U14)', () => {
       kick: { platform: 'kick', connected: false, valid: false },
     });
 
-    await waitFor(() =>
-      expect(screen.getByText(/token invalid or expired/i)).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText(/token invalid or expired/i)).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: /reconnect/i }));
     expect(loginTwitch).toHaveBeenCalledTimes(1);
     expect(loginKick).not.toHaveBeenCalled();

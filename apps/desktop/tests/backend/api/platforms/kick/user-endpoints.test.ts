@@ -85,6 +85,9 @@ describe("user-endpoints", () => {
     });
   });
 
+  // Guards: Kick user ID filters use the OpenAPI repeated query parameter so profile metadata resolves for the requested broadcasters.
+  // Guards: Kick profile enrichment chunks more than 50 requested users instead of losing names and avatars for large Following lists.
+  // Guards: Kick user enrichment rejects profiles whose IDs were not requested.
   describe("getUsersById", () => {
     it("uses app auth when viewer is not authenticated", async () => {
       const client = createMockClient({
@@ -95,7 +98,7 @@ describe("user-endpoints", () => {
       const result = await getUsersById(client, [1, 2, 3]);
 
       expect(result).toEqual([]);
-      expect(client.request).toHaveBeenCalledWith("/users?id[]=1&id[]=2&id[]=3", undefined, "app");
+      expect(client.request).toHaveBeenCalledWith("/users?id=1&id=2&id=3", undefined, "app");
     });
 
     it("returns empty array when ids list is empty", async () => {
@@ -118,7 +121,7 @@ describe("user-endpoints", () => {
 
       const result = await getUsersById(client, [1, 2]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id[]=1&id[]=2", undefined, "user");
+      expect(client.request).toHaveBeenCalledWith("/users?id=1&id=2", undefined, "user");
       expect(result).toEqual(mockUsers);
     });
 
@@ -129,7 +132,71 @@ describe("user-endpoints", () => {
 
       await getUsersById(client, [1, 1, 1]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id[]=1", undefined, "user");
+      expect(client.request).toHaveBeenCalledWith("/users?id=1", undefined, "user");
+    });
+
+    it("chunks a 108-channel Following profile request at the official 50-ID limit", async () => {
+      const ids = Array.from({ length: 108 }, (_, index) => index + 1);
+      const users = ids.map((userId) => ({
+        user_id: userId,
+        name: `User${userId}`,
+        profile_picture: `https://example.com/${userId}.webp`,
+      }));
+      const client = createMockClient({
+        request: vi
+          .fn()
+          .mockResolvedValueOnce({ data: users.slice(0, 50) })
+          .mockResolvedValueOnce({ data: users.slice(50, 100) })
+          .mockResolvedValueOnce({ data: users.slice(100) }),
+      });
+
+      const result = await getUsersById(client, ids);
+
+      expect(client.request).toHaveBeenCalledTimes(3);
+      expect(client.request).toHaveBeenNthCalledWith(
+        1,
+        `/users?${ids
+          .slice(0, 50)
+          .map((id) => `id=${id}`)
+          .join("&")}`,
+        undefined,
+        "user"
+      );
+      expect(client.request).toHaveBeenNthCalledWith(
+        2,
+        `/users?${ids
+          .slice(50, 100)
+          .map((id) => `id=${id}`)
+          .join("&")}`,
+        undefined,
+        "user"
+      );
+      expect(client.request).toHaveBeenNthCalledWith(
+        3,
+        `/users?${ids
+          .slice(100)
+          .map((id) => `id=${id}`)
+          .join("&")}`,
+        undefined,
+        "user"
+      );
+      expect(result).toEqual(users);
+    });
+
+    it("rejects user profiles whose IDs were not requested", async () => {
+      const requestedUser = { user_id: 1, name: "Requested", profile_picture: null };
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            { user_id: 999, name: "SignedInSubstitution", profile_picture: null },
+            requestedUser,
+          ],
+        }),
+      });
+
+      const result = await getUsersById(client, [1]);
+
+      expect(result).toEqual([requestedUser]);
     });
 
     it("returns empty array when response.data is null", async () => {

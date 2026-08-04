@@ -18,6 +18,7 @@ export function useTwitchAuth() {
   const user = useAuthStore((state) => state.twitchUser);
   const connected = useAuthStore((state) => state.twitchConnected);
   const loading = useAuthStore((state) => state.twitchLoading);
+  const authPhase = useAuthStore((state) => state.twitchAuthPhase);
   const login = useAuthStore((state) => state.loginTwitch);
   const logout = useAuthStore((state) => state.logoutTwitch);
 
@@ -26,10 +27,11 @@ export function useTwitchAuth() {
       user,
       connected,
       loading,
+      authPhase,
       login,
       logout,
     }),
-    [user, connected, loading, login, logout]
+    [user, connected, loading, authPhase, login, logout]
   );
 }
 

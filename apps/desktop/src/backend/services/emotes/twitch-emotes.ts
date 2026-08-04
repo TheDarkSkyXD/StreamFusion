@@ -173,41 +173,73 @@ class TwitchEmoteProvider implements EmoteProviderService {
     }
 
     const authApi = typeof window !== "undefined" ? window.electronAPI?.auth : undefined;
-    if (authApi?.tokenStatus) {
-      try {
-        const status = await authApi.tokenStatus("twitch");
-        const hasUserEmoteScope = (status.scopes ?? []).includes(TWITCH_USER_EMOTE_SCOPE);
-        if (status.connected === true && status.valid === true && !hasUserEmoteScope) {
-          logger.info("Emote:Twitch", "Skipping user emotes; token lacks user:read:emotes");
-          return [];
-        }
-      } catch (error) {
-        logger.debug("Emote:Twitch", "Could not pre-check user emote scope", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    if (!authApi?.tokenStatus) {
+      logger.info("Emote:Twitch", "Skipping user emotes; Twitch auth status is unavailable");
+      return [];
     }
 
-    const twitchUser = await authApi?.getTwitchUser?.();
-    if (!twitchUser?.id) {
+    let userId: string;
+    try {
+      const status = await authApi.tokenStatus("twitch");
+      if (!status.connected) {
+        logger.info("Emote:Twitch", "Skipping user emotes; Twitch is not authenticated");
+        return [];
+      }
+      if (!status.valid) {
+        logger.info("Emote:Twitch", "Skipping user emotes; Twitch token is not valid");
+        return [];
+      }
+      if (!(status.scopes ?? []).includes(TWITCH_USER_EMOTE_SCOPE)) {
+        logger.info("Emote:Twitch", "Skipping user emotes; token lacks user:read:emotes");
+        return [];
+      }
+      if (!status.userId) {
+        logger.info("Emote:Twitch", "Skipping user emotes; validated token has no user ID");
+        return [];
+      }
+      userId = status.userId;
+    } catch (error) {
+      logger.debug("Emote:Twitch", "Skipping user emotes; Twitch auth status check failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return [];
     }
 
     try {
       const emotes: Emote[] = [];
       let cursor: string | undefined;
+      let completedPageCount = 0;
 
       do {
-        const page = await this.execute<TwitchApiResponse<TwitchEmoteResponse>>({
-          operation: "get-user-emotes",
-          userId: twitchUser.id,
-          after: cursor,
-        });
+        let page: TwitchApiResponse<TwitchEmoteResponse>;
+        try {
+          page = await this.execute<TwitchApiResponse<TwitchEmoteResponse>>({
+            operation: "get-user-emotes",
+            userId,
+            after: cursor,
+          });
+        } catch (error) {
+          if (completedPageCount === 0) throw error;
+          logger.warn(
+            "Emote:Twitch",
+            "Failed to fetch additional user emote page; keeping completed pages",
+            {
+              completedPageCount,
+              emoteCount: emotes.length,
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            }
+          );
+          break;
+        }
 
         for (const emote of page.data) {
           if (this.isGlobalUserEmote(emote)) continue;
           emotes.push(this.transformEmote(emote, false, undefined, "user"));
         }
+        completedPageCount += 1;
         cursor = page.pagination?.cursor;
       } while (cursor);
 

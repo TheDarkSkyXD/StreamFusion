@@ -29,8 +29,8 @@ import {
 
 export const SEARCH_KEYS = {
   all: ["search"] as const,
-  channels: (query: string, platform?: Platform, limit?: number) =>
-    [...SEARCH_KEYS.all, "channels", query, platform, limit] as const,
+  channels: (query: string, platform?: Platform, limit?: number, liveOnly: boolean = false) =>
+    [...SEARCH_KEYS.all, "channels", query, platform, limit, liveOnly] as const,
   categories: (query: string, platform?: Platform, limit?: number) =>
     [...SEARCH_KEYS.all, "categories", query, platform, limit] as const,
   everything: (query: string, platform?: Platform, limit?: number) =>
@@ -521,9 +521,15 @@ export function useSearchClips(
   return usePersistedMediaSearch<UnifiedClip>("clips", query, platform, limit, enabled);
 }
 
-export function useSearchChannels(query: string, platform?: Platform, limit: number = 50) {
+export function useSearchChannels(
+  query: string,
+  platform?: Platform,
+  limit: number = 50,
+  liveOnly: boolean = false,
+  enabled: boolean = true
+) {
   const normalizedQuery = query.trim();
-  const queryKey = SEARCH_KEYS.channels(normalizedQuery, platform, limit);
+  const queryKey = SEARCH_KEYS.channels(normalizedQuery, platform, limit, liveOnly);
 
   const result = useInfiniteQuery({
     queryKey,
@@ -534,6 +540,7 @@ export function useSearchChannels(query: string, platform?: Platform, limit: num
         platform,
         limit,
         after: pageParam,
+        ...(liveOnly ? { liveOnly: true } : {}),
       });
       throwIfAborted(signal);
       if (response.error) {
@@ -547,12 +554,16 @@ export function useSearchChannels(query: string, platform?: Platform, limit: num
     // Treat an empty page as end-of-list regardless of cursor.
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
-    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     ...getQueryCacheOptions("searchResults"),
+    // Typeahead must never show the previous term's rows while the next term
+    // is pending. The general search cache intentionally keeps prior data for
+    // browsing surfaces, so opt out at this user-input boundary.
+    placeholderData: undefined,
   });
   useQueryCachePerformance({
     data: result.data,
-    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     fetchStatus: result.fetchStatus,
     queryKey,
     surface: "search",
@@ -560,7 +571,12 @@ export function useSearchChannels(query: string, platform?: Platform, limit: num
   return result;
 }
 
-export function useSearchCategories(query: string, platform?: Platform, limit: number = 20) {
+export function useSearchCategories(
+  query: string,
+  platform?: Platform,
+  limit: number = 20,
+  enabled: boolean = true
+) {
   const normalizedQuery = query.trim();
   const queryKey = SEARCH_KEYS.categories(normalizedQuery, platform, limit);
 
@@ -587,12 +603,13 @@ export function useSearchCategories(query: string, platform?: Platform, limit: n
     // can't see the post-filter emptiness.
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
-    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     ...getQueryCacheOptions("searchResults"),
+    placeholderData: undefined,
   });
   useQueryCachePerformance({
     data: result.data,
-    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     fetchStatus: result.fetchStatus,
     queryKey,
     surface: "search",
@@ -608,7 +625,12 @@ export interface SearchAllResponse {
   clips: UnifiedClip[];
 }
 
-export function useSearchAll(query: string, platform?: Platform, limit: number = 5) {
+export function useSearchAll(
+  query: string,
+  platform?: Platform,
+  limit: number = 5,
+  enabled: boolean = true
+) {
   const normalizedQuery = query.trim();
   const queryKey = SEARCH_KEYS.everything(normalizedQuery, platform, limit);
 
@@ -625,12 +647,13 @@ export function useSearchAll(query: string, platform?: Platform, limit: number =
       }
       return response.data as SearchAllResponse;
     },
-    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     ...getQueryCacheOptions("searchResults"),
+    placeholderData: undefined,
   });
   useQueryCachePerformance({
     data: result.data,
-    enabled: normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     fetchStatus: result.fetchStatus,
     queryKey,
     surface: "search",

@@ -21,6 +21,8 @@ function isStreamRecordingRequest(payload: unknown): payload is StreamRecordingR
     (request.platform === "twitch" || request.platform === "kick") &&
     typeof request.channelName === "string" &&
     request.channelName.trim().length > 0 &&
+    typeof request.streamId === "string" &&
+    request.streamId.trim().length > 0 &&
     typeof request.title === "string" &&
     request.title.trim().length > 0
   );
@@ -59,6 +61,11 @@ export function registerStreamRecordingHandlers(mainWindow: BrowserWindow): void
     if (!isAllowedSender(event)) return { success: false, error: REJECTED_ERROR };
     const id = sessionId(payload);
     return id ? service.stopRecording(id) : { success: false, error: "sessionId is required" };
+  });
+  ipcMain.handle(IPC_CHANNELS.STREAM_RECORDING_DISCARD, (event, payload) => {
+    if (!isAllowedSender(event)) return { success: false, error: REJECTED_ERROR };
+    const id = sessionId(payload);
+    return id ? service.discardRecording(id) : { success: false, error: "sessionId is required" };
   });
   ipcMain.handle(IPC_CHANNELS.STREAM_RECORDING_PAUSE, (event, payload) => {
     if (!isAllowedSender(event)) return { success: false, error: REJECTED_ERROR };

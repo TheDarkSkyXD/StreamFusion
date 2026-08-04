@@ -61,6 +61,9 @@ const state: LoggerState = {
 };
 
 const sinks = new Set<LogSink>();
+// Capture the native writer before console/native interception is installed.
+// App errors use this direct path so they cannot recurse through the logger.
+const terminalErrorWrite = process.stderr.write.bind(process.stderr);
 
 function isLogLevel(value: string | undefined): value is LogLevel {
   return value !== undefined && (VALID_LEVELS as readonly string[]).includes(value);
@@ -87,9 +90,10 @@ export function formatLine(opts: {
 }
 
 function writeRaw(level: LogLevel, line: string): void {
-  // electron-log's format `'{text}'` makes the file/console transports emit
-  // our `data[0]` verbatim, so a raw string is enough — no template interp.
+  // electron-log's format `'{text}'` makes the file transport emit our
+  // `data[0]` verbatim, so a raw string is enough — no template interp.
   electronLog[level](line);
+  if (level === "error") terminalErrorWrite(`${line}\n`);
 }
 
 function emit(level: LogLevel, tag: string, message: string, meta?: Record<string, unknown>): void {
@@ -136,9 +140,8 @@ export function initLogger(opts: InitLoggerOpts): void {
   // Electron `app`).
   electronLog.transports.file.resolvePathFn = () => filePath;
   electronLog.transports.file.format = "{text}";
-  electronLog.transports.console.format = "{text}";
   electronLog.transports.file.level = effectiveLevel;
-  electronLog.transports.console.level = effectiveLevel;
+  electronLog.transports.console.level = false;
   if (electronLog.transports.ipc) {
     // The IPC transport mirrors logs to renderer devtools; not desired here.
     electronLog.transports.ipc.level = false;

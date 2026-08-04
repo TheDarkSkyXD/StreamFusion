@@ -11,12 +11,12 @@
  * and routed to the matching logger method. Lines without the prefix fall
  * through to `logger.info(tag, line)` so output is never silently dropped.
  *
- * The original writers are always called first, so the line still shows up
- * in the terminal — we never suppress output, only mirror it.
+ * Structured Chromium lines are emitted through the logger only, so routine
+ * levels stay file-only and errors use the logger's direct terminal path.
+ * Unstructured process output passes through to the original writer unchanged.
  *
- * Recursion guard: electron-log's console transport writes back to
- * process.stderr / process.stdout when it flushes. A module-scope flag is
- * raised around the logger call so the nested write skips re-entry.
+ * A module-scope recursion guard keeps any nested stream write triggered by a
+ * logger sink from re-entering this parser.
  */
 
 import { isHarmlessChromiumNoise } from "@/backend/logging/chromium-noise-filter";
@@ -39,8 +39,7 @@ const state: PatchState = {
   uninstall: null,
 };
 
-// Recursion guard — raised while we're calling the logger so the logger's
-// own write back to stderr/stdout (electron-log's console transport) does
+// Raised while calling the logger so a nested stream write from any sink does
 // not re-enter the parsing path and loop forever.
 let isWriting = false;
 
@@ -95,30 +94,36 @@ export function installNativeStderrIntercept(opts: InstallOpts = {}): () => void
 
   function patch(originalWrite: WriteFn, stream: NodeJS.WriteStream): WriteFn {
     const patched = function patchedWrite(this: unknown, ...args: unknown[]): boolean {
-      // Always call the original first so the terminal still gets the line.
-      // Cast through unknown — the original write signature is heavily
-      // overloaded (string | Uint8Array, optional encoding, optional cb).
-      const result = (originalWrite as unknown as (...a: unknown[]) => boolean).apply(stream, args);
+      const writeOriginal = (writeArgs: unknown[] = args): boolean =>
+        (originalWrite as unknown as (...a: unknown[]) => boolean).apply(stream, writeArgs);
 
-      if (isWriting) return result;
+      if (isWriting) return writeOriginal();
 
       try {
         isWriting = true;
         const chunk = args[0];
         const text = chunkToString(chunk);
-        if (text.length === 0) return result;
-        const lines = text.split("\n");
-        for (const line of lines) {
-          routeLine(line, tag);
+        if (text.length === 0) return writeOriginal();
+        const segments = text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+        for (const segment of segments) {
+          routeLine(segment, tag);
+        }
+        const passThroughText = segments
+          .filter((segment) => !CHROMIUM_PREFIX.test(segment.trim()))
+          .join("");
+        if (passThroughText === text) return writeOriginal();
+        if (passThroughText.length > 0) {
+          return writeOriginal([passThroughText, ...args.slice(1)]);
         }
       } catch {
         // Logger failure must not break stderr/stdout writes — they're the
         // last line of defense for diagnostics.
+        return writeOriginal();
       } finally {
         isWriting = false;
       }
 
-      return result;
+      return true;
     } as unknown as WriteFn;
     return patched;
   }

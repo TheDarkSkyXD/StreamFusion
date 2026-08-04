@@ -284,6 +284,7 @@ export function CategoryDetailPage() {
     langParam,
     datasetKey
   );
+  const hasSecondaryStreams = secondaryQuery.data?.pages.some((page) => page?.data?.some(Boolean));
 
   const { merged, scopedMerged, streams } = useMemo(() => {
     const primary = primaryQuery.data?.pages.flatMap((page) => page?.data ?? []) ?? [];
@@ -332,6 +333,9 @@ export function CategoryDetailPage() {
   const hasNextPage = selectedQuery
     ? selectedQuery.hasNextPage
     : primaryQuery.hasNextPage || secondaryQuery.hasNextPage;
+  const selectedPlatformIsUnavailable = Boolean(
+    selectedQuery?.error && scopedMerged.length === 0
+  );
 
   const queriesRef = useRef({ primaryQuery, secondaryQuery, platformScope, currentPlatform });
   queriesRef.current = { primaryQuery, secondaryQuery, platformScope, currentPlatform };
@@ -538,26 +542,97 @@ export function CategoryDetailPage() {
 
       {tab === "live" && (
         <>
-          <StreamGrid
-            key={datasetKey}
-            datasetKey={datasetKey}
-            streams={streams}
-            isLoading={isStreamsLoading}
-            emptyMessage={
-              tagQuery && scopedMerged.length > 0
-                ? `No streams in this category match "${tagQuery}".`
-                : "No active streams found for this category."
-            }
-            skeletons={8}
-          />
-
-          {hasNextPage && (
-            <div className="relative h-14 flex items-center justify-center">
-              <div ref={sentinelRef} className="absolute inset-0" aria-hidden="true" />
-              {isFetchingNextPage && (
-                <div className="animate-spin motion-reduce:animate-none rounded-full h-6 w-6 border-b-2 border-white" />
-              )}
+          {platformScope === "all" && primaryQuery.error && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
+            >
+              <span>
+                {currentPlatform === "twitch" ? "Twitch" : "Kick"} is unavailable.
+              </span>
+              <button
+                type="button"
+                onClick={() => void primaryQuery.refetch()}
+                className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                Retry {currentPlatform === "twitch" ? "Twitch" : "Kick"}
+              </button>
             </div>
+          )}
+
+          {platformScope === "all" &&
+            !otherCategoryId &&
+            otherCategorySearch.isError &&
+            !hasSecondaryStreams && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
+            >
+              <span>
+                {otherPlatform === "twitch" ? "Twitch" : "Kick"} streams are temporarily
+                unavailable.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (otherId) void providedOtherQuery.refetch();
+                  void otherCategorySearch.refetch();
+                }}
+                className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                Retry {otherPlatform === "twitch" ? "Twitch" : "Kick"}
+              </button>
+            </div>
+          )}
+
+          {selectedPlatformIsUnavailable && selectedQuery && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
+            >
+              <span>{platformScope === "twitch" ? "Twitch" : "Kick"} is unavailable.</span>
+              <button
+                type="button"
+                onClick={() => void selectedQuery.refetch()}
+                className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                Retry {platformScope === "twitch" ? "Twitch" : "Kick"}
+              </button>
+            </div>
+          )}
+
+          {!selectedPlatformIsUnavailable && (
+            <>
+              <StreamGrid
+                key={datasetKey}
+                datasetKey={datasetKey}
+                streams={streams}
+                isLoading={isStreamsLoading}
+                emptyMessage={
+                  tagQuery && scopedMerged.length > 0
+                    ? `No streams in this category match "${tagQuery}".`
+                    : platformScope === "all"
+                      ? "No active streams found for this category."
+                      : `No live ${platformScope === "twitch" ? "Twitch" : "Kick"} streams found for this category.`
+                }
+                skeletons={8}
+              />
+
+              {hasNextPage && (
+                <div className="relative h-14 flex items-center justify-center">
+                  <div ref={sentinelRef} className="absolute inset-0" aria-hidden="true" />
+                  {isFetchingNextPage && (
+                    <div role="status" aria-label="Loading more live streams">
+                      <div
+                        aria-hidden="true"
+                        className="animate-spin motion-reduce:animate-none rounded-full h-6 w-6 border-b-2 border-white"
+                      />
+                      <span className="sr-only">Loading more live streams</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

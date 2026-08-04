@@ -47,6 +47,16 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   }));
 }
 
+function setLegacyChatDisplay(chatDisplay: Partial<ChatDisplayPreferences>) {
+  useAuthStore.setState((state) => ({
+    ...state,
+    preferences: {
+      ...(state.preferences ?? {}),
+      chatDisplay,
+    } as typeof state.preferences,
+  }));
+}
+
 // v2 returns newest-first; index 0 is the newest.
 function makeRawMessages(n: number) {
   return Array.from({ length: n }, (_, i) => ({
@@ -87,6 +97,7 @@ const baseParams = {
   subscriberBadges: undefined,
 } as const;
 
+// Guards: legacy partial chat preferences still default recent-message history on before live Kick chat joins.
 describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
   // biome-ignore lint/suspicious/noExplicitAny: test IPC surface.
   let api: any;
@@ -110,6 +121,24 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
     expect(prepend).toHaveBeenCalledTimes(1);
     expect(prepend.mock.calls[0][0]).toBe(buildChannelKey('kick', 'xqc'));
     expect(prepend.mock.calls[0][1]).toHaveLength(4);
+  });
+
+  it('seeds history when legacy saved preferences omit the recent-messages toggle', async () => {
+    setLegacyChatDisplay({ timestamps: true });
+    api.chat.getKickHistory = vi.fn(async () => ({
+      success: true,
+      data: { messages: makeRawMessages(2), pinnedMessage: null },
+    }));
+    const prepend = vi.fn();
+
+    await seedKickChatHistory({
+      ...baseParams,
+      prependMessages: prepend,
+      onPinnedMessage: vi.fn(),
+    });
+
+    expect(api.chat.getKickHistory).toHaveBeenCalledTimes(1);
+    expect(prepend.mock.calls[0][1]).toHaveLength(2);
   });
 
   it('does not seed recent messages when recentMessagesOnJoin is false', async () => {

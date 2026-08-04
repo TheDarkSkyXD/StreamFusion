@@ -59,6 +59,8 @@ let fakeClient: EventEmitter & {
   disconnect: ReturnType<typeof vi.fn>;
   join: ReturnType<typeof vi.fn>;
   say: ReturnType<typeof vi.fn>;
+  action: ReturnType<typeof vi.fn>;
+  raw: ReturnType<typeof vi.fn>;
 };
 
 function makeFakeTmiClient(): typeof fakeClient {
@@ -67,6 +69,12 @@ function makeFakeTmiClient(): typeof fakeClient {
 
 // Guards: Twitch community gift USERNOTICE events emit an aggregate notice so the gifted-sub banner appears before recipient rows.
 // Guards: Anonymous Twitch viewers load badge catalogs through the Electron bridge without a renderer fetch or auth credentials.
+// Guards: pending Twitch sends reserve rolling-window capacity before the IRC transport settles.
+// Guards: failed Twitch sends release their reservation, while successful sends consume exactly one slot.
+// Guards: pending Twitch replies consume the same rolling-window capacity before raw IRC settles.
+// Guards: failed Twitch replies release their reservation, while successful replies consume exactly one slot.
+// Guards: pending Twitch actions consume the shared rolling-window capacity before IRC transport settles.
+// Guards: failed Twitch actions release their reservation, while successful actions consume exactly one slot.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
@@ -74,6 +82,8 @@ describe("TwitchChatService connect() single-flight", () => {
       disconnect: vi.fn(() => Promise.resolve()),
       join: vi.fn(() => Promise.resolve(["#xqc"])),
       say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
+      action: vi.fn(() => Promise.resolve(["#xqc", "waves"])),
+      raw: vi.fn(() => Promise.resolve()),
     });
     ClientCtor.mockReset();
     // Arrow functions cannot be used with `new`; use a regular function so that
@@ -534,6 +544,212 @@ describe("TwitchChatService connect() single-flight", () => {
 
     expect(messages[0].badges.some((badge) => badge.setId === "moderator")).toBe(true);
     expect(messages[1].badges.some((badge) => badge.setId === "moderator")).toBe(false);
+  });
+
+  it("rejects the 21st concurrent send before transport while 20 sends are pending", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+
+    const pendingSends: Array<{
+      resolve: (result: [string, string]) => void;
+    }> = [];
+    fakeClient.say.mockImplementation(
+      (channel: string, message: string) =>
+        new Promise<[string, string]>((resolve) => pendingSends.push({ resolve }))
+    );
+
+    const sends = Array.from({ length: 20 }, (_, index) =>
+      service.sendMessage("ninja", `message-${index}`)
+    );
+
+    const rejectedSend = service.sendMessage("ninja", "message-20");
+    expect(fakeClient.say).toHaveBeenCalledTimes(20);
+    await expect(rejectedSend).rejects.toThrow("Message rate limit exceeded");
+
+    pendingSends.forEach(({ resolve }, index) => resolve(["#ninja", `message-${index}`]));
+    await Promise.all(sends);
+  });
+
+  it("restores capacity after a failed send and counts each successful send once", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+
+    fakeClient.say.mockRejectedValueOnce(new Error("transport failed"));
+    await expect(service.sendMessage("ninja", "failed-message")).rejects.toThrow(
+      "transport failed"
+    );
+
+    fakeClient.say.mockResolvedValue(["#ninja", "sent"]);
+    for (let index = 0; index < 20; index += 1) {
+      await expect(service.sendMessage("ninja", `message-${index}`)).resolves.toBeUndefined();
+    }
+
+    await expect(service.sendMessage("ninja", "message-20")).rejects.toThrow(
+      "Message rate limit exceeded"
+    );
+    expect(fakeClient.say).toHaveBeenCalledTimes(21);
+  });
+
+  it("rejects the 21st concurrent reply before raw transport while 20 replies are pending", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+
+    const pendingReplies: Array<{ resolve: () => void }> = [];
+    fakeClient.raw.mockImplementation(
+      () => new Promise<void>((resolve) => pendingReplies.push({ resolve }))
+    );
+
+    const replies = Array.from({ length: 20 }, (_, index) =>
+      service.sendReply("ninja", `parent-${index}`, `reply-${index}`)
+    );
+
+    const rejectedReply = service.sendReply("ninja", "parent-20", "reply-20");
+    expect(fakeClient.raw).toHaveBeenCalledTimes(20);
+    await expect(rejectedReply).rejects.toThrow("Message rate limit exceeded");
+
+    pendingReplies.forEach(({ resolve }) => resolve());
+    await Promise.all(replies);
+  });
+
+  it("restores reply capacity after a failed raw transport and counts successful replies once", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+
+    fakeClient.raw.mockRejectedValueOnce(new Error("reply transport failed"));
+    await expect(service.sendReply("ninja", "failed-parent", "failed-reply")).rejects.toThrow(
+      "reply transport failed"
+    );
+
+    fakeClient.raw.mockResolvedValue(undefined);
+    for (let index = 0; index < 20; index += 1) {
+      await expect(
+        service.sendReply("ninja", `parent-${index}`, `reply-${index}`)
+      ).resolves.toBeUndefined();
+    }
+
+    await expect(service.sendReply("ninja", "parent-20", "reply-20")).rejects.toThrow(
+      "Message rate limit exceeded"
+    );
+    expect(fakeClient.raw).toHaveBeenCalledTimes(21);
+  });
+
+  it("rejects the 21st concurrent action before transport while 20 actions are pending", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+
+    const pendingActions: Array<{ resolve: (result: [string, string]) => void }> = [];
+    fakeClient.action.mockImplementation(
+      () => new Promise<[string, string]>((resolve) => pendingActions.push({ resolve }))
+    );
+
+    const actions = Array.from({ length: 20 }, (_, index) =>
+      service.sendAction("ninja", `action-${index}`)
+    );
+
+    const rejectedAction = service.sendAction("ninja", "action-20");
+    expect(fakeClient.action).toHaveBeenCalledTimes(20);
+    await expect(rejectedAction).rejects.toThrow("Message rate limit exceeded");
+
+    pendingActions.forEach(({ resolve }, index) => resolve(["#ninja", `action-${index}`]));
+    await Promise.all(actions);
+  });
+
+  it("restores action capacity after a failed transport and counts successful actions once", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+
+    fakeClient.action.mockRejectedValueOnce(new Error("action transport failed"));
+    await expect(service.sendAction("ninja", "failed-action")).rejects.toThrow(
+      "action transport failed"
+    );
+
+    fakeClient.action.mockResolvedValue(["#ninja", "sent"]);
+    for (let index = 0; index < 20; index += 1) {
+      await expect(service.sendAction("ninja", `action-${index}`)).resolves.toBeUndefined();
+    }
+
+    await expect(service.sendAction("ninja", "action-20")).rejects.toThrow(
+      "Message rate limit exceeded"
+    );
+    expect(fakeClient.action).toHaveBeenCalledTimes(21);
   });
 
   it("emits a community gift notice for Twitch mystery gift aggregates", async () => {

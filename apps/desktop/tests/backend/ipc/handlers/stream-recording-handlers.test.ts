@@ -40,6 +40,7 @@ function createService(overrides: Partial<StreamRecordingService> = {}): StreamR
       sessionId: "recording-session-1",
     })),
     stopRecording: vi.fn(async () => ({ success: true })),
+    discardRecording: vi.fn(async () => ({ success: true })),
     pauseRecording: vi.fn(async () => ({ success: true })),
     resumeRecording: vi.fn(async () => ({ success: true })),
     resumeInterrupted: vi.fn(async () => ({ success: true as const })),
@@ -83,6 +84,7 @@ function createMainWindow(send = vi.fn()): BrowserWindow {
 // Guards: interrupted-session dismissal is routed through the recording service
 // Guards: every recovery bridge failure preserves the public discriminant required by preload callers
 // Guards: transient outcome dismissal is recording-scoped and sender-guarded
+// Guards: start IPC rejects requests that omit the current provider's stable live Stream identity
 describe("Stream Recording IPC handlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -101,7 +103,12 @@ describe("Stream Recording IPC handlers", () => {
     vi.mocked(getDefaultStreamRecordingService).mockReturnValue(service);
     vi.mocked(getStreamRecordingSessionStore).mockReturnValue(createSessionStore());
     registerStreamRecordingHandlers(createMainWindow());
-    const request = { platform: "twitch", channelName: "ninja", title: "Stream" };
+    const request = {
+      platform: "twitch",
+      channelName: "ninja",
+      streamId: "stream-live-123",
+      title: "Stream",
+    };
 
     await expect(
       handler(IPC_CHANNELS.STREAM_RECORDING_START)(fileSender, request)
@@ -110,6 +117,7 @@ describe("Stream Recording IPC handlers", () => {
       outcome: "started",
       sessionId: "recording-session-1",
     });
+    expect(service.startRecording).toHaveBeenCalledWith(request);
     expect(handler(IPC_CHANNELS.STREAM_RECORDING_GET_STATE)(fileSender)).toBe(snapshot);
   });
 
@@ -157,6 +165,22 @@ describe("Stream Recording IPC handlers", () => {
         platform: "youtube",
         channelName: "",
         title: 42,
+      })
+    ).toEqual({ success: false, outcome: "failed", error: "Invalid Stream Recording request" });
+    expect(service.startRecording).not.toHaveBeenCalled();
+  });
+
+  it("rejects a start request without a stable live Stream identity", () => {
+    const service = createService({ startRecording: vi.fn() });
+    vi.mocked(getDefaultStreamRecordingService).mockReturnValue(service);
+    vi.mocked(getStreamRecordingSessionStore).mockReturnValue(createSessionStore());
+    registerStreamRecordingHandlers(createMainWindow());
+
+    expect(
+      handler(IPC_CHANNELS.STREAM_RECORDING_START)(localhostSender, {
+        platform: "kick",
+        channelName: "nerdballertv",
+        title: "NerdBallerTV Live",
       })
     ).toEqual({ success: false, outcome: "failed", error: "Invalid Stream Recording request" });
     expect(service.startRecording).not.toHaveBeenCalled();
@@ -478,6 +502,28 @@ describe("Stream Recording IPC handlers", () => {
       handler(IPC_CHANNELS.STREAM_RECORDING_STOP)({}, { sessionId: "recording-session-1" })
     ).toEqual({ success: false, error: "Rejected: caller is not the application renderer." });
     expect(service.stopRecording).not.toHaveBeenCalled();
+  });
+
+  it("routes Discard by session identity and rejects remote callers", async () => {
+    const service = createService();
+    vi.mocked(getDefaultStreamRecordingService).mockReturnValue(service);
+    vi.mocked(getStreamRecordingSessionStore).mockReturnValue(createSessionStore());
+    registerStreamRecordingHandlers(createMainWindow());
+
+    await expect(
+      handler(IPC_CHANNELS.STREAM_RECORDING_DISCARD)(fileSender, {
+        sessionId: "recording-session-1",
+        path: "C:/arbitrary/file.exe",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(service.discardRecording).toHaveBeenCalledWith("recording-session-1");
+
+    expect(
+      handler(IPC_CHANNELS.STREAM_RECORDING_DISCARD)(remoteSender, {
+        sessionId: "recording-session-1",
+      })
+    ).toEqual({ success: false, error: "Rejected: caller is not the application renderer." });
+    expect(service.discardRecording).toHaveBeenCalledTimes(1);
   });
 
   it("rejects Open completed recording when sender-frame identity is missing", () => {

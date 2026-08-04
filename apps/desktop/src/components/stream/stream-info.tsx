@@ -43,6 +43,7 @@ interface StreamInfoProps {
   channel: UnifiedChannel | null | undefined;
   stream: UnifiedStream | null | undefined;
   isLoading: boolean;
+  recordingAction?: React.ReactNode;
 }
 
 function normalizeAccountValue(value: string | number | null | undefined): string {
@@ -83,7 +84,7 @@ function formatFollowerLabel(followerCount: number | undefined): string | null {
   return `${formatViewerCount(followerCount)} ${suffix}`;
 }
 
-export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
+export function StreamInfo({ channel, stream, isLoading, recordingAction }: StreamInfoProps) {
   const { twitchUser, kickUser } = useUserInfo();
   // Resolve canonical cross-platform link target so clicking the badge lands on
   // the same merged Categories page as clicking the same category in the grid
@@ -226,12 +227,14 @@ export function StreamInfo({ channel, stream, isLoading }: StreamInfoProps) {
 
       {/* Right side: Follow button and live stats */}
       <div className="flex flex-col items-end gap-3">
+        {(recordingAction || !isOwnerView) && (
+          <div className="flex items-center gap-2">
+            {recordingAction}
+            {!isOwnerView && <FollowButton channel={channel} size="default" />}
+          </div>
+        )}
         {!isOwnerView && (
           <>
-            <div className="flex items-center gap-2">
-              <FollowButton channel={channel} size="default" />
-            </div>
-
             {/* Live stats: Viewer count and Uptime */}
             {stream?.isLive && (
               <div className="flex items-center gap-4 text-sm">

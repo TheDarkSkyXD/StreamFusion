@@ -8,18 +8,23 @@ import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { resolveHlsBufferConfig, resolveHlsVodBufferConfig } from "./hls-buffer-config";
+import { resolvePreferredQualityId, type PlayerQualityPreference } from "./quality-preference";
 import type { PlayerError, QualityLevel } from "./types";
 
 export type HlsConfigOverrides = Partial<NonNullable<ConstructorParameters<typeof Hls>[0]>>;
 
-export interface HlsPlayerProps
-  extends Omit<React.VideoHTMLAttributes<HTMLVideoElement>, "onError"> {
+export interface HlsPlayerProps extends Omit<
+  React.VideoHTMLAttributes<HTMLVideoElement>,
+  "onError"
+> {
   src: string;
   onQualityLevels?: (levels: QualityLevel[]) => void;
+  onActiveQualityChange?: (qualityId: string) => void;
   onError?: (error: PlayerError) => void;
   onHlsInstance?: (hls: Hls) => void;
   autoPlay?: boolean;
   currentLevel?: string; // 'auto' or level index as string
+  preferredQuality?: PlayerQualityPreference | string;
   volume?: number;
   sources?: { quality: string; url: string }[];
   hlsConfig?: HlsConfigOverrides;
@@ -39,6 +44,23 @@ const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
 // ordinary Kick CDN jitter look like an ended stream, forcing refresh loops.
 const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 20_000;
 
+function applyPreferredQuality(
+  hls: Hls,
+  levels: QualityLevel[],
+  preference: PlayerQualityPreference | string
+): void {
+  const qualityId = resolvePreferredQualityId(levels, preference);
+  if (qualityId === "auto") {
+    hls.currentLevel = -1;
+    return;
+  }
+
+  const levelIndex = Number.parseInt(qualityId, 10);
+  if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < levels.length) {
+    hls.currentLevel = levelIndex;
+  }
+}
+
 function isKickLiveCdnUrl(url: string | undefined): boolean {
   if (!url) return false;
   try {
@@ -54,10 +76,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     {
       src,
       onQualityLevels,
+      onActiveQualityChange,
       onError,
       onHlsInstance,
       autoPlay = false,
       currentLevel,
+      preferredQuality,
       sources,
       hlsConfig,
       volume,
@@ -409,16 +433,42 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
     // Store callbacks in refs to prevent re-initialization loop
     const onQualityLevelsRef = useRef(onQualityLevels);
+    const onActiveQualityChangeRef = useRef(onActiveQualityChange);
     const onErrorRef = useRef(onError);
     const onHlsInstanceRef = useRef(onHlsInstance);
     const currentLevelRef = useRef(currentLevel);
+    const preferredQualityRef = useRef(preferredQuality);
+    const parsedQualityLevelsRef = useRef<QualityLevel[]>([]);
+    const appliedPreferredQualityRef = useRef<string | null>(null);
 
     useEffect(() => {
       onQualityLevelsRef.current = onQualityLevels;
+      onActiveQualityChangeRef.current = onActiveQualityChange;
       onErrorRef.current = onError;
       onHlsInstanceRef.current = onHlsInstance;
       currentLevelRef.current = currentLevel;
-    }, [onQualityLevels, onError, onHlsInstance, currentLevel]);
+      preferredQualityRef.current = preferredQuality;
+    }, [
+      onQualityLevels,
+      onActiveQualityChange,
+      onError,
+      onHlsInstance,
+      currentLevel,
+      preferredQuality,
+    ]);
+
+    useEffect(() => {
+      if (preferredQuality === undefined) return;
+      const normalizedPreference = String(preferredQuality).toLowerCase();
+      if (appliedPreferredQualityRef.current === normalizedPreference) return;
+
+      const hls = hlsRef.current;
+      const levels = parsedQualityLevelsRef.current;
+      if (!hls || levels.length === 0) return;
+
+      applyPreferredQuality(hls, levels, preferredQuality);
+      appliedPreferredQualityRef.current = normalizedPreference;
+    }, [preferredQuality]);
 
     useEffect(() => {
       const video = videoRef.current;
@@ -430,6 +480,8 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       isMountedRef.current = true;
       // Reset recovery attempt tracker for new stream
       lastRecoveryAttemptRef.current = null;
+      parsedQualityLevelsRef.current = [];
+      appliedPreferredQualityRef.current = null;
 
       // Reset heartbeat mutable state for this stream
       lastFragLoadedTimeRef.current = Date.now();
@@ -658,49 +710,58 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
           logger.debug("Player:HLS", "manifest parsed", { levels: data.levels.length });
 
+          const levels: QualityLevel[] = data.levels.map((level, index) => {
+            const heightLabel = level.height ? `${level.height}p` : "";
+            const fpsLabel =
+              level.frameRate && level.frameRate > 30 ? Math.round(level.frameRate) : "";
+            let label = heightLabel ? `${heightLabel}${fpsLabel}` : `Level ${index}`;
+            if (data.levels.length === 1 && !level.height) label = "Source";
+
+            return {
+              id: index.toString(),
+              label,
+              width: level.width || 0,
+              height: level.height || 0,
+              bitrate: level.bitrate || 0,
+              frameRate: level.frameRate || 0,
+              isAuto: false,
+              isSource: /\bsource\b/i.test(level.name ?? ""),
+              name: level.name,
+            };
+          });
+          parsedQualityLevelsRef.current = levels;
+
           if (autoPlay && isMountedRef.current) {
             safePlay();
           }
 
           // Restore current level if set (with validation)
-          const initialCurrentLevel = currentLevelRef.current;
-          if (initialCurrentLevel !== undefined) {
-            if (initialCurrentLevel === "auto") {
-              hls!.currentLevel = -1;
-            } else {
-              const levelIndex = parseInt(initialCurrentLevel, 10);
-              if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < data.levels.length) {
+          const preferred = preferredQualityRef.current;
+          if (preferred !== undefined) {
+            applyPreferredQuality(hls!, levels, preferred);
+            appliedPreferredQualityRef.current = String(preferred).toLowerCase();
+          } else if (currentLevelRef.current !== undefined) {
+            const initialCurrentLevel = currentLevelRef.current;
+            if (initialCurrentLevel === "auto") hls!.currentLevel = -1;
+            else {
+              const levelIndex = Number.parseInt(initialCurrentLevel, 10);
+              if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < levels.length) {
                 hls!.currentLevel = levelIndex;
               }
             }
           }
 
           if (onQualityLevelsRef.current && data.levels) {
-            const levels: QualityLevel[] = data.levels.map((level, index) => {
-              const heightLabel = level.height ? `${level.height}p` : "";
-              const fpsLabel =
-                level.frameRate && level.frameRate > 30 ? Math.round(level.frameRate) : "";
-              let label = heightLabel ? `${heightLabel}${fpsLabel}` : `Level ${index}`;
-              // If single level and no height, assume it's Source
-              if (data.levels.length === 1 && !level.height) label = "Source";
-
-              return {
-                id: index.toString(),
-                label,
-                width: level.width || 0,
-                height: level.height || 0,
-                bitrate: level.bitrate || 0,
-                frameRate: level.frameRate || 0,
-                isAuto: false,
-                name: level.name,
-              };
-            });
             // Add Auto level
             onQualityLevelsRef.current([
               { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
               ...levels,
             ]);
           }
+        });
+
+        hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+          onActiveQualityChangeRef.current?.(String(data.level));
         });
 
         // Handle HLS errors - distinguish between expected stream-ending scenarios and actual errors

@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+vi.mock("@/providers/query-provider", () => ({
+  queryClient: { invalidateQueries: vi.fn() },
+}));
 
 import { hydratePersistedFollowingSnapshot } from "@/hooks/queries/browse-snapshot-bootstrap";
 import {
@@ -47,6 +50,7 @@ afterEach(() => {
 // Guards: a live result completed during delayed startup persists immediately once the authoritative identity settles
 // Guards: Kick live status refreshes every 15 seconds in followed surfaces and every 10 seconds on an open channel, while Twitch keeps its existing conservative cadence.
 // Guards: confirmed offline status removes only the matching Kick channel from both followed-stream caches so the sidebar changes state immediately without disturbing other platforms.
+// Guards: hook tests isolate app-wide connectivity bootstrap so generic IPC mocks cannot pause enabled stream queries.
 describe("useTopStreams", () => {
   it("fetches top streams", async () => {
     const stream = fixtures.stream();

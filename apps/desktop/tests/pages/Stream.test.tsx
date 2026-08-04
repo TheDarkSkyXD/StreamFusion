@@ -1,9 +1,11 @@
 import { act } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerError } from "@/components/player/types";
 import {
   fixtures,
+  installElectronAPIMock,
   renderWithProviders,
   routerMock,
   screen,
@@ -141,16 +143,22 @@ vi.mock("@/components/stream/stream-info", () => ({
   StreamInfo: ({
     channel,
     stream,
+    recordingAction,
   }: {
-    channel?: { username?: string } | null;
+    channel?: { username?: string; displayName?: string } | null;
     stream?: { channelName?: string; title?: string } | null;
+    recordingAction?: ReactNode;
   }) => (
-    <div
-      data-testid="stream-info"
-      data-channel={channel?.username ?? "none"}
-      data-stream-channel={stream?.channelName ?? "none"}
-    >
-      {stream?.title ?? "no-title"}
+    <div>
+      <div
+        data-testid="stream-info"
+        data-channel={channel?.username ?? "none"}
+        data-display-name={channel?.displayName ?? "none"}
+        data-stream-channel={stream?.channelName ?? "none"}
+      >
+        {stream?.title ?? "no-title"}
+      </div>
+      {recordingAction}
     </div>
   ),
 }));
@@ -159,7 +167,10 @@ import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useStreamByChannel } from "@/hooks/queries/useStreams";
 import { PersistentPlayerShell } from "@/components/player/persistent-player-shell";
 import { StreamPage } from "@/pages/Stream";
-import { DEFAULT_CHAT_PREFERENCES } from "@/shared/auth-types";
+import {
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  DEFAULT_CHAT_PREFERENCES,
+} from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const useChannelMock = vi.mocked(useChannelByUsername);
@@ -183,6 +194,20 @@ function setChatPosition(position: "right" | "left" | "hidden") {
     preferences: {
       ...(s.preferences ?? {}),
       chat: { ...DEFAULT_CHAT_PREFERENCES, position },
+    } as typeof s.preferences,
+  }));
+}
+
+function setChatWidthPx(chatWidthPx: 280 | 340 | 420) {
+  useAuthStore.setState((s) => ({
+    ...s,
+    preferences: {
+      ...(s.preferences ?? {}),
+      chatDisplay: {
+        ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+        ...(s.preferences?.chatDisplay ?? {}),
+        chatWidthPx,
+      },
     } as typeof s.preferences,
   }));
 }
@@ -225,8 +250,11 @@ function routeChannel(
 // Guards: a rapid Twitch route change treats prior-channel placeholder status as loading, without resolving playback or showing the new channel offline
 // Guards: previous-route placeholder channel and stream records never reach StreamInfo or RelatedContent.
 // Guards: fresh channel identity redirects stale renamed-channel routes to the canonical platform username.
+// Guards: stream pages prefer provider-cased display names over lowercase login fallbacks.
+// Guards: the main Stream chat rail immediately applies each saved appearance width as its border-box outer width.
 // Guards: successful non-placeholder Twitch stream data for another route cannot falsely confirm the current channel offline
 // Guards: changing Twitch routes clears the previous player's fatal error so the new channel can show its loading state
+// Guards: playable live Stream pages start direct-to-file recording with the provider's stable live Stream identity
 describe("StreamPage", () => {
   beforeEach(() => {
     useChannelMock.mockReset();
@@ -237,6 +265,7 @@ describe("StreamPage", () => {
     mockRouteParams.params.platform = "twitch";
     mockRouteParams.params.channel = "ninja";
     setChatPosition("right");
+    setChatWidthPx(340);
     mockPlaybackState.playback = null;
     mockPlaybackState.isLoading = false;
     mockPlaybackState.error = null;
@@ -252,7 +281,10 @@ describe("StreamPage", () => {
   });
 
   afterEach(() => {
-    setChatPosition("right");
+    act(() => {
+      setChatPosition("right");
+      setChatWidthPx(340);
+    });
   });
 
   it("renders the Twitch live player + chat for a twitch route", async () => {
@@ -267,6 +299,42 @@ describe("StreamPage", () => {
     renderWithProviders(<StreamPage />);
     expect(await screen.findByTestId("twitch-live-player")).toBeInTheDocument();
     expect(await screen.findByTestId("chat-panel")).toBeInTheDocument();
+  });
+
+  it("starts a playable live Stream with its stable provider identity", async () => {
+    const api = installElectronAPIMock();
+    api.streamRecording.start = vi.fn(async () => ({
+      success: true,
+      outcome: "started",
+      sessionId: "recording-session-1",
+    }));
+    useChannelMock.mockReturnValue({ data: routeChannel(), isLoading: false } as ReturnType<
+      typeof useChannelByUsername
+    >);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({
+        id: "stream-live-123",
+        channelName: "ninja",
+        title: "Going live",
+        isLive: true,
+      }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
+    const user = userEvent.setup();
+
+    renderWithProviders(<StreamPage />);
+
+    await user.click(screen.getByRole("button", { name: "Record stream" }));
+    await user.click(screen.getByRole("button", { name: "Choose save location" }));
+
+    expect(api.streamRecording.start).toHaveBeenCalledWith({
+      platform: "twitch",
+      channelName: "ninja",
+      streamId: "stream-live-123",
+      title: "Going live",
+      desiredQuality: { quality: "Source", isSource: true },
+    });
   });
 
   // Guards: the real app-shell path renders only a dock for persistent playback, never a second route-owned live player.
@@ -290,7 +358,7 @@ describe("StreamPage", () => {
     expect(screen.queryByTestId("twitch-live-player")).toBeNull();
   });
 
-  it("keeps the chat content fixed at 340px without a resize handle", () => {
+  it("immediately sizes the outer chat rail to each saved width preset", () => {
     useChannelMock.mockReturnValue({ data: routeChannel(), isLoading: false } as ReturnType<
       typeof useChannelByUsername
     >);
@@ -298,13 +366,28 @@ describe("StreamPage", () => {
       data: fixtures.stream({ title: "Going live" }),
       isLoading: false,
     } as ReturnType<typeof useStreamByChannel>);
+    useAuthStore.setState({ preferences: null });
     const { container } = renderWithProviders(<StreamPage />);
+    const chatRail = screen.getByTestId("stream-chat-rail");
 
-    expect(screen.getByTestId("stream-chat-rail")).toHaveStyle({
-      width: "341px",
-      minWidth: "341px",
-      maxWidth: "341px",
+    expect(chatRail).toHaveStyle({
+      width: "340px",
+      minWidth: "340px",
+      maxWidth: "340px",
+      boxSizing: "border-box",
     });
+
+    for (const outerWidth of [280, 340, 420] as const) {
+      act(() => setChatWidthPx(outerWidth));
+
+      expect(chatRail).toHaveStyle({
+        width: `${outerWidth}px`,
+        minWidth: `${outerWidth}px`,
+        maxWidth: `${outerWidth}px`,
+        boxSizing: "border-box",
+      });
+    }
+
     expect(container.querySelector(".cursor-ew-resize")).toBeNull();
   });
 
@@ -318,6 +401,52 @@ describe("StreamPage", () => {
     } as ReturnType<typeof useStreamByChannel>);
     renderWithProviders(<StreamPage />);
     expect(screen.getByTestId("stream-info")).toHaveTextContent("My Title");
+  });
+
+  it("shows the provider-cased Kick display name when channel metadata only repeats the slug", () => {
+    mockRouteParams.params.platform = "kick";
+    mockRouteParams.params.channel = "abbyapple";
+    useChannelMock.mockReturnValue({
+      data: routeChannel({ displayName: "abbyapple" }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({
+        platform: "kick",
+        channelName: "abbyapple",
+        channelDisplayName: "AbbyApple",
+        isLive: true,
+      }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+
+    renderWithProviders(<StreamPage />);
+
+    expect(screen.getByTestId("stream-info")).toHaveAttribute("data-display-name", "AbbyApple");
+  });
+
+  it("keeps the provider-cased display name on the Kick offline overlay", () => {
+    mockRouteParams.params.platform = "kick";
+    mockRouteParams.params.channel = "abbyapple";
+    useChannelMock.mockReturnValue({
+      data: routeChannel({ displayName: "abbyapple", isLive: false }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({
+        platform: "kick",
+        channelName: "abbyapple",
+        channelDisplayName: "AbbyApple",
+        isLive: false,
+        startedAt: null,
+      }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+
+    renderWithProviders(<StreamPage />);
+
+    const offlineStatus = screen.getByText("is currently offline");
+    expect(offlineStatus.previousElementSibling).toHaveTextContent("AbbyApple");
   });
 
   it('hides the chat panel when chat position is "hidden" (U5)', async () => {

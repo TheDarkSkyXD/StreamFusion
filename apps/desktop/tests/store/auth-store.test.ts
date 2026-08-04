@@ -20,6 +20,7 @@ vi.mock("@/store/follow-store", () => ({
 
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
+import { DEFAULT_USER_PREFERENCES, type TwitchUser } from "@/shared/auth-types";
 import type { AuthStatus } from "@/shared/ipc-channels";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -90,6 +91,142 @@ describe("auth-store logoutTwitch — follow-cache cleanup", () => {
     expect(useAuthStore.getState().twitchConnected).toBe(false);
     expect(useAuthStore.getState().twitchUser).toBeNull();
   });
+
+  it("keeps the authenticated UI when backend logout cleanup reports failure", async () => {
+    const logoutTwitch = vi.fn(async () => ({ success: false, error: "cleanup failed" }));
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: { logoutTwitch } },
+    });
+
+    await useAuthStore.getState().logoutTwitch();
+
+    expect(useAuthStore.getState()).toMatchObject({
+      twitchConnected: true,
+      twitchLoading: false,
+      error: {
+        code: "UNKNOWN_ERROR",
+        message: "Failed to logout from Twitch",
+        platform: "twitch",
+      },
+    });
+    expect(useAuthStore.getState().twitchUser).not.toBeNull();
+    expect(removeQueriesSpy).not.toHaveBeenCalled();
+    expect(followStoreHydrateSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows an honest pending state immediately, then disconnects before follow re-hydration finishes", async () => {
+    let finishLogout!: () => void;
+    let finishHydrate!: () => void;
+    const logoutPending = new Promise<void>((resolve) => {
+      finishLogout = resolve;
+    });
+    const hydratePending = new Promise<void>((resolve) => {
+      finishHydrate = resolve;
+    });
+    const logoutTwitch = vi.fn(async () => {
+      await logoutPending;
+      return { success: true };
+    });
+    followStoreHydrateSpy.mockReturnValueOnce(hydratePending);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { auth: { logoutTwitch } },
+    });
+
+    const logoutPromise = useAuthStore.getState().logoutTwitch();
+
+    expect(useAuthStore.getState()).toMatchObject({
+      twitchConnected: true,
+      twitchLoading: true,
+    });
+
+    finishLogout();
+    await vi.waitFor(() => expect(followStoreHydrateSpy).toHaveBeenCalledTimes(1));
+
+    expect(useAuthStore.getState()).toMatchObject({
+      twitchConnected: false,
+      twitchUser: null,
+      twitchLoading: false,
+    });
+
+    finishHydrate();
+    await logoutPromise;
+  });
+});
+
+// Guards: Twitch device login must expose distinct opening, authorization-waiting, and finalizing phases instead of appearing frozen on one generic label.
+describe("auth-store Twitch device login progress", () => {
+  it("tracks device-flow status until the refreshed disconnected state settles", async () => {
+    let finishLogin!: () => void;
+    let statusListener!: (data: { status: string; message?: string }) => void;
+    const loginPending = new Promise<void>((resolve) => {
+      finishLogin = resolve;
+    });
+    const unsubscribe = vi.fn();
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: {
+        auth: {
+          openTwitchLogin: vi.fn(async () => loginPending),
+          onDeviceCodeStatus: vi.fn(
+            (listener: (data: { status: string; message?: string }) => void) => {
+              statusListener = listener;
+              return unsubscribe;
+            }
+          ),
+          getStatus: vi.fn(async () => ({
+            twitch: { connected: false, user: null, hasToken: false, isExpired: false },
+            kick: { connected: false, user: null, hasToken: false, isExpired: false },
+            isGuest: true,
+          })),
+        },
+      },
+    });
+
+    const loginPromise = useAuthStore.getState().loginTwitch();
+    const phase = () => useAuthStore.getState().twitchAuthPhase;
+
+    expect(phase()).toBe("opening");
+    statusListener({ status: "pending", message: "Waiting" });
+    expect(phase()).toBe("waiting");
+    statusListener({ status: "authorized", message: "Authorized" });
+    expect(phase()).toBe("finishing");
+
+    finishLogin();
+    await loginPromise;
+
+    expect(phase()).toBeNull();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the pending state and surfaces an error when the final auth refresh fails", async () => {
+    useAuthStore.setState({ twitchConnected: false, twitchUser: null });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: {
+        auth: {
+          openTwitchLogin: vi.fn(async () => {}),
+          onDeviceCodeStatus: vi.fn(() => vi.fn()),
+          getStatus: vi.fn(async () => {
+            throw new Error("status unavailable");
+          }),
+        },
+      },
+    });
+
+    await useAuthStore.getState().loginTwitch();
+
+    expect(useAuthStore.getState()).toMatchObject({
+      twitchLoading: false,
+      twitchAuthPhase: null,
+      error: { platform: "twitch" },
+    });
+  });
 });
 
 describe("auth-store logoutKick — follow-cache cleanup", () => {
@@ -145,7 +282,9 @@ describe("auth-store logoutKick — follow-cache cleanup", () => {
     // through to kickAuthService.logout() which also clears those cookies.
     await useAuthStore.getState().logoutKick();
 
-    const auth = (window as unknown as { electronAPI: { auth: { logoutKick: ReturnType<typeof vi.fn> } } }).electronAPI.auth;
+    const auth = (
+      window as unknown as { electronAPI: { auth: { logoutKick: ReturnType<typeof vi.fn> } } }
+    ).electronAPI.auth;
     expect(auth.logoutKick).toHaveBeenCalledTimes(1);
   });
 
@@ -263,12 +402,214 @@ describe("auth-store session-expired listeners — follow-cache cleanup", () => 
   });
 });
 
+// Guards: a transient Twitch refresh failure during startup must not erase the backend-owned saved session.
+// Guards: permanent startup auth loss must keep Twitch identity and require reconnect even when the auth-lost event fires before listener registration.
+// Guards: a thrown Twitch refresh error during startup must preserve the backend-owned token and identity.
+describe("auth-store Twitch startup persistence", () => {
+  const twitchUser: TwitchUser = {
+    id: "u1",
+    login: "u",
+    displayName: "U",
+    profileImageUrl: "https://example.test/twitch-user.png",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    broadcasterType: "",
+  };
+
+  it("preserves a saved expired Twitch session when refresh fails transiently", async () => {
+    const status: AuthStatus = {
+      twitch: {
+        connected: false,
+        user: twitchUser,
+        hasToken: true,
+        isExpired: true,
+      },
+      kick: { connected: false, user: null, hasToken: false, isExpired: false },
+      isGuest: false,
+    };
+    const clearToken = vi.fn(async () => {});
+    const clearTwitchUser = vi.fn(async () => {});
+    const getStatus = vi.fn(async () => status);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: {
+        auth: {
+          getStatus,
+          refreshTwitchToken: vi.fn(async () => ({
+            success: false,
+            error: "temporary upstream failure",
+          })),
+          clearToken,
+          clearTwitchUser,
+          onTwitchAuthLost: vi.fn(() => () => {}),
+          onKickSessionExpired: vi.fn(() => () => {}),
+          onFollowsSynced: vi.fn(() => () => {}),
+          syncFollows: vi.fn(async () => ({ success: true })),
+        },
+        follows: { getAll: vi.fn(async () => []) },
+        preferences: { get: vi.fn(async () => ({})) },
+      },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchUser: null,
+      twitchConnected: false,
+      twitchReconnectRequired: false,
+    });
+
+    await useAuthStore.getState().initializeAuth();
+
+    expect(getStatus).toHaveBeenCalledTimes(2);
+    expect(clearToken).not.toHaveBeenCalled();
+    expect(clearTwitchUser).not.toHaveBeenCalled();
+    expect(useAuthStore.getState()).toMatchObject({
+      twitchUser,
+      twitchConnected: false,
+      twitchReconnectRequired: false,
+      isGuest: false,
+      error: null,
+      initialized: true,
+    });
+  });
+
+  it("keeps Twitch identity and requires reconnect after permanent startup auth loss", async () => {
+    const expiredStatus: AuthStatus = {
+      twitch: {
+        connected: false,
+        user: twitchUser,
+        hasToken: true,
+        isExpired: true,
+      },
+      kick: { connected: false, user: null, hasToken: false, isExpired: false },
+      isGuest: false,
+    };
+    const authLostStatus: AuthStatus = {
+      twitch: {
+        connected: false,
+        user: twitchUser,
+        hasToken: false,
+        isExpired: false,
+      },
+      kick: { connected: false, user: null, hasToken: false, isExpired: false },
+      isGuest: true,
+    };
+    let twitchAuthLostListener: (() => void) | null = null;
+    const getStatus = vi
+      .fn<() => Promise<AuthStatus>>()
+      .mockResolvedValueOnce(expiredStatus)
+      .mockResolvedValueOnce(authLostStatus);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: {
+        auth: {
+          getStatus,
+          refreshTwitchToken: vi.fn(async () => {
+            twitchAuthLostListener?.();
+            return { success: false, error: "authorization revoked" };
+          }),
+          clearToken: vi.fn(async () => {}),
+          clearTwitchUser: vi.fn(async () => {}),
+          onTwitchAuthLost: vi.fn((listener: () => void) => {
+            twitchAuthLostListener = listener;
+            return () => {};
+          }),
+          onKickSessionExpired: vi.fn(() => () => {}),
+          onFollowsSynced: vi.fn(() => () => {}),
+          syncFollows: vi.fn(async () => ({ success: true })),
+        },
+        follows: { getAll: vi.fn(async () => []) },
+        preferences: { get: vi.fn(async () => ({})) },
+      },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchUser: null,
+      twitchConnected: false,
+      twitchReconnectRequired: false,
+    });
+
+    await useAuthStore.getState().initializeAuth();
+
+    expect(useAuthStore.getState()).toMatchObject({
+      twitchUser,
+      twitchConnected: false,
+      twitchReconnectRequired: true,
+      initialized: true,
+      error: {
+        code: "TOKEN_EXPIRED",
+        platform: "twitch",
+      },
+    });
+  });
+
+  it("preserves a saved Twitch session when startup refresh throws transiently", async () => {
+    const status: AuthStatus = {
+      twitch: {
+        connected: false,
+        user: twitchUser,
+        hasToken: true,
+        isExpired: true,
+      },
+      kick: { connected: false, user: null, hasToken: false, isExpired: false },
+      isGuest: false,
+    };
+    const clearToken = vi.fn(async () => {});
+    const clearTwitchUser = vi.fn(async () => {});
+    const getStatus = vi.fn(async () => status);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: {
+        auth: {
+          getStatus,
+          refreshTwitchToken: vi.fn(async () => {
+            throw new Error("temporary network failure");
+          }),
+          clearToken,
+          clearTwitchUser,
+          onTwitchAuthLost: vi.fn(() => () => {}),
+          onKickSessionExpired: vi.fn(() => () => {}),
+          onFollowsSynced: vi.fn(() => () => {}),
+          syncFollows: vi.fn(async () => ({ success: true })),
+        },
+        follows: { getAll: vi.fn(async () => []) },
+        preferences: { get: vi.fn(async () => ({})) },
+      },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      twitchUser: null,
+      twitchConnected: false,
+      twitchReconnectRequired: false,
+    });
+
+    await useAuthStore.getState().initializeAuth();
+
+    expect(getStatus).toHaveBeenCalledTimes(2);
+    expect(clearToken).not.toHaveBeenCalled();
+    expect(clearTwitchUser).not.toHaveBeenCalled();
+    expect(useAuthStore.getState()).toMatchObject({
+      twitchUser,
+      twitchConnected: false,
+      twitchReconnectRequired: false,
+      isGuest: false,
+      error: null,
+      initialized: true,
+    });
+  });
+});
+
 describe("auth-store account-follow startup sync", () => {
   // Guards: existing Kick sessions request an account-follow sync after the renderer
   // listener is registered, so restart shows the real Kick account's live/offline follows.
   function installAuthApi(status: AuthStatus) {
     let followsSyncedCb:
-      | ((data: { platform: "twitch" | "kick"; addedCount?: number; removedCount?: number }) => void)
+      | ((data: {
+          platform: "twitch" | "kick";
+          addedCount?: number;
+          removedCount?: number;
+        }) => void)
       | null = null;
     const api = {
       auth: {
@@ -472,5 +813,47 @@ describe("auth-store manual account-follow sync", () => {
     resolveFirstSync.current?.({ success: true });
     await first;
     expect(useAuthStore.getState().followSyncInProgress).toBe(false);
+  });
+});
+
+// Guards: callers must be able to tell when a preference save failed, so optimistic UI state is not treated as persisted.
+describe("auth-store preference persistence", () => {
+  it("reports success and stores the preferences returned by IPC", async () => {
+    const savedPreferences = {
+      ...DEFAULT_USER_PREFERENCES,
+      chat: { ...DEFAULT_USER_PREFERENCES.chat, fontScale: 1.2 },
+    };
+    const update = vi.fn(async () => savedPreferences);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { preferences: { update } },
+    });
+    useAuthStore.setState({ preferences: DEFAULT_USER_PREFERENCES });
+
+    const result = await useAuthStore.getState().updatePreferences({
+      chat: { ...DEFAULT_USER_PREFERENCES.chat, fontScale: 1.2 },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(useAuthStore.getState().preferences).toEqual(savedPreferences);
+  });
+
+  it("reports IPC persistence rejection to the caller", async () => {
+    const update = vi.fn(async () => {
+      throw new Error("storage unavailable");
+    });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: { preferences: { update } },
+    });
+    useAuthStore.setState({ preferences: DEFAULT_USER_PREFERENCES });
+
+    const result = await useAuthStore.getState().updatePreferences({
+      chat: { ...DEFAULT_USER_PREFERENCES.chat, fontScale: 1.1 },
+    });
+
+    expect(result).toEqual({ success: false });
   });
 });

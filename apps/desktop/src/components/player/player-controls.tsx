@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LuMaximize, LuMinimize } from "react-icons/lu";
+import { LuMaximize, LuMinimize, LuRotateCcw, LuRotateCw } from "react-icons/lu";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatDuration } from "@/lib/utils";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@/shared/auth-types";
@@ -50,21 +50,24 @@ const TheaterFilledIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export interface PlayerControlsProps
-  extends Pick<
-    SettingsMenuProps,
-    | "timedTextTracks"
-    | "localTimedTextTrack"
-    | "currentTimedTextTrackKey"
-    | "onTimedTextTrackChange"
-    | "localCaptionModel"
-    | "localCaptionPhase"
-    | "localCaptionError"
-    | "onLocalCaptionModelDownload"
-    | "onLocalCaptionModelCancel"
-    | "onLocalCaptionModelRemove"
-    | "onLocalCaptionRetry"
-  > {
+function isValidSeekInterval(seconds: number | undefined): seconds is number {
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0;
+}
+
+export interface PlayerControlsProps extends Pick<
+  SettingsMenuProps,
+  | "timedTextTracks"
+  | "localTimedTextTrack"
+  | "currentTimedTextTrackKey"
+  | "onTimedTextTrackChange"
+  | "localCaptionModel"
+  | "localCaptionPhase"
+  | "localCaptionError"
+  | "onLocalCaptionModelDownload"
+  | "onLocalCaptionModelCancel"
+  | "onLocalCaptionModelRemove"
+  | "onLocalCaptionRetry"
+> {
   // Playback state
   isPlaying: boolean;
   isLoading?: boolean;
@@ -93,6 +96,12 @@ export interface PlayerControlsProps
   currentTime?: number;
   duration?: number;
   onSeek?: (time: number) => void;
+  seekBackwardSeconds?: number;
+  seekForwardSeconds?: number;
+  onSeekBackward?: () => void;
+  onSeekForward?: () => void;
+  seekBackwardDisabled?: boolean;
+  seekForwardDisabled?: boolean;
   onSeekHover?: (time: number | null) => void;
   previewImage?: string;
   buffered?: TimeRanges;
@@ -130,6 +139,12 @@ export function PlayerControls(props: PlayerControlsProps) {
     currentTime = 0,
     duration = 0,
     onSeek,
+    seekBackwardSeconds,
+    seekForwardSeconds,
+    onSeekBackward,
+    onSeekForward,
+    seekBackwardDisabled,
+    seekForwardDisabled,
     buffered,
     playbackRate,
     onPlaybackRateChange,
@@ -268,7 +283,41 @@ export function PlayerControls(props: PlayerControlsProps) {
           onMouseLeave={handleControlsLeave}
         >
           <div className="flex items-center gap-2">
+            {onSeekBackward && isValidSeekInterval(seekBackwardSeconds) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Rewind ${seekBackwardSeconds} seconds`}
+                className="relative rounded-full text-white hover:bg-white/20 cursor-pointer"
+                onClick={onSeekBackward}
+                disabled={seekBackwardDisabled}
+              >
+                <LuRotateCcw aria-hidden className="w-7 h-7" />
+                <span className="absolute text-[10px] font-bold leading-none">
+                  {seekBackwardSeconds}
+                </span>
+              </Button>
+            )}
+
             <PlayPauseButton isPlaying={isPlaying} isLoading={isLoading} onToggle={onTogglePlay} />
+
+            {onSeekForward && isValidSeekInterval(seekForwardSeconds) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Fast forward ${seekForwardSeconds} seconds`}
+                className="relative rounded-full text-white hover:bg-white/20 cursor-pointer"
+                onClick={onSeekForward}
+                disabled={seekForwardDisabled}
+              >
+                <LuRotateCw aria-hidden className="w-7 h-7" />
+                <span className="absolute text-[10px] font-bold leading-none">
+                  {seekForwardSeconds}
+                </span>
+              </Button>
+            )}
 
             <VolumeControl
               volume={volume}

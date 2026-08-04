@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
+import { rankSearchChannels } from "@/search/channel-search-contract";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
@@ -100,7 +101,7 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
           const user = userMap.get(loginLower);
 
           if (user) {
-            const followerCount = followerCounts.get(user.id) ?? 0;
+            const followerCount = followerCounts.get(user.id);
             const isPartner = user.broadcasterType === "partner" || originalChannel.isPartner;
 
             // Cache the fetched user data with follower count
@@ -150,12 +151,18 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
 /**
  * Cache for Kick channel data (includes avatar URLs and follower counts)
  */
-const kickChannelDataCache = new Map<string, { data: any | null; timestamp: number }>();
+const kickChannelDataCache = new Map<string, { data: any; timestamp: number }>();
+
+function hasCasedKickDisplayName(channel: any): boolean {
+  const username = typeof channel.username === "string" ? channel.username.trim() : "";
+  const displayName = typeof channel.displayName === "string" ? channel.displayName.trim() : "";
+  return Boolean(displayName && displayName !== username);
+}
 
 /**
  * Verify Kick channels exist and enrich them with avatar/follower data.
  *
- * Authenticated path (fast): one batched `/channels?slug[]=...` call (up to 50 slugs)
+ * Authenticated path (fast): one batched `/channels?slug=...&slug=...` call (up to 50 slugs)
  * plus one batched `/users?id[]=...` call for avatars. No BrowserWindow.
  *
  * Unauthenticated path (defer): return inputs unchanged. The hidden-BrowserWindow
@@ -166,10 +173,8 @@ const kickChannelDataCache = new Map<string, { data: any | null; timestamp: numb
  */
 async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string, any>> {
   const { kickClient } = await import("../../api/platforms/kick/kick-client");
-  const { getChannelsBySlugs } = await import(
-    "../../api/platforms/kick/endpoints/channel-endpoints"
-  );
-  const { getUsersById } = await import("../../api/platforms/kick/endpoints/user-endpoints");
+  const { getChannelsBySlugs } =
+    await import("../../api/platforms/kick/endpoints/channel-endpoints");
 
   const enrichedChannels = new Map<string, any>();
   const slugsToFetch: { slug: string; originalChannel: any }[] = [];
@@ -182,25 +187,26 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
     // directory populates avatarUrl + isLive but not followerCount; sending
     // those through the official channel lookup can drop valid live channels
     // when the official batch response is partial.
-    if (channel.avatarUrl && (channel.followerCount !== undefined || channel.isLive)) {
+    if (
+      channel.avatarUrl &&
+      (channel.followerCount !== undefined || channel.isLive) &&
+      hasCasedKickDisplayName(channel)
+    ) {
       enrichedChannels.set(slugLower, channel);
       continue;
     }
 
     const cached = kickChannelDataCache.get(slugLower);
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
-      if (cached.data) {
-        enrichedChannels.set(slugLower, {
-          ...channel,
-          avatarUrl: cached.data.avatarUrl || channel.avatarUrl || "",
-          displayName: cached.data.displayName || channel.displayName,
-          isVerified: cached.data.isVerified || channel.isVerified,
-          isPartner: cached.data.isPartner || channel.isPartner,
-          isLive: cached.data.isLive,
-          followerCount: cached.data.followerCount,
-        });
-      }
-      // cached.data === null → channel known-deleted, skip.
+      enrichedChannels.set(slugLower, {
+        ...channel,
+        avatarUrl: cached.data.avatarUrl || channel.avatarUrl || "",
+        displayName: cached.data.displayName || channel.displayName,
+        isVerified: cached.data.isVerified || channel.isVerified,
+        isPartner: cached.data.isPartner || channel.isPartner,
+        isLive: cached.data.isLive,
+        followerCount: cached.data.followerCount,
+      });
     } else {
       slugsToFetch.push({ slug: channel.username, originalChannel: channel });
     }
@@ -223,28 +229,23 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
     const fetched = await getChannelsBySlugs(kickClient, slugs);
     const fetchedBySlug = new Map(fetched.map((c) => [c.username.toLowerCase(), c]));
 
-    const userIds = fetched.map((c) => parseInt(c.id, 10)).filter((id) => !Number.isNaN(id));
-    const users = userIds.length > 0 ? await getUsersById(kickClient, userIds) : [];
-    const userById = new Map(users.map((u) => [u.user_id.toString(), u]));
-
     for (const { slug, originalChannel } of slugsToFetch) {
       const slugLower = slug.toLowerCase();
       const fetchedChannel = fetchedBySlug.get(slugLower);
 
       if (!fetchedChannel) {
-        kickChannelDataCache.set(slugLower, { data: null, timestamp: now });
-        logger.debug("IPC:Search", "Kick channel does not exist (deleted account)", { slug });
+        enrichedChannels.set(slugLower, {
+          ...originalChannel,
+          accountStatus: "unavailable",
+        });
+        logger.debug("IPC:Search", "Kick channel batch result was ambiguous", { slug });
         continue;
       }
 
-      const user = userById.get(fetchedChannel.id);
-      const avatarUrl = user?.profile_picture || fetchedChannel.avatarUrl || "";
-      const displayName = user?.name || fetchedChannel.displayName || originalChannel.displayName;
-
       const merged = {
         ...originalChannel,
-        avatarUrl: avatarUrl || originalChannel.avatarUrl || "",
-        displayName,
+        avatarUrl: fetchedChannel.avatarUrl || originalChannel.avatarUrl || "",
+        displayName: fetchedChannel.displayName || originalChannel.displayName,
         isVerified: fetchedChannel.isVerified || originalChannel.isVerified,
         isPartner: fetchedChannel.isPartner || originalChannel.isPartner,
         isLive: fetchedChannel.isLive,
@@ -274,7 +275,10 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
           : String(error),
     });
     for (const { slug, originalChannel } of slugsToFetch) {
-      enrichedChannels.set(slug.toLowerCase(), originalChannel);
+      enrichedChannels.set(slug.toLowerCase(), {
+        ...originalChannel,
+        accountStatus: originalChannel.accountStatus === "suspended" ? "suspended" : "unavailable",
+      });
     }
   }
 
@@ -282,11 +286,15 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
 }
 
 /**
- * Filter channels by verifying they exist via platform APIs
- * Removes deleted/non-existent accounts from results
- * Also enriches channels with fresh avatar URLs from API
+ * Enrich channels with fresh platform metadata. Kick candidates remain visible
+ * through uncertain lookups and are excluded only after an authoritative exact
+ * not-found confirmation.
  */
-async function filterVerifiedChannels(channels: any[], platform: Platform): Promise<any[]> {
+async function filterVerifiedChannels(
+  channels: any[],
+  platform: Platform,
+  exactQuery?: string
+): Promise<any[]> {
   if (channels.length === 0) return [];
 
   if (platform === "twitch") {
@@ -300,9 +308,45 @@ async function filterVerifiedChannels(channels: any[], platform: Platform): Prom
     // For Kick, we enrich channels with avatar URLs during verification
     const enrichedChannelsMap = await verifyAndEnrichKickChannels(channels);
     // Return enriched channels as an array (preserves order of original channels that exist)
-    return channels
+    const enrichedChannels = channels
       .filter((c) => enrichedChannelsMap.has(c.username.toLowerCase()))
       .map((c) => enrichedChannelsMap.get(c.username.toLowerCase()));
+
+    const { kickClient } = await import("../../api/platforms/kick/kick-client");
+    const normalizedExactQuery = exactQuery?.trim().toLowerCase();
+    const classifiedChannels = await Promise.all(
+      enrichedChannels.map(async (channel) => {
+        const classifiedChannel = {
+          ...channel,
+          accountStatus: channel.accountStatus || "active",
+        };
+        if (
+          classifiedChannel.accountStatus !== "unavailable" ||
+          classifiedChannel.username.toLowerCase() !== normalizedExactQuery
+        ) {
+          return classifiedChannel;
+        }
+
+        try {
+          const authoritativeStatus = await kickClient.getOfficialChannelAccountStatus(
+            classifiedChannel.username
+          );
+          if (authoritativeStatus === "not_found") return null;
+          if (authoritativeStatus === "active") {
+            return { ...classifiedChannel, accountStatus: "active" };
+          }
+        } catch (error) {
+          logger.debug("IPC:Search", "Exact Kick account lookup was unavailable", {
+            username: classifiedChannel.username,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
+        return classifiedChannel;
+      })
+    );
+
+    return classifiedChannels.filter((channel) => channel !== null);
   }
 
   return channels;
@@ -391,6 +435,7 @@ export function registerSearchHandlers(): void {
               const result = await kickClient.searchChannels(params.query, {
                 limit: params.limit || 50,
                 cursor: params.after,
+                liveOnly: params.liveOnly,
               });
               logger.debug("IPC:Search", "Kick returned raw results", {
                 count: result.data.length,
@@ -414,7 +459,7 @@ export function registerSearchHandlers(): void {
 
               // Always enrich to get avatars and follower counts
               if (shouldEnrich) {
-                channels = await filterVerifiedChannels(channels, "kick");
+                channels = await filterVerifiedChannels(channels, "kick", normalizedQuery);
               }
 
               logger.debug("IPC:Search", "Kick final channels", {
@@ -446,36 +491,12 @@ export function registerSearchHandlers(): void {
         }
 
         if (!params.platform) {
-          const allChannels = results.flatMap((r) => r.data);
+          const allChannels = rankSearchChannels(
+            results.flatMap((r) => r.data),
+            params.query
+          );
           logger.debug("IPC:Search", "Combined total channels", {
             count: allChannels.length,
-          });
-
-          // Sort by: Live status first, then relevance (Exact match -> Starts with -> Others)
-          allChannels.sort((a, b) => {
-            const aName = a.username.toLowerCase();
-            const bName = b.username.toLowerCase();
-            const aDisplay = a.displayName.toLowerCase();
-            const bDisplay = b.displayName.toLowerCase();
-            const q = normalizedQuery;
-
-            // 1. Live channels first
-            if (a.isLive && !b.isLive) return -1;
-            if (!a.isLive && b.isLive) return 1;
-
-            // 2. Exact matches
-            const aExact = aName === q || aDisplay === q;
-            const bExact = bName === q || bDisplay === q;
-            if (aExact && !bExact) return -1;
-            if (!aExact && bExact) return 1;
-
-            // 3. Starts with query
-            const aStarts = aName.startsWith(q) || aDisplay.startsWith(q);
-            const bStarts = bName.startsWith(q) || bDisplay.startsWith(q);
-            if (aStarts && !bStarts) return -1;
-            if (!aStarts && bStarts) return 1;
-
-            return 0;
           });
 
           const twitchCursor = results.find((r) => r.platform === "twitch")?.cursor;
@@ -487,7 +508,11 @@ export function registerSearchHandlers(): void {
         }
 
         const { platform: _p, ...rest } = results[0];
-        return { success: true, ...rest };
+        return {
+          success: true,
+          ...rest,
+          data: rankSearchChannels(rest.data, params.query),
+        };
       } catch (error) {
         logger.error("IPC:Search", "Failed to search channels", {
           error:
@@ -609,7 +634,11 @@ export function registerSearchHandlers(): void {
                     });
                   }
 
-                  const verifiedKickChannels = await filterVerifiedChannels(channels, "kick");
+                  const verifiedKickChannels = await filterVerifiedChannels(
+                    channels,
+                    "kick",
+                    normalizedQuery
+                  );
                   results.channels.push(...verifiedKickChannels);
                   results.streams.push(
                     ...verifiedKickChannels
@@ -637,8 +666,12 @@ export function registerSearchHandlers(): void {
                     });
                   }
 
-                  // Verify channels exist via Kick API (filters deleted accounts)
-                  const verifiedKickChannels = await filterVerifiedChannels(channels, "kick");
+                  // Enrich Kick channels; exact not-found is the only deletion signal.
+                  const verifiedKickChannels = await filterVerifiedChannels(
+                    channels,
+                    "kick",
+                    normalizedQuery
+                  );
                   results.channels.push(...verifiedKickChannels);
                 }
 
@@ -680,26 +713,7 @@ export function registerSearchHandlers(): void {
 
         await Promise.all(searchTasks);
 
-        // Sort channels by relevance
-        results.channels.sort((a, b) => {
-          const aName = a.username.toLowerCase();
-          const bName = b.username.toLowerCase();
-          const aDisplay = a.displayName.toLowerCase();
-          const bDisplay = b.displayName.toLowerCase();
-          const q = normalizedQuery;
-
-          const aExact = aName === q || aDisplay === q;
-          const bExact = bName === q || bDisplay === q;
-          if (aExact && !bExact) return -1;
-          if (!aExact && bExact) return 1;
-
-          const aStarts = aName.startsWith(q) || aDisplay.startsWith(q);
-          const bStarts = bName.startsWith(q) || bDisplay.startsWith(q);
-          if (aStarts && !bStarts) return -1;
-          if (!aStarts && bStarts) return 1;
-
-          return 0;
-        });
+        results.channels = rankSearchChannels(results.channels, params.query);
 
         return { success: true, data: results };
       } catch (error) {

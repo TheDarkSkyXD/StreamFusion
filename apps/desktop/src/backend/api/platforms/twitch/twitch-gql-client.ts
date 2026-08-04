@@ -197,8 +197,7 @@ function transformGqlStream(
 ): UnifiedStream {
   const thumbnailUrl = stream.previewImageURL.replace("{width}", "440").replace("{height}", "248");
   const broadcaster = stream.broadcaster as
-    | (typeof stream.broadcaster & { roles?: { isPartner?: boolean } })
-    | undefined;
+    (typeof stream.broadcaster & { roles?: { isPartner?: boolean } }) | undefined;
   const fallbackLogin = extractLoginFromPreviewUrl(thumbnailUrl);
   const channelName = broadcaster?.login || fallbackLogin;
   const channelDisplayName = broadcaster?.displayName || channelName;
@@ -637,10 +636,11 @@ export async function gqlGetTopStreams(
   };
 }
 
-// Persisted StreamMetadata doesn't carry freeformTags or broadcastSettings.language,
-// so we fetch them via a raw user(login:) side query and merge by login.
+// Persisted StreamMetadata doesn't carry displayName, freeformTags, or
+// broadcastSettings.language, so fetch them via a raw user(login:) side query.
 const STREAM_TAGS_AND_LANGUAGE_QUERY = `query StreamTagsAndLanguage($login: String!) {
   user(login: $login) {
+    displayName
     stream { freeformTags { id name } }
     broadcastSettings { language }
   }
@@ -648,6 +648,7 @@ const STREAM_TAGS_AND_LANGUAGE_QUERY = `query StreamTagsAndLanguage($login: Stri
 
 type StreamTagsAndLanguageData = {
   user: null | {
+    displayName: string | null;
     stream: null | { freeformTags: { id: string; name: string }[] | null };
     broadcastSettings: null | { language: string | null };
   };
@@ -663,19 +664,20 @@ function getRawTagsAndLanguageQuery(login: string) {
 function extractTagsAndLanguage(data: StreamTagsAndLanguageData | undefined): {
   tags: string[];
   language: string;
+  displayName: string;
 } {
   const user = data?.user;
   const tags = user?.stream?.freeformTags?.map((t) => t.name) ?? [];
   // broadcastSettings.language is uppercase BCP-47 (e.g. "EN"); downstream code
   // expects lowercase to match Helix's "en".
   const language = (user?.broadcastSettings?.language ?? "").toLowerCase();
-  return { tags, language };
+  return { tags, language, displayName: user?.displayName || "" };
 }
 
 async function getTagsAndLanguageByLogins(
   logins: string[]
-): Promise<Map<string, { tags: string[]; language: string }>> {
-  const result = new Map<string, { tags: string[]; language: string }>();
+): Promise<Map<string, { tags: string[]; language: string; displayName: string }>> {
+  const result = new Map<string, { tags: string[]; language: string; displayName: string }>();
   if (logins.length === 0) return result;
 
   try {
@@ -720,14 +722,14 @@ export async function gqlGetStreamByLogin(login: string): Promise<UnifiedStream 
   const stream = user.stream;
   const userWithRoles = user as typeof user & { roles?: { isPartner?: boolean } };
   const viewers = viewCount.data?.user?.stream?.viewersCount ?? 0;
-  const { tags, language } = extractTagsAndLanguage(tagsLang.data);
+  const { tags, language, displayName } = extractTagsAndLanguage(tagsLang.data);
 
   return {
     id: stream.id,
     platform: "twitch",
     channelId: user.id,
     channelName: login,
-    channelDisplayName: login, // StreamMetadata doesn't include displayName directly
+    channelDisplayName: displayName || login,
     channelAvatar: user.profileImageURL || "",
     channelIsVerified: !!userWithRoles.roles?.isPartner,
     title: user.lastBroadcast?.title || "",
@@ -822,6 +824,7 @@ export async function gqlGetStreamsByLogins(logins: string[]): Promise<UnifiedSt
     for (const stream of results) {
       const extra = tagsLangByLogin.get(stream.channelName);
       if (extra) {
+        stream.channelDisplayName = extra.displayName || stream.channelName;
         stream.tags = extra.tags;
         stream.language = extra.language;
       }
@@ -1366,32 +1369,16 @@ export async function gqlSearchCategories(
  * Get channel info via GQL (ChannelShell)
  */
 export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChannel | null> {
-  type ChannelLastBroadcastData = {
-    user: { lastBroadcast: { startedAt: string | null } | null } | null;
-  };
-  const lastBroadcastQuery = `query ChannelLastBroadcast($login: String!) {
-    user(login: $login) {
-      lastBroadcast {
-        startedAt
-      }
-    }
-  }`;
-
-  const [shellResp, aboutResp, lastBroadcastResp] = (await gqlRequest([
+  const [shellResp, aboutResp] = (await gqlRequest([
     getQueryChannelShell({ login }),
     getQueryChannelRootAboutPanel({
       channelLogin: login,
       skipSchedule: true,
       includeIsDJ: false,
     }),
-    getRawQuery<ChannelLastBroadcastData>({
-      query: lastBroadcastQuery,
-      variables: { login },
-    }),
   ])) as [
     { data: ChannelShellData },
     { data: ChannelRootAboutPanelData },
-    { data?: ChannelLastBroadcastData }?,
   ];
 
   const userOrErr = shellResp.data?.userOrError;
@@ -1399,11 +1386,6 @@ export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChanne
 
   const shell = userOrErr;
   const about = aboutResp.data?.user;
-  const lastBroadcastStartedAt = lastBroadcastResp?.data?.user?.lastBroadcast?.startedAt;
-  const lastLiveAt =
-    typeof lastBroadcastStartedAt === "string" && lastBroadcastStartedAt.trim().length > 0
-      ? lastBroadcastStartedAt
-      : undefined;
 
   return {
     id: shell.id,
@@ -1417,7 +1399,6 @@ export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChanne
     isVerified: about?.roles?.isPartner || false,
     isPartner: about?.roles?.isPartner || false,
     followerCount: about?.followers?.totalCount ?? undefined,
-    lastLiveAt,
     categoryId: about?.lastBroadcast?.game?.id,
     categoryName: about?.lastBroadcast?.game?.displayName,
     socialLinks: about?.channel?.socialMedias?.map((s) => ({

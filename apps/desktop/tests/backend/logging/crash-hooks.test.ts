@@ -60,13 +60,12 @@ async function getMockedLogger(): Promise<LoggerModule["logger"]> {
   return mod.logger;
 }
 
-interface FakeApp extends EventEmitter {
-  // The production module types this as Electron.App — the only members it
-  // touches are `.on` and `.off`, both inherited from EventEmitter.
-}
+// The production module types this as Electron.App — the only members it
+// touches are `.on` and `.off`, both inherited from EventEmitter.
+type FakeApp = EventEmitter;
 
 function makeFakeApp(): FakeApp {
-  return new EventEmitter() as FakeApp;
+  return new EventEmitter();
 }
 
 let uninstall: (() => void) | null = null;

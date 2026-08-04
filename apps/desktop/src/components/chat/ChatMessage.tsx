@@ -3,6 +3,7 @@ import type React from "react";
 import { memo, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { formatChatTimestamp } from "@/lib/chat-visuals";
+import { getChatDensityPresentation } from "@/lib/chat-density-presentation";
 import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   type DeletedMessageDisplayMode,
@@ -17,6 +18,7 @@ import type {
 } from "../../shared/chat-types";
 import { useAuthStore } from "../../store/auth-store";
 import { useChatCosmeticsStore } from "../../store/chat-cosmetics-store";
+import { useChatDisplay } from "../settings/ChatSettingsSection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { BitsHighlight } from "./BitsHighlight";
 import { ChatBadge } from "./ChatBadge";
@@ -460,7 +462,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     badgeLimit,
     embedded = false,
   }) => {
-    const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
+    const { cd } = useChatDisplay();
     const moderationHighlightStyle =
       cd.moderationHighlightStyle ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.moderationHighlightStyle;
     const [isMessageRowHovered, setIsMessageRowHovered] = useState(false);
@@ -473,10 +475,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     });
     // Density drives row padding + line-height; font size is applied inline so it
     // can be any px value from prefs (replacing the hardcoded `text-sm`).
-    const densityClass =
-      cd.density === "compact" ? "px-4 py-0 leading-[1.2]" : "px-4 py-1 leading-[22px]";
-    const mentionDensityClass =
-      cd.density === "compact" ? "py-0 leading-[1.2]" : "py-1 leading-[22px]";
+    const densityPresentation = getChatDensityPresentation(cd.density);
+    const densityClass = densityPresentation.rowClass;
+    const mentionDensityClass = densityPresentation.framedRowClass;
     const fontSizeStyle = { fontSize: cd.fontSizePx };
     const isDeleted = message.isDeleted;
     const isOwnMessage = selfUserId !== undefined && message.userId === selfUserId;
@@ -866,7 +867,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
 
     const messageRow = (
       <div
-        className={`group relative min-w-0 max-w-full overflow-x-clip ${isFramedHighlight ? mentionDensityClass : densityClass} ${isMessageRowHovered ? "bg-[rgba(255,255,255,0.16)]" : ""} ${showHighlight ? "bg-purple-500/10 border-l border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
+        className={`group relative min-w-0 max-w-full overflow-x-clip ${isFramedHighlight ? mentionDensityClass : densityClass} ${cd.hoverSmooth ? "motion-safe:transition-colors motion-safe:duration-150" : ""} ${isMessageRowHovered ? "bg-[rgba(255,255,255,0.16)]" : ""} ${showHighlight ? "bg-purple-500/10 border-l border-purple-500" : ""} ${message.isHistorical ? "opacity-60" : ""}`}
         style={
           isFramedHighlight ? fontSizeStyle : style ? { ...style, ...fontSizeStyle } : fontSizeStyle
         }

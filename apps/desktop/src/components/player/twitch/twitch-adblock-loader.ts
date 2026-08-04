@@ -78,6 +78,23 @@ function isTwitchSegment(url: string): boolean {
  */
 type LoaderConstructor = new (config: HlsConfig) => Loader<LoaderContext>;
 
+function getEffectivePlaylistUrl(
+  response: LoaderResponse,
+  context: LoaderContext,
+  requestUrl: string
+): string | null {
+  for (const candidate of [response.url, context.url, requestUrl]) {
+    if (!candidate) continue;
+    try {
+      const protocol = new URL(candidate).protocol;
+      if (protocol === "http:" || protocol === "https:") return candidate;
+    } catch {
+      // Try the next already-absolute candidate.
+    }
+  }
+  return null;
+}
+
 /**
  * Create an ad-blocking playlist loader for HLS.js
  *
@@ -113,6 +130,7 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
       // Note: Must use includes() not endsWith() because Twitch URLs have query params
       if (url.includes(".m3u8")) {
         const originalOnSuccess = callbacks.onSuccess;
+        const originalOnError = callbacks.onError;
 
         // Debug logging for troubleshooting
         // const isMaster = isMasterPlaylist(url);
@@ -130,6 +148,19 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
           try {
             // Only process if we have text data
             if (typeof response.data === "string") {
+              const effectiveUrl = getEffectivePlaylistUrl(response, ctx, url);
+              if (!effectiveUrl) {
+                originalOnError(
+                  {
+                    code: 0,
+                    text: "Twitch ad-block playlist processing requires an absolute HTTP(S) base URL",
+                  },
+                  ctx,
+                  networkDetails,
+                  stats
+                );
+                return;
+              }
               let processedData = response.data;
 
               if (isMasterPlaylist(url)) {
@@ -138,7 +169,12 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
                 if (channel) {
                   storedChannelName = channel;
                   // console.debug(`[AdBlockLoader] Processing master playlist for ${channel}`);
-                  processedData = await processMasterPlaylist(url, response.data, channel);
+                  processedData = await processMasterPlaylist(
+                    url,
+                    response.data,
+                    channel,
+                    effectiveUrl
+                  );
                 }
               } else if (isMediaPlaylist(url)) {
                 // Check for ads in the original response
@@ -148,7 +184,7 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
                 if (hasAds) {
                   // console.debug("[AdBlockLoader] Ads detected in media playlist, processing...");
                 }
-                processedData = await processMediaPlaylist(url, response.data);
+                processedData = await processMediaPlaylist(effectiveUrl, response.data);
               }
 
               // Return modified response

@@ -264,6 +264,7 @@ const PUBLIC_STREAM_REQUEST_TIMEOUT_MS = 5000;
 // poll interval bounds "channel went live" detection latency to one extra
 // cycle at worst.
 const PUBLIC_STREAM_POLL_HIT_TTL_MS = 90 * 1000;
+const VIEWER_COUNT_RECOVERY_CONCURRENCY = 4;
 
 const CIRCUIT_PROBE_INTERVAL_MS = 5_000;
 let _lastProbeTimestamp = 0;
@@ -389,6 +390,68 @@ export async function getPublicStreamBySlug(
   }
 }
 
+/**
+ * Kick's official API reports zero when a streamer hides their viewer count.
+ * StreamFusion intentionally recovers that number from the legacy channel
+ * payload, but only when channel identity and live-session start both match.
+ */
+async function recoverKickViewerCount(stream: UnifiedStream): Promise<UnifiedStream> {
+  if (!stream.isLive || stream.viewerCount !== 0) return stream;
+
+  try {
+    const fallback = await getPublicStreamBySlug(stream.channelName);
+    const sameChannel =
+      fallback?.platform === "kick" &&
+      fallback.isLive &&
+      fallback.channelName.trim().toLowerCase() === stream.channelName.trim().toLowerCase();
+    const officialStartedAt = stream.startedAt ? Date.parse(stream.startedAt) : Number.NaN;
+    const fallbackStartedAt = fallback?.startedAt ? Date.parse(fallback.startedAt) : Number.NaN;
+    const sameLiveSession =
+      Number.isFinite(officialStartedAt) &&
+      Number.isFinite(fallbackStartedAt) &&
+      officialStartedAt === fallbackStartedAt;
+    if (
+      sameChannel &&
+      sameLiveSession &&
+      Number.isFinite(fallback.viewerCount) &&
+      fallback.viewerCount > 0
+    ) {
+      return { ...stream, viewerCount: fallback.viewerCount };
+    }
+  } catch (error) {
+    logger.debug("Kick:Endpoints:Stream", "Legacy viewer-count recovery failed", {
+      channelName: stream.channelName,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
+  }
+
+  return stream;
+}
+
+async function recoverKickViewerCounts(streams: UnifiedStream[]): Promise<UnifiedStream[]> {
+  const recovered = [...streams];
+  const candidates = streams
+    .map((stream, index) => ({ stream, index }))
+    .filter(
+      ({ stream }) => stream.platform === "kick" && stream.isLive && stream.viewerCount === 0
+    );
+
+  for (let offset = 0; offset < candidates.length; offset += VIEWER_COUNT_RECOVERY_CONCURRENCY) {
+    const batch = candidates.slice(offset, offset + VIEWER_COUNT_RECOVERY_CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map(({ stream }) => recoverKickViewerCount(stream))
+    );
+    batch.forEach(({ index }, batchIndex) => {
+      recovered[index] = batchResults[batchIndex];
+    });
+  }
+
+  return recovered;
+}
+
 async function _doFetchPublicStreamBySlug(
   slug: string,
   key: string
@@ -476,7 +539,7 @@ async function _doFetchPublicStreamBySlug(
         viewerCount: livestream.viewer_count ?? livestream.viewers ?? 0,
         thumbnailUrl: livestream.thumbnail?.url || "",
         isLive: true,
-        startedAt: normalizeKickDate(livestream.created_at),
+        startedAt: normalizeKickDate(livestream.start_time ?? livestream.created_at),
         language: livestream.language || "en",
         tags:
           livestream.custom_tags && livestream.custom_tags.length > 0
@@ -744,7 +807,7 @@ export async function getStreamsByBroadcasterIds(
     }
   }
 
-  return streams;
+  return recoverKickViewerCounts(streams);
 }
 
 /**
@@ -1135,20 +1198,22 @@ export async function getTopStreams(
       });
     }
 
-    const streams = rawStreams.map((s) => {
-      const stream = transformKickLivestream(s);
-      const user = userMap.get(s.broadcaster_user_id);
-      if (user) {
-        if (user.profile_picture) {
-          stream.channelAvatar = user.profile_picture;
+    const streams = await recoverKickViewerCounts(
+      rawStreams.map((s) => {
+        const stream = transformKickLivestream(s);
+        const user = userMap.get(s.broadcaster_user_id);
+        if (user) {
+          if (user.profile_picture) {
+            stream.channelAvatar = user.profile_picture;
+          }
+          if (user.name) {
+            stream.channelDisplayName = user.name;
+          }
+          stream.channelIsVerified ||= isKickChannelVerified(user);
         }
-        if (user.name) {
-          stream.channelDisplayName = user.name;
-        }
-        stream.channelIsVerified ||= isKickChannelVerified(user);
-      }
-      return stream;
-    });
+        return stream;
+      })
+    );
 
     // If we couldn't enrich with user data (unauthenticated or rate limited),
     // the display names will still be lowercase slugs.

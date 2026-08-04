@@ -1,14 +1,28 @@
 import { BrowserWindow } from "electron";
 import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
+import type { ChannelAccountStatus } from "@/shared/channel-account-status-types";
 import { getPlatformHealth } from "../../../unified/platform-health";
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
 import type { KickAuthMode, KickRequestor } from "../kick-requestor";
 import { transformKickChannel } from "../kick-transformers";
-import { KICK_LEGACY_API_V2_BASE, type KickApiChannel, type KickApiResponse } from "../kick-types";
+import {
+  KICK_LEGACY_API_V2_BASE,
+  type KickApiChannel,
+  type KickApiResponse,
+  type KickApiUser,
+} from "../kick-types";
 
 import { getUsersById } from "./user-endpoints";
-import { getLatestCompletedVideoStartedAtByChannelSlug } from "./video-endpoints";
+import { getLatestCompletedVideoEndedAtByChannelSlug } from "./video-endpoints";
+
+function mergeKickUserMetadata(channel: UnifiedChannel, user: KickApiUser): UnifiedChannel {
+  return {
+    ...channel,
+    avatarUrl: user.profile_picture || channel.avatarUrl,
+    displayName: user.name || channel.displayName,
+  };
+}
 
 /**
  * Map the raw `data.chatroom` block from the Kick v2 channel-resolve payload
@@ -92,8 +106,8 @@ async function enrichOfflineLastLiveAt(
   if (channel.isLive || channel.lastLiveAt) return channel;
 
   try {
-    const videoStartedAt = await getLatestCompletedVideoStartedAtByChannelSlug(slug);
-    return videoStartedAt ? { ...channel, lastLiveAt: videoStartedAt } : channel;
+    const videoEndedAt = await getLatestCompletedVideoEndedAtByChannelSlug(slug);
+    return videoEndedAt ? { ...channel, lastLiveAt: videoEndedAt } : channel;
   } catch (error) {
     logger.debug(
       "Kick:Endpoints:Channel",
@@ -132,11 +146,7 @@ async function enrichChannelWithKickUser(
       return channel;
     }
 
-    return {
-      ...channel,
-      avatarUrl: user.profile_picture || channel.avatarUrl,
-      displayName: user.name || channel.displayName,
-    };
+    return mergeKickUserMetadata(channel, user);
   } catch (error) {
     logger.debug("Kick:Endpoints:Channel", "Failed to enrich channel from Kick user", {
       slug,
@@ -164,9 +174,51 @@ createManagedInterval(
   { unref: true }
 ); // Clean every 5 minutes
 
+function isExplicitKickNotFound(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const record = error as {
+    message?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+    response?: { status?: unknown };
+  };
+  if (record.status === 404 || record.statusCode === 404 || record.response?.status === 404) {
+    return true;
+  }
+
+  const message = typeof record.message === "string" ? record.message : "";
+  return /(?:\b404\b|not[ _-]?found)/i.test(message);
+}
+
+/**
+ * Preserve the authority boundary for account removal. A successful response
+ * without the requested row is ambiguous; only an explicit provider not-found
+ * error is destructive evidence.
+ */
+export async function getOfficialKickChannelAccountStatus(
+  client: KickRequestor,
+  slug: string
+): Promise<Exclude<ChannelAccountStatus, "suspended"> | "not_found"> {
+  const normalizedSlug = slug.trim().toLowerCase();
+  try {
+    const response = await client.request<KickApiResponse<KickApiChannel[]>>(
+        `/channels?slug=${encodeURIComponent(normalizedSlug)}`,
+        undefined,
+        "app"
+    );
+    const exactChannel = Array.isArray(response?.data)
+      ? response.data.find((channel) => channel?.slug?.trim().toLowerCase() === normalizedSlug)
+      : undefined;
+    return exactChannel ? "active" : "unavailable";
+  } catch (error) {
+    return isExplicitKickNotFound(error) ? "not_found" : "unavailable";
+  }
+}
+
 /**
  * Get channel info by slug
- * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug[]=:slug
+ * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug=:slug
  *
  * Uses the official app-token API first. Legacy Kick web lookup is only a
  * last-resort compatibility path.
@@ -186,7 +238,7 @@ export async function getChannel(
   if (!isKickOfficialApiUnavailable()) {
     try {
       const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-        `/channels?slug[]=${encodeURIComponent(slug)}`,
+        `/channels?slug=${encodeURIComponent(normalizedSlug)}`,
         undefined,
         "app"
       );
@@ -226,23 +278,30 @@ export async function getChannel(
         let enrichedChannel = await enrichChannelWithKickUser(client, channel, channel.id, slug);
 
         // The official channel response is authoritative for identity and live
-        // state, but it does not expose follower totals or broadcast history.
-        // Best-effort enrich offline channels from Kick's legacy/internal v2
-        // response without allowing that fallback to replace official fields.
-        if (!enrichedChannel.isLive) {
+        // state, but it does not expose chatroom metadata. Kick chat cannot
+        // connect without the legacy v2 chatroom id, so hydrate live channels
+        // as well as offline channels without replacing official identity.
+        if (!enrichedChannel.isLive || !enrichedChannel.chatroomId) {
           try {
             const publicChannel = await getPublicChannel(slug);
             if (publicChannel?.username.toLowerCase() === normalizedSlug) {
               enrichedChannel = {
                 ...enrichedChannel,
+                avatarUrl: publicChannel.avatarUrl || enrichedChannel.avatarUrl,
+                displayName: publicChannel.displayName || enrichedChannel.displayName,
                 followerCount: publicChannel.followerCount ?? enrichedChannel.followerCount,
                 lastLiveAt: publicChannel.lastLiveAt ?? enrichedChannel.lastLiveAt,
+                chatroomId: publicChannel.chatroomId ?? enrichedChannel.chatroomId,
+                subscriberBadges:
+                  publicChannel.subscriberBadges ?? enrichedChannel.subscriberBadges,
+                chatroomSettings:
+                  publicChannel.chatroomSettings ?? enrichedChannel.chatroomSettings,
               };
             }
           } catch (error) {
             logger.debug(
               "Kick:Endpoints:Channel",
-              "Legacy offline metadata enrichment failed; keeping official channel",
+              "Legacy channel metadata enrichment failed; keeping official channel",
               {
                 slug,
                 error:
@@ -252,7 +311,9 @@ export async function getChannel(
               }
             );
           }
+        }
 
+        if (!enrichedChannel.isLive) {
           enrichedChannel = await enrichOfflineLastLiveAt(enrichedChannel, slug);
         }
 
@@ -307,7 +368,7 @@ export async function getChannel(
 
 /**
  * Get multiple channels by their slugs
- * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug[]=:slug&slug[]=:slug2
+ * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug=:slug&slug=:slug2
  */
 export async function getChannelsBySlugs(
   client: KickRequestor,
@@ -324,7 +385,7 @@ export async function getChannelsBySlugs(
   try {
     // Max 50 slugs per request
     const limitedSlugs = slugs.slice(0, 50);
-    const params = limitedSlugs.map((s) => `slug[]=${encodeURIComponent(s)}`).join("&");
+    const params = limitedSlugs.map((s) => `slug=${encodeURIComponent(s)}`).join("&");
 
     const response = await client.request<KickApiResponse<KickApiChannel[]>>(
       `/channels?${params}`,
@@ -332,7 +393,11 @@ export async function getChannelsBySlugs(
       "app"
     );
 
-    return (response.data || []).map(transformKickChannel);
+    const requestedSlugs = new Set(limitedSlugs.map((slug) => slug.trim().toLowerCase()));
+    const channels = (response.data || [])
+      .filter((channel) => requestedSlugs.has(channel.slug.trim().toLowerCase()))
+      .map(transformKickChannel);
+    return await enrichChannelsWithKickUsers(client, channels);
   } catch (error) {
     const log = isKickAppAuthFailure(error) ? logger.warn : logger.error;
     log("Kick:Endpoints:Channel", "Failed to fetch Kick channels", {
@@ -347,7 +412,7 @@ export async function getChannelsBySlugs(
 
 /**
  * Get multiple channels by stable Kick broadcaster user IDs.
- * https://docs.kick.com/apis/channels - GET /public/v1/channels?broadcaster_user_id[]=:id
+ * https://docs.kick.com/apis/channels - GET /public/v1/channels?broadcaster_user_id=:id
  */
 export async function getChannelsByBroadcasterIds(
   client: KickRequestor,
@@ -367,7 +432,8 @@ export async function getChannelsByBroadcasterIds(
   try {
     for (const authMode of authModes) {
       try {
-        return await fetchChannelsByBroadcasterIds(client, broadcasterUserIds, authMode);
+        const channels = await fetchChannelsByBroadcasterIds(client, broadcasterUserIds, authMode);
+        return await enrichChannelsWithKickUsers(client, channels);
       } catch (error) {
         lastError = error;
         if (
@@ -404,6 +470,41 @@ export async function getChannelsByBroadcasterIds(
   }
 }
 
+async function enrichChannelsWithKickUsers(
+  client: KickRequestor,
+  channels: UnifiedChannel[]
+): Promise<UnifiedChannel[]> {
+  const userIds = Array.from(
+    new Set(
+      channels
+        .map((channel) => Number(channel.kickUserId ?? channel.id))
+        .filter((userId) => Number.isSafeInteger(userId))
+    )
+  );
+  if (userIds.length === 0) {
+    return channels;
+  }
+
+  try {
+    const users = await getUsersById(client, userIds);
+    const usersById = new Map(users.map((user) => [user.user_id, user]));
+
+    return channels.map((channel) => {
+      const user = usersById.get(Number(channel.kickUserId ?? channel.id));
+      return user ? mergeKickUserMetadata(channel, user) : channel;
+    });
+  } catch (error) {
+    logger.debug("Kick:Endpoints:Channel", "Failed to enrich Kick channels from users", {
+      userIds,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
+    return channels;
+  }
+}
+
 async function fetchChannelsByBroadcasterIds(
   client: KickRequestor,
   broadcasterUserIds: number[],
@@ -416,7 +517,7 @@ async function fetchChannelsByBroadcasterIds(
   for (let i = 0; i < broadcasterUserIds.length; i += 50) {
     const ids = broadcasterUserIds.slice(i, i + 50);
     const params = ids
-      .map((id) => `broadcaster_user_id[]=${encodeURIComponent(id.toString())}`)
+      .map((id) => `broadcaster_user_id=${encodeURIComponent(id.toString())}`)
       .join("&");
 
     const response = await client.request<KickApiResponse<KickApiChannel[]>>(
@@ -425,7 +526,12 @@ async function fetchChannelsByBroadcasterIds(
       authMode
     );
 
-    channels.push(...(response.data || []).map(transformKickChannel));
+    const requestedIds = new Set(ids);
+    channels.push(
+      ...(response.data || [])
+        .filter((channel) => requestedIds.has(channel.broadcaster_user_id))
+        .map(transformKickChannel)
+    );
   }
 
   return channels;
@@ -650,12 +756,6 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       lastStreamTitle = data.previous_livestreams[0]?.session_title;
     }
 
-    const previousCreatedAt = data.previous_livestreams?.[0]?.created_at;
-    const lastLiveAt =
-      typeof previousCreatedAt === "string" && previousCreatedAt.trim().length > 0
-        ? previousCreatedAt
-        : undefined;
-
     // Prefer `data.id` (the channel's internal db id) over `data.user_id`.
     // The two are NOT the same for many Kick channels — `data.id` aligns with
     // the official API's `broadcaster_user_id`, and only it is accepted by the
@@ -725,7 +825,6 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       categoryId,
       categoryName,
       lastStreamTitle,
-      lastLiveAt,
       chatroomId: typeof chatroomId === "number" ? chatroomId : undefined,
       // Keep the broadcaster `user_id` distinct from `id` above (which is the
       // channel/db id). 7TV's KICK connection is keyed by this user_id.

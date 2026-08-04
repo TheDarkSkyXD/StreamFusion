@@ -1,0 +1,11 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:120
+#EXT-X-PROGRAM-DATE-TIME:2026-01-01T00:00:40.000Z
+#EXT-X-DISCONTINUITY
+#EXTINF:2.000,
+https://splice.synthetic.invalid/v1/segment/splice-120.ts
+#EXTINF:2.000,
+https://splice.synthetic.invalid/v1/segment/splice-121.ts
+

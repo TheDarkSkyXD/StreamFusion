@@ -13,11 +13,8 @@ import { fixtures, renderWithProviders, screen, waitFor } from "../test-utils";
 
 vi.mock("@/hooks/queries/useSearch", () => ({
   useSearchAll: vi.fn(),
-  useSearchCategories: vi.fn(),
   useSearchChannels: vi.fn(),
-  useSearchClips: vi.fn(),
   useSearchStreams: vi.fn(),
-  useSearchVideos: vi.fn(),
 }));
 
 vi.mock("@/components/ui/proxied-image", () => ({
@@ -26,20 +23,14 @@ vi.mock("@/components/ui/proxied-image", () => ({
 
 import {
   useSearchAll,
-  useSearchCategories,
   useSearchChannels,
-  useSearchClips,
   useSearchStreams,
-  useSearchVideos,
 } from "@/hooks/queries/useSearch";
 import { SearchPage } from "@/pages/SearchResults";
 
 const useSearchAllMock = vi.mocked(useSearchAll);
-const useSearchCategoriesMock = vi.mocked(useSearchCategories);
 const useSearchChannelsMock = vi.mocked(useSearchChannels);
-const useSearchClipsMock = vi.mocked(useSearchClips);
 const useSearchStreamsMock = vi.mocked(useSearchStreams);
-const useSearchVideosMock = vi.mocked(useSearchVideos);
 
 function mockChannelSearchResults(channels: unknown[]) {
   useSearchChannelsMock.mockReturnValue({
@@ -94,47 +85,6 @@ async function renderSearchPage() {
 describe("SearchPage Stream navigation", () => {
   beforeEach(() => {
     mockChannelSearchResults([]);
-    useSearchClipsMock.mockReturnValue({
-      data: [],
-      platformStates: {},
-      retryPlatform: vi.fn(),
-      isLoading: false,
-      isFetchingNextPage: false,
-      hasNextPage: false,
-      fetchNextPage: vi.fn(),
-      isFinalEmpty: true,
-      isRetrying: false,
-      limitReached: false,
-    } as ReturnType<typeof useSearchClips>);
-    useSearchCategoriesMock.mockReturnValue({
-      data: { pages: [{ data: [] }] },
-      isLoading: false,
-      isFetchingNextPage: false,
-    } as unknown as ReturnType<typeof useSearchCategories>);
-    useSearchStreamsMock.mockReturnValue({
-      data: [],
-      platformStates: {},
-      isLoading: false,
-      isFetchingNextPage: false,
-      hasNextPage: false,
-      fetchNextPage: vi.fn(),
-      limitReached: false,
-      isFinalEmpty: true,
-      retryPlatform: vi.fn(),
-      isRetrying: false,
-    } as unknown as ReturnType<typeof useSearchStreams>);
-    useSearchVideosMock.mockReturnValue({
-      data: [],
-      platformStates: {},
-      isLoading: false,
-      isFetchingNextPage: false,
-      hasNextPage: false,
-      fetchNextPage: vi.fn(),
-      limitReached: false,
-      isFinalEmpty: true,
-      retryPlatform: vi.fn(),
-      isRetrying: false,
-    } as unknown as ReturnType<typeof useSearchVideos>);
   });
 
   it("opens the real watch route and gives malformed Streams no navigation target", async () => {

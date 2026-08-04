@@ -88,6 +88,8 @@ export function getQueryCacheOptions(policyName: AppDataCachePolicyName) {
     return {
       staleTime: policy.staleTime ?? Number.POSITIVE_INFINITY,
       gcTime: policy.gcTime ?? Number.POSITIVE_INFINITY,
+      refetchInterval: undefined,
+      refetchIntervalInBackground: false,
     };
   }
 

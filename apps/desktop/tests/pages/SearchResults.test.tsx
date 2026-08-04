@@ -1,8 +1,11 @@
+import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fixtures, renderWithProviders, routerMock, screen } from "../test-utils";
 
-vi.mock("@tanstack/react-router", () => routerMock({ search: { q: "A" } }));
+const routeMockState = vi.hoisted(() => ({ search: { q: "A" } }));
+
+vi.mock("@tanstack/react-router", () => routerMock({ search: routeMockState.search }));
 
 vi.mock("@/hooks/queries/useSearch", () => ({
   useSearchAll: vi.fn(),
@@ -63,6 +66,7 @@ function channelQuery(
 // Guards: Kick video/clip thumbnails render through ProxiedImage so images.kick.com 720.webp URLs do not produce direct browser 403s
 describe("SearchPage", () => {
   beforeEach(() => {
+    routeMockState.search.q = "A";
     useSearchAllMock.mockReset();
     useSearchChannelsMock.mockReset();
     useSearchChannelsMock.mockReturnValue(channelQuery());
@@ -84,65 +88,113 @@ describe("SearchPage", () => {
       isLoading: false,
     } as unknown as ReturnType<typeof useSearchAll>);
     renderWithProviders(<SearchPage />);
-    expect(useSearchAllMock).toHaveBeenCalledWith("A", undefined, 20);
-    expect(useSearchChannelsMock).toHaveBeenCalledWith("A", undefined, 50);
+    expect(useSearchAllMock).toHaveBeenCalledWith("A", undefined, 20, true);
+    expect(useSearchChannelsMock).toHaveBeenCalledWith("A", undefined, 50, false, false);
   });
 
-  it("renders all channel pages from the dedicated channel search, not the capped search-all bundle", () => {
+  it("uses bounded search-all channels without activating dedicated channel pagination", () => {
+    routeMockState.search.q = "bundle";
     const cappedBundleChannel = fixtures.channel({
       id: "bundle-only",
       username: "bundleonly",
       displayName: "BundleOnly",
     });
-    const channels = Array.from({ length: 60 }, (_, i) =>
-      fixtures.channel({
-        id: `a-${i}`,
-        username: `alpha${i}`,
-        displayName: `Alpha${i}`,
-      })
-    );
+    const paginatedOnlyChannel = fixtures.channel({
+      id: "paginated-only",
+      username: "paginatedonly",
+      displayName: "PaginatedOnly",
+    });
+    const fetchNextPage = vi.fn();
     useSearchAllMock.mockReturnValue({
       data: { ...emptyResults(), channels: [cappedBundleChannel] },
       isLoading: false,
     } as unknown as ReturnType<typeof useSearchAll>);
     useSearchChannelsMock.mockReturnValue(
-      channelQuery([{ data: channels.slice(0, 50) }, { data: channels.slice(50) }])
+      channelQuery([{ data: [paginatedOnlyChannel] }], {
+        hasNextPage: true,
+        fetchNextPage,
+      })
     );
 
     renderWithProviders(<SearchPage />);
 
-    expect(screen.getByText(/found 60 results/i)).toBeInTheDocument();
-    expect(screen.getAllByText("Alpha59").length).toBeGreaterThan(0);
-    expect(screen.queryByText("BundleOnly")).not.toBeInTheDocument();
+    expect(screen.getByText(/found 1 result/i)).toBeInTheDocument();
+    expect(screen.getAllByText("BundleOnly").length).toBeGreaterThan(0);
+    expect(screen.queryByText("PaginatedOnly")).not.toBeInTheDocument();
+    expect(useSearchChannelsMock).toHaveBeenCalledWith("bundle", undefined, 50, false, false);
+    expect(fetchNextPage).not.toHaveBeenCalled();
   });
 
-  it("renders platform partner badges beside channel search results", () => {
+  it("activates and reranks complete dedicated channel pages only on the Channels tab", () => {
+    routeMockState.search.q = "creator";
+    const exact = fixtures.channel({
+      id: "exact-kick",
+      platform: "kick",
+      username: "creator",
+      displayName: "Creator",
+      followerCount: 0,
+    });
+    const prefix = fixtures.channel({
+      id: "prefix-kick",
+      platform: "kick",
+      username: "creatorstudio",
+      displayName: "Creator Studio",
+      followerCount: 20,
+    });
+    const substring = fixtures.channel({
+      id: "substring-twitch",
+      platform: "twitch",
+      username: "thecreator",
+      displayName: "The Creator",
+      followerCount: 1_000_000,
+      isLive: true,
+    });
     useSearchAllMock.mockReturnValue({
       data: emptyResults(),
       isLoading: false,
     } as unknown as ReturnType<typeof useSearchAll>);
     useSearchChannelsMock.mockReturnValue(
-      channelQuery([
-        {
-          data: [
-            fixtures.channel({
-              id: "t-partner",
-              username: "alpha-twitch",
-              displayName: "AlphaTwitch",
-              platform: "twitch",
-              isPartner: true,
-            }),
-            fixtures.channel({
-              id: "k-partner",
-              username: "alpha-kick",
-              displayName: "AlphaKick",
-              platform: "kick",
-              isVerified: true,
-            }),
-          ],
-        },
-      ])
+      channelQuery([{ data: [substring] }, { data: [prefix, exact] }])
     );
+
+    renderWithProviders(<SearchPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Channels" }));
+
+    const idByUsername = new Map(
+      [exact, prefix, substring].map((channel) => [channel.username, channel.id])
+    );
+    const orderedIds = screen
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("data-params"))
+      .filter((params): params is string => Boolean(params))
+      .map((params) => idByUsername.get(JSON.parse(params).channel))
+      .filter((id): id is string => Boolean(id));
+    expect(orderedIds).toEqual(["exact-kick", "prefix-kick", "substring-twitch"]);
+    expect(useSearchChannelsMock).toHaveBeenLastCalledWith("creator", undefined, 50, false, true);
+    expect(useSearchAllMock).toHaveBeenLastCalledWith("creator", undefined, 20, false);
+  });
+
+  it("renders platform partner badges beside channel search results", () => {
+    const channels = [
+      fixtures.channel({
+        id: "t-partner",
+        username: "alpha-twitch",
+        displayName: "AlphaTwitch",
+        platform: "twitch",
+        isPartner: true,
+      }),
+      fixtures.channel({
+        id: "k-partner",
+        username: "alpha-kick",
+        displayName: "AlphaKick",
+        platform: "kick",
+        isVerified: true,
+      }),
+    ];
+    useSearchAllMock.mockReturnValue({
+      data: { ...emptyResults(), channels },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
 
     renderWithProviders(<SearchPage />);
 

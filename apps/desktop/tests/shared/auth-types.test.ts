@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type BufferPreferences,
+  type ChatDensity,
   type ChatDisplayPreferences,
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
@@ -12,6 +13,7 @@ import {
   DEFAULT_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   type NotificationPreferences,
+  type PlaybackPreferences,
   type PlaybackAdvancedPreferences,
   type PlayerControlsPreferences,
   type PredictionPreferences,
@@ -20,6 +22,7 @@ import {
   TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES,
   TWITCH_MOD_ACTION_SCOPES,
   type UserPreferences,
+  type VideoQuality,
 } from "@/shared/auth-types";
 
 // Guards: Twitch OAuth scope constants are the canonical connect/reconnect list,
@@ -112,8 +115,43 @@ describe("PredictionPreferences defaults (U1)", () => {
   });
 });
 
+// Guards: Highest remains a persisted playback preset while fresh installs retain Auto.
+describe("PlaybackPreferences quality presets", () => {
+  it("round-trips Highest without changing the fresh-install Auto default", () => {
+    const quality: VideoQuality = "highest";
+    const persisted: PlaybackPreferences = {
+      ...DEFAULT_USER_PREFERENCES.playback,
+      defaultQuality: quality,
+    };
+    const hydrated = JSON.parse(JSON.stringify(persisted)) as PlaybackPreferences;
+
+    expect(hydrated.defaultQuality).toBe("highest");
+    expect(DEFAULT_USER_PREFERENCES.playback.defaultQuality).toBe("auto");
+  });
+});
+
 // Guards: third-party badge and 7TV paint cosmetics remain independently enabled by default.
 describe("ChatDisplayPreferences defaults (U1)", () => {
+  it("accepts persisted Tight and Medium densities plus the Loose quick-appearance choice", () => {
+    const densityValues: ChatDensity[] = ["compact", "cozy", "loose"];
+    expect(densityValues).toEqual(["compact", "cozy", "loose"]);
+  });
+
+  it("defaults chatWidthPx to the Medium quick-appearance width", () => {
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.chatWidthPx).toBe(340);
+    expect(DEFAULT_USER_PREFERENCES.chatDisplay.chatWidthPx).toBe(340);
+  });
+
+  it("enables smooth message hover by default", () => {
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.hoverSmooth).toBe(true);
+    expect(DEFAULT_USER_PREFERENCES.chatDisplay.hoverSmooth).toBe(true);
+  });
+
+  it("shows quick emotes by default", () => {
+    expect(DEFAULT_CHAT_DISPLAY_PREFERENCES.quickEmotes).toBe(true);
+    expect(DEFAULT_USER_PREFERENCES.chatDisplay.quickEmotes).toBe(true);
+  });
+
   it("defaults messageLimit to 600 (the per-channel cap from PRD #62's chat-store dual-shape migration)", () => {
     // Was 100 in the flat-array era to defend the 5 GB-spike fix. The
     // per-channel store (commit b9f92f1 / .scratch grill notes) puts the

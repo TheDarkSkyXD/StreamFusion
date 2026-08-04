@@ -11,8 +11,9 @@
  *   2. Plain text lines fall through to `logger.info(tag, line)` so output
  *      is never silently dropped.
  *   3. Multi-line chunks emit one logger call per non-empty line.
- *   4. The original writer is always invoked — the terminal output is never
- *      suppressed.
+ *   4. Structured Chromium output is owned by the logger so warnings stay
+ *      file-only and errors are not duplicated; unstructured process output
+ *      still passes through to the original writer.
  *   5. Uninstall restores the original `process.stderr.write` /
  *      `process.stdout.write` references.
  *   6. Recursion guard: when the logger itself writes to stderr (via
@@ -84,6 +85,7 @@ afterEach(() => {
 // Chromium prefix routing
 // ---------------------------------------------------------------------------
 
+// Guards: structured Chromium levels route through the logger without bypassing its terminal filter
 describe("installNativeStderrIntercept — Chromium prefix routing", () => {
   it("routes ERROR-level Chromium lines to logger.error with the 'Chromium' tag", async () => {
     const { mod, logger } = await freshIntercept();
@@ -102,9 +104,25 @@ describe("installNativeStderrIntercept — Chromium prefix routing", () => {
     );
   });
 
+  it("prints a structured Chromium error once through the logger", async () => {
+    const { mod, logger } = await freshIntercept();
+    const stderrSpy = vi.fn().mockReturnValue(true);
+    process.stderr.write = stderrSpy as unknown as typeof process.stderr.write;
+    logger.error.mockImplementation(() => {
+      process.stderr.write("[formatted logger error]\n");
+    });
+
+    uninstallers.push(mod.installNativeStderrIntercept());
+    process.stderr.write("[1:0607/155145.309:ERROR:foo.cc(123)] native failure\n");
+
+    expect(stderrSpy).toHaveBeenCalledOnce();
+    expect(stderrSpy).toHaveBeenCalledWith("[formatted logger error]\n");
+  });
+
   it("routes WARNING-level Chromium lines to logger.warn", async () => {
     const { mod, logger } = await freshIntercept();
-    process.stderr.write = vi.fn().mockReturnValue(true) as unknown as typeof process.stderr.write;
+    const stderrSpy = vi.fn().mockReturnValue(true);
+    process.stderr.write = stderrSpy as unknown as typeof process.stderr.write;
 
     uninstallers.push(mod.installNativeStderrIntercept());
     process.stderr.write("[1:0607/155145.309:WARNING:foo.cc(123)] something noisy\n");
@@ -114,6 +132,7 @@ describe("installNativeStderrIntercept — Chromium prefix routing", () => {
       "Chromium",
       "[1:0607/155145.309:WARNING:foo.cc(123)] something noisy"
     );
+    expect(stderrSpy).not.toHaveBeenCalled();
   });
 
   it("routes INFO-level Chromium lines to logger.info", async () => {
@@ -214,6 +233,7 @@ describe("installNativeStderrIntercept — plain text fallthrough", () => {
 // Multi-line chunks
 // ---------------------------------------------------------------------------
 
+// Guards: mixed native chunks preserve ordinary process output while filtering structured Chromium noise
 describe("installNativeStderrIntercept — multi-line chunks", () => {
   it("emits one logger call per non-empty line in a multi-line chunk", async () => {
     const { mod, logger } = await freshIntercept();
@@ -238,12 +258,27 @@ describe("installNativeStderrIntercept — multi-line chunks", () => {
       "[1:0607/155146.000:WARNING:foo.cc(123)] third"
     );
   });
+
+  it("passes through unstructured output from a mixed chunk without leaking Chromium warnings", async () => {
+    const { mod } = await freshIntercept();
+    const stderrSpy = vi.fn().mockReturnValue(true);
+    process.stderr.write = stderrSpy as unknown as typeof process.stderr.write;
+
+    uninstallers.push(mod.installNativeStderrIntercept());
+    process.stderr.write(
+      "[1:0607/155146.000:WARNING:foo.cc(123)] Chromium warning\nvite startup ready\n"
+    );
+
+    expect(stderrSpy).toHaveBeenCalledOnce();
+    expect(stderrSpy).toHaveBeenCalledWith("vite startup ready\n");
+  });
 });
 
 // ---------------------------------------------------------------------------
-// Original writer is always invoked
+// Unstructured output passes through to the original writer
 // ---------------------------------------------------------------------------
 
+// Guards: npm, Vite, Electron, and other unstructured output remains visible outside the app logger
 describe("installNativeStderrIntercept — pass-through to original writer", () => {
   it("calls the original stderr.write with the original chunk so terminal output is preserved", async () => {
     const { mod } = await freshIntercept();

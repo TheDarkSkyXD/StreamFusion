@@ -1,0 +1,10 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:102
+#EXT-X-PROGRAM-DATE-TIME:2026-01-01T00:00:04.000Z
+#EXTINF:2.000,live
+https://video-weaver.synthetic.invalid/v1/segment/live-102.ts?token=recovery
+#EXTINF:2.000,live
+https://video-weaver.synthetic.invalid/v1/segment/live-103.ts?token=recovery
+

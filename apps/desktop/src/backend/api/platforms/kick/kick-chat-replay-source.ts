@@ -187,7 +187,7 @@ async function requestFromKickBrowser(
   ]);
   throwIfAborted(signal);
   return executeKickReplayBrowserRequest(url, signal, {
-    acquireSlot: () => acquireBrowserWindowSlot({ priority: "high" }),
+    acquireSlot: acquireBrowserWindowSlot,
     createWindow: () =>
       new BrowserWindow({
         show: false,

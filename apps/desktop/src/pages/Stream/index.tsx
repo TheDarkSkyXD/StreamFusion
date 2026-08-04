@@ -13,7 +13,9 @@ import {
 
 import type { PlayerError } from "@/components/player/types";
 import { useRegisterDockedPlayerConfig } from "@/components/player/persistent-player-shell";
+import { StreamRecordingControl } from "@/components/recording/stream-recording-control";
 import { StreamInfo } from "@/components/stream/stream-info";
+import { useChatDisplay } from "@/components/settings/ChatSettingsSection";
 import { Button } from "@/components/ui/button";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
@@ -27,10 +29,6 @@ import type { Platform } from "@/shared/auth-types";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
 import { usePipStore } from "@/store/pip-store";
-
-const CHAT_CONTENT_WIDTH_PX = 340;
-const CHAT_BORDER_WIDTH_PX = 1;
-const CHAT_RAIL_WIDTH_PX = CHAT_CONTENT_WIDTH_PX + CHAT_BORDER_WIDTH_PX;
 
 let chatPanelModulePromise: Promise<{ default: typeof import("@/components/chat").ChatPanel }>;
 const loadChatPanel = () =>
@@ -55,6 +53,26 @@ const RelatedContent = lazy(() =>
 
 function normalizeChannelLogin(value: string | undefined): string {
   return (value ?? "").trim().toLowerCase();
+}
+
+function selectChannelDisplayName(
+  channelLogin: string,
+  channelDisplayName: string | undefined,
+  streamDisplayName: string | undefined
+): string {
+  const login = channelLogin.trim();
+  const channelDisplay = channelDisplayName?.trim() ?? "";
+  const streamDisplay = streamDisplayName?.trim() ?? "";
+  const streamMatchesChannel =
+    streamDisplay.length > 0 &&
+    normalizeChannelLogin(streamDisplay) === normalizeChannelLogin(login);
+  const channelDisplayIsLoginFallback = channelDisplay.length === 0 || channelDisplay === login;
+
+  if (streamMatchesChannel && channelDisplayIsLoginFallback) {
+    return streamDisplay;
+  }
+
+  return channelDisplay || streamDisplay || login;
 }
 
 interface OfflineOverlayProps {
@@ -189,13 +207,7 @@ export function StreamPage() {
       params: { platform: routePlatform, channel: channelData.username },
       replace: true,
     });
-  }, [
-    channelData,
-    channelName,
-    isChannelPlaceholderData,
-    navigate,
-    routePlatform,
-  ]);
+  }, [channelData, channelName, isChannelPlaceholderData, navigate, routePlatform]);
   const streamDataMatchesRoute =
     streamData != null &&
     streamData.platform === routePlatform &&
@@ -204,6 +216,18 @@ export function StreamPage() {
     channelDataMatchesRoute && !isChannelPlaceholderData ? channelData : null;
   const detailStreamData =
     streamDataMatchesRoute && !isStreamPlaceholderData ? streamData : undefined;
+  const visibleDisplayName = selectChannelDisplayName(
+    detailChannelData?.username || channelName,
+    detailChannelData?.displayName,
+    detailStreamData?.channelDisplayName
+  );
+  const displayChannelData = useMemo(() => {
+    if (!detailChannelData || detailChannelData.displayName === visibleDisplayName) {
+      return detailChannelData;
+    }
+
+    return { ...detailChannelData, displayName: visibleDisplayName };
+  }, [detailChannelData, visibleDisplayName]);
   const hasRouteMatchedStreamLiveEvidence =
     streamDataMatchesRoute && !isStreamPlaceholderData && streamData?.isLive === true;
   const hasRouteMatchedChannelLiveEvidence =
@@ -246,6 +270,7 @@ export function StreamPage() {
   // rendered, so there's no socket to tear down — the safe path per the
   // websocket-connecting-state learning. The toggle that SETS this lives in U6.
   const isChatHidden = useAuthStore((s) => s.preferences?.chat?.position === "hidden");
+  const { cd: chatDisplay } = useChatDisplay();
   const canMountChatPanel =
     routePlatform === "kick"
       ? Boolean(channelDataMatchesRoute && channelData?.id && channelData?.chatroomId)
@@ -601,8 +626,7 @@ export function StreamPage() {
     ? ""
     : playback?.url || (isStreamLive && playback?.url ? playback.url : "");
   const hasEffectiveStreamUrl = Boolean(effectiveStreamUrl);
-  const overlayChannelData =
-    channelDataMatchesRoute && !isChannelPlaceholderData ? channelData : undefined;
+  const overlayChannelData = displayChannelData ?? undefined;
   const overlayStreamData =
     streamDataMatchesRoute && !isStreamPlaceholderData ? streamData : undefined;
   const overlayDisplayName =
@@ -716,7 +740,7 @@ export function StreamPage() {
     () => ({
       platform: routePlatform,
       channelName: channelName,
-      channelDisplayName: detailChannelData?.displayName || channelName,
+      channelDisplayName: visibleDisplayName || channelName,
       channelAvatar: detailChannelData?.avatarUrl,
       streamUrl: effectiveStreamUrl,
       title: detailStreamData?.title,
@@ -726,7 +750,7 @@ export function StreamPage() {
     [
       routePlatform,
       channelName,
-      detailChannelData?.displayName,
+      visibleDisplayName,
       detailChannelData?.avatarUrl,
       effectiveStreamUrl,
       detailStreamData?.title,
@@ -872,9 +896,20 @@ export function StreamPage() {
 
           <div className={`${isTheater ? "hidden" : "block"} p-6 space-y-6`}>
             <StreamInfo
-              channel={detailChannelData}
+              channel={displayChannelData}
               stream={detailStreamData}
               isLoading={isChannelLoading || Boolean(isChannelPlaceholderData)}
+              recordingAction={
+                detailStreamData?.id ? (
+                  <StreamRecordingControl
+                    platform={routePlatform}
+                    channelName={channelName}
+                    streamId={detailStreamData.id}
+                    title={detailStreamData.title || visibleDisplayName || channelName}
+                    isPlayable={hasEffectiveStreamUrl && !playerError}
+                  />
+                ) : null
+              }
             />
 
             {canMountHeavyContent && (
@@ -882,7 +917,7 @@ export function StreamPage() {
                 <RelatedContent
                   platform={routePlatform}
                   channelName={channelName}
-                  channelData={detailChannelData}
+                  channelData={displayChannelData}
                   streamStartedAt={detailStreamData?.startedAt}
                   onClipSelectionChange={setIsClipDialogOpen}
                 />
@@ -899,9 +934,10 @@ export function StreamPage() {
         <div
           data-testid="stream-chat-rail"
           style={{
-            width: CHAT_RAIL_WIDTH_PX,
-            minWidth: CHAT_RAIL_WIDTH_PX,
-            maxWidth: CHAT_RAIL_WIDTH_PX,
+            width: chatDisplay.chatWidthPx,
+            minWidth: chatDisplay.chatWidthPx,
+            maxWidth: chatDisplay.chatWidthPx,
+            boxSizing: "border-box",
           }}
           className="bg-[var(--color-background-secondary)] flex flex-col shrink-0 relative border-l border-[var(--color-border)]"
         >

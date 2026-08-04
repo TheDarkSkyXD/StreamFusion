@@ -123,12 +123,7 @@ vi.mock("@/backend/services/chat/kick-chat", () => ({
       retryAfterSeconds?: number;
     };
 
-    constructor(result: {
-      ok: false;
-      kind: string;
-      message: string;
-      retryAfterSeconds?: number;
-    }) {
+    constructor(result: { ok: false; kind: string; message: string; retryAfterSeconds?: number }) {
       super(result.message);
       this.name = "KickChatSendError";
       this.kickSendResult = result;
@@ -262,7 +257,9 @@ import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
 import { ChatInput, type ChatInputHandle } from "@/components/chat/ChatInput";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
 import type { ChatMessage } from "@/shared/chat-types";
+import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { useRoomStateStore } from "@/store/room-state-store";
 
@@ -726,15 +723,15 @@ describe("ChatInput — basics", () => {
 // Guards: Twitch and Kick guests get a keyboard-accessible login surface with consistent copy.
 // Guards: guest login masks draft chrome while preserving the draft for auth recovery.
 describe("ChatInput - guest authentication gate", () => {
-  it.each([
-    "twitch",
-    "kick",
-  ] as const)("uses the same guest login button copy on %s", (platform) => {
-    renderInput({ platform, canSend: false, isAuthenticated: false });
+  it.each(["twitch", "kick"] as const)(
+    "uses the same guest login button copy on %s",
+    (platform) => {
+      renderInput({ platform, canSend: false, isAuthenticated: false });
 
-    expect(screen.getAllByRole("button", { name: "Log in to chat" })).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: "Sign in to chat" })).not.toBeInTheDocument();
-  });
+      expect(screen.getAllByRole("button", { name: "Log in to chat" })).toHaveLength(1);
+      expect(screen.queryByRole("button", { name: "Sign in to chat" })).not.toBeInTheDocument();
+    }
+  );
 
   it("does not accept keyboard text after a focused composer becomes guest-only", () => {
     const { rerender } = renderInput({ canSend: true, isAuthenticated: true });
@@ -1069,6 +1066,24 @@ describe("ChatInput — room-state send blockers", () => {
 
 // Guards: subscriber-only preflight blocks only on definite platform results and keeps unknown states sendable.
 describe("ChatInput — subscriber-only preflight", () => {
+  // Guards: failed subscriber verification releases the send guard and keeps the draft editable.
+  it("keeps the draft and surfaces an error when subscriber verification fails", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const checkSubscriberEligibility = vi.fn().mockRejectedValue(new Error("Eligibility failed"));
+    useRoomStateStore.getState().updateRoomState("twitch", "12345", { subscribersOnly: true });
+    renderInput({ isAuthenticated: true, canSend: true, checkSubscriberEligibility });
+    const editor = getEditor();
+    typeInEditor(editor, "keep this");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(editor).toHaveTextContent("keep this");
+    expect(screen.getByText("Eligibility failed")).toBeInTheDocument();
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("discards a late subscriber result after the composer changes channels", async () => {
     let resolveEligibility: ((result: { status: "notSubscribed" }) => void) | undefined;
     const checkSubscriberEligibility = vi.fn(
@@ -1599,7 +1614,7 @@ describe("ChatInput — slow-mode cooldown", () => {
 // Guards: footer Chat submit uses the same send path as Enter, so button-send and keyboard-send stay in sync.
 // Guards: settings gear and Chat submit stay below the editor in a second row without moving emote pickers down.
 // Guards: only the editor/emote row is outlined; footer actions stay outside the input box outline.
-// Guards: quick settings popover anchors to the full footer row so it stays inside the chat width.
+// Guards: quick settings uses a root-owned overlay anchor above the whole composer, leaving room for the floating scroll-to-live control.
 describe("ChatInput — footer actions", () => {
   it("renders the old white settings gear next to a neutral Chat button", () => {
     infoBannerImpl.mockReturnValue(null);
@@ -1653,18 +1668,43 @@ describe("ChatInput — footer actions", () => {
     expect(textRow).toHaveStyle({ borderColor: "#ffffff" });
   });
 
-  it("opens quick settings upward from the footer gear", () => {
+  it.each(["twitch", "kick"] as const)(
+    "opens %s quick settings above the composer without covering footer controls",
+    (platform) => {
     infoBannerImpl.mockReturnValue(null);
-    renderInput();
+    renderInput({ platform });
     const settingsButton = screen.getByRole("button", { name: /chat settings/i });
     fireEvent.click(settingsButton);
-    expect(screen.getByTestId("chat-quick-settings-popover")).toBeInTheDocument();
-    expect(screen.getByTestId("chat-quick-settings-popover").parentElement).toBe(
-      screen.getByTestId("chat-input-action-row")
+    const popover = screen.getByTestId("chat-quick-settings-popover");
+    const actionRow = screen.getByTestId("chat-input-action-row");
+
+    expect(actionRow).not.toContainElement(popover);
+    const overlayAnchor = screen.getByTestId("chat-quick-settings-overlay-anchor");
+    expect(overlayAnchor).toContainElement(popover);
+    expect(overlayAnchor.parentElement).toHaveClass("relative", "flex", "flex-col");
+    expect(overlayAnchor).toHaveClass(
+      "absolute",
+      "inset-x-0",
+      "bottom-full",
+      "mb-12",
+      "max-w-full"
     );
     expect(quickSettingsPopoverCalls.at(-1)?.placement).toBe("top");
-    expect(quickSettingsPopoverCalls.at(-1)?.platform).toBe("twitch");
+    expect(quickSettingsPopoverCalls.at(-1)?.platform).toBe(platform);
     expect(quickSettingsPopoverCalls.at(-1)?.triggerRef?.current).toBe(settingsButton);
+    }
+  );
+
+  it("keeps quick settings above the logged-out login surface", () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput({ canSend: false, isAuthenticated: false });
+
+    expect(screen.getByRole("button", { name: "Log in to chat" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /chat settings/i }));
+
+    expect(screen.getByTestId("chat-input-action-row")).toHaveClass("z-20");
+    expect(screen.getByTestId("chat-quick-settings-popover")).toBeInTheDocument();
   });
 
   it("clicking Chat sends the message on Twitch", async () => {
@@ -1943,27 +1983,531 @@ describe("ChatInput — emote dialogs", () => {
 // Guards: quick emote strip shows platform global emotes when no recent emotes exist.
 // Guards: recently used emotes stay first and can come from any provider available on the current platform.
 // Guards: selecting a quick emote sends it immediately and promotes it to frequently used without touching drafts.
+// Guards: accepted quick clicks can overlap after 50 ms, while earlier clicks disappear instead of queueing.
+// Guards: quick-send throttle elapsed time stays stable across wall-clock corrections.
+// Guards: sub-50 ms clicks are dropped before async subscriber eligibility can queue concurrent sends.
+// Guards: slow mode reserves one pending quick send before subscriber preflight and releases it after failure.
+// Guards: rejected quick-send subscriber checks surface inline without leaking an unhandled rejection or leaving the send pending.
+// Guards: channel contexts own independent throttle and token-safe pending slow-mode sends.
 // Guards: each quick emote has its own visible tile and spacing instead of one flat gray strip.
 describe("ChatInput — quick emote action bar", () => {
-  it.each([
-    "twitch",
-    "kick",
-  ] as const)("renders spaced %s quick emote tiles without a full-width gray strip", (platform) => {
-    const globalEmote = makeQuickEmote({
-      id: platform === "twitch" ? "25" : "1730762",
-      name: platform === "twitch" ? "Kappa" : "KEKW",
-      provider: platform,
-    });
+  it("reactively hides and restores the quick-emote action row from chatDisplay.quickEmotes", () => {
+    const previousPreferences = useAuthStore.getState().preferences;
+    const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProvider = () =>
-      new Map<EmoteProvider, Emote[]>([[platform, [globalEmote]]]);
+      new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
 
-    renderInput({ platform });
+    try {
+      renderInput();
 
-    expect(screen.getByTestId("chat-emote-action-row")).not.toHaveClass("bg-[#252525]");
-    expect(screen.getByTestId("quick-emote-action-bar")).toHaveClass("gap-2");
-    expect(screen.getByTestId("quick-emote-button")).toHaveClass("border-white/10", "bg-[#252525]");
-    expect(screen.getByTestId("chat-input-text-row")).toHaveClass("bg-[#191919]");
+      expect(screen.getByTestId("chat-emote-action-row")).toBeInTheDocument();
+      expect(screen.getByTestId("quick-emote-action-bar")).toBeInTheDocument();
+
+      act(() => {
+        useAuthStore.setState({
+          preferences: {
+            ...DEFAULT_USER_PREFERENCES,
+            chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, quickEmotes: false },
+          },
+        });
+      });
+
+      expect(screen.queryByTestId("chat-emote-action-row")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("quick-emote-action-bar")).not.toBeInTheDocument();
+
+      act(() => {
+        useAuthStore.setState({
+          preferences: {
+            ...DEFAULT_USER_PREFERENCES,
+            chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, quickEmotes: true },
+          },
+        });
+      });
+
+      expect(screen.getByTestId("chat-emote-action-row")).toBeInTheDocument();
+      expect(screen.getByTestId("quick-emote-action-bar")).toBeInTheDocument();
+    } finally {
+      act(() => {
+        useAuthStore.setState({ preferences: previousPreferences });
+      });
+    }
   });
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "starts a %s quick send immediately and accepts another click at exactly 50 ms",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      vi.mocked(sendMessage).mockImplementationOnce(() => new Promise(() => {}));
+
+      renderInput({ platform });
+      const quickEmoteButton = screen.getByRole("button", { name: `Use ${emoteName}` });
+
+      await act(async () => {
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "uses monotonic elapsed time for the %s quick-send throttle",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      const initialWallTime = new Date("2026-08-02T12:00:00.000Z");
+      vi.setSystemTime(initialWallTime);
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      vi.mocked(sendMessage).mockImplementationOnce(() => new Promise(() => {}));
+
+      renderInput({ platform });
+      const quickEmoteButton = screen.getByRole("button", { name: `Use ${emoteName}` });
+      await act(async () => {
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      vi.setSystemTime(new Date(initialWallTime.getTime() + 60_000));
+      await act(async () => {
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "drops a second %s quick click while subscriber eligibility is pending",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+      useRoomStateStore.getState().updateRoomState(platform, "12345", { subscribersOnly: true });
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      const eligibilityResolvers: Array<(result: { status: "subscribed" }) => void> = [];
+      const checkSubscriberEligibility = vi.fn(
+        () =>
+          new Promise<{ status: "subscribed" }>((resolve) => {
+            eligibilityResolvers.push(resolve);
+          })
+      );
+
+      renderInput({ platform, checkSubscriberEligibility });
+      const quickEmoteButton = screen.getByRole("button", { name: `Use ${emoteName}` });
+      fireEvent.click(quickEmoteButton);
+      await act(async () => {
+        vi.advanceTimersByTime(49);
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+
+      expect(checkSubscriberEligibility).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        eligibilityResolvers[0]({ status: "subscribed" });
+        await Promise.resolve();
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("surfaces a rejected quick-emote subscriber check and releases the pending send", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+    const emote = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProvider = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [emote]]]);
+    useRoomStateStore
+      .getState()
+      .updateRoomState("twitch", "12345", { slowMode: 5, subscribersOnly: true });
+    let rejectEligibility!: (reason: Error) => void;
+    const checkSubscriberEligibility = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<never>((_resolve, reject) => {
+            rejectEligibility = reject;
+          })
+      )
+      .mockResolvedValueOnce({ status: "subscribed" as const });
+    const unhandledRejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandledRejections.push(reason);
+    };
+    const writeLog = vi.fn();
+    window.electronAPI = { logs: { write: writeLog } } as unknown as typeof window.electronAPI;
+    process.on("unhandledRejection", onUnhandledRejection);
+
+    try {
+      renderInput({ checkSubscriberEligibility });
+      const quickEmoteButton = screen.getByRole("button", { name: "Use Kappa" });
+
+      fireEvent.click(quickEmoteButton);
+      expect(checkSubscriberEligibility).toHaveBeenCalledOnce();
+      await act(async () => {
+        rejectEligibility(new Error("Eligibility failed"));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+      expect(unhandledRejections).toEqual([]);
+      expect(quickEmoteButton).toBeEnabled();
+      expect(screen.getByText("Eligibility failed")).toBeInTheDocument();
+      expect(writeLog).toHaveBeenCalledWith({
+        level: "error",
+        tag: "UI:Chat:Input",
+        message: "failed to verify subscriber eligibility",
+        meta: { error: "Eligibility failed" },
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+        fireEvent.click(quickEmoteButton);
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(checkSubscriberEligibility).toHaveBeenCalledTimes(2);
+      expect(twitchChatService.sendMessage).toHaveBeenCalledTimes(1);
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+  });
+
+  it("reports a later synchronous quick-emote failure as a send failure", async () => {
+    const emote = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProvider = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [emote]]]);
+    useRoomStateStore
+      .getState()
+      .updateRoomState("twitch", "12345", { subscribersOnly: true });
+    const checkSubscriberEligibility = vi.fn().mockResolvedValue({ status: "subscribed" as const });
+    const writeLog = vi.fn();
+    window.electronAPI = { logs: { write: writeLog } } as unknown as typeof window.electronAPI;
+    emoteStoreState.addRecentEmote.mockImplementationOnce(() => {
+      throw new Error("Recent emote update failed");
+    });
+
+    renderInput({ checkSubscriberEligibility });
+    fireEvent.click(screen.getByRole("button", { name: "Use Kappa" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Recent emote update failed")).toBeInTheDocument();
+    });
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+    expect(writeLog).toHaveBeenCalledWith({
+      level: "error",
+      tag: "UI:Chat:Input",
+      message: "failed to send quick emote",
+      meta: { error: "Recent emote update failed" },
+    });
+  });
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "keeps a later %s slow-mode click from winning during subscriber preflight",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+      useRoomStateStore
+        .getState()
+        .updateRoomState(platform, "12345", { slowMode: 5, subscribersOnly: true });
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      const eligibilityResolvers: Array<(result: { status: "subscribed" }) => void> = [];
+      const checkSubscriberEligibility = vi.fn(
+        () =>
+          new Promise<{ status: "subscribed" }>((resolve) => {
+            eligibilityResolvers.push(resolve);
+          })
+      );
+
+      renderInput({ platform, checkSubscriberEligibility });
+      const quickEmoteButton = screen.getByRole("button", { name: `Use ${emoteName}` });
+      fireEvent.click(quickEmoteButton);
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+
+      expect(checkSubscriberEligibility).toHaveBeenCalledTimes(2);
+      expect(sendMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        eligibilityResolvers[1]({ status: "subscribed" });
+        await Promise.resolve();
+      });
+      expect(sendMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        eligibilityResolvers[0]({ status: "subscribed" });
+        await Promise.resolve();
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "isolates pending %s slow-mode quick sends and throttles across channel contexts",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+      useRoomStateStore.getState().updateRoomState(platform, "12345", { slowMode: 5 });
+      useRoomStateStore.getState().updateRoomState(platform, "67890", { slowMode: 5 });
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      let rejectFirstSend!: (reason: Error) => void;
+      vi.mocked(sendMessage)
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              rejectFirstSend = reject;
+            })
+        )
+        .mockImplementationOnce(() => new Promise(() => {}));
+
+      const { rerender } = renderInput({ platform });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: `Use ${emoteName}` }));
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      rerender(
+        <TooltipProvider>
+          <ChatInput channel="other" platform={platform} channelId="67890" />
+        </TooltipProvider>
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: `Use ${emoteName}` }));
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        rejectFirstSend(new Error("First context failed"));
+        await Promise.resolve();
+        vi.advanceTimersByTime(50);
+        fireEvent.click(screen.getByRole("button", { name: `Use ${emoteName}` }));
+        await Promise.resolve();
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "drops a %s quick-emote click inside 50 ms instead of queueing it",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      let resolveFirstSend!: () => void;
+      vi.mocked(sendMessage).mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstSend = resolve;
+          })
+      );
+
+      renderInput({ platform });
+      const quickEmoteButton = screen.getByRole("button", { name: `Use ${emoteName}` });
+      await act(async () => {
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(49);
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+        resolveFirstSend();
+        await Promise.resolve();
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "leaves the typed draft untouched during a pending %s quick send",
+    async (platform, emoteName, emoteId) => {
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      vi.mocked(sendMessage).mockImplementationOnce(() => new Promise(() => {}));
+
+      renderInput({ platform });
+      const editor = getEditor();
+      typeInEditor(editor, "keep this draft");
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: `Use ${emoteName}` }));
+        await Promise.resolve();
+      });
+
+      expect(editor).toHaveTextContent("keep this draft");
+    }
+  );
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "releases the %s slow-mode in-flight guard when a quick send fails",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+      useRoomStateStore.getState().updateRoomState(platform, "12345", { slowMode: 5 });
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      vi.mocked(sendMessage).mockRejectedValueOnce(new Error("Network failed"));
+
+      renderInput({ platform });
+      const quickEmoteButton = screen.getByRole("button", { name: `Use ${emoteName}` });
+      await act(async () => {
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "keeps a later %s quick-emote click blocked while a slow-mode send is pending",
+    async (platform, emoteName, emoteId) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+      useRoomStateStore.getState().updateRoomState(platform, "12345", { slowMode: 5 });
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      vi.mocked(sendMessage).mockImplementationOnce(() => new Promise(() => {}));
+
+      renderInput({ platform });
+      const quickEmoteButton = screen.getByRole("button", { name: `Use ${emoteName}` });
+      await act(async () => {
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+        fireEvent.click(quickEmoteButton);
+        await Promise.resolve();
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each(["twitch", "kick"] as const)(
+    "renders spaced %s quick emote tiles without a full-width gray strip",
+    (platform) => {
+      const globalEmote = makeQuickEmote({
+        id: platform === "twitch" ? "25" : "1730762",
+        name: platform === "twitch" ? "Kappa" : "KEKW",
+        provider: platform,
+      });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [globalEmote]]]);
+
+      renderInput({ platform });
+
+      expect(screen.getByTestId("chat-emote-action-row")).not.toHaveClass("bg-[#252525]");
+      expect(screen.getByTestId("quick-emote-action-bar")).toHaveClass("gap-2");
+      expect(screen.getByTestId("quick-emote-button")).toHaveClass(
+        "border-white/10",
+        "bg-[#252525]"
+      );
+      expect(screen.getByTestId("chat-input-text-row")).toHaveClass("bg-[#191919]");
+    }
+  );
 
   it("shows global emotes as the fallback quick row", () => {
     const globalTwitch = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
@@ -2164,7 +2708,76 @@ describe("ChatInput — quick emote action bar", () => {
 });
 
 // Guards: the contextual colon row replaces quick-send, inserts into the draft without sending, then a later Enter sends.
+// Guards: unmatched ordinary words do not reserve an empty contextual-emote row when Quick Emotes is off.
 describe("ChatInput — contextual emote row", () => {
+  it("keeps typed contextual suggestions and insertion working when quick emotes are disabled", async () => {
+    const previousPreferences = useAuthStore.getState().preferences;
+    const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProviderForChannel = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
+    const user = userEvent.setup();
+
+    try {
+      act(() => {
+        useAuthStore.setState({
+          preferences: {
+            ...DEFAULT_USER_PREFERENCES,
+            chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, quickEmotes: false },
+          },
+        });
+      });
+
+      renderInput();
+      const editor = getEditor();
+      await user.click(editor);
+      await user.keyboard("K");
+
+      expect(screen.getByTestId("contextual-emote-row")).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Insert Kappa from Twitch" })).toBeInTheDocument();
+      expect(screen.queryByTestId("quick-emote-action-bar")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("option", { name: "Insert Kappa from Twitch" }));
+
+      expect(editor.querySelector("[data-emote-name='Kappa']")).toBeInTheDocument();
+    } finally {
+      act(() => {
+        useAuthStore.setState({ preferences: previousPreferences });
+      });
+    }
+  });
+
+  it("does not reserve a contextual emote row for an unmatched ordinary word when quick emotes are disabled", async () => {
+    const previousPreferences = useAuthStore.getState().preferences;
+    const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
+    emoteStoreState.getEmotesByProviderForChannel = () =>
+      new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
+    const user = userEvent.setup();
+
+    try {
+      act(() => {
+        useAuthStore.setState({
+          preferences: {
+            ...DEFAULT_USER_PREFERENCES,
+            chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, quickEmotes: false },
+          },
+        });
+      });
+
+      renderInput();
+      const editor = getEditor();
+      await user.click(editor);
+      await user.keyboard("ordinary");
+
+      expect(screen.queryByTestId("chat-emote-action-row")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("contextual-emote-row")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("quick-emote-action-bar")).not.toBeInTheDocument();
+    } finally {
+      act(() => {
+        useAuthStore.setState({ preferences: previousPreferences });
+      });
+    }
+  });
+
   // Guards: Frosty-style ordinary word typing opens results from the first character using real keyboard events.
   it("opens contextual results while a user types an ordinary current word", async () => {
     const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
@@ -2249,6 +2862,44 @@ describe("ChatInput — contextual emote row", () => {
       );
     });
   });
+
+  // Guards: visible contextual emotes never hijack Enter from the typed draft on either platform.
+  it.each([
+    ["twitch", "Kappa", "25"],
+    ["kick", "KEKW", "1730762"],
+  ] as const)(
+    "sends the exact typed %s draft on Enter while an emote suggestion is visible",
+    async (platform, emoteName, emoteId) => {
+      const emote = makeQuickEmote({ id: emoteId, name: emoteName, provider: platform });
+      emoteStoreState.getEmotesByProviderForChannel = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [emote]]]);
+
+      renderInput({ platform });
+      const editor = getEditor();
+      fireEvent.focus(editor);
+      typeInEditor(editor, "K");
+
+      expect(
+        screen.getByRole("option", {
+          name: `Insert ${emoteName} from ${platform === "twitch" ? "Twitch" : "Kick"}`,
+        })
+      ).toBeVisible();
+      fireEvent.keyDown(editor, { key: "Enter" });
+
+      await waitFor(() => {
+        if (platform === "twitch") {
+          expect(twitchChatService.sendMessage).toHaveBeenCalledWith("ninja", "K", [
+            { type: "text", content: "K" },
+          ]);
+        } else {
+          expect(kickChatService.sendMessage).toHaveBeenCalledWith("ninja", "K", undefined, [
+            { type: "text", content: "K" },
+          ]);
+        }
+      });
+      expect(editor.querySelector(`[data-emote-name='${emoteName}']`)).not.toBeInTheDocument();
+    }
+  );
 
   // Guards: Kick contextual insertion retains native wire markup and optimistic emote fragments.
   it("preserves Kick native serialization after contextual insertion", async () => {
@@ -2347,6 +2998,98 @@ describe("ChatInput - mention editing", () => {
 });
 
 describe("ChatInput — Enter / Shift+Enter", () => {
+  // Guards: normal sends with slow mode disabled clear in the same interaction frame and do not wait for the network promise.
+  it.each(["twitch", "kick"] as const)(
+    "clears a %s draft before its deferred network send settles",
+    async (platform) => {
+      infoBannerImpl.mockReturnValue(null);
+      let resolveSend!: () => void;
+      const pendingSend = new Promise<void>((resolve) => {
+        resolveSend = resolve;
+      });
+      if (platform === "twitch") {
+        vi.mocked(twitchChatService.sendMessage).mockReturnValueOnce(pendingSend);
+      } else {
+        vi.mocked(kickChatService.sendMessage).mockReturnValueOnce(pendingSend);
+      }
+      renderInput({ platform, isAuthenticated: true, canSend: true });
+      const editor = getEditor();
+      typeInEditor(editor, "send now");
+
+      fireEvent.keyDown(editor, { key: "Enter" });
+
+      expect(editor).toBeEmptyDOMElement();
+      expect(
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage
+      ).toHaveBeenCalledTimes(1);
+
+      resolveSend();
+      await act(async () => {
+        await pendingSend;
+      });
+    }
+  );
+
+  // Guards: an in-flight normal send prevents duplicates but does not impose a post-send throttle when slow mode is off.
+  it.each(["twitch", "kick"] as const)(
+    "allows the next %s draft immediately after the pending send settles",
+    async (platform) => {
+      infoBannerImpl.mockReturnValue(null);
+      let resolveSend!: () => void;
+      const pendingSend = new Promise<void>((resolve) => {
+        resolveSend = resolve;
+      });
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      vi.mocked(sendMessage).mockReturnValueOnce(pendingSend);
+      renderInput({ platform, isAuthenticated: true, canSend: true });
+      const editor = getEditor();
+      typeInEditor(editor, "first");
+      fireEvent.keyDown(editor, { key: "Enter" });
+      typeInEditor(editor, "second");
+
+      fireEvent.keyDown(editor, { key: "Enter" });
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(editor).toHaveTextContent("second");
+
+      resolveSend();
+      await act(async () => {
+        await pendingSend;
+      });
+      fireEvent.keyDown(editor, { key: "Enter" });
+
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    }
+  );
+
+  // Guards: a failed send restores its submitted text only when the user has not already started another draft.
+  it.each(["twitch", "kick"] as const)(
+    "keeps a newer %s draft when the previous send fails",
+    async (platform) => {
+      infoBannerImpl.mockReturnValue(null);
+      let rejectSend!: (error: Error) => void;
+      const pendingSend = new Promise<void>((_resolve, reject) => {
+        rejectSend = reject;
+      });
+      const sendMessage =
+        platform === "twitch" ? twitchChatService.sendMessage : kickChatService.sendMessage;
+      vi.mocked(sendMessage).mockReturnValueOnce(pendingSend);
+      renderInput({ platform, isAuthenticated: true, canSend: true });
+      const editor = getEditor();
+      typeInEditor(editor, "first");
+      fireEvent.keyDown(editor, { key: "Enter" });
+      typeInEditor(editor, "new draft");
+
+      await act(async () => {
+        rejectSend(new Error("Network failed"));
+        await pendingSend.catch(() => undefined);
+      });
+
+      expect(editor).toHaveTextContent("new draft");
+      expect(screen.getByText("Network failed")).toBeInTheDocument();
+    }
+  );
+
   it("Enter sends the message on Twitch", async () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput();
@@ -2448,6 +3191,27 @@ describe("ChatInput — character counter", () => {
 });
 
 describe("ChatInput — imperative handle", () => {
+  // Guards: Copy message to chat replaces the editable draft on both platforms and never sends it automatically.
+  it.each(["twitch", "kick"] as const)(
+    "setDraft places exact plain text in the %s composer without sending",
+    (platform) => {
+      infoBannerImpl.mockReturnValue(null);
+      const ref = createRef<ChatInputHandle>();
+      renderWithTooltipProvider(
+        <ChatInput ref={ref} channel="ninja" platform={platform} channelId="12345" />
+      );
+      const editor = getEditor();
+      typeInEditor(editor, "old draft");
+
+      act(() => ref.current?.setDraft("Hello Kappa @bob"));
+
+      expect(editor.textContent).toBe("Hello Kappa @bob");
+      expect(document.activeElement).toBe(editor);
+      expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+      expect(kickChatService.sendMessage).not.toHaveBeenCalled();
+    }
+  );
+
   it("mentionUser prepends @username and focuses", () => {
     infoBannerImpl.mockReturnValue(null);
     const ref = createRef<ChatInputHandle>();

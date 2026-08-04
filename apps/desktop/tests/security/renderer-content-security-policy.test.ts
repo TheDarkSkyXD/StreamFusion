@@ -6,7 +6,7 @@ const OFFICIAL_7TV_IMAGE_SOURCES = ["https://cdn.7tv.app", "https://*.cdn.7tv.ap
 
 function getDirectiveSources(
   entryPoint: "index.html" | "browser.html",
-  directiveName: "connect-src" | "img-src"
+  directiveName: "connect-src" | "img-src" | "media-src"
 ): string[] {
   const html = readFileSync(resolve(__dirname, `../../${entryPoint}`), "utf8");
   const csp = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]+)"/)?.[1];
@@ -24,6 +24,7 @@ function getDirectiveSources(
 
 // Guards: Electron and browser development entry points must allow canonical 7TV images and only official 7TV CDN edges
 // Guards: the app renderer must connect to the exact 7TV Event API WebSocket origin without wildcard WebSocket access
+// Guards: deterministic development proofs must not add loopback access to production renderer policy
 describe("renderer Content Security Policy", () => {
   it.each([
     "index.html",
@@ -43,4 +44,18 @@ describe("renderer Content Security Policy", () => {
 
     expect(sevenTvWebSocketSources).toEqual(["wss://events.7tv.io"]);
   });
+
+  it.each(["index.html", "browser.html"] as const)(
+    "%s keeps loopback out of connect and media policy",
+    (entryPoint) => {
+      const networkSources = [
+        ...getDirectiveSources(entryPoint, "connect-src"),
+        ...getDirectiveSources(entryPoint, "media-src"),
+      ];
+
+      expect(networkSources.some((source) => /(?:localhost|127\.0\.0\.1)/.test(source))).toBe(
+        false
+      );
+    }
+  );
 });

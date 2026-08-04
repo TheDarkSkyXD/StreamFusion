@@ -42,6 +42,7 @@ vi.mock("@/backend/api/platforms/kick/kick-stream-resolver", () => {
 vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getClips: vi.fn(),
+    getClipsByCategory: vi.fn(),
     getVideos: vi.fn(),
   },
 }));
@@ -49,8 +50,11 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
 vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     getClipsByChannel: vi.fn(),
+    getClipsByGame: vi.fn(),
+    getUsersById: vi.fn(),
     getVideoById: vi.fn(),
     getVideosByChannel: vi.fn(),
+    getVideosByGame: vi.fn(),
     getVideosGameData: vi.fn(),
   },
 }));
@@ -76,8 +80,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const FROZEN_NOW = new Date("2026-06-06T12:00:00.000Z").getTime();
 
 const getClipsMock = vi.mocked(kickClient.getClips);
+const getClipsByCategoryMock = vi.mocked(kickClient.getClipsByCategory);
 const getVideosMock = vi.mocked(kickClient.getVideos);
 const twitchGetClipsByChannelMock = vi.mocked(twitchClient.getClipsByChannel);
+const twitchGetClipsByGameMock = vi.mocked(twitchClient.getClipsByGame);
+const twitchGetVideosByGameMock = vi.mocked(twitchClient.getVideosByGame);
+const twitchGetUsersByIdMock = vi.mocked(twitchClient.getUsersById);
 type ClipAgeRow = readonly [id: string, ageMs: number];
 
 function clip(
@@ -1125,6 +1133,209 @@ function getHandler(channel: string): Handler {
   if (!call) throw new Error(`handler not registered: ${channel}`);
   return call[1];
 }
+
+// Guards: Kick Category Clips route through the native Category reader and preserve the typed availability envelope.
+describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    vi.mocked(ipcMain.handle).mockReset();
+    getClipsByCategoryMock.mockReset();
+    twitchGetClipsByGameMock.mockReset();
+    twitchGetUsersByIdMock.mockReset();
+    registerVideoHandlers();
+  });
+
+  it("loads Kick Clips from the native Category slug", async () => {
+    const clips = [{ id: "kick-clip-1", platform: "kick" }];
+    getClipsByCategoryMock.mockResolvedValue({ data: clips, cursor: "next-page" } as any);
+    const request = {
+      platform: "kick" as const,
+      categoryId: "15",
+      categorySlug: "just-chatting",
+      categoryName: "Just Chatting",
+      limit: 20,
+      sort: "views" as const,
+      timeRange: "week" as const,
+    };
+
+    const result = await getHandler(IPC_CHANNELS.CLIPS_GET_BY_CATEGORY)({}, request);
+
+    expect(getClipsByCategoryMock).toHaveBeenCalledWith("just-chatting", {
+      limit: 20,
+      cursor: undefined,
+      sort: "views",
+      timeRange: "week",
+    });
+    expect(result).toEqual({
+      success: true,
+      availability: "available",
+      data: clips,
+      cursor: "next-page",
+    });
+  });
+
+  it("loads Twitch Clips from the native game ID", async () => {
+    twitchGetUsersByIdMock.mockResolvedValue([
+      {
+        id: "channel-1",
+        login: "streamer",
+        displayName: "Streamer Display",
+        profileImageUrl: "https://example.com/avatar.jpg",
+      },
+    ] as any);
+    twitchGetClipsByGameMock.mockResolvedValue({
+      data: [
+        {
+          id: "twitch-clip-1",
+          url: "https://clips.twitch.tv/twitch-clip-1",
+          embed_url: "https://clips.twitch.tv/embed/twitch-clip-1",
+          broadcaster_id: "channel-1",
+          broadcaster_name: "Streamer Display",
+          creator_id: "creator-1",
+          creator_name: "Clipper",
+          video_id: "video-1",
+          game_id: "509658",
+          language: "en",
+          title: "Category clip",
+          view_count: 42,
+          created_at: "2026-01-01T00:00:00Z",
+          thumbnail_url: "https://example.com/clip.jpg",
+          duration: 30,
+          vod_offset: 10,
+          is_featured: false,
+        },
+      ],
+      cursor: "next-page",
+    } as any);
+
+    const result = await getHandler(IPC_CHANNELS.CLIPS_GET_BY_CATEGORY)({}, {
+      platform: "twitch",
+      categoryId: "509658",
+      categoryName: "Just Chatting",
+      limit: 20,
+      sort: "views",
+      timeRange: "all",
+    });
+
+    expect(twitchGetClipsByGameMock).toHaveBeenCalledWith("509658", {
+      first: 20,
+      after: undefined,
+    });
+    expect(twitchGetUsersByIdMock).toHaveBeenCalledWith(["channel-1"]);
+    expect(result).toEqual({
+      success: true,
+      availability: "available",
+      data: [
+        expect.objectContaining({
+          id: "twitch-clip-1",
+          platform: "twitch",
+          channelId: "channel-1",
+          channelName: "streamer",
+          channelAvatar: "https://example.com/avatar.jpg",
+          gameId: "509658",
+          views: "42",
+        }),
+      ],
+      cursor: "next-page",
+    });
+  });
+});
+
+// Guards: Kick Category Videos remain explicitly unsupported instead of silently fanning out over live Channels.
+describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    vi.mocked(ipcMain.handle).mockReset();
+    twitchGetVideosByGameMock.mockReset();
+    twitchGetUsersByIdMock.mockReset();
+    registerVideoHandlers();
+  });
+
+  it("returns the typed unsupported result for Kick", async () => {
+    const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY);
+    const result = await handler({}, {
+      platform: "kick",
+      categoryId: "15",
+      categorySlug: "just-chatting",
+      categoryName: "Just Chatting",
+      sort: "views",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      availability: "unsupported",
+      errorCode: "unsupported",
+      error: "Kick does not provide a complete category-wide Video source",
+    });
+  });
+
+  it("loads Twitch Videos from the native game ID", async () => {
+    twitchGetUsersByIdMock.mockResolvedValue([
+      {
+        id: "channel-1",
+        login: "streamer",
+        displayName: "Streamer",
+        profileImageUrl: "https://example.com/avatar.jpg",
+      },
+    ] as any);
+    twitchGetVideosByGameMock.mockResolvedValue({
+      data: [
+        {
+          id: "twitch-video-1",
+          stream_id: "stream-1",
+          user_id: "channel-1",
+          user_login: "streamer",
+          user_name: "Streamer",
+          title: "Category video",
+          description: "",
+          created_at: "2026-01-01T00:00:00Z",
+          published_at: "2026-01-01T00:00:00Z",
+          url: "https://www.twitch.tv/videos/twitch-video-1",
+          thumbnail_url: "https://example.com/%{width}x%{height}.jpg",
+          viewable: "public",
+          view_count: 99,
+          language: "en",
+          type: "archive",
+          duration: "1h2m3s",
+          muted_segments: null,
+          game_id: "509658",
+          game_name: "Just Chatting",
+        },
+      ],
+      cursor: "next-page",
+    } as any);
+
+    const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)({}, {
+      platform: "twitch",
+      categoryId: "509658",
+      categoryName: "Just Chatting",
+      limit: 20,
+      sort: "views",
+    });
+
+    expect(twitchGetVideosByGameMock).toHaveBeenCalledWith("509658", {
+      first: 20,
+      after: undefined,
+      sort: "views",
+    });
+    expect(twitchGetUsersByIdMock).toHaveBeenCalledWith(["channel-1"]);
+    expect(result).toEqual({
+      success: true,
+      availability: "available",
+      data: [
+        expect.objectContaining({
+          id: "twitch-video-1",
+          platform: "twitch",
+          channelName: "streamer",
+          channelAvatar: "https://example.com/avatar.jpg",
+          gameId: "509658",
+          views: "99",
+        }),
+      ],
+      cursor: "next-page",
+    });
+  });
+});
 
 describe("IPC handlers - VIDEOS_GET_PLAYBACK_URL", () => {
   beforeEach(() => {

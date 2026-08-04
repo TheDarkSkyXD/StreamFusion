@@ -4,6 +4,7 @@ import { userEvent, within } from "storybook/test";
 import { AddStreamDialog } from "./add-stream-dialog";
 import {
   installMultistreamMocks,
+  multistreamFavoriteFixtures,
   multistreamFixtures,
   resetMultistreamStore,
 } from "./multistream-story-fixtures";
@@ -20,19 +21,46 @@ type Story = StoryObj<typeof meta>;
 export const Trigger: Story = {
   render: () => {
     installMultistreamMocks();
-    resetMultistreamStore({ streams: multistreamFixtures.slice(0, 2), multiviewCap: 4 });
+    resetMultistreamStore({
+      streams: multistreamFixtures.slice(0, 2),
+      favoriteStreams: multistreamFavoriteFixtures.slice(0, 1),
+      multiviewCap: 4,
+    });
     return <AddStreamDialog />;
   },
 };
 
-export const Open: Story = {
+export const UnifiedSearchWithFavoriteActions: Story = {
   render: () => {
     installMultistreamMocks();
-    resetMultistreamStore({ streams: multistreamFixtures.slice(0, 2), multiviewCap: 4 });
+    resetMultistreamStore({
+      streams: multistreamFixtures.slice(0, 2),
+      favoriteStreams: multistreamFavoriteFixtures.slice(0, 1),
+      multiviewCap: 4,
+    });
     return <AddStreamDialog />;
   },
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("button", { name: "Add Stream" }));
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Add Stream" }));
+    await userEvent.type(canvas.getByRole("textbox"), "Nova");
+  },
+};
+
+export const LiveFavorites: Story = {
+  render: () => {
+    installMultistreamMocks();
+    resetMultistreamStore({
+      streams: multistreamFixtures.slice(0, 1),
+      favoriteStreams: multistreamFavoriteFixtures,
+      multiviewCap: 4,
+    });
+    return <AddStreamDialog />;
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Add Stream" }));
+    await userEvent.click(canvas.getByRole("tab", { name: "Favorites" }));
   },
 };
 
@@ -41,5 +69,8 @@ export const AtCapacity: Story = {
     installMultistreamMocks();
     resetMultistreamStore({ streams: multistreamFixtures.slice(0, 2), multiviewCap: 2 });
     return <AddStreamDialog />;
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "Add Stream" }));
   },
 };

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 vi.mock("electron", () => ({
   session: {
@@ -14,13 +16,13 @@ vi.mock("@/lib/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("@/backend/logging/logger", () => ({
+  logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock("@/backend/services/vaft-pattern-service", () => ({
   vaftPatternService: {
-    getDateRangePatterns: vi.fn(() => [
-      "stitched-ad",
-      "com.twitch.tv/ad",
-      "amazon-ad",
-    ]),
+    getDateRangePatterns: vi.fn(() => ["stitched-ad", "com.twitch.tv/ad", "amazon-ad"]),
     getAdSignifiers: vi.fn(() => ["stitched"]),
   },
 }));
@@ -35,6 +37,7 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
 import { twitchManifestProxy } from "@/backend/services/twitch-manifest-proxy";
+import { logger } from "@/backend/logging/logger";
 
 // ========== M3U8 Fixtures ==========
 
@@ -71,11 +74,10 @@ X-TV-TWITCH-AD-URL="https://tracking.twitch.tv/ad/click"
 X-TV-TWITCH-AD-CLICK-TRACKING-URL="https://tracking.twitch.tv/ad/track"
 X-TV-TWITCH-AD-ROLL-TYPE="preroll"`;
 
-const AD_PLAYLIST_WITH_STITCHED = `#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:2
-#EXTINF:2.000,
-https://video-weaver.lax01.hls.ttvnw.net/v1/segment/stitched/seg-1.ts`;
+const CUE_AD_MEDIA_PLAYLIST = readFileSync(
+  resolve(__dirname, "../../adblock/fixtures/twitch-playlists/ad-cue-out.m3u8"),
+  "utf8"
+);
 
 // ========== Helper to access private methods ==========
 
@@ -83,8 +85,12 @@ function proxy(): any {
   return twitchManifestProxy;
 }
 
+// Guards: the main-process proxy uses shared structured detection for non-DATERANGE ad markers.
+// Guards: playlist diagnostics never expose captured URLs, paths, tokens, or channel identity.
+// Guards: active media processing never awaits channel-wide backup work or repeats recovery fanout inside its retry window.
 describe("TwitchManifestProxyService", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     fetchMock.mockReset();
     proxy().streamInfos.clear();
     proxy().isEnabled = true;
@@ -176,9 +182,7 @@ describe("TwitchManifestProxyService", () => {
     });
 
     it("extracts lowercase channel name", () => {
-      const result = proxy().extractChannelName(
-        "https://usher.ttvnw.net/api/channel/hls/XQC.m3u8"
-      );
+      const result = proxy().extractChannelName("https://usher.ttvnw.net/api/channel/hls/XQC.m3u8");
       expect(result).toBe("xqc");
     });
 
@@ -190,9 +194,7 @@ describe("TwitchManifestProxyService", () => {
     });
 
     it("returns null for non-matching URL", () => {
-      const result = proxy().extractChannelName(
-        "https://example.com/video.mp4"
-      );
+      const result = proxy().extractChannelName("https://example.com/video.mp4");
       expect(result).toBeNull();
     });
   });
@@ -201,18 +203,14 @@ describe("TwitchManifestProxyService", () => {
 
   describe("isMasterPlaylist", () => {
     it("returns true for usher URLs", () => {
-      expect(
-        proxy().isMasterPlaylist(
-          "https://usher.ttvnw.net/api/channel/hls/test.m3u8"
-        )
-      ).toBe(true);
+      expect(proxy().isMasterPlaylist("https://usher.ttvnw.net/api/channel/hls/test.m3u8")).toBe(
+        true
+      );
     });
 
     it("returns false for video-weaver URLs", () => {
       expect(
-        proxy().isMasterPlaylist(
-          "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8"
-        )
+        proxy().isMasterPlaylist("https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8")
       ).toBe(false);
     });
   });
@@ -242,8 +240,7 @@ describe("TwitchManifestProxyService", () => {
 
   describe("processMasterPlaylist", () => {
     it("stores stream info with resolutions", () => {
-      const url =
-        "https://usher.ttvnw.net/api/channel/hls/teststreamer.m3u8?allow_source=true";
+      const url = "https://usher.ttvnw.net/api/channel/hls/teststreamer.m3u8?allow_source=true";
       proxy().processMasterPlaylist(url, MASTER_PLAYLIST);
 
       expect(proxy().streamInfos.has("teststreamer")).toBe(true);
@@ -252,20 +249,28 @@ describe("TwitchManifestProxyService", () => {
       expect(info.channelName).toBe("teststreamer");
     });
 
-    it("identifies 160p stream URL", () => {
-      const url =
-        "https://usher.ttvnw.net/api/channel/hls/teststreamer.m3u8?allow_source=true";
+    it("clears stale rendition and detector state when a master is replaced", () => {
+      const url = "https://usher.ttvnw.net/api/channel/hls/resetstream.m3u8";
       proxy().processMasterPlaylist(url, MASTER_PLAYLIST);
+      const first = proxy().streamInfos.get("resetstream");
+      first.detectionScopes.add("resetstream:stale");
+      first.candidateStates.set("resetstream:stale", {
+        candidatePromise: null,
+        readyCandidate: { playlist: "stale" },
+        consecutiveMisses: 0,
+        nextRetryAt: 0,
+      });
 
-      const info = proxy().streamInfos.get("teststreamer");
-      expect(info.baseline160pUrl).toBe(
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/160p.m3u8"
-      );
+      proxy().processMasterPlaylist(url, MASTER_PLAYLIST.replace("6000000", "6200000"));
+      const replacement = proxy().streamInfos.get("resetstream");
+
+      expect(replacement).not.toBe(first);
+      expect(replacement.detectionScopes).toEqual(new Set());
+      expect(replacement.candidateStates).toEqual(new Map());
     });
 
     it("stores usher params", () => {
-      const url =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8?allow_source=true&token=abc";
+      const url = "https://usher.ttvnw.net/api/channel/hls/test.m3u8?allow_source=true&token=abc";
       proxy().processMasterPlaylist(url, MASTER_PLAYLIST);
 
       const info = proxy().streamInfos.get("test");
@@ -273,8 +278,7 @@ describe("TwitchManifestProxyService", () => {
     });
 
     it("returns unmodified text", () => {
-      const url =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      const url = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
       const result = proxy().processMasterPlaylist(url, MASTER_PLAYLIST);
       expect(result).toBe(MASTER_PLAYLIST);
     });
@@ -288,40 +292,18 @@ describe("TwitchManifestProxyService", () => {
     });
   });
 
-  // ========== detectAds ==========
-
-  describe("detectAds", () => {
-    it("detects ads via DATERANGE patterns", () => {
-      expect(proxy().detectAds(AD_MEDIA_PLAYLIST)).toBe(true);
-    });
-
-    it("detects ads via signifiers", () => {
-      expect(proxy().detectAds(AD_PLAYLIST_WITH_STITCHED)).toBe(true);
-    });
-
-    it("returns false for clean playlist", () => {
-      expect(proxy().detectAds(CLEAN_MEDIA_PLAYLIST)).toBe(false);
-    });
-
-    it("returns false for empty string", () => {
-      expect(proxy().detectAds("")).toBe(false);
-    });
-  });
-
   // ========== neutralizeTrackingUrls ==========
 
   describe("neutralizeTrackingUrls", () => {
     it("replaces ad URL with safe URL", () => {
-      const input =
-        'X-TV-TWITCH-AD-URL="https://tracking.twitch.tv/ad/click"';
+      const input = 'X-TV-TWITCH-AD-URL="https://tracking.twitch.tv/ad/click"';
       const result = proxy().neutralizeTrackingUrls(input);
       expect(result).toContain("https://twitch.tv");
       expect(result).not.toContain("tracking.twitch.tv");
     });
 
     it("replaces click tracking URL", () => {
-      const input =
-        'X-TV-TWITCH-AD-CLICK-TRACKING-URL="https://tracking.twitch.tv/track"';
+      const input = 'X-TV-TWITCH-AD-CLICK-TRACKING-URL="https://tracking.twitch.tv/track"';
       const result = proxy().neutralizeTrackingUrls(input);
       expect(result).toContain("https://twitch.tv");
     });
@@ -339,168 +321,15 @@ describe("TwitchManifestProxyService", () => {
     });
   });
 
-  // ========== isKnownAdSegment ==========
-
-  describe("isKnownAdSegment", () => {
-    it("detects cloudfront ad segments", () => {
-      expect(
-        proxy().isKnownAdSegment(
-          "https://d2nvs31859zcd8.cloudfront.net/ad/segment.ts"
-        )
-      ).toBe(true);
-    });
-
-    it("detects amazon-ad segments", () => {
-      expect(
-        proxy().isKnownAdSegment(
-          "https://example.com/amazon-ad/segment.ts"
-        )
-      ).toBe(true);
-    });
-
-    it("detects stitched-ad segments", () => {
-      expect(
-        proxy().isKnownAdSegment(
-          "https://example.com/stitched-ad/segment.ts"
-        )
-      ).toBe(true);
-    });
-
-    it("returns false for normal segments", () => {
-      expect(
-        proxy().isKnownAdSegment(
-          "https://video-weaver.lax01.hls.ttvnw.net/v1/segment/source/seg.ts"
-        )
-      ).toBe(false);
-    });
-  });
-
-  // ========== stripAdSegmentsMinimal ==========
-
-  describe("stripAdSegmentsMinimal", () => {
-    it("removes DATERANGE ad markers", () => {
-      const result = proxy().stripAdSegmentsMinimal(AD_MEDIA_PLAYLIST);
-      expect(result).not.toContain("stitched-ad");
-    });
-
-    it("removes prefetch lines", () => {
-      const input = `#EXTM3U
-#EXT-X-TWITCH-PREFETCH:https://example.com/prefetch.ts
-#EXTINF:2.000,live
-https://example.com/seg.ts`;
-      const result = proxy().stripAdSegmentsMinimal(input);
-      expect(result).not.toContain("PREFETCH");
-    });
-
-    it("preserves non-ad content", () => {
-      const result = proxy().stripAdSegmentsMinimal(CLEAN_MEDIA_PLAYLIST);
-      expect(result).toContain("#EXTM3U");
-      expect(result).toContain("seg-42.ts");
-    });
-  });
-
-  // ========== replaceAdSegments ==========
-
-  describe("replaceAdSegments", () => {
-    it("replaces ad segment URLs with 160p segment", () => {
-      const streamInfo = {
-        channelName: "test",
-        last160pSegment: "https://replacement-segment.ts",
-        isInAdBreak: true,
-        resolutions: new Map(),
-      };
-
-      const input = `#EXTM3U
-#EXTINF:2.000,
-https://d2nvs31859zcd8.cloudfront.net/ad/segment.ts`;
-
-      const result = proxy().replaceAdSegments(input, streamInfo);
-      expect(result).toContain("https://replacement-segment.ts");
-      expect(result).not.toContain("cloudfront.net/ad/");
-    });
-
-    it("strips prefetch during ad break", () => {
-      const streamInfo = {
-        channelName: "test",
-        last160pSegment: "https://replacement.ts",
-        isInAdBreak: true,
-        resolutions: new Map(),
-      };
-
-      const input = `#EXTM3U
-#EXT-X-TWITCH-PREFETCH:https://example.com/prefetch.ts
-#EXTINF:2.000,live
-https://example.com/seg.ts`;
-
-      const result = proxy().replaceAdSegments(input, streamInfo);
-      expect(result).not.toContain("PREFETCH");
-    });
-
-    it("falls back to minimal stripping when no 160p segment available", () => {
-      const streamInfo = {
-        channelName: "test",
-        last160pSegment: null,
-        isInAdBreak: true,
-        resolutions: new Map(),
-      };
-
-      const result = proxy().replaceAdSegments(AD_MEDIA_PLAYLIST, streamInfo);
-      expect(result).not.toContain("stitched-ad");
-    });
-
-    it("increments segmentsReplaced stat", () => {
-      const streamInfo = {
-        channelName: "test",
-        last160pSegment: "https://replacement.ts",
-        isInAdBreak: false,
-        resolutions: new Map(),
-      };
-
-      const input = `#EXTM3U
-#EXTINF:2.000,
-https://d2nvs31859zcd8.cloudfront.net/ad/seg.ts`;
-
-      proxy().stats.segmentsReplaced = 0;
-      proxy().replaceAdSegments(input, streamInfo);
-      expect(proxy().stats.segmentsReplaced).toBe(1);
-    });
-  });
-
-  // ========== updateBaseline160pSegment ==========
-
-  describe("updateBaseline160pSegment", () => {
-    it("stores last live segment URL from clean playlist", () => {
-      const streamInfo = {
-        channelName: "test",
-        last160pSegment: null,
-      };
-
-      proxy().updateBaseline160pSegment(CLEAN_MEDIA_PLAYLIST, streamInfo);
-      expect(streamInfo.last160pSegment).toBe(
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/segment/source/seg-43.ts"
-      );
-    });
-
-    it("does not update from ad playlist", () => {
-      const streamInfo = {
-        channelName: "test",
-        last160pSegment: "https://old-segment.ts",
-      };
-
-      proxy().updateBaseline160pSegment(AD_MEDIA_PLAYLIST, streamInfo);
-      expect(streamInfo.last160pSegment).toBe("https://old-segment.ts");
-    });
-  });
-
   // ========== findStreamInfoByUrl ==========
 
   describe("findStreamInfoByUrl", () => {
     it("finds stream info by matching resolution URL", () => {
       const resolutions = new Map();
-      resolutions.set(
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8",
-        { resolution: "1920x1080", bandwidth: 6000000 }
-      );
+      resolutions.set("https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8", {
+        resolution: "1920x1080",
+        bandwidth: 6000000,
+      });
       proxy().streamInfos.set("test", {
         channelName: "test",
         resolutions,
@@ -514,58 +343,147 @@ https://d2nvs31859zcd8.cloudfront.net/ad/seg.ts`;
     });
 
     it("returns null when no match found", () => {
-      const result = proxy().findStreamInfoByUrl(
-        "https://unknown-url.com/test.m3u8"
-      );
+      const result = proxy().findStreamInfoByUrl("https://unknown-url.com/test.m3u8");
       expect(result).toBeNull();
     });
   });
 
-  // ========== getMatchingStreamUrl ==========
-
-  describe("getMatchingStreamUrl", () => {
-    it("finds best matching stream URL by resolution", () => {
+  describe("backup preparation", () => {
+    it("rejects lower renditions when the exact candidate contains ads", async () => {
+      const originalUrl = "https://original/source.m3u8";
       const streamInfo = {
         channelName: "test",
         resolutions: new Map([
           [
-            "https://original/source.m3u8",
+            originalUrl,
             {
               resolution: "1920x1080",
-              bandwidth: 6000000,
+              bandwidth: 6_000_000,
               codecs: "avc1.64002A",
               frameRate: 60,
             },
           ],
         ]),
+        detectionScopes: new Set(),
+        backupMastersPromise: null,
+        prewarmPromises: new Map(),
+        prewarmedCandidates: new Map(),
+        servedBackups: new Map(),
       };
-
-      const backupEncodings = `#EXTM3U
+      const backupMaster = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,CODECS="avc1.64002A",FRAME-RATE=60.000
-https://backup/source.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720,CODECS="avc1.4D401F",FRAME-RATE=30.000
+https://backup/1080p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720,CODECS="avc1.4D401F",FRAME-RATE=60.000
 https://backup/720p.m3u8`;
+      vi.spyOn(proxy(), "fetchWithRetry").mockImplementation(async (url) => ({
+        ok: true,
+        text: async () =>
+          typeof url === "string" && url.includes("1080p")
+            ? `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:42
+#EXT-X-CUE-OUT:30
+#EXTINF:2.000,
+https://backup/exact-42.ts`
+            : `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:42
+#EXTINF:2.000,live
+https://backup/fallback-42.ts`,
+      }));
 
-      const result = proxy().getMatchingStreamUrl(
-        backupEncodings,
-        "https://original/source.m3u8",
-        streamInfo
-      );
-      expect(result).toBe("https://backup/source.m3u8");
+      const result = await proxy().prepareCleanBackup(streamInfo, originalUrl, AD_MEDIA_PLAYLIST, [
+        { playerType: "embed", playlist: backupMaster },
+      ]);
+
+      expect(result).toBeNull();
+      expect(proxy().fetchWithRetry).not.toHaveBeenCalledWith("https://backup/720p.m3u8");
     });
 
-    it("returns null when original URL not in resolutions", () => {
+    it("uses a ready aligned prewarmed exact candidate without refetching", async () => {
+      const originalUrl = "https://original/source.m3u8";
+      const candidate = {
+        playerType: "popout",
+        rendition: {
+          url: "https://backup/source.m3u8",
+          resolution: "1920x1080",
+          bandwidth: 6_000_000,
+          codecs: "avc1.64002A",
+          frameRate: 60,
+        },
+        playlist: `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:42
+#EXTINF:2.000,live
+https://backup/live-42.ts`,
+      };
       const streamInfo = {
         channelName: "test",
-        resolutions: new Map(),
+        resolutions: new Map([[originalUrl, candidate.rendition]]),
+        candidateStates: new Map(),
+        servedBackups: new Map(),
       };
+      const scope = proxy().getDetectionScope(streamInfo, originalUrl);
+      streamInfo.candidateStates.set(scope, {
+        candidatePromise: null,
+        readyCandidate: candidate,
+        consecutiveMisses: 0,
+        nextRetryAt: 0,
+      });
+      const prepareSpy = vi.spyOn(proxy(), "prepareCleanBackup");
 
-      const result = proxy().getMatchingStreamUrl(
-        MASTER_PLAYLIST,
-        "https://unknown/url.m3u8",
-        streamInfo
-      );
-      expect(result).toBeNull();
+      const result = await proxy().tryGetBackupStream(streamInfo, originalUrl, AD_MEDIA_PLAYLIST);
+
+      expect(result).toBe(candidate.playlist);
+      expect(prepareSpy).not.toHaveBeenCalled();
+      expect(streamInfo.servedBackups.get(scope)).toBe(candidate);
+    });
+
+    it("does not share a ready AVC candidate with a same-size HEVC rendition", async () => {
+      const avcUrl = "https://original/avc.m3u8";
+      const hevcUrl = "https://original/hevc.m3u8";
+      const avcResolution = {
+        resolution: "1920x1080",
+        bandwidth: 6_000_000,
+        codecs: "avc1.64002A,mp4a.40.2",
+        frameRate: 60,
+      };
+      const streamInfo = {
+        channelName: "codec-test",
+        resolutions: new Map([
+          [avcUrl, avcResolution],
+          [
+            hevcUrl,
+            {
+              resolution: "1920x1080",
+              bandwidth: 7_200_000,
+              codecs: "hvc1.1.6.L120.B0,mp4a.40.2",
+              frameRate: 60,
+            },
+          ],
+        ]),
+        candidateStates: new Map(),
+        servedBackups: new Map(),
+        backupMastersPromise: new Promise(() => undefined),
+      };
+      const avcScope = proxy().getDetectionScope(streamInfo, avcUrl);
+      const candidate = {
+        playerType: "popout",
+        rendition: { ...avcResolution, url: "https://backup/avc.m3u8" },
+        playlist: `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:42
+#EXTINF:2.000,live
+https://backup/avc-42.ts`,
+      };
+      streamInfo.candidateStates.set(avcScope, {
+        candidatePromise: null,
+        readyCandidate: candidate,
+        consecutiveMisses: 0,
+        nextRetryAt: 0,
+      });
+
+      expect(proxy().getDetectionScope(streamInfo, hevcUrl)).not.toBe(avcScope);
+      await expect(
+        proxy().tryGetBackupStream(streamInfo, hevcUrl, AD_MEDIA_PLAYLIST)
+      ).resolves.toBe(null);
+      expect(streamInfo.servedBackups.size).toBe(0);
     });
   });
 
@@ -633,8 +551,7 @@ https://backup/720p.m3u8`;
 
   describe("processManifest", () => {
     it("routes master playlist through processMasterPlaylist", async () => {
-      const url =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8?allow_source=true";
+      const url = "https://usher.ttvnw.net/api/channel/hls/test.m3u8?allow_source=true";
       const result = await proxy().processManifest(url, MASTER_PLAYLIST);
 
       expect(result).toBe(MASTER_PLAYLIST);
@@ -642,16 +559,11 @@ https://backup/720p.m3u8`;
     });
 
     it("routes media playlist through processMediaPlaylist", async () => {
-      const masterUrl =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
       proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
 
-      const mediaUrl =
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
-      const result = await proxy().processManifest(
-        mediaUrl,
-        CLEAN_MEDIA_PLAYLIST
-      );
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const result = await proxy().processManifest(mediaUrl, CLEAN_MEDIA_PLAYLIST);
 
       expect(result).toContain("#EXTM3U");
     });
@@ -668,13 +580,122 @@ https://backup/720p.m3u8`;
       expect(result).toBe(CLEAN_MEDIA_PLAYLIST);
     });
 
+    it("keeps backup recovery idle until the first routed ad playlist", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/lazyproxy.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const loadSpy = vi.spyOn(proxy(), "loadBackupMasters").mockResolvedValue([]);
+
+      proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
+      await proxy().processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
+
+      expect(loadSpy).not.toHaveBeenCalled();
+
+      await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      expect(loadSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries an empty backup-master lookup after backoff and recovers a clean candidate", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/retryproxy.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,CODECS="avc1.64002A",FRAME-RATE=60.000
+https://backup.example/source.m3u8`;
+      const loadSpy = vi
+        .spyOn(proxy(), "loadBackupMasters")
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ playerType: "embed", playlist: backupMaster }]);
+      vi.spyOn(proxy(), "fetchWithRetry").mockResolvedValue({
+        ok: true,
+        text: async () => CLEAN_MEDIA_PLAYLIST.replaceAll("video-weaver.lax01", "backup"),
+      });
+
+      try {
+        proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
+        await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+        for (let index = 0; index < 10; index += 1) await Promise.resolve();
+        expect(loadSpy).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(2_000);
+        await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+        for (let index = 0; index < 20; index += 1) await Promise.resolve();
+
+        expect(loadSpy).toHaveBeenCalledTimes(2);
+        await expect(proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toContain(
+          "backup.hls.ttvnw.net/v1/segment/source/seg-42.ts"
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("returns an active ad playlist while unrelated backup preparation is pending", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/nonblocking.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      let releaseBackupMasters!: (masters: unknown[]) => void;
+      let backupMastersReleased = false;
+      const backupGate = new Promise<unknown[]>((resolve) => {
+        releaseBackupMasters = resolve;
+      });
+      const loadSpy = vi.spyOn(proxy(), "loadBackupMasters").mockReturnValue(backupGate);
+      const candidateFetchSpy = vi.spyOn(proxy(), "fetchWithRetry").mockResolvedValue({
+        ok: true,
+        text: async () => AD_MEDIA_PLAYLIST,
+      });
+
+      proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
+      const firstResult = proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+
+      try {
+        let outcome: { state: "pending" | "resolved"; playlist: string } = {
+          state: "pending",
+          playlist: "",
+        };
+        void firstResult.then((playlist: string) => {
+          outcome = { state: "resolved", playlist };
+        });
+
+        for (let index = 0; index < 10 && outcome.state === "pending"; index += 1) {
+          await Promise.resolve();
+        }
+
+        expect(outcome.state).toBe("resolved");
+        expect(outcome.playlist).toContain("ad/segment-1.ts");
+        const loadsAfterFirstPlaylist = loadSpy.mock.calls.length;
+
+        await expect(proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toContain(
+          "ad/segment-1.ts"
+        );
+        expect(loadSpy).toHaveBeenCalledTimes(loadsAfterFirstPlaylist);
+
+        releaseBackupMasters([
+          {
+            playerType: "embed",
+            playlist: `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,CODECS="avc1.64002A",FRAME-RATE=60.000
+https://backup.example/source.m3u8`,
+          },
+        ]);
+        backupMastersReleased = true;
+        await vi.waitFor(() => expect(candidateFetchSpy).toHaveBeenCalledTimes(1));
+        for (let index = 0; index < 10; index += 1) await Promise.resolve();
+        const candidateRequestsAfterMiss = candidateFetchSpy.mock.calls.length;
+
+        await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+        for (let index = 0; index < 10; index += 1) await Promise.resolve();
+        expect(candidateFetchSpy).toHaveBeenCalledTimes(candidateRequestsAfterMiss);
+      } finally {
+        if (!backupMastersReleased) releaseBackupMasters([]);
+        await firstResult;
+      }
+    });
+
     it("increments adsDetected on ad detection", async () => {
-      const masterUrl =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
       proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
 
-      const mediaUrl =
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
 
       fetchMock.mockRejectedValue(new Error("no backup"));
 
@@ -682,13 +703,52 @@ https://backup/720p.m3u8`;
       expect(proxy().stats.adsDetected).toBe(1);
     });
 
+    it("passes through ad content when no clean aligned backup exists", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/passthrough.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
+      vi.spyOn(proxy(), "tryGetBackupStream").mockResolvedValueOnce(null);
+
+      const result = await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+
+      expect(result).toContain("d2nvs31859zcd8.cloudfront.net/ad/segment-1.ts");
+      expect(result).not.toContain("data:video/");
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Service:TwitchManifest",
+        "No clean aligned backup; passing through",
+        expect.objectContaining({ outcome: "passthrough" })
+      );
+    });
+
+    it("routes cue markers through shared playlist detection", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
+      fetchMock.mockRejectedValue(new Error("no backup"));
+
+      await proxy().processMediaPlaylist(
+        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8",
+        CUE_AD_MEDIA_PLAYLIST
+      );
+
+      expect(twitchManifestProxy.getStats().adsDetected).toBe(1);
+      const diagnosticCall = vi
+        .mocked(logger.debug)
+        .mock.calls.find(([, message]) => message === "Playlist ad classification");
+      const serializedDiagnostic = JSON.stringify(diagnosticCall?.[2]);
+
+      expect(diagnosticCall?.[2]).toMatchObject({
+        captureKind: "classification",
+        verdict: "ad",
+        reasons: expect.arrayContaining(["cue-out"]),
+      });
+      expect(serializedDiagnostic).not.toMatch(/neutral\.synthetic|cue-400|token=|test:/);
+    });
+
     it("sets isInAdBreak flag on ad detection", async () => {
-      const masterUrl =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
       proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
 
-      const mediaUrl =
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
 
       fetchMock.mockRejectedValue(new Error("no backup"));
 
@@ -699,13 +759,11 @@ https://backup/720p.m3u8`;
     });
 
     it("clears isInAdBreak when ad ends", async () => {
-      const masterUrl =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
       proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
       proxy().streamInfos.get("test").isInAdBreak = true;
 
-      const mediaUrl =
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
 
       await proxy().processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
 
@@ -713,20 +771,33 @@ https://backup/720p.m3u8`;
       expect(info.isInAdBreak).toBe(false);
     });
 
+    it("keeps ad state while the next playlist is only suspected", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const suspectedHostTransition = CLEAN_MEDIA_PLAYLIST.replaceAll(
+        "video-weaver.lax01.hls.ttvnw.net",
+        "alternate-weaver.synthetic.invalid"
+      );
+      proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
+      fetchMock.mockRejectedValue(new Error("no backup"));
+
+      await proxy().processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
+      await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      await proxy().processMediaPlaylist(mediaUrl, suspectedHostTransition);
+
+      const info = proxy().streamInfos.get("test");
+      expect(info.isInAdBreak).toBe(true);
+    });
+
     it("neutralizes tracking URLs", async () => {
-      const masterUrl =
-        "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
       proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
 
-      const mediaUrl =
-        "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
 
       fetchMock.mockRejectedValue(new Error("no backup"));
 
-      const result = await proxy().processMediaPlaylist(
-        mediaUrl,
-        AD_MEDIA_PLAYLIST
-      );
+      const result = await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
       expect(result).not.toContain("tracking.twitch.tv");
     });
   });

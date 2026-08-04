@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mock the surfaces storage-service needs before importing the module.
 vi.mock("electron", () => ({
   safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (s: string) => Buffer.from(s),
-    decryptString: (b: Buffer) => b.toString("utf8"),
+    isEncryptionAvailable: () => true,
+    encryptString: vi.fn((s: string) => Buffer.from(`encrypted:${s}`)),
+    decryptString: vi.fn((b: Buffer) => b.toString("utf8").replace(/^encrypted:/, "")),
   },
 }));
 
@@ -22,6 +22,9 @@ vi.mock("electron-store", () => ({
     set(key: string, value: unknown) {
       this.data[key] = value;
     }
+    delete(key: string) {
+      delete this.data[key];
+    }
   },
 }));
 
@@ -33,14 +36,17 @@ vi.mock("@/backend/services/database-service", () => ({
     getAllFollows: vi.fn(),
     getFollowsByPlatformAndSource: vi.fn(),
     upsertSyncedFollows: vi.fn(),
+    updatePendingFollowWriteState: vi.fn(),
   },
 }));
 
 import { dbService } from "@/backend/services/database-service";
 import { storageService } from "@/backend/services/storage-service";
+import { safeStorage } from "electron";
 import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
 import {
   DEFAULT_BUFFER_PREFERENCES,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
 } from "@/shared/auth-types";
@@ -192,6 +198,75 @@ describe("storageService.updateLocalFollow", () => {
   });
 });
 
+// Guards: pending retry-state changes remain SQLite-owned behind the StorageService facade.
+describe("storageService pending follow writes", () => {
+  it("delegates retry-state updates to DatabaseService", () => {
+    vi.mocked(dbService.updatePendingFollowWriteState).mockReturnValue(true);
+
+    const result = storageService.updatePendingFollowWriteState({
+      platform: "kick",
+      channelId: "ramees",
+      slug: "ramees",
+      action: "follow",
+      status: "retrying",
+      attemptedAt: new Date("2026-07-04T03:20:01.000Z"),
+      nextAttemptAt: new Date("2026-07-04T03:20:03.000Z"),
+      attemptCount: 1,
+      lastError: "network-error",
+    });
+
+    expect(result).toBe(true);
+    expect(dbService.updatePendingFollowWriteState).toHaveBeenCalledWith({
+      platform: "kick",
+      channelId: "ramees",
+      slug: "ramees",
+      action: "follow",
+      status: "retrying",
+      attemptedAt: new Date("2026-07-04T03:20:01.000Z"),
+      nextAttemptAt: new Date("2026-07-04T03:20:03.000Z"),
+      attemptCount: 1,
+      lastError: "network-error",
+    });
+  });
+});
+
+// Guards: the legacy Twitch follow credential is encrypted separately from normal Twitch auth.
+describe("storageService Twitch follow-write token", () => {
+  it("round-trips and clears the separately encrypted token without overwriting normal auth", () => {
+    const normalToken = { accessToken: "normal-token", scope: ["user:read:follows"] };
+    const followWriteToken = {
+      accessToken: "follow-write-token",
+      scope: ["user_follows_edit"],
+    };
+    storageService.saveToken("twitch", normalToken);
+
+    storageService.saveTwitchFollowWriteToken(followWriteToken);
+
+    expect(storageService.getTwitchFollowWriteToken()).toEqual(followWriteToken);
+    expect(storageService.getToken("twitch")).toEqual(normalToken);
+    expect(vi.mocked(safeStorage.encryptString)).toHaveBeenCalledWith(
+      JSON.stringify(followWriteToken)
+    );
+
+    storageService.clearTwitchFollowWriteToken();
+
+    expect(storageService.getTwitchFollowWriteToken()).toBeNull();
+    expect(storageService.getToken("twitch")).toEqual(normalToken);
+    storageService.clearToken("twitch");
+  });
+
+  it("removes the dedicated credential when all tokens are cleared", () => {
+    storageService.saveTwitchFollowWriteToken({
+      accessToken: "follow-write-token",
+      scope: ["user_follows_edit"],
+    });
+
+    storageService.clearAllTokens();
+
+    expect(storageService.getTwitchFollowWriteToken()).toBeNull();
+  });
+});
+
 describe("storageService.getPreferences - buffer defaults migration", () => {
   it("migrates the exact legacy latency-first buffer defaults to the stable defaults", () => {
     storageService.set("preferences", {
@@ -240,6 +315,43 @@ describe("storageService.getPreferences - notification defaults migration", () =
       enabled: false,
       sound: false,
       favoriteChannelsOnly: true,
+    });
+  });
+});
+
+// Guards: legacy chat display choices must survive newly added display preferences during hydration.
+describe("storageService.getPreferences - chat display defaults migration", () => {
+  it("preserves legacy chat display choices while hydrating newly added fields", () => {
+    storageService.set("preferences", {
+      ...DEFAULT_USER_PREFERENCES,
+      chatDisplay: {
+        boldUsernames: true,
+        timestamps: true,
+        density: "compact",
+      },
+    } as typeof DEFAULT_USER_PREFERENCES);
+
+    expect(storageService.getPreferences().chatDisplay).toEqual({
+      ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+      boldUsernames: true,
+      timestamps: true,
+      density: "compact",
+    });
+  });
+
+  it("preserves explicitly disabled newly added toggles", () => {
+    storageService.set("preferences", {
+      ...DEFAULT_USER_PREFERENCES,
+      chatDisplay: {
+        hoverSmooth: false,
+        quickEmotes: false,
+      },
+    } as typeof DEFAULT_USER_PREFERENCES);
+
+    expect(storageService.getPreferences().chatDisplay).toEqual({
+      ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+      hoverSmooth: false,
+      quickEmotes: false,
     });
   });
 });

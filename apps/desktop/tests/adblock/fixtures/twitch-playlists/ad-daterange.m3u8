@@ -1,0 +1,8 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:200
+#EXT-X-DATERANGE:ID="synthetic-ad",CLASS="twitch-stitched-ad",START-DATE="2026-01-01T00:01:00.000Z",DURATION=30.000
+#EXTINF:2.000,stitched
+https://ad-cdn.synthetic.invalid/ad/segment-200.ts?token=redacted
+

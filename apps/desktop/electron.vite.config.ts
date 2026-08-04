@@ -6,6 +6,7 @@ import viteCompression from 'vite-plugin-compression';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { loadEnv } from 'vite';
 import { createBrowserDevelopmentConfig } from './src/dev-relay/config';
+import { createTwitchAdFrameProofConfig } from './src/dev-relay/twitch-ad-frame-proof-config';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -16,6 +17,21 @@ export default defineConfig(({ command, mode }) => {
         mode,
         env: { ...process.env, ...env },
     });
+    const twitchAdFrameProof = createTwitchAdFrameProofConfig({
+        command,
+        mode,
+        env: { ...process.env, ...env },
+    });
+    const rendererServer =
+        browserDevelopment.server || twitchAdFrameProof.enabled
+            ? {
+                  ...browserDevelopment.server,
+                  proxy: {
+                      ...browserDevelopment.server?.proxy,
+                      ...(twitchAdFrameProof.enabled ? { [twitchAdFrameProof.prefix]: twitchAdFrameProof.proxy } : {}),
+                  },
+              }
+            : undefined;
 
     return {
         // ========== Main Process ==========
@@ -25,7 +41,7 @@ export default defineConfig(({ command, mode }) => {
                 'process.env.TWITCH_CLIENT_ID': JSON.stringify(env.TWITCH_CLIENT_ID || ''),
                 'process.env.STREAMFUSION_WORKER_BASE_URL': JSON.stringify(env.STREAMFUSION_WORKER_BASE_URL || ''),
                 // Secrets are no longer baked in - handled by Cloudflare Worker
-                // 'process.env.TWITCH_CLIENT_SECRET': JSON.stringify(env.TWITCH_CLIENT_SECRET || ''), 
+                // 'process.env.TWITCH_CLIENT_SECRET': JSON.stringify(env.TWITCH_CLIENT_SECRET || ''),
                 'process.env.KICK_CLIENT_ID': JSON.stringify(env.KICK_CLIENT_ID || ''),
                 'process.env.STREAMFUSION_BROWSER_DEV': JSON.stringify(
                     browserDevelopment.enabled ? '1' : ''
@@ -121,7 +137,7 @@ export default defineConfig(({ command, mode }) => {
         renderer: {
             // index.html lives at project root (not src/renderer/)
             root: '.',
-            server: browserDevelopment.server,
+            server: rendererServer,
             plugins: [
                 react(),
                 svgr({

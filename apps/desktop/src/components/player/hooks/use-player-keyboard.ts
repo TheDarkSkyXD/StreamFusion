@@ -7,6 +7,8 @@ interface UsePlayerKeyboardProps {
   onVolumeDown: () => void;
   onToggleFullscreen: () => void;
   onToggleTheater?: () => void;
+  onSeekBackward?: () => void;
+  onSeekForward?: () => void;
   disabled?: boolean;
 }
 
@@ -17,6 +19,8 @@ export function usePlayerKeyboard({
   onVolumeDown,
   onToggleFullscreen,
   onToggleTheater,
+  onSeekBackward,
+  onSeekForward,
   disabled = false,
 }: UsePlayerKeyboardProps) {
   useEffect(() => {
@@ -62,6 +66,18 @@ export function usePlayerKeyboard({
           e.preventDefault();
           onVolumeDown();
           break;
+        case "arrowleft":
+          if (onSeekBackward) {
+            e.preventDefault();
+            onSeekBackward();
+          }
+          break;
+        case "arrowright":
+          if (onSeekForward) {
+            e.preventDefault();
+            onSeekForward();
+          }
+          break;
       }
     };
 
@@ -75,5 +91,7 @@ export function usePlayerKeyboard({
     onVolumeDown,
     onToggleFullscreen,
     onToggleTheater,
+    onSeekBackward,
+    onSeekForward,
   ]);
 }

@@ -1,4 +1,11 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import type { Emote } from "@/backend/services/emotes/emote-types";
 import {
@@ -15,6 +22,8 @@ import {
   getSevenTvPaintStyle,
   resolveChatUsernameColor,
 } from "@/lib/chat-visuals";
+import { getChatDensityPresentation } from "@/lib/chat-density-presentation";
+import { createCancellableSleep } from "@/lib/sleep";
 import { notifySettingsSaved } from "@/lib/settings-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -47,29 +56,247 @@ import {
 
 export type ChatSettingsGroup = "appearance" | "emotes" | "events" | "behavior";
 
+const PREFERENCE_HYDRATION_TIMEOUT_MS = 10_000;
+
+let chatDisplayPersistenceQueue: Promise<void> | undefined;
+let nextChatDisplayRevision = 0;
+let unsubscribeFromOptimisticChatDisplay: (() => void) | undefined;
+let optimisticChatDisplaySnapshot: Partial<ChatDisplayPreferences> = {};
+
+const optimisticChatDisplayListeners = new Set<() => void>();
+
+type PendingChatDisplayChange = {
+  revision: number;
+  value: ChatDisplayPreferences[keyof ChatDisplayPreferences];
+};
+
+const pendingChatDisplayChanges: Partial<
+  Record<keyof ChatDisplayPreferences, PendingChatDisplayChange>
+> = {};
+
+type ChatDisplayChangeSnapshot = Partial<
+  Record<keyof ChatDisplayPreferences, PendingChatDisplayChange>
+>;
+
+function subscribeToOptimisticChatDisplay(listener: () => void): () => void {
+  optimisticChatDisplayListeners.add(listener);
+  return () => optimisticChatDisplayListeners.delete(listener);
+}
+
+function getOptimisticChatDisplaySnapshot(): Partial<ChatDisplayPreferences> {
+  return optimisticChatDisplaySnapshot;
+}
+
+function emitOptimisticChatDisplay(): void {
+  for (const listener of optimisticChatDisplayListeners) listener();
+}
+
+function withChatDisplayField<K extends keyof ChatDisplayPreferences>(
+  chatDisplay: ChatDisplayPreferences,
+  field: K,
+  value: ChatDisplayPreferences[K]
+): ChatDisplayPreferences {
+  return { ...chatDisplay, [field]: value };
+}
+
+function reconcileOptimisticChatDisplay(): void {
+  const preferences = useAuthStore.getState().preferences;
+  if (!preferences) return;
+
+  let reconciled = preferences.chatDisplay;
+  for (const field of Object.keys(pendingChatDisplayChanges) as (keyof ChatDisplayPreferences)[]) {
+    const pending = pendingChatDisplayChanges[field];
+    if (!pending || Object.is(reconciled[field], pending.value)) continue;
+    reconciled = withChatDisplayField(reconciled, field, pending.value);
+  }
+
+  if (reconciled === preferences.chatDisplay) return;
+  useAuthStore.setState({ preferences: { ...preferences, chatDisplay: reconciled } });
+}
+
+function publishOptimisticChatDisplay<K extends keyof ChatDisplayPreferences>(
+  field: K,
+  value: ChatDisplayPreferences[K]
+): void {
+  const preferences = useAuthStore.getState().preferences;
+  const revision = ++nextChatDisplayRevision;
+  pendingChatDisplayChanges[field] = { revision, value };
+  if (
+    !preferences ||
+    Object.prototype.hasOwnProperty.call(optimisticChatDisplaySnapshot, field)
+  ) {
+    optimisticChatDisplaySnapshot = { ...optimisticChatDisplaySnapshot, [field]: value };
+    emitOptimisticChatDisplay();
+  }
+
+  if (!unsubscribeFromOptimisticChatDisplay && typeof useAuthStore.subscribe === "function") {
+    unsubscribeFromOptimisticChatDisplay = useAuthStore.subscribe(() => {
+      reconcileOptimisticChatDisplay();
+    });
+  }
+
+  if (preferences && typeof useAuthStore.setState === "function") {
+    useAuthStore.setState({
+      preferences: {
+        ...preferences,
+        chatDisplay: withChatDisplayField(preferences.chatDisplay, field, value),
+      },
+    });
+  }
+}
+
+function snapshotPendingChatDisplayChanges(): ChatDisplayChangeSnapshot {
+  const changes: ChatDisplayChangeSnapshot = {};
+  for (const field of Object.keys(pendingChatDisplayChanges) as (keyof ChatDisplayPreferences)[]) {
+    const pending = pendingChatDisplayChanges[field];
+    if (pending) changes[field] = pending;
+  }
+  return changes;
+}
+
+function getChatDisplayChangeValues(
+  changes: ChatDisplayChangeSnapshot
+): Partial<ChatDisplayPreferences> {
+  let values: Partial<ChatDisplayPreferences> = {};
+  for (const field of Object.keys(changes) as (keyof ChatDisplayPreferences)[]) {
+    const change = changes[field];
+    if (change) values = { ...values, [field]: change.value };
+  }
+  return values;
+}
+
+function clearPersistedChatDisplay(changes: ChatDisplayChangeSnapshot): void {
+  let nextSnapshot = optimisticChatDisplaySnapshot;
+
+  for (const field of Object.keys(changes) as (keyof ChatDisplayPreferences)[]) {
+    const persisted = changes[field];
+    const pending = pendingChatDisplayChanges[field];
+    if (
+      !persisted ||
+      pending?.revision !== persisted.revision ||
+      !Object.is(pending.value, persisted.value)
+    ) {
+      continue;
+    }
+    delete pendingChatDisplayChanges[field];
+    if (Object.prototype.hasOwnProperty.call(nextSnapshot, field)) {
+      if (nextSnapshot === optimisticChatDisplaySnapshot) {
+        nextSnapshot = { ...optimisticChatDisplaySnapshot };
+      }
+      delete nextSnapshot[field];
+    }
+  }
+
+  if (nextSnapshot !== optimisticChatDisplaySnapshot) {
+    optimisticChatDisplaySnapshot = nextSnapshot;
+    emitOptimisticChatDisplay();
+  }
+
+  if (Object.keys(pendingChatDisplayChanges).length === 0) {
+    unsubscribeFromOptimisticChatDisplay?.();
+    unsubscribeFromOptimisticChatDisplay = undefined;
+  }
+}
+
+function waitForPreferenceHydration(): Promise<"ready" | "unavailable"> {
+  const state = useAuthStore.getState();
+  if (state.preferences) return Promise.resolve("ready");
+  if (state.initialized) return Promise.resolve("unavailable");
+
+  const deadline = createCancellableSleep(PREFERENCE_HYDRATION_TIMEOUT_MS);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let unsubscribe: () => void = () => undefined;
+
+    const settle = (result: "ready" | "unavailable") => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      deadline.cancel();
+      resolve(result);
+    };
+
+    unsubscribe = useAuthStore.subscribe((nextState) => {
+      if (nextState.preferences) settle("ready");
+      else if (nextState.initialized) settle("unavailable");
+    });
+
+    void deadline.result.then((result) => {
+      if (result.ok) settle("unavailable");
+    });
+
+    const latestState = useAuthStore.getState();
+    if (latestState.preferences) settle("ready");
+    else if (latestState.initialized) settle("unavailable");
+  });
+}
+
 // ───────────────────────────── shared writer hook ─────────────────────────────
 
 /**
  * Resolves the current `chatDisplay` group (falling back to defaults) and
- * returns a `set` writer that persists a single-field patch with the spread
- * preserved. The optional `onSaved` fires after a successful write (the
- * Settings groups pass `notifySettingsSaved`; the in-chat gear omits it).
+ * returns a `set` writer that immediately presents and serially persists a
+ * single-field patch with the spread preserved. Writes made before preference
+ * hydration wait for authoritative state. The optional `onSaved` fires after a
+ * successful write (the Settings groups pass `notifySettingsSaved`; the
+ * in-chat gear omits it).
  */
 export function useChatDisplay(onSaved?: () => void) {
   const storedChatDisplay = useAuthStore((s) => s.preferences?.chatDisplay);
-  const cd = { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...(storedChatDisplay ?? {}) };
+  const optimisticChatDisplay = useSyncExternalStore(
+    subscribeToOptimisticChatDisplay,
+    getOptimisticChatDisplaySnapshot,
+    getOptimisticChatDisplaySnapshot
+  );
+  const cd = {
+    ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+    ...(storedChatDisplay ?? {}),
+    ...optimisticChatDisplay,
+  };
   const updatePreferences = useAuthStore((s) => s.updatePreferences);
   // Read full prefs lazily inside the writer so the freshest sibling groups are
   // spread (avoids stomping a concurrent write to another group).
 
   const set = useCallback(
-    async <K extends keyof ChatDisplayPreferences>(field: K, value: ChatDisplayPreferences[K]) => {
-      const current =
-        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
-      await updatePreferences({
-        chatDisplay: { ...DEFAULT_CHAT_DISPLAY_PREFERENCES, ...current, [field]: value },
+    <K extends keyof ChatDisplayPreferences>(field: K, value: ChatDisplayPreferences[K]) => {
+      publishOptimisticChatDisplay(field, value);
+      const changesToPersist = snapshotPendingChatDisplayChanges();
+
+      const persist = async () => {
+        let state = useAuthStore.getState();
+        if (!state.preferences) {
+          const hydration = await waitForPreferenceHydration();
+          if (hydration !== "ready") return;
+          state = useAuthStore.getState();
+        }
+        if (!state.preferences) return;
+
+        const result = await updatePreferences({
+          chatDisplay: {
+            ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
+            ...state.preferences.chatDisplay,
+            ...getChatDisplayChangeValues(changesToPersist),
+          },
+        });
+        if (result?.success === false) return;
+        clearPersistedChatDisplay(changesToPersist);
+        onSaved?.();
+      };
+
+      const write = chatDisplayPersistenceQueue
+        ? chatDisplayPersistenceQueue.then(persist)
+        : persist();
+
+      const settledWrite = write.then(
+        () => undefined,
+        () => undefined
+      );
+      chatDisplayPersistenceQueue = settledWrite;
+      void settledWrite.then(() => {
+        if (chatDisplayPersistenceQueue === settledWrite) chatDisplayPersistenceQueue = undefined;
       });
-      onSaved?.();
+      return write;
     },
     [updatePreferences, onSaved]
   );
@@ -466,6 +693,7 @@ function SampleEmote({
 }
 
 function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
+  const densityPresentation = getChatDensityPresentation(cd.density);
   const uncoloredUsernameColor = resolveChatUsernameColor({
     platform: "twitch",
     readableColorForUncolored: cd.readableColorForUncolored,
@@ -483,11 +711,11 @@ function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
   return (
     <PreviewFrame testId="appearance-chat-preview">
       <div
-        className={cn("space-y-1 px-3 text-zinc-200", cd.density === "compact" ? "py-1.5" : "py-3")}
+        className="px-3 text-zinc-200"
         data-density={cd.density}
         style={{ fontSize: `${cd.fontSizePx}px`, lineHeight: 1.35 }}
       >
-        <div className="flex items-center gap-1.5">
+        <div className={cn("flex items-center gap-1.5", densityPresentation.rowPaddingClass)}>
           {cd.timestamps && (
             <span className="shrink-0 text-[0.75em] tabular-nums text-zinc-500">
               {formatChatTimestamp(SAMPLE_CHAT_TIME, cd.timestampFormat)}
@@ -499,7 +727,7 @@ function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
           <span className="min-w-0 truncate">This chat setup feels right</span>
           <SampleEmote emote={CHAT_PREVIEW_FALLBACK_EMOTES["7tv"]} size={cd.emoteSizePx} />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className={cn("flex items-center gap-1.5", densityPresentation.rowPaddingClass)}>
           <span
             className="font-bold"
             data-preview-adapted-color="true"
@@ -765,8 +993,9 @@ function AppearanceGroup() {
         label="Density"
         value={cd.density}
         options={[
-          { value: "cozy", label: "Cozy" },
-          { value: "compact", label: "Compact" },
+          { value: "compact", label: "Tight" },
+          { value: "cozy", label: "Medium" },
+          { value: "loose", label: "Loose" },
         ]}
         onChange={(v) => set("density", v)}
       />

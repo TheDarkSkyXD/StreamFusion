@@ -6,6 +6,8 @@ import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
+import { useDockedPlayerConfig } from "../persistent-player-shell";
+import { qualityLevelToPreference } from "../quality-preference";
 import { useFullscreen } from "../hooks/use-fullscreen";
 import { useLocalLiveCaptions } from "../hooks/use-local-live-captions";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
@@ -49,6 +51,9 @@ export interface KickLivePlayerProps {
   compact?: boolean;
 }
 
+const NO_QUALITY_LEVELS: QualityLevel[] = [];
+const ignoreQualityChange = () => {};
+
 export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
   function KickLivePlayer(props, forwardedVideoRef) {
     useRenderCount("KickLivePlayer");
@@ -70,6 +75,8 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
       startedAt,
       compact = false,
     } = props;
+    const isDockedChannelSurface = useDockedPlayerConfig() !== null;
+    const shouldApplySavedQuality = isDockedChannelSurface;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -116,7 +123,7 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
     const [isReady, setIsReady] = useState(false);
     const [isPlaying, setIsPlaying] = useState(autoPlay);
     const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
-    const [currentQualityId, setCurrentQualityId] = useState<string>("auto");
+    const [activeQualityId, setActiveQualityId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [hasError, setHasError] = useState(false);
@@ -129,8 +136,29 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
     }, []);
     usePlayerNetworkRecovery(hasError, recoverFromNetworkError);
 
-    // Apply user's default quality preference
-    useDefaultQuality(availableQualities, currentQualityId, setCurrentQualityId);
+    const defaultQualityResult = useDefaultQuality(NO_QUALITY_LEVELS, "auto", ignoreQualityChange);
+    const defaultQuality = defaultQualityResult?.defaultQuality ?? "auto";
+
+    const qualitySessionKey = channelName || streamUrl;
+    const [qualityPreference, setQualityPreference] = useState<string | null>(() =>
+      shouldApplySavedQuality ? String(defaultQuality) : null
+    );
+    const qualitySessionKeyRef = useRef(qualitySessionKey);
+    const hasSeededSavedQualityRef = useRef(shouldApplySavedQuality);
+    useEffect(() => {
+      if (qualitySessionKeyRef.current !== qualitySessionKey) {
+        qualitySessionKeyRef.current = qualitySessionKey;
+        hasSeededSavedQualityRef.current = shouldApplySavedQuality;
+        setQualityPreference(shouldApplySavedQuality ? String(defaultQuality) : null);
+        setActiveQualityId(null);
+        return;
+      }
+
+      if (shouldApplySavedQuality && !hasSeededSavedQualityRef.current) {
+        hasSeededSavedQualityRef.current = true;
+        setQualityPreference(String(defaultQuality));
+      }
+    }, [defaultQuality, qualitySessionKey, shouldApplySavedQuality]);
 
     // Reset error/ready state on mount (original effect)
     useEffect(() => {
@@ -283,6 +311,7 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
     const handleQualityLevels = useCallback(
       (levels: QualityLevel[]) => {
         setAvailableQualities(levels);
+        setActiveQualityId(null);
         if (!isReady) {
           setIsReady(true);
           // Only stop loading immediately if we are NOT auto-playing
@@ -298,10 +327,22 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
 
     const handleQualitySet = useCallback(
       (id: string) => {
-        setCurrentQualityId(id);
+        const level = availableQualities.find((qualityLevel) => qualityLevel.id === id);
+        if (!level) return;
+        setQualityPreference(qualityLevelToPreference(level));
+        const hls = hlsRef.current;
+        if (hls) {
+          if (id === "auto") {
+            hls.currentLevel = -1;
+          } else {
+            const levelIndex = Number.parseInt(id, 10);
+            if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < hls.levels.length) {
+              hls.currentLevel = levelIndex;
+            }
+          }
+        }
         if (onQualityChange) {
-          const level = availableQualities.find((q) => q.id === id);
-          if (level) onQualityChange(level);
+          onQualityChange(level);
         }
       },
       [availableQualities, onQualityChange]
@@ -351,8 +392,11 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
             poster={poster}
             muted={isMuted}
             autoPlay={autoPlay}
-            currentLevel={currentQualityId}
+            preferredQuality={
+              shouldApplySavedQuality && !compact ? (qualityPreference ?? undefined) : undefined
+            }
             onQualityLevels={handleQualityLevels}
+            onActiveQualityChange={setActiveQualityId}
             onError={(error) => {
               logger.error("Player:Kick:Live", "player error", { error });
               setHasError(true);
@@ -397,7 +441,7 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
             volume={volume}
             muted={isMuted}
             qualities={availableQualities}
-            currentQualityId={currentQualityId}
+            currentQualityId={activeQualityId ?? "auto"}
             isFullscreen={isFullscreen}
             onTogglePlay={togglePlay}
             onToggleMute={toggleMute}

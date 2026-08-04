@@ -68,7 +68,11 @@ export type StreamRecordingRecoveryExhaustion =
 export interface StreamRecordingRequest {
   platform: Platform;
   channelName: string;
+  /** Stable provider identity for the currently live Stream. */
+  streamId?: string;
   title: string;
+  /** Renderer-selected preference; the recorder resolves it to the nearest live variant. */
+  desiredQuality?: StreamRecordingQuality | null;
 }
 
 export interface StreamRecordingSession extends StreamRecordingRequest {
@@ -187,6 +191,12 @@ export type StreamRecordingStartResult =
       activeRecording: ActiveStreamRecording;
     }
   | { success: false; outcome: "failed"; error: string };
+
+export interface StreamRecordingActionResult {
+  success: boolean;
+  code?: "stream-changed" | "stream-unavailable";
+  error?: string;
+}
 
 export type StreamRecordingRecoveryActionResult =
   | { success: true }

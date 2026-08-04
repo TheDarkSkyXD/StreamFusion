@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { APP_DATA_CACHE_POLICIES, getQueryCacheOptions } from "./cache-policy";
 
 // Guards: app-data cache behavior must be tiered by surface instead of collapsing into one global TTL.
+// Guards: every cache-policy branch exposes an explicit no-polling shape so query consumers can preserve their cadence without narrowing a partial union.
 describe("app data cache policy", () => {
   it("defines distinct tiers for remote browsing data and local persisted state", () => {
     expect(APP_DATA_CACHE_POLICIES.followedStreamStatus).toMatchObject({
@@ -52,6 +53,8 @@ describe("app data cache policy", () => {
     expect(getQueryCacheOptions("localUserState")).toEqual({
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,
+      refetchInterval: undefined,
+      refetchIntervalInBackground: false,
     });
   });
 });

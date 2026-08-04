@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { usePlayerKeyboard } from "@/components/player/hooks/use-player-keyboard";
 
@@ -13,8 +13,13 @@ function fireKey(key: string, target?: HTMLElement) {
     Object.defineProperty(event, "target", { value: target, writable: false });
   }
   window.dispatchEvent(event);
+  return event;
 }
 
+// Guards: finite-media players can bind platform-neutral backward and forward seek actions.
+// Guards: seek shortcuts cannot fire while an interactive control owns the keyboard event.
+// Guards: disabled players cannot respond to configured seek shortcuts.
+// Guards: unconfigured seek directions remain available to live players and global navigation.
 describe("usePlayerKeyboard", () => {
   const callbacks = {
     onTogglePlay: vi.fn(),
@@ -23,6 +28,8 @@ describe("usePlayerKeyboard", () => {
     onVolumeDown: vi.fn(),
     onToggleFullscreen: vi.fn(),
     onToggleTheater: vi.fn(),
+    onSeekBackward: vi.fn(),
+    onSeekForward: vi.fn(),
   };
 
   beforeEach(() => {
@@ -71,6 +78,65 @@ describe("usePlayerKeyboard", () => {
     expect(callbacks.onVolumeDown).toHaveBeenCalledTimes(1);
   });
 
+  it("seeks backward on ArrowLeft when the player provides that action", () => {
+    renderHook(() => usePlayerKeyboard(callbacks));
+    fireKey("ArrowLeft");
+    expect(callbacks.onSeekBackward).toHaveBeenCalledTimes(1);
+  });
+
+  it("seeks forward on ArrowRight when the player provides that action", () => {
+    renderHook(() => usePlayerKeyboard(callbacks));
+    fireKey("ArrowRight");
+    expect(callbacks.onSeekForward).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves seek arrows with an interactive control", () => {
+    renderHook(() => usePlayerKeyboard(callbacks));
+    const button = document.createElement("button");
+
+    const backwardEvent = fireKey("ArrowLeft", button);
+    const forwardEvent = fireKey("ArrowRight", button);
+
+    expect(callbacks.onSeekBackward).not.toHaveBeenCalled();
+    expect(callbacks.onSeekForward).not.toHaveBeenCalled();
+    expect(backwardEvent.defaultPrevented).toBe(false);
+    expect(forwardEvent.defaultPrevented).toBe(false);
+  });
+
+  it("does not seek when keyboard shortcuts are disabled", () => {
+    renderHook(() => usePlayerKeyboard({ ...callbacks, disabled: true }));
+
+    const backwardEvent = fireKey("ArrowLeft");
+    const forwardEvent = fireKey("ArrowRight");
+
+    expect(callbacks.onSeekBackward).not.toHaveBeenCalled();
+    expect(callbacks.onSeekForward).not.toHaveBeenCalled();
+    expect(backwardEvent.defaultPrevented).toBe(false);
+    expect(forwardEvent.defaultPrevented).toBe(false);
+  });
+
+  it("consumes only ArrowLeft when only backward seek is configured", () => {
+    const { onSeekForward: _onSeekForward, ...backwardOnlyCallbacks } = callbacks;
+    renderHook(() => usePlayerKeyboard(backwardOnlyCallbacks));
+
+    const backwardEvent = fireKey("ArrowLeft");
+    const forwardEvent = fireKey("ArrowRight");
+
+    expect(backwardEvent.defaultPrevented).toBe(true);
+    expect(forwardEvent.defaultPrevented).toBe(false);
+  });
+
+  it("consumes only ArrowRight when only forward seek is configured", () => {
+    const { onSeekBackward: _onSeekBackward, ...forwardOnlyCallbacks } = callbacks;
+    renderHook(() => usePlayerKeyboard(forwardOnlyCallbacks));
+
+    const backwardEvent = fireKey("ArrowLeft");
+    const forwardEvent = fireKey("ArrowRight");
+
+    expect(backwardEvent.defaultPrevented).toBe(false);
+    expect(forwardEvent.defaultPrevented).toBe(true);
+  });
+
   it("does not fire when disabled", () => {
     renderHook(() => usePlayerKeyboard({ ...callbacks, disabled: true }));
     fireKey("k");
@@ -103,21 +169,30 @@ describe("usePlayerKeyboard", () => {
   });
 
   it.each([
-    ["link", () => {
-      const link = document.createElement("a");
-      link.href = "https://example.test";
-      return link;
-    }],
-    ["button role", () => {
-      const control = document.createElement("div");
-      control.setAttribute("role", "button");
-      return control;
-    }],
-    ["link role", () => {
-      const control = document.createElement("div");
-      control.setAttribute("role", "link");
-      return control;
-    }],
+    [
+      "link",
+      () => {
+        const link = document.createElement("a");
+        link.href = "https://example.test";
+        return link;
+      },
+    ],
+    [
+      "button role",
+      () => {
+        const control = document.createElement("div");
+        control.setAttribute("role", "button");
+        return control;
+      },
+    ],
+    [
+      "link role",
+      () => {
+        const control = document.createElement("div");
+        control.setAttribute("role", "link");
+        return control;
+      },
+    ],
   ])("ignores key events from an interactive %s", (_name, createTarget) => {
     renderHook(() => usePlayerKeyboard(callbacks));
     fireKey("k", createTarget());

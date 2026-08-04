@@ -43,6 +43,7 @@ import { StreamInfo } from "@/components/stream/stream-info";
 // Guards: offline channel metadata turns a valid last-live timestamp into readable relative time.
 // Guards: offline channel metadata hides missing or malformed values instead of showing fabricated placeholders.
 // Guards: a non-live stream payload uses offline metadata, while a live payload retains title, category, and viewer stats.
+// Guards: the live recording action sits immediately before Follow in the Stream action row.
 describe("StreamInfo", () => {
   beforeEach(() => {
     authMock.useUserInfo.mockReturnValue({
@@ -187,6 +188,21 @@ describe("StreamInfo", () => {
     expect(screen.getByText("1.2K")).toBeInTheDocument();
     expect(screen.queryByText("999 followers")).not.toBeInTheDocument();
     expect(screen.queryByText(/Last live/i)).not.toBeInTheDocument();
+  });
+
+  it("places the recording action immediately left of Follow", () => {
+    renderWithProviders(
+      <StreamInfo
+        channel={fixtures.channel()}
+        stream={fixtures.stream({ isLive: true })}
+        isLoading={false}
+        recordingAction={<button type="button">Record</button>}
+      />
+    );
+
+    const record = screen.getByRole("button", { name: "Record" });
+    const follow = screen.getByRole("button", { name: "Follow" });
+    expect(record.nextElementSibling).toBe(follow);
   });
 
   it("renders owner Kick profile with followers instead of follow action or stream metadata", () => {

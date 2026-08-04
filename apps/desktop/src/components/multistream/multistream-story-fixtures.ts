@@ -1,5 +1,5 @@
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import type { MultiStreamConfig } from "@/store/multistream-store";
+import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
+import type { FavoriteStreamRef, MultiStreamConfig } from "@/store/multistream-store";
 import { useMultiStreamStore } from "@/store/multistream-store";
 
 export const multistreamFixtures: MultiStreamConfig[] = [
@@ -51,7 +51,7 @@ const channelByName: Record<string, UnifiedChannel> = Object.fromEntries(
       displayName: channelDisplayNames[index],
       avatarUrl: channelAvatarUrls[index],
       bio: "Storybook channel fixture",
-      isLive: false,
+      isLive: index < 2,
       isVerified: index === 0,
       isPartner: index === 0,
       followerCount: 48_000 - index * 7_000,
@@ -62,6 +62,36 @@ const channelByName: Record<string, UnifiedChannel> = Object.fromEntries(
   ])
 );
 
+export const liveFavoriteFixtures: UnifiedStream[] = multistreamFixtures
+  .slice(0, 2)
+  .map((stream, index) => ({
+    id: `live-story-${index + 1}`,
+    platform: stream.platform,
+    channelId: `channel-story-${index + 1}`,
+    channelName: stream.channelName,
+    channelDisplayName: channelDisplayNames[index],
+    channelAvatar: channelAvatarUrls[index],
+    title: index === 0 ? "Road to Radiant" : "Building a tiny ceramic city",
+    viewerCount: index === 0 ? 18_420 : 3_810,
+    thumbnailUrl: "",
+    isLive: true,
+    startedAt: "2026-08-02T18:00:00.000Z",
+    language: "en",
+    tags: [],
+    categoryId: "516575",
+    categoryName: index === 0 ? "VALORANT" : "Makers & Crafting",
+  }));
+
+export const multistreamFavoriteFixtures: FavoriteStreamRef[] = liveFavoriteFixtures.map(
+  (stream) => ({
+    platform: stream.platform,
+    channelId: stream.channelId,
+    channelName: stream.channelName,
+    displayName: stream.channelDisplayName,
+    avatarUrl: stream.channelAvatar,
+  })
+);
+
 export function installMultistreamMocks() {
   window.electronAPI.channels.getByUsername = async ({ username }) => ({
     success: true,
@@ -70,6 +100,18 @@ export function installMultistreamMocks() {
   window.electronAPI.streams.getPlaybackUrl = async () => ({
     success: false,
     error: "Channel is offline",
+  });
+  window.electronAPI.streams.getByChannel = async ({ username }) => ({
+    success: true,
+    data: liveFavoriteFixtures.find((stream) => stream.channelName === username) ?? null,
+  });
+  window.electronAPI.search.channels = async ({ query, platform }) => ({
+    success: true,
+    data: Object.values(channelByName).filter(
+      (channel) =>
+        channel.platform === platform &&
+        channel.displayName.toLowerCase().includes(query.toLowerCase())
+    ),
   });
   window.electronAPI.slot.isWcvEnabled = async () => false;
   window.electronAPI.slot.rebindExistingSlots = async () => undefined;
@@ -84,12 +126,14 @@ export function resetMultistreamStore({
   focusedStreamId = null,
   chatStreamId = streams[0]?.id ?? null,
   multiviewCap = 6,
+  favoriteStreams = [],
 }: {
   streams?: MultiStreamConfig[];
   layout?: "grid" | "focus";
   focusedStreamId?: string | null;
   chatStreamId?: string | null;
   multiviewCap?: number;
+  favoriteStreams?: FavoriteStreamRef[];
 } = {}) {
   useMultiStreamStore.setState({
     streams,
@@ -98,6 +142,7 @@ export function resetMultistreamStore({
     chatStreamId,
     isChatOpen: true,
     multiviewCap,
+    favoriteStreams,
     backgroundQuality: "auto-low",
   });
 }

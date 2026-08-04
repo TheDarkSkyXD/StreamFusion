@@ -7,15 +7,21 @@ const {
   setPermissionCheckHandler,
   setPermissionRequestHandler,
   setWindowOpenHandler,
+  focusWindow,
+  getUserAgent,
+  showWindow,
   windowHandlers,
   webContentsHandlers,
 } = vi.hoisted(() => ({
   browserWindowOptions: [] as Array<Record<string, unknown>>,
   closeWindow: vi.fn(),
-  loadURL: vi.fn(async () => undefined),
+  loadURL: vi.fn(async (_url: string, _options?: { userAgent?: string }) => undefined),
   setPermissionCheckHandler: vi.fn(),
   setPermissionRequestHandler: vi.fn(),
   setWindowOpenHandler: vi.fn(),
+  focusWindow: vi.fn(),
+  getUserAgent: vi.fn(() => "Mozilla/5.0 Chrome/140.0.0.0 Safari/537.36 Electron/40.0.0"),
+  showWindow: vi.fn(),
   windowHandlers: new Map<string, (...args: unknown[]) => void>(),
   webContentsHandlers: new Map<string, (...args: unknown[]) => void>(),
 }));
@@ -24,7 +30,8 @@ vi.mock("electron", () => ({
   BrowserWindow: class MockBrowserWindow {
     isDestroyed = vi.fn(() => false);
     close = closeWindow;
-    show = vi.fn();
+    focus = focusWindow;
+    show = showWindow;
     loadURL = loadURL;
     once = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       windowHandlers.set(event, handler);
@@ -37,7 +44,7 @@ vi.mock("electron", () => ({
         webContentsHandlers.set(event, handler);
       }),
       setWindowOpenHandler,
-      session: { setPermissionCheckHandler, setPermissionRequestHandler },
+      session: { getUserAgent, setPermissionCheckHandler, setPermissionRequestHandler },
     };
 
     constructor(options: Record<string, unknown>) {
@@ -58,6 +65,9 @@ beforeEach(() => {
   setWindowOpenHandler.mockClear();
   setPermissionCheckHandler.mockClear();
   setPermissionRequestHandler.mockClear();
+  focusWindow.mockClear();
+  getUserAgent.mockClear();
+  showWindow.mockClear();
 });
 
 // Guards: Twitch device authorization opens only in a locked-down, top-level popup.
@@ -79,8 +89,33 @@ describe("Twitch device authorization popup", () => {
     expect(browserWindowOptions[0]?.webPreferences).not.toHaveProperty("preload");
     expect(browserWindowOptions[0]).not.toHaveProperty("parent");
     expect(loadURL).toHaveBeenCalledWith(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
+      expect.any(Object)
+    );
+  });
+
+  it("shows and focuses the authorization popup after loading when ready-to-show was missed", async () => {
+    await twitchDeviceAuthWindow.open(
       "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
     );
+
+    expect(showWindow).toHaveBeenCalledTimes(1);
+    expect(focusWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads Twitch activation without identifying the popup as Electron", async () => {
+    await twitchDeviceAuthWindow.open(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    );
+
+    expect(loadURL).toHaveBeenCalledWith(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
+      {
+        userAgent: expect.stringContaining("Chrome/"),
+      }
+    );
+    const loadOptions = loadURL.mock.calls[0]?.[1] as { userAgent?: string } | undefined;
+    expect(loadOptions?.userAgent).not.toContain("Electron/");
   });
 
   it("denies permission requests from the Twitch authorization page", async () => {
@@ -136,10 +171,72 @@ describe("Twitch device authorization popup", () => {
     expect(twitchEvent.preventDefault).not.toHaveBeenCalled();
   });
 
+  it("allows Twitch's activation authorization origin after device activation", async () => {
+    await twitchDeviceAuthWindow.open(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    );
+    const navigate = webContentsHandlers.get("will-navigate");
+    const event = { preventDefault: vi.fn() };
+
+    navigate?.(event, "https://auth.twitch.tv/authorize");
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("allows Twitch's OAuth service after the activation handoff", async () => {
+    await twitchDeviceAuthWindow.open(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    );
+    const navigate = webContentsHandlers.get("will-navigate");
+    const event = { preventDefault: vi.fn() };
+
+    navigate?.(event, "https://id.twitch.tv/oauth2/authorize");
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("allows Twitch's Google sign-in handoff to complete private authentication", async () => {
+    await twitchDeviceAuthWindow.open(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    );
+    const navigate = webContentsHandlers.get("will-navigate");
+    const event = { preventDefault: vi.fn() };
+
+    navigate?.(event, "https://accounts.google.com/signin/oauth");
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("allows Twitch's registered loopback callback to complete device authorization", async () => {
+    await twitchDeviceAuthWindow.open(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    );
+    const navigate = webContentsHandlers.get("will-navigate");
+    const event = { preventDefault: vi.fn() };
+
+    navigate?.(event, "http://localhost:8765/auth/twitch/callback");
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("closes promptly when Twitch reaches the registered completion callback", async () => {
+    await twitchDeviceAuthWindow.open(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    );
+    const redirect = webContentsHandlers.get("will-redirect");
+    closeWindow.mockClear();
+
+    redirect?.({}, "http://localhost:8765/auth/twitch/callback");
+
+    expect(closeWindow).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     "https://attacker.example/login",
     "https://user@www.twitch.tv/login",
     "https://www.twitch.tv:444/login",
+    "http://localhost:8765/not-the-auth-callback",
+    "http://localhost:8766/auth/twitch/callback",
   ])("blocks an unsafe redirect target: %s", async (targetUrl) => {
     await twitchDeviceAuthWindow.open(
       "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"

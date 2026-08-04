@@ -170,11 +170,6 @@ export const ContextualEmoteRow: React.FC<ContextualEmoteRowProps> = ({
         });
         return;
       }
-      if (event.key === "Tab" || event.key === "Enter") {
-        event.preventDefault();
-        const selected = suggestions[safeSelectedIndex];
-        if (selected) select(selected);
-      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
@@ -182,8 +177,6 @@ export const ContextualEmoteRow: React.FC<ContextualEmoteRowProps> = ({
     keyboardActive,
     match,
     onClose,
-    safeSelectedIndex,
-    select,
     suggestionIdentityKey,
     suggestions,
   ]);
@@ -204,7 +197,7 @@ export const ContextualEmoteRow: React.FC<ContextualEmoteRowProps> = ({
     ? "Loading emote suggestions"
     : suggestions.length === 0
       ? "No matching emotes"
-      : `${suggestions.length} emote suggestions. ${announcedSelection.name} from ${formatProvider(announcedSelection.provider)} selected, identity ${announcedSelection.provider}:${announcedSelection.id}. Enter to insert.`;
+      : `${suggestions.length} emote suggestions. ${announcedSelection.name} from ${formatProvider(announcedSelection.provider)} selected, identity ${announcedSelection.provider}:${announcedSelection.id}. Click to insert.`;
 
   return (
     <div

@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalFollow, Platform } from "@/shared/auth-types";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { createIsolatedDatabaseTestLifecycle } from "../../../helpers/database-test-lifecycle";
 
 // Capture ipcMain.handle registrations so we can invoke the FOLLOWS_ADD
 // handler directly. storage-service is fully mocked — we only assert how the
 // handler routes `source` based on per-platform token presence.
 vi.mock("electron", () => ({
+  app: { getPath: vi.fn() },
   ipcMain: { handle: vi.fn() },
 }));
 
@@ -23,17 +25,25 @@ vi.mock("@/backend/services/storage-service", () => ({
 vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getChannelsByBroadcasterIds: vi.fn(),
+    getPublicChannel: vi.fn(),
   },
 }));
 
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { registerStorageHandlers } from "@/backend/ipc/handlers/storage-handlers";
+import { dbService } from "@/backend/services/database-service";
 import { storageService } from "@/backend/services/storage-service";
 
 type AddArgs = { follow: Omit<LocalFollow, "id" | "followedAt"> };
 type Handler = (event: unknown, args?: unknown) => unknown;
+
+const databaseLifecycle = createIsolatedDatabaseTestLifecycle(
+  dbService,
+  (directory) => vi.mocked(app.getPath).mockReturnValue(directory),
+  "streamfusion-storage-handlers-"
+);
 
 function getHandler(channelName: string): Handler {
   const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
@@ -54,21 +64,28 @@ function makeFollow(platform: Platform): AddArgs["follow"] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  databaseLifecycle.initialize();
   vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
 });
 
-// Guards: signed-in Kick Follow clicks must not create local rows that look like confirmed Kick account follows.
+afterEach(() => {
+  databaseLifecycle.dispose();
+});
+
+// Guards: signed-in account follows must not create local rows that look remotely confirmed.
 describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
-  it("signed in to Twitch -> writes source = twitch", () => {
+  it("signed in to Twitch -> rejects local add instead of creating a fake account follow", () => {
     vi.mocked(storageService.hasToken).mockImplementation((p: Platform) => p === "twitch");
     registerStorageHandlers();
 
     const follow = makeFollow("twitch");
-    getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow });
+    expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow })).toThrow(
+      "Twitch account follows must be confirmed by Twitch"
+    );
 
     expect(storageService.hasToken).toHaveBeenCalledWith("twitch");
-    expect(storageService.addLocalFollow).toHaveBeenCalledWith(follow, "twitch");
+    expect(storageService.addLocalFollow).not.toHaveBeenCalled();
   });
 
   it("signed in to Kick -> rejects local add instead of creating a fake account follow", () => {
@@ -104,8 +121,10 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
     expect(storageService.addLocalFollow).toHaveBeenCalledWith(kickFollow, "guest");
 
     const twitchFollow = makeFollow("twitch");
-    getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow: twitchFollow });
-    expect(storageService.addLocalFollow).toHaveBeenCalledWith(twitchFollow, "twitch");
+    expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow: twitchFollow })).toThrow(
+      "Twitch account follows must be confirmed by Twitch"
+    );
+    expect(storageService.addLocalFollow).toHaveBeenCalledOnce();
   });
 
   it("returns whatever addLocalFollow returns (pass-through)", () => {
@@ -160,9 +179,9 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
 
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) => {
       if (platform === "twitch") return [twitchFollow];
-      const callCount = vi.mocked(storageService.getActiveFollowsByPlatform).mock.calls.filter(
-        ([calledPlatform]) => calledPlatform === "kick"
-      ).length;
+      const callCount = vi
+        .mocked(storageService.getActiveFollowsByPlatform)
+        .mock.calls.filter(([calledPlatform]) => calledPlatform === "kick").length;
       return callCount <= 1 ? [staleKickFollow] : [repairedKickFollow];
     });
     vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
@@ -174,6 +193,15 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
         avatarUrl: "https://example.com/new.jpg",
       },
     ] as any);
+    vi.mocked(kickClient.getPublicChannel).mockResolvedValue({
+      id: "123",
+      platform: "kick",
+      username: "new-slug",
+      displayName: "New Slug",
+      avatarUrl: "https://example.com/new.jpg",
+      kickUserId: "123",
+      isVerified: false,
+    } as any);
     registerStorageHandlers();
 
     const result = (await getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({})) as LocalFollow[];
@@ -213,9 +241,9 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
 
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) => {
       if (platform === "twitch") return [];
-      const callCount = vi.mocked(storageService.getActiveFollowsByPlatform).mock.calls.filter(
-        ([calledPlatform]) => calledPlatform === "kick"
-      ).length;
+      const callCount = vi
+        .mocked(storageService.getActiveFollowsByPlatform)
+        .mock.calls.filter(([calledPlatform]) => calledPlatform === "kick").length;
       return callCount <= 1 ? [activeSlugOnlyFollow] : [repairedKickFollow];
     });
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([
@@ -231,6 +259,15 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
         avatarUrl: "",
       },
     ] as any);
+    vi.mocked(kickClient.getPublicChannel).mockResolvedValue({
+      id: "123",
+      platform: "kick",
+      username: "new-slug",
+      displayName: "New Slug",
+      avatarUrl: "",
+      kickUserId: "123",
+      isVerified: false,
+    } as any);
     registerStorageHandlers();
 
     const result = (await getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({})) as LocalFollow[];
@@ -241,8 +278,8 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
       channelName: "new-slug",
       displayName: "New Slug",
     });
-    expect(result.map((follow) => `${follow.source}:${follow.channelId}:${follow.channelName}`)).toEqual([
-      "kick:123:new-slug",
-    ]);
+    expect(
+      result.map((follow) => `${follow.source}:${follow.channelId}:${follow.channelName}`)
+    ).toEqual(["kick:123:new-slug"]);
   });
 });

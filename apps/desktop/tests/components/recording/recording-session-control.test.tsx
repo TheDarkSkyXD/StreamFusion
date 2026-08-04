@@ -31,6 +31,8 @@ vi.mock("@/hooks/use-stream-recording-actions", () => ({
   useStreamRecordingActions: () => ({ pause: mocks.pause, resume: mocks.resume }),
 }));
 
+// Guards: Pause is amber on both player and global recording surfaces
+// Guards: Resume is green on both player and global recording surfaces
 describe("RecordingPauseResumeControl", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,6 +51,37 @@ describe("RecordingPauseResumeControl", () => {
       notice: null,
     };
   });
+
+  it.each(["player", "global"] as const)("presents Pause as amber on the %s surface", (surface) => {
+    renderWithProviders(<RecordingPauseResumeControl surface={surface} />);
+
+    expect(screen.getByRole("button", { name: "Pause recording" })).toHaveClass(
+      "bg-amber-400",
+      "text-black",
+      "hover:bg-amber-300",
+      "motion-reduce:transition-none"
+    );
+  });
+
+  it.each(["player", "global"] as const)(
+    "presents Resume as green on the %s surface",
+    (surface) => {
+      mocks.state = {
+        ...mocks.state,
+        phase: "paused",
+        active: mocks.state.active ? { ...mocks.state.active, status: "paused" } : null,
+      } as StreamRecordingLifecycleState;
+
+      renderWithProviders(<RecordingPauseResumeControl surface={surface} />);
+
+      expect(screen.getByRole("button", { name: "Resume recording" })).toHaveClass(
+        "bg-green-500",
+        "text-black",
+        "hover:bg-green-400",
+        "motion-reduce:transition-none"
+      );
+    }
+  );
 
   it("runs the current session command from the player and restores focus after the phase changes", async () => {
     const user = userEvent.setup();
@@ -69,5 +102,20 @@ describe("RecordingPauseResumeControl", () => {
     await user.click(resume);
     expect(mocks.resume).toHaveBeenCalledWith("recording-session-1");
     expect(screen.queryByText("Downloads")).toBeNull();
+  });
+
+  it("shows the durable Pausing transition without offering Resume early", () => {
+    mocks.state = {
+      ...mocks.state,
+      phase: "paused",
+      active: mocks.state.active
+        ? { ...mocks.state.active, status: "paused", statusMessage: "Pausing" }
+        : null,
+    } as StreamRecordingLifecycleState;
+
+    renderWithProviders(<RecordingPauseResumeControl surface="player" />);
+
+    expect(screen.getByRole("button", { name: "Pausing recording" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Resume recording" })).toBeNull();
   });
 });

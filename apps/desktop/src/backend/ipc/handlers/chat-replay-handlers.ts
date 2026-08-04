@@ -1,9 +1,14 @@
+import { ipcMain } from "electron";
 import type {
   CancelChatReplayWindowRequest,
+  CancelChatReplayWindowResult,
   ChatReplayIpcWindowRequest,
+  ChatReplayIpcWindowResult,
   ChatReplayWindowRequest,
   ChatReplayWindowResult,
 } from "../../../shared/chat-replay-types";
+import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import { chatReplayService } from "../../services/chat-replay-service";
 
 interface ChatReplayService {
   loadWindow(
@@ -38,7 +43,7 @@ export function createChatReplayIpcHandlers(service: ChatReplayService) {
   const controllers = new Map<string, AbortController>();
 
   return {
-    async getWindow(params: unknown) {
+    async getWindow(params: unknown): Promise<ChatReplayIpcWindowResult> {
       if (!isWindowRequest(params)) {
         return { success: false as const, error: "Invalid Chat Replay request" };
       }
@@ -61,7 +66,7 @@ export function createChatReplayIpcHandlers(service: ChatReplayService) {
       }
     },
 
-    cancelWindow(params: unknown) {
+    cancelWindow(params: unknown): CancelChatReplayWindowResult {
       if (!isCancelRequest(params)) return { cancelled: false };
       const controller = controllers.get(params.requestId);
       if (!controller) return { cancelled: false };
@@ -70,4 +75,16 @@ export function createChatReplayIpcHandlers(service: ChatReplayService) {
       return { cancelled: true };
     },
   };
+}
+
+export function registerChatReplayHandlers(
+  service: ChatReplayService = chatReplayService
+): void {
+  const handlers = createChatReplayIpcHandlers(service);
+  ipcMain.handle(IPC_CHANNELS.VIDEOS_GET_CHAT_REPLAY_WINDOW, (_event, params: unknown) =>
+    handlers.getWindow(params)
+  );
+  ipcMain.handle(IPC_CHANNELS.VIDEOS_CANCEL_CHAT_REPLAY_WINDOW, (_event, params: unknown) =>
+    handlers.cancelWindow(params)
+  );
 }

@@ -31,6 +31,7 @@ import {
   getKickChannelViewerRole,
   getBearerForTest,
   installBearerInterceptor,
+  isAllowedKickWebApiMutation,
   isKickWebApiReady,
   isSanctumBearer,
   parseKickChannelViewerRoleBody,
@@ -697,7 +698,26 @@ describe("getKickChannelViewerRole", () => {
   });
 });
 
+// Guards: the hidden-window mutation allowlist admits exact Kick follow paths and rejects lookalikes.
 describe("fetchKickWebApiMutation", () => {
+  it("allows a canonical channel follow POST", () => {
+    expect(isAllowedKickWebApiMutation("POST", "/api/v2/channels/space%20name/follow")).toBe(
+      true
+    );
+  });
+
+  it("allows a canonical channel unfollow DELETE", () => {
+    expect(isAllowedKickWebApiMutation("DELETE", "/api/v2/channels/xqc/follow")).toBe(true);
+  });
+
+  it("rejects channel follow path lookalikes", () => {
+    expect(isAllowedKickWebApiMutation("POST", "/api/v2/channels/xqc/follow/extra")).toBe(false);
+    expect(isAllowedKickWebApiMutation("POST", "/api/v2/channels/xqc/follow?source=test")).toBe(
+      false
+    );
+    expect(isAllowedKickWebApiMutation("DELETE", "/api/v2/channels//follow")).toBe(false);
+  });
+
   it("rejects unsupported mutations without initializing the hidden window", async () => {
     const { BrowserWindow } = await import("electron");
     (BrowserWindow as unknown as { mockClear: () => void }).mockClear();

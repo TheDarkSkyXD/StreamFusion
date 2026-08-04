@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { showErrorToast } from "@/lib/error-toast";
 import type {
+  StreamRecordingActionResult,
   StreamRecordingRecoveryActionResult,
   StreamRecordingRequest,
   StreamRecordingStartResult,
@@ -55,7 +56,15 @@ export function useStreamRecordingActions() {
       showErrorToast(result.error);
       return result;
     }
-    const result = await bridge.pause(sessionId);
+    let result: StreamRecordingActionResult;
+    try {
+      result = await bridge.pause(sessionId);
+    } catch (error) {
+      result = {
+        success: false,
+        error: error instanceof Error ? error.message : "Stream recording is not available",
+      };
+    }
     if (!result.success) {
       showErrorToast("Couldn't pause recording", { description: result.error });
     }
@@ -69,7 +78,15 @@ export function useStreamRecordingActions() {
       showErrorToast(result.error);
       return result;
     }
-    const result = await bridge.resume(sessionId);
+    let result: StreamRecordingActionResult;
+    try {
+      result = await bridge.resume(sessionId);
+    } catch (error) {
+      result = {
+        success: false,
+        error: error instanceof Error ? error.message : "Stream recording is not available",
+      };
+    }
     if (!result.success) {
       showErrorToast("Couldn't resume recording", { description: result.error });
     }
@@ -86,6 +103,20 @@ export function useStreamRecordingActions() {
     const result = await bridge.stop(sessionId);
     if (!result.success) {
       showErrorToast("Couldn't stop recording", { description: result.error });
+    }
+    return result;
+  }, []);
+
+  const discard = useCallback(async (sessionId: string) => {
+    const bridge = window.electronAPI?.streamRecording;
+    if (!bridge) {
+      const result = { success: false, error: "Stream recording is not available" };
+      showErrorToast(result.error);
+      return result;
+    }
+    const result = await bridge.discard(sessionId);
+    if (!result.success) {
+      showErrorToast("Couldn't discard recording", { description: result.error });
     }
     return result;
   }, []);
@@ -154,6 +185,7 @@ export function useStreamRecordingActions() {
     pause,
     resume,
     stop,
+    discard,
     resumeInterrupted,
     finalizeInterrupted,
     dismissInterrupted,

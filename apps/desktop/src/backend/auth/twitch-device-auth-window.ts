@@ -1,18 +1,47 @@
 import { BrowserWindow, type Event } from "electron";
 
+import { logger } from "@/backend/logging/logger";
+
 const TWITCH_ACTIVATION_ORIGIN = "https://www.twitch.tv";
-const TWITCH_AUTH_ORIGINS = new Set([TWITCH_ACTIVATION_ORIGIN]);
+const TWITCH_CALLBACK_ORIGIN = "http://localhost:8765";
+const TWITCH_CALLBACK_PATH = "/auth/twitch/callback";
+const TWITCH_AUTH_ORIGINS = new Set([
+  TWITCH_ACTIVATION_ORIGIN,
+  "https://auth.twitch.tv",
+  "https://id.twitch.tv",
+  // Twitch's "Continue with Google" sign-in stays in this popup before
+  // returning to Twitch. Keep this exact rather than allowing arbitrary
+  // third-party navigation.
+  "https://accounts.google.com",
+]);
+
+function browserCompatibleUserAgent(defaultUserAgent: string): string {
+  return defaultUserAgent.replace(/\sElectron\/[^\s]+/g, "");
+}
+
+function isTwitchCallbackNavigation(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    return (
+      url.username === "" &&
+      url.password === "" &&
+      url.origin === TWITCH_CALLBACK_ORIGIN &&
+      url.pathname === TWITCH_CALLBACK_PATH &&
+      url.hash === ""
+    );
+  } catch {
+    return false;
+  }
+}
 
 function isAllowedTwitchAuthNavigation(rawUrl: string): boolean {
   try {
     const url = new URL(rawUrl);
-    return (
-      TWITCH_AUTH_ORIGINS.has(url.origin) &&
-      url.protocol === "https:" &&
-      url.port === "" &&
-      url.username === "" &&
-      url.password === ""
-    );
+    if (url.username !== "" || url.password !== "") return false;
+    if (TWITCH_AUTH_ORIGINS.has(url.origin)) {
+      return url.protocol === "https:" && url.port === "";
+    }
+    return isTwitchCallbackNavigation(rawUrl);
   } catch {
     return false;
   }
@@ -99,7 +128,17 @@ class TwitchDeviceAuthWindowManager {
 
     const restrictNavigation = (event: Event, targetUrl: string): void => {
       if (!isAllowedTwitchAuthNavigation(targetUrl)) {
+        let origin = "invalid";
+        try {
+          origin = new URL(targetUrl).origin;
+        } catch {
+          // Keep malformed navigation details out of logs.
+        }
+        logger.warn("Auth:Window", "Blocked Twitch auth navigation", { origin });
         event.preventDefault();
+      } else if (isTwitchCallbackNavigation(targetUrl) && !window.isDestroyed()) {
+        logger.info("Auth:Window", "Twitch authorization callback reached");
+        window.close();
       }
     };
     window.webContents.on("will-navigate", restrictNavigation);
@@ -118,7 +157,12 @@ class TwitchDeviceAuthWindowManager {
     );
 
     try {
-      await window.loadURL(verificationUri);
+      const userAgent = browserCompatibleUserAgent(window.webContents.session.getUserAgent());
+      await window.loadURL(verificationUri, { userAgent });
+      if (!window.isDestroyed()) {
+        window.show();
+        window.focus();
+      }
     } catch {
       if (!window.isDestroyed()) window.close();
       throw new Error("Unable to open Twitch authorization window");

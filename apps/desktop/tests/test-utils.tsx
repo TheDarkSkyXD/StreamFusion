@@ -88,7 +88,8 @@ export function routerMock(
   };
 }
 
-// Stock electronAPI mock. Every namespace.fn returns Promise<{ data: [], error: null }>.
+// Stock electronAPI mock. Unspecified namespace methods return
+// Promise<{ data: [], error: null }>; contract-specific boundaries are defined below.
 // Override per test:
 //   const api = installElectronAPIMock();
 //   api.streams.getTop = vi.fn(async () => ({ data: [mockStream], error: null }));
@@ -128,6 +129,10 @@ export function installElectronAPIMock(): any {
       },
     }
   );
+
+  stub.connectivity = {
+    check: vi.fn(async () => ({ reachable: true, latencyMs: 25 })),
+  };
 
   stub.twitch = {
     execute: vi.fn(async (command: { operation?: string }) => {

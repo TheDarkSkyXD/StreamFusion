@@ -9,9 +9,9 @@ vi.mock("@/lib/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
-const { getUsersByIdMock, getLatestCompletedVideoStartedAtMock } = vi.hoisted(() => ({
+const { getUsersByIdMock, getLatestCompletedVideoEndedAtMock } = vi.hoisted(() => ({
   getUsersByIdMock: vi.fn(),
-  getLatestCompletedVideoStartedAtMock: vi.fn(),
+  getLatestCompletedVideoEndedAtMock: vi.fn(),
 }));
 
 vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", async () => {
@@ -25,7 +25,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", async () => {
 });
 
 vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
-  getLatestCompletedVideoStartedAtByChannelSlug: getLatestCompletedVideoStartedAtMock,
+  getLatestCompletedVideoEndedAtByChannelSlug: getLatestCompletedVideoEndedAtMock,
 }));
 
 const mockLoadURL = vi.fn();
@@ -52,6 +52,7 @@ import {
   getChannel,
   getChannelsByBroadcasterIds,
   getChannelsBySlugs,
+  getOfficialKickChannelAccountStatus,
   getPublicChannel,
   mapKickChatroomToSettings,
 } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
@@ -67,9 +68,10 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
   };
 }
 
-// Guards: public Kick channel lookup exposes the prior livestream creation time for offline channel metadata.
-// Guards: public Kick channel lookup does not expose blank prior livestream timestamps.
-// Guards: normal Kick channel lookup keeps official identity while enriching offline metadata from the legacy response.
+// Guards: public Kick channel lookup never presents a prior livestream start as its end time.
+// Guards: normal Kick channel lookup keeps official identity while preserving richer offline profile metadata from the legacy response.
+// Guards: official offline channel detail preserves the public profile avatar when user enrichment is unavailable.
+// Guards: only an explicit official Kick 404 or Not found response authorizes account removal.
 describe("channel-endpoints", () => {
   beforeEach(() => {
     mockLoadURL.mockReset().mockResolvedValue(undefined);
@@ -79,7 +81,7 @@ describe("channel-endpoints", () => {
     vi.mocked(getPlatformHealth).mockReturnValue("healthy");
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
     getUsersByIdMock.mockReset().mockResolvedValue([]);
-    getLatestCompletedVideoStartedAtMock.mockReset().mockResolvedValue(undefined);
+    getLatestCompletedVideoEndedAtMock.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -89,6 +91,49 @@ describe("channel-endpoints", () => {
   describe("mapKickChatroomToSettings", () => {
     it("is re-exported from channel-endpoints (tested in chatroom-settings-mapper.test.ts)", () => {
       expect(typeof mapKickChatroomToSettings).toBe("function");
+    });
+  });
+
+  describe("getOfficialKickChannelAccountStatus", () => {
+    it("classifies an explicit provider 404 as not_found", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValue(new Error("Kick API error: 404")),
+      });
+
+      await expect(getOfficialKickChannelAccountStatus(client, "deleted-channel")).resolves.toBe(
+        "not_found"
+      );
+    });
+
+    it("classifies an exact successful provider row as active", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValue({
+          data: [{ broadcaster_user_id: 123, slug: "active-offline", stream: null }],
+        }),
+      });
+
+      await expect(getOfficialKickChannelAccountStatus(client, "Active-Offline")).resolves.toBe(
+        "active"
+      );
+    });
+
+    it.each([
+      ["timeout", vi.fn().mockRejectedValue(new Error("request timed out"))],
+      ["rate limit", vi.fn().mockRejectedValue({ response: { status: 429 } })],
+      ["auth failure", vi.fn().mockRejectedValue({ status: 401 })],
+      ["provider outage", vi.fn().mockRejectedValue(new Error("Kick API error: 503"))],
+      ["malformed response", vi.fn().mockResolvedValue({ data: {} })],
+      ["missing result", vi.fn().mockResolvedValue({ data: [] })],
+      [
+        "ambiguous mismatched result",
+        vi.fn().mockResolvedValue({ data: [{ broadcaster_user_id: 999, slug: "someone-else" }] }),
+      ],
+    ])("classifies %s as unavailable", async (_caseName, request) => {
+      const client = createMockClient({ request });
+
+      await expect(getOfficialKickChannelAccountStatus(client, "uncertain-channel")).resolves.toBe(
+        "unavailable"
+      );
     });
   });
 
@@ -348,7 +393,7 @@ describe("channel-endpoints", () => {
       expect(result!.lastStreamTitle).toBe("Yesterday's stream");
     });
 
-    it("extracts the last live time from the newest previous livestream", async () => {
+    it("does not expose a previous livestream start as its last-live time", async () => {
       mockExecuteJavaScript.mockResolvedValueOnce(
         JSON.stringify({
           id: 1,
@@ -363,7 +408,7 @@ describe("channel-endpoints", () => {
 
       const result = await getPublicChannel("previous-live-time");
 
-      expect(result).toMatchObject({ lastLiveAt: "2026-08-01T15:30:00Z" });
+      expect(result!.lastLiveAt).toBeUndefined();
     });
 
     it("ignores a blank previous livestream creation time", async () => {
@@ -393,6 +438,9 @@ describe("channel-endpoints", () => {
     });
   });
 
+  // Guards: Kick slug filters use OpenAPI collectionFormat multi instead of ignored bracket-suffixed parameters.
+  // Guards: an ignored Kick slug filter cannot substitute the signed-in user's channel into search results.
+  // Guards: slug-batched Kick channels use profile metadata for display casing while preserving normalized usernames.
   describe("getChannelsBySlugs", () => {
     it("returns empty array for empty slugs input", async () => {
       const client = createMockClient();
@@ -413,7 +461,7 @@ describe("channel-endpoints", () => {
       expect(client.request).not.toHaveBeenCalled();
     });
 
-    it("constructs correct query params for multiple slugs", async () => {
+    it("serializes slugs using the official repeated query parameter", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({
           data: [
@@ -441,12 +489,62 @@ describe("channel-endpoints", () => {
 
       const result = await getChannelsBySlugs(client, ["a", "b"]);
 
-      expect(client.request).toHaveBeenCalledWith(
-        expect.stringContaining("slug[]=a&slug[]=b"),
-        undefined,
-        "app"
-      );
+      expect(client.request).toHaveBeenCalledWith("/channels?slug=a&slug=b", undefined, "app");
       expect(result).toHaveLength(2);
+    });
+
+    it("returns the cased display name from Kick user metadata", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 123,
+              slug: "nickwhite",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+      getUsersByIdMock.mockResolvedValueOnce([
+        {
+          user_id: 123,
+          name: "NickWhite",
+          profile_picture: "https://kick.com/img/nickwhite.webp",
+        },
+      ]);
+
+      const result = await getChannelsBySlugs(client, ["nickwhite"]);
+
+      expect(result[0]).toMatchObject({
+        username: "nickwhite",
+        displayName: "NickWhite",
+      });
+    });
+
+    it("rejects channels whose slug was not requested", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 999,
+              slug: "signed-in-user",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+
+      const result = await getChannelsBySlugs(client, ["requested-slug"]);
+
+      expect(result).toEqual([]);
     });
 
     it("limits slugs to 50", async () => {
@@ -458,7 +556,7 @@ describe("channel-endpoints", () => {
       await getChannelsBySlugs(client, slugs);
 
       const calledWith = vi.mocked(client.request).mock.calls[0][0] as string;
-      const slugCount = (calledWith.match(/slug\[\]/g) || []).length;
+      const slugCount = (calledWith.match(/[?&]slug=/g) || []).length;
       expect(slugCount).toBe(50);
     });
 
@@ -485,6 +583,9 @@ describe("channel-endpoints", () => {
 
   // Guards: signed-in Kick follow slug repair uses user-token channel reads so a broken app-token proxy does not spam 401s during follow hydration.
   // Guards: guest Kick follow slug repair still uses the worker-backed app token because no user token is available.
+  // Guards: Kick broadcaster filters use OpenAPI collectionFormat multi instead of ignored bracket-suffixed parameters.
+  // Guards: an ignored Kick broadcaster filter cannot substitute the signed-in user's channel during username repair.
+  // Guards: followed-channel refresh preserves Kick's cased profile name instead of replacing it with the lowercase slug.
   describe("getChannelsByBroadcasterIds", () => {
     it("returns empty array for empty broadcaster ID input", async () => {
       const client = createMockClient();
@@ -505,7 +606,7 @@ describe("channel-endpoints", () => {
       expect(client.request).not.toHaveBeenCalled();
     });
 
-    it("constructs correct query params for multiple broadcaster IDs", async () => {
+    it("serializes broadcaster IDs using the official repeated query parameter", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({
           data: [
@@ -534,11 +635,65 @@ describe("channel-endpoints", () => {
       const result = await getChannelsByBroadcasterIds(client, [123, 456]);
 
       expect(client.request).toHaveBeenCalledWith(
-        expect.stringContaining("broadcaster_user_id[]=123&broadcaster_user_id[]=456"),
+        "/channels?broadcaster_user_id=123&broadcaster_user_id=456",
         undefined,
         "user"
       );
       expect(result.map((channel) => channel.username)).toEqual(["new-slug", "other-slug"]);
+    });
+
+    it("returns the cased display name from Kick user metadata", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 123,
+              slug: "abbyapple",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+      getUsersByIdMock.mockResolvedValueOnce([
+        {
+          user_id: 123,
+          name: "AbbyApple",
+          profile_picture: "https://kick.com/img/abbyapple.webp",
+        },
+      ]);
+
+      const result = await getChannelsByBroadcasterIds(client, [123]);
+
+      expect(result[0]).toMatchObject({
+        username: "abbyapple",
+        displayName: "AbbyApple",
+      });
+    });
+
+    it("rejects channels whose broadcaster ID was not requested", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 999,
+              slug: "signed-in-user",
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, [123]);
+
+      expect(result).toEqual([]);
     });
 
     it("uses app auth for broadcaster ID repair when no Kick user token is available", async () => {
@@ -562,7 +717,7 @@ describe("channel-endpoints", () => {
       const result = await getChannelsByBroadcasterIds(client, [123]);
 
       expect(client.request).toHaveBeenCalledWith(
-        expect.stringContaining("broadcaster_user_id[]=123"),
+        expect.stringContaining("broadcaster_user_id=123"),
         undefined,
         "app"
       );
@@ -632,9 +787,9 @@ describe("channel-endpoints", () => {
 
       const calls = vi.mocked(client.request).mock.calls.map((call) => call[0] as string);
       expect(calls).toHaveLength(2);
-      expect((calls[0].match(/broadcaster_user_id\[\]/g) || []).length).toBe(50);
-      expect((calls[1].match(/broadcaster_user_id\[\]/g) || []).length).toBe(10);
-      expect(calls[1]).toContain("broadcaster_user_id[]=60");
+      expect((calls[0].match(/[?&]broadcaster_user_id=/g) || []).length).toBe(50);
+      expect((calls[1].match(/[?&]broadcaster_user_id=/g) || []).length).toBe(10);
+      expect(calls[1]).toContain("broadcaster_user_id=60");
       expect(vi.mocked(client.request).mock.calls.every((call) => call[2] === "user")).toBe(true);
       expect(result.map((channel) => channel.username)).toEqual(["renamed-after-first-page"]);
     });
@@ -651,6 +806,55 @@ describe("channel-endpoints", () => {
   });
 
   describe("getChannel", () => {
+    it("hydrates chatroom metadata for a live channel returned by the official API", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 904,
+              slug: "live-chatroom",
+              channel_description: "Official description",
+              stream: {
+                is_live: true,
+                viewer_count: 123,
+                start_time: "2026-08-02T18:00:00Z",
+              },
+              stream_title: "Live now",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 7004,
+          user_id: 904,
+          slug: "live-chatroom",
+          user: { username: "LiveChatroom" },
+          livestream: { session_title: "Live now" },
+          chatroom: {
+            id: 9904,
+            followers_mode: false,
+            subscribers_mode: false,
+            emotes_mode: false,
+            slow_mode: false,
+          },
+        })
+      );
+
+      const result = await getChannel(client, "live-chatroom");
+
+      expect(result).toMatchObject({
+        id: "904",
+        username: "live-chatroom",
+        displayName: "LiveChatroom",
+        isLive: true,
+        chatroomId: 9904,
+      });
+      expect(mockLoadURL).toHaveBeenCalled();
+    });
+
     it("preserves the public avatar without official user enrichment for an anonymous degraded session", async () => {
       vi.mocked(getPlatformHealth).mockReturnValue("degraded");
       mockExecuteJavaScript.mockResolvedValueOnce(
@@ -718,7 +922,7 @@ describe("channel-endpoints", () => {
           followers_count: "12500",
         })
       );
-      getLatestCompletedVideoStartedAtMock.mockResolvedValueOnce("2026-08-01T12:00:00Z");
+      getLatestCompletedVideoEndedAtMock.mockResolvedValueOnce("2026-08-01T12:00:00Z");
       const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
 
       const result = await getChannel(client, "public-vod-time-fallback");
@@ -728,9 +932,7 @@ describe("channel-endpoints", () => {
         followerCount: 12_500,
         lastLiveAt: "2026-08-01T12:00:00Z",
       });
-      expect(getLatestCompletedVideoStartedAtMock).toHaveBeenCalledWith(
-        "public-vod-time-fallback"
-      );
+      expect(getLatestCompletedVideoEndedAtMock).toHaveBeenCalledWith("public-vod-time-fallback");
     });
 
     it("keeps the official channel when legacy offline metadata is unavailable", async () => {
@@ -756,14 +958,14 @@ describe("channel-endpoints", () => {
       expect(result).not.toBeNull();
       expect(result!.id).toBe("100");
       expect(client.request).toHaveBeenCalledWith(
-        "/channels?slug[]=official-first",
+        "/channels?slug=official-first",
         undefined,
         "app"
       );
       expect(mockLoadURL).toHaveBeenCalled();
     });
 
-    it("enriches an official channel with legacy offline metadata without replacing its identity", async () => {
+    it("preserves the public display name when enriching an official offline channel", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({
           data: [
@@ -790,6 +992,7 @@ describe("channel-endpoints", () => {
           previous_livestreams: [{ created_at: "2026-08-01T15:30:00Z" }],
         })
       );
+      getLatestCompletedVideoEndedAtMock.mockResolvedValueOnce("2026-08-01T17:30:00Z");
 
       const result = await getChannel(client, "official-enriched");
 
@@ -797,13 +1000,48 @@ describe("channel-endpoints", () => {
         id: "901",
         kickUserId: "901",
         username: "official-enriched",
+        displayName: "Legacy Display Name",
         bio: "Official description",
         isLive: false,
         followerCount: 196_800,
-        lastLiveAt: "2026-08-01T15:30:00Z",
+        lastLiveAt: "2026-08-01T17:30:00Z",
       });
       expect(mockLoadURL).toHaveBeenCalled();
-      expect(getLatestCompletedVideoStartedAtMock).not.toHaveBeenCalled();
+      expect(getLatestCompletedVideoEndedAtMock).toHaveBeenCalledWith("official-enriched");
+    });
+
+    it("preserves the public avatar when enriching an official offline channel", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              broadcaster_user_id: 903,
+              slug: "public-avatar-fallback",
+              channel_description: "Official description",
+              stream: null,
+              stream_title: "Official title",
+              banner_picture: null,
+              category: null,
+            },
+          ],
+        }),
+      });
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 778,
+          user_id: 903,
+          slug: "public-avatar-fallback",
+          user: {
+            username: "PublicAvatarFallback",
+            profile_pic: "https://kick.com/img/public-avatar-fallback.webp",
+          },
+          livestream: null,
+        })
+      );
+
+      const result = await getChannel(client, "public-avatar-fallback");
+
+      expect(result!.avatarUrl).toBe("https://kick.com/img/public-avatar-fallback.webp");
     });
 
     it("falls back to the latest completed VOD when channel history omits last-live time", async () => {
@@ -832,7 +1070,7 @@ describe("channel-endpoints", () => {
           followers_count: 2_100_000,
         })
       );
-      getLatestCompletedVideoStartedAtMock.mockResolvedValueOnce("2026-08-01T12:00:00Z");
+      getLatestCompletedVideoEndedAtMock.mockResolvedValueOnce("2026-08-01T12:00:00Z");
 
       const result = await getChannel(client, "vod-time-fallback");
 
@@ -842,7 +1080,7 @@ describe("channel-endpoints", () => {
         followerCount: 2_100_000,
         lastLiveAt: "2026-08-01T12:00:00Z",
       });
-      expect(getLatestCompletedVideoStartedAtMock).toHaveBeenCalledWith("vod-time-fallback");
+      expect(getLatestCompletedVideoEndedAtMock).toHaveBeenCalledWith("vod-time-fallback");
     });
 
     it("uses official app-token API without requiring a viewer login", async () => {

@@ -23,6 +23,7 @@ vi.mock("@tanstack/react-router", () =>
 
 const addToHistory = vi.fn();
 const removeFromHistory = vi.fn();
+const repairFollowMetadataFromChannel = vi.fn(async () => false);
 vi.mock("@/hooks/queries/useHistoryQuery", () => ({
   useHistoryActions: () => ({ addToHistory, removeFromHistory }),
 }));
@@ -37,6 +38,7 @@ vi.mock("@/store/follow-store", () => ({
       toggleFollow: vi.fn(),
       getFollowSource: () => null,
       upgradeFollowIfNeeded: vi.fn(),
+      repairFollowMetadataFromChannel,
     };
     return selector ? selector(state) : state;
   },
@@ -105,6 +107,7 @@ describe("VideoPage", () => {
   beforeEach(() => {
     addToHistory.mockReset();
     removeFromHistory.mockReset();
+    repairFollowMetadataFromChannel.mockClear();
   });
 
   it("renders the VOD title passed via search params", async () => {

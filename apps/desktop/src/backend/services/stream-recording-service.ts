@@ -22,6 +22,7 @@ import {
 } from "./stream-recording-outcome-coordinator";
 import {
   createOwnedRecordingSectionPath,
+  isOwnedRecordingOutput,
   isRecordingSectionAvailable as defaultIsRecordingSectionAvailable,
   isOwnedRecordingSection,
 } from "./stream-recording-paths";
@@ -29,6 +30,7 @@ import { selectStreamRecordingQuality } from "./stream-recording-quality-catalog
 import {
   cleanupRecordingSectionPaths,
   createStreamRecordingSectionFinalizer,
+  deleteRecordingArtifactPaths,
   type StreamRecordingSectionFinalizer,
   verifyStreamRecordingArtifactIdentity,
 } from "./stream-recording-section-finalizer";
@@ -51,6 +53,7 @@ export interface StreamRecordingService {
   getSnapshot(): StreamRecordingSnapshot;
   startRecording(request: StreamRecordingRequest): Promise<StreamRecordingStartResult>;
   stopRecording(sessionId: string): Promise<{ success: boolean; error?: string }>;
+  discardRecording(sessionId: string): Promise<{ success: boolean; error?: string }>;
   pauseRecording(sessionId: string): Promise<{ success: boolean; error?: string }>;
   resumeRecording(
     sessionId: string
@@ -134,6 +137,7 @@ export function createStreamRecordingService({
   sectionFinalizer = createStreamRecordingSectionFinalizer(),
   probeArtifact = createStreamRecordingArtifactProbe(),
   cleanupSections = cleanupRecordingSectionPaths,
+  discardArtifacts = deleteRecordingArtifactPaths,
   cleanupFailedArtifact = cleanupRecordingSectionPaths,
   cleanupAbortedSection = async (sectionPath) => cleanupRecordingSectionPaths([sectionPath]),
   isRecordingSectionAvailable = defaultIsRecordingSectionAvailable,
@@ -179,6 +183,7 @@ export function createStreamRecordingService({
   sectionFinalizer?: StreamRecordingSectionFinalizer;
   probeArtifact?: StreamRecordingArtifactProbe;
   cleanupSections?: (paths: string[]) => Promise<void>;
+  discardArtifacts?: (paths: string[]) => Promise<void>;
   cleanupFailedArtifact?: (paths: string[]) => Promise<void>;
   cleanupAbortedSection?: (path: string) => Promise<void>;
   isRecordingSectionAvailable?: (path: string) => Promise<boolean>;
@@ -1101,14 +1106,19 @@ export function createStreamRecordingService({
         };
       }
       reservation = request;
-      let session: StreamRecordingSession | null = null;
-      try {
-        const playback = await resolvePlayback(request);
-        if (!playback.streamId) throw new Error("Stable Stream identity is unavailable");
+        let session: StreamRecordingSession | null = null;
+        try {
+          const playback = await resolvePlayback(request);
+          const stableStreamId = playback.streamId?.trim() || request.streamId?.trim();
+          if (!stableStreamId) throw new Error("Stable Stream identity is unavailable");
         if (playback.format !== "hls") throw new Error("Only HLS stream recording is supported");
         const variants = await qualityCatalog(playback);
         const selectedQuality =
-          variants.length > 1 ? await chooseQuality(variants) : (variants[0] ?? null);
+          request.desiredQuality !== undefined
+            ? selectStreamRecordingQuality(variants, request.desiredQuality)
+            : variants.length > 1
+              ? await chooseQuality(variants)
+              : (variants[0] ?? null);
         if (variants.length > 1 && !selectedQuality) {
           reservation = null;
           return { success: false, outcome: "cancelled", error: "Quality selection cancelled" };
@@ -1123,9 +1133,9 @@ export function createStreamRecordingService({
         const destinationPath = getAvailablePath(normalizeMp4DestinationPath(chosenPath));
         const firstSectionPath = createSectionPath(destinationPath, 1, id);
         session = {
-          id,
-          ...request,
-          streamId: playback.streamId,
+            id,
+            ...request,
+            streamId: stableStreamId,
           status: "preparing",
           destinationPath,
           qualityLabel: selectedQuality?.quality ?? null,
@@ -1263,6 +1273,119 @@ export function createStreamRecordingService({
         transitions.delete(sessionId);
       }
     },
+    async discardRecording(sessionId) {
+      if (isTransitionLocked(sessionId)) return { success: false, error: "Recording is busy" };
+      let entry = activeRecorders.get(sessionId);
+      const session = getSession(sessionId);
+      if (!session) return { success: false, error: "Recording session not found" };
+      if (
+        session.status !== "preparing" &&
+        session.status !== "recording" &&
+        session.status !== "paused" &&
+        session.status !== "reconnecting"
+      ) {
+        return { success: false, error: "Recording cannot be discarded in its current state" };
+      }
+      const ownedPaths = session.sections.flatMap((section, index) =>
+        isOwnedRecordingSection(
+          session.destinationPath,
+          session.id,
+          index + 1,
+          section
+        )
+          ? [section.path]
+          : []
+      );
+      if (ownedPaths.length !== session.sections.length) {
+        return { success: false, error: "Recording artifact ownership could not be verified" };
+      }
+      const ownedPathSet = new Set(ownedPaths);
+      const outputCandidates = [
+        session.committedOutputPath &&
+        session.committedArtifactIdentity &&
+        session.outputFormat &&
+        typeof session.usedFallback === "boolean"
+          ? {
+              path: session.committedOutputPath,
+              identity: session.committedArtifactIdentity,
+              format: session.outputFormat,
+              usedFallback: session.usedFallback,
+            }
+          : null,
+        session.recoveryExhaustion?.state === "commit-intent" ||
+        session.recoveryExhaustion?.state === "pending-probe"
+          ? {
+              path: session.recoveryExhaustion.outputPath,
+              identity: session.recoveryExhaustion.artifactIdentity,
+              format: session.recoveryExhaustion.outputFormat,
+              usedFallback: session.recoveryExhaustion.usedFallback,
+            }
+          : null,
+      ].filter((candidate) => candidate !== null);
+      for (const output of outputCandidates) {
+        if (
+          !isOwnedRecordingOutput(
+            session.destinationPath,
+            output.path,
+            output.format,
+            output.usedFallback
+          ) ||
+          !(await verifyArtifactIdentity(output.path, output.identity))
+        ) {
+          return { success: false, error: "Recording artifact ownership could not be verified" };
+        }
+        if (!ownedPathSet.has(output.path)) {
+          ownedPathSet.add(output.path);
+          ownedPaths.push(output.path);
+        }
+      }
+
+      transitions.add(sessionId);
+      let recorderReady: Promise<ActiveRecorderEntry | null> | null = null;
+      try {
+        abortRecovery(sessionId);
+        recorderReady =
+          !entry && session.status === "preparing"
+            ? new Promise<ActiveRecorderEntry | null>((resolve) => {
+                recorderWaiters.set(sessionId, resolve);
+              })
+            : null;
+        if (recorderReady) entry = (await recorderReady) ?? undefined;
+        if (entry) {
+          entry.intent = "stop";
+          try {
+            await entry.recorder.stop();
+          } catch (error) {
+            entry.intent = "capture";
+            throw error;
+          }
+          if (activeRecorders.get(sessionId) === entry) activeRecorders.delete(sessionId);
+        }
+        await discardArtifacts(ownedPaths);
+        sessionStore.clearSession();
+        clearRuntime(sessionId);
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not discard recording";
+        const latest = getSession(sessionId);
+        if (latest && (!entry || activeRecorders.get(sessionId) !== entry)) {
+          try {
+            saveSession(latest, {
+              status: "interrupted",
+              partial: true,
+              statusMessage: message,
+              ...(entry ? { sections: closeSection(latest, entry.sectionId, now()) } : {}),
+            });
+          } catch {
+            // Preserve the last durable journal when discard cleanup cannot complete.
+          }
+        }
+        return { success: false, error: message };
+      } finally {
+        recorderWaiters.delete(sessionId);
+        transitions.delete(sessionId);
+      }
+    },
     async pauseRecording(sessionId) {
       if (isTransitionLocked(sessionId)) return { success: false, error: "Recording is busy" };
       const entry = activeRecorders.get(sessionId);
@@ -1287,16 +1410,26 @@ export function createStreamRecordingService({
       transitions.add(sessionId);
       try {
         entry.intent = "pause";
+        try {
+          saveSession(session, { status: "paused", statusMessage: "Pausing" });
+        } catch (error) {
+          entry.intent = "capture";
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Pause failed",
+          };
+        }
         await entry.recorder.stop();
         if (activeRecorders.get(sessionId) !== entry) {
-          return { success: false, error: "Recording section changed during pause" };
+          throw new Error("Recording section changed during pause");
         }
         activeRecorders.delete(sessionId);
         const latest = getSession(sessionId);
-        if (!latest) return { success: false, error: "Recording session not found" };
+        if (!latest) throw new Error("Recording session not found");
         const pausedAt = now();
         saveSession(latest, {
           status: "paused",
+          statusMessage: null,
           sections: closeSection(latest, entry.sectionId, pausedAt),
           gaps: appendGap(latest, { startedAt: pausedAt, reason: "paused" }),
         });
@@ -1331,14 +1464,15 @@ export function createStreamRecordingService({
       transitions.add(sessionId);
       try {
         const playback = await resolvePlayback(session, undefined, { forceRefresh: true });
-        if (!playback.streamId) {
+        const resumedStreamId = playback.streamId?.trim() || session.streamId?.trim();
+        if (!resumedStreamId) {
           return {
             success: false,
             code: "stream-unavailable",
             error: "The current Stream identity is unavailable",
           };
         }
-        if (playback.streamId !== session.streamId) {
+        if (resumedStreamId !== session.streamId) {
           return {
             success: false,
             code: "stream-changed",

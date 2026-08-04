@@ -2,6 +2,7 @@ import { type BrowserWindow, ipcMain } from "electron";
 import { z } from "zod";
 
 import { logger } from "@/backend/logging/logger";
+import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { createManagedInterval } from "../../../lib/managed-interval";
 import type { AuthToken, LocalFollow, Platform, TwitchUser } from "../../../shared/auth-types";
 import {
@@ -26,6 +27,7 @@ import {
   type TwitchDeviceCodeLoginDependencies,
 } from "../../auth/device-code-flow";
 import { twitchDeviceAuthWindow } from "../../auth/twitch-device-auth-window";
+import { kickFollowWriteService } from "../../services/kick-follow-write-service";
 import { liveNotificationService } from "../../services/live-notification-service";
 import { storageService } from "../../services/storage-service";
 import { isAllowedSender } from "../sender-origin";
@@ -106,7 +108,8 @@ type FollowSyncOutcome = KickSyncOutcome;
 
 export async function syncKickFollowsAfterLogin(
   getFollows: () => Promise<FollowedChannelsResult>,
-  storage: Pick<typeof storageService, "upsertSyncedFollows"> = storageService
+  storage: Pick<typeof storageService, "upsertSyncedFollows"> = storageService,
+  resumePendingWrites?: () => void
 ): Promise<KickSyncOutcome> {
   const result = await getFollows();
   if (result.status === "error") {
@@ -127,6 +130,32 @@ export async function syncKickFollowsAfterLogin(
     kickFollows,
     { pruneAbsent: result.canPruneAbsent }
   );
+  resumePendingWrites?.();
+  return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
+}
+
+export async function syncTwitchFollowsAfterLogin(
+  getFollows: () => Promise<UnifiedChannel[]>,
+  storage: Pick<typeof storageService, "upsertSyncedFollows"> = storageService
+): Promise<FollowSyncOutcome> {
+  let channels: UnifiedChannel[];
+  try {
+    channels = await getFollows();
+  } catch {
+    return { status: "error", reason: "twitch-follow-fetch-failed" };
+  }
+  const twitchFollows = channels.map((channel): Omit<LocalFollow, "id" | "followedAt"> => ({
+    platform: "twitch",
+    channelId: channel.id,
+    channelName: channel.username,
+    displayName: channel.displayName,
+    profileImage: channel.avatarUrl,
+  }));
+  const { accountCount, pendingCount, addedCount, removedCount } = storage.upsertSyncedFollows(
+    "twitch",
+    twitchFollows,
+    { pruneAbsent: true }
+  );
   return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
 
@@ -144,13 +173,18 @@ export function shouldDeferKickStartupFollowRefresh(
 
 interface SyncFollowsOptions {
   allowKickBrowserWindowFallback?: boolean;
+  resumeKickPendingWrites?: boolean;
 }
 
 export function persistInitialAuthToken(
   platform: Platform,
   token: AuthToken,
-  storage: Pick<typeof storageService, "saveToken"> = storageService
+  storage: Pick<typeof storageService, "saveToken"> &
+    Partial<Pick<typeof storageService, "invalidateKickAccountFollows">> = storageService
 ): AuthToken {
+  if (platform === "kick") {
+    storage.invalidateKickAccountFollows?.();
+  }
   storage.saveToken(platform, token);
   return token;
 }
@@ -171,19 +205,33 @@ interface PerformTwitchDeviceCodeLoginDependencies extends TwitchDeviceCodeLogin
 export async function performTwitchDeviceCodeLogin(
   dependencies: PerformTwitchDeviceCodeLoginDependencies
 ): Promise<TwitchUser | null> {
+  const startedAt = Date.now();
   const token = await runTwitchDeviceCodeLogin(
     dependencies.scopes,
     dependencies,
     dependencies.onStatusChange
   );
   dependencies.saveToken("twitch", token);
+  logger.info("Auth:Twitch", "Twitch authentication stage", {
+    stage: "token-persisted",
+    elapsedMs: Date.now() - startedAt,
+  });
   dependencies.scheduleProactiveRefresh();
 
   const user = await dependencies.fetchCurrentUser();
+  logger.info("Auth:Twitch", "Twitch authentication stage", {
+    stage: "account-fetch-settled",
+    identityPresent: user !== null,
+    elapsedMs: Date.now() - startedAt,
+  });
   if (user) {
     dependencies.saveTwitchUser(user);
   }
   await dependencies.afterAuthenticated();
+  logger.info("Auth:Twitch", "Twitch authentication stage", {
+    stage: "renderer-notified",
+    elapsedMs: Date.now() - startedAt,
+  });
   return user;
 }
 
@@ -248,26 +296,20 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       let removedCount = 0;
       if (platform === "twitch") {
         const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-        const allFollowed = await twitchClient.getAllFollowedChannels();
-
-        // Additive sync via upsertSyncedFollows. INSERT OR REPLACE per row;
-        // never deletes (external unfollows aren't auto-detected); pending
-        // unfollow tombstones block re-adoption.
-        const twitchFollows = allFollowed.map(
-          (channel) =>
-            ({
-              platform: "twitch",
-              channelId: channel.id,
-              channelName: channel.username,
-              displayName: channel.displayName,
-              profileImage: channel.avatarUrl,
-            }) as Omit<LocalFollow, "id" | "followedAt">
+        const outcome = await syncTwitchFollowsAfterLogin(
+          () => twitchClient.getAllFollowedChannels(),
+          storageService
         );
-        const result = storageService.upsertSyncedFollows("twitch", twitchFollows);
-        importedCount = result.accountCount;
-        pendingCount = result.pendingCount;
-        addedCount = result.addedCount;
-        removedCount = result.removedCount;
+        if (outcome.status === "error") {
+          logger.warn("IPC:Auth", "Twitch follow sync skipped; preserving prior rows", {
+            reason: outcome.reason,
+          });
+          return outcome;
+        }
+        importedCount = outcome.count;
+        pendingCount = outcome.pendingCount;
+        addedCount = outcome.addedCount;
+        removedCount = outcome.removedCount;
         logger.debug("IPC:Auth", "Synced Twitch follows", {
           importedCount,
           pendingCount,
@@ -278,13 +320,17 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         // must NOT trigger clearAccountFollows — that would silently wipe the
         // user's prior synced follows. See A1 in
         // docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
-        const { getAllFollowedChannels } = await import(
-          "../../api/platforms/kick/endpoints/follow-endpoints"
-        );
-        const outcome = await syncKickFollowsAfterLogin(() =>
-          getAllFollowedChannels({
-            allowBrowserWindowFallback: options.allowKickBrowserWindowFallback === true,
-          })
+        const { getAllFollowedChannels } =
+          await import("../../api/platforms/kick/endpoints/follow-endpoints");
+        const outcome = await syncKickFollowsAfterLogin(
+          () =>
+            getAllFollowedChannels({
+              allowBrowserWindowFallback: options.allowKickBrowserWindowFallback === true,
+            }),
+          storageService,
+          options.resumeKickPendingWrites
+            ? () => kickFollowWriteService.resumePendingWrites()
+            : undefined
         );
         if (outcome.status === "error") {
           logger.warn(
@@ -502,10 +548,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     }
     const twitchUser = storageService.getTwitchUser();
     const kickUser = storageService.getKickUser();
-    const twitchHasToken = storageService.hasToken("twitch");
-    const kickHasToken = storageService.hasToken("kick");
-    const twitchExpired = storageService.isTokenExpired("twitch");
-    const kickExpired = storageService.isTokenExpired("kick");
+    const twitchHasToken = storageService.hasUsableToken("twitch");
+    const kickHasToken = storageService.hasUsableToken("kick");
+    const twitchExpired = !twitchHasToken || storageService.isTokenExpired("twitch");
+    const kickExpired = !kickHasToken || storageService.isTokenExpired("kick");
 
     return {
       twitch: {
@@ -631,7 +677,10 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
       // Sync local follows with account follows (background, non-blocking)
       reconcileLiveNotificationsAfterFollowSync(
-        syncFollowsOnLogin(platform, { allowKickBrowserWindowFallback: true })
+        syncFollowsOnLogin(platform, {
+          allowKickBrowserWindowFallback: true,
+          resumeKickPendingWrites: true,
+        })
       );
 
       // Notify renderer of successful auth
@@ -680,6 +729,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     if (twitchLoginInFlight) return twitchLoginInFlight;
 
     const login = (async (): Promise<{ success: boolean; error?: string }> => {
+      const startedAt = Date.now();
+      let lastStatus: string | null = null;
       logger.debug("IPC:Auth", "Opening Twitch login");
       try {
         const config = getOAuthConfig("twitch");
@@ -712,6 +763,13 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             });
           },
           onStatusChange: (status, message) => {
+            if (lastStatus !== status) {
+              lastStatus = status;
+              logger.info("Auth:DeviceCode", "Twitch device authorization status", {
+                status,
+                elapsedMs: Date.now() - startedAt,
+              });
+            }
             safeSend(IPC_CHANNELS.AUTH_DCF_STATUS, { status, message });
           },
         });

@@ -1,6 +1,7 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { RecordingPauseResumeControl } from "@/components/recording/recording-session-control";
 import {
   StreamRecordingProvider,
   useStreamRecordingState,
@@ -10,10 +11,176 @@ import { installElectronAPIMock } from "../test-utils";
 
 // Guards: any number of recording status consumers share one main-process state listener
 // Guards: the initial snapshot and later lifecycle events reach every mounted consumer
+// Guards: the shared visible timer ticks once per second without duplicates and is disposed on stop or unmount
+// Guards: Resume uses the recording bridge and changes the public control back to Pause
 // Guards: phase and quality live regions exclude ticking captured duration
 // Guards: each typed quality-change revision is announced once from the root provider
 // Guards: the root recovery alert owns the Interrupted announcement without a duplicate phase live region
 describe("useStreamRecordingState", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("runs exactly one visible-duration clock only while recording is active", async () => {
+    vi.useFakeTimers();
+    const api = installElectronAPIMock();
+    let emit: ((snapshot: StreamRecordingSnapshot) => void) | undefined;
+    const snapshot = (
+      status: "recording" | "finalizing",
+      capturedDurationSeconds: number
+    ): StreamRecordingSnapshot => ({
+      active: {
+        sessionId: "recording-session-1",
+        platform: "kick",
+        channelName: "nicklee",
+        title: "Live",
+        status,
+        capturedDurationSeconds,
+      },
+      notice: null,
+    });
+    api.streamRecording.getState = vi.fn(async () => ({ active: null, notice: null }));
+    api.streamRecording.onStateChanged = vi.fn((listener) => {
+      emit = listener;
+      return vi.fn();
+    });
+
+    function CapturedDuration() {
+      return (
+        <span data-testid="captured-seconds">
+          {useStreamRecordingState().active?.capturedDurationSeconds ?? "idle"}
+        </span>
+      );
+    }
+
+    const view = render(
+      <StreamRecordingProvider>
+        <CapturedDuration />
+      </StreamRecordingProvider>
+    );
+    await act(async () => Promise.resolve());
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("idle");
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => emit?.(snapshot("recording", 48)));
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("48");
+    expect(vi.getTimerCount()).toBe(1);
+
+    await act(async () => vi.advanceTimersByTimeAsync(999));
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("48");
+
+    act(() => emit?.(snapshot("recording", 48)));
+    expect(vi.getTimerCount()).toBe(1);
+
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("49");
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("51");
+
+    act(() => emit?.(snapshot("finalizing", 51)));
+    expect(vi.getTimerCount()).toBe(0);
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("51");
+
+    act(() => emit?.(snapshot("recording", 51)));
+    expect(vi.getTimerCount()).toBe(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("52");
+
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("freezes the visible captured duration while recording is paused", async () => {
+    vi.useFakeTimers();
+    const api = installElectronAPIMock();
+    api.streamRecording.getState = vi.fn(async () => ({
+      active: {
+        sessionId: "recording-session-1",
+        platform: "kick" as const,
+        channelName: "nicklee",
+        title: "Live",
+        status: "paused" as const,
+        capturedDurationSeconds: 48,
+      },
+      notice: null,
+    }));
+    api.streamRecording.onStateChanged = vi.fn(() => vi.fn());
+
+    function CapturedDuration() {
+      return <span>{useStreamRecordingState().active?.capturedDurationSeconds}</span>;
+    }
+
+    render(
+      <StreamRecordingProvider>
+        <CapturedDuration />
+      </StreamRecordingProvider>
+    );
+    await act(async () => Promise.resolve());
+
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
+
+    expect(screen.getByText("48")).toBeVisible();
+  });
+
+  it("resumes through the recording bridge and continues from the paused duration", async () => {
+    vi.useFakeTimers();
+    const api = installElectronAPIMock();
+    let emit: ((snapshot: StreamRecordingSnapshot) => void) | undefined;
+    const snapshot = (status: "paused" | "preparing" | "recording"): StreamRecordingSnapshot => ({
+      active: {
+        sessionId: "recording-session-1",
+        platform: "kick",
+        channelName: "nicklee",
+        title: "Live",
+        status,
+        capturedDurationSeconds: 48,
+        ...(status === "preparing" ? { statusMessage: "Resuming" } : {}),
+      },
+      notice: null,
+    });
+    api.streamRecording.getState = vi.fn(async () => snapshot("paused"));
+    api.streamRecording.onStateChanged = vi.fn((listener) => {
+      emit = listener;
+      return vi.fn();
+    });
+    api.streamRecording.resume = vi.fn(async () => {
+      emit?.(snapshot("preparing"));
+      emit?.(snapshot("recording"));
+      return { success: true };
+    });
+
+    function CapturedDuration() {
+      return (
+        <span data-testid="captured-seconds">
+          {useStreamRecordingState().active?.capturedDurationSeconds}
+        </span>
+      );
+    }
+
+    render(
+      <StreamRecordingProvider>
+        <CapturedDuration />
+        <RecordingPauseResumeControl surface="global" />
+      </StreamRecordingProvider>
+    );
+    await act(async () => Promise.resolve());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Resume recording" }));
+      await Promise.resolve();
+    });
+
+    expect(api.streamRecording.resume).toHaveBeenCalledWith("recording-session-1");
+    expect(screen.getByRole("button", { name: "Pause recording" })).toBeVisible();
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("48");
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+
+    expect(screen.getByTestId("captured-seconds")).toHaveTextContent("49");
+  });
+
   it("lets the root provider share one IPC subscription across consumers", async () => {
     const api = installElectronAPIMock();
     const initial: StreamRecordingSnapshot = { active: null, notice: null };
@@ -173,28 +340,37 @@ describe("useStreamRecordingState", () => {
     expect(screen.getByText("reconnecting")).toBeVisible();
   });
 
-  it.each([
-    "completed",
-    "partial",
-    "failed",
-  ] as const)("represents a %s terminal outcome explicitly", async (outcome) => {
+  it("rehydrates a paused session after the renderer provider remounts", async () => {
     const api = installElectronAPIMock();
     api.streamRecording.onStateChanged = vi.fn(() => vi.fn());
     api.streamRecording.getState = vi.fn(async () => ({
-      active: null,
-      notice: {
+      active: {
         sessionId: "recording-session-1",
-        platform: "twitch" as const,
-        channelName: "ninja",
-        title: "Ranked",
-        outcome,
-        outputPath: "D:/Videos/ninja.mp4",
+        platform: "kick" as const,
+        channelName: "nicklee",
+        title: "Live",
+        status: "paused" as const,
+        capturedDurationSeconds: 48,
       },
+      notice: null,
     }));
 
     function Consumer() {
-      return <span data-testid="terminal-phase">{useStreamRecordingState().phase}</span>;
+      const recording = useStreamRecordingState();
+      return (
+        <span>
+          {recording.phase}:{recording.active?.capturedDurationSeconds}
+        </span>
+      );
     }
+
+    const first = render(
+      <StreamRecordingProvider>
+        <Consumer />
+      </StreamRecordingProvider>
+    );
+    await waitFor(() => expect(screen.getByText("paused:48")).toBeVisible());
+    first.unmount();
 
     render(
       <StreamRecordingProvider>
@@ -202,9 +378,41 @@ describe("useStreamRecordingState", () => {
       </StreamRecordingProvider>
     );
 
-    await waitFor(() => expect(screen.getByTestId("terminal-phase")).toHaveTextContent(outcome));
-    expect(screen.queryByTestId("recording-phase-announcer")).toBeNull();
+    await waitFor(() => expect(screen.getByText("paused:48")).toBeVisible());
+    expect(api.streamRecording.getState).toHaveBeenCalledTimes(2);
   });
+
+  it.each(["completed", "partial", "failed"] as const)(
+    "represents a %s terminal outcome explicitly",
+    async (outcome) => {
+      const api = installElectronAPIMock();
+      api.streamRecording.onStateChanged = vi.fn(() => vi.fn());
+      api.streamRecording.getState = vi.fn(async () => ({
+        active: null,
+        notice: {
+          sessionId: "recording-session-1",
+          platform: "twitch" as const,
+          channelName: "ninja",
+          title: "Ranked",
+          outcome,
+          outputPath: "D:/Videos/ninja.mp4",
+        },
+      }));
+
+      function Consumer() {
+        return <span data-testid="terminal-phase">{useStreamRecordingState().phase}</span>;
+      }
+
+      render(
+        <StreamRecordingProvider>
+          <Consumer />
+        </StreamRecordingProvider>
+      );
+
+      await waitFor(() => expect(screen.getByTestId("terminal-phase")).toHaveTextContent(outcome));
+      expect(screen.queryByTestId("recording-phase-announcer")).toBeNull();
+    }
+  );
 
   it("leaves Interrupted announcement ownership to the root recovery alert", async () => {
     const api = installElectronAPIMock();

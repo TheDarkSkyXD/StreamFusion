@@ -560,6 +560,14 @@ const ALLOWED_KICK_WEB_API_MUTATIONS: ReadonlyArray<{
     method: "DELETE",
     pattern: /^\/api\/v2\/chatrooms\/\d+\/messages\/[^/?#]+$/,
   },
+  {
+    method: "POST",
+    pattern: /^\/api\/v2\/channels\/[^/?#]+\/follow$/,
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/v2\/channels\/[^/?#]+\/follow$/,
+  },
 ];
 
 export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetResult> {
@@ -630,7 +638,10 @@ export async function getKickChannelViewerRole(
   };
 }
 
-function isAllowedKickWebApiMutation(method: KickWebApiMutationMethod, path: string): boolean {
+export function isAllowedKickWebApiMutation(
+  method: KickWebApiMutationMethod,
+  path: string
+): boolean {
   return ALLOWED_KICK_WEB_API_MUTATIONS.some(
     (entry) => entry.method === method && entry.pattern.test(path)
   );

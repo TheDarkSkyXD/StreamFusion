@@ -87,7 +87,7 @@ const followedContentItem: FollowedContentItem = {
 
 interface CacheHitCase {
   name: string;
-  render: () => void;
+  useHook: () => void;
   seed: (client: QueryClient) => void;
   surface: string;
 }
@@ -112,19 +112,19 @@ function cacheHitCases(): CacheHitCase[] {
       name: "top streams",
       surface: "stream-list",
       seed: (client) => seedQuery(client, STREAM_KEYS.top("twitch", 20), [stream]),
-      render: () => useTopStreams("twitch", 20),
+      useHook: () => useTopStreams("twitch", 20),
     },
     {
       name: "followed stream status",
       surface: "following",
       seed: (client) => seedQuery(client, STREAM_KEYS.followed("twitch"), [stream]),
-      render: () => useFollowedStreams("twitch", 20, { enabled: true }),
+      useHook: () => useFollowedStreams("twitch", 20, { enabled: true }),
     },
     {
       name: "stream by channel",
       surface: "stream-detail",
       seed: (client) => seedQuery(client, STREAM_KEYS.byChannel("testchannel", "twitch"), stream),
-      render: () => useStreamByChannel("testchannel", "twitch"),
+      useHook: () => useStreamByChannel("testchannel", "twitch"),
     },
     {
       name: "search channels",
@@ -134,7 +134,7 @@ function cacheHitCases(): CacheHitCase[] {
           cursor: null,
           data: [channel],
         }),
-      render: () => useSearchChannels(" xqc "),
+      useHook: () => useSearchChannels(" xqc "),
     },
     {
       name: "search categories",
@@ -144,7 +144,7 @@ function cacheHitCases(): CacheHitCase[] {
           cursor: null,
           data: [category],
         }),
-      render: () => useSearchCategories("fortnite"),
+      useHook: () => useSearchCategories("fortnite"),
     },
     {
       name: "combined search",
@@ -157,26 +157,26 @@ function cacheHitCases(): CacheHitCase[] {
           streams: [stream],
           videos: [],
         }),
-      render: () => useSearchAll("test"),
+      useHook: () => useSearchAll("test"),
     },
     {
       name: "top categories",
       surface: "categories",
       seed: (client) => seedQuery(client, CATEGORY_KEYS.top("twitch"), [category]),
-      render: () => useTopCategories("twitch"),
+      useHook: () => useTopCategories("twitch"),
     },
     {
       name: "category by id",
       surface: "category-detail",
       seed: (client) => seedQuery(client, CATEGORY_KEYS.byId("cat-1", "twitch"), category),
-      render: () => useCategoryById("cat-1", "twitch"),
+      useHook: () => useCategoryById("cat-1", "twitch"),
     },
     {
       name: "category metadata",
       surface: "category-detail",
       seed: (client) =>
         seedQuery(client, CATEGORY_KEYS.metadata("cat-1", "twitch"), { tags: ["irl"] }),
-      render: () => useCategoryMetadata(category),
+      useHook: () => useCategoryMetadata(category),
     },
     {
       name: "unified category link fallback",
@@ -187,7 +187,7 @@ function cacheHitCases(): CacheHitCase[] {
           id: "kick-cat-1",
           platform: "kick",
         }),
-      render: () => useUnifiedCategoryLink("twitch", "cat-1", "Just Chatting"),
+      useHook: () => useUnifiedCategoryLink("twitch", "cat-1", "Just Chatting"),
     },
     {
       name: "infinite category streams",
@@ -197,19 +197,19 @@ function cacheHitCases(): CacheHitCase[] {
           data: [stream],
           nextCursor: undefined,
         }),
-      render: () => useInfiniteStreamsByCategory("cat-1", "twitch", 20, "Just Chatting", "en"),
+      useHook: () => useInfiniteStreamsByCategory("cat-1", "twitch", 20, "Just Chatting", "en"),
     },
     {
       name: "followed channels",
       surface: "following",
       seed: (client) => seedQuery(client, CHANNEL_KEYS.followed("twitch"), [channel]),
-      render: () => useFollowedChannels("twitch", { enabled: true }),
+      useHook: () => useFollowedChannels("twitch", { enabled: true }),
     },
     {
       name: "channel by username",
       surface: "stream-detail",
       seed: (client) => seedQuery(client, CHANNEL_KEYS.byUsername("testchannel", "twitch"), channel),
-      render: () => useChannelByUsername("testchannel", "twitch"),
+      useHook: () => useChannelByUsername("testchannel", "twitch"),
     },
     {
       name: "followed videos",
@@ -218,7 +218,7 @@ function cacheHitCases(): CacheHitCase[] {
         seedQuery(client, FOLLOWED_CONTENT_KEYS.videos(followedChannels, 4, "recent"), [
           followedContentItem,
         ]),
-      render: () => useFollowedVideos(followedChannels),
+      useHook: () => useFollowedVideos(followedChannels),
     },
     {
       name: "followed clips",
@@ -227,7 +227,7 @@ function cacheHitCases(): CacheHitCase[] {
         seedQuery(client, FOLLOWED_CONTENT_KEYS.clips(followedChannels, 4, "recent", "all"), [
           followedContentItem,
         ]),
-      render: () => useFollowedClips(followedChannels),
+      useHook: () => useFollowedClips(followedChannels),
     },
     {
       name: "followed clip playback",
@@ -237,7 +237,7 @@ function cacheHitCases(): CacheHitCase[] {
           qualities: [{ quality: "source", url: "https://example.com/clip.m3u8" }],
           url: "https://example.com/clip.m3u8",
         }),
-      render: () => useFollowedClipPlayback(clip),
+      useHook: () => useFollowedClipPlayback(clip),
     },
     {
       name: "watch history",
@@ -257,7 +257,7 @@ function cacheHitCases(): CacheHitCase[] {
             },
           ],
         }),
-      render: () => useHistoryQuery(),
+      useHook: () => useHistoryQuery(),
     },
   ];
 }
@@ -282,7 +282,7 @@ describe("cache performance telemetry across app data hooks", () => {
     const client = makeClient();
     testCase.seed(client);
 
-    renderHook(testCase.render, { wrapper: makeWrapper(client) });
+    renderHook(testCase.useHook, { wrapper: makeWrapper(client) });
 
     await waitFor(() => {
       expect(getCachePerformanceSamples("cache-hit-paint")).toEqual([

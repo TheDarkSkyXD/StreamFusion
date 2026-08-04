@@ -252,6 +252,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
   // Rate limiting
   private messageTimestamps: number[] = [];
+  private pendingMessageReservations: Set<symbol> = new Set();
   private isModerator: Map<string, boolean> = new Map(); // channel -> isMod
   private channelBadges: Map<string, SubscriberBadge[]> = new Map(); // channel -> badges
   // Self-learning badge cache: snapshot of each sender's badges in each
@@ -733,22 +734,29 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       throw new Error(`Not in channel: ${normalizedChannel}`);
     }
 
-    // Rate limiting
-    if (!this.checkRateLimit(normalizedChannel)) {
+    const rateLimitReservation = this.reserveMessageSend(normalizedChannel);
+    if (!rateLimitReservation) {
       throw new Error("Message rate limit exceeded");
     }
 
     // Delegate to the page-context sender. The send-window owns auth and
     // the actual HTTP — this service just orchestrates rate limit, error
     // surfacing, and optimistic echo.
-    const result = await sendKickChatMessage(
-      channelInfo.chatroomId,
-      message,
-      channelInfo.broadcasterUserId
-    );
-    if (!result.ok) {
-      throw new KickChatSendError(result);
+    let result: KickSendResult;
+    try {
+      result = await sendKickChatMessage(
+        channelInfo.chatroomId,
+        message,
+        channelInfo.broadcasterUserId
+      );
+      if (!result.ok) {
+        throw new KickChatSendError(result);
+      }
+    } catch (error) {
+      this.pendingMessageReservations.delete(rateLimitReservation);
+      throw error;
     }
+    this.pendingMessageReservations.delete(rateLimitReservation);
     this.recordMessageSent();
 
     // Optimistic local echo. The new send path triggers a Pusher delivery
@@ -1246,7 +1254,15 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     const limit = this.isModerator.get(channel) ? MOD_MESSAGE_RATE_LIMIT : MESSAGE_RATE_LIMIT;
 
-    return this.messageTimestamps.length < limit;
+    return this.messageTimestamps.length + this.pendingMessageReservations.size < limit;
+  }
+
+  private reserveMessageSend(channel: string): symbol | null {
+    if (!this.checkRateLimit(channel)) return null;
+
+    const reservation = Symbol("pending-message-send");
+    this.pendingMessageReservations.add(reservation);
+    return reservation;
   }
 
   /**

@@ -39,6 +39,7 @@ const STANDARD_QUALITIES: QualityLevel[] = [
   makeQuality("160p", 160, { name: "160p" }),
 ];
 
+// Guards: Highest dynamically selects the explicit Source rendition regardless of manifest order.
 describe("useDefaultQuality", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,6 +53,52 @@ describe("useDefaultQuality", () => {
     renderHook(() => useDefaultQuality(STANDARD_QUALITIES, "auto", onQualityChange));
 
     expect(onQualityChange).not.toHaveBeenCalled();
+  });
+
+  it("selects an explicit Source rendition for the Highest preset", () => {
+    mockDefaultQuality = "highest";
+    const onQualityChange = vi.fn();
+    const twitchQualities = [
+      makeQuality("0", 720, { label: "720p60", bitrate: 3_000_000 }),
+      makeQuality("1", 1080, {
+        label: "1080p60 (Source)",
+        bitrate: 6_000_000,
+        isSource: true,
+      }),
+      makeQuality("2", 480, { label: "480p", bitrate: 1_500_000 }),
+    ];
+
+    renderHook(() => useDefaultQuality(twitchQualities, "auto", onQualityChange));
+
+    expect(onQualityChange).toHaveBeenCalledWith("1");
+  });
+
+  it("does not treat a presentation-only Source label as explicit Source metadata", () => {
+    mockDefaultQuality = "highest";
+    const onQualityChange = vi.fn();
+    const qualities = [
+      makeQuality("0", 720, { label: "720p60 (Source)", bitrate: 3_000_000 }),
+      makeQuality("1", 1080, { label: "1080p60", bitrate: 6_000_000 }),
+    ];
+
+    renderHook(() => useDefaultQuality(qualities, "auto", onQualityChange));
+
+    expect(onQualityChange).toHaveBeenCalledWith("1");
+  });
+
+  it("selects the highest real rendition when a Kick manifest has no Source tag", () => {
+    mockDefaultQuality = "highest";
+    const onQualityChange = vi.fn();
+    const kickQualities = [
+      makeQuality("0", 720, { label: "720p60", bitrate: 3_000_000 }),
+      makeQuality("1", 1080, { label: "1080p30", bitrate: 4_500_000 }),
+      makeQuality("2", 480, { label: "480p", bitrate: 1_500_000 }),
+      makeQuality("3", 1080, { label: "1080p60", bitrate: 6_000_000 }),
+    ];
+
+    renderHook(() => useDefaultQuality(kickQualities, "auto", onQualityChange));
+
+    expect(onQualityChange).toHaveBeenCalledWith("3");
   });
 
   it("selects exact height match for 720p", () => {
@@ -70,6 +117,21 @@ describe("useDefaultQuality", () => {
     renderHook(() => useDefaultQuality(STANDARD_QUALITIES, "auto", onQualityChange));
 
     expect(onQualityChange).toHaveBeenCalledWith("1080p60");
+  });
+
+  it("keeps a fixed preset as a ceiling and picks its best offered rendition", () => {
+    mockDefaultQuality = "1080p";
+    const onQualityChange = vi.fn();
+    const qualities = [
+      makeQuality("source", 1440, { label: "1440p60 (Source)", bitrate: 10_000_000 }),
+      makeQuality("1080-low", 1080, { label: "1080p30", bitrate: 4_000_000 }),
+      makeQuality("720", 720, { label: "720p60", bitrate: 3_000_000 }),
+      makeQuality("1080-high", 1080, { label: "1080p60", bitrate: 6_000_000 }),
+    ];
+
+    renderHook(() => useDefaultQuality(qualities, "auto", onQualityChange));
+
+    expect(onQualityChange).toHaveBeenCalledWith("1080-high");
   });
 
   it("selects exact height match for 1440p", () => {
@@ -195,6 +257,19 @@ describe("useDefaultQuality", () => {
     renderHook(() => useDefaultQuality(qualities, "auto", onQualityChange));
 
     expect(onQualityChange).toHaveBeenCalledWith("source");
+  });
+
+  it("prefers an exact named fixed rendition with missing height over a lower measured fallback", () => {
+    mockDefaultQuality = "1080p";
+    const onQualityChange = vi.fn();
+    const qualities = [
+      makeQuality("720", 720, { name: "720p60", bitrate: 3_000_000 }),
+      makeQuality("1080-unknown-height", 0, { name: "1080p60", bitrate: 6_000_000 }),
+    ];
+
+    renderHook(() => useDefaultQuality(qualities, "auto", onQualityChange));
+
+    expect(onQualityChange).toHaveBeenCalledWith("1080-unknown-height");
   });
 
   it("uses bitrate fallback when all heights are 0 and no name match", () => {

@@ -10,6 +10,7 @@ import { KICK_LEGACY_API_V2_BASE, type KickApiResponse, type KickApiUser } from 
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
 
 const PUBLIC_USER_PROFILE_LOAD_TIMEOUT_MS = 10000;
+const KICK_USERS_FILTER_LIMIT = 50;
 const ISO_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -87,7 +88,7 @@ export async function getUser(): Promise<KickUser | null> {
 
 /**
  * Get users by IDs
- * https://docs.kick.com/apis/users - GET /public/v1/users?id[]=:id
+ * https://docs.kick.com/apis/users - GET /public/v1/users?id=:id
  */
 export async function getUsersById(client: KickRequestor, ids: number[]): Promise<KickApiUser[]> {
   if (ids.length === 0) {
@@ -114,13 +115,22 @@ export async function getUsersByIdStrict(
 ): Promise<KickApiUser[]> {
   if (ids.length === 0) return [];
   const uniqueIds = Array.from(new Set(ids));
-  const queryString = uniqueIds.map((id) => `id[]=${id}`).join("&");
-  const response = await client.request<KickApiResponse<KickApiUser[]>>(
-    `/users?${queryString}`,
-    undefined,
-    client.isAuthenticated() ? "user" : "app"
-  );
-  return response.data || [];
+  const authMode = client.isAuthenticated() ? "user" : "app";
+  const users: KickApiUser[] = [];
+
+  for (let index = 0; index < uniqueIds.length; index += KICK_USERS_FILTER_LIMIT) {
+    const chunk = uniqueIds.slice(index, index + KICK_USERS_FILTER_LIMIT);
+    const queryString = chunk.map((id) => `id=${id}`).join("&");
+    const response = await client.request<KickApiResponse<KickApiUser[]>>(
+      `/users?${queryString}`,
+      undefined,
+      authMode
+    );
+    const requestedIds = new Set(chunk);
+    users.push(...(response.data || []).filter((user) => requestedIds.has(user.user_id)));
+  }
+
+  return users;
 }
 
 /**

@@ -99,6 +99,7 @@ function setTwitchViewer(login = "darkskyfullofstars", displayName = "DarkSkyFul
 // Guards: reply and pin hover actions sit on the top edge of the chat row with visible space between them
 // Guards: pin-message tooltip uses Twitch's top-end placement while keeping text left-aligned
 // Guards: username hover keeps the message row background off while the username keeps its own Twitch hover state
+// Guards: chat row hover highlighting respects the saved smooth-hover preference without overriding reduced-motion users
 // Guards: parsed Twitch reply metadata renders the inline "Replying to @user" context above the child message
 // Guards: long usernames keep the regular-message colon in the same wrap group as the name.
 // Guards: Twitch /me action messages keep visual space between username and action text.
@@ -808,6 +809,40 @@ describe("ChatMessage chatDisplay appearance (U2)", () => {
     expect(row.className).not.toContain("bg-[rgba(255,255,255,0.16)]");
   });
 
+  it("smooths message-row hover highlighting by default", () => {
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector(".group") as HTMLElement;
+
+    fireEvent.mouseEnter(row, { target: row });
+
+    expect(row.className).toContain("bg-[rgba(255,255,255,0.16)]");
+    expect(row.className).toContain("transition-colors");
+    expect(row.className).toContain("duration-150");
+  });
+
+  it("keeps message-row hover highlighting immediate when hover smoothing is disabled", () => {
+    setChatDisplay({ hoverSmooth: false });
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector(".group") as HTMLElement;
+
+    fireEvent.mouseEnter(row, { target: row });
+
+    expect(row.className).toContain("bg-[rgba(255,255,255,0.16)]");
+    expect(row.className).not.toContain("transition-colors");
+    expect(row.className).not.toContain("duration-150");
+  });
+
+  it("only smooths message-row hover highlighting when reduced motion is safe", () => {
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector(".group") as HTMLElement;
+    const classes = row.className.split(" ");
+
+    expect(classes).toContain("motion-safe:transition-colors");
+    expect(classes).toContain("motion-safe:duration-150");
+    expect(classes).not.toContain("transition-colors");
+    expect(classes).not.toContain("duration-150");
+  });
+
   it("uses tighter padding/line-height when density is compact", () => {
     setChatDisplay({ density: "compact" });
     const { container } = render(<ChatMessage message={baseMessage()} />);
@@ -815,6 +850,15 @@ describe("ChatMessage chatDisplay appearance (U2)", () => {
     expect(row.className).toContain("py-0");
     expect(row.className).toContain("leading-[1.2]");
     expect(row.className).not.toContain("leading-[22px]");
+  });
+
+  it("adds loose vertical row padding when density is loose", () => {
+    setChatDisplay({ density: "loose" });
+    const { container } = render(<ChatMessage message={baseMessage()} />);
+    const row = container.querySelector(".group") as HTMLElement;
+    expect(row.className).toContain("py-3");
+    expect(row.className).toContain("leading-[22px]");
+    expect(row.className).not.toContain("py-1");
   });
 
   it("uses Twitch cozy row padding around an emote-heavy Kick message", () => {

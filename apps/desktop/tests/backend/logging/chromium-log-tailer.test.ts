@@ -133,19 +133,23 @@ describe("startChromiumLogTailer — Chromium prefix routing", () => {
       ].join("\n"),
       "utf8"
     );
-    await pause();
 
-    expect(logger.warn).toHaveBeenCalledWith(
-      "Chromium",
-      "[1:0607/155145.309:WARNING:foo.cc(123)] noisy"
-    );
-    expect(logger.info).toHaveBeenCalledWith(
-      "Chromium",
-      "[1:0607/155145.310:INFO:foo.cc(123)] startup"
-    );
-    expect(logger.debug).toHaveBeenCalledWith(
-      "Chromium",
-      "[1:0607/155145.311:VERBOSE:foo.cc(123)] chatter"
+    await vi.waitFor(
+      () => {
+        expect(logger.warn).toHaveBeenCalledWith(
+          "Chromium",
+          "[1:0607/155145.309:WARNING:foo.cc(123)] noisy"
+        );
+        expect(logger.info).toHaveBeenCalledWith(
+          "Chromium",
+          "[1:0607/155145.310:INFO:foo.cc(123)] startup"
+        );
+        expect(logger.debug).toHaveBeenCalledWith(
+          "Chromium",
+          "[1:0607/155145.311:VERBOSE:foo.cc(123)] chatter"
+        );
+      },
+      { interval: POLL_MS, timeout: 2_000 }
     );
   });
 });

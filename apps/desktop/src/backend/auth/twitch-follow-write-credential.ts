@@ -50,12 +50,14 @@ interface TokenErrorResponse {
 
 interface ValidationResponse {
   client_id?: string;
+  user_id?: string;
   scopes?: string[];
 }
 
 export interface TwitchFollowWriteCredential {
   clientId: string;
   accessToken: string;
+  userId: string;
 }
 
 interface TwitchFollowWriteCredentialDependencies {
@@ -168,8 +170,9 @@ export class TwitchFollowWriteCredentialService {
 
   async getCredential(): Promise<TwitchFollowWriteCredential> {
     const stored = this.storage.get();
-    if (stored && (await this.isValid(stored))) {
-      return this.asCredential(stored);
+    const storedValidation = stored ? await this.validate(stored) : null;
+    if (stored && storedValidation) {
+      return this.asCredential(stored, storedValidation.user_id!);
     }
     if (stored) this.storage.clear();
 
@@ -185,10 +188,11 @@ export class TwitchFollowWriteCredentialService {
     this.storage.clear();
   }
 
-  private asCredential(token: AuthToken): TwitchFollowWriteCredential {
+  private asCredential(token: AuthToken, userId: string): TwitchFollowWriteCredential {
     return {
       clientId: TWITCH_FOLLOW_WRITE_CLIENT_ID,
       accessToken: token.accessToken,
+      userId,
     };
   }
 
@@ -200,11 +204,12 @@ export class TwitchFollowWriteCredentialService {
     );
     try {
       const token = await this.pollForToken(device, activationWindow.closed);
-      if (!(await this.isValid(token))) {
+      const validation = await this.validate(token);
+      if (!validation) {
         throw new Error("Twitch follow authorization returned an invalid credential");
       }
       this.storage.save(token);
-      return this.asCredential(token);
+      return this.asCredential(token, validation.user_id!);
     } finally {
       activationWindow.close();
     }
@@ -275,17 +280,18 @@ export class TwitchFollowWriteCredentialService {
     throw new Error("Twitch follow authorization expired");
   }
 
-  private async isValid(token: AuthToken): Promise<boolean> {
-    if (token.expiresAt && token.expiresAt <= this.now()) return false;
+  private async validate(token: AuthToken): Promise<ValidationResponse | null> {
+    if (token.expiresAt && token.expiresAt <= this.now()) return null;
     const response = await this.fetchImpl(VALIDATE_ENDPOINT, {
       headers: { Authorization: `OAuth ${token.accessToken}` },
     });
-    if (!response.ok) return false;
+    if (!response.ok) return null;
     const validation = (await response.json()) as ValidationResponse;
-    return (
+    const isValid =
       validation.client_id === TWITCH_FOLLOW_WRITE_CLIENT_ID &&
-      validation.scopes?.includes("user_follows_edit") === true
-    );
+      Boolean(validation.user_id) &&
+      validation.scopes?.includes("user_follows_edit") === true;
+    return isValid ? validation : null;
   }
 }
 

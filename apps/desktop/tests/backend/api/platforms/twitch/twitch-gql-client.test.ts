@@ -177,10 +177,11 @@ function makeViewCountResponse(count: number) {
   };
 }
 
-function makeTagsAndLanguageResponse(tags: string[], language: string) {
+function makeTagsAndLanguageResponse(tags: string[], language: string, displayName?: string) {
   return {
     data: {
       user: {
+        displayName,
         stream: {
           freeformTags: tags.map((name, i) => ({ id: `t${i}`, name })),
         },
@@ -726,6 +727,7 @@ describe("gqlGetTopStreams — gameId path (DirectoryPage_Game persisted query)"
 
 // ---------------------------------------------------------------------------
 
+// Guards: Twitch stream lookup preserves login identity while displaying the provider-cased channel name.
 describe("gqlGetStreamByLogin", () => {
   let fetchMock: FetchMock;
 
@@ -751,6 +753,7 @@ describe("gqlGetStreamByLogin", () => {
     expect(result).not.toBeNull();
     expect(result!.platform).toBe("twitch");
     expect(result!.channelName).toBe("ninja");
+    expect(result!.channelDisplayName).toBe("ninja");
     expect(result!.viewerCount).toBe(42000);
     expect(result!.tags).toEqual(["English", "FPS"]);
     expect(result!.language).toBe("en");
@@ -758,6 +761,22 @@ describe("gqlGetStreamByLogin", () => {
     expect(result!.startedAt).toBe("2026-01-01T00:00:00Z");
     expect(result!.categoryId).toBe("game-1");
     expect(result!.categoryName).toBe("VALORANT");
+  });
+
+  it("uses the provider display name while retaining login identity", async () => {
+    stubFetchBatch(
+      fetchMock,
+      makeStreamMetadataResponse("appie201"),
+      makeViewCountResponse(42),
+      makeTagsAndLanguageResponse([], "EN", "Appie201")
+    );
+
+    const result = await gqlGetStreamByLogin("appie201");
+
+    expect(result).toMatchObject({
+      channelName: "appie201",
+      channelDisplayName: "Appie201",
+    });
   });
 
   it("returns null when user has no stream", async () => {
@@ -827,6 +846,7 @@ describe("gqlGetStreamByLogin", () => {
 
 // ---------------------------------------------------------------------------
 
+// Guards: Batched Twitch stream lookup uses provider display names without changing login identity.
 describe("gqlGetStreamsByLogins", () => {
   let fetchMock: FetchMock;
 
@@ -858,6 +878,7 @@ describe("gqlGetStreamsByLogins", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].channelName).toBe("channel1");
+    expect(result[0].channelDisplayName).toBe("channel1");
     expect(result[0].isLive).toBe(true);
     expect(result[0].tags).toEqual(["RPG"]);
     expect(result[0].language).toBe("en");
@@ -880,6 +901,19 @@ describe("gqlGetStreamsByLogins", () => {
 
     expect(result[0].tags).toEqual(["Competitive", "Ranked"]);
     expect(result[0].language).toBe("de");
+  });
+
+  it("uses provider display names for batched live streams", async () => {
+    stubFetchBatch(fetchMock, makeUseLiveResponse(true));
+    stubFetchBatch(fetchMock, makeStreamMetadataResponse("appie201"), makeViewCountResponse(100));
+    stubFetchBatch(fetchMock, makeTagsAndLanguageResponse([], "EN", "Appie201"));
+
+    const result = await gqlGetStreamsByLogins(["appie201"]);
+
+    expect(result[0]).toMatchObject({
+      channelName: "appie201",
+      channelDisplayName: "Appie201",
+    });
   });
 });
 
@@ -1214,7 +1248,7 @@ describe("gqlGetCategoryById", () => {
 // ---------------------------------------------------------------------------
 
 // Guards: direct Twitch channel lookup preserves the AboutPanel last-broadcast game so offline channel pages can show category context.
-// Guards: direct Twitch channel lookup batches canonical last-broadcast metadata so channels with VODs disabled still expose when they were last live.
+// Guards: direct Twitch channel lookup never treats a broadcast start as the time an offline stream ended.
 describe("gqlGetChannelByLogin", () => {
   let fetchMock: FetchMock;
 
@@ -1288,7 +1322,7 @@ describe("gqlGetChannelByLogin", () => {
     ]);
   });
 
-  it("returns the canonical last broadcast start time in the existing lookup batch", async () => {
+  it("omits last-live time when an offline channel only supplies last broadcast start", async () => {
     stubFetchBatch(
       fetchMock,
       {
@@ -1316,15 +1350,46 @@ describe("gqlGetChannelByLogin", () => {
 
     const result = await gqlGetChannelByLogin("ninja");
 
-    expect(result).toMatchObject({ lastLiveAt: "2026-08-01T15:30:00Z" });
+    expect(result!.lastLiveAt).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(lastFetchBody(fetchMock));
-    expect(body).toHaveLength(3);
-    expect(body[2].variables).toEqual({ login: "ninja" });
-    expect(body[2].query).toContain("query ChannelLastBroadcast($login: String!)");
-    expect(body[2].query).toMatch(
-      /user\(login: \$login\)\s*{\s*lastBroadcast\s*{\s*startedAt\s*}\s*}/
+    expect(body).toHaveLength(2);
+  });
+
+  it("does not expose an offline last-live time while the channel is live", async () => {
+    stubFetchBatch(
+      fetchMock,
+      {
+        data: {
+          userOrError: {
+            id: "u1",
+            login: "ninja",
+            displayName: "Ninja",
+            profileImageURL: "https://cdn/avatar.jpg",
+            bannerImageURL: null,
+            stream: { id: "stream-1", __typename: "Stream" },
+            __typename: "User",
+          },
+        },
+      },
+      {
+        data: {
+          user: {
+            lastBroadcast: {
+              id: "broadcast-1",
+              startedAt: "2026-08-01T15:30:00Z",
+              game: null,
+              __typename: "Broadcast",
+            },
+          },
+        },
+      }
     );
+
+    const result = await gqlGetChannelByLogin("ninja");
+
+    expect(result).toMatchObject({ isLive: true });
+    expect(result!.lastLiveAt).toBeUndefined();
   });
 
   it("returns null when user does not exist", async () => {

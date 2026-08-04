@@ -93,7 +93,7 @@ describe("TwitchVodPlayer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish qualities" }));
     expect(onReady).not.toHaveBeenCalled();
 
-    const video = screen.getByTestId("twitch-vod-video");
+    const video = screen.getByTestId<HTMLVideoElement>("twitch-vod-video");
     fireEvent.canPlay(video);
     fireEvent.canPlay(video);
     expect(onReady).toHaveBeenCalledTimes(1);
@@ -115,7 +115,7 @@ describe("TwitchVodPlayer", () => {
   it("updates the visible playback position in the seek event", () => {
     render(<TwitchVodPlayer streamUrl="https://usher.ttvnw.net/vod/123.m3u8" />);
 
-    const video = screen.getByTestId("twitch-vod-video");
+    const video = screen.getByTestId<HTMLVideoElement>("twitch-vod-video");
     Object.defineProperty(video, "duration", { configurable: true, value: 120 });
     fireEvent.durationChange(video);
 

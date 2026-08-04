@@ -48,6 +48,7 @@ function textResponse(body: string, status = 200): Response {
 
 // Guards: Kick live playback must log resolver timing without leaking full signed playback URLs.
 // Guards: warmed Kick playback cache must resolve from memory without touching electron.net.fetch.
+// Guards: forced Kick playback resolution must bypass warmed memory and refresh from the network.
 describe("KickStreamResolver", () => {
   let resolver: KickStreamResolver;
 
@@ -159,6 +160,27 @@ describe("KickStreamResolver", () => {
           urlHost: "playback.example.test",
         })
       );
+    });
+
+    it("bypasses warmed playback when a fresh resolution is forced", async () => {
+      rememberKickLivePlaybackFromChannelPayload("fast-channel", {
+        livestream: { is_live: true },
+        playback_url: "https://playback.example.test/live/stale.m3u8",
+      });
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          livestream: { is_live: true },
+          playback_url: "https://playback.example.test/live/fresh.m3u8",
+        })
+      );
+
+      const result = await resolver.getStreamPlaybackUrl("fast-channel", { forceRefresh: true });
+
+      expect(result).toEqual({
+        url: "https://playback.example.test/live/fresh.m3u8",
+        format: "hls",
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it("logs successful live playback timing without the signed URL", async () => {

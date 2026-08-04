@@ -262,7 +262,7 @@ describe("caption player wiring", () => {
     expect(captions).toBeEnabled();
     fireEvent.click(captions);
     expect(screen.getByRole("radio", { name: "Off" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: "Local live captions \(English\)" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: "Local live captions (English)" })).toBeVisible();
 
     view.unmount();
   });

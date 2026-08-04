@@ -1,0 +1,8 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:120
+#EXTINF:2.000,live
+https://video-weaver.synthetic.invalid/v1/segment/live-120.ts
+#EXTINF:2.000,live
+https://video-weaver.synthetic.invalid/v1/segment/live-121.ts

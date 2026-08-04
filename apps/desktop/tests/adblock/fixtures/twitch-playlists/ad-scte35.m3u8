@@ -1,0 +1,8 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:500
+#EXT-OATCLS-SCTE35:/DAvAAAAAAAA///wBQb+AAAAAA==
+#EXTINF:2.000,
+https://neutral.synthetic.invalid/v1/segment/scte-500.ts
+

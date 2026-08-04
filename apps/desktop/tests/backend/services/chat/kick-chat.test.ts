@@ -303,6 +303,8 @@ describe("KickChatService channel-scoped release eviction", () => {
   });
 });
 
+// Guards: pending Kick sends reserve rolling-window capacity before the IPC transport settles.
+// Guards: failed Kick sends release their reservation, while successful sends consume exactly one slot.
 describe("KickChatService.sendMessage", () => {
   beforeEach(() => {
     kickChatApi.sendMessage.mockResolvedValue({
@@ -328,6 +330,59 @@ describe("KickChatService.sendMessage", () => {
     expect(kickChatApi.sendMessage).toHaveBeenCalledWith(999_111, "hello", 42);
     const [firstArg] = kickChatApi.sendMessage.mock.calls[0]!;
     expect(firstArg).not.toBe(42);
+  });
+
+  it("rejects the 11th concurrent send before transport while 10 sends are pending", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const pendingSends: Array<{
+      resolve: (result: { ok: true; messageId: string }) => void;
+    }> = [];
+    kickChatApi.sendMessage.mockImplementation(
+      () =>
+        new Promise<{ ok: true; messageId: string }>((resolve) => pendingSends.push({ resolve }))
+    );
+
+    const sends = Array.from({ length: 10 }, (_, index) =>
+      service.sendMessage("ac7ionman", `message-${index}`)
+    );
+
+    const rejectedSend = service.sendMessage("ac7ionman", "message-10");
+    expect(kickChatApi.sendMessage).toHaveBeenCalledTimes(10);
+    await expect(rejectedSend).rejects.toThrow("Message rate limit exceeded");
+
+    pendingSends.forEach(({ resolve }, index) =>
+      resolve({ ok: true, messageId: `message-${index}` })
+    );
+    await Promise.all(sends);
+  });
+
+  it("restores capacity after a failed send and counts each successful send once", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+
+    kickChatApi.sendMessage.mockRejectedValueOnce(new Error("transport failed"));
+    await expect(service.sendMessage("ac7ionman", "failed-message")).rejects.toThrow(
+      "transport failed"
+    );
+
+    kickChatApi.sendMessage.mockResolvedValue({ ok: true, messageId: "sent" });
+    for (let index = 0; index < 10; index += 1) {
+      await expect(service.sendMessage("ac7ionman", `message-${index}`)).resolves.toBeUndefined();
+    }
+
+    await expect(service.sendMessage("ac7ionman", "message-10")).rejects.toThrow(
+      "Message rate limit exceeded"
+    );
+    expect(kickChatApi.sendMessage).toHaveBeenCalledTimes(11);
   });
 
   it("surfaces auth-expired as an actionable error with reconnect hint", async () => {

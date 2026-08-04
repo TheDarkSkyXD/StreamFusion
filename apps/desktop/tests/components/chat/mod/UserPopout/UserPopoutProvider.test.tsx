@@ -1,8 +1,10 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { renderWithProviders as render } from "../../../../test-utils";
+import type { ChatMessage } from "@/shared/chat-types";
+import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
   useUserProfile: vi.fn(() => ({
@@ -45,6 +47,7 @@ import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile"
 const mockedUseUserProfile = vi.mocked(useUserProfile);
 
 beforeEach(() => {
+  useChatStore.setState({ messagesByChannel: {} });
   (globalThis as any).window.electronAPI = {
     openExternal: vi.fn(),
     auth: { getToken: vi.fn().mockResolvedValue(null) },
@@ -67,6 +70,62 @@ function Opener({
 }
 
 describe("UserPopoutProvider", () => {
+  // Guards: selected-message actions close the dialog before replacing the composer draft.
+  it("closes the dialog and forwards Copy message to chat after the dialog unmounts", async () => {
+    const onCopyToChat = vi.fn();
+    const openingMessage: ChatMessage = {
+      id: "m1",
+      platform: "twitch",
+      type: "message",
+      channel: "streamer",
+      userId: "u1",
+      username: "alice",
+      displayName: "Alice",
+      color: "#fff",
+      badges: [],
+      content: [{ type: "text", content: "copy this into chat" }],
+      rawContent: "copy this into chat",
+      timestamp: new Date(),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    };
+    useChatStore.setState({
+      messagesByChannel: {
+        [buildChannelKey("twitch", "streamer")]: [openingMessage],
+      },
+    });
+
+    render(
+      <TooltipProvider>
+        <UserPopoutProvider
+          publicActions={{
+            replyEligibility: { state: "eligible" },
+            onReply: vi.fn(),
+            onCopyToChat,
+            onViewChannel: vi.fn(),
+          }}
+        >
+          <Opener
+            payload={{
+              userId: "u1",
+              username: "alice",
+              platform: "twitch",
+              channelId: "c1",
+              channelSlug: "streamer",
+              openingMessage,
+            }}
+          />
+        </UserPopoutProvider>
+      </TooltipProvider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "open" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy message to chat" }));
+
+    expect(screen.queryByTestId("user-popout")).toBeNull();
+    await waitFor(() => expect(onCopyToChat).toHaveBeenCalledWith("copy this into chat"));
+  });
+
   it("openUserPopout renders the popout for the requested user", () => {
     render(
       <TooltipProvider>

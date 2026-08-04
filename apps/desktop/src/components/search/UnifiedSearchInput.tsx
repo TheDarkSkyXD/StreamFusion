@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import React from "react";
-import { LuHistory, LuLayoutGrid, LuSearch, LuSparkles, LuUser, LuX } from "react-icons/lu";
+import { LuHistory, LuLayoutGrid, LuSearch, LuSparkles, LuStar, LuUser, LuX } from "react-icons/lu";
 
 import type { UnifiedCategory, UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
@@ -10,6 +10,10 @@ import { useSearchCategories, useSearchChannels } from "@/hooks/queries/useSearc
 import { useDebounce } from "@/hooks/useDebounce";
 import { type SearchHistoryScope, useSearchHistory } from "@/hooks/useSearchHistory";
 import { cn, normalizeCategoryName, pickWinner } from "@/lib/utils";
+import {
+  isExactChannelSearchMatch,
+  rankSearchChannels,
+} from "@/search/channel-search-contract";
 import type { Platform } from "@/shared/auth-types";
 
 interface UnifiedSearchInputProps {
@@ -22,6 +26,10 @@ interface UnifiedSearchInputProps {
    * If provided, prevents default navigation for channels.
    */
   onSelectChannel?: (channel: UnifiedChannel) => void;
+  /** Returns whether a channel is saved as a Multi View favorite. */
+  isChannelFavorite?: (channel: UnifiedChannel) => boolean;
+  /** Optional separate action rendered beside channel suggestions. */
+  onToggleChannelFavorite?: (channel: UnifiedChannel) => void;
   /**
    * Callback when a category is selected.
    * If provided, prevents default navigation for categories.
@@ -88,6 +96,7 @@ const SEARCH_TABS: { id: SearchTab; label: string }[] = [
 // auto-fetch via infinite scroll. Past this, the bottom CTA routes to the
 // full Search Results page so the dropdown stays a quick-glance affordance.
 const DROPDOWN_RESULT_CAP = 100;
+const ONE_LETTER_CHANNEL_TARGET = 5;
 
 function formatFollowerCount(count: number | undefined): string | null {
   if (count === undefined || count === null) return null;
@@ -157,16 +166,20 @@ function ChannelItem({
   channel,
   onClick,
   onSelectChannel,
+  isFavorite,
+  onToggleFavorite,
   platform,
 }: {
   channel: UnifiedChannel;
   onClick: (c: UnifiedChannel, e: React.MouseEvent) => void;
   onSelectChannel?: (channel: UnifiedChannel) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (channel: UnifiedChannel) => void;
   platform?: Platform;
 }) {
-  const Wrapper = onSelectChannel ? "div" : Link;
+  const Wrapper = onSelectChannel ? "button" : Link;
   const linkProps = onSelectChannel
-    ? {}
+    ? { type: "button" as const }
     : {
         to: "/stream/$platform/$channel",
         params: { platform: channel.platform, channel: channel.username },
@@ -185,47 +198,67 @@ function ChannelItem({
   const showPartnerBadge = channel.isPartner || channel.isVerified;
 
   return (
-    // @ts-expect-error - Link props vs div props complexity
-    <Wrapper
-      {...linkProps}
-      onClick={(e: React.MouseEvent) => onClick(channel, e)}
-      className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
-    >
-      <div className="relative">
-        {channel.avatarUrl ? (
-          <ProxiedImage
-            src={channel.avatarUrl}
-            alt={channel.displayName}
-            className="w-8 h-8 rounded-full object-cover"
-            fallback={avatarFallback}
-          />
-        ) : (
-          avatarFallback
-        )}
-        {channel.isLive && (
-          <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0F0F12]" />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p className="min-w-0 truncate font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)]">
-            {channel.displayName}
-          </p>
-          {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
+    <div className="flex items-stretch rounded-lg transition-colors hover:bg-[var(--color-background-secondary)]">
+      {/* @ts-expect-error - Link props vs button props complexity */}
+      <Wrapper
+        {...linkProps}
+        onClick={(e: React.MouseEvent) => onClick(channel, e)}
+        className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-4 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-ring)]"
+      >
+        <div className="relative">
+          {channel.avatarUrl ? (
+            <ProxiedImage
+              src={channel.avatarUrl}
+              alt={channel.displayName}
+              className="w-8 h-8 rounded-full object-cover"
+              fallback={avatarFallback}
+            />
+          ) : (
+            avatarFallback
+          )}
+          {channel.isLive && (
+            <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0F0F12]" />
+          )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-zinc-400">
-          {!platform && <span className="capitalize">{channel.platform}</span>}
-          {followerText && <span>{followerText}</span>}
-          {channel.isLive && <span className="text-red-500 font-bold">• LIVE</span>}
+        <div className="flex-1 min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="min-w-0 truncate font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)]">
+              {channel.displayName}
+            </p>
+            {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-zinc-400">
+            {!platform && <span className="capitalize">{channel.platform}</span>}
+            {followerText && <span>{followerText}</span>}
+            {channel.isLive && <span className="text-red-500 font-bold">• LIVE</span>}
+          </div>
         </div>
-      </div>
-    </Wrapper>
+      </Wrapper>
+      {onToggleFavorite && (
+        <button
+          type="button"
+          aria-pressed={isFavorite}
+          aria-label={`${isFavorite ? "Remove" : "Add"} ${channel.displayName} ${isFavorite ? "from" : "to"} favorites`}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggleFavorite(channel);
+          }}
+          className="m-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[var(--color-foreground-secondary)] transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+        >
+          <LuStar className={cn("h-4 w-4", isFavorite && "fill-current text-white")} />
+        </button>
+      )}
+    </div>
   );
 }
 
 export function UnifiedSearchInput({
   platform,
   onSelectChannel,
+  isChannelFavorite,
+  onToggleChannelFavorite,
   onSelectCategory,
   onSearch,
   showCategories = true,
@@ -256,6 +289,9 @@ export function UnifiedSearchInput({
   const debouncedQuery = useDebounce(searchQuery, 250);
 
   const shouldFetch = debouncedQuery.trim().length > 0;
+  const showChannelResults = !showSearchTabs || activeTab === "channels" || activeTab === "streams";
+  const showCategoryResults = showCategories && (!showSearchTabs || activeTab === "categories");
+  const channelQuery = showChannelResults ? debouncedQuery : "";
 
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -274,39 +310,54 @@ export function UnifiedSearchInput({
   });
 
   const splitPlatformSearch = !platform;
+  const splitChannelLimit = channelQuery.trim().length === 1 ? 50 : 25;
   const singleChannelQuery = useSearchChannels(
-    splitPlatformSearch ? "" : debouncedQuery,
+    splitPlatformSearch ? "" : channelQuery,
     platform,
-    50
+    50,
+    liveOnlyChannels
   );
   const twitchChannelQuery = useSearchChannels(
-    splitPlatformSearch ? debouncedQuery : "",
+    splitPlatformSearch ? channelQuery : "",
     "twitch",
-    25
+    splitChannelLimit,
+    liveOnlyChannels
   );
-  const kickChannelQuery = useSearchChannels(splitPlatformSearch ? debouncedQuery : "", "kick", 25);
+  const kickChannelQuery = useSearchChannels(
+    splitPlatformSearch ? channelQuery : "",
+    "kick",
+    splitChannelLimit,
+    liveOnlyChannels
+  );
   const singleCategoryQuery = useSearchCategories(
     splitPlatformSearch ? "" : debouncedQuery,
     platform,
-    20
+    20,
+    showCategoryResults
   );
   const twitchCategoryQuery = useSearchCategories(
     splitPlatformSearch ? debouncedQuery : "",
     "twitch",
-    10
+    10,
+    showCategoryResults
   );
   const kickCategoryQuery = useSearchCategories(
     splitPlatformSearch ? debouncedQuery : "",
     "kick",
-    10
+    10,
+    showCategoryResults
   );
 
-  const channelQueries = splitPlatformSearch
-    ? [twitchChannelQuery, kickChannelQuery]
-    : [singleChannelQuery];
-  const categoryQueries = splitPlatformSearch
-    ? [twitchCategoryQuery, kickCategoryQuery]
-    : [singleCategoryQuery];
+  const channelQueries = React.useMemo(
+    () =>
+      splitPlatformSearch ? [twitchChannelQuery, kickChannelQuery] : [singleChannelQuery],
+    [kickChannelQuery, singleChannelQuery, splitPlatformSearch, twitchChannelQuery]
+  );
+  const categoryQueries = React.useMemo(
+    () =>
+      splitPlatformSearch ? [twitchCategoryQuery, kickCategoryQuery] : [singleCategoryQuery],
+    [kickCategoryQuery, singleCategoryQuery, splitPlatformSearch, twitchCategoryQuery]
+  );
 
   const channelsLoading = channelQueries.some((query) => query.isLoading);
   const categoriesLoading = categoryQueries.some((query) => query.isLoading);
@@ -355,7 +406,12 @@ export function UnifiedSearchInput({
     seenIds: Set<string>;
     lastRawCount: number;
     absorbed: boolean;
-  }>({ query: "", seenIds: new Set(), lastRawCount: 0, absorbed: false });
+  }>({
+    query: "",
+    seenIds: new Set(),
+    lastRawCount: 0,
+    absorbed: false,
+  });
 
   // useLayoutEffect (not useEffect) — must run before the absorption-
   // detection layout effect below in declaration order so the reset
@@ -440,78 +496,20 @@ export function UnifiedSearchInput({
     return history.filter((item) => item.toLowerCase().includes(normalizedQuery));
   }, [searchQuery, history]);
 
-  // Split channels into exact matches and others, sort by live status
   const { topMatches, otherMatches } = React.useMemo(() => {
     if (!channels.length || !searchQuery) return { topMatches: [], otherMatches: [] };
 
-    const normalizedQuery = searchQuery.toLowerCase().trim();
-    const top: UnifiedChannel[] = [];
-    const others: UnifiedChannel[] = [];
-    const seenIds = new Set<string>();
-
-    // Pre-sort channels to ensure we keep the "best" version when deduplicating
-    // Priority: Live > Exact Match > Has Avatar
     const candidateChannels = liveOnlyChannels
       ? channels.filter((channel) => channel.isLive)
       : channels;
-
-    const sortedChannels = [...candidateChannels].sort((a, b) => {
-      // 1. Live status
-      if (a.isLive && !b.isLive) return -1;
-      if (!a.isLive && b.isLive) return 1;
-
-      // 2. Exact match
-      const aName = a.username?.toLowerCase() || "";
-      const bName = b.username?.toLowerCase() || "";
-      const aDisp = a.displayName?.toLowerCase() || "";
-      const bDisp = b.displayName?.toLowerCase() || "";
-
-      const aExact = aName === normalizedQuery || aDisp === normalizedQuery;
-      const bExact = bName === normalizedQuery || bDisp === normalizedQuery;
-
-      if (aExact && !bExact) return -1;
-      if (!aExact && bExact) return 1;
-
-      // 3. Has Avatar (prefer one with avatar)
-      const aHasAvatar = !!a.avatarUrl;
-      const bHasAvatar = !!b.avatarUrl;
-      if (aHasAvatar && !bHasAvatar) return -1;
-      if (!aHasAvatar && bHasAvatar) return 1;
-
-      return 0;
-    });
-
-    sortedChannels.forEach((channel) => {
-      // Deduplicate by Platform + DisplayName to catch visual duplicates
-      // We use DisplayName because sometimes the backend might return slightly different usernames/slugs
-      // for the same actual channel (e.g. ghost records from search API), resulting in visual duplicates.
-      const uniqueKey = `${channel.platform}-${channel.displayName?.toLowerCase() || channel.username?.toLowerCase()}`;
-
-      if (seenIds.has(uniqueKey)) return;
-      seenIds.add(uniqueKey);
-
-      const username = channel.username?.toLowerCase() || "";
-      const displayName = channel.displayName?.toLowerCase() || "";
-      const isExact = username === normalizedQuery || displayName === normalizedQuery;
-
-      if (isExact) {
-        top.push(channel);
-      } else {
-        others.push(channel);
-      }
-    });
-
-    // Sort both arrays to show live channels first (redundant but ensures consistency)
-    const sortByLive = (a: UnifiedChannel, b: UnifiedChannel) => {
-      if (a.isLive && !b.isLive) return -1;
-      if (!a.isLive && b.isLive) return 1;
-      return 0;
-    };
-
-    top.sort(sortByLive);
-    others.sort(sortByLive);
-
-    return { topMatches: top, otherMatches: others };
+    const rankedChannels = rankSearchChannels(candidateChannels, searchQuery);
+    const topMatches: UnifiedChannel[] = [];
+    const otherMatches: UnifiedChannel[] = [];
+    for (const channel of rankedChannels) {
+      if (isExactChannelSearchMatch(channel, searchQuery)) topMatches.push(channel);
+      else otherMatches.push(channel);
+    }
+    return { topMatches, otherMatches };
   }, [channels, liveOnlyChannels, searchQuery]);
 
   // Apply the active tab to derived results. Streams are represented by live
@@ -521,8 +519,39 @@ export function UnifiedSearchInput({
   const filteredOtherMatches = shouldShowLiveOnly
     ? otherMatches.filter((c) => c.isLive)
     : otherMatches;
-  const showChannelResults = !showSearchTabs || activeTab === "channels" || activeTab === "streams";
-  const showCategoryResults = showCategories && (!showSearchTabs || activeTab === "categories");
+
+  React.useEffect(() => {
+    const queryState = queryStateRef.current;
+    if (
+      !isFocused ||
+      activeTab !== "channels" ||
+      channelQuery.trim().length !== 1 ||
+      filteredOtherMatches.length >= ONE_LETTER_CHANNEL_TARGET ||
+      channelsLoading ||
+      channelsFetchingNextPage ||
+      !channelsHasNextPage ||
+      channels.length >= DROPDOWN_RESULT_CAP ||
+      queryState.absorbed ||
+      fetchInFlightRef.current.channels
+    ) {
+      return;
+    }
+
+    fetchInFlightRef.current.channels = true;
+    void fetchMoreChannels().finally(() => {
+      fetchInFlightRef.current.channels = false;
+    });
+  }, [
+    activeTab,
+    channelQuery,
+    channels.length,
+    channelsFetchingNextPage,
+    channelsHasNextPage,
+    channelsLoading,
+    fetchMoreChannels,
+    filteredOtherMatches.length,
+    isFocused,
+  ]);
 
   // Hide suggestions when clicking outside
   React.useEffect(() => {
@@ -787,6 +816,8 @@ export function UnifiedSearchInput({
                   channel={channel}
                   onClick={handleChannelClick}
                   onSelectChannel={onSelectChannel}
+                  isFavorite={isChannelFavorite?.(channel)}
+                  onToggleFavorite={onToggleChannelFavorite}
                   platform={platform}
                 />
               ))}
@@ -811,6 +842,8 @@ export function UnifiedSearchInput({
                   channel={channel}
                   onClick={handleChannelClick}
                   onSelectChannel={onSelectChannel}
+                  isFavorite={isChannelFavorite?.(channel)}
+                  onToggleFavorite={onToggleChannelFavorite}
                   platform={platform}
                 />
               ))}

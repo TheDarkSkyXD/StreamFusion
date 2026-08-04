@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeSearchQuery, normalizeSearchTokens } from "@/search/search-normalization";
+import {
+  compactSearchIdentity,
+  normalizeSearchQuery,
+  normalizeSearchTokens,
+} from "@/search/search-normalization";
 
 // Guards: renderer cache identities and backend fuzzy matching share one accent- and separator-insensitive canonical query
 describe("search normalization", () => {
@@ -14,5 +18,22 @@ describe("search normalization", () => {
     expect(normalizeSearchQuery("  Stréamer_univer--STREAMER 42 🎮  ")).toBe(
       "streamer univer 42 🎮"
     );
+  });
+
+  it("equates compact, space, underscore, and hyphen identity forms without changing source text", () => {
+    const identities = ["IcePoseidon", "ice poseidon", "ice_poseidon", "ice-poseidon"];
+
+    expect(identities.map(compactSearchIdentity)).toEqual([
+      "iceposeidon",
+      "iceposeidon",
+      "iceposeidon",
+      "iceposeidon",
+    ]);
+    expect(identities).toEqual([
+      "IcePoseidon",
+      "ice poseidon",
+      "ice_poseidon",
+      "ice-poseidon",
+    ]);
   });
 });

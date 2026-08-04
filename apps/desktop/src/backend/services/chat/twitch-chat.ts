@@ -92,6 +92,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
   // Rate limiting
   private messageTimestamps: number[] = [];
+  private pendingMessageReservations: Set<symbol> = new Set();
   private isModerator: Map<string, boolean> = new Map(); // channel -> isMod
 
   // Connection tracking for React Strict Mode race condition prevention
@@ -568,16 +569,18 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       throw new Error(`Not in channel: ${normalizedChannel}`);
     }
 
-    // Rate limiting
-    if (!this.checkRateLimit(normalizedChannel)) {
+    const rateLimitReservation = this.reserveMessageSend(normalizedChannel);
+    if (!rateLimitReservation) {
       throw new Error("Message rate limit exceeded");
     }
 
     try {
       await this.client.say(normalizedChannel, message);
+      this.pendingMessageReservations.delete(rateLimitReservation);
       this.recordMessageSent();
       this.emitSelfEcho(normalizedChannel, message, localFragments, false);
     } catch (error) {
+      this.pendingMessageReservations.delete(rateLimitReservation);
       logger.error("Chat:Twitch", "Failed to send message", {
         channel: normalizedChannel,
         error:
@@ -674,15 +677,18 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     const normalizedChannel = this.normalizeChannel(channel);
 
-    if (!this.checkRateLimit(normalizedChannel)) {
+    const rateLimitReservation = this.reserveMessageSend(normalizedChannel);
+    if (!rateLimitReservation) {
       throw new Error("Message rate limit exceeded");
     }
 
     try {
       await this.client.action(normalizedChannel, message);
+      this.pendingMessageReservations.delete(rateLimitReservation);
       this.recordMessageSent();
       this.emitSelfEcho(normalizedChannel, message, localFragments, true);
     } catch (error) {
+      this.pendingMessageReservations.delete(rateLimitReservation);
       logger.error("Chat:Twitch", "Failed to send action", {
         channel: normalizedChannel,
         error:
@@ -709,7 +715,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     const normalizedChannel = this.normalizeChannel(channel);
 
-    if (!this.checkRateLimit(normalizedChannel)) {
+    const rateLimitReservation = this.reserveMessageSend(normalizedChannel);
+    if (!rateLimitReservation) {
       throw new Error("Message rate limit exceeded");
     }
 
@@ -718,9 +725,11 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       await this.client.raw(
         `@reply-parent-msg-id=${parentMessageId} PRIVMSG #${normalizedChannel} :${message}`
       );
+      this.pendingMessageReservations.delete(rateLimitReservation);
       this.recordMessageSent();
       this.emitSelfEcho(normalizedChannel, message, localFragments, false);
     } catch (error) {
+      this.pendingMessageReservations.delete(rateLimitReservation);
       logger.error("Chat:Twitch", "Failed to send reply", {
         channel: normalizedChannel,
         error:
@@ -1220,7 +1229,15 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     const limit = this.isModerator.get(channel) ? MOD_MESSAGE_RATE_LIMIT : MESSAGE_RATE_LIMIT;
 
-    return this.messageTimestamps.length < limit;
+    return this.messageTimestamps.length + this.pendingMessageReservations.size < limit;
+  }
+
+  private reserveMessageSend(channel: string): symbol | null {
+    if (!this.checkRateLimit(channel)) return null;
+
+    const reservation = Symbol("pending-message-send");
+    this.pendingMessageReservations.add(reservation);
+    return reservation;
   }
 
   /**

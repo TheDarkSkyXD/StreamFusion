@@ -92,14 +92,17 @@ export function UserPopoutProvider({
     action?.();
   });
 
-  const openUserPopout = useCallback((payload: OpenUserPopoutPayload) => {
-    restoreFocusTimeout.clear();
-    pendingActionRef.current = null;
-    deferredActionTimeout.clear();
-    openerRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setCurrent(payload);
-  }, [deferredActionTimeout, restoreFocusTimeout]);
+  const openUserPopout = useCallback(
+    (payload: OpenUserPopoutPayload) => {
+      restoreFocusTimeout.clear();
+      pendingActionRef.current = null;
+      deferredActionTimeout.clear();
+      openerRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setCurrent(payload);
+    },
+    [deferredActionTimeout, restoreFocusTimeout]
+  );
 
   const close = useCallback(() => {
     setCurrent(null);
@@ -123,6 +126,13 @@ export function UserPopoutProvider({
               closeForAction();
               deferredActionTimeout.start(0);
             },
+            onCopyToChat: publicActions.onCopyToChat
+              ? (message: string) => {
+                  pendingActionRef.current = () => publicActions.onCopyToChat?.(message);
+                  closeForAction();
+                  deferredActionTimeout.start(0);
+                }
+              : undefined,
             onViewChannel: (
               platform: "twitch" | "kick",
               channel: { id: string; username: string; displayName: string }

@@ -39,6 +39,7 @@ const mockApi = {
 };
 
 beforeEach(() => {
+  localStorage.clear();
   mockApi.getAll.mockReset();
   mockApi.add.mockReset();
   mockApi.remove.mockReset();
@@ -61,9 +62,7 @@ describe("follow-store isFollowing", () => {
       localFollows: [makeChannel({ id: "421500" })],
     });
 
-    expect(
-      useFollowStore.getState().isFollowing(makeChannel({ id: "411439" }))
-    ).toBe(true);
+    expect(useFollowStore.getState().isFollowing(makeChannel({ id: "411439" }))).toBe(true);
   });
 
   it("returns false for a different channel on the same platform", () => {
@@ -71,11 +70,9 @@ describe("follow-store isFollowing", () => {
       localFollows: [makeChannel({ id: "421500", username: "chickenandy" })],
     });
 
-    expect(
-      useFollowStore
-        .getState()
-        .isFollowing(makeChannel({ id: "676", username: "xqc" }))
-    ).toBe(false);
+    expect(useFollowStore.getState().isFollowing(makeChannel({ id: "676", username: "xqc" }))).toBe(
+      false
+    );
   });
 
   it("does not bridge across platforms even when usernames match", () => {
@@ -84,9 +81,7 @@ describe("follow-store isFollowing", () => {
     });
 
     expect(
-      useFollowStore
-        .getState()
-        .isFollowing(makeChannel({ platform: "twitch", username: "xqc" }))
+      useFollowStore.getState().isFollowing(makeChannel({ platform: "twitch", username: "xqc" }))
     ).toBe(false);
   });
 
@@ -99,14 +94,35 @@ describe("follow-store isFollowing", () => {
     });
 
     expect(
-      useFollowStore
-        .getState()
-        .isFollowing(makeChannel({ id: "", username: "chickenandy" }))
+      useFollowStore.getState().isFollowing(makeChannel({ id: "", username: "chickenandy" }))
     ).toBe(true);
   });
 });
 
 describe("follow-store hydration", () => {
+  it("restores cached follows and their account source before the IPC refresh finishes", async () => {
+    const channel = makeChannel({
+      id: "421500",
+      displayName: "ChickenAndy",
+      avatarUrl: "https://example.com/chickenandy.webp",
+    });
+    useFollowStore.setState({
+      localFollows: [channel],
+      sourceByKey: new Map([["kick:421500", "kick"]]),
+      isHydrated: true,
+    });
+    const cached = localStorage.getItem("streamfusion-follow-cache");
+    expect(cached).not.toBeNull();
+
+    useFollowStore.setState({ localFollows: [], sourceByKey: new Map(), isHydrated: false });
+    localStorage.setItem("streamfusion-follow-cache", cached!);
+    await useFollowStore.persist.rehydrate();
+
+    expect(useFollowStore.getState().localFollows).toEqual([channel]);
+    expect(useFollowStore.getState().getFollowSource(channel)).toBe("kick");
+    expect(useFollowStore.getState().isHydrated).toBe(false);
+  });
+
   it("publishes hydration completion even when the local follow read fails", async () => {
     mockApi.getAll.mockRejectedValueOnce(new Error("sqlite unavailable"));
 
@@ -173,9 +189,7 @@ describe("follow-store followChannel", () => {
       localFollows: [makeChannel({ id: "411439", username: "chickenandy" })],
     });
 
-    await useFollowStore
-      .getState()
-      .followChannel(makeChannel({ id: "", username: "chickenandy" }));
+    await useFollowStore.getState().followChannel(makeChannel({ id: "", username: "chickenandy" }));
 
     expect(useFollowStore.getState().localFollows).toHaveLength(1);
     expect(mockApi.add).not.toHaveBeenCalled();
@@ -238,9 +252,7 @@ describe("follow-store unfollowChannel", () => {
       makeRow({ id: "kick-guest-421500-x", channelId: "421500" }),
     ]);
 
-    await useFollowStore
-      .getState()
-      .unfollowChannel(makeChannel({ id: "411439" }));
+    await useFollowStore.getState().unfollowChannel(makeChannel({ id: "411439" }));
 
     expect(mockApi.remove).toHaveBeenCalledTimes(1);
     expect(mockApi.remove).toHaveBeenCalledWith("kick-guest-421500-x");
@@ -256,9 +268,7 @@ describe("follow-store unfollowChannel", () => {
       makeRow({ id: "row-fresh", channelId: "411439" }),
     ]);
 
-    await useFollowStore
-      .getState()
-      .unfollowChannel(makeChannel({ id: "411439" }));
+    await useFollowStore.getState().unfollowChannel(makeChannel({ id: "411439" }));
 
     expect(mockApi.remove).toHaveBeenCalledTimes(2);
     // Pin iteration order — the unfollow loop iterates backendFollows.filter

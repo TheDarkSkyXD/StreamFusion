@@ -91,6 +91,7 @@ import {
   MULTIVIEW_CAP_MIN,
   useMultiStreamStore,
 } from "@/store/multistream-store";
+import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
 const SETTINGS_TABS = [
   "playback",
@@ -322,7 +323,19 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
     tab: "playback",
     label: "Default Quality",
     description: "Preferred stream quality when available",
-    keywords: ["1440p", "2k", "1080p", "720p", "480p", "360p", "160p", "auto", "resolution"],
+    keywords: [
+      "highest",
+      "source",
+      "1440p",
+      "2k",
+      "1080p",
+      "720p",
+      "480p",
+      "360p",
+      "160p",
+      "auto",
+      "resolution",
+    ],
   },
   {
     tab: "playback",
@@ -417,6 +430,18 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
     tab: "player-controls",
     label: "Video Stats",
     description: "Live video stats overlay.",
+  },
+  {
+    tab: "player-controls",
+    label: "Rewind",
+    description: "Seconds skipped backward in VODs and clips.",
+    keywords: ["seek", "interval", "backward", "seconds", "VOD", "clip"],
+  },
+  {
+    tab: "player-controls",
+    label: "Fast forward",
+    description: "Seconds skipped forward in VODs and clips.",
+    keywords: ["seek", "interval", "forward", "seconds", "VOD", "clip"],
   },
   // Buffer
   {
@@ -751,6 +776,10 @@ export function SettingsPage() {
   };
 
   const playerControls = preferences?.playerControls ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
+  const rewindSeconds = useSeekIntervalStore((state) => state.rewindSeconds);
+  const setRewindSeconds = useSeekIntervalStore((state) => state.setRewindSeconds);
+  const forwardSeconds = useSeekIntervalStore((state) => state.forwardSeconds);
+  const setForwardSeconds = useSeekIntervalStore((state) => state.setForwardSeconds);
   const buffer = preferences?.buffer ?? DEFAULT_BUFFER_PREFERENCES;
   const notifications = getNotificationPreferences(preferences?.notifications);
 
@@ -1125,11 +1154,15 @@ export function SettingsPage() {
                               }
                               onValueChange={handleQualityChange}
                             >
-                              <SelectTrigger className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
+                              <SelectTrigger
+                                aria-label="Default Quality"
+                                className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
+                              >
                                 <SelectValue placeholder="Select quality" />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                 <SelectItem value="auto">Auto</SelectItem>
+                                <SelectItem value="highest">Highest</SelectItem>
                                 <SelectItem value="1440p">1440p / 2K</SelectItem>
                                 <SelectItem value="1080p">1080p60</SelectItem>
                                 <SelectItem value="720p">720p60</SelectItem>
@@ -1610,6 +1643,96 @@ export function SettingsPage() {
                       </div>
                     );
                   })()}
+
+                  {anyRowVisible("Rewind", "Fast forward") && (
+                    <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)]">
+                      <div className="border-b border-[var(--color-border)] px-6 py-4">
+                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-foreground-muted)]">
+                          Seek intervals
+                        </h3>
+                        <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
+                          Seek intervals apply to VODs and clips. Live streams are unaffected.
+                        </p>
+                      </div>
+                      <div className="divide-y divide-[var(--color-border)] px-6 py-2">
+                        {isRowVisible("Rewind") && (
+                          <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="min-w-0 flex-1">
+                              <label
+                                className="font-medium text-[var(--color-foreground)]"
+                                htmlFor="rewind-seconds"
+                              >
+                                Rewind
+                              </label>
+                              <p
+                                className="mt-0.5 text-sm text-[var(--color-foreground-muted)]"
+                                id="rewind-seconds-description"
+                              >
+                                Seconds skipped backward in VODs and clips.
+                              </p>
+                            </div>
+                            <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pr-3 text-sm text-[var(--color-foreground-muted)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]">
+                              <input
+                                aria-describedby="rewind-seconds-description"
+                                className="h-10 w-20 rounded-l-lg bg-transparent px-3 text-right tabular-nums text-[var(--color-foreground)] outline-none"
+                                id="rewind-seconds"
+                                inputMode="numeric"
+                                min={0}
+                                onChange={(event) => {
+                                  const seconds = event.currentTarget.valueAsNumber;
+                                  if (!Number.isSafeInteger(seconds) || seconds < 0) return;
+                                  setRewindSeconds(seconds);
+                                  notifySettingsSaved();
+                                }}
+                                step={1}
+                                type="number"
+                                value={rewindSeconds}
+                              />
+                              sec
+                            </div>
+                          </div>
+                        )}
+
+                        {isRowVisible("Fast forward") && (
+                          <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="min-w-0 flex-1">
+                              <label
+                                className="font-medium text-[var(--color-foreground)]"
+                                htmlFor="fast-forward-seconds"
+                              >
+                                Fast forward
+                              </label>
+                              <p
+                                className="mt-0.5 text-sm text-[var(--color-foreground-muted)]"
+                                id="fast-forward-seconds-description"
+                              >
+                                Seconds skipped forward in VODs and clips.
+                              </p>
+                            </div>
+                            <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pr-3 text-sm text-[var(--color-foreground-muted)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]">
+                              <input
+                                aria-describedby="fast-forward-seconds-description"
+                                className="h-10 w-20 rounded-l-lg bg-transparent px-3 text-right tabular-nums text-[var(--color-foreground)] outline-none"
+                                id="fast-forward-seconds"
+                                inputMode="numeric"
+                                min={0}
+                                onChange={(event) => {
+                                  const seconds = event.currentTarget.valueAsNumber;
+                                  if (!Number.isSafeInteger(seconds) || seconds < 0) return;
+                                  setForwardSeconds(seconds);
+                                  notifySettingsSaved();
+                                }}
+                                step={1}
+                                type="number"
+                                value={forwardSeconds}
+                              />
+                              sec
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2154,29 +2277,41 @@ export function SettingsPage() {
                     <div
                       className={`flex items-start gap-4 p-4 rounded-xl border mb-6 ${
                         error.platform === "twitch"
-                          ? "bg-[#9146FF]/5 border-[#9146FF]/20 text-[#9146FF]"
+                          ? "bg-[#9146FF]/5 border-[#9146FF]/20"
                           : error.platform === "kick"
-                            ? "bg-[#53FC18]/5 border-[#53FC18]/20 text-[#53FC18]"
-                            : "bg-red-500/5 border-red-500/20 text-red-400"
+                            ? "bg-[#53FC18]/5 border-[#53FC18]/20"
+                            : "bg-red-500/5 border-red-500/20"
                       }`}
                     >
-                      <LuCircleAlert size={20} className="flex-shrink-0 mt-0.5" />
+                      <LuCircleAlert
+                        size={20}
+                        className={cn(
+                          "flex-shrink-0 mt-0.5",
+                          error.platform === "twitch"
+                            ? "text-[#9146FF]"
+                            : error.platform === "kick"
+                              ? "text-[#53FC18]"
+                              : "text-red-400"
+                        )}
+                      />
                       <div className="flex-1">
-                        <p className="font-medium">
+                        <p className="font-medium text-white">
                           {error.platform === "twitch"
                             ? "Twitch Connection Error"
                             : error.platform === "kick"
                               ? "Kick Connection Error"
                               : "Authentication Error"}
                         </p>
-                        <p className="text-sm mt-1 opacity-80 leading-relaxed">{error.message}</p>
+                        <p className="text-sm mt-1 text-white leading-relaxed">{error.message}</p>
                       </div>
-                      <button
+                      <Button
+                        type="button"
+                        variant="secondary"
                         onClick={clearError}
-                        className="text-sm font-medium hover:underline opacity-80 hover:opacity-100"
+                        className="h-auto min-h-10 shrink-0 cursor-pointer border border-zinc-600 bg-zinc-800 px-3 py-2 text-white shadow-sm hover:bg-zinc-700 hover:text-white focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214] active:bg-zinc-900 disabled:cursor-not-allowed"
                       >
                         Dismiss
-                      </button>
+                      </Button>
                     </div>
                   )}
 
@@ -2396,7 +2531,12 @@ function UpdatesSettingsPanel({
             {isRowVisible("Check frequency") && (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className={cn("font-medium", autoCheckEnabled ? "text-zinc-200" : "text-zinc-500")}>
+                  <p
+                    className={cn(
+                      "font-medium",
+                      autoCheckEnabled ? "text-zinc-200" : "text-zinc-500"
+                    )}
+                  >
                     Check frequency
                   </p>
                   <p className="text-sm text-zinc-500 mt-1">

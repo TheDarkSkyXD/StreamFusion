@@ -226,7 +226,7 @@ interface MessageBatch {
 
 // Global batching state (outside React lifecycle for persistence)
 const messageBatches: Record<string, MessageBatch> = {};
-export const DEFAULT_BATCHING_INTERVAL_MS = 100;
+export const DEFAULT_BATCHING_INTERVAL_MS = 16;
 
 interface ChatState {
   /** Per-channel message buckets, keyed by `buildChannelKey(platform, channel)`. */
@@ -271,6 +271,7 @@ interface ChatState {
     channelKey: string,
     resolve: (badges: ChatBadge[]) => ChatBadge[]
   ) => void;
+  trimChannelToMessageLimit: (channelKey: string) => void;
   setPaused: (channelKey: string, paused: boolean) => void;
   setBatchingEnabled: (enabled: boolean) => void;
   setBatchingInterval: (interval: number) => void;
@@ -319,10 +320,10 @@ export const useChatStore = create<ChatState>()(
       usersByChannel: {},
       pausedChannels: new Set<string>(),
       // Batching enabled by default. On busy streams (Kick xQc-tier or Twitch
-      // raid bursts at 30+ msg/sec), grouping store updates into a short window
-      // collapses 30 Zustand notifies → ~20 ChatMessageList commits, which is
-      // the dominant per-message React work. A 100ms window leaves connection,
-      // system, and moderation events immediate.
+      // raid bursts at 30+ msg/sec), grouping same-frame arrivals into a short
+      // window reduces ChatMessageList commits without holding visible chat for
+      // multiple frames. A 16ms window stays within one 60Hz frame budget.
+      // Connection, system, and moderation events remain immediate.
       // System/ban/clear messages bypass batching via direct addMessage().
       batchingEnabled: true,
       batchingInterval: DEFAULT_BATCHING_INTERVAL_MS,
@@ -675,6 +676,21 @@ export const useChatStore = create<ChatState>()(
                 ...message,
                 badges: resolve(message.badges),
               })),
+            },
+          };
+        });
+      },
+
+      trimChannelToMessageLimit: (channelKey) => {
+        set((state) => {
+          const bucket = state.messagesByChannel[channelKey];
+          const messageLimit = resolveMessageLimit();
+          if (!bucket || bucket.length <= messageLimit) return state;
+
+          return {
+            messagesByChannel: {
+              ...state.messagesByChannel,
+              [channelKey]: bucket.slice(-messageLimit),
             },
           };
         });

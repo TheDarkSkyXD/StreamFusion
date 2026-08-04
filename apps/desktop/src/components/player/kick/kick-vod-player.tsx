@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
+import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useFullscreen } from "../hooks/use-fullscreen";
@@ -69,6 +70,8 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     playbackRate: 1,
   });
   const [hls, setHls] = useState<Hls | null>(null);
+  const rewindSeconds = useSeekIntervalStore((state) => state.rewindSeconds);
+  const forwardSeconds = useSeekIntervalStore((state) => state.forwardSeconds);
 
   // Persistent volume
   const { volume, isMuted, handleVolumeChange, handleToggleMute, syncFromVideoElement } = useVolume(
@@ -226,6 +229,19 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     video.currentTime = time;
   }, []);
 
+  const handleSeekBackward = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    handleSeek(Math.max(0, video.currentTime - rewindSeconds));
+  }, [handleSeek, rewindSeconds]);
+
+  const handleSeekForward = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const targetTime = video.currentTime + forwardSeconds;
+    handleSeek(Number.isFinite(video.duration) ? Math.min(video.duration, targetTime) : targetTime);
+  }, [forwardSeconds, handleSeek]);
+
   useEffect(() => {
     if (!subscribeToSeek) return;
     return subscribeToSeek(handleSeek);
@@ -272,6 +288,8 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     onVolumeUp: () => handleVolumeChange((v) => v + 10),
     onVolumeDown: () => handleVolumeChange((v) => v - 10),
     onToggleFullscreen: toggleFullscreen,
+    onSeekBackward: handleSeekBackward,
+    onSeekForward: handleSeekForward,
     disabled: !isKeyboardReady,
   });
 
@@ -335,6 +353,12 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
           currentTime={currentTime}
           duration={duration}
           onSeek={handleSeek}
+          seekBackwardSeconds={rewindSeconds}
+          seekForwardSeconds={forwardSeconds}
+          onSeekBackward={handleSeekBackward}
+          onSeekForward={handleSeekForward}
+          seekBackwardDisabled={currentTime <= 0}
+          seekForwardDisabled={Number.isFinite(duration) && currentTime >= duration}
           buffered={buffered}
           playbackRate={playbackRate}
           onPlaybackRateChange={handlePlaybackRateChange}

@@ -29,7 +29,7 @@ describe("Video search contract", () => {
   it("requires every token to match only title or Channel identity", () => {
     expect(rankVideoMatch(video(), "streamer campus")).not.toBeNull();
     expect(rankVideoMatch(video({ description: "secret launch" }), "secret launch")).toBeNull();
-    expect(rankVideoMatch(video({ gameName: "Hidden Arena" }), "hidden arena")).toBeNull();
+    expect(rankVideoMatch(video({ shareUrl: "https://www.twitch.tv/videos/hidden-arena" }), "hidden arena")).toBeNull();
   });
 
   it("discovers Videos by username even when the card displays a different name", () => {

@@ -57,7 +57,123 @@ function pendingRecorder() {
 // Guards: recorder progress and terminal outcomes update recording state without entering Downloads
 // Guards: a failed progress journal write stops capture without escaping the recorder callback or losing TS evidence
 // Guards: paused Resume verifies the same Stream before mutation, and output commit intent is durable before commit.
+// Guards: a route-provided stable Stream identity starts recording when a platform playback resolver omits identity metadata.
 describe("direct-to-file Stream Recording service", () => {
+  it("stops capture, deletes only the active session's owned sections, and clears without a notice", async () => {
+    const sessionStore = createSessionStore();
+    const recorder = pendingRecorder();
+    const discardArtifacts = vi.fn(async () => undefined);
+    const service = createStreamRecordingService({
+      sessionStore,
+      createId: () => "recording-session-1",
+      createSectionPath: ownedSectionPath,
+      resolvePlayback: vi.fn(async () => ({
+        url: "https://cdn.example/live.m3u8",
+        format: "hls",
+        streamId: "stream-live-123",
+      })),
+      chooseQuality: vi.fn(),
+      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      getAvailablePath: (candidate) => candidate,
+      resolveFfmpegPath: () => "ffmpeg",
+      startRecorder: vi.fn(() => recorder),
+      discardArtifacts,
+    });
+    await service.startRecording({ platform: "twitch", channelName: "ninja", title: "Stream" });
+
+    await expect(service.discardRecording("recording-session-1")).resolves.toEqual({
+      success: true,
+    });
+
+    expect(recorder.stop).toHaveBeenCalledTimes(1);
+    expect(discardArtifacts).toHaveBeenCalledWith([
+      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+    ]);
+    expect(sessionStore.getJournal().session).toBeNull();
+    expect(service.getSnapshot()).toEqual({ active: null, notice: null });
+  });
+
+  it("deletes a current-session output only after its recorded identity is verified", async () => {
+    const sessionStore = createSessionStore();
+    const discardArtifacts = vi.fn(async () => undefined);
+    const verifyArtifactIdentity = vi.fn(async () => true);
+    const service = createStreamRecordingService({
+      sessionStore,
+      createId: () => "recording-session-1",
+      createSectionPath: ownedSectionPath,
+      resolvePlayback: vi.fn(async () => ({
+        url: "https://cdn.example/live.m3u8",
+        format: "hls",
+        streamId: "stream-live-123",
+      })),
+      chooseQuality: vi.fn(),
+      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      getAvailablePath: (candidate) => candidate,
+      resolveFfmpegPath: () => "ffmpeg",
+      startRecorder: vi.fn(() => pendingRecorder()),
+      discardArtifacts,
+      verifyArtifactIdentity,
+    });
+    await service.startRecording({ platform: "twitch", channelName: "ninja", title: "Stream" });
+    const active = sessionStore.getJournal().session!;
+    sessionStore.saveSession({
+      ...active,
+      outputFormat: "mp4",
+      committedOutputPath: "D:/Videos/stream.mp4",
+      committedArtifactIdentity: artifactIdentity,
+      usedFallback: false,
+    });
+
+    await expect(service.discardRecording("recording-session-1")).resolves.toEqual({
+      success: true,
+    });
+
+    expect(verifyArtifactIdentity).toHaveBeenCalledWith(
+      "D:/Videos/stream.mp4",
+      artifactIdentity
+    );
+    expect(discardArtifacts).toHaveBeenCalledWith([
+      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+      "D:/Videos/stream.mp4",
+    ]);
+  });
+
+  it("preserves the session and every artifact when recorder shutdown fails", async () => {
+    const sessionStore = createSessionStore();
+    const recorder = pendingRecorder();
+    recorder.stop.mockRejectedValueOnce(new Error("recorder still owns the file"));
+    const discardArtifacts = vi.fn(async () => undefined);
+    const service = createStreamRecordingService({
+      sessionStore,
+      createId: () => "recording-session-1",
+      createSectionPath: ownedSectionPath,
+      resolvePlayback: vi.fn(async () => ({
+        url: "https://cdn.example/live.m3u8",
+        format: "hls",
+        streamId: "stream-live-123",
+      })),
+      chooseQuality: vi.fn(),
+      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      getAvailablePath: (candidate) => candidate,
+      resolveFfmpegPath: () => "ffmpeg",
+      startRecorder: vi.fn(() => recorder),
+      discardArtifacts,
+    });
+    await service.startRecording({ platform: "twitch", channelName: "ninja", title: "Stream" });
+
+    await expect(service.discardRecording("recording-session-1")).resolves.toEqual({
+      success: false,
+      error: "recorder still owns the file",
+    });
+
+    expect(discardArtifacts).not.toHaveBeenCalled();
+    expect(sessionStore.getJournal().session).toMatchObject({
+      id: "recording-session-1",
+      status: "recording",
+    });
+    expect(service.getSnapshot().notice).toBeNull();
+  });
+
   it("writes the first and resumed captures to distinct section paths and keeps cumulative time", async () => {
     const sessionStore = createSessionStore();
     const recorders = [pendingRecorder(), pendingRecorder(), pendingRecorder()];
@@ -149,6 +265,81 @@ describe("direct-to-file Stream Recording service", () => {
     expect(chooseSavePath).not.toHaveBeenCalled();
     expect(startRecorder).not.toHaveBeenCalled();
     expect(sessionStore.getJournal().session).toBeNull();
+  });
+
+  it("uses the route-provided stable identity when playback resolution omits it", async () => {
+    const sessionStore = createSessionStore();
+    const startRecorder = vi.fn(() => pendingRecorder());
+    const service = createStreamRecordingService({
+      sessionStore,
+      createId: () => "recording-session-1",
+      resolvePlayback: vi.fn(async () => ({
+        url: "https://cdn.example/live.m3u8",
+        format: "hls",
+      })),
+      chooseQuality: vi.fn(),
+      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      getAvailablePath: (candidate) => candidate,
+      resolveFfmpegPath: () => "ffmpeg",
+      startRecorder,
+    });
+
+    await expect(
+      service.startRecording({
+        platform: "kick",
+        channelName: "nerdballertv",
+        streamId: "kick-live-987",
+        title: "NerdBallerTV Live",
+      })
+    ).resolves.toEqual({
+      success: true,
+      outcome: "started",
+      sessionId: "recording-session-1",
+    });
+
+    expect(startRecorder).toHaveBeenCalledTimes(1);
+    expect(sessionStore.getJournal().session).toMatchObject({
+      streamId: "kick-live-987",
+      platform: "kick",
+      channelName: "nerdballertv",
+    });
+  });
+
+  it("resumes a paused recording with its stable session identity when playback omits identity metadata", async () => {
+    const sessionStore = createSessionStore();
+    const recorders = [pendingRecorder(), pendingRecorder()];
+    const startRecorder = vi.fn(() => recorders.shift()!);
+    const service = createStreamRecordingService({
+      sessionStore,
+      createId: () => "recording-session-1",
+      resolvePlayback: vi.fn(async () => ({
+        url: "https://cdn.example/live.m3u8",
+        format: "hls",
+      })),
+      chooseQuality: vi.fn(),
+      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      getAvailablePath: (candidate) => candidate,
+      resolveFfmpegPath: () => "ffmpeg",
+      startRecorder,
+    });
+
+    await service.startRecording({
+      platform: "kick",
+      channelName: "nicklee",
+      streamId: "kick-live-987",
+      title: "NickLee Live",
+    });
+    await service.pauseRecording("recording-session-1");
+
+    await expect(service.resumeRecording("recording-session-1")).resolves.toEqual({
+      success: true,
+    });
+    expect(startRecorder).toHaveBeenCalledTimes(2);
+    expect(service.getSnapshot().active).toMatchObject({
+      sessionId: "recording-session-1",
+      status: "recording",
+      capturedDurationSeconds: 0,
+    });
   });
 
   it("freezes progress while paused and exposes only the current session gap summary", async () => {
@@ -471,6 +662,63 @@ describe("direct-to-file Stream Recording service", () => {
     await expect(firstPause).resolves.toEqual({ success: true });
   });
 
+  it("publishes Paused while the recorder exits and retains the session after exit resolves", async () => {
+    let resolveDone: (result: {
+      outputPath: string;
+      format: "mp4";
+      partial: boolean;
+    }) => void = () => {};
+    const done = new Promise<{ outputPath: string; format: "mp4"; partial: boolean }>(
+      (resolve) => {
+        resolveDone = resolve;
+      }
+    );
+    const recorder = {
+      done,
+      stop: vi.fn(() => done),
+    };
+    const finalize = vi.fn();
+    const service = createStreamRecordingService({
+      sessionStore: createSessionStore(),
+      createId: () => "recording-session-1",
+      createSectionPath: ownedSectionPath,
+      resolvePlayback: vi.fn(async () => ({
+        url: "https://cdn.example/live.m3u8",
+        format: "hls",
+        streamId: "stream-live-123",
+      })),
+      chooseQuality: vi.fn(),
+      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      getAvailablePath: (candidate) => candidate,
+      resolveFfmpegPath: () => "ffmpeg",
+      startRecorder: vi.fn(() => recorder),
+      sectionFinalizer: { finalize },
+    });
+    await service.startRecording({ platform: "kick", channelName: "nicklee", title: "Live" });
+
+    const pause = service.pauseRecording("recording-session-1");
+
+    expect(service.getSnapshot().active).toMatchObject({
+      sessionId: "recording-session-1",
+      status: "paused",
+      statusMessage: "Pausing",
+    });
+
+    resolveDone({ outputPath: "D:/Videos/stream.mp4", format: "mp4", partial: true });
+    await expect(pause).resolves.toEqual({ success: true });
+    await Promise.resolve();
+
+    expect(service.getSnapshot()).toMatchObject({
+      active: {
+        sessionId: "recording-session-1",
+        status: "paused",
+        statusMessage: null,
+      },
+      notice: null,
+    });
+    expect(finalize).not.toHaveBeenCalled();
+  });
+
   it("marks the journal Interrupted when a graceful Pause cannot finalize its section", async () => {
     const recorder = pendingRecorder();
     recorder.stop.mockRejectedValue(
@@ -506,7 +754,7 @@ describe("direct-to-file Stream Recording service", () => {
     });
   });
 
-  it("returns a typed Pause failure when Interrupted persistence is also unavailable", async () => {
+  it("keeps capture live when the Pausing state cannot be persisted", async () => {
     let journal: StreamRecordingJournal = { version: 1, session: null };
     let rejectPauseRecoveryWrites = false;
     const sessionStore = createStreamRecordingSessionStore({
@@ -548,11 +796,11 @@ describe("direct-to-file Stream Recording service", () => {
       error: "journal disk full",
     });
 
-    expect(recorder.stop).toHaveBeenCalledTimes(1);
+    expect(recorder.stop).not.toHaveBeenCalled();
     expect(sessionStore.getJournal()).toEqual(before);
     await expect(service.pauseRecording("recording-session-1")).resolves.toEqual({
       success: false,
-      error: "Recording session not found",
+      error: "journal disk full",
     });
   });
 
@@ -2113,6 +2361,45 @@ describe("direct-to-file Stream Recording service", () => {
       expect.objectContaining({ inputUrl: "https://cdn.example/1080.m3u8" })
     );
     expect(sessionStore.getJournal().session?.qualityLabel).toBe("1080p60");
+  });
+
+  it("uses the quality chosen in the StreamFusion start dialog without opening another picker", async () => {
+    const sessionStore = createSessionStore();
+    const qualities = [
+      { quality: "480p", height: 480, url: "https://cdn.example/480.m3u8" },
+      { quality: "720p60", height: 720, fps: 60, url: "https://cdn.example/720.m3u8" },
+      { quality: "1080p60", height: 1080, fps: 60, url: "https://cdn.example/1080.m3u8" },
+    ];
+    const chooseQuality = vi.fn();
+    const startRecorder = vi.fn(() => pendingRecorder());
+    const service = createStreamRecordingService({
+      sessionStore,
+      createId: () => "recording-session-1",
+      resolvePlayback: vi.fn(async () => ({
+        url: qualities[2].url,
+        format: "hls",
+        streamId: "stream-live-123",
+        qualities,
+      })),
+      chooseQuality,
+      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      getAvailablePath: (path) => path,
+      resolveFfmpegPath: () => "ffmpeg",
+      startRecorder,
+    });
+
+    await service.startRecording({
+      platform: "twitch",
+      channelName: "ninja",
+      title: "Stream",
+      desiredQuality: { quality: "720p", height: 720 },
+    });
+
+    expect(chooseQuality).not.toHaveBeenCalled();
+    expect(startRecorder).toHaveBeenCalledWith(
+      expect.objectContaining({ inputUrl: "https://cdn.example/720.m3u8" })
+    );
+    expect(sessionStore.getJournal().session?.qualityLabel).toBe("720p60");
   });
 
   it("cleans up quality cancellation so a subsequent start can succeed", async () => {

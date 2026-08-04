@@ -17,6 +17,7 @@ import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { resolveHlsBufferConfig } from "../hls-buffer-config";
+import { resolvePreferredQualityId, type PlayerQualityPreference } from "../quality-preference";
 import type { PlayerError, QualityLevel } from "../types";
 
 import { resolvePlaybackAdvancedAdBlockOverrides } from "./playback-advanced-config";
@@ -30,21 +31,25 @@ import {
   type PlayerReloadReason,
   setAuthHeaders,
   setPlayerCallbacks,
-  setStatusChangeCallback,
+  subscribeAdBlockStatus,
   updateAdBlockConfig,
 } from "./twitch-adblock-service";
 
-export interface TwitchHlsPlayerProps
-  extends Omit<React.VideoHTMLAttributes<HTMLVideoElement>, "onError"> {
+export interface TwitchHlsPlayerProps extends Omit<
+  React.VideoHTMLAttributes<HTMLVideoElement>,
+  "onError"
+> {
   src: string;
   channelName: string;
   onQualityLevels?: (levels: QualityLevel[]) => void;
+  onActiveQualityChange?: (qualityId: string) => void;
   onError?: (error: PlayerError) => void;
   onHlsInstance?: (hls: Hls) => void;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
   onAdBlockRecoveryRefresh?: () => void;
   autoPlay?: boolean;
   currentLevel?: string;
+  preferredQuality?: PlayerQualityPreference | string;
   enableAdBlock?: boolean;
   volume?: number;
 }
@@ -53,20 +58,58 @@ const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
 const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
 const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 20_000;
 
+function applyPreferredQuality(
+  hls: Hls,
+  levels: QualityLevel[],
+  preference: PlayerQualityPreference | string
+): void {
+  const qualityId = resolvePreferredQualityId(levels, preference);
+  if (qualityId === "auto") {
+    hls.currentLevel = -1;
+    return;
+  }
+
+  const levelIndex = Number.parseInt(qualityId, 10);
+  if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < levels.length) {
+    hls.currentLevel = levelIndex;
+  }
+}
+
+function isUnsafeAdPresentation(status: AdBlockStatus): boolean {
+  return (
+    status.isUsingFallbackMode ||
+    status.isStrippingSegments ||
+    (status.isShowingAd && status.activePlayerType === null)
+  );
+}
+
+interface CleanPresentationTarget {
+  sn: number | string;
+  url: string;
+  start: number;
+}
+
+function cleanPresentationTargetKey(sn: number | string, url: string): string {
+  return JSON.stringify([sn, url]);
+}
+
 export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps>(
   (
     {
       src,
       channelName,
       onQualityLevels,
+      onActiveQualityChange,
       onError,
       onHlsInstance,
       onAdBlockStatusChange,
       onAdBlockRecoveryRefresh,
       autoPlay = false,
       currentLevel,
+      preferredQuality,
       enableAdBlock = true,
       volume,
+      muted = false,
       ...props
     },
     ref
@@ -78,6 +121,14 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const playRequestIdRef = useRef(0);
     const lastRecoveryAttemptRef = useRef<number | null>(null);
     const [_adBlockStatus, setAdBlockStatus] = useState<AdBlockStatus | null>(null);
+    const isPresentationShieldedRef = useRef(false);
+    const unshieldedOpacityRef = useRef("");
+    const requestedMutedRef = useRef(muted);
+    const cleanPresentationTargetsRef = useRef<Map<string, CleanPresentationTarget>>(new Map());
+    const pendingSafeStatusRef = useRef<AdBlockStatus | null>(null);
+    const frameCallbackIdRef = useRef<number | null>(null);
+    const presentationGenerationRef = useRef(0);
+    const onAdBlockStatusChangeRef = useRef(onAdBlockStatusChange);
 
     // Mutable heartbeat state lifted into refs so useInterval callbacks can read them
     const isEffectActiveRef = useRef(false);
@@ -85,6 +136,12 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const manifestParsedTimeRef = useRef<number | null>(null);
     const hasReceivedFirstFragmentRef = useRef(false);
     const adBlockStatusRef = useRef<AdBlockStatus | null>(null);
+
+    const publishAdBlockStatus = useCallback((status: AdBlockStatus) => {
+      adBlockStatusRef.current = status;
+      setAdBlockStatus(status);
+      onAdBlockStatusChangeRef.current?.(status);
+    }, []);
 
     // Delay state: null = paused, number = running. Set on MANIFEST_PARSED, cleared on teardown.
     const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
@@ -96,6 +153,83 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         videoRef.current.volume = Math.max(0, Math.min(1, volume));
       }
     }, [volume]);
+
+    useEffect(() => {
+      requestedMutedRef.current = muted;
+      if (videoRef.current && !isPresentationShieldedRef.current) {
+        videoRef.current.muted = muted;
+      }
+    }, [muted]);
+
+    const invalidatePresentationRecovery = useCallback(() => {
+      const video = videoRef.current;
+      presentationGenerationRef.current += 1;
+      cleanPresentationTargetsRef.current.clear();
+      pendingSafeStatusRef.current = null;
+      if (video && frameCallbackIdRef.current !== null && video.cancelVideoFrameCallback) {
+        video.cancelVideoFrameCallback(frameCallbackIdRef.current);
+      }
+      frameCallbackIdRef.current = null;
+    }, []);
+
+    const shieldAdPresentation = useCallback(() => {
+      invalidatePresentationRecovery();
+      const video = videoRef.current;
+      if (!video) return;
+      if (!isPresentationShieldedRef.current) {
+        unshieldedOpacityRef.current = video.style.opacity;
+      }
+      isPresentationShieldedRef.current = true;
+      video.setAttribute("data-streamfusion-ad-presentation-shielded", "true");
+      video.style.opacity = "0";
+      video.muted = true;
+    }, [invalidatePresentationRecovery]);
+
+    const clearPresentationShield = useCallback(() => {
+      invalidatePresentationRecovery();
+      const video = videoRef.current;
+      if (!video || !isPresentationShieldedRef.current) return;
+
+      isPresentationShieldedRef.current = false;
+      video.removeAttribute("data-streamfusion-ad-presentation-shielded");
+      video.style.opacity = unshieldedOpacityRef.current;
+      video.muted = requestedMutedRef.current;
+    }, [invalidatePresentationRecovery]);
+
+    const revealOnCleanPresentation = useCallback(
+      (target: CleanPresentationTarget) => {
+        const video = videoRef.current;
+        if (!video || typeof video.requestVideoFrameCallback !== "function") return;
+        const generation = presentationGenerationRef.current;
+
+        const requestNextFrame = () => {
+          frameCallbackIdRef.current = video.requestVideoFrameCallback((_now, metadata) => {
+            frameCallbackIdRef.current = null;
+            if (
+              generation !== presentationGenerationRef.current ||
+              !isPresentationShieldedRef.current
+            ) {
+              return;
+            }
+            if (metadata.mediaTime < target.start) {
+              requestNextFrame();
+              return;
+            }
+
+            const safeStatus = pendingSafeStatusRef.current;
+            pendingSafeStatusRef.current = null;
+            isPresentationShieldedRef.current = false;
+            video.muted = requestedMutedRef.current;
+            video.removeAttribute("data-streamfusion-ad-presentation-shielded");
+            video.style.opacity = unshieldedOpacityRef.current;
+            if (safeStatus) publishAdBlockStatus(safeStatus);
+          });
+        };
+
+        requestNextFrame();
+      },
+      [publishAdBlockStatus]
+    );
 
     // Expose video ref to parent
     useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
@@ -215,30 +349,64 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
     // Store callbacks in refs
     const onQualityLevelsRef = useRef(onQualityLevels);
+    const onActiveQualityChangeRef = useRef(onActiveQualityChange);
     const onErrorRef = useRef(onError);
-    const onAdBlockStatusChangeRef = useRef(onAdBlockStatusChange);
     const onAdBlockRecoveryRefreshRef = useRef(onAdBlockRecoveryRefresh);
     const onHlsInstanceRef = useRef(onHlsInstance);
     const currentLevelRef = useRef(currentLevel);
+    const preferredQualityRef = useRef(preferredQuality);
+    const parsedQualityLevelsRef = useRef<QualityLevel[]>([]);
+    const appliedPreferredQualityRef = useRef<string | null>(null);
 
     useEffect(() => {
       onQualityLevelsRef.current = onQualityLevels;
+      onActiveQualityChangeRef.current = onActiveQualityChange;
       onErrorRef.current = onError;
       onAdBlockStatusChangeRef.current = onAdBlockStatusChange;
       onAdBlockRecoveryRefreshRef.current = onAdBlockRecoveryRefresh;
       onHlsInstanceRef.current = onHlsInstance;
       currentLevelRef.current = currentLevel;
+      preferredQualityRef.current = preferredQuality;
     }, [
       onQualityLevels,
+      onActiveQualityChange,
       onError,
       onAdBlockStatusChange,
       onAdBlockRecoveryRefresh,
       onHlsInstance,
       currentLevel,
+      preferredQuality,
     ]);
+
+    useEffect(() => {
+      if (preferredQuality === undefined) return;
+      const normalizedPreference = String(preferredQuality).toLowerCase();
+      if (appliedPreferredQualityRef.current === normalizedPreference) return;
+
+      const hls = hlsRef.current;
+      const levels = parsedQualityLevelsRef.current;
+      if (!hls || levels.length === 0) return;
+
+      applyPreferredQuality(hls, levels, preferredQuality);
+      appliedPreferredQualityRef.current = normalizedPreference;
+    }, [preferredQuality]);
 
     // Initialize ad-block service
     useEffect(() => {
+      let unsubscribeStatus: (() => void) | undefined;
+      const handleStatus = (status: AdBlockStatus) => {
+        if (isUnsafeAdPresentation(status)) {
+          shieldAdPresentation();
+          publishAdBlockStatus(status);
+          return;
+        }
+        if (isPresentationShieldedRef.current) {
+          pendingSafeStatusRef.current = status;
+          return;
+        }
+        publishAdBlockStatus(status);
+      };
+
       if (enableAdBlock) {
         initAdBlockService({ enabled: true });
 
@@ -256,10 +424,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           updateAdBlockConfig(overrides);
         }
 
-        setStatusChangeCallback((status) => {
-          adBlockStatusRef.current = status;
-          setAdBlockStatus(status);
-          onAdBlockStatusChangeRef.current?.(status);
+        unsubscribeStatus = subscribeAdBlockStatus(channelName, (status) => {
+          if (status.channelName?.trim().toLowerCase() !== channelName.trim().toLowerCase()) return;
+          handleStatus(status);
         });
 
         // Initialize auth headers for backup stream fetching
@@ -276,9 +443,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         setAuthHeaders(deviceId);
 
         const initialStatus = getAdBlockStatus(channelName);
-        adBlockStatusRef.current = initialStatus;
-        setAdBlockStatus(initialStatus);
-        onAdBlockStatusChangeRef.current?.(initialStatus);
+        handleStatus(initialStatus);
 
         logger.debug("Player:Twitch:HLS", "ad-block initialized with device ID");
       } else {
@@ -293,18 +458,26 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           isUsingFallbackMode: false,
           adStartTime: null,
         };
-        adBlockStatusRef.current = inactiveStatus;
-        setAdBlockStatus(inactiveStatus);
-        onAdBlockStatusChangeRef.current?.(inactiveStatus);
+        clearPresentationShield();
+        publishAdBlockStatus(inactiveStatus);
       }
 
       return () => {
+        unsubscribeStatus?.();
+        invalidatePresentationRecovery();
         // Clear stream info on unmount
         if (channelName) {
           clearStreamInfo(channelName);
         }
       };
-    }, [enableAdBlock, channelName]);
+    }, [
+      enableAdBlock,
+      channelName,
+      clearPresentationShield,
+      invalidatePresentationRecovery,
+      publishAdBlockStatus,
+      shieldAdPresentation,
+    ]);
 
     // Handle quality change
     useEffect(() => {
@@ -394,6 +567,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       isEffectActiveRef.current = true;
       isMountedRef.current = true;
       lastRecoveryAttemptRef.current = null;
+      parsedQualityLevelsRef.current = [];
+      appliedPreferredQualityRef.current = null;
 
       // Reset heartbeat mutable state for this stream
       lastFragLoadedTimeRef.current = Date.now();
@@ -509,13 +684,6 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         hlsRef.current = hls;
         if (onHlsInstanceRef.current) onHlsInstanceRef.current(hls);
 
-        try {
-          hls.loadSource(src);
-          hls.attachMedia(video);
-        } catch (e) {
-          logger.error("Player:Twitch:HLS", "error setting up HLS", { error: e });
-        }
-
         handleLivePauseStopLoad = () => {
           if (!isEffectActive || !hlsRef.current) return;
           hlsRef.current.stopLoad();
@@ -531,70 +699,109 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
           // console.debug("[TwitchHLS] Manifest parsed, levels:", data.levels.length);
 
+          const rawLevels: QualityLevel[] = data.levels.map((level, index) => ({
+            id: index.toString(),
+            label: level.name
+              ? level.name
+              : level.height
+                ? `${level.height}p${level.frameRate ? Math.round(level.frameRate) : ""}`
+                : `Level ${index}`,
+            width: level.width,
+            height: level.height,
+            bitrate: level.bitrate,
+            frameRate: level.frameRate,
+            isAuto: false,
+            isSource: /\bsource\b/i.test(level.name ?? ""),
+            name: level.name,
+          }));
+          const labelCounts = new Map<string, number>();
+          rawLevels.forEach((level) =>
+            labelCounts.set(level.label, (labelCounts.get(level.label) || 0) + 1)
+          );
+          const levels: QualityLevel[] = rawLevels.map((level) => {
+            let label = level.label;
+            if (labelCounts.get(level.label)! > 1 && level.bitrate > 0) {
+              label = `${label} (${Math.round(level.bitrate / 1000)}k)`;
+            }
+            return { ...level, label };
+          });
+          parsedQualityLevelsRef.current = levels;
+
           if (autoPlay && isMountedRef.current) {
             safePlay();
           }
 
-          if (currentLevelRef.current !== undefined) {
-            if (currentLevelRef.current === "auto") {
-              hls!.currentLevel = -1;
-            } else {
-              const levelIndex = parseInt(currentLevelRef.current, 10);
-              if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < data.levels.length) {
+          const preferred = preferredQualityRef.current;
+          if (preferred !== undefined) {
+            applyPreferredQuality(hls!, levels, preferred);
+            appliedPreferredQualityRef.current = String(preferred).toLowerCase();
+          } else if (currentLevelRef.current !== undefined) {
+            const initialCurrentLevel = currentLevelRef.current;
+            if (initialCurrentLevel === "auto") hls!.currentLevel = -1;
+            else {
+              const levelIndex = Number.parseInt(initialCurrentLevel, 10);
+              if (!Number.isNaN(levelIndex) && levelIndex >= 0 && levelIndex < levels.length) {
                 hls!.currentLevel = levelIndex;
               }
             }
           }
 
           if (onQualityLevelsRef.current && data.levels) {
-            // Build initial labels
-            const rawLevels = data.levels.map((level, index) => {
-              const baseLabel = level.name
-                ? level.name
-                : level.height
-                  ? `${level.height}p${level.frameRate ? Math.round(level.frameRate) : ""}`
-                  : `Level ${index}`;
-              return {
-                id: index.toString(),
-                label: baseLabel,
-                width: level.width,
-                height: level.height,
-                bitrate: level.bitrate,
-                frameRate: level.frameRate,
-                isAuto: false,
-                name: level.name,
-              };
-            });
-
-            // Find the source quality (highest bitrate)
-            const maxBitrate = Math.max(...rawLevels.map((l) => l.bitrate || 0));
-
-            // Find only the FIRST level with max bitrate to mark as source
-            const sourceIndex = rawLevels.findIndex((level) => level.bitrate === maxBitrate);
-
-            // Deduplicate labels by appending bitrate when duplicates exist
-            const labelCounts = new Map<string, number>();
-            rawLevels.forEach((l) => labelCounts.set(l.label, (labelCounts.get(l.label) || 0) + 1));
-
-            const levels: QualityLevel[] = rawLevels.map((level, index) => {
-              let finalLabel = level.label;
-
-              // Mark only the first highest bitrate level as source
-              if (index === sourceIndex && maxBitrate > 0) {
-                finalLabel = `${finalLabel} (source)`;
-              } else if (labelCounts.get(level.label)! > 1 && level.bitrate > 0) {
-                // Deduplicate other labels by appending bitrate
-                finalLabel = `${finalLabel} (${Math.round(level.bitrate / 1000)}k)`;
-              }
-
-              return { ...level, label: finalLabel };
-            });
-
             onQualityLevelsRef.current([
               { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
               ...levels,
             ]);
           }
+        });
+
+        hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+          onActiveQualityChangeRef.current?.(String(data.level));
+        });
+
+        hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+          const latestStatus = getAdBlockStatus(channelName);
+          if (isUnsafeAdPresentation(latestStatus)) {
+            shieldAdPresentation();
+            publishAdBlockStatus(latestStatus);
+            return;
+          }
+          if (!isPresentationShieldedRef.current) return;
+
+          pendingSafeStatusRef.current = latestStatus;
+          const fragments = data.details?.fragments ?? [];
+          const safeTargets = new Map<string, CleanPresentationTarget>();
+          for (const fragment of fragments) {
+            if (
+              (typeof fragment.sn !== "number" && typeof fragment.sn !== "string") ||
+              typeof fragment.url !== "string" ||
+              typeof fragment.start !== "number"
+            ) {
+              continue;
+            }
+            const target = { sn: fragment.sn, url: fragment.url, start: fragment.start };
+            safeTargets.set(cleanPresentationTargetKey(target.sn, target.url), target);
+          }
+          cleanPresentationTargetsRef.current = safeTargets;
+        });
+
+        hls.on(Hls.Events.FRAG_BUFFERED, (_event, data) => {
+          const fragment = data.frag;
+          if (
+            (typeof fragment.sn !== "number" && typeof fragment.sn !== "string") ||
+            typeof fragment.url !== "string"
+          ) {
+            return;
+          }
+          const target = cleanPresentationTargetsRef.current.get(
+            cleanPresentationTargetKey(fragment.sn, fragment.url)
+          );
+          if (!target || !isPresentationShieldedRef.current) {
+            return;
+          }
+
+          cleanPresentationTargetsRef.current.clear();
+          video.currentTime = target.start;
+          revealOnCleanPresentation(target);
         });
 
         // Error handling
@@ -732,6 +939,13 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           setHeartbeatDelay(LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS);
           setMemoryCleanupDelay(LIVE_MEMORY_CLEANUP_INTERVAL_MS);
         });
+
+        try {
+          hls.loadSource(src);
+          hls.attachMedia(video);
+        } catch (e) {
+          logger.error("Player:Twitch:HLS", "error setting up HLS", { error: e });
+        }
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
         logger.debug("Player:Twitch:HLS", "using native HLS");
@@ -790,6 +1004,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         isEffectActiveRef.current = false;
         isMountedRef.current = false;
         pendingPlayRef.current = null;
+        invalidatePresentationRecovery();
 
         // Pause the useInterval hooks
         setHeartbeatDelay(null);
@@ -820,7 +1035,16 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           clearStreamInfo(channelName);
         }
       };
-    }, [src, autoPlay, channelName, enableAdBlock]);
+    }, [
+      src,
+      autoPlay,
+      channelName,
+      enableAdBlock,
+      invalidatePresentationRecovery,
+      publishAdBlockStatus,
+      revealOnCleanPresentation,
+      shieldAdPresentation,
+    ]);
 
     return <video ref={videoRef} playsInline className="size-full object-contain" {...props} />;
   }

@@ -1,4 +1,4 @@
-import { type QueryClient, useQuery } from "@tanstack/react-query";
+import { type QueryClient, queryOptions, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
@@ -205,10 +205,10 @@ export function useFollowedStreams(
   return query;
 }
 
-export function useStreamByChannel(username: string, platform: Platform) {
+export function getStreamByChannelQueryOptions(username: string, platform: Platform) {
   const queryKey = STREAM_KEYS.byChannel(username, platform);
   const cacheOptions = getQueryCacheOptions("streamChannelDetail");
-  const query = useQuery({
+  return queryOptions({
     queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getByChannel({ username, platform });
@@ -223,6 +223,11 @@ export function useStreamByChannel(username: string, platform: Platform) {
       platform === "kick" ? KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS : cacheOptions.refetchInterval,
     retry: false, // Don't retry - stream might simply be offline
   });
+}
+
+export function useStreamByChannel(username: string, platform: Platform) {
+  const queryKey = STREAM_KEYS.byChannel(username, platform);
+  const query = useQuery(getStreamByChannelQueryOptions(username, platform));
   useQueryCachePerformance({
     data: query.data,
     enabled: !!username && !!platform,

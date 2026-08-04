@@ -116,7 +116,7 @@ export async function getVideosByChannelSlug(
           // A VOD without a source URL is subscriber-only content
           const hasSource = Boolean(v.source);
           const isSubOnly = !hasSource && !v.is_live;
-          const sourceCreatedAt = normalizeKickDate(v.created_at || v.start_time) || undefined;
+          const sourceCreatedAt = normalizeKickDate(v.start_time || v.created_at) || undefined;
 
           return {
             id: v.id.toString(),
@@ -124,6 +124,7 @@ export async function getVideosByChannelSlug(
             slug: v.slug || "", // Video slug for URL construction
             title: v.session_title || v.title || `Stream ${v.id}`,
             duration: v.duration ? formatDuration(v.duration) : "0:00",
+            sourceDurationMs: typeof v.duration === "number" ? v.duration : undefined,
             views: (v.views || v.view_count || "0").toString(),
             date: sourceCreatedAt || new Date().toISOString(),
             created_at: sourceCreatedAt || new Date().toISOString(),
@@ -131,6 +132,7 @@ export async function getVideosByChannelSlug(
             // current-time fallback. Channel last-live metadata may only use
             // a timestamp that was actually present in Kick's VOD response.
             sourceCreatedAt,
+            sourceEndedAt: normalizeKickDate(v.ended_at) || undefined,
             thumbnailUrl:
               v.thumbnail?.src ||
               v.thumbnail?.url ||
@@ -175,28 +177,45 @@ export async function getVideosByChannelSlug(
 }
 
 /**
- * Find the newest trustworthy stream start among completed Kick VODs.
+ * Find the newest trustworthy stream end among completed Kick VODs.
  *
- * Kick's legacy VOD `created_at` is the stream start. A recently finalized
- * VOD can briefly retain `is_live=true`, so the same completion rule used by
- * VideoCard also accepts a non-zero-duration row with a playback source.
+ * Prefer Kick's explicit `ended_at` when present. Otherwise, derive the end
+ * from the provider start timestamp plus duration only when Kick marks the VOD
+ * offline and both inputs are valid. `updated_at` is intentionally not an end-time source.
  */
-export async function getLatestCompletedVideoStartedAtByChannelSlug(
+export async function getLatestCompletedVideoEndedAtByChannelSlug(
   slug: string
 ): Promise<string | undefined> {
   const videos = await getVideosByChannelSlug(slug, { limit: 20, sort: "date" });
   let latest: { value: string; time: number } | undefined;
 
   for (const video of videos.data || []) {
-    const isCompleted =
-      video.isLive !== true || (Boolean(video.source) && video.duration !== "0:00");
-    if (!isCompleted || typeof video.sourceCreatedAt !== "string") continue;
+    if (video.isLive === true) continue;
 
-    const time = Date.parse(video.sourceCreatedAt);
-    if (!Number.isFinite(time)) continue;
+    const explicitEndTime = Date.parse(video.sourceEndedAt ?? "");
+    let time: number;
+    let value: string;
+
+    if (Number.isFinite(explicitEndTime)) {
+      time = explicitEndTime;
+      value = video.sourceEndedAt;
+    } else {
+      if (
+        video.isLive !== false ||
+        !Number.isFinite(video.sourceDurationMs) ||
+        video.sourceDurationMs <= 0
+      ) {
+        continue;
+      }
+
+      const startedAt = Date.parse(video.sourceCreatedAt ?? "");
+      time = startedAt + video.sourceDurationMs;
+      if (!Number.isFinite(time)) continue;
+      value = new Date(time).toISOString();
+    }
 
     if (!latest || time > latest.time) {
-      latest = { value: video.sourceCreatedAt, time };
+      latest = { value, time };
     }
   }
 

@@ -18,6 +18,7 @@ import { registerCategoryHandlers } from "./ipc/handlers/category-handlers";
 import { registerChannelHandlers } from "./ipc/handlers/channel-handlers";
 import { registerChatEligibilityHandlers } from "./ipc/handlers/chat-eligibility-handlers";
 import { registerChatHandlers } from "./ipc/handlers/chat-handlers";
+import { registerChatReplayHandlers } from "./ipc/handlers/chat-replay-handlers";
 import { registerConnectivityHandlers } from "./ipc/handlers/connectivity-handlers";
 import { registerDownloadHandlers } from "./ipc/handlers/download-handlers";
 import { registerEmoteHandlers } from "./ipc/handlers/emote-handlers";
@@ -40,6 +41,7 @@ import { registerUpdateHandlers } from "./ipc/handlers/update-handlers";
 import { registerUserProfileHandlers } from "./ipc/handlers/user-profile-handlers";
 import { registerVideoHandlers } from "./ipc/handlers/video-handlers";
 import { getLocalCaptionRuntime } from "./services/captions/local-caption-runtime";
+import { kickFollowWriteService } from "./services/kick-follow-write-service";
 
 function registerIpcHandlerGroup(group: string, registrar: () => void): void {
   try {
@@ -59,13 +61,17 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Register all handlers
   registerIpcHandlerGroup("system", () => registerSystemHandlers(mainWindow));
   registerIpcHandlerGroup("app", registerAppHandlers);
-  registerIpcHandlerGroup("storage", registerStorageHandlers);
+  registerIpcHandlerGroup("storage", () => {
+    registerStorageHandlers(mainWindow);
+    kickFollowWriteService.resumePendingWrites();
+  });
   registerIpcHandlerGroup("auth", () => registerAuthHandlers(mainWindow));
   registerIpcHandlerGroup("stream", registerStreamHandlers);
   registerIpcHandlerGroup("category", registerCategoryHandlers);
   registerIpcHandlerGroup("search", registerSearchHandlers);
   registerIpcHandlerGroup("channel", registerChannelHandlers);
   registerIpcHandlerGroup("chat", registerChatHandlers);
+  registerIpcHandlerGroup("chat-replay", registerChatReplayHandlers);
   registerIpcHandlerGroup("connectivity", registerConnectivityHandlers);
   registerIpcHandlerGroup("download", () => registerDownloadHandlers(mainWindow));
   registerIpcHandlerGroup("stream-recording", () => registerStreamRecordingHandlers(mainWindow));

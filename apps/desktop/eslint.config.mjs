@@ -7,8 +7,13 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 const sourceFiles = ["src/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
+const testFiles = ["tests/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
+const configFiles = ["*.config.{js,mjs,cjs,jsx,ts,tsx}"];
+const lintFiles = [...sourceFiles, ...testFiles, ...configFiles];
 const typedSourceFiles = ["src/**/*.{ts,tsx}"];
+const typedFiles = [...typedSourceFiles, "tests/**/*.{ts,tsx}", "*.config.{ts,tsx}"];
 const reactSourceFiles = ["src/**/*.{jsx,tsx}"];
+const reactFiles = [...reactSourceFiles, "tests/**/*.{jsx,tsx}", "*.config.{jsx,tsx}"];
 
 export default tseslint.config(
   {
@@ -24,7 +29,7 @@ export default tseslint.config(
   },
   {
     ...js.configs.recommended,
-    files: sourceFiles,
+    files: lintFiles,
     languageOptions: {
       ...js.configs.recommended.languageOptions,
       ecmaVersion: "latest",
@@ -42,10 +47,10 @@ export default tseslint.config(
   },
   ...tseslint.configs.recommended.map((config) => ({
     ...config,
-    files: typedSourceFiles,
+    files: typedFiles,
   })),
   {
-    files: sourceFiles,
+    files: lintFiles,
     plugins: {
       "react-hooks": reactHooks,
       "unused-imports": unusedImports,
@@ -64,7 +69,19 @@ export default tseslint.config(
     },
   },
   {
-    files: reactSourceFiles,
+    files: testFiles,
+    languageOptions: {
+      globals: {
+        ...globals.vitest,
+      },
+    },
+    rules: {
+      // Electron and DOM test doubles intentionally collect callbacks with unrelated signatures.
+      "@typescript-eslint/no-unsafe-function-type": "off",
+    },
+  },
+  {
+    files: reactFiles,
     plugins: {
       react,
     },

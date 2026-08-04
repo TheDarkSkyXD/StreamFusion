@@ -13,6 +13,7 @@ import {
 function resetStore() {
   useMultiStreamStore.setState({
     streams: [],
+    favoriteStreams: [],
     layout: "grid",
     focusedStreamId: null,
     isChatOpen: true,
@@ -23,6 +24,83 @@ function resetStore() {
 }
 
 beforeEach(() => resetStore());
+
+const favorite = {
+  platform: "twitch",
+  channelId: "stable-1",
+  channelName: "streamer",
+  displayName: "Streamer",
+  avatarUrl: "https://example.com/streamer.png",
+} as const;
+
+// Guards: toggling an unfavorited MultiView channel saves it and makes the favorite lookup true.
+// Guards: a missing stable channel ID falls back to a trimmed, case-insensitive platform-scoped channel name.
+// Guards: non-empty stable channel IDs remain authoritative when two channels share a name.
+// Guards: identical channel identities on Twitch and Kick remain separate MultiView favorites.
+// Guards: saved MultiView favorites survive store rehydration.
+describe("multistream-store favorite streams", () => {
+  it("adds an unfavorited stream", () => {
+    useMultiStreamStore.getState().toggleFavorite(favorite);
+
+    expect(useMultiStreamStore.getState().favoriteStreams).toEqual([favorite]);
+    expect(useMultiStreamStore.getState().isFavorite(favorite)).toBe(true);
+  });
+
+  it("removes an already-favorited stream", () => {
+    useMultiStreamStore.getState().toggleFavorite(favorite);
+    useMultiStreamStore.getState().toggleFavorite(favorite);
+
+    expect(useMultiStreamStore.getState().favoriteStreams).toEqual([]);
+    expect(useMultiStreamStore.getState().isFavorite(favorite)).toBe(false);
+  });
+
+  it("falls back to normalized channel name when a stable channel ID is unavailable", () => {
+    const legacyFavorite = {
+      ...favorite,
+      channelId: "",
+      channelName: " Streamer ",
+    };
+    const resolvedFavorite = {
+      ...favorite,
+      channelId: "stable-2",
+      channelName: "STREAMER",
+    };
+    useMultiStreamStore.setState({ favoriteStreams: [legacyFavorite] });
+
+    expect(useMultiStreamStore.getState().isFavorite(resolvedFavorite)).toBe(true);
+    useMultiStreamStore.getState().toggleFavorite(resolvedFavorite);
+    expect(useMultiStreamStore.getState().favoriteStreams).toEqual([]);
+  });
+
+  it("keeps same-name channels with different stable IDs distinct", () => {
+    const differentChannel = { ...favorite, channelId: "stable-2" };
+
+    useMultiStreamStore.getState().toggleFavorite(favorite);
+    useMultiStreamStore.getState().toggleFavorite(differentChannel);
+
+    expect(useMultiStreamStore.getState().favoriteStreams).toEqual([favorite, differentChannel]);
+  });
+
+  it("keeps matching channel identities on different platforms distinct", () => {
+    const kickFavorite = { ...favorite, platform: "kick" as const };
+
+    useMultiStreamStore.getState().toggleFavorite(favorite);
+    useMultiStreamStore.getState().toggleFavorite(kickFavorite);
+
+    expect(useMultiStreamStore.getState().favoriteStreams).toEqual([favorite, kickFavorite]);
+  });
+
+  it("restores saved favorites after rehydration", async () => {
+    useMultiStreamStore.getState().toggleFavorite(favorite);
+    const saved = localStorage.getItem("multistream-storage");
+
+    useMultiStreamStore.setState({ favoriteStreams: [] });
+    localStorage.setItem("multistream-storage", saved!);
+    await useMultiStreamStore.persist.rehydrate();
+
+    expect(useMultiStreamStore.getState().favoriteStreams).toEqual([favorite]);
+  });
+});
 
 describe("multistream-store addStream", () => {
   it("adds a stream and auto-assigns chatStreamId when none is set", () => {
@@ -118,8 +196,21 @@ describe("multistream-store BackgroundQuality default", () => {
 });
 
 describe("multistream-store schema migration", () => {
-  it("MULTISTREAM_STORE_VERSION is bumped to 1 or higher", () => {
-    expect(MULTISTREAM_STORE_VERSION).toBeGreaterThanOrEqual(1);
+  it("uses persisted schema version 2", () => {
+    expect(MULTISTREAM_STORE_VERSION).toBe(2);
+  });
+
+  it("migrates a version 1 payload with no favorites to an empty favorites list", () => {
+    const v1 = {
+      streams: [],
+      layout: "grid",
+      isChatOpen: true,
+      chatStreamId: null,
+      multiviewCap: 4,
+      backgroundQuality: "auto-low" as const,
+    };
+
+    expect(migrateMultiStreamState(v1, 1).favoriteStreams).toEqual([]);
   });
 
   it("migrates v0 fixture: seeds defaults without losing prior preferences", () => {

@@ -48,7 +48,6 @@ function startWindowRequest(
 ): InFlightWindow {
   requestSequence += 1;
   const requestId = `chat-replay-${Date.now()}-${requestSequence}-${retryRevision}`;
-  let entry: InFlightWindow;
   const promise = window.electronAPI.videos
     .getChatReplayWindow({
       platform,
@@ -71,9 +70,9 @@ function startWindowRequest(
     })
     .catch(() => null)
     .finally(() => {
-      if (inFlightWindows.get(key) === entry) inFlightWindows.delete(key);
+      if (inFlightWindows.get(key)?.requestId === requestId) inFlightWindows.delete(key);
     });
-  entry = { requestId, subscribers: 0, promise };
+  const entry = { requestId, subscribers: 0, promise };
   inFlightWindows.set(key, entry);
   return entry;
 }

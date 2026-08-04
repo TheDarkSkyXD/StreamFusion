@@ -1,3 +1,7 @@
+import {
+  rankChannelMatch,
+  rankSearchChannels,
+} from "../../search/channel-search-contract";
 import { normalizeSearchTokens } from "../../search/search-normalization";
 import {
   normalizeUnifiedChannel,
@@ -17,6 +21,7 @@ export {
   mergeExactCrossPlatformCategories,
   rankCategoryMatch,
 } from "../../search/category-search-contract";
+export { rankChannelMatch };
 export { normalizeSearchTokens } from "../../search/search-normalization";
 export {
   isValidUnifiedCategory,
@@ -90,36 +95,6 @@ function bestTokenDistance(token: string, fields: string[]): number | null {
     .map((field) => tokenMatchDistance(token, field))
     .filter((distance): distance is number => distance !== null);
   return distances.length === 0 ? null : Math.min(...distances);
-}
-
-export function rankChannelMatch(
-  channel: Pick<UnifiedChannel, "username" | "displayName">,
-  query: string
-): SearchMatchRank | null {
-  const queryTokens = normalizeSearchTokens(query);
-  if (queryTokens.length === 0) return null;
-
-  const fields = [channel.username, channel.displayName];
-  if (queryTokens.length === 1 && Array.from(queryTokens[0]).length === 1) {
-    return fields.some((field) => normalizedPhrase(field).startsWith(queryTokens[0]))
-      ? { tier: 1, editDistance: 0 }
-      : null;
-  }
-
-  let editDistance = 0;
-  for (const token of queryTokens) {
-    const distance = bestTokenDistance(token, fields);
-    if (distance === null) return null;
-    editDistance = Math.max(editDistance, distance);
-  }
-
-  const queryPhrase = queryTokens.join(" ");
-  const normalizedFields = fields.map(normalizedPhrase);
-  if (normalizedFields.includes(queryPhrase)) return { tier: 0, editDistance: 0 };
-  if (normalizedFields.some((field) => field.startsWith(queryPhrase))) {
-    return { tier: 1, editDistance: 0 };
-  }
-  return { tier: 2, editDistance };
 }
 
 export function rankStreamMatch(
@@ -227,24 +202,12 @@ export function filterRankAndDeduplicateChannels(
   channels: readonly unknown[],
   query: string
 ): UnifiedChannel[] {
-  const byIdentity = new Map<string, UnifiedChannel>();
+  const normalizedChannels: UnifiedChannel[] = [];
   for (const value of channels) {
     const channel = normalizeUnifiedChannel(value);
-    if (!channel) continue;
-    const identity = `${channel.platform}:${channel.id}`;
-    if (!byIdentity.has(identity)) byIdentity.set(identity, channel);
+    if (channel) normalizedChannels.push(channel);
   }
-
-  return Array.from(byIdentity.values())
-    .map((channel) => ({
-      channel,
-      rank: rankChannelMatch(channel, query),
-      popularity: channel.followerCount ?? channel.viewCount ?? channel.subscriberCount ?? 0,
-      stableKey: `${normalizedPhrase(channel.username)}:${channel.platform}:${channel.id}`,
-    }))
-    .filter((entry): entry is typeof entry & { rank: SearchMatchRank } => entry.rank !== null)
-    .sort(compareMatchRank)
-    .map((entry) => entry.channel);
+  return rankSearchChannels(normalizedChannels, query);
 }
 
 export function filterRankAndDeduplicateStreams(

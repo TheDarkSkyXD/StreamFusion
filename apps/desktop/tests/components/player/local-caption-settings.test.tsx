@@ -56,7 +56,7 @@ describe("local caption settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Subtitles\/CC.*Off/ }));
-    fireEvent.click(screen.getByRole("radio", { name: "Local live captions \(English\)" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Local live captions (English)" }));
 
     expect(onTimedTextTrackChange).not.toHaveBeenCalled();
     expect(screen.getByText(/English only/)).toBeVisible();
@@ -99,7 +99,7 @@ describe("local caption settings", () => {
     );
 
     openCaptions();
-    fireEvent.click(screen.getByRole("radio", { name: "Local live captions \(English\)" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Local live captions (English)" }));
     expect(screen.getByText("SHA-256 verification failed")).toBeVisible();
     expect(screen.getByRole("radio", { name: "Off" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(screen.getByRole("button", { name: "Retry download" }));

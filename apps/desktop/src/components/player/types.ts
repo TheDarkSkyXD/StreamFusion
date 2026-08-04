@@ -6,6 +6,7 @@ export interface QualityLevel {
   bitrate: number;
   frameRate?: number;
   isAuto?: boolean;
+  isSource?: boolean;
   name?: string;
 }
 
