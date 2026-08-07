@@ -189,7 +189,7 @@
     "glob": "^10.4.5",
     "rimraf": "^5.0.0",
     "tar": "^7.5.7",
-    "tmp": "^0.2.5",
+    "tmp": "^0.2.7",
     "@npmcli/move-file": "npm:@npmcli/fs@^3.1.0",
     "cacache": "^18.0.0"
   }
