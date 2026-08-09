@@ -6,6 +6,7 @@ import type {
   ChatBadge,
   ChatConnectionStatus,
   ChatKnownUser,
+  ChatKnownUserRole,
   ChatMessage,
   ChatPlatform,
   ChatUserPresentation,
@@ -37,6 +38,13 @@ import { useAuthStore } from "./auth-store";
 const MESSAGE_LIMIT_PAUSED = 1200;
 const MESSAGE_LIMIT_MIN = 10;
 const MESSAGE_LIMIT_MAX = 1200;
+
+// Recent Chatters deliberately retains fewer identities than messages. This
+// keeps opening the list fast on high-volume channels while still covering a
+// useful slice of recent history. Recency pruning happens only when the cap is
+// crossed, avoiding an O(n log n) sort on every incoming message.
+const RECENT_CHATTER_LIMIT = 500;
+const RECENT_CHATTER_WINDOW_MS = 30 * 60 * 1000;
 
 // Force trim when this many messages over limit (avoids frequent small trims)
 const TRIM_BUFFER = 10;
@@ -106,8 +114,24 @@ function replaceMessageInBucket(
   return { ...buckets, [channelKey]: next };
 }
 
+const CHATTER_ROLE_PRIORITY: readonly ChatKnownUserRole[] = [
+  "broadcaster",
+  "moderator",
+  "subscriber",
+];
+const USER_AUTHORED_CHAT_MESSAGE_TYPES = new Set<ChatMessage["type"]>([
+  "message",
+  "action",
+  "bits",
+]);
+
+function inferKnownUserRole(badges: ChatBadge[]): ChatKnownUserRole {
+  const badgeIds = new Set(badges.map((badge) => badge.setId.toLowerCase()));
+  return CHATTER_ROLE_PRIORITY.find((role) => badgeIds.has(role)) ?? "viewer";
+}
+
 function messageToKnownUser(message: ChatMessage): ChatKnownUser | null {
-  if (message.type !== "message") return null;
+  if (!USER_AUTHORED_CHAT_MESSAGE_TYPES.has(message.type)) return null;
   if (!message.username) return null;
   return {
     userId: message.userId,
@@ -115,6 +139,8 @@ function messageToKnownUser(message: ChatMessage): ChatKnownUser | null {
     displayName: message.displayName || message.username,
     color: message.color,
     avatarUrl: message.avatarUrl,
+    role: inferKnownUserRole(message.badges),
+    badges: message.badges,
     lastSeen: message.timestamp,
   };
 }
@@ -141,11 +167,15 @@ function mergeKnownUsers(
     if (!shouldReplace) continue;
 
     if (!next) next = { ...current };
+    const incomingIsNewest =
+      !existing || user.lastSeen.getTime() >= existing.lastSeen.getTime();
     next[key] = {
       ...existing,
       ...user,
       color: user.color || existing?.color,
       avatarUrl: user.avatarUrl || existing?.avatarUrl,
+      role: incomingIsNewest ? user.role : (existing?.role ?? user.role),
+      badges: incomingIsNewest ? user.badges : (existing?.badges ?? user.badges),
       lastSeen:
         existing && existing.lastSeen.getTime() > user.lastSeen.getTime()
           ? existing.lastSeen
@@ -154,6 +184,18 @@ function mergeKnownUsers(
   }
 
   if (!next) return usersByChannel;
+  if (Object.keys(next).length > RECENT_CHATTER_LIMIT) {
+    const newestFirst = Object.values(next).sort(
+      (left, right) => right.lastSeen.getTime() - left.lastSeen.getTime()
+    );
+    const newestTimestamp = newestFirst[0]?.lastSeen.getTime() ?? 0;
+    const cutoff = newestTimestamp - RECENT_CHATTER_WINDOW_MS;
+    const retained = newestFirst
+      .filter((user) => user.lastSeen.getTime() >= cutoff)
+      .slice(0, RECENT_CHATTER_LIMIT);
+    next = Object.fromEntries(retained.map((user) => [user.username.toLowerCase(), user]));
+  }
+
   return { ...usersByChannel, [channelKey]: next };
 }
 
@@ -233,6 +275,8 @@ interface ChatState {
   messagesByChannel: Record<string, ChatMessage[]>;
   /** Per-channel known chat users, learned from live + historical chat messages. */
   usersByChannel: Record<string, Record<string, ChatKnownUser>>;
+  /** Monotonic session count; kept separately because the rendered roster is capped. */
+  chatterCountByChannel: Record<string, number>;
   connectionStatus: Record<ChatPlatform, ChatConnectionStatus>;
   /** Per-channel pause state. */
   pausedChannels: Set<string>;
@@ -318,6 +362,7 @@ export const useChatStore = create<ChatState>()(
     return {
       messagesByChannel: {},
       usersByChannel: {},
+      chatterCountByChannel: {},
       pausedChannels: new Set<string>(),
       // Batching enabled by default. On busy streams (Kick xQc-tier or Twitch
       // raid bursts at 30+ msg/sec), grouping same-frame arrivals into a short
@@ -402,6 +447,15 @@ export const useChatStore = create<ChatState>()(
             usersByChannel: knownUser
               ? mergeKnownUsers(state.usersByChannel, channelKey, [knownUser])
               : state.usersByChannel,
+            chatterCountByChannel:
+              knownUser && !state.usersByChannel[channelKey]?.[knownUser.username.toLowerCase()]
+                ? {
+                    ...state.chatterCountByChannel,
+                    [channelKey]:
+                      (state.chatterCountByChannel[channelKey] ??
+                        Object.keys(state.usersByChannel[channelKey] ?? {}).length) + 1,
+                  }
+                : state.chatterCountByChannel,
           };
         });
       },
@@ -505,6 +559,23 @@ export const useChatStore = create<ChatState>()(
           return {
             messagesByChannel: nextBuckets,
             usersByChannel: mergeKnownUsersFromMessages(state.usersByChannel, channelKey, queued),
+            chatterCountByChannel: (() => {
+              const current = state.usersByChannel[channelKey] ?? {};
+              const newNames = new Set(
+                queued
+                  .map(messageToKnownUser)
+                  .filter((user): user is ChatKnownUser => Boolean(user))
+                  .map((user) => user.username.toLowerCase())
+                  .filter((username) => !current[username])
+              );
+              if (newNames.size === 0) return state.chatterCountByChannel;
+              return {
+                ...state.chatterCountByChannel,
+                [channelKey]:
+                  (state.chatterCountByChannel[channelKey] ?? Object.keys(current).length) +
+                  newNames.size,
+              };
+            })(),
           };
         });
       },
@@ -545,6 +616,23 @@ export const useChatStore = create<ChatState>()(
           return {
             messagesByChannel: { ...state.messagesByChannel, [channelKey]: bucketTrimmed },
             usersByChannel: mergeKnownUsersFromMessages(state.usersByChannel, channelKey, fresh),
+            chatterCountByChannel: (() => {
+              const current = state.usersByChannel[channelKey] ?? {};
+              const newNames = new Set(
+                fresh
+                  .map(messageToKnownUser)
+                  .filter((user): user is ChatKnownUser => Boolean(user))
+                  .map((user) => user.username.toLowerCase())
+                  .filter((username) => !current[username])
+              );
+              if (newNames.size === 0) return state.chatterCountByChannel;
+              return {
+                ...state.chatterCountByChannel,
+                [channelKey]:
+                  (state.chatterCountByChannel[channelKey] ?? Object.keys(current).length) +
+                  newNames.size,
+              };
+            })(),
           };
         });
       },
@@ -562,6 +650,15 @@ export const useChatStore = create<ChatState>()(
           return {
             messagesByChannel: { ...state.messagesByChannel, [channelKey]: [...messages] },
             usersByChannel,
+            chatterCountByChannel: {
+              ...state.chatterCountByChannel,
+              [channelKey]: new Set(
+                messages
+                  .map(messageToKnownUser)
+                  .filter((user): user is ChatKnownUser => Boolean(user))
+                  .map((user) => user.username.toLowerCase())
+              ).size,
+            },
           };
         });
       },
@@ -572,9 +669,12 @@ export const useChatStore = create<ChatState>()(
           delete messagesByChannel[channelKey];
           const usersByChannel = { ...state.usersByChannel };
           delete usersByChannel[channelKey];
+          const chatterCountByChannel = { ...state.chatterCountByChannel };
+          delete chatterCountByChannel[channelKey];
           return {
             messagesByChannel,
             usersByChannel,
+            chatterCountByChannel,
           };
         });
       },
@@ -589,6 +689,8 @@ export const useChatStore = create<ChatState>()(
           delete messagesByChannel[channelKey];
           const usersByChannel = { ...state.usersByChannel };
           delete usersByChannel[channelKey];
+          const chatterCountByChannel = { ...state.chatterCountByChannel };
+          delete chatterCountByChannel[channelKey];
 
           const pausedChannels = new Set(state.pausedChannels);
           pausedChannels.delete(channelKey);
@@ -596,6 +698,7 @@ export const useChatStore = create<ChatState>()(
           return {
             messagesByChannel,
             usersByChannel,
+            chatterCountByChannel,
             pausedChannels,
           };
         }),
@@ -669,6 +772,18 @@ export const useChatStore = create<ChatState>()(
         set((state) => {
           const bucket = state.messagesByChannel[channelKey];
           if (!bucket) return state;
+          const channelUsers = state.usersByChannel[channelKey];
+          const usersByChannel = channelUsers
+            ? {
+                ...state.usersByChannel,
+                [channelKey]: Object.fromEntries(
+                  Object.entries(channelUsers).map(([username, user]) => {
+                    const badges = resolve(user.badges ?? []);
+                    return [username, { ...user, badges, role: inferKnownUserRole(badges) }];
+                  })
+                ),
+              }
+            : state.usersByChannel;
           return {
             messagesByChannel: {
               ...state.messagesByChannel,
@@ -677,6 +792,7 @@ export const useChatStore = create<ChatState>()(
                 badges: resolve(message.badges),
               })),
             },
+            usersByChannel,
           };
         });
       },

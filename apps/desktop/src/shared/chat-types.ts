@@ -265,6 +265,8 @@ export interface ChatMessage {
   };
 }
 
+export type ChatKnownUserRole = "broadcaster" | "moderator" | "subscriber" | "viewer";
+
 export interface ChatKnownUser {
   /** Platform-specific user id, when known. */
   userId: string;
@@ -276,6 +278,10 @@ export interface ChatKnownUser {
   color?: string;
   /** Avatar/profile image URL, when known. */
   avatarUrl?: string;
+  /** Exclusive role inferred from the user's most recently observed platform badges. */
+  role: ChatKnownUserRole;
+  /** Exact provider badges observed on the user's most recent chat message. */
+  badges: ChatBadge[];
   /** Most recent timestamp this user was observed in the channel. */
   lastSeen: Date;
 }

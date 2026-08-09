@@ -39,6 +39,8 @@ function resetStore(opts: { batching?: boolean; interval?: number } = {}): void 
   useChatStore.getState().cleanupBatching();
   useChatStore.setState({
     messagesByChannel: {},
+    usersByChannel: {},
+    chatterCountByChannel: {},
     pausedChannels: new Set<string>(),
     batchingEnabled: opts.batching ?? false,
     batchingInterval: opts.interval ?? DEFAULT_BATCHING_INTERVAL_MS,
@@ -58,6 +60,144 @@ function resetStore(opts: { batching?: boolean; interval?: number } = {}): void 
     },
   });
 }
+
+// Guards: Recent Chatters assigns one exclusive role using broadcaster > moderator > subscriber > viewer priority.
+// Guards: Recent Chatters retains exact provider badge images and versions from live and historical messages.
+// Guards: The 500-user memory bound replaces the oldest identity as new live chatters arrive.
+// Guards: The seen-in-chat total continues increasing when the bounded recent roster reaches 500 users.
+describe('chat-store recent chatter roles', () => {
+  beforeEach(() => resetStore());
+
+  it('records the highest-priority role from a chatter message badges', () => {
+    const providerBadges = [
+      {
+        setId: 'subscriber',
+        version: '12',
+        imageUrl: 'https://static-cdn.jtvnw.net/badges/v1/subscriber-12/2',
+        title: '12-Month Subscriber',
+      },
+      {
+        setId: 'moderator',
+        version: '1',
+        imageUrl: 'https://static-cdn.jtvnw.net/badges/v1/moderator/2',
+        title: 'Moderator',
+      },
+      {
+        setId: 'broadcaster',
+        version: '1',
+        imageUrl: 'https://static-cdn.jtvnw.net/badges/v1/broadcaster/2',
+        title: 'Broadcaster',
+      },
+    ];
+    useChatStore.getState().addMessage({
+      ...makeMessage('owner'),
+      badges: providerBadges,
+    });
+
+    const owner = useChatStore.getState().usersByChannel[defaultChannelKey()]?.owner;
+    expect(owner?.role).toBe('broadcaster');
+    expect(owner?.badges).toEqual(providerBadges);
+  });
+
+  it('bounds each channel to the 500 most recently seen chatters', () => {
+    const messages = Array.from({ length: 501 }, (_, index) => ({
+      ...makeMessage(`user-${index}`),
+      timestamp: new Date(Date.parse('2026-08-07T12:00:00.000Z') + index),
+    }));
+
+    useChatStore.getState().replaceHistoricalMessages(defaultChannelKey(), messages);
+
+    const users = useChatStore.getState().usersByChannel[defaultChannelKey()] ?? {};
+    expect(Object.keys(users)).toHaveLength(500);
+    expect(users['user-0']).toBeUndefined();
+    expect(users['user-500']).toBeDefined();
+  });
+
+  it('drops chatters outside the 30-minute window when a channel crosses the cap', () => {
+    const latest = Date.parse('2026-08-07T12:00:00.000Z');
+    const messages = Array.from({ length: 501 }, (_, index) => ({
+      ...makeMessage(`user-${index}`),
+      timestamp: new Date(index === 0 ? latest - 31 * 60 * 1000 : latest),
+    }));
+
+    useChatStore.getState().replaceHistoricalMessages(defaultChannelKey(), messages);
+
+    const users = useChatStore.getState().usersByChannel[defaultChannelKey()] ?? {};
+    expect(users['user-0']).toBeUndefined();
+    expect(Object.keys(users)).toHaveLength(500);
+  });
+
+  it('learns chatters from user-authored action and bits messages', () => {
+    useChatStore.getState().prependMessages(defaultChannelKey(), [
+      { ...makeMessage('action-user'), type: 'action' },
+      { ...makeMessage('bits-user'), type: 'bits' },
+    ]);
+
+    const users = useChatStore.getState().usersByChannel[defaultChannelKey()] ?? {};
+    expect(Object.keys(users).sort()).toEqual(['action-user', 'bits-user']);
+  });
+
+  it('retains exact provider badges from loaded chat history', () => {
+    const historicalBadge = {
+      setId: 'subscriber',
+      version: '36',
+      imageUrl: 'https://files.kick.com/channel/subscriber-badges/36-month.webp',
+      title: '36-Month Subscriber',
+    };
+    useChatStore.getState().replaceHistoricalMessages(defaultChannelKey('kick'), [
+      {
+        ...makeMessage('historical-user', 'kick'),
+        badges: [historicalBadge],
+        isHistorical: true,
+      },
+    ]);
+
+    expect(
+      useChatStore.getState().usersByChannel[defaultChannelKey('kick')]?.['historical-user']?.badges
+    ).toEqual([historicalBadge]);
+  });
+
+  it('keeps the live roster current when a new chatter crosses the 500-user cap', () => {
+    const base = Date.parse('2026-08-07T12:00:00.000Z');
+    useChatStore.getState().replaceHistoricalMessages(
+      defaultChannelKey(),
+      Array.from({ length: 500 }, (_, index) => ({
+        ...makeMessage(`history-${index}`),
+        timestamp: new Date(base + index),
+      }))
+    );
+
+    useChatStore.getState().addMessage({
+      ...makeMessage('new-live-user'),
+      timestamp: new Date(base + 501),
+    });
+
+    const users = useChatStore.getState().usersByChannel[defaultChannelKey()] ?? {};
+    expect(Object.keys(users)).toHaveLength(500);
+    expect(users['new-live-user']).toBeDefined();
+    expect(users['history-0']).toBeUndefined();
+  });
+
+  it('continues counting newly seen live chatters after the recent roster reaches its cap', () => {
+    const channelKey = defaultChannelKey();
+    const base = Date.parse('2026-08-07T12:00:00.000Z');
+    useChatStore.getState().replaceHistoricalMessages(
+      channelKey,
+      Array.from({ length: 500 }, (_, index) => ({
+        ...makeMessage(`history-${index}`),
+        timestamp: new Date(base + index),
+      }))
+    );
+
+    useChatStore.getState().addMessage({
+      ...makeMessage('new-live-user'),
+      timestamp: new Date(base + 501),
+    });
+
+    expect(Object.keys(useChatStore.getState().usersByChannel[channelKey] ?? {})).toHaveLength(500);
+    expect(useChatStore.getState().chatterCountByChannel[channelKey]).toBe(501);
+  });
+});
 
 function makeMessage(id: string, platform: ChatPlatform = 'twitch'): ChatMessage {
   return {
@@ -163,6 +303,12 @@ describe('chat-store badge rehydration', () => {
       userId: retainedAfter.userId,
       rawContent: retainedAfter.rawContent,
     }).toEqual(actionIdentityBefore);
+    expect(useChatStore.getState().usersByChannel[channelKey]?.['message-0']?.badges[0]).toEqual({
+      setId: 'subscriber',
+      version: '0',
+      imageUrl: 'https://new.example/subscriber-0.png',
+      title: 'Subscriber',
+    });
     expect(messagesFor(channelKey)).toHaveLength(12);
   });
 });
@@ -275,6 +421,7 @@ describe('chat-store updateConnectionStatus', () => {
 });
 
 // Guards: Same-turn live arrivals coalesce into one subscriber update within a 60 Hz frame budget while retaining ordered dedupe and trim behavior.
+// Guards: The Recent Chatters roster publishes in the same live batch flush as its messages.
 describe('chat-store addMessageBatched', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -297,6 +444,27 @@ describe('chat-store addMessageBatched', () => {
 
     vi.advanceTimersByTime(DEFAULT_BATCHING_INTERVAL_MS);
     expect(messageIdsFor()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('publishes recent chatter identity and real badges with the live batch', () => {
+    const badge = {
+      setId: 'moderator',
+      version: '1',
+      imageUrl: 'https://static-cdn.jtvnw.net/badges/v1/moderator/2',
+      title: 'Moderator',
+    };
+    useChatStore.getState().addMessageBatched(
+      { ...makeMessage('live-mod'), badges: [badge] },
+      defaultChannelKey()
+    );
+    expect(useChatStore.getState().usersByChannel[defaultChannelKey()]).toBeUndefined();
+
+    vi.advanceTimersByTime(DEFAULT_BATCHING_INTERVAL_MS);
+
+    expect(useChatStore.getState().usersByChannel[defaultChannelKey()]?.['live-mod']).toMatchObject({
+      role: 'moderator',
+      badges: [badge],
+    });
   });
 
   it('publishes a coalesced live burst within one 60 Hz frame budget', () => {
@@ -668,14 +836,25 @@ describe('chat-store prependMessages per channel', () => {
 
   it('does not duplicate a message already in the bucket from live arrivals', () => {
     // Live arrival first
-    useChatStore.getState().addMessage({ ...makeMessage('shared', 'twitch'), channel: 'xqc' });
+    useChatStore.getState().addMessage({
+      ...makeMessage('shared', 'twitch'),
+      channel: 'xqc',
+      rawContent: 'live copy',
+      isHistorical: false,
+    });
     // History backfill includes the same id
     useChatStore.getState().prependMessages(buildChannelKey('twitch', 'xqc'), [
       { ...makeMessage('older', 'twitch'), channel: 'xqc' },
-      { ...makeMessage('shared', 'twitch'), channel: 'xqc' },
+      {
+        ...makeMessage('shared', 'twitch'),
+        channel: 'xqc',
+        rawContent: 'history copy',
+        isHistorical: true,
+      },
     ]);
     const bucket = useChatStore.getState().messagesByChannel[buildChannelKey('twitch', 'xqc')];
     expect(bucket?.map((m) => m.id)).toEqual(['older', 'shared']);
+    expect(bucket?.[1]).toMatchObject({ rawContent: 'live copy', isHistorical: false });
   });
 });
 
