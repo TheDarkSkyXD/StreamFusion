@@ -35,6 +35,7 @@ afterEach(() => {
 });
 
 // Guards: active chat-room banners stay separated from the compose input by the design-system 4px gap.
+// Guards: the banner shows only viewer-relevant chat restrictions, excluding Unique Chat and Shield Mode.
 describe("InfoBanner", () => {
   it("returns null when no mode is active", () => {
     mockRoomState({});
@@ -139,27 +140,19 @@ describe("InfoBanner", () => {
     expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Slow Mode [1m]");
   });
 
-  it("renders Unique Chat Mode on Twitch when only uniqueChat active", () => {
-    mockRoomState({ uniqueChat: true });
-    render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Unique Chat Mode");
-    fireEvent.focus(screen.getByTestId("info-banner-icon"));
-    expect(tooltipRow("uniqueChat")).toHaveTextContent("Unique Chat Mode Enabled");
+  it("renders no banner when Unique Chat and Shield Mode are the only active modes", () => {
+    mockRoomState({ uniqueChat: true, shieldMode: true });
+    const { container } = render(<InfoBanner platform="twitch" channelId="123" />);
+    expect(container.firstChild).toBeNull();
   });
 
-  it("renders Shield Mode on Twitch when only shieldMode active", () => {
-    mockRoomState({ shieldMode: true });
-    render(<InfoBanner platform="twitch" channelId="123" />);
-    expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Shield Mode");
-  });
-
-  it("uniqueChat does NOT displace followers as primary; both appear in tooltip", () => {
+  it("does not include uniqueChat in a follower-only banner or its tooltip", () => {
     mockRoomState({ followersOnly: 5, uniqueChat: true });
     render(<InfoBanner platform="twitch" channelId="123" />);
     expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Followers Only Mode [5m]");
     fireEvent.focus(screen.getByTestId("info-banner-icon"));
     expect(tooltipRow("followers")).toBeInTheDocument();
-    expect(tooltipRow("uniqueChat")).toBeInTheDocument();
+    expect(screen.queryByTestId("info-banner-tooltip-row-uniqueChat")).toBeNull();
   });
 
   it("ignores uniqueChat / shieldMode on Kick (platform asymmetry)", () => {

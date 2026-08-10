@@ -10,14 +10,8 @@
  * Precedence for the visible label (R14):
  *   followersOnly → subscribersOnly → accountAge → emoteOnly → slowMode
  *
- * The Twitch-only modes `uniqueChat` and `shieldMode` never displace any of
- * the strict modes above. They contribute to the tooltip list when active and only
- * surface as the visible label if every higher-precedence mode is inactive.
- *
- * Platform asymmetry is encoded explicitly: `accountAge` is read only on
- * Kick; `uniqueChat` / `shieldMode` are read only on Twitch. The underlying
- * fetchers don't populate the wrong-platform fields, so this is
- * belt-and-suspenders — but it keeps the rule legible at the call-site.
+ * `accountAge` is displayed only on Kick. Twitch's `uniqueChat` and
+ * `shieldMode` room-state fields are intentionally not displayed here.
  *
  * Returns `null` when no mode is active.
  */
@@ -74,11 +68,9 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
 }) => {
   const state = useChatRoomState(platform, channelId);
 
-  // Build the precedence-ordered list of active modes. Platform asymmetry
-  // is enforced here: only read accountAge on Kick, only read
-  // uniqueChat / shieldMode on Twitch. The store contract already keeps
-  // wrong-platform fields at their default, but this check makes the
-  // platform rule visible at the call-site.
+  // Build the precedence-ordered list of chat restrictions relevant to the viewer.
+  // Account age remains Kick-only; Unique Chat and Shield Mode are intentionally
+  // excluded from this user-facing banner.
   const active: ActiveMode[] = [];
 
   if (!viewerSatisfiesFollowerOnly && state.followersOnly !== null && state.followersOnly >= 0) {
@@ -121,26 +113,6 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
       key: "slow",
       label: `Slow Mode [${interval}]`,
       tooltipLabel: `Slow Mode Enabled [${interval}]`,
-    });
-  }
-
-  // Twitch-only fallback modes. These never displace one of the five above
-  // for the visible primary label — they're appended to `active` AFTER the
-  // precedence chain, so they only become the primary when every higher
-  // mode is inactive.
-  if (platform === "twitch" && state.uniqueChat) {
-    active.push({
-      key: "uniqueChat",
-      label: "Unique Chat Mode",
-      tooltipLabel: "Unique Chat Mode Enabled",
-    });
-  }
-
-  if (platform === "twitch" && state.shieldMode) {
-    active.push({
-      key: "shieldMode",
-      label: "Shield Mode",
-      tooltipLabel: "Shield Mode Enabled",
     });
   }
 
