@@ -10,14 +10,24 @@ import path from "node:path";
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
 import { logger } from "@/backend/logging/logger";
+import { configureWindowIdentity } from "./app-identity";
 import { installContextMenu } from "./context-menu";
 import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";
 import { markCleanShutdown } from "./shutdown-marker";
 
-// No longer using Electron Forge globals - electron-vite provides:
-//   - process.env.ELECTRON_RENDERER_URL (dev server URL in development)
-//   - __dirname points to out/main/ in production
-const appIconPath = path.join(__dirname, "../../assets/icons/icon.png");
+/**
+ * Resolve the checked-in application artwork from electron-vite's built
+ * main-process directory. Windows gets the multi-resolution ICO so Chromium
+ * does not fall back to Electron's executable icon in the taskbar; other
+ * platforms use the lossless PNG.
+ */
+export function resolveAppIconPath(
+  mainProcessDirectory: string = __dirname,
+  platform: NodeJS.Platform = process.platform
+): string {
+  const filename = platform === "win32" ? "icon.ico" : "icon.png";
+  return path.resolve(mainProcessDirectory, "../../assets/icons", filename);
+}
 
 interface WindowBounds {
   x: number;
@@ -179,6 +189,7 @@ class WindowManager {
       ? ensureWindowIsVisible(savedWindowState.bounds)
       : defaultBounds;
 
+    const appIconPath = resolveAppIconPath();
     this.mainWindow = new BrowserWindow({
       ...bounds,
       minWidth: 1024,
@@ -198,6 +209,11 @@ class WindowManager {
         webSecurity: false, // Allow CORS for video streams
         backgroundThrottling: false, // Prevent Chromium from pausing media when window is minimized
       },
+    });
+
+    configureWindowIdentity(this.mainWindow, appIconPath, {
+      platform: process.platform,
+      isPackaged: app.isPackaged,
     });
 
     installContextMenu(this.mainWindow.webContents);

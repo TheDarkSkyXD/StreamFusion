@@ -1,7 +1,7 @@
 import { type BrowserWindow, ipcMain } from "electron";
 import { z } from "zod";
 
-import { logger } from "@/backend/logging/logger";
+import { logger, type Logger } from "@/backend/logging/logger";
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { createManagedInterval } from "../../../lib/managed-interval";
 import type { AuthToken, LocalFollow, Platform, TwitchUser } from "../../../shared/auth-types";
@@ -15,6 +15,8 @@ import { disposeSendWindow } from "../../api/platforms/kick/kick-send-window";
 import {
   authWindowManager,
   deviceCodeFlowService,
+  generatePkceChallenge,
+  generateState,
   getOAuthConfig,
   kickAuthService,
   oauthCallbackServer,
@@ -103,6 +105,29 @@ export type KickSyncOutcome =
       removedCount: number;
     }
   | { status: "error"; reason: string };
+
+type KickSyncFailure = Extract<KickSyncOutcome, { status: "error" }>;
+
+export function reportKickFollowSyncFailure(
+  outcome: KickSyncFailure,
+  authLogger: Pick<Logger, "debug" | "warn"> = logger
+): KickSyncFailure {
+  const metadata = { reason: outcome.reason };
+  if (outcome.reason === "auth-failed") {
+    authLogger.debug(
+      "IPC:Auth",
+      "Kick follow sync skipped; preserving prior account-source rows",
+      metadata
+    );
+  } else {
+    authLogger.warn(
+      "IPC:Auth",
+      "Kick follow sync skipped; preserving prior account-source rows",
+      metadata
+    );
+  }
+  return outcome;
+}
 
 type FollowSyncOutcome = KickSyncOutcome;
 
@@ -235,28 +260,9 @@ export async function performTwitchDeviceCodeLogin(
   return user;
 }
 
-export function invalidateLegacyTwitchToken(
-  storage: Pick<typeof storageService, "getToken" | "clearToken"> = storageService
-): boolean {
-  const token = storage.getToken("twitch");
-  if (!token || token.authFlow === "device-code") {
-    return false;
-  }
-
-  storage.clearToken("twitch");
-  return true;
-}
-
 export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   const authHandlersStartedAt = Date.now();
   let twitchLoginInFlight: Promise<{ success: boolean; error?: string }> | null = null;
-
-  if (invalidateLegacyTwitchToken()) {
-    logger.warn(
-      "IPC:Auth",
-      "Cleared a legacy Twitch credential so the account can reconnect with Device Code Grant"
-    );
-  }
 
   /**
    * Helper to safely send IPC messages to the renderer.
@@ -333,14 +339,9 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
             : undefined
         );
         if (outcome.status === "error") {
-          logger.warn(
-            "IPC:Auth",
-            "Kick follow sync skipped; preserving prior account-source rows",
-            { reason: outcome.reason }
-          );
           // Bail out without firing AUTH_FOLLOWS_SYNCED. The renderer's prior
           // state remains correct.
-          return outcome;
+          return reportKickFollowSyncFailure(outcome);
         }
         importedCount = outcome.count;
         pendingCount = outcome.pendingCount;
@@ -622,8 +623,20 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     // Stop any existing callback server before starting a new one
     oauthCallbackServer.stop();
 
-    // Open auth window and get session info
-    const { pkce, state, redirectUri, port } = authWindowManager.openAuthWindow(platform);
+    const pkce = generatePkceChallenge();
+    const state = generateState();
+
+    // Bind before opening Kick so the authorization URL always uses the port
+    // that this process actually owns. Ten minutes covers both the five-minute
+    // kick.com sign-in phase and the subsequent id.kick.com authorization phase.
+    const pendingCallback = await oauthCallbackServer.start(platform, state, {
+      timeout: 10 * 60 * 1000,
+    });
+    const { redirectUri } = authWindowManager.openAuthWindow(platform, {
+      port: pendingCallback.port,
+      pkce,
+      state,
+    });
 
     // Create a cancellation mechanism for this flow
     let isCancelled = false;
@@ -637,8 +650,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     pendingOAuthFlows.set(platform, flowControl);
 
     try {
-      // Start the localhost callback server and wait for the callback
-      const callbackResult = await oauthCallbackServer.waitForCallback(platform, state, { port });
+      const callbackResult = await pendingCallback.callback;
 
       // Check if this flow was cancelled (a newer flow started)
       if (isCancelled) {
@@ -735,13 +747,13 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       try {
         const config = getOAuthConfig("twitch");
         if (!config.clientId) {
-          throw new Error("TWITCH_CLIENT_ID is not set. Please add it to your .env file.");
+          throw new Error("Twitch public client ID is not configured.");
         }
 
         await performTwitchDeviceCodeLogin({
           scopes: config.scopes,
           requestDeviceCode: (scopes) => deviceCodeFlowService.requestDeviceCode(scopes),
-          openVerificationWindow: (verificationUri) => twitchDeviceAuthWindow.open(verificationUri),
+          openVerificationWindow: () => twitchDeviceAuthWindow.open(),
           pollForToken: (deviceCode, interval, expiresIn, scopes, onStatusChange, signal) =>
             deviceCodeFlowService.pollForToken(
               deviceCode,

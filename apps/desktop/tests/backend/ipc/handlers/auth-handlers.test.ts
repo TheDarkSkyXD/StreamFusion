@@ -1,44 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  invalidateLegacyTwitchToken,
   KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
   performTwitchDeviceCodeLogin,
   persistInitialAuthToken,
+  reportKickFollowSyncFailure,
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
   syncTwitchFollowsAfterLogin,
 } from "@/backend/ipc/handlers/auth-handlers";
-
-describe("invalidateLegacyTwitchToken", () => {
-  it("clears an unmarked legacy Twitch token exactly once", () => {
-    let token: { accessToken: string } | null = { accessToken: "legacy-at" };
-    const clearToken = vi.fn(() => {
-      token = null;
-    });
-    const storage = {
-      getToken: vi.fn(() => token),
-      clearToken,
-    };
-
-    expect(invalidateLegacyTwitchToken(storage)).toBe(true);
-    expect(invalidateLegacyTwitchToken(storage)).toBe(false);
-    expect(clearToken).toHaveBeenCalledTimes(1);
-    expect(clearToken).toHaveBeenCalledWith("twitch");
-  });
-
-  it("keeps a device-code Twitch token", () => {
-    const clearToken = vi.fn();
-
-    expect(
-      invalidateLegacyTwitchToken({
-        getToken: vi.fn(() => ({ accessToken: "at", authFlow: "device-code" as const })),
-        clearToken,
-      })
-    ).toBe(false);
-    expect(clearToken).not.toHaveBeenCalled();
-  });
-});
 
 describe("performTwitchDeviceCodeLogin", () => {
   it("runs the direct device flow and persists the authenticated Twitch account", async () => {
@@ -72,6 +42,7 @@ describe("performTwitchDeviceCodeLogin", () => {
       openVerificationWindow: vi.fn(async () => ({
         closed: new Promise<void>(() => undefined),
         close: vi.fn(),
+        navigate: vi.fn(async () => undefined),
       })),
       pollForToken: vi.fn(async () => token),
       saveToken,
@@ -116,6 +87,7 @@ describe("performTwitchDeviceCodeLogin", () => {
       openVerificationWindow: vi.fn(async () => ({
         closed: new Promise<void>(() => undefined),
         close: closePopup,
+        navigate: vi.fn(async () => undefined),
       })),
       pollForToken: vi.fn(async () => token),
       saveToken,
@@ -439,6 +411,29 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       addedCount: 1,
       removedCount: 2,
     });
+  });
+});
+
+// Guards: expected Kick credential rejection preserves the sync outcome without recurring warning noise.
+// Guards: challenge and unknown Kick follow-sync failures remain visible at warning level.
+describe("reportKickFollowSyncFailure", () => {
+  it("demotes auth-failed to debug while retaining warnings for other failures", () => {
+    const authFailed = { status: "error", reason: "auth-failed" } as const;
+    const debug = vi.fn();
+    const warn = vi.fn();
+
+    expect(reportKickFollowSyncFailure(authFailed, { debug, warn })).toBe(authFailed);
+    expect(debug).toHaveBeenCalledWith(
+      "IPC:Auth",
+      "Kick follow sync skipped; preserving prior account-source rows",
+      { reason: "auth-failed" }
+    );
+    expect(warn).not.toHaveBeenCalled();
+
+    for (const reason of ["cloudflare-challenge", "unexpected-response"]) {
+      reportKickFollowSyncFailure({ status: "error", reason }, { debug, warn });
+    }
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 });
 

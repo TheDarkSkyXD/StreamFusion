@@ -88,7 +88,7 @@ describe("requestDeviceCode", () => {
     });
 
     await expect(deviceCodeFlowService.requestDeviceCode(["chat:read"])).rejects.toThrow(
-      "TWITCH_CLIENT_ID not set"
+      "Twitch public client ID is not configured"
     );
   });
 
@@ -491,12 +491,40 @@ describe("isPolling", () => {
 });
 
 describe("runTwitchDeviceCodeLogin", () => {
+  // Guards: clicking Connect Twitch shows local popup feedback before the device-code request can block on Twitch.
+  it("opens the loading popup before requesting a device code", async () => {
+    const order: string[] = [];
+    const navigate = vi.fn(async () => undefined);
+
+    await runTwitchDeviceCodeLogin(["chat:read"], {
+      openVerificationWindow: vi.fn(async () => {
+        order.push("popup");
+        return { closed: new Promise<void>(() => undefined), close: vi.fn(), navigate };
+      }),
+      requestDeviceCode: vi.fn(async () => {
+        order.push("request");
+        return {
+          deviceCode: "dc",
+          userCode: "ABCD-EFGH",
+          verificationUri: "https://www.twitch.tv/activate",
+          expiresIn: 900,
+          interval: 5,
+        };
+      }),
+      pollForToken: vi.fn(async () => ({ accessToken: "at", authFlow: "device-code" as const })),
+    });
+
+    expect(order).toEqual(["popup", "request"]);
+  });
+
   // Guards: Twitch-provided verification query values cannot replace the device code or public-client marker.
   it("opens a canonical prefilled Twitch verification URL and polls to completion", async () => {
     const closePopup = vi.fn();
+    const navigate = vi.fn(async () => undefined);
     const openVerificationWindow = vi.fn(async () => ({
       closed: new Promise<void>(() => undefined),
       close: closePopup,
+      navigate,
     }));
     const pollForToken = vi.fn(async () => ({
       accessToken: "at",
@@ -517,7 +545,8 @@ describe("runTwitchDeviceCodeLogin", () => {
       pollForToken,
     });
 
-    expect(openVerificationWindow).toHaveBeenCalledWith(
+    expect(openVerificationWindow).toHaveBeenCalledWith();
+    expect(navigate).toHaveBeenCalledWith(
       "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
     );
     expect(pollForToken).toHaveBeenCalledWith(
@@ -576,6 +605,7 @@ describe("runTwitchDeviceCodeLogin", () => {
       openVerificationWindow: vi.fn(async () => ({
         closed: popupClosed,
         close: vi.fn(),
+        navigate: vi.fn(async () => undefined),
       })),
       pollForToken: (deviceCode, interval, expiresIn, scopes, onStatusChange, signal) =>
         deviceCodeFlowService.pollForToken(
@@ -638,6 +668,7 @@ describe("runTwitchDeviceCodeLogin", () => {
       openVerificationWindow: vi.fn(async () => ({
         closed: popupClosed,
         close: vi.fn(),
+        navigate: vi.fn(async () => undefined),
       })),
       pollForToken,
     });

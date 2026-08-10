@@ -45,7 +45,7 @@ type DeviceCodeStatusHandler = (
 
 export interface TwitchDeviceCodeLoginDependencies {
   requestDeviceCode: (scopes: string[]) => Promise<DeviceCodeResult>;
-  openVerificationWindow: (verificationUri: string) => Promise<TwitchDeviceAuthWindowHandle>;
+  openVerificationWindow: () => Promise<TwitchDeviceAuthWindowHandle>;
   pollForToken: (
     deviceCode: string,
     interval: number,
@@ -90,16 +90,7 @@ export async function runTwitchDeviceCodeLogin(
   onStatusChange?: DeviceCodeStatusHandler
 ): Promise<AuthToken> {
   const startedAt = Date.now();
-  logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
-    stage: "requesting-device-code",
-    elapsedMs: 0,
-  });
-  const device = await dependencies.requestDeviceCode(scopes);
-  logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
-    stage: "device-code-received",
-    elapsedMs: Date.now() - startedAt,
-  });
-  const popup = await dependencies.openVerificationWindow(buildTwitchVerificationUrl(device));
+  const popup = await dependencies.openVerificationWindow();
   logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
     stage: "popup-opened",
     elapsedMs: Date.now() - startedAt,
@@ -107,6 +98,17 @@ export async function runTwitchDeviceCodeLogin(
   const cancellation = new AbortController();
   void popup.closed.then(() => cancellation.abort(POPUP_CLOSED_ABORT_REASON));
   try {
+    logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
+      stage: "requesting-device-code",
+      elapsedMs: Date.now() - startedAt,
+    });
+    const device = await dependencies.requestDeviceCode(scopes);
+    if (cancellation.signal.aborted) throw new Error("Authorization cancelled");
+    logger.info("Auth:DeviceCode", "Twitch device authorization stage", {
+      stage: "device-code-received",
+      elapsedMs: Date.now() - startedAt,
+    });
+    await popup.navigate(buildTwitchVerificationUrl(device));
     const token = await dependencies.pollForToken(
       device.deviceCode,
       device.interval,
@@ -228,10 +230,7 @@ class DeviceCodeFlowService {
     const config = getOAuthConfig("twitch");
 
     if (!config.clientId) {
-      throw new Error(
-        "TWITCH_CLIENT_ID not set. Please configure your .env file. " +
-          "See .env.example for instructions."
-      );
+      throw new Error("Twitch public client ID is not configured. Device Code Flow cannot start.");
     }
 
     const body = new URLSearchParams({

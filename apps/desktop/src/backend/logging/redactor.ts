@@ -26,6 +26,10 @@ const BEARER_RE = /\b(bearer)\s+([^\s,;}"']+)/gi;
 // URL-safe set so we stop cleanly at `&`, whitespace, or end-of-string.
 const QUERY_TOKEN_RE = /\b(access_token|refresh_token|client_secret)=([A-Za-z0-9._~-]+)/g;
 
+// The custom Twitch clip media URL contains a reversible encoded signed CDN
+// source. Redact the whole wrapper so caller mistakes cannot persist it.
+const TWITCH_CLIP_MEDIA_RE = /\btwitch-clip-media:\/\/[^\s,;}"']+/gi;
+
 // OAuth callback `code=` is matched conservatively: only when the surrounding
 // string indicates an oauth2 callback context. Matching every `code=` would
 // scrub HTTP status codes ("code=429") and other innocuous occurrences.
@@ -47,6 +51,8 @@ export function redactString(input: string): string {
   if (input.length === 0) return input;
 
   let out = input;
+
+  out = out.replace(TWITCH_CLIP_MEDIA_RE, "twitch-clip-media://[REDACTED]");
 
   out = out.replace(BEARER_RE, (_match, prefix: string) => `${prefix} ${REDACTED}`);
 

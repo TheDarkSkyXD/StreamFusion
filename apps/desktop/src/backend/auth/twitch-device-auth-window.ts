@@ -5,6 +5,21 @@ import { logger } from "@/backend/logging/logger";
 const TWITCH_ACTIVATION_ORIGIN = "https://www.twitch.tv";
 const TWITCH_CALLBACK_ORIGIN = "http://localhost:8765";
 const TWITCH_CALLBACK_PATH = "/auth/twitch/callback";
+const TWITCH_LOADING_PAGE = `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Connect Twitch</title>
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body { display: grid; place-items: center; background: #0e0e10; color: #efeff1; font: 16px system-ui, sans-serif; }
+      main { text-align: center; }
+      p { color: #adadb8; }
+    </style>
+  </head>
+  <body><main><h1>Connecting to Twitch</h1><p>Opening secure authentication…</p></main></body>
+</html>`)}`;
 const TWITCH_AUTH_ORIGINS = new Set([
   TWITCH_ACTIVATION_ORIGIN,
   "https://auth.twitch.tv",
@@ -76,13 +91,14 @@ function isTwitchVerificationUrl(rawUrl: string): boolean {
 export interface TwitchDeviceAuthWindowHandle {
   closed: Promise<void>;
   close: () => void;
+  navigate: (verificationUri: string) => Promise<void>;
 }
 
 class TwitchDeviceAuthWindowManager {
   private activeWindow: BrowserWindow | null = null;
 
-  async open(verificationUri: string): Promise<TwitchDeviceAuthWindowHandle> {
-    if (!isTwitchVerificationUrl(verificationUri)) {
+  async open(verificationUri?: string): Promise<TwitchDeviceAuthWindowHandle> {
+    if (verificationUri && !isTwitchVerificationUrl(verificationUri)) {
       throw new Error("Invalid Twitch verification URL");
     }
 
@@ -157,8 +173,7 @@ class TwitchDeviceAuthWindowManager {
     );
 
     try {
-      const userAgent = browserCompatibleUserAgent(window.webContents.session.getUserAgent());
-      await window.loadURL(verificationUri, { userAgent });
+      await window.loadURL(TWITCH_LOADING_PAGE);
       if (!window.isDestroyed()) {
         window.show();
         window.focus();
@@ -168,12 +183,30 @@ class TwitchDeviceAuthWindowManager {
       throw new Error("Unable to open Twitch authorization window");
     }
 
-    return {
+    const handle: TwitchDeviceAuthWindowHandle = {
       closed,
       close: () => {
         if (!window.isDestroyed()) window.close();
       },
+      navigate: async (targetUri) => {
+        if (!isTwitchVerificationUrl(targetUri)) {
+          throw new Error("Invalid Twitch verification URL");
+        }
+        try {
+          const userAgent = browserCompatibleUserAgent(window.webContents.session.getUserAgent());
+          await window.loadURL(targetUri, { userAgent });
+          if (!window.isDestroyed()) {
+            window.show();
+            window.focus();
+          }
+        } catch {
+          if (!window.isDestroyed()) window.close();
+          throw new Error("Unable to open Twitch authorization window");
+        }
+      },
     };
+    if (verificationUri) await handle.navigate(verificationUri);
+    return handle;
   }
 
   close(): void {

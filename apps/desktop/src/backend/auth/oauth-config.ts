@@ -7,13 +7,17 @@
 
 import crypto from "node:crypto";
 
-import { KICK_APP_SCOPES, type Platform, TWITCH_APP_SCOPES } from "../../shared/auth-types";
+import {
+  KICK_APP_SCOPES,
+  type Platform,
+  TWITCH_APP_CLIENT_ID,
+  TWITCH_APP_SCOPES,
+} from "../../shared/auth-types";
 
 // ========== Environment Variables ==========
 // These should be set in .env file
 // For Confidential clients, client secret is required for Authorization Code Flow
 
-const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID || "";
 // Client secrets are now handled by the Cloudflare Worker
 const TWITCH_CLIENT_SECRET = "";
 const KICK_CLIENT_ID = process.env.KICK_CLIENT_ID || "";
@@ -67,7 +71,7 @@ export interface PkceChallenge {
 
 export const TWITCH_OAUTH_CONFIG: OAuthConfig = {
   platform: "twitch",
-  clientId: TWITCH_CLIENT_ID,
+  clientId: TWITCH_APP_CLIENT_ID,
   clientSecret: TWITCH_CLIENT_SECRET,
   authorizationEndpoint: "https://id.twitch.tv/oauth2/authorize",
   tokenEndpoint: "https://id.twitch.tv/oauth2/token",

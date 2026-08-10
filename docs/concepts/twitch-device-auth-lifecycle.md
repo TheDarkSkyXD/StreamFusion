@@ -84,9 +84,10 @@ Do not collapse these into a generic retry. Each seam needs its own evidence and
    identity, do not attempt destructive refresh or clear, expose reconnect-required only when
    authoritative status calls for it, and allow restoration when decryption becomes available.
 10. Explicit logout is different from startup recovery and must clear all persisted Twitch auth.
-11. The legacy callback-era migration is also different from the regression. Credentials that
-    predate the current device flow and lack `authFlow: "device-code"` are intentionally cleared
-    once during upgrade. Current device-code credentials must survive every later restart.
+11. Credentials that predate the `authFlow: "device-code"` marker may still be valid Device Code
+    credentials. Startup must preserve and validate them instead of inferring their grant family
+    from an absent metadata field. Only explicit logout or a confirmed permanent rejection may
+    clear them.
 12. IRC obtains credentials only through the guarded backend token bridge. The renderer receives
     no access or refresh token in logs or preferences, and reconnect invokes the supplied token
     fetcher again instead of retaining renderer-visible credentials.

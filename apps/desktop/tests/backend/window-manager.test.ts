@@ -6,6 +6,9 @@
  * pin in unit tests is the pure snapshot formatter — the on-disk shape that
  * downstream log readers and the streamfusion-debug skill grep against.
  */
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 // Electron's `app` reads `__dirname`-style paths at import time; the test
@@ -21,7 +24,22 @@ vi.mock("electron", () => ({
   shell: { openExternal: async () => undefined },
 }));
 
-import { formatWindowStateSnapshot, shouldAutoOpenDevTools } from "@/backend/window-manager";
+import {
+  formatWindowStateSnapshot,
+  resolveAppIconPath,
+  shouldAutoOpenDevTools,
+} from "@/backend/window-manager";
+
+// Guards: Windows development launches must use StreamFusion's real ICO instead of Electron's fallback icon
+describe("resolveAppIconPath", () => {
+  it("resolves the real Windows icon from the built main-process directory", () => {
+    const builtMainDirectory = path.resolve(__dirname, "../../out/main");
+    const iconPath = resolveAppIconPath(builtMainDirectory, "win32");
+
+    expect(path.basename(iconPath)).toBe("icon.ico");
+    expect(existsSync(iconPath)).toBe(true);
+  });
+});
 
 // Guards: development launches must not create a second DevTools renderer unless explicitly requested
 describe("formatWindowStateSnapshot", () => {

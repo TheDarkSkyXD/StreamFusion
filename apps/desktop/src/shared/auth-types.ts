@@ -10,6 +10,9 @@ import type { DownloadQueueSnapshot } from "./download-types";
 
 export type Platform = "twitch" | "kick";
 
+/** Public client ID for StreamFusion's registered Twitch Device Code app. */
+export const TWITCH_APP_CLIENT_ID = "blckgzwqbwms1gmz9l4dup88k7kqk5";
+
 // ========== Token Types ==========
 
 export interface AuthToken {

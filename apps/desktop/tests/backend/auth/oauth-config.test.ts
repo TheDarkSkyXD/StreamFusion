@@ -6,7 +6,15 @@ import {
   TWITCH_OAUTH_CONFIG,
   WORKER_BASE_URL,
 } from "@/backend/auth/oauth-config";
-import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
+import { TWITCH_APP_CLIENT_ID, TWITCH_APP_SCOPES } from "@/shared/auth-types";
+
+describe("Twitch public-client configuration", () => {
+  it("uses StreamFusion's bundled public client ID without runtime configuration", () => {
+    expect(TWITCH_APP_CLIENT_ID).toBe("blckgzwqbwms1gmz9l4dup88k7kqk5");
+    expect(TWITCH_OAUTH_CONFIG.clientId).toBe(TWITCH_APP_CLIENT_ID);
+    expect(TWITCH_OAUTH_CONFIG.clientSecret).toBe("");
+  });
+});
 
 describe("WORKER_BASE_URL", () => {
   it("defaults to the deployed StreamFusion Worker", () => {

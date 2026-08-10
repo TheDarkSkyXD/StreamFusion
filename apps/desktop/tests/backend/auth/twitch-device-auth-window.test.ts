@@ -60,7 +60,8 @@ beforeEach(() => {
   browserWindowOptions.length = 0;
   windowHandlers.clear();
   webContentsHandlers.clear();
-  loadURL.mockClear();
+  loadURL.mockReset();
+  loadURL.mockResolvedValue(undefined);
   closeWindow.mockClear();
   setWindowOpenHandler.mockClear();
   setPermissionCheckHandler.mockClear();
@@ -71,7 +72,31 @@ beforeEach(() => {
 });
 
 // Guards: Twitch device authorization opens only in a locked-down, top-level popup.
+// Guards: the popup becomes visible with local loading feedback before Twitch finishes loading.
 describe("Twitch device authorization popup", () => {
+  it("shows local loading feedback while the remote Twitch page is still loading", async () => {
+    let finishRemoteLoad: (() => void) | undefined;
+    loadURL.mockImplementation(async (url: string) => {
+      if (url.startsWith("https://www.twitch.tv/")) {
+        await new Promise<void>((resolve) => {
+          finishRemoteLoad = resolve;
+        });
+      }
+    });
+
+    const opening = twitchDeviceAuthWindow.open(
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    );
+    await vi.waitFor(() => expect(finishRemoteLoad).toBeTypeOf("function"));
+
+    expect(loadURL.mock.calls[0]?.[0]).toMatch(/^data:text\/html/);
+    expect(showWindow).toHaveBeenCalledTimes(1);
+    expect(focusWindow).toHaveBeenCalledTimes(1);
+
+    finishRemoteLoad?.();
+    await opening;
+  });
+
   it("opens the prefilled Twitch activation URL with sandboxed web preferences", async () => {
     await twitchDeviceAuthWindow.open(
       "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
@@ -94,13 +119,13 @@ describe("Twitch device authorization popup", () => {
     );
   });
 
-  it("shows and focuses the authorization popup after loading when ready-to-show was missed", async () => {
+  it("shows loading feedback, then shows and focuses again after Twitch loads", async () => {
     await twitchDeviceAuthWindow.open(
       "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
     );
 
-    expect(showWindow).toHaveBeenCalledTimes(1);
-    expect(focusWindow).toHaveBeenCalledTimes(1);
+    expect(showWindow).toHaveBeenCalledTimes(2);
+    expect(focusWindow).toHaveBeenCalledTimes(2);
   });
 
   it("loads Twitch activation without identifying the popup as Electron", async () => {
@@ -114,7 +139,8 @@ describe("Twitch device authorization popup", () => {
         userAgent: expect.stringContaining("Chrome/"),
       }
     );
-    const loadOptions = loadURL.mock.calls[0]?.[1] as { userAgent?: string } | undefined;
+    const remoteLoad = loadURL.mock.calls.find(([url]) => url.startsWith("https://www.twitch.tv/"));
+    const loadOptions = remoteLoad?.[1] as { userAgent?: string } | undefined;
     expect(loadOptions?.userAgent).not.toContain("Electron/");
   });
 

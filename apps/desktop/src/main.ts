@@ -8,6 +8,7 @@
 // Load environment variables from .env file FIRST (before other imports)
 import "dotenv/config";
 
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import {
@@ -22,6 +23,7 @@ import {
   session,
   shell,
 } from "electron";
+import { configureAppIdentity } from "./backend/app-identity";
 import { disposeSendWindow } from "./backend/api/platforms/kick/kick-send-window";
 import { authWindowManager, protocolHandler, twitchAuthService } from "./backend/auth";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
@@ -51,7 +53,10 @@ import {
   KICK_IMAGE_SCHEME,
   registerKickImageProtocol,
 } from "./backend/protocols/kick-image-protocol";
-import { registerTwitchClipMediaProtocol } from "./backend/protocols/twitch-clip-media-protocol";
+import {
+  registerTwitchClipMediaProtocol,
+  TWITCH_CLIP_MEDIA_SCHEME_PRIVILEGES,
+} from "./backend/protocols/twitch-clip-media-protocol";
 import { TWITCH_CLIP_MEDIA_SCHEME } from "./backend/protocols/twitch-clip-media-url";
 import {
   registerTwitchImageProtocol,
@@ -79,11 +84,41 @@ import { startPrimaryInstance } from "./backend/startup/start-primary-instance";
 import { beginStartupSession } from "./backend/startup/startup-session-policy";
 import { windowManager } from "./backend/window-manager";
 import { setMainLogSink } from "./lib/cross-logger";
+import {
+  pruneStaleChromiumDiskCaches,
+  resolveChromiumDiskCachePath,
+} from "./lib/chromium-cache-path";
+import { resolveUserDataPath } from "./lib/user-data-path";
 import { IPC_CHANNELS } from "./shared/ipc-channels";
 
 // Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
 // In production builds (electron-forge package/make), NODE_ENV is typically "production"
 const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
+
+// Keep Windows taskbar grouping/identity aligned with electron-builder's appId.
+// This must run before the first BrowserWindow is created.
+configureAppIdentity(app, { platform: process.platform, isPackaged: app.isPackaged });
+
+const defaultUserDataPath = app.getPath("userData");
+const userDataPath = resolveUserDataPath({
+  argv: process.argv,
+  defaultPath: defaultUserDataPath,
+  isProduction,
+});
+app.setPath("userData", userDataPath);
+
+// Chromium's blockfile cache is disposable, unlike the auth, settings, cookie,
+// and SQLite state under userData. Give every process its own temp cache so an
+// overlapping proof/dev launch or an unclean shutdown cannot corrupt the next
+// process's cache. The OS may reclaim these directories at any time.
+const chromiumDiskCachePath = resolveChromiumDiskCachePath({
+  tempPath: app.getPath("temp"),
+  userDataPath,
+  processId: process.pid,
+  launchId: randomUUID(),
+});
+app.setPath("cache", chromiumDiskCachePath);
+app.commandLine.appendSwitch("disk-cache-dir", chromiumDiskCachePath);
 
 // Opt-in net log capture (STREAMFUSION_NETLOG=1) for diagnosing TLS / cert /
 // fetch failures invisible at the JS layer. Must run before app.whenReady().
@@ -104,11 +139,8 @@ if (!isProduction) {
   // suppress them automatically, so gate strictly to dev.
   process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 
-  // Use a separate user data directory for development to allow running dev and prod simultaneously
-  const userDataPath = app.getPath("userData");
-  const devUserDataPath = `${userDataPath} (Dev)`;
-  app.setPath("userData", devUserDataPath);
-  console.debug(`📂 Development mode: User data path set to ${devUserDataPath}`);
+  // Use a separate user data directory for development unless the launch explicitly supplies one.
+  console.debug(`📂 Development mode: User data path set to ${userDataPath}`);
 
   // NOTE: if productName ever changes again, a migration shim is needed to copy
   // old userData files and rename localStorage keys before services initialize
@@ -183,6 +215,20 @@ function initializeBeforeReady(): void {
   initNetworkLogger({ logsDir, sessionStamp });
   installCrashHooks({ app });
   installConsoleIntercept();
+
+  // This runs only for the primary instance. Remove cache directories whose
+  // owning process no longer exists, while preserving the current launch and
+  // any concurrently running proof profile. The helper refuses roots that
+  // overlap persistent userData.
+  void pruneStaleChromiumDiskCaches({
+    cacheRoot: path.dirname(chromiumDiskCachePath),
+    currentCachePath: chromiumDiskCachePath,
+    userDataPath,
+  }).catch((error) => {
+    logger.warn("Main", "Failed to prune stale Chromium disk caches", {
+      error: String(error),
+    });
+  });
 
   // Wire dual-use modules (those imported by both main and renderer code) to the
   // real backend logger. They import `@/lib/cross-logger` instead of
@@ -276,13 +322,7 @@ protocol.registerSchemesAsPrivileged([
   },
   {
     scheme: TWITCH_CLIP_MEDIA_SCHEME,
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      bypassCSP: true,
-      stream: true,
-    },
+    privileges: TWITCH_CLIP_MEDIA_SCHEME_PRIVILEGES,
   },
 ]);
 

@@ -196,6 +196,7 @@ export const IPC_CHANNELS = {
   // ========== Discovery: Search ==========
   SEARCH_CHANNELS: "search:channels",
   SEARCH_ALL: "search:all",
+  SEARCH_CANCEL: "search:cancel",
 
   // ========== Discovery: Channels ==========
   CHANNELS_GET_BY_ID: "channels:get-by-id",

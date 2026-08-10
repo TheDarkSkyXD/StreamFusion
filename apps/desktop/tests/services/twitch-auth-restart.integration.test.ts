@@ -203,10 +203,38 @@ afterAll(() => {
 });
 
 // Guards: a legacy unmarked device-code Twitch session survives a backend restart and is immediately migrated to encryption.
+// Guards: auth-handler registration must not delete a recoverable unmarked Twitch session during cold start.
 // Guards: a marked safeStorage session remains recoverable when one startup cannot decrypt it, while renderer startup neither refreshes nor clears it.
 // Guards: the public Twitch chat token seam validates and returns a restored session after a fresh backend start.
+// Guards: transient Twitch validation and refresh failures never erase the persisted session.
 // Guards: an expired restored session refreshes through Twitch auth and the rotated token survives another backend restart.
 describe("Twitch auth restart persistence", () => {
+  it("preserves a recoverable unmarked Twitch session when cold-start handlers register", async () => {
+    const legacyToken: AuthToken = {
+      accessToken: fakeToken.accessToken,
+      refreshToken: fakeToken.refreshToken,
+      expiresAt: fakeToken.expiresAt,
+      scope: fakeToken.scope,
+    };
+    const processAStorage = await loadBackendProcess(false);
+    processAStorage.saveToken("twitch", legacyToken);
+    processAStorage.saveTwitchUser(fakeUser);
+
+    const processBStorage = await loadBackendProcess(true);
+    const { registerAuthHandlers } = await import("@/backend/ipc/handlers/auth-handlers");
+    registerAuthHandlers({
+      isDestroyed: () => false,
+      on: vi.fn(),
+      webContents: {
+        isDestroyed: () => false,
+        send: vi.fn(),
+      },
+    } as never);
+
+    expect(processBStorage.getToken("twitch")).toEqual(legacyToken);
+    expect(processBStorage.getTwitchUser()).toEqual(fakeUser);
+  });
+
   it("retains an unreadable safeStorage session without treating it as refreshable", async () => {
     vi.useFakeTimers();
     const processAStorage = await loadBackendProcess(true);
@@ -342,6 +370,29 @@ describe("Twitch auth restart persistence", () => {
       fakeToken.accessToken
     );
     expect(validateRequest).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the restored session when validation and refresh are transiently unavailable", async () => {
+    vi.useFakeTimers();
+    const processAStorage = await loadBackendProcess(false);
+    processAStorage.saveToken("twitch", fakeToken);
+    processAStorage.saveTwitchUser(fakeUser);
+
+    const unavailableRequest = vi.fn(async () => {
+      throw new TypeError("synthetic network unavailable");
+    });
+    vi.stubGlobal("fetch", unavailableRequest);
+
+    const processB = await loadAuthenticatedBackendProcess(true);
+    await expect(processB.twitchAuthService.getValidAccessToken()).resolves.toBeNull();
+    processB.twitchAuthService.cancelProactiveRefresh();
+    expect(unavailableRequest).toHaveBeenCalledTimes(2);
+    expect(processB.storageService.getToken("twitch")).toEqual(fakeToken);
+    expect(processB.storageService.getTwitchUser()).toEqual(fakeUser);
+
+    const processCStorage = await loadBackendProcess(true);
+    expect(processCStorage.getToken("twitch")).toEqual(fakeToken);
+    expect(processCStorage.getTwitchUser()).toEqual(fakeUser);
   });
 
   it("refreshes an expired restored token and persists the rotation", async () => {

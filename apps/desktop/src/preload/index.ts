@@ -23,6 +23,8 @@ import type {
   PlatformHealthEvent,
   StatusPageDetail,
 } from "../backend/api/unified/platform-health";
+import type { UnifiedCategory, UnifiedChannel } from "../backend/api/unified/platform-types";
+import type { SearchResultCollection } from "../search/search-result-validation";
 import type {
   AccountFollowWriteRequest,
   AccountFollowWriteResult,
@@ -59,6 +61,7 @@ import type {
   DownloadQueueSnapshot,
   VideoDownloadRequest,
 } from "../shared/download-types";
+import type { DiscoveryResult } from "../shared/discovery-types";
 import {
   type AppEnvironment,
   type AuthStatus,
@@ -497,7 +500,7 @@ const electronAPI = {
       platform?: Platform;
       limit?: number;
       cursor?: string;
-    }): Promise<{ success: boolean; data?: any[]; cursor?: string; error?: string }> =>
+    }): Promise<DiscoveryResult<UnifiedCategory[]>> =>
       ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_GET_TOP, params || {}),
 
     getById: (params: {
@@ -540,11 +543,17 @@ const electronAPI = {
       query: string;
       platform?: Platform;
       limit?: number;
-    }): Promise<{
-      success: boolean;
-      data?: { channels: any[]; categories: any[]; streams: any[] };
-      error?: string;
-    }> => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_ALL, params),
+      channelSeeds?: UnifiedChannel[];
+      channelSeedPlatforms?: Platform[];
+      requestId?: string;
+    }): Promise<
+      DiscoveryResult<SearchResultCollection>
+    > => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_ALL, params),
+
+    cancel: (params: {
+      requestId: string;
+    }): Promise<{ success: boolean; cancelled: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SEARCH_CANCEL, params),
   },
 
   // ========== Discovery: Channels ==========
@@ -833,6 +842,7 @@ const electronAPI = {
      */
     getKickHistory: (params: {
       channelId: string;
+      channelSlug: string;
     }): Promise<{
       success: boolean;
       data?: {

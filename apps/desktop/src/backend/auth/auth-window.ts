@@ -60,6 +60,8 @@ export interface OpenAuthWindowResult {
 
 export interface OpenAuthWindowOptions {
   port?: number;
+  pkce?: PkceChallenge;
+  state?: string;
 }
 
 // ========== Auth Window Manager Class ==========
@@ -77,8 +79,8 @@ class AuthWindowManager {
     const port = options.port ?? DEFAULT_CALLBACK_PORT;
 
     // Generate PKCE challenge and state
-    const pkce = generatePkceChallenge();
-    const state = generateState();
+    const pkce = options.pkce ?? generatePkceChallenge();
+    const state = options.state ?? generateState();
     const redirectUri = getRedirectUri(platform, port);
 
     // Build the authorization URL

@@ -24,6 +24,11 @@ export interface CallbackServerOptions {
   timeout?: number; // ms
 }
 
+export interface StartedOAuthCallback {
+  port: number;
+  callback: Promise<OAuthCallbackResult>;
+}
+
 // ========== Constants ==========
 
 // Default port range for the callback server
@@ -35,6 +40,7 @@ const PORT_RANGE_SIZE = 100; // Will try ports 8765-8864
 class OAuthCallbackServer {
   private server: http.Server | null = null;
   private currentPort: number = DEFAULT_PORT;
+  private callbackTimeout: NodeJS.Timeout | null = null;
 
   /**
    * Get the redirect URI for a platform
@@ -51,10 +57,27 @@ class OAuthCallbackServer {
     expectedState: string,
     options: CallbackServerOptions = {}
   ): Promise<OAuthCallbackResult> {
+    const pending = await this.start(platform, expectedState, options);
+    return pending.callback;
+  }
+
+  /** Bind the callback listener before an authorization URL is opened. */
+  async start(
+    platform: Platform,
+    expectedState: string,
+    options: CallbackServerOptions = {}
+  ): Promise<StartedOAuthCallback> {
     const timeout = options.timeout ?? 5 * 60 * 1000; // 5 minute default
     const port = options.port ?? DEFAULT_PORT;
 
-    return new Promise((resolve, reject) => {
+    let resolveStarted!: (started: StartedOAuthCallback) => void;
+    let rejectStarted!: (error: Error) => void;
+    const started = new Promise<StartedOAuthCallback>((resolve, reject) => {
+      resolveStarted = resolve;
+      rejectStarted = reject;
+    });
+
+    const callback = new Promise<OAuthCallbackResult>((resolve, reject) => {
       let resolved = false;
 
       // Create the server
@@ -223,7 +246,7 @@ class OAuthCallbackServer {
         if (error.code === "EADDRINUSE") {
           // Port in use, try next port
           this.currentPort++;
-          if (this.currentPort < DEFAULT_PORT + PORT_RANGE_SIZE) {
+          if (this.currentPort < port + PORT_RANGE_SIZE) {
             logger.debug("Auth:OAuthCallback", "Port in use, trying next", {
               port,
               nextPort: this.currentPort,
@@ -231,9 +254,14 @@ class OAuthCallbackServer {
             this.server?.close();
             this.server?.listen(this.currentPort);
           } else {
-            reject(new Error("No available ports for OAuth callback server"));
+            const unavailable = new Error("No available ports for OAuth callback server");
+            resolved = true;
+            rejectStarted(unavailable);
+            reject(unavailable);
           }
         } else {
+          resolved = true;
+          rejectStarted(error);
           reject(error);
         }
       });
@@ -244,11 +272,12 @@ class OAuthCallbackServer {
         logger.debug("Auth:OAuthCallback", "OAuth callback server listening", {
           url: `http://localhost:${this.currentPort}`,
         });
+        resolveStarted({ port: this.currentPort, callback });
       });
 
       // Set timeout
       // timer-allowlist: raw new Promise reject timeout for callback-server wait (no fetch/AbortSignal integration)
-      setTimeout(() => {
+      this.callbackTimeout = setTimeout(() => {
         if (!resolved) {
           resolved = true;
           this.stop();
@@ -256,12 +285,18 @@ class OAuthCallbackServer {
         }
       }, timeout);
     });
+
+    return started;
   }
 
   /**
    * Stop the callback server
    */
   stop(): void {
+    if (this.callbackTimeout) {
+      clearTimeout(this.callbackTimeout);
+      this.callbackTimeout = null;
+    }
     if (this.server) {
       this.server.close();
       this.server = null;

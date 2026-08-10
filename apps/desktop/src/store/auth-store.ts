@@ -97,6 +97,8 @@ interface AuthState {
 
 // ========== Store ==========
 
+let authInitializationPromise: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   // Initial state
   twitchUser: null,
@@ -123,207 +125,221 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   // ========== Auth Actions ==========
 
-  initializeAuth: async () => {
-    try {
-      // Load auth status first
-      let status: AuthStatus = await window.electronAPI.auth.getStatus();
+  initializeAuth: () => {
+    if (get().initialized) return Promise.resolve();
+    if (authInitializationPromise) return authInitializationPromise;
 
-      // If Twitch has a token but it's expired, try to refresh it
-      if (status.twitch.hasToken && status.twitch.isExpired) {
-        logger.debug("Store:Auth", "twitch token expired, attempting auto-refresh");
-        try {
-          const refreshResult = await window.electronAPI.auth.refreshTwitchToken();
-          if (refreshResult.success) {
-            logger.debug("Store:Auth", "twitch token refreshed successfully");
-            // Re-fetch status after refresh
-            status = await window.electronAPI.auth.getStatus();
-          } else {
-            logger.warn("Store:Auth", "twitch token refresh failed", {
-              error: refreshResult.error,
+    const initialization = (async () => {
+      try {
+        // Load auth status first
+        let status: AuthStatus = await window.electronAPI.auth.getStatus();
+
+        // If Twitch has a token but it's expired, try to refresh it
+        if (status.twitch.hasToken && status.twitch.isExpired) {
+          logger.debug("Store:Auth", "twitch token expired, attempting auto-refresh");
+          try {
+            const refreshResult = await window.electronAPI.auth.refreshTwitchToken();
+            if (refreshResult.success) {
+              logger.debug("Store:Auth", "twitch token refreshed successfully");
+              // Re-fetch status after refresh
+              status = await window.electronAPI.auth.getStatus();
+            } else {
+              logger.warn("Store:Auth", "twitch token refresh failed", {
+                error: refreshResult.error,
+              });
+              // The backend owns Twitch credential lifecycle and preserves the
+              // saved session when refresh failed transiently. Reconcile from
+              // its status instead of destroying credentials in the renderer.
+              status = await window.electronAPI.auth.getStatus();
+            }
+          } catch (refreshError) {
+            logger.error("Store:Auth", "twitch token refresh error", {
+              error: refreshError instanceof Error ? refreshError.message : String(refreshError),
             });
-            // The backend owns Twitch credential lifecycle and preserves the
-            // saved session when refresh failed transiently. Reconcile from
-            // its status instead of destroying credentials in the renderer.
+            // The backend decides whether this was transient or permanent and
+            // has already preserved or cleared the token accordingly.
             status = await window.electronAPI.auth.getStatus();
           }
-        } catch (refreshError) {
-          logger.error("Store:Auth", "twitch token refresh error", {
-            error: refreshError instanceof Error ? refreshError.message : String(refreshError),
-          });
-          // The backend decides whether this was transient or permanent and
-          // has already preserved or cleared the token accordingly.
-          status = await window.electronAPI.auth.getStatus();
+
+          if (!status.twitch.hasToken && status.twitch.user !== null) {
+            set({
+              error: {
+                code: "TOKEN_EXPIRED",
+                message: "Your Twitch session has expired. Please reconnect your account.",
+                platform: "twitch",
+              },
+            });
+          }
         }
 
-        if (!status.twitch.hasToken && status.twitch.user !== null) {
+        // If Kick has a token but it's expired, try to refresh it.
+        // This handles the post-rename stale-credential case: tokens issued under
+        // the old worker client-id will be permanently invalid — the refresh will
+        // fail, kick-auth will clear storage and emit 'session-expired', which the
+        // renderer listener below will surface to the user.
+        if (status.kick.hasToken && status.kick.isExpired) {
+          logger.debug("Store:Auth", "kick token expired at startup, attempting auto-refresh");
+          try {
+            const refreshResult = await window.electronAPI.auth.refreshKickToken();
+            if (refreshResult.success) {
+              logger.debug("Store:Auth", "kick token refreshed at startup");
+              status = await window.electronAPI.auth.getStatus();
+            } else {
+              logger.warn("Store:Auth", "kick token refresh failed at startup", {
+                error: refreshResult.error,
+              });
+              // Tokens already cleared by the main process; update status
+              status = await window.electronAPI.auth.getStatus();
+              set({
+                error: {
+                  code: "TOKEN_EXPIRED",
+                  message: "Your Kick session has expired. Please reconnect your account.",
+                  platform: "kick",
+                },
+              });
+            }
+          } catch (refreshError) {
+            logger.error("Store:Auth", "kick token refresh error at startup", {
+              error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+            });
+            await window.electronAPI.auth.clearToken("kick");
+            await window.electronAPI.auth.clearKickUser();
+            status = await window.electronAPI.auth.getStatus();
+          }
+        }
+
+        // Load local follows
+        const follows = await window.electronAPI.follows.getAll();
+
+        // Load preferences
+        const preferences = await window.electronAPI.preferences.get();
+
+        set({
+          twitchUser: status.twitch.user,
+          twitchConnected: status.twitch.connected,
+          twitchReconnectRequired: !status.twitch.hasToken && status.twitch.user !== null,
+          kickUser: status.kick.user,
+          kickConnected: status.kick.connected,
+          isGuest: status.isGuest,
+          localFollows: follows,
+          preferences,
+          initialized: true,
+          // Don't clear error if it was set above
+          error: get().error,
+        });
+
+        // Listen for runtime Kick session-expiry events pushed from the main process.
+        // This fires when a mid-session refresh fails (e.g. revoked refresh token).
+        // The listener is intentionally never unregistered — it lives for the app lifetime.
+        window.electronAPI.auth.onKickSessionExpired(() => {
+          logger.warn("Store:Auth", "kick session expired at runtime — clearing state");
+          removePlatformAccountCaches(queryClient, "kick");
+          void useFollowStore.getState().hydrate();
           set({
+            kickUser: null,
+            kickConnected: false,
+            isGuest: !get().twitchUser,
+            error: {
+              code: "TOKEN_EXPIRED",
+              message: "Your Kick session has expired. Please reconnect your account.",
+              platform: "kick",
+            },
+          });
+        });
+
+        // Mirror of the Kick listener above for Twitch. Fires when the main
+        // process's refresh chain dies permanently — either Twitch rejected the
+        // refresh token (invalid_grant from a user de-authorizing the app or
+        // long inactivity) or the transient-failure backoff cap was hit. The
+        // main process has already cleared the stored token by the time this
+        // event arrives; we just sync the UI.
+        // Fires when the main process finishes the post-login `syncFollowsOnLogin`
+        // bulk import for either platform. The local follows DB now reflects the
+        // signed-in user's account follow list — re-hydrate so FollowButton
+        // flips to "Following", invalidate the React-Query caches so the
+        // Following page and sidebar refetch with the new rows.
+        window.electronAPI.auth.onFollowsSynced(({ platform, addedCount, removedCount }) => {
+          const netChanged = (addedCount ?? 0) > 0 || (removedCount ?? 0) > 0;
+          logger.debug("Store:Auth", "follows synced", {
+            platform,
+            added: addedCount ?? 0,
+            removed: removedCount ?? 0,
+          });
+          // Hydrate is cheap and idempotent — covers the guest-follows store that
+          // doesn't ride React Query.
+          void useFollowStore.getState().hydrate();
+          // Kick also invalidates on no-op syncs because the verified-follow
+          // marker can flip without row diffs. Streams refetch too so live/offline
+          // sections update immediately.
+          if (platform === "kick" || netChanged) {
+            invalidateFollowCachesAfterMutation(queryClient, platform);
+          }
+        });
+
+        window.electronAPI.auth.onTwitchAuthLost(() => {
+          logger.warn(
+            "Store:Auth",
+            "twitch session expired at runtime — entering reconnect-required mode"
+          );
+          // Drop renderer-side follow caches the same way explicit logout does;
+          // the storage-handlers `activeFollows` fallback (no-token → guest
+          // follows) means hydrate() now returns guest data instead of the
+          // synced account follows that linger in the DB.
+          removePlatformAccountCaches(queryClient, "twitch");
+          void useFollowStore.getState().hydrate();
+          // Degraded mode: keep twitchUser so the UI can still show the
+          // user's identity and a "Reconnect" affordance. twitchConnected
+          // flips false so authenticated features (chat send, mod actions,
+          // Helix calls) correctly gate off. Anonymous browsing keeps working.
+          set({
+            twitchConnected: false,
+            twitchReconnectRequired: true,
             error: {
               code: "TOKEN_EXPIRED",
               message: "Your Twitch session has expired. Please reconnect your account.",
               platform: "twitch",
             },
           });
-        }
-      }
+        });
 
-      // If Kick has a token but it's expired, try to refresh it.
-      // This handles the post-rename stale-credential case: tokens issued under
-      // the old worker client-id will be permanently invalid — the refresh will
-      // fail, kick-auth will clear storage and emit 'session-expired', which the
-      // renderer listener below will surface to the user.
-      if (status.kick.hasToken && status.kick.isExpired) {
-        logger.debug("Store:Auth", "kick token expired at startup, attempting auto-refresh");
-        try {
-          const refreshResult = await window.electronAPI.auth.refreshKickToken();
-          if (refreshResult.success) {
-            logger.debug("Store:Auth", "kick token refreshed at startup");
-            status = await window.electronAPI.auth.getStatus();
-          } else {
-            logger.warn("Store:Auth", "kick token refresh failed at startup", {
-              error: refreshResult.error,
-            });
-            // Tokens already cleared by the main process; update status
-            status = await window.electronAPI.auth.getStatus();
-            set({
-              error: {
-                code: "TOKEN_EXPIRED",
-                message: "Your Kick session has expired. Please reconnect your account.",
-                platform: "kick",
-              },
+        const syncStartupFollows = async (platform: Platform): Promise<void> => {
+          try {
+            await window.electronAPI.auth.syncFollows(platform);
+          } catch (error) {
+            logger.warn("Store:Auth", "startup follow sync failed", {
+              platform,
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
             });
           }
-        } catch (refreshError) {
-          logger.error("Store:Auth", "kick token refresh error at startup", {
-            error: refreshError instanceof Error ? refreshError.message : String(refreshError),
-          });
-          await window.electronAPI.auth.clearToken("kick");
-          await window.electronAPI.auth.clearKickUser();
-          status = await window.electronAPI.auth.getStatus();
-        }
+        };
+
+        if (status.twitch.connected) void syncStartupFollows("twitch");
+        if (status.kick.connected) void syncStartupFollows("kick");
+      } catch (error) {
+        logger.error("Store:Auth", "failed to initialize auth", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        set({
+          error: {
+            code: "UNKNOWN_ERROR",
+            message: "Failed to initialize authentication",
+          },
+          initialized: true,
+        });
       }
+    })();
 
-      // Load local follows
-      const follows = await window.electronAPI.follows.getAll();
-
-      // Load preferences
-      const preferences = await window.electronAPI.preferences.get();
-
-      set({
-        twitchUser: status.twitch.user,
-        twitchConnected: status.twitch.connected,
-        twitchReconnectRequired: !status.twitch.hasToken && status.twitch.user !== null,
-        kickUser: status.kick.user,
-        kickConnected: status.kick.connected,
-        isGuest: status.isGuest,
-        localFollows: follows,
-        preferences,
-        initialized: true,
-        // Don't clear error if it was set above
-        error: get().error,
-      });
-
-      // Listen for runtime Kick session-expiry events pushed from the main process.
-      // This fires when a mid-session refresh fails (e.g. revoked refresh token).
-      // The listener is intentionally never unregistered — it lives for the app lifetime.
-      window.electronAPI.auth.onKickSessionExpired(() => {
-        logger.warn("Store:Auth", "kick session expired at runtime — clearing state");
-        removePlatformAccountCaches(queryClient, "kick");
-        void useFollowStore.getState().hydrate();
-        set({
-          kickUser: null,
-          kickConnected: false,
-          isGuest: !get().twitchUser,
-          error: {
-            code: "TOKEN_EXPIRED",
-            message: "Your Kick session has expired. Please reconnect your account.",
-            platform: "kick",
-          },
-        });
-      });
-
-      // Mirror of the Kick listener above for Twitch. Fires when the main
-      // process's refresh chain dies permanently — either Twitch rejected the
-      // refresh token (invalid_grant from a user de-authorizing the app or
-      // long inactivity) or the transient-failure backoff cap was hit. The
-      // main process has already cleared the stored token by the time this
-      // event arrives; we just sync the UI.
-      // Fires when the main process finishes the post-login `syncFollowsOnLogin`
-      // bulk import for either platform. The local follows DB now reflects the
-      // signed-in user's account follow list — re-hydrate so FollowButton
-      // flips to "Following", invalidate the React-Query caches so the
-      // Following page and sidebar refetch with the new rows.
-      window.electronAPI.auth.onFollowsSynced(({ platform, addedCount, removedCount }) => {
-        const netChanged = (addedCount ?? 0) > 0 || (removedCount ?? 0) > 0;
-        logger.debug("Store:Auth", "follows synced", {
-          platform,
-          added: addedCount ?? 0,
-          removed: removedCount ?? 0,
-        });
-        // Hydrate is cheap and idempotent — covers the guest-follows store that
-        // doesn't ride React Query.
-        void useFollowStore.getState().hydrate();
-        // Kick also invalidates on no-op syncs because the verified-follow
-        // marker can flip without row diffs. Streams refetch too so live/offline
-        // sections update immediately.
-        if (platform === "kick" || netChanged) {
-          invalidateFollowCachesAfterMutation(queryClient, platform);
-        }
-      });
-
-      window.electronAPI.auth.onTwitchAuthLost(() => {
-        logger.warn(
-          "Store:Auth",
-          "twitch session expired at runtime — entering reconnect-required mode"
-        );
-        // Drop renderer-side follow caches the same way explicit logout does;
-        // the storage-handlers `activeFollows` fallback (no-token → guest
-        // follows) means hydrate() now returns guest data instead of the
-        // synced account follows that linger in the DB.
-        removePlatformAccountCaches(queryClient, "twitch");
-        void useFollowStore.getState().hydrate();
-        // Degraded mode: keep twitchUser so the UI can still show the
-        // user's identity and a "Reconnect" affordance. twitchConnected
-        // flips false so authenticated features (chat send, mod actions,
-        // Helix calls) correctly gate off. Anonymous browsing keeps working.
-        set({
-          twitchConnected: false,
-          twitchReconnectRequired: true,
-          error: {
-            code: "TOKEN_EXPIRED",
-            message: "Your Twitch session has expired. Please reconnect your account.",
-            platform: "twitch",
-          },
-        });
-      });
-
-      const syncStartupFollows = async (platform: Platform): Promise<void> => {
-        try {
-          await window.electronAPI.auth.syncFollows(platform);
-        } catch (error) {
-          logger.warn("Store:Auth", "startup follow sync failed", {
-            platform,
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message, stack: error.stack }
-                : String(error),
-          });
-        }
-      };
-
-      if (status.twitch.connected) void syncStartupFollows("twitch");
-      if (status.kick.connected) void syncStartupFollows("kick");
-    } catch (error) {
-      logger.error("Store:Auth", "failed to initialize auth", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      set({
-        error: {
-          code: "UNKNOWN_ERROR",
-          message: "Failed to initialize authentication",
-        },
-        initialized: true,
-      });
-    }
+    authInitializationPromise = initialization;
+    const clearInitialization = () => {
+      if (authInitializationPromise === initialization) {
+        authInitializationPromise = null;
+      }
+    };
+    void initialization.then(clearInitialization, clearInitialization);
+    return initialization;
   },
 
   loginTwitch: async () => {

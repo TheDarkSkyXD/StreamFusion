@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { redactObject, redactString } from "@/backend/logging/redactor";
 
 // Guards: the log redactor is the last line of defence before OAuth tokens,
-// refresh tokens, client secrets, OAuth `code` values, and JWTs hit the disk.
+// refresh tokens, client secrets, OAuth `code` values, JWTs, and reversible
+// Twitch clip media wrappers hit the disk.
 // Users routinely share bug-report log files. Every case below is a class of
 // leak we have either seen in the wild or expect to see; loosening any of these
 // assertions without a documented reason is a regression.
@@ -67,6 +68,19 @@ describe("redactString", () => {
       expect(out).toContain("access_token=[REDACTED]");
       expect(out).toContain("user=alice");
       expect(out).toContain("x=y");
+    });
+  });
+
+  describe("reversible media wrappers", () => {
+    it("redacts the complete Twitch clip media wrapper", () => {
+      const reversiblePayload = "SENTINEL_REVERSIBLE_CLIP_PAYLOAD";
+      const out = redactString(
+        `Player init twitch-clip-media://media?u=${reversiblePayload} status=starting`
+      );
+
+      expect(out).toContain("twitch-clip-media://[REDACTED]");
+      expect(out).not.toContain(reversiblePayload);
+      expect(out).toContain("status=starting");
     });
   });
 

@@ -205,3 +205,31 @@ describe("waitForCallback", () => {
     expect(result.code).toBe("FIRST");
   });
 });
+
+// Guards: an occupied preferred port must produce a usable fallback redirect instead of timing out
+describe("start", () => {
+  it("returns the actual fallback port and accepts the callback there", async () => {
+    const occupiedServer = http.createServer();
+    await new Promise<void>((resolve) => occupiedServer.listen(0, resolve));
+    const address = occupiedServer.address();
+    if (!address || typeof address === "string") throw new Error("Expected a TCP address");
+
+    try {
+      const state = "fallback-state";
+      const pending = await oauthCallbackServer.start("kick", state, {
+        port: address.port,
+        timeout: 5000,
+      });
+
+      expect(pending.port).not.toBe(address.port);
+      await fetch(
+        `http://localhost:${pending.port}/auth/kick/callback?code=FALLBACK_CODE&state=${state}`
+      );
+      await expect(pending.callback).resolves.toEqual({ code: "FALLBACK_CODE", state });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        occupiedServer.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
+});
