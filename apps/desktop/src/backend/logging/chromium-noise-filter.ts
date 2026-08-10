@@ -20,7 +20,7 @@ const SHARED_IMAGE_MAILBOX_MISS =
   /SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox\./;
 const DISK_CACHE_INVALID_CURRENT_SIZE = /backend_impl\.cc\(\d+\).*Invalid cache \(current\) size/;
 const DISK_CACHE_DESTROYING_INVALID_ENTRY = /backend_impl\.cc\(\d+\).*Destroying invalid entry\./;
-const SSL_CONNECTION_RESET = /ssl_client_socket_impl\.cc\(\d+\).*net_error -101\b/;
+const SSL_CONNECTION_RESET = /ssl_client_socket_impl\.cc(?:\(\d+\)|:\d+).*net_error -101\b/;
 const VIZ_NULL_HYPOTHESIS = /VizNullHypothesis is disabled \(not a warning\)/;
 const VITE_DEV_CLIENT = /\[vite\] (connecting|connected)\.{1,3}/;
 const REACT_DEVTOOLS_RECOMMENDATION =

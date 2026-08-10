@@ -142,6 +142,12 @@ describe("isHarmlessChromiumNoise — transient SSL connection resets", () => {
       "[33224:0608/215727.961:ERROR:ssl_client_socket_impl.cc(877)] handshake failed; returned -1, SSL error code 1, net_error -101";
     expect(isHarmlessChromiumNoise(line)).toBe(true);
   });
+
+  it("matches hostless net_error -101 lines using Chromium's colon source format", () => {
+    const line =
+      "[24848:0810/115247.071:ERROR:net\\socket\\ssl_client_socket_impl.cc:963] handshake failed; returned -1, SSL error code 1, net_error -101";
+    expect(isHarmlessChromiumNoise(line)).toBe(true);
+  });
 });
 
 describe("isHarmlessChromiumNoise — must NOT swallow real errors", () => {
