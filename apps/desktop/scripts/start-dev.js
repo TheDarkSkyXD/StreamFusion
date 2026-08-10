@@ -10,6 +10,7 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const { createStartEnvironment } = require("./start-dev-lib");
+const { prepareBrandedElectronExecutable } = require("./prepare-dev-electron-lib");
 // Resolve via package.json (which IS declared in electron-vite's `exports`
 // map) and rebuild the bin path. Calling
 // `require.resolve("electron-vite/bin/electron-vite.js")` directly throws
@@ -22,8 +23,14 @@ const electronViteBin = path.join(
   "electron-vite.js"
 );
 void createStartEnvironment(process.env)
-  .then((env) => {
+  .then(async (env) => {
     delete env.ELECTRON_RUN_AS_NODE;
+    const electronPath = require("electron");
+    env.ELECTRON_EXEC_PATH = await prepareBrandedElectronExecutable({
+      electronPath,
+      electronVersion: require("electron/package.json").version,
+      iconPath: path.resolve(__dirname, "../assets/icons/icon.ico"),
+    });
     const child = spawn(process.execPath, [electronViteBin, "dev", ...process.argv.slice(2)], {
       env,
       stdio: "inherit",
