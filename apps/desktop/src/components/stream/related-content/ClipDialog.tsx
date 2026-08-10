@@ -255,7 +255,7 @@ export function ClipDialog({
   }, [selectedClip, onClose, navigate, channelData, channelName]);
   return (
     <Dialog open={!!selectedClip} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[90vw] w-full max-w-[1600px] bg-black border-[var(--color-border)] p-0 overflow-hidden">
+      <DialogContent className="w-[90vw] max-w-[1600px] gap-0 bg-black border-[var(--color-border)] p-0 overflow-hidden">
         <VisuallyHidden>
           <DialogTitle>{selectedClip?.title || "Clip Viewer"}</DialogTitle>
           <DialogDescription>
@@ -263,10 +263,10 @@ export function ClipDialog({
           </DialogDescription>
         </VisuallyHidden>
         {selectedClip && (
-          <div className="flex flex-col md:flex-row p-0 overflow-hidden h-[80vh] w-full">
+          <div className="flex w-full flex-col overflow-hidden p-0 md:flex-row">
             {/* Left Side: Video Player */}
-            <div className="flex-1 bg-black flex flex-col justify-center relative">
-              <div className="aspect-video w-full flex items-center justify-center">
+            <div className="relative flex min-w-0 flex-1 bg-black">
+              <div className="flex aspect-video w-full items-center justify-center">
                 {clipLoading ? (
                   <div className="text-center text-white">
                     <div className="mb-3 flex justify-center">
@@ -313,7 +313,7 @@ export function ClipDialog({
             </div>
 
             {/* Right Side: Info & Actions */}
-            <div className="w-[350px] bg-[var(--color-background-secondary)] shrink-0 border-l border-[var(--color-border)] p-6 flex flex-col gap-6 overflow-y-auto">
+            <div className="w-[350px] shrink-0 overflow-x-hidden overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-background-secondary)] p-6 flex flex-col gap-6">
               <div className="mt-8">
                 <h2 className="text-xl font-bold text-white line-clamp-2">{selectedClip.title}</h2>
                 <div className="mt-3 flex flex-wrap gap-2">
