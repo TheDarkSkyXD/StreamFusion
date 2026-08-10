@@ -38,6 +38,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 // Guards: Kick categories should use the official /public/v2/categories API before private fallback paths.
+// Guards: bounded discovery requests must forward the requested official limit and cursor instead of exhausting the catalog.
 describe("category-endpoints", () => {
   let getTopCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
   let searchCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
@@ -47,9 +48,8 @@ describe("category-endpoints", () => {
   beforeEach(async () => {
     mockFetch.mockReset();
     vi.resetModules();
-    ({ getTopCategories, searchCategories, getCategoryById, getAllCategories } = await import(
-      "@/backend/api/platforms/kick/endpoints/category-endpoints"
-    ));
+    ({ getTopCategories, searchCategories, getCategoryById, getAllCategories } =
+      await import("@/backend/api/platforms/kick/endpoints/category-endpoints"));
   });
 
   afterEach(() => {
@@ -57,6 +57,24 @@ describe("category-endpoints", () => {
   });
 
   describe("getTopCategories", () => {
+    it("forwards bounded limit and cursor options to the official API", async () => {
+      const request = vi.fn().mockResolvedValueOnce({
+        data: [{ id: 20, name: "Fortnite", thumbnail: "https://example.com/fn.webp" }],
+        pagination: { next_cursor: "cursor-3" },
+      });
+      const client = createMockClient({ request });
+
+      const result = await getTopCategories(client, { limit: 12, cursor: "cursor-2" });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.cursor).toBe("cursor-3");
+      expect(request).toHaveBeenCalledWith(
+        "/public/v2/categories?limit=12&cursor=cursor-2",
+        undefined,
+        "app"
+      );
+    });
+
     it("returns categories from official /public/v2/categories", async () => {
       const request = vi.fn().mockResolvedValueOnce({
         data: [
@@ -72,11 +90,7 @@ describe("category-endpoints", () => {
       expect(result.data.map((c) => c.name)).toEqual(["Fortnite", "Just Chatting"]);
       expect(result.data[0].tags).toEqual(["FPS"]);
       expect(result.cursor).toBe("cursor-2");
-      expect(request).toHaveBeenCalledWith(
-        "/public/v2/categories?limit=1000",
-        undefined,
-        "app"
-      );
+      expect(request).toHaveBeenCalledWith("/public/v2/categories?limit=1000", undefined, "app");
     });
 
     it("falls back to private category list when official API throws", async () => {
@@ -217,11 +231,7 @@ describe("category-endpoints", () => {
       const result = await getCategoryById(client, "10");
 
       expect(result).toMatchObject({ id: "10", name: "Just Chatting" });
-      expect(request).toHaveBeenCalledWith(
-        "/public/v2/categories?id%5B%5D=10",
-        undefined,
-        "app"
-      );
+      expect(request).toHaveBeenCalledWith("/public/v2/categories?id%5B%5D=10", undefined, "app");
     });
 
     it("returns null when official v2 returns no category", async () => {

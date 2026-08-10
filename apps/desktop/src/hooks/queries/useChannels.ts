@@ -30,7 +30,7 @@ export function useFollowedChannels(platform: Platform, options: { enabled?: boo
           platform,
           error: response.error,
         });
-        return [];
+        throw new Error(response.error);
       }
       return dedupeChannelsByIdentity(response.data as UnifiedChannel[]);
     },

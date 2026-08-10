@@ -8,6 +8,7 @@ vi.mock("electron", () => ({
 
 vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
+    getTopCategories: vi.fn(),
     getAllTopCategories: vi.fn(),
     getCategoryById: vi.fn(),
     searchCategories: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
 
 vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
+    getTopCategories: vi.fn(),
     getAllCategories: vi.fn(),
     getCategoryById: vi.fn(),
     searchCategories: vi.fn(),
@@ -36,8 +38,31 @@ import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { gqlGetGameMetadata } from "@/backend/api/platforms/twitch/twitch-gql-client";
 import { registerCategoryHandlers } from "@/backend/ipc/handlers/category-handlers";
+import type { UnifiedCategory } from "@/backend/api/unified/platform-types";
+import type { DiscoveryResult } from "@/shared/discovery-types";
+
+type CategoryTopResult = DiscoveryResult<UnifiedCategory[]>;
+
+function category(id: string, name: string, platform: "twitch" | "kick"): UnifiedCategory {
+  return { id, name, platform, boxArtUrl: "" };
+}
 
 type Handler = (event: unknown, params?: unknown) => Promise<unknown>;
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, resolve, reject };
+}
 
 function getHandler(channel: string): Handler {
   const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
@@ -61,7 +86,115 @@ describe("registerCategoryHandlers", () => {
   });
 });
 
+// Guards: bounded category loading uses one-page platform APIs and never exhausts either catalog before preview paint
+// Guards: simultaneous consumers share one bounded platform request without turning later refreshes into permanent cache hits
+// Guards: simultaneous exhaustive consumers share each platform catalog request instead of doubling rate-limit pressure
+// Guards: combined category loading starts both platform requests concurrently and preserves partial results
 describe("CATEGORIES_GET_TOP", () => {
+  it("uses the bounded Twitch page contract when a limit is requested", async () => {
+    const cats = [category("1", "Just Chatting", "twitch")];
+    vi.mocked(twitchClient.getTopCategories).mockResolvedValue({
+      data: cats,
+      cursor: "twitch-page-2",
+    });
+
+    const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
+    const result = (await handler(
+      {},
+      { platform: "twitch", limit: 12, cursor: "twitch-page-1" }
+    )) as CategoryTopResult;
+
+    expect(result).toEqual({
+      success: true,
+      platform: "twitch",
+      data: cats,
+      cursor: "twitch-page-2",
+      providers: { twitch: "complete" },
+    });
+    expect(twitchClient.getTopCategories).toHaveBeenCalledWith({
+      first: 12,
+      after: "twitch-page-1",
+    });
+    expect(twitchClient.getAllTopCategories).not.toHaveBeenCalled();
+  });
+
+  it("uses the bounded Kick page contract when a limit is requested", async () => {
+    const cats = [category("2", "Slots", "kick")];
+    vi.mocked(kickClient.getTopCategories).mockResolvedValue({
+      data: cats,
+      cursor: "kick-page-2",
+    });
+
+    const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
+    const result = (await handler(
+      {},
+      { platform: "kick", limit: 12, cursor: "kick-page-1" }
+    )) as CategoryTopResult;
+
+    expect(result).toEqual({
+      success: true,
+      platform: "kick",
+      data: cats,
+      cursor: "kick-page-2",
+      providers: { kick: "complete" },
+    });
+    expect(kickClient.getTopCategories).toHaveBeenCalledWith({
+      limit: 12,
+      cursor: "kick-page-1",
+    });
+    expect(kickClient.getAllCategories).not.toHaveBeenCalled();
+  });
+
+  it("shares an in-flight bounded request across simultaneous consumers", async () => {
+    const request = deferred<Awaited<ReturnType<typeof twitchClient.getTopCategories>>>();
+    const cats = [category("1", "Just Chatting", "twitch")];
+    vi.mocked(twitchClient.getTopCategories).mockReturnValue(request.promise);
+    const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
+
+    const first = handler({}, { platform: "twitch", limit: 12 });
+    const second = handler({}, { platform: "twitch", limit: 12 });
+    await vi.waitFor(() => expect(twitchClient.getTopCategories).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    request.resolve({ data: cats, cursor: "next" });
+
+    await expect(first).resolves.toMatchObject({ success: true, data: cats });
+    const secondResult = (await second) as CategoryTopResult;
+    expect(secondResult).toEqual({
+      success: true,
+      platform: "twitch",
+      data: cats,
+      cursor: "next",
+      providers: { twitch: "complete" },
+    });
+    expect(twitchClient.getTopCategories).toHaveBeenCalledTimes(1);
+
+    vi.mocked(twitchClient.getTopCategories).mockResolvedValueOnce({ data: cats });
+    await handler({}, { platform: "twitch", limit: 12 });
+    expect(twitchClient.getTopCategories).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares in-flight exhaustive requests across simultaneous consumers", async () => {
+    const twitchRequest = deferred<Awaited<ReturnType<typeof twitchClient.getAllTopCategories>>>();
+    const kickRequest = deferred<Awaited<ReturnType<typeof kickClient.getAllCategories>>>();
+    const twitchCats = [category("1", "Just Chatting", "twitch")];
+    const kickCats = [category("2", "Slots", "kick")];
+    vi.mocked(twitchClient.getAllTopCategories).mockReturnValue(twitchRequest.promise);
+    vi.mocked(kickClient.getAllCategories).mockReturnValue(kickRequest.promise);
+    const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
+
+    const first = handler({}, {});
+    const second = handler({}, {});
+    await vi.waitFor(() => expect(twitchClient.getAllTopCategories).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    twitchRequest.resolve(twitchCats);
+    kickRequest.resolve(kickCats);
+
+    await expect(first).resolves.toMatchObject({ data: [...twitchCats, ...kickCats] });
+    await expect(second).resolves.toMatchObject({ data: [...twitchCats, ...kickCats] });
+    expect(twitchClient.getAllTopCategories).toHaveBeenCalledTimes(1);
+    expect(kickClient.getAllCategories).toHaveBeenCalledTimes(1);
+  });
+
   it("returns only Twitch categories when platform=twitch", async () => {
     const cats = [{ id: "1", name: "Just Chatting" }];
     vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(cats as any);
@@ -69,7 +202,12 @@ describe("CATEGORIES_GET_TOP", () => {
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
     const result = (await handler({}, { platform: "twitch" })) as any;
 
-    expect(result).toEqual({ success: true, platform: "twitch", data: cats });
+    expect(result).toEqual({
+      success: true,
+      platform: "twitch",
+      data: cats,
+      providers: { twitch: "complete" },
+    });
     expect(kickClient.getAllCategories).not.toHaveBeenCalled();
   });
 
@@ -80,7 +218,12 @@ describe("CATEGORIES_GET_TOP", () => {
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
     const result = (await handler({}, { platform: "kick" })) as any;
 
-    expect(result).toEqual({ success: true, platform: "kick", data: cats });
+    expect(result).toEqual({
+      success: true,
+      platform: "kick",
+      data: cats,
+      providers: { kick: "complete" },
+    });
     expect(twitchClient.getAllTopCategories).not.toHaveBeenCalled();
   });
 
@@ -107,6 +250,34 @@ describe("CATEGORIES_GET_TOP", () => {
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual(twitchCats);
+    expect(result.providers).toEqual({ twitch: "complete", kick: "failed" });
+  });
+
+  it("starts both platform requests before either settles and keeps partial results", async () => {
+    const twitchCats = [category("1", "Just Chatting", "twitch")];
+    const twitchRequest = deferred<Awaited<ReturnType<typeof twitchClient.getAllTopCategories>>>();
+    const kickRequest = deferred<never>();
+    vi.mocked(twitchClient.getAllTopCategories).mockReturnValue(twitchRequest.promise);
+    vi.mocked(kickClient.getAllCategories).mockReturnValue(kickRequest.promise);
+
+    const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
+    const resultPromise = handler({}, {});
+
+    await vi.waitFor(() => expect(twitchClient.getAllTopCategories).toHaveBeenCalledOnce());
+    const kickStartedWhileTwitchWasPending = vi.mocked(kickClient.getAllCategories).mock.calls
+      .length;
+
+    twitchRequest.resolve(twitchCats);
+    await vi.waitFor(() => expect(kickClient.getAllCategories).toHaveBeenCalledOnce());
+    kickRequest.reject(new Error("Kick down"));
+
+    const result = (await resultPromise) as CategoryTopResult;
+    expect(kickStartedWhileTwitchWasPending).toBe(1);
+    expect(result).toEqual({
+      success: true,
+      data: twitchCats,
+      providers: { twitch: "complete", kick: "failed" },
+    });
   });
 
   it("returns error when single-platform Twitch fetch fails", async () => {

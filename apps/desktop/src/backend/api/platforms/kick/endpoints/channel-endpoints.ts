@@ -283,7 +283,7 @@ export async function getChannel(
         // as well as offline channels without replacing official identity.
         if (!enrichedChannel.isLive || !enrichedChannel.chatroomId) {
           try {
-            const publicChannel = await getPublicChannel(slug);
+            const publicChannel = await getPublicChannel(slug, { priority: "high" });
             if (publicChannel?.username.toLowerCase() === normalizedSlug) {
               enrichedChannel = {
                 ...enrichedChannel,
@@ -292,6 +292,7 @@ export async function getChannel(
                 followerCount: publicChannel.followerCount ?? enrichedChannel.followerCount,
                 lastLiveAt: publicChannel.lastLiveAt ?? enrichedChannel.lastLiveAt,
                 chatroomId: publicChannel.chatroomId ?? enrichedChannel.chatroomId,
+                kickChannelId: publicChannel.kickChannelId ?? enrichedChannel.kickChannelId,
                 subscriberBadges:
                   publicChannel.subscriberBadges ?? enrichedChannel.subscriberBadges,
                 chatroomSettings:
@@ -337,7 +338,7 @@ export async function getChannel(
   }
 
   try {
-    const publicChannel = await getPublicChannel(slug);
+    const publicChannel = await getPublicChannel(slug, { priority: "high" });
     if (publicChannel) {
       let enrichedChannel = await enrichChannelWithKickUser(
         client,
@@ -505,6 +506,9 @@ async function enrichChannelsWithKickUsers(
   }
 }
 
+const KICK_CHANNEL_BATCH_SIZE = 20;
+const KICK_CHANNEL_FALLBACK_BATCH_SIZE = 10;
+
 async function fetchChannelsByBroadcasterIds(
   client: KickRequestor,
   broadcasterUserIds: number[],
@@ -512,35 +516,95 @@ async function fetchChannelsByBroadcasterIds(
 ): Promise<UnifiedChannel[]> {
   const channels: UnifiedChannel[] = [];
 
-  // Max 50 IDs per request. The official endpoint rejects mixed slug and
-  // broadcaster_user_id parameters, so keep every chunk id-only.
-  for (let i = 0; i < broadcasterUserIds.length; i += 50) {
-    const ids = broadcasterUserIds.slice(i, i + 50);
-    const params = ids
-      .map((id) => `broadcaster_user_id=${encodeURIComponent(id.toString())}`)
-      .join("&");
+  for (let i = 0; i < broadcasterUserIds.length; i += KICK_CHANNEL_BATCH_SIZE) {
+    const ids = broadcasterUserIds.slice(i, i + KICK_CHANNEL_BATCH_SIZE);
 
-    const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-      `/channels?${params}`,
-      undefined,
-      authMode
-    );
+    try {
+      channels.push(...(await requestChannelsByBroadcasterIds(client, ids, authMode)));
+    } catch (error) {
+      if (!isKickServerError(error) || ids.length <= KICK_CHANNEL_FALLBACK_BATCH_SIZE) {
+        throw error;
+      }
 
-    const requestedIds = new Set(ids);
-    channels.push(
-      ...(response.data || [])
-        .filter((channel) => requestedIds.has(channel.broadcaster_user_id))
-        .map(transformKickChannel)
-    );
+      logger.debug(
+        "Kick:Endpoints:Channel",
+        "Kick broadcaster batch failed; retrying once with smaller batches",
+        { batchSize: ids.length }
+      );
+
+      for (
+        let fallbackIndex = 0;
+        fallbackIndex < ids.length;
+        fallbackIndex += KICK_CHANNEL_FALLBACK_BATCH_SIZE
+      ) {
+        const fallbackIds = ids.slice(
+          fallbackIndex,
+          fallbackIndex + KICK_CHANNEL_FALLBACK_BATCH_SIZE
+        );
+        try {
+          channels.push(
+            ...(await requestChannelsByBroadcasterIds(client, fallbackIds, authMode))
+          );
+        } catch (fallbackError) {
+          if (!isKickServerError(fallbackError)) {
+            throw fallbackError;
+          }
+          logger.debug("Kick:Endpoints:Channel", "Skipping failed smaller broadcaster batch", {
+            batchSize: fallbackIds.length,
+          });
+        }
+      }
+    }
   }
 
   return channels;
 }
 
+async function requestChannelsByBroadcasterIds(
+  client: KickRequestor,
+  broadcasterUserIds: number[],
+  authMode: KickAuthMode
+): Promise<UnifiedChannel[]> {
+  // The official endpoint rejects mixed slug and broadcaster_user_id
+  // parameters, so every request remains ID-only.
+  const params = broadcasterUserIds
+    .map((id) => `broadcaster_user_id=${encodeURIComponent(id.toString())}`)
+    .join("&");
+  const response = await client.request<KickApiResponse<KickApiChannel[]>>(
+    `/channels?${params}`,
+    undefined,
+    authMode
+  );
+  const requestedIds = new Set(broadcasterUserIds);
+
+  return (response.data || [])
+    .filter((channel) => requestedIds.has(channel.broadcaster_user_id))
+    .map(transformKickChannel);
+}
+
+function isKickServerError(error: unknown): boolean {
+  if (error instanceof Error && /(?:Kick API error:\s*)?5\d\d\b/.test(error.message)) {
+    return true;
+  }
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const directStatus = (error as { status?: unknown }).status;
+  const responseStatus = (error as { response?: { status?: unknown } }).response?.status;
+  const status = typeof directStatus === "number" ? directStatus : responseStatus;
+  return typeof status === "number" && status >= 500 && status < 600;
+}
+
 // In-flight dedupe: search fans out 5 concurrent calls per batch, hover prefetch
 // + sidebar refetch + channel page open can all race for the same slug. Without
 // this every caller spins up its own BrowserWindow.
-const _publicChannelInFlight = new Map<string, Promise<UnifiedChannel | null>>();
+type BrowserWindowPriority = "high" | "normal";
+type PublicChannelInFlight = {
+  promise: Promise<UnifiedChannel | null>;
+  priority: BrowserWindowPriority;
+};
+const _publicChannelInFlight = new Map<string, PublicChannelInFlight>();
 
 // Failure-only negative cache. The positive `_channelCache` lives in
 // `getChannel`, but direct callers of `getPublicChannel` (search-endpoints,
@@ -584,15 +648,34 @@ function shouldRetryBroadcasterIdLookupWithAppAuth(error: unknown): boolean {
 // previously took ~10s now takes longer per-batch, but search is a rare
 // user action and a crash mid-search is far worse for UX than a slower
 // result list.
-let _browserWindowMutex: Promise<void> = Promise.resolve();
-export function acquireBrowserWindowSlot(): Promise<() => void> {
-  let release!: () => void;
-  const next = new Promise<void>((resolve) => {
-    release = resolve;
+let _browserWindowSlotActive = false;
+const _browserWindowQueues: Record<BrowserWindowPriority, Array<(release: () => void) => void>> = {
+  high: [],
+  normal: [],
+};
+
+function dispatchBrowserWindowSlot(): void {
+  if (_browserWindowSlotActive) return;
+  const next = _browserWindowQueues.high.shift() ?? _browserWindowQueues.normal.shift();
+  if (!next) return;
+
+  _browserWindowSlotActive = true;
+  let released = false;
+  next(() => {
+    if (released) return;
+    released = true;
+    _browserWindowSlotActive = false;
+    dispatchBrowserWindowSlot();
   });
-  const wait = _browserWindowMutex.then(() => release);
-  _browserWindowMutex = _browserWindowMutex.then(() => next);
-  return wait;
+}
+
+export function acquireBrowserWindowSlot(
+  priority: BrowserWindowPriority = "normal"
+): Promise<() => void> {
+  return new Promise((resolve) => {
+    _browserWindowQueues[priority].push(resolve);
+    dispatchBrowserWindowSlot();
+  });
 }
 
 /**
@@ -600,14 +683,17 @@ export function acquireBrowserWindowSlot(): Promise<() => void> {
  * GET https://kick.com/api/v1/channels/:slug
  *
  * Uses a hidden Electron BrowserWindow to bypass Cloudflare/WAF 403 protections.
- * Concurrent calls for the same slug share an in-flight promise (only one
- * BrowserWindow per slug at a time), and persistent failures are negative-cached
- * for `PUBLIC_CHANNEL_FAILURE_TTL_MS` so the 60s `useFollowedStreams` /
- * channel-hover prefetch loops don't keep re-opening windows for unreachable
- * slugs.
+ * Same-priority calls for a slug share an in-flight promise. An interactive
+ * request may bypass a queued background lookup for that slug. Persistent
+ * failures are negative-cached so polling does not repeatedly open windows for
+ * unreachable slugs.
  */
-export async function getPublicChannel(slug: string): Promise<UnifiedChannel | null> {
+export async function getPublicChannel(
+  slug: string,
+  options: { priority?: BrowserWindowPriority } = {}
+): Promise<UnifiedChannel | null> {
   const key = slug.toLowerCase().trim();
+  const priority = options.priority ?? "normal";
 
   const failExpiry = _publicChannelFailureCache.get(key);
   if (failExpiry !== undefined) {
@@ -616,18 +702,26 @@ export async function getPublicChannel(slug: string): Promise<UnifiedChannel | n
   }
 
   const inFlight = _publicChannelInFlight.get(key);
-  if (inFlight) return inFlight;
+  if (inFlight && (priority === "normal" || inFlight.priority === "high")) {
+    return inFlight.promise;
+  }
 
-  const promise = _doFetchPublicChannel(slug, key);
-  _publicChannelInFlight.set(key, promise);
+  const promise = _doFetchPublicChannel(slug, key, priority);
+  if (!inFlight) _publicChannelInFlight.set(key, { promise, priority });
   try {
     return await promise;
   } finally {
-    _publicChannelInFlight.delete(key);
+    if (_publicChannelInFlight.get(key)?.promise === promise) {
+      _publicChannelInFlight.delete(key);
+    }
   }
 }
 
-async function _doFetchPublicChannel(slug: string, key: string): Promise<UnifiedChannel | null> {
+async function _doFetchPublicChannel(
+  slug: string,
+  key: string,
+  priority: BrowserWindowPriority
+): Promise<UnifiedChannel | null> {
   const startedAt = Date.now();
   let queueWaitMs = 0;
   let loadMs: number | undefined;
@@ -642,7 +736,7 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
   // Wait for our turn so only one hidden BrowserWindow exists at a time.
   // This is the single biggest GPU-load lever in the codebase.
   const queuedAt = Date.now();
-  const releaseSlot = await acquireBrowserWindowSlot();
+  const releaseSlot = await acquireBrowserWindowSlot(priority);
   queueWaitMs = Date.now() - queuedAt;
 
   // Re-check after acquiring the slot — the network may have crashed while
@@ -756,13 +850,8 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       lastStreamTitle = data.previous_livestreams[0]?.session_title;
     }
 
-    // Prefer `data.id` (the channel's internal db id) over `data.user_id`.
-    // The two are NOT the same for many Kick channels — `data.id` aligns with
-    // the official API's `broadcaster_user_id`, and only it is accepted by the
-    // legacy v2 endpoints that key by channel (notably
-    // `/api/v2/channels/{id}/messages` and `/api/v2/channels/{id}/livestream`).
-    // The previous `data.user_id || data.id` fallback surfaced a different
-    // numeric id that silently failed against those endpoints.
+    // Preserve this legacy resolver's existing generic identity while also
+    // exposing each Kick ID domain explicitly below.
     const userId = data.id || data.user_id;
     if (!userId) {
       logger.warn("Kick:Endpoints:Channel", "Missing user_id/id for slug", { slug });
@@ -826,8 +915,13 @@ async function _doFetchPublicChannel(slug: string, key: string): Promise<Unified
       categoryName,
       lastStreamTitle,
       chatroomId: typeof chatroomId === "number" ? chatroomId : undefined,
-      // Keep the broadcaster `user_id` distinct from `id` above (which is the
-      // channel/db id). 7TV's KICK connection is keyed by this user_id.
+      kickChannelId:
+        data.id != null
+          ? String(data.id)
+          : typeof chatroomId === "number"
+            ? String(chatroomId)
+            : undefined,
+      // 7TV's KICK connection is keyed by the broadcaster user ID.
       kickUserId: data.user_id != null ? String(data.user_id) : undefined,
       subscriberBadges: data.subscriber_badges,
       chatroomSettings,

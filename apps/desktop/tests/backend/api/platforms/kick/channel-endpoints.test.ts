@@ -163,9 +163,71 @@ describe("channel-endpoints", () => {
       expect(order).toEqual([1, 2]);
       r2();
     });
+
+    it("serves interactive work before queued background work without overlapping slots", async () => {
+      const order: string[] = [];
+      let activeSlots = 0;
+      let maxActiveSlots = 0;
+      const acquire = async (label: string, priority: "high" | "normal" = "normal") => {
+        const release = await acquireBrowserWindowSlot(priority);
+        activeSlots += 1;
+        maxActiveSlots = Math.max(maxActiveSlots, activeSlots);
+        order.push(label);
+        return () => {
+          activeSlots -= 1;
+          release();
+        };
+      };
+
+      const releaseActive = await acquire("active");
+      const normalOne = acquire("normal-1");
+      const normalTwo = acquire("normal-2");
+      const high = acquire("high", "high");
+
+      releaseActive();
+      const releaseHigh = await high;
+      expect(order).toEqual(["active", "high"]);
+      releaseHigh();
+      const releaseNormalOne = await normalOne;
+      releaseNormalOne();
+      const releaseNormalTwo = await normalTwo;
+      releaseNormalTwo();
+
+      expect(order).toEqual(["active", "high", "normal-1", "normal-2"]);
+      expect(maxActiveSlots).toBe(1);
+    });
   });
 
   describe("getPublicChannel", () => {
+    it("does not let a queued background lookup for the same slug starve an interactive lookup", async () => {
+      const releaseBlocker = await acquireBrowserWindowSlot();
+      mockExecuteJavaScript
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            user_id: 42,
+            slug: "active-route",
+            user: { username: "Active Route" },
+            chatroom: { id: 765 },
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            user_id: 42,
+            slug: "active-route",
+            user: { username: "Active Route" },
+            chatroom: { id: 765 },
+          })
+        );
+
+      const background = getPublicChannel("active-route");
+      const interactive = getPublicChannel("active-route", { priority: "high" });
+      releaseBlocker();
+
+      await expect(interactive).resolves.toMatchObject({ kickChannelId: "765" });
+      await expect(background).resolves.toMatchObject({ kickChannelId: "765" });
+      expect(mockLoadURL).toHaveBeenCalledTimes(2);
+    });
+
     it("returns null when network is down", async () => {
       vi.mocked(getPlatformHealth).mockReturnValue("down");
 
@@ -253,7 +315,7 @@ describe("channel-endpoints", () => {
       expect(result!.id).toBe("111");
     });
 
-    it("preserves kickUserId separately from channel id", async () => {
+    it("preserves the legacy channel id separately from the broadcaster user id", async () => {
       mockExecuteJavaScript.mockResolvedValueOnce(
         JSON.stringify({ id: 111, user_id: 222, slug: "separate-ids", user: { username: "Sep" } })
       );
@@ -261,7 +323,28 @@ describe("channel-endpoints", () => {
       const result = await getPublicChannel("separate-ids");
 
       expect(result!.id).toBe("111");
+      expect(result!.kickChannelId).toBe("111");
       expect(result!.kickUserId).toBe("222");
+    });
+
+    it("uses the chatroom id as the legacy channel id when data.id is absent", async () => {
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          user_id: 690439,
+          slug: "adrianahlee",
+          user: { username: "AdrianahLee" },
+          chatroom: { id: 669531 },
+        })
+      );
+
+      const result = await getPublicChannel("adrianahlee");
+
+      expect(result).toMatchObject({
+        id: "690439",
+        kickUserId: "690439",
+        kickChannelId: "669531",
+        chatroomId: 669531,
+      });
     });
 
     it("detects live streams from non-null livestream field", async () => {
@@ -586,6 +669,7 @@ describe("channel-endpoints", () => {
   // Guards: Kick broadcaster filters use OpenAPI collectionFormat multi instead of ignored bracket-suffixed parameters.
   // Guards: an ignored Kick broadcaster filter cannot substitute the signed-in user's channel during username repair.
   // Guards: followed-channel refresh preserves Kick's cased profile name instead of replacing it with the lowercase slug.
+  // Guards: a provider 5xx on a broadcaster batch falls back once to smaller requests, preserving healthy follow repairs without an unbounded retry storm.
   describe("getChannelsByBroadcasterIds", () => {
     it("returns empty array for empty broadcaster ID input", async () => {
       const client = createMockClient();
@@ -762,11 +846,12 @@ describe("channel-endpoints", () => {
       expect(result).toEqual([]);
     });
 
-    it("chunks broadcaster IDs into 50-item requests without dropping later follows", async () => {
+    it("chunks broadcaster IDs into conservative 20-item requests without dropping later follows", async () => {
       const ids = Array.from({ length: 60 }, (_, i) => i + 1);
       const client = createMockClient({
         request: vi
           .fn()
+          .mockResolvedValueOnce({ data: [] })
           .mockResolvedValueOnce({ data: [] })
           .mockResolvedValueOnce({
             data: [
@@ -786,12 +871,50 @@ describe("channel-endpoints", () => {
       const result = await getChannelsByBroadcasterIds(client, ids);
 
       const calls = vi.mocked(client.request).mock.calls.map((call) => call[0] as string);
-      expect(calls).toHaveLength(2);
-      expect((calls[0].match(/[?&]broadcaster_user_id=/g) || []).length).toBe(50);
-      expect((calls[1].match(/[?&]broadcaster_user_id=/g) || []).length).toBe(10);
-      expect(calls[1]).toContain("broadcaster_user_id=60");
+      expect(calls).toHaveLength(3);
+      expect(calls.map((call) => (call.match(/[?&]broadcaster_user_id=/g) || []).length)).toEqual([
+        20, 20, 20,
+      ]);
+      expect(calls[2]).toContain("broadcaster_user_id=60");
       expect(vi.mocked(client.request).mock.calls.every((call) => call[2] === "user")).toBe(true);
       expect(result.map((channel) => channel.username)).toEqual(["renamed-after-first-page"]);
+    });
+
+    it("recovers healthy channels from a failed broadcaster batch with bounded smaller requests", async () => {
+      const ids = Array.from({ length: 25 }, (_, index) => index + 1);
+      const requestMock = vi.fn(async (path: string) => {
+        const requestedIds = Array.from(
+          path.matchAll(/[?&]broadcaster_user_id=(\d+)/g),
+          (match) => Number(match[1])
+        );
+
+        if (requestedIds.length === 20 || requestedIds.includes(11)) {
+          throw new Error("Kick API error: 500");
+        }
+
+        return {
+          data: requestedIds
+            .filter((id) => id === 10 || id === 25)
+            .map((id) => ({
+              broadcaster_user_id: id,
+              slug: `recovered-${id}`,
+              channel_description: "",
+              stream: null,
+              stream_title: "",
+              banner_picture: null,
+              category: null,
+            })),
+        };
+      });
+      const client = createMockClient({ request: requestMock as KickRequestor["request"] });
+
+      const result = await getChannelsByBroadcasterIds(client, ids);
+
+      const batchSizes = requestMock.mock.calls.map(
+        ([path]) => ((path as string).match(/[?&]broadcaster_user_id=/g) || []).length
+      );
+      expect(batchSizes).toEqual([20, 10, 10, 5]);
+      expect(result.map((channel) => channel.username)).toEqual(["recovered-10", "recovered-25"]);
     });
 
     it("returns empty array on request failure", async () => {
@@ -998,6 +1121,7 @@ describe("channel-endpoints", () => {
 
       expect(result).toMatchObject({
         id: "901",
+        kickChannelId: "777",
         kickUserId: "901",
         username: "official-enriched",
         displayName: "Legacy Display Name",

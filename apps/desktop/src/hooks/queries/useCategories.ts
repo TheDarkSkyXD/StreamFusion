@@ -1,16 +1,97 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import type { UnifiedCategory } from "../../backend/api/unified/platform-types";
 import { getEquivalentCategoryName, normalizeCategoryName, pickWinner } from "../../lib/utils";
+import { logger } from "../../renderer/logging/logger";
 import type { Platform } from "../../shared/auth-types";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
+import { savePersistedCategoryCatalog } from "./persisted-category-catalog";
 
 // Minimal interface for stream data needed for category aggregation
 interface StreamSummary {
   categoryId?: string;
   viewerCount?: number;
+}
+
+const CATEGORY_PREVIEW_LIMIT = 12;
+let categoryRequestSequence = 0;
+
+function elapsedMs(startedAt: number): number {
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return Math.round((now - startedAt) * 10) / 10;
+}
+
+function firstUsefulBatch(requests: Promise<UnifiedCategory[]>[]): Promise<UnifiedCategory[]> {
+  return new Promise((resolve) => {
+    let remaining = requests.length;
+    for (const request of requests) {
+      void request.then((categories) => {
+        if (categories.length > 0) {
+          resolve(categories);
+          return;
+        }
+        remaining -= 1;
+        if (remaining === 0) resolve([]);
+      });
+    }
+  });
+}
+
+function mergeCategories(
+  categories: UnifiedCategory[],
+  streams: StreamSummary[] = []
+): UnifiedCategory[] {
+  const viewerCounts = new Map<string, number>();
+  for (const stream of streams) {
+    if (!stream.categoryId) continue;
+    viewerCounts.set(
+      stream.categoryId,
+      (viewerCounts.get(stream.categoryId) || 0) + (stream.viewerCount || 0)
+    );
+  }
+
+  const twitchByKey = new Map<string, UnifiedCategory>();
+  const kickByKey = new Map<string, UnifiedCategory>();
+  for (const category of categories) {
+    const enriched = {
+      ...category,
+      viewerCount: Math.max(viewerCounts.get(category.id) || 0, category.viewerCount || 0),
+    };
+    const key = normalizeCategoryName(category.name);
+    if (category.platform === "twitch") twitchByKey.set(key, enriched);
+    if (category.platform === "kick") kickByKey.set(key, enriched);
+  }
+
+  const categoryMap = new Map<string, UnifiedCategory>();
+  for (const [key, twitchCategory] of twitchByKey) {
+    if (key === "slots" && kickByKey.has(key)) continue;
+    const kickMatch = kickByKey.get(key);
+    categoryMap.set(key, {
+      ...twitchCategory,
+      viewerCount: (twitchCategory.viewerCount ?? 0) + (kickMatch?.viewerCount ?? 0),
+      crossPlatformId: kickMatch?.id,
+      crossPlatformName: kickMatch?.name,
+      tags: twitchCategory.tags?.length ? twitchCategory.tags : kickMatch?.tags,
+    });
+  }
+
+  for (const [key, kickCategory] of kickByKey) {
+    if (key !== "slots" && categoryMap.has(key)) continue;
+    const twitchMatch = twitchByKey.get(key);
+    categoryMap.set(key, {
+      ...kickCategory,
+      viewerCount: (kickCategory.viewerCount ?? 0) + (twitchMatch?.viewerCount ?? 0),
+      crossPlatformId: twitchMatch?.id,
+      crossPlatformName: twitchMatch?.name,
+      tags: kickCategory.tags?.length ? kickCategory.tags : twitchMatch?.tags,
+    });
+  }
+
+  return Array.from(categoryMap.values()).sort(
+    (a, b) => (b.viewerCount || 0) - (a.viewerCount || 0)
+  );
 }
 
 export const CATEGORY_KEYS = {
@@ -21,6 +102,209 @@ export const CATEGORY_KEYS = {
   metadata: (categoryId: string, platform: Platform) =>
     [...CATEGORY_KEYS.all, "metadata", platform, categoryId] as const,
 };
+
+async function loadProgressiveCategoryData(
+  platform: Platform | undefined,
+  signal: AbortSignal,
+  queryClient: QueryClient,
+  queryKey: ReturnType<typeof CATEGORY_KEYS.top>
+) {
+  const requestId = ++categoryRequestSequence;
+  const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const previewPlatforms: Platform[] = platform ? [platform] : ["twitch", "kick"];
+  const existingCatalog = queryClient.getQueryData<UnifiedCategory[]>(queryKey);
+  const hasExistingCatalog = Boolean(existingCatalog?.length);
+  logger.info("Hook:Queries:Categories", "category discovery request started", {
+    requestId,
+    platform: platform ?? "all",
+    stage: "request-start",
+  });
+  if (hasExistingCatalog) {
+    logger.info("Hook:Queries:Categories", "cached category catalog published", {
+      requestId,
+      platform: platform ?? "all",
+      stage: "cache-publication",
+      count: existingCatalog?.length ?? 0,
+      elapsedMs: elapsedMs(startedAt),
+    });
+  }
+
+  const streamsRequest = window.electronAPI.streams
+    .getTop({ platform, limit: 100 })
+    .catch((error) => {
+      logger.warn("Hook:Queries:Categories", "category viewer aggregation failed", {
+        requestId,
+        platform: platform ?? "all",
+        stage: "stream-error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { success: false, data: [] };
+    });
+  if (!hasExistingCatalog) {
+    const previewRequests = previewPlatforms.map(async (previewPlatform) => {
+      try {
+        const response = await window.electronAPI.categories.getTop({
+          platform: previewPlatform,
+          limit: CATEGORY_PREVIEW_LIMIT,
+        });
+        if (response.success !== false) return response.data ?? [];
+        logger.warn("Hook:Queries:Categories", "bounded category preview failed", {
+          requestId,
+          platform: previewPlatform,
+          stage: "preview-error",
+          error: String(response.error),
+        });
+      } catch (error) {
+        logger.warn("Hook:Queries:Categories", "bounded category preview failed", {
+          requestId,
+          platform: previewPlatform,
+          stage: "preview-error",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return [];
+    });
+
+    const firstBatch = mergeCategories(await firstUsefulBatch(previewRequests));
+    if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+    if (firstBatch.length > 0) {
+      queryClient.setQueryData(queryKey, firstBatch);
+      logger.info("Hook:Queries:Categories", "first useful category batch ready", {
+        requestId,
+        platform: platform ?? "all",
+        stage: "first-useful",
+        count: firstBatch.length,
+        elapsedMs: elapsedMs(startedAt),
+      });
+    }
+
+    const preview = mergeCategories((await Promise.all(previewRequests)).flat());
+    if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+    if (preview.length > firstBatch.length) {
+      queryClient.setQueryData(queryKey, preview);
+    }
+  }
+
+  const categoriesResponse = await window.electronAPI.categories.getTop({ platform });
+  if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+  const streamsResponse = await streamsRequest;
+  if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+  const rawCategories = categoriesResponse.success !== false ? categoriesResponse.data : [];
+  const completion = categoriesResponse.providers;
+  const refreshComplete = platform
+    ? completion?.[platform] === "complete"
+    : completion?.twitch === "complete" && completion.kick === "complete";
+  const fullCatalog = mergeCategories(
+    rawCategories,
+    (streamsResponse.data as StreamSummary[] | undefined) || []
+  );
+  const accepted =
+    categoriesResponse.success !== false && refreshComplete && fullCatalog.length > 0;
+  if (accepted) {
+    queryClient.setQueryData(queryKey, fullCatalog);
+    let persisted = false;
+    try {
+      persisted = await savePersistedCategoryCatalog(platform, fullCatalog, () => !signal.aborted);
+    } catch (error) {
+      logger.warn("Hook:Queries:Categories", "failed to persist category catalog", {
+        requestId,
+        platform: platform ?? "all",
+        stage: "persist-error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+    if (persisted) {
+      logger.info("Hook:Queries:Categories", "full category catalog ready", {
+        requestId,
+        platform: platform ?? "all",
+        stage: "full-hydration",
+        count: fullCatalog.length,
+        elapsedMs: elapsedMs(startedAt),
+      });
+    }
+  }
+
+  return [categoriesResponse, streamsResponse, accepted] as const;
+}
+
+interface ProgressiveCategoryRequest {
+  abortTimer: ReturnType<typeof setTimeout> | null;
+  controller: AbortController;
+  leases: Set<symbol>;
+  promise: ReturnType<typeof loadProgressiveCategoryData>;
+}
+
+const CATEGORY_REQUEST_RELEASE_GRACE_MS = 50;
+const progressiveCategoryRequests = new WeakMap<
+  QueryClient,
+  Map<string, ProgressiveCategoryRequest>
+>();
+
+function acquireProgressiveCategoryData(
+  platform: Platform | undefined,
+  signal: AbortSignal,
+  queryClient: QueryClient,
+  queryKey: ReturnType<typeof CATEGORY_KEYS.top>
+) {
+  const requestKey = platform ?? "all";
+  let clientRequests = progressiveCategoryRequests.get(queryClient);
+  if (!clientRequests) {
+    clientRequests = new Map();
+    progressiveCategoryRequests.set(queryClient, clientRequests);
+  }
+  let request = clientRequests.get(requestKey);
+
+  if (!request) {
+    const controller = new AbortController();
+    request = {
+      abortTimer: null,
+      controller,
+      leases: new Set(),
+      promise: loadProgressiveCategoryData(platform, controller.signal, queryClient, queryKey),
+    };
+    clientRequests.set(requestKey, request);
+
+    const settledRequest = request;
+    const clearSettledRequest = () => {
+      if (settledRequest.abortTimer) clearTimeout(settledRequest.abortTimer);
+      if (clientRequests.get(requestKey) === settledRequest) {
+        clientRequests.delete(requestKey);
+      }
+    };
+    void request.promise.then(clearSettledRequest, clearSettledRequest);
+  }
+
+  if (request.abortTimer) {
+    clearTimeout(request.abortTimer);
+    request.abortTimer = null;
+  }
+
+  const lease = Symbol(requestKey);
+  request.leases.add(lease);
+  const leasedRequest = request;
+  const release = () => {
+    leasedRequest.leases.delete(lease);
+    if (leasedRequest.leases.size > 0 || leasedRequest.abortTimer) return;
+
+    // timer-allowlist: shared query lease needs a cancelable remount grace period
+    leasedRequest.abortTimer = setTimeout(() => {
+      leasedRequest.abortTimer = null;
+      if (leasedRequest.leases.size > 0) return;
+      if (clientRequests.get(requestKey) === leasedRequest) {
+        clientRequests.delete(requestKey);
+      }
+      leasedRequest.controller.abort();
+    }, CATEGORY_REQUEST_RELEASE_GRACE_MS);
+  };
+
+  if (signal.aborted) release();
+  else signal.addEventListener("abort", release, { once: true });
+
+  const removeAbortListener = () => signal.removeEventListener("abort", release);
+  void request.promise.then(removeAbortListener, removeAbortListener);
+  return request.promise;
+}
 
 export interface CategoryMetadata {
   tags?: string[];
@@ -67,112 +351,29 @@ export function useCategoryMetadata(category: UnifiedCategory) {
 }
 
 export function useTopCategories(platform?: Platform, options: { enabled?: boolean } = {}) {
+  const queryClient = useQueryClient();
   const queryKey = CATEGORY_KEYS.top(platform);
   const query = useQuery({
     queryKey,
-    queryFn: async () => {
-      // OPTIMIZATION: Fetch categories AND streams in PARALLEL instead of sequentially
-      // This cuts loading time roughly in half since both requests run concurrently
-      const [categoriesResponse, streamsResponse] = await Promise.all([
-        window.electronAPI.categories.getTop({ platform }), // No limit - fetch ALL
-        window.electronAPI.streams.getTop({ platform, limit: 100 }),
-      ]);
-
-      if (categoriesResponse.error) {
-        throw new Error(categoriesResponse.error as unknown as string);
-      }
-      const categories = (categoriesResponse.data as UnifiedCategory[]) || [];
-      const streams = (streamsResponse.data as StreamSummary[]) || [];
-
-      // 3. Aggregate viewer counts by category ID
-      const viewerCounts = new Map<string, number>();
-      streams.forEach((stream) => {
-        const categoryId = stream.categoryId;
-        const viewers = stream.viewerCount || 0;
-        if (categoryId) {
-          viewerCounts.set(categoryId, (viewerCounts.get(categoryId) || 0) + viewers);
-        }
-      });
-
-      // 4. Enrich categories with viewer counts
-      const enrichedCategories = categories.map((category) => ({
-        ...category,
-        viewerCount: Math.max(viewerCounts.get(category.id) || 0, category.viewerCount || 0),
-      }));
-
-      // 5. De-duplicate: Twitch-first, then ADD Kick-exclusives
-      // Rule:
-      //   - Use Twitch version for any category that exists on Twitch
-      //   - ADD Kick categories that DON'T exist on Twitch
-      //   - Exception: Slots → prefer Kick version (better metadata)
-      //
-      // For every category that exists on BOTH platforms we also stash the
-      // other-platform id/name on the surviving entry as `crossPlatformId` /
-      // `crossPlatformName`. CategoryDetail uses that to fetch streams from the
-      // other platform directly, skipping a name-based runtime search that's
-      // brittle and (for unauthenticated Kick users) limited to whatever
-      // happens to be in the top public livestream dump.
-
-      const twitchByKey = new Map<string, UnifiedCategory>();
-      const kickByKey = new Map<string, UnifiedCategory>();
-      for (const category of enrichedCategories) {
-        const key = normalizeCategoryName(category.name);
-        if (category.platform === "twitch") {
-          twitchByKey.set(key, category);
-        } else if (category.platform === "kick") {
-          kickByKey.set(key, category);
-        }
-      }
-
-      const categoryMap = new Map<string, UnifiedCategory>();
-      const slotsKey = "slots";
-
-      // First pass: Twitch entries (priority), enriched with Kick id/name if present.
-      // For shared categories, sum the Kick viewer count into the surviving Twitch
-      // entry — otherwise the card under-reports total cross-platform viewership.
-      // Tags fall back to Kick's curated set when Twitch hasn't supplied any
-      // (Helix /games/top doesn't return tags at all, so without this the merged
-      // card would have no tags despite Kick having them).
-      for (const [key, twitchCategory] of twitchByKey) {
-        // Slots: prefer Kick metadata when available — handled in the second pass.
-        if (key === slotsKey && kickByKey.has(key)) continue;
-        const kickMatch = kickByKey.get(key);
-        const tags =
-          twitchCategory.tags && twitchCategory.tags.length > 0
-            ? twitchCategory.tags
-            : kickMatch?.tags;
-        categoryMap.set(key, {
-          ...twitchCategory,
-          viewerCount: (twitchCategory.viewerCount ?? 0) + (kickMatch?.viewerCount ?? 0),
-          crossPlatformId: kickMatch?.id,
-          crossPlatformName: kickMatch?.name,
-          tags,
-        });
-      }
-
-      // Second pass: Kick entries — fill in exclusives, and own the Slots key.
-      // When the Kick row wins (Slots), fold in the Twitch viewer count too.
-      for (const [key, kickCategory] of kickByKey) {
-        if (key !== slotsKey && categoryMap.has(key)) continue;
-        const twitchMatch = twitchByKey.get(key);
-        const tags =
-          kickCategory.tags && kickCategory.tags.length > 0 ? kickCategory.tags : twitchMatch?.tags;
-        categoryMap.set(key, {
-          ...kickCategory,
-          viewerCount: (kickCategory.viewerCount ?? 0) + (twitchMatch?.viewerCount ?? 0),
-          crossPlatformId: twitchMatch?.id,
-          crossPlatformName: twitchMatch?.name,
-          tags,
-        });
-      }
-
-      return Array.from(categoryMap.values()).sort(
-        (a, b) => (b.viewerCount || 0) - (a.viewerCount || 0)
+    queryFn: async ({ signal }) => {
+      const [categoriesResponse, streamsResponse, accepted] = await acquireProgressiveCategoryData(
+        platform,
+        signal,
+        queryClient,
+        queryKey
       );
+
+      if (categoriesResponse.success === false) {
+        throw new Error(categoriesResponse.error);
+      }
+      if (!accepted) {
+        return queryClient.getQueryData<UnifiedCategory[]>(queryKey) ?? [];
+      }
+      return queryClient.getQueryData<UnifiedCategory[]>(queryKey) ?? [];
     },
     ...getQueryCacheOptions("categories"),
-    // Refetch when window regains focus (user may have been away)
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
     enabled: options.enabled,
   });
   useQueryCachePerformance({
@@ -269,6 +470,7 @@ export function useUnifiedCategoryLink(
 }
 
 export function useCategoryById(categoryId: string, platform: Platform) {
+  const queryClient = useQueryClient();
   const queryKey = CATEGORY_KEYS.byId(categoryId, platform);
   const query = useQuery({
     queryKey,
@@ -280,6 +482,18 @@ export function useCategoryById(categoryId: string, platform: Platform) {
       return response.data as UnifiedCategory;
     },
     enabled: !!categoryId && !!platform,
+    initialData: () => {
+      const platformCatalog = queryClient.getQueryData<UnifiedCategory[]>(
+        CATEGORY_KEYS.top(platform)
+      );
+      const sharedCatalog = queryClient.getQueryData<UnifiedCategory[]>(
+        CATEGORY_KEYS.top(undefined)
+      );
+      return [...(platformCatalog ?? []), ...(sharedCatalog ?? [])].find(
+        (category) => category.id === categoryId && category.platform === platform
+      );
+    },
+    initialDataUpdatedAt: 0,
     ...getQueryCacheOptions("categoryReference"),
   });
   useQueryCachePerformance({

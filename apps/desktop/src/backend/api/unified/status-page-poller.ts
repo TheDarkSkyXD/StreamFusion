@@ -17,6 +17,7 @@ const KICK_SERVICES_URL = "https://status.kick.com/api/services";
 const KICK_POSTS_URL = "https://status.kick.com/api/posts?is_featured=true&limit=500";
 const KICK_POST_ENUMS_URL = "https://status.kick.com/api/post_enums";
 const KICK_STARTUP_STATUS_POLL_DELAY_MS = 8_000;
+const KICK_STATUS_SHAPE_BACKOFF_MS = 15 * 60_000;
 
 const RESOLVED_STATUSES = new Set(["resolved", "postmortem", "completed"]);
 const DEGRADED_TEXT_PATTERN =
@@ -45,6 +46,8 @@ const KICK_MAIN_STATUS_SERVICES = new Set([
 ]);
 
 const pollers = new Map<Platform, ReturnType<typeof createManagedInterval>>();
+const warnedKickStatusShapeUrls = new Set<string>();
+let kickStatusShapeBackoffUntil = 0;
 
 interface StatusPagePollResult {
   signal: StatusPageSignal;
@@ -56,6 +59,8 @@ type FetchLike = (
   init?: RequestInit & { bypassCustomProtocolHandlers?: boolean }
 ) => Promise<Response>;
 
+type JsonResponseResult = { ok: true; value: unknown } | { ok: false };
+
 function getChromiumFetch(): FetchLike {
   try {
     const { net } = require("electron") as typeof import("electron");
@@ -66,6 +71,37 @@ function getChromiumFetch(): FetchLike {
     // Unit tests and non-Electron tooling fall back to Node's fetch.
   }
   return fetch as FetchLike;
+}
+
+async function readKickStatusJson(response: Response, url: string): Promise<JsonResponseResult> {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  const explicitlyHtml = contentType.includes("text/html") || contentType.includes("xhtml");
+  let body = "";
+
+  if (!explicitlyHtml) {
+    body = await response.text();
+    const trimmed = body.trimStart();
+    const declaresJson = contentType.includes("application/json") || contentType.includes("+json");
+    if (declaresJson || trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        warnedKickStatusShapeUrls.delete(url);
+        return { ok: true, value: JSON.parse(body) };
+      } catch {
+        // Treat invalid JSON like any other endpoint-shape mismatch below.
+      }
+    }
+  }
+
+  kickStatusShapeBackoffUntil = Date.now() + KICK_STATUS_SHAPE_BACKOFF_MS;
+  if (!warnedKickStatusShapeUrls.has(url)) {
+    warnedKickStatusShapeUrls.add(url);
+    logger.debug("StatusPoller", "Kick status endpoint returned a non-JSON response; backing off", {
+      url,
+      contentType,
+      backoffMs: KICK_STATUS_SHAPE_BACKOFF_MS,
+    });
+  }
+  return { ok: false };
 }
 
 function sanitizeStatusString(value: string): string {
@@ -351,6 +387,8 @@ async function pollTwitchStatus(): Promise<StatusPagePollResult> {
 }
 
 async function pollKickStatus(): Promise<StatusPagePollResult> {
+  if (Date.now() < kickStatusShapeBackoffUntil) return toPollResult("no-signal");
+
   let url = KICK_SERVICES_URL;
   try {
     const chromiumFetch = getChromiumFetch();
@@ -363,7 +401,9 @@ async function pollKickStatus(): Promise<StatusPagePollResult> {
     });
     if (!servicesRes.ok) return toPollResult("no-signal");
 
-    const servicesJson = await servicesRes.json();
+    const servicesResult = await readKickStatusJson(servicesRes, url);
+    if (!servicesResult.ok) return toPollResult("no-signal");
+    const servicesJson = servicesResult.value;
 
     url = KICK_POSTS_URL;
     const postsRes = await chromiumFetch(url, {
@@ -374,7 +414,9 @@ async function pollKickStatus(): Promise<StatusPagePollResult> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!postsRes.ok) return toPollResult("no-signal");
-    const postsJson = await postsRes.json();
+    const postsResult = await readKickStatusJson(postsRes, url);
+    if (!postsResult.ok) return toPollResult("no-signal");
+    const postsJson = postsResult.value;
 
     url = KICK_POST_ENUMS_URL;
     const enumsRes = await chromiumFetch(url, {
@@ -385,7 +427,9 @@ async function pollKickStatus(): Promise<StatusPagePollResult> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!enumsRes.ok) return toPollResult("no-signal");
-    const enumsJson = await enumsRes.json();
+    const enumsResult = await readKickStatusJson(enumsRes, url);
+    if (!enumsResult.ok) return toPollResult("no-signal");
+    const enumsJson = enumsResult.value;
 
     const detail = buildKickStatusDetail(servicesJson, postsJson, enumsJson);
     if (detail != null) return toPollResult("confirmed-outage", detail);
@@ -463,4 +507,6 @@ export function initStatusPagePoller(): void {
 export function __resetStatusPagePollerForTests(): void {
   for (const [, handle] of pollers) handle.stop();
   pollers.clear();
+  warnedKickStatusShapeUrls.clear();
+  kickStatusShapeBackoffUntil = 0;
 }

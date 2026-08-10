@@ -15,6 +15,7 @@ import {
 } from "@/hooks/queries/browse-snapshot-bootstrap";
 import { resetPersistedChannelLruForTests } from "@/hooks/queries/persisted-channel-lru";
 import { resetPersistedSearchLruForTests } from "@/hooks/queries/persisted-search-lru";
+import { resetPersistedSearchResultsLruForTests } from "@/hooks/queries/persisted-search-results-lru";
 import { CATEGORY_KEYS } from "@/hooks/queries/useCategories";
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { SEARCH_KEYS } from "@/hooks/queries/useSearch";
@@ -37,6 +38,7 @@ beforeEach(() => {
   api = installElectronAPIMock();
   resetPersistedChannelLruForTests();
   resetPersistedSearchLruForTests();
+  resetPersistedSearchResultsLruForTests();
   resetPersistedChatHistoryForTests();
   resetViewportImagePrewarmForTests();
   loggerWarnMock.mockReset();
@@ -49,6 +51,9 @@ beforeEach(() => {
 // Guards: a delayed snapshot read from the previous identity cannot populate the shared followed-stream cache after account state changes.
 // Guards: persisted Following streams hydrate as stale so cached cards paint while live status refreshes immediately.
 // Guards: post-first-paint bootstrap warms persisted chat history before the first stream click.
+// Guards: valid same-schema discovery data remains available offline regardless of age while future timestamps stay invalid
+// Guards: malformed legacy broad-search snapshots cannot abort hydration of the validated exact-search LRU
+// Guards: exact-search cache rejects corrupt runtime field types before publishing any part of an entry
 describe("browse snapshot bootstrap", () => {
   it("does not read account-scoped following snapshots until auth and follows are both hydrated", async () => {
     const frames: FrameRequestCallback[] = [];
@@ -293,6 +298,138 @@ describe("browse snapshot bootstrap", () => {
     });
   });
 
+  it("hydrates an old but valid category catalog as stale for an offline restart", async () => {
+    const category = fixtures.category({ id: "old-category", name: "Old But Useful" });
+    api.store.get = vi.fn(async (key: string) =>
+      key.endsWith("categories:all")
+        ? {
+            version: 1,
+            identity: JSON.stringify("all"),
+            savedAt: Date.now() - 90 * 24 * 60 * 60 * 1000,
+            data: [category],
+          }
+        : null
+    );
+    const client = new QueryClient();
+
+    await hydratePersistedBrowseSnapshots(client);
+
+    expect(client.getQueryData(CATEGORY_KEYS.top(undefined))).toEqual([category]);
+    expect(client.getQueryState(CATEGORY_KEYS.top(undefined))?.dataUpdatedAt).toBe(0);
+  });
+
+  it("hydrates an old but valid exact search result as stale for an offline restart", async () => {
+    const channel = fixtures.channel({
+      id: "old-search-channel",
+      username: "oldsearch",
+      displayName: "Old Search",
+    });
+    const data = { channels: [channel], categories: [], streams: [], videos: [], clips: [] };
+    api.store.get = vi.fn(async (key: string) =>
+      key === "search-results-lru:v1"
+        ? {
+            version: 1,
+            entries: [
+              {
+                query: "old search",
+                limit: 5,
+                savedAt: Date.now() - 90 * 24 * 60 * 60 * 1000,
+                data,
+              },
+            ],
+          }
+        : null
+    );
+    const client = new QueryClient();
+
+    await hydratePersistedBrowseSnapshots(client);
+
+    expect(client.getQueryData(SEARCH_KEYS.everything("old search", undefined, 5))).toEqual(data);
+    expect(
+      client.getQueryState(SEARCH_KEYS.everything("old search", undefined, 5))?.dataUpdatedAt
+    ).toBe(0);
+  });
+
+  it("ignores a malformed legacy broad search snapshot and still hydrates the exact LRU", async () => {
+    const channel = fixtures.channel({
+      id: "valid-lru-after-malformed-legacy",
+      username: "validlru",
+      displayName: "Valid LRU",
+    });
+    const data = { channels: [channel], categories: [], streams: [], videos: [], clips: [] };
+    api.store.get = vi.fn(async (key: string) => {
+      if (key === "browse-query-snapshot:v1:search:twitch") {
+        return {
+          version: 1,
+          identity: JSON.stringify(
+            JSON.stringify({ query: "malformed", platform: "twitch", limit: 20 })
+          ),
+          savedAt: Date.now(),
+          data: { channels: "not-an-array" },
+        };
+      }
+      if (key === "search-results-lru:v1") {
+        return {
+          version: 1,
+          entries: [{ query: "valid lru", limit: 5, savedAt: Date.now(), data }],
+        };
+      }
+      return null;
+    });
+    const client = new QueryClient();
+
+    await expect(hydratePersistedBrowseSnapshots(client)).resolves.toBeUndefined();
+
+    expect(client.getQueryData(SEARCH_KEYS.everything("valid lru", undefined, 5))).toEqual(data);
+    expect(client.getQueryData(SEARCH_KEYS.everything("malformed", "twitch", 20))).toBeUndefined();
+  });
+
+  it("rejects an exact search cache entry with an invalid persisted media type", async () => {
+    const corruptData: unknown = {
+      channels: [],
+      categories: [],
+      streams: [],
+      videos: [
+        {
+          id: "corrupt-video",
+          platform: "twitch",
+          channelId: "channel-1",
+          channelName: "corrupt",
+          channelDisplayName: "Corrupt",
+          channelAvatar: "",
+          title: "Corrupt persisted type",
+          thumbnailUrl: "",
+          duration: 10,
+          viewCount: 1,
+          publishedAt: "2026-01-01T00:00:00.000Z",
+          url: "https://example.com/video",
+          type: "trailer",
+        },
+      ],
+      clips: [],
+    };
+    api.store.get = vi.fn(async (key: string) =>
+      key === "search-results-lru:v1"
+        ? {
+            version: 1,
+            entries: [
+              {
+                query: "corrupt type",
+                limit: 5,
+                savedAt: Date.now(),
+                data: corruptData,
+              },
+            ],
+          }
+        : null
+    );
+    const client = new QueryClient();
+
+    await hydratePersistedBrowseSnapshots(client);
+
+    expect(client.getQueryData(SEARCH_KEYS.everything("corrupt type", undefined, 5))).toBeUndefined();
+  });
+
   it("rejects stale and slot-mismatched snapshots", async () => {
     api.store.get = vi.fn(async (key: string) =>
       key.endsWith("top-streams:all")
@@ -378,7 +515,8 @@ describe("browse snapshot bootstrap", () => {
 
     await hydratePersistedBrowseSnapshots(client);
 
-    expect(client.getQueryData(CATEGORY_KEYS.byId("509658", "twitch"))).toEqual(category);
+    expect(client.getQueryData(CATEGORY_KEYS.top(undefined))).toEqual([category]);
+    expect(client.getQueryData(CATEGORY_KEYS.byId("509658", "twitch"))).toBeUndefined();
     expect(
       client.getQueryData([
         ...STREAM_KEYS.byCategory("509658", "twitch"),
@@ -395,9 +533,7 @@ describe("browse snapshot bootstrap", () => {
         undefined,
       ])
     ).toEqual({ pages: [{ data: [kickStream] }], pageParams: [undefined] });
-    expect(client.getQueryState(CATEGORY_KEYS.byId("509658", "twitch"))?.dataUpdatedAt).toBe(
-      savedAt
-    );
+    expect(client.getQueryState(CATEGORY_KEYS.top(undefined))?.dataUpdatedAt).toBe(0);
   });
 
   it("hydrates an exact current-account Following snapshot before route navigation", async () => {

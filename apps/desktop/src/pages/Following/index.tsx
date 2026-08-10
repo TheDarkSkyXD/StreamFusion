@@ -11,8 +11,6 @@ import {
   LuTag,
   LuUsers,
 } from "react-icons/lu";
-import { toast } from "sonner";
-
 import type {
   UnifiedCategory,
   UnifiedChannel,
@@ -155,7 +153,6 @@ export function FollowingPage() {
   const {
     twitchConnected,
     kickConnected,
-    syncConnectedFollows,
     followSyncInProgress,
     followSyncLastSyncedAt,
     twitchUser,
@@ -187,6 +184,7 @@ export function FollowingPage() {
   const {
     data: twitchFollows,
     isLoading: isLoadingTwitch,
+    error: twitchFollowsError,
     refetch: refetchTwitchFollows,
   } = useFollowedChannels("twitch", {
     enabled: twitchConnected,
@@ -194,6 +192,7 @@ export function FollowingPage() {
   const {
     data: kickFollows,
     isLoading: isLoadingKick,
+    error: kickFollowsError,
     refetch: refetchKickFollows,
   } = useFollowedChannels("kick", {
     enabled: kickConnected,
@@ -204,8 +203,10 @@ export function FollowingPage() {
   const {
     data: liveStreams,
     isLoading: isLoadingStreams,
+    error: liveStreamsError,
     refetch: refetchFollowedStreams,
   } = useFollowedStreams(undefined, 20, {
+    enabled: activeTab === "live",
     snapshotIdentity: followedStreamSnapshotIdentity,
   });
   const currentStream = usePipStore((state) => state.currentStream);
@@ -342,7 +343,9 @@ export function FollowingPage() {
     return {
       liveChannels: live,
       hasVisibleFollowedChannels: visibleChannelCount > 0,
-      isLoading: allChannels.length === 0 && (isLoadingStreams || loadingTwitch || loadingKick),
+      isLoading:
+        (isLoadingStreams && liveStreams === undefined) ||
+        (allChannels.length === 0 && (loadingTwitch || loadingKick)),
     };
   }, [
     allChannels,
@@ -415,10 +418,7 @@ export function FollowingPage() {
     debouncedSearchQuery.length >= 3 &&
     followedChannels.length === 0 &&
     !isLoading;
-  useChannelByUsername(
-    shouldRepairKickSearchSlug ? debouncedSearchQuery : "",
-    "kick"
-  );
+  useChannelByUsername(shouldRepairKickSearchSlug ? debouncedSearchQuery : "", "kick");
 
   const shouldLoadFollowedCategories =
     canRenderContent &&
@@ -489,17 +489,10 @@ export function FollowingPage() {
     setManualRefreshPending(true);
     setManualRefreshFailed(false);
     try {
-      const syncResult = await syncConnectedFollows();
-      if (syncResult.failed.length > 0) {
-        toast("Couldn't sync follows", {
-          description: `Failed to sync ${syncResult.failed.map((platform) => (platform === "twitch" ? "Twitch" : "Kick")).join(" and ")}. Existing follows were preserved.`,
-        });
-      }
-
       const refreshes: Array<Promise<unknown>> = [refetchFollowedStreams()];
       if (twitchConnected && filter !== "kick") refreshes.push(refetchTwitchFollows());
       if (kickConnected && filter !== "twitch") refreshes.push(refetchKickFollows());
-      if (activeTab === "categories" || shouldLoadFollowedCategories) {
+      if (activeTab === "categories") {
         refreshes.push(refetchTopCategories());
       }
       if (activeTab === "videos") refreshes.push(refetchFollowedVideos());
@@ -515,7 +508,6 @@ export function FollowingPage() {
   }, [
     activeTab,
     filter,
-    syncConnectedFollows,
     kickConnected,
     manualRefreshPending,
     refetchFollowedClips,
@@ -524,7 +516,6 @@ export function FollowingPage() {
     refetchKickFollows,
     refetchTopCategories,
     refetchTwitchFollows,
-    shouldLoadFollowedCategories,
     twitchConnected,
   ]);
   const manualSyncPending = manualRefreshPending || followSyncInProgress;
@@ -812,9 +803,36 @@ export function FollowingPage() {
   );
 
   const hasNoFollowedChannels = !hasVisibleFollowedChannels;
+  const hasInitialLiveError =
+    activeTab === "live" &&
+    liveChannels.length === 0 &&
+    Boolean(twitchFollowsError || kickFollowsError || liveStreamsError);
   const noMatchMessage = searchQuery
     ? `No matches for "${searchQuery}"`
     : "Follow channels to see them here!";
+
+  const renderLiveErrorState = () => (
+    <div
+      role="alert"
+      className="text-center py-24 flex flex-col items-center gap-4 text-[var(--color-foreground-muted)]"
+    >
+      <div className="w-16 h-16 rounded-full bg-[var(--color-background-secondary)] flex items-center justify-center mb-2">
+        <LuRefreshCw className="w-8 h-8 text-[var(--color-foreground-muted)]" aria-hidden="true" />
+      </div>
+      <h3 className="text-xl font-semibold text-[var(--color-foreground)]">
+        Couldn't load followed channels
+      </h3>
+      <p>Check your connection and try again.</p>
+      <Button
+        variant="secondary"
+        onClick={() => void refreshFollowingData()}
+        disabled={manualSyncPending}
+        aria-label="Retry loading followed content"
+      >
+        Retry
+      </Button>
+    </div>
+  );
 
   return (
     <div className="px-6 pt-6 h-full flex flex-col gap-6">
@@ -897,14 +915,12 @@ export function FollowingPage() {
               onClick={() => void refreshFollowingData()}
               disabled={manualSyncPending}
               aria-label={
-                manualRefreshFailed
-                  ? "Retry sync follows and refresh following data"
-                  : "Sync follows and refresh following data"
+                manualRefreshFailed ? "Retry refreshing following data" : "Refresh following data"
               }
               title={
                 manualRefreshFailed
-                  ? "Some follows or data failed to refresh. Try again."
-                  : "Sync follows and refresh following data"
+                  ? "Some following data failed to refresh. Try again."
+                  : "Refresh following data"
               }
             >
               <LuRefreshCw
@@ -948,11 +964,16 @@ export function FollowingPage() {
       </div>
 
       <div ref={contentScrollRef} className="space-y-8 flex-1 overflow-y-auto pr-2 pb-10">
-        {isLoading ? (
-          <div className="space-y-8">
+        {activeTab === "live" && isLoading ? (
+          <div
+            role="status"
+            aria-label="Loading followed content"
+            aria-busy="true"
+            className="space-y-8"
+          >
             <div className="space-y-4">
               <Skeleton className="h-7 w-32" />
-              <StreamGrid isLoading={true} skeletons={4} />
+              <StreamGrid isLoading skeletons={12} />
             </div>
 
             <div className="space-y-4">
@@ -967,6 +988,8 @@ export function FollowingPage() {
               </div>
             </div>
           </div>
+        ) : hasInitialLiveError ? (
+          renderLiveErrorState()
         ) : (
           <>
             {activeTab === "live" &&

@@ -15,7 +15,7 @@ export const APP_DATA_CACHE_POLICIES = {
   followedStreamStatus: {
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
     staleFirst: true,
     storage: "memory",
     refetchIntervalInBackground: false,
@@ -59,10 +59,9 @@ export const APP_DATA_CACHE_POLICIES = {
   categories: {
     staleTime: 5 * 60_000,
     gcTime: 15 * 60_000,
-    refetchInterval: 30_000,
+    refetchInterval: null,
     staleFirst: true,
     storage: "memory",
-    refetchIntervalInBackground: false,
   },
   categoryReference: {
     staleTime: 5 * 60_000,

@@ -88,6 +88,7 @@ import { FeaturedStream } from '@/components/stream/featured-stream';
 // Guards: preview audio can be user-unmuted without navigating away from the carousel.
 // Guards: Twitch previews use the same ad-blocking HLS player path as normal stream playback.
 // Guards: autoplay state advances the featured slide using the user's configured interval.
+// Guards: duplicate stream tags render once in first-seen order so repeated labels cannot hide a distinct hero tag or trigger duplicate React keys.
 describe('FeaturedStream', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -146,6 +147,23 @@ describe('FeaturedStream', () => {
       'data-volume',
       '1'
     );
+  });
+
+  it('renders duplicate tag labels once before applying the two-pill limit', () => {
+    renderWithProviders(
+      <FeaturedStream
+        stream={fixtures.stream({
+          categoryName: undefined,
+          language: undefined,
+          tags: ['Tactical', 'Tactical', 'RTS', 'RTS'],
+        })}
+      />
+    );
+
+    expect(screen.getAllByText(/^(Tactical|RTS)$/).map((tag) => tag.textContent)).toEqual([
+      'Tactical',
+      'RTS',
+    ]);
   });
 
   it('lets the user unmute the preview audio', () => {

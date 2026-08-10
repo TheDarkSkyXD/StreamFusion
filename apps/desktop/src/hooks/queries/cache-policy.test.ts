@@ -4,11 +4,12 @@ import { APP_DATA_CACHE_POLICIES, getQueryCacheOptions } from "./cache-policy";
 
 // Guards: app-data cache behavior must be tiered by surface instead of collapsing into one global TTL.
 // Guards: every cache-policy branch exposes an explicit no-polling shape so query consumers can preserve their cadence without narrowing a partial union.
+// Guards: category discovery is event-driven and must not resume periodic background polling.
 describe("app data cache policy", () => {
   it("defines distinct tiers for remote browsing data and local persisted state", () => {
     expect(APP_DATA_CACHE_POLICIES.followedStreamStatus).toMatchObject({
       staleTime: 30_000,
-      refetchInterval: 60_000,
+      refetchInterval: 30_000,
       staleFirst: true,
       storage: "memory",
     });
@@ -22,7 +23,7 @@ describe("app data cache policy", () => {
     });
 
     expect(APP_DATA_CACHE_POLICIES.categoryReference.refetchInterval).toBeNull();
-    expect(APP_DATA_CACHE_POLICIES.categories.refetchInterval).toBe(30_000);
+    expect(APP_DATA_CACHE_POLICIES.categories.refetchInterval).toBeNull();
 
     expect(APP_DATA_CACHE_POLICIES.localUserState).toMatchObject({
       staleTime: null,
@@ -45,7 +46,7 @@ describe("app data cache policy", () => {
     expect(getQueryCacheOptions("followedStreamStatus")).toEqual({
       staleTime: 30_000,
       gcTime: 300_000,
-      refetchInterval: 60_000,
+      refetchInterval: 30_000,
       refetchIntervalInBackground: false,
       placeholderData: expect.any(Function),
     });

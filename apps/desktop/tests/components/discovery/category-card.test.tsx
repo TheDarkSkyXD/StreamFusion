@@ -25,6 +25,7 @@ import { CategoryCard } from "@/components/discovery/category-card";
 
 // Guards: viewerCount=0 / undefined hides the viewer-count label entirely; viewerCount>0 surfaces "Nk viewers" so users don't see "0 viewers" on a genuinely live category
 // Guards: name + box art render together and the caller's image-loading policy is forwarded; missing either degrades to a slow or unclear category-card UX
+// Guards: duplicate category tags render once, preserving the first label and order, so API duplicates cannot produce repeated pills or React key warnings.
 // Note: image-onError fallback is delegated to ProxiedImage; covered in its own tests (proxied-image mocks here keep the test fast)
 describe("CategoryCard", () => {
   beforeEach(() => {
@@ -54,5 +55,18 @@ describe("CategoryCard", () => {
       <CategoryCard category={fixtures.category({ name: "Just Chatting" })} imageLoading="eager" />
     );
     expect(proxiedImageState.loading).toBe("eager");
+  });
+
+  it("renders duplicate tag labels once while preserving first-seen order", () => {
+    renderWithProviders(
+      <CategoryCard
+        category={fixtures.category({ tags: ["Tactical", "tactical", "RTS", "rts"] })}
+      />
+    );
+
+    expect(screen.getAllByTitle(/^(tactical|rts)$/i).map((tag) => tag.textContent)).toEqual([
+      "Tactical",
+      "RTS",
+    ]);
   });
 });

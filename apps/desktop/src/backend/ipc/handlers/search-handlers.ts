@@ -2,9 +2,19 @@ import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import { rankSearchChannels } from "@/search/channel-search-contract";
+import type { SearchResultCollection } from "@/search/search-result-validation";
+import type { UnifiedChannel } from "../../api/unified/platform-types";
 import type { Platform } from "../../../shared/auth-types";
+import type {
+  DiscoveryProviderCompletion,
+  DiscoveryResult,
+} from "../../../shared/discovery-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
+
+function failedProviders(platform?: Platform): DiscoveryProviderCompletion {
+  return platform ? { [platform]: "failed" } : { twitch: "failed", kick: "failed" };
+}
 
 /**
  * Helper to validate a channel object has the required fields
@@ -353,6 +363,14 @@ async function filterVerifiedChannels(
 }
 
 export function registerSearchHandlers(): void {
+  const activeBroadSearches = new Map<string, AbortController>();
+
+  ipcMain.handle(IPC_CHANNELS.SEARCH_CANCEL, async (_event, params: { requestId: string }) => {
+    const controller = activeBroadSearches.get(params.requestId);
+    controller?.abort(new DOMException("Stale search request", "AbortError"));
+    return { success: true, cancelled: controller !== undefined };
+  });
+
   /**
    * Search channels across platforms
    */
@@ -536,40 +554,56 @@ export function registerSearchHandlers(): void {
         query: string;
         platform?: Platform;
         limit?: number;
+        channelSeeds?: UnifiedChannel[];
+        channelSeedPlatforms?: Platform[];
+        requestId?: string;
       }
-    ) => {
+    ): Promise<DiscoveryResult<SearchResultCollection>> => {
       const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
+
+      const controller = new AbortController();
+      if (params.requestId) {
+        activeBroadSearches.set(params.requestId, controller);
+      }
 
       try {
         const kickUser = storageService.getKickUser();
         const twitchUser = storageService.getTwitchUser();
         const normalizedQuery = params.query.toLowerCase().trim();
         const channelFirstOnly = normalizedQuery.length === 1;
+        const twitchChannelSeeds = (params.channelSeeds ?? []).filter(
+          (channel) => channel.platform === "twitch"
+        );
+        const kickChannelSeeds = (params.channelSeeds ?? []).filter(
+          (channel) => channel.platform === "kick"
+        );
+        const twitchChannelsSeeded =
+          twitchChannelSeeds.length > 0 ||
+          (params.channelSeedPlatforms?.includes("twitch") ?? false);
+        const kickChannelsSeeded =
+          kickChannelSeeds.length > 0 || (params.channelSeedPlatforms?.includes("kick") ?? false);
 
-        const results: {
-          channels: any[];
-          categories: any[];
-          streams: any[];
-          videos: any[];
-          clips: any[];
-        } = {
+        const results: SearchResultCollection = {
           channels: [],
           categories: [],
           streams: [],
           videos: [],
           clips: [],
         };
+        const providers: Partial<Record<Platform, "complete" | "failed">> = {};
         const searchTasks: Promise<void>[] = [];
 
         if (!params.platform || params.platform === "twitch") {
           searchTasks.push(
             (async () => {
               try {
-                const channelSearch = twitchClient.searchChannels(params.query, {
-                  first: params.limit || 10,
-                  liveOnly: false,
-                });
+                const channelSearch = twitchChannelsSeeded
+                  ? Promise.resolve({ data: twitchChannelSeeds })
+                  : twitchClient.searchChannels(params.query, {
+                      first: params.limit || 10,
+                      liveOnly: false,
+                    });
                 const categorySearch = channelFirstOnly
                   ? Promise.resolve({ data: [] })
                   : twitchClient.searchCategories(params.query, { first: params.limit || 10 });
@@ -591,18 +625,15 @@ export function registerSearchHandlers(): void {
                 }
 
                 // Verify channels exist via Twitch API (filters deleted accounts)
-                const verifiedTwitchChannels = await filterVerifiedChannels(
-                  validChannels,
-                  "twitch"
-                );
+                const verifiedTwitchChannels = twitchChannelsSeeded
+                  ? validChannels
+                  : await filterVerifiedChannels(validChannels, "twitch");
                 results.channels.push(...verifiedTwitchChannels);
 
-                // Add live streams from verified channels
-                const liveChannels = verifiedTwitchChannels.filter((c) => c.isLive);
-                results.streams.push(...liveChannels.map((c) => ({ ...c, platform: "twitch" })));
-
                 results.categories.push(...categoryResult.data);
+                providers.twitch = "complete";
               } catch (err) {
+                providers.twitch = "failed";
                 logger.warn("IPC:Search", "Failed to search Twitch", {
                   error:
                     err instanceof Error
@@ -619,7 +650,9 @@ export function registerSearchHandlers(): void {
             (async () => {
               try {
                 if (channelFirstOnly) {
-                  const channelResult = await kickClient.searchChannels(params.query);
+                  const channelResult = kickChannelsSeeded
+                    ? { data: kickChannelSeeds }
+                    : await kickClient.searchChannels(params.query);
                   let channels = channelResult.data
                     .map((c) => ({ ...c, platform: "kick" }))
                     .filter(isValidChannel);
@@ -634,21 +667,18 @@ export function registerSearchHandlers(): void {
                     });
                   }
 
-                  const verifiedKickChannels = await filterVerifiedChannels(
-                    channels,
-                    "kick",
-                    normalizedQuery
-                  );
+                  const verifiedKickChannels = kickChannelsSeeded
+                    ? channels
+                    : await filterVerifiedChannels(channels, "kick", normalizedQuery);
                   results.channels.push(...verifiedKickChannels);
-                  results.streams.push(
-                    ...verifiedKickChannels
-                      .filter((c) => c.isLive)
-                      .map((c) => ({ ...c, platform: "kick" }))
-                  );
+                  providers.kick = "complete";
                   return;
                 }
 
-                const searchResult = await kickClient.search(params.query);
+                const searchResult = await kickClient.search(params.query, {
+                  channelSeeds: kickChannelsSeeded ? kickChannelSeeds : undefined,
+                  signal: controller.signal,
+                });
 
                 if (searchResult.channels) {
                   // Filter out invalid/deleted channels
@@ -667,11 +697,9 @@ export function registerSearchHandlers(): void {
                   }
 
                   // Enrich Kick channels; exact not-found is the only deletion signal.
-                  const verifiedKickChannels = await filterVerifiedChannels(
-                    channels,
-                    "kick",
-                    normalizedQuery
-                  );
+                  const verifiedKickChannels = kickChannelsSeeded
+                    ? channels
+                    : await filterVerifiedChannels(channels, "kick", normalizedQuery);
                   results.channels.push(...verifiedKickChannels);
                 }
 
@@ -699,7 +727,9 @@ export function registerSearchHandlers(): void {
                     ...searchResult.categories.map((c) => ({ ...c, platform: "kick" }))
                   );
                 }
+                providers.kick = "complete";
               } catch (err) {
+                providers.kick = "failed";
                 logger.warn("IPC:Search", "Failed to search Kick", {
                   error:
                     err instanceof Error
@@ -715,7 +745,7 @@ export function registerSearchHandlers(): void {
 
         results.channels = rankSearchChannels(results.channels, params.query);
 
-        return { success: true, data: results };
+        return { success: true, data: results, providers };
       } catch (error) {
         logger.error("IPC:Search", "Full search failed", {
           error:
@@ -723,7 +753,15 @@ export function registerSearchHandlers(): void {
               ? { name: error.name, message: error.message, stack: error.stack }
               : String(error),
         });
-        return { success: false, error: error instanceof Error ? error.message : "Search failed" };
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Search failed",
+          providers: failedProviders(params.platform),
+        };
+      } finally {
+        if (params.requestId && activeBroadSearches.get(params.requestId) === controller) {
+          activeBroadSearches.delete(params.requestId);
+        }
       }
     }
   );

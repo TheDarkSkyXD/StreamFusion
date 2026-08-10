@@ -9,6 +9,7 @@ import { logger } from "@/backend/logging/logger";
 // Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
 // Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
 // Guards: official Kick hidden-count zero is replaced only by a positive legacy count from the same channel and live session.
+// Guards: followed Kick streams recover thumbnails omitted by the official bulk response only from the same channel and live session.
 
 // Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
@@ -101,11 +102,13 @@ function createOfficialUserLivestream({
   userId = 230051,
   viewerCount = 0,
   startedAt = TAZO_STARTED_AT,
+  thumbnail = `https://example.com/${slug}.webp`,
 }: {
   slug?: string;
   userId?: number;
   viewerCount?: number;
   startedAt?: string;
+  thumbnail?: string;
 } = {}) {
   return {
     broadcaster_user: {
@@ -120,7 +123,7 @@ function createOfficialUserLivestream({
     language_code: "en",
     started_at: startedAt,
     tags: [],
-    thumbnail: `https://example.com/${slug}.webp`,
+    thumbnail,
     title: "Back in Japan",
     viewer_count: viewerCount,
   };
@@ -131,11 +134,13 @@ function createOfficialTopLivestream({
   userId = 230051,
   viewerCount = 0,
   startedAt = TAZO_STARTED_AT,
+  thumbnail = `https://example.com/${slug}.webp`,
 }: {
   slug?: string;
   userId?: number;
   viewerCount?: number;
   startedAt?: string;
+  thumbnail?: string;
 } = {}) {
   return {
     broadcaster_user_id: userId,
@@ -146,7 +151,7 @@ function createOfficialTopLivestream({
     language: "en",
     has_mature_content: false,
     viewer_count: viewerCount,
-    thumbnail: `https://example.com/${slug}.webp`,
+    thumbnail,
     profile_picture: `https://example.com/${slug}-avatar.webp`,
     started_at: startedAt,
     custom_tags: [],
@@ -270,6 +275,27 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     const second = await getPublicStreamBySlug("ac7ionman");
     expect(second?.id).toBe("999");
     expect(mockState.state.netRequestCalls).toHaveLength(1); // Still 1 — no second network hit.
+  });
+
+  it("refreshes a cached offline channel when an active viewer requests fresh status", async () => {
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        slug: "ac7ionman",
+        user: { username: "Ac7ionMan" },
+        livestream: null,
+      }),
+    });
+    mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
+
+    expect(await getPublicStreamBySlug("ac7ionman")).toBeNull();
+
+    const refreshed = await getPublicStreamBySlug("ac7ionman", 0, undefined, {
+      cacheMode: "refresh",
+    });
+
+    expect(refreshed?.id).toBe("999");
+    expect(mockState.state.netRequestCalls).toHaveLength(2);
   });
 
   it("seeds the Kick playback cache from the same channel payload", async () => {
@@ -417,6 +443,30 @@ describe("getStreamsByBroadcasterIds", () => {
     ]);
   });
 
+  it("recovers a missing followed-stream thumbnail from the matching live session", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
+    const { getStreamsByBroadcasterIds } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = {
+      request: vi.fn().mockResolvedValue({
+        data: [createOfficialUserLivestream({ viewerCount: 42, thumbnail: "" })],
+      }),
+    };
+
+    const result = await getStreamsByBroadcasterIds(client as any, [230051]);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        channelName: "tazo",
+        thumbnailUrl: "https://example.com/tazo.webp",
+      }),
+    ]);
+  });
+
   it("limits legacy viewer-count recovery to four concurrent requests", async () => {
     vi.resetModules();
     vi.useRealTimers();
@@ -490,6 +540,36 @@ describe("getStreamsByBroadcasterIds", () => {
 });
 
 describe("getStreamBySlug live-state authority", () => {
+  it("bypasses cached legacy offline evidence for an active-channel status refresh", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        slug: "ac7ionman",
+        user: { username: "Ac7ionMan" },
+        livestream: null,
+      }),
+    });
+    mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
+    const { getPublicStreamBySlug, getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const unavailableOfficialClient = {
+      request: vi.fn().mockRejectedValue(new Error("Official API unavailable")),
+    };
+
+    expect(await getPublicStreamBySlug("ac7ionman")).toBeNull();
+
+    const refreshed = await getStreamBySlug(unavailableOfficialClient as any, "ac7ionman", {
+      freshStatus: true,
+    });
+
+    expect(refreshed?.id).toBe("999");
+    expect(mockState.state.netRequestCalls).toHaveLength(2);
+  });
+
   it("preserves a positive official count without requesting the legacy endpoint", async () => {
     vi.resetModules();
     vi.useRealTimers();
@@ -729,6 +809,26 @@ describe("getTopStreams official viewer counts", () => {
     );
 
     expect(result.data[0]?.viewerCount).toBe(42);
+    expect(mockState.state.netRequestCalls).toHaveLength(0);
+  });
+
+  it("does not fan out legacy requests for missing thumbnails on top streams", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
+    const { getTopStreams } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getTopStreams(
+      createOfficialTopClient([
+        createOfficialTopLivestream({ viewerCount: 42, thumbnail: "" }),
+      ]) as any,
+      { limit: 20 }
+    );
+
+    expect(result.data[0]?.thumbnailUrl).toBe("");
     expect(mockState.state.netRequestCalls).toHaveLength(0);
   });
 

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { LuHeart, LuRefreshCw } from "react-icons/lu";
 import { toast } from "sonner";
 
@@ -9,7 +9,6 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFollowedChannels } from "@/hooks/queries/useChannels";
 import { useFollowedStreams } from "@/hooks/queries/useStreams";
-import { prefetchStreamPlayback } from "@/hooks/useStreamPlayback";
 import {
   dedupeChannelsByIdentity,
   dedupeStreamsByChannelIdentity,
@@ -29,7 +28,6 @@ interface SidebarFollowsProps {
   collapsed: boolean;
 }
 
-const KICK_PLAYBACK_PREFETCH_LIMIT = 6;
 const PLATFORM_LABELS: Record<Platform, string> = {
   twitch: "Twitch",
   kick: "Kick",
@@ -269,36 +267,6 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
 
     return visible;
   }, [allItems, visibleCount, collapsed]);
-
-  useEffect(() => {
-    const kickSlugs = visibleItems
-      .filter((item) => item.data.platform === "kick")
-      .map((item) => (item.type === "live" ? item.data.channelName : item.data.username))
-      .filter((slug): slug is string => Boolean(slug))
-      .slice(0, KICK_PLAYBACK_PREFETCH_LIMIT);
-
-    if (kickSlugs.length === 0) return;
-
-    const prefetchVisibleKickStreams = () => {
-      for (const slug of kickSlugs) {
-        void prefetchStreamPlayback("kick", slug);
-      }
-    };
-
-    if (import.meta.env.MODE === "test") {
-      prefetchVisibleKickStreams();
-      return;
-    }
-
-    if ("requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(prefetchVisibleKickStreams, { timeout: 2000 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-
-    // timer-allowlist: idle fallback for non-Chromium-compatible environments
-    const timeoutId = globalThis.setTimeout(prefetchVisibleKickStreams, 1000);
-    return () => globalThis.clearTimeout(timeoutId);
-  }, [visibleItems]);
 
   // Handlers for Show More/Less
   const handleShowMore = () => setVisibleCount((prev) => prev + 5);

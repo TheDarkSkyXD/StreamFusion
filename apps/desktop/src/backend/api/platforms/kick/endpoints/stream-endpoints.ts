@@ -264,7 +264,7 @@ const PUBLIC_STREAM_REQUEST_TIMEOUT_MS = 5000;
 // poll interval bounds "channel went live" detection latency to one extra
 // cycle at worst.
 const PUBLIC_STREAM_POLL_HIT_TTL_MS = 90 * 1000;
-const VIEWER_COUNT_RECOVERY_CONCURRENCY = 4;
+const LIVE_METADATA_RECOVERY_CONCURRENCY = 4;
 
 const CIRCUIT_PROBE_INTERVAL_MS = 5_000;
 let _lastProbeTimestamp = 0;
@@ -313,7 +313,8 @@ function staggerDelay(ms: number, signal?: AbortSignal): Promise<void> {
 export async function getPublicStreamBySlug(
   slug: string,
   staggerOffsetMs: number = 0,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: { cacheMode?: "default" | "refresh" } = {}
 ): Promise<UnifiedStream | null> {
   const key = slug.toLowerCase().trim();
 
@@ -352,9 +353,14 @@ export async function getPublicStreamBySlug(
   // still fresh. Sits after the failure check so a fresh failure preempts a
   // stale-but-not-yet-expired success. The success cache stores both live
   // streams and known-offline (`data: null`) channels, so this also avoids
-  // re-bursting for offline follows.
+  // re-bursting for offline follows. Active-channel checks may bypass this
+  // window so an offline-to-live transition is visible on the next UI poll.
   const cachedSuccess = _publicStreamSuccessCache.get(key);
-  if (cachedSuccess && Date.now() - cachedSuccess.timestamp < PUBLIC_STREAM_POLL_HIT_TTL_MS) {
+  if (
+    options.cacheMode !== "refresh" &&
+    cachedSuccess &&
+    Date.now() - cachedSuccess.timestamp < PUBLIC_STREAM_POLL_HIT_TTL_MS
+  ) {
     return cachedSuccess.data;
   }
 
@@ -391,12 +397,16 @@ export async function getPublicStreamBySlug(
 }
 
 /**
- * Kick's official API reports zero when a streamer hides their viewer count.
- * StreamFusion intentionally recovers that number from the legacy channel
+ * Recover live metadata omitted by Kick's official API from the legacy channel
  * payload, but only when channel identity and live-session start both match.
  */
-async function recoverKickViewerCount(stream: UnifiedStream): Promise<UnifiedStream> {
-  if (!stream.isLive || stream.viewerCount !== 0) return stream;
+async function recoverKickLiveMetadata(
+  stream: UnifiedStream,
+  recoverMissingThumbnail: boolean
+): Promise<UnifiedStream> {
+  const needsViewerCount = stream.viewerCount === 0;
+  const needsThumbnail = recoverMissingThumbnail && !stream.thumbnailUrl.trim();
+  if (!stream.isLive || (!needsViewerCount && !needsThumbnail)) return stream;
 
   try {
     const fallback = await getPublicStreamBySlug(stream.channelName);
@@ -410,16 +420,21 @@ async function recoverKickViewerCount(stream: UnifiedStream): Promise<UnifiedStr
       Number.isFinite(officialStartedAt) &&
       Number.isFinite(fallbackStartedAt) &&
       officialStartedAt === fallbackStartedAt;
-    if (
-      sameChannel &&
-      sameLiveSession &&
-      Number.isFinite(fallback.viewerCount) &&
-      fallback.viewerCount > 0
-    ) {
-      return { ...stream, viewerCount: fallback.viewerCount };
+    if (sameChannel && sameLiveSession) {
+      return {
+        ...stream,
+        viewerCount:
+          needsViewerCount && Number.isFinite(fallback.viewerCount) && fallback.viewerCount > 0
+            ? fallback.viewerCount
+            : stream.viewerCount,
+        thumbnailUrl:
+          needsThumbnail && fallback.thumbnailUrl.trim()
+            ? fallback.thumbnailUrl
+            : stream.thumbnailUrl,
+      };
     }
   } catch (error) {
-    logger.debug("Kick:Endpoints:Stream", "Legacy viewer-count recovery failed", {
+    logger.debug("Kick:Endpoints:Stream", "Legacy live-metadata recovery failed", {
       channelName: stream.channelName,
       error:
         error instanceof Error
@@ -431,18 +446,27 @@ async function recoverKickViewerCount(stream: UnifiedStream): Promise<UnifiedStr
   return stream;
 }
 
-async function recoverKickViewerCounts(streams: UnifiedStream[]): Promise<UnifiedStream[]> {
+async function recoverKickLiveMetadataBatch(
+  streams: UnifiedStream[],
+  options: { recoverMissingThumbnails?: boolean } = {}
+): Promise<UnifiedStream[]> {
   const recovered = [...streams];
   const candidates = streams
     .map((stream, index) => ({ stream, index }))
     .filter(
-      ({ stream }) => stream.platform === "kick" && stream.isLive && stream.viewerCount === 0
+      ({ stream }) =>
+        stream.platform === "kick" &&
+        stream.isLive &&
+        (stream.viewerCount === 0 ||
+          (options.recoverMissingThumbnails && !stream.thumbnailUrl.trim()))
     );
 
-  for (let offset = 0; offset < candidates.length; offset += VIEWER_COUNT_RECOVERY_CONCURRENCY) {
-    const batch = candidates.slice(offset, offset + VIEWER_COUNT_RECOVERY_CONCURRENCY);
+  for (let offset = 0; offset < candidates.length; offset += LIVE_METADATA_RECOVERY_CONCURRENCY) {
+    const batch = candidates.slice(offset, offset + LIVE_METADATA_RECOVERY_CONCURRENCY);
     const batchResults = await Promise.all(
-      batch.map(({ stream }) => recoverKickViewerCount(stream))
+      batch.map(({ stream }) =>
+        recoverKickLiveMetadata(stream, options.recoverMissingThumbnails === true)
+      )
     );
     batch.forEach(({ index }, batchIndex) => {
       recovered[index] = batchResults[batchIndex];
@@ -665,7 +689,8 @@ async function _doFetchPublicStreamBySlug(
  */
 export async function getStreamBySlug(
   client: KickRequestor,
-  slug: string
+  slug: string,
+  options: { freshStatus?: boolean } = {}
 ): Promise<UnifiedStream | null> {
   const normalizedSlug = slug.toLowerCase().trim();
 
@@ -741,7 +766,12 @@ export async function getStreamBySlug(
   }
 
   try {
-    const publicStream = await getPublicStreamBySlug(slug);
+    const publicStream = await getPublicStreamBySlug(
+      slug,
+      0,
+      undefined,
+      options.freshStatus ? { cacheMode: "refresh" } : undefined
+    );
     if (!publicStream) return null;
 
     if (publicStream.channelName.toLowerCase() === normalizedSlug) {
@@ -807,7 +837,7 @@ export async function getStreamsByBroadcasterIds(
     }
   }
 
-  return recoverKickViewerCounts(streams);
+  return recoverKickLiveMetadataBatch(streams, { recoverMissingThumbnails: true });
 }
 
 /**
@@ -1198,7 +1228,7 @@ export async function getTopStreams(
       });
     }
 
-    const streams = await recoverKickViewerCounts(
+    const streams = await recoverKickLiveMetadataBatch(
       rawStreams.map((s) => {
         const stream = transformKickLivestream(s);
         const user = userMap.get(s.broadcaster_user_id);

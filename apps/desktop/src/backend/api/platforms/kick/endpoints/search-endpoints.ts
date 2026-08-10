@@ -415,30 +415,32 @@ export async function searchChannels(
  */
 export async function search(
   client: KickRequestor,
-  query: string
+  query: string,
+  options: { channelSeeds?: UnifiedChannel[]; signal?: AbortSignal } = {}
 ): Promise<{ channels: any[]; categories: any[]; streams: any[]; videos: any[]; clips: any[] }> {
   const [categoriesResult, channelsResult] = await Promise.all([
-    searchCategories(client, query),
-    searchChannels(client, query),
+    searchCategories(client, query, { signal: options.signal }),
+    options.channelSeeds
+      ? Promise.resolve({ data: options.channelSeeds })
+      : searchChannels(client, query),
   ]);
 
   // If we found channels, check if they are live and get their stream info
   const streams: UnifiedStream[] = [];
 
-  const streamResults = await Promise.all(
-    channelsResult.data
-      .filter((channel) => channel.isLive)
-      .map((channel) =>
-        getStreamBySlug(client, channel.username).catch((error) => {
-          logger.debug("Kick:Endpoints:Search", "Failed to hydrate live stream result", {
-            channel: channel.username,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return null;
-        })
-      )
-  );
-  streams.push(...streamResults.filter((stream): stream is UnifiedStream => stream !== null));
+  for (const channel of channelsResult.data.filter((candidate) => candidate.isLive)) {
+    if (options.signal?.aborted) break;
+
+    try {
+      const stream = await getStreamBySlug(client, channel.username);
+      if (stream) streams.push(stream);
+    } catch (error) {
+      logger.debug("Kick:Endpoints:Search", "Failed to hydrate live stream result", {
+        channel: channel.username,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   return {
     channels: channelsResult.data,

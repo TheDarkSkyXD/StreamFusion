@@ -62,9 +62,11 @@ export interface UnifiedChannel {
   lastStreamTitle?: string;
   // Kick-specific: chatroom ID for Pusher WebSocket subscription
   chatroomId?: number;
-  // Kick-specific: broadcaster `user_id` (distinct from `id`, which is the
-  // channel/db id). 7TV's KICK connection is keyed by this user_id, so it's
-  // required to resolve a Kick channel's 7TV emotes. Absent for Twitch.
+  // Kick-specific: legacy channel/db ID used by web-only channel endpoints.
+  // This differs from the official API's broadcaster identity in `id`.
+  kickChannelId?: string;
+  // Kick-specific: broadcaster `user_id`. 7TV's KICK connection is keyed by
+  // this user_id, so it is kept explicit even when it matches `id`.
   kickUserId?: string;
   // Kick-specific: subscriber badges
   subscriberBadges?: any[];

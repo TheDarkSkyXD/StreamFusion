@@ -2,8 +2,45 @@ import { ipcMain } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
+import type { DiscoveryResult } from "../../../shared/discovery-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { UnifiedCategory } from "../../api/unified/platform-types";
+
+interface CategoryPage {
+  data: UnifiedCategory[];
+  cursor?: string;
+}
+
+const categoryRequests = new Map<string, Promise<CategoryPage>>();
+let twitchClientModule: Promise<typeof import("../../api/platforms/twitch/twitch-client")> | null =
+  null;
+let kickClientModule: Promise<typeof import("../../api/platforms/kick/kick-client")> | null = null;
+
+function loadTwitchClient() {
+  twitchClientModule ??= import("../../api/platforms/twitch/twitch-client");
+  return twitchClientModule;
+}
+
+function loadKickClient() {
+  kickClientModule ??= import("../../api/platforms/kick/kick-client");
+  return kickClientModule;
+}
+
+function shareCategoryRequest(
+  key: string,
+  load: () => Promise<CategoryPage>
+): Promise<CategoryPage> {
+  const existing = categoryRequests.get(key);
+  if (existing) return existing;
+
+  const request = load();
+  categoryRequests.set(key, request);
+  const clear = () => {
+    if (categoryRequests.get(key) === request) categoryRequests.delete(key);
+  };
+  void request.then(clear, clear);
+  return request;
+}
 
 export function registerCategoryHandlers(): void {
   /**
@@ -22,16 +59,41 @@ export function registerCategoryHandlers(): void {
         limit?: number;
         cursor?: string;
       } = {}
-    ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
+    ): Promise<DiscoveryResult<UnifiedCategory[]>> => {
       try {
         // Single platform request
         if (params.platform === "twitch") {
           try {
-            const twitchCategories = await twitchClient.getAllTopCategories();
-            return { success: true, platform: "twitch", data: twitchCategories };
+            const { twitchClient } = await loadTwitchClient();
+            if (params.limit !== undefined || params.cursor !== undefined) {
+              const result = await shareCategoryRequest(
+                `twitch:${params.limit ?? "default"}:${params.cursor ?? "first"}`,
+                () =>
+                  twitchClient.getTopCategories({
+                    first: params.limit,
+                    after: params.cursor,
+                  })
+              );
+              return {
+                success: true,
+                platform: "twitch",
+                data: result.data,
+                cursor: result.cursor,
+                providers: { twitch: "complete" },
+              };
+            }
+            const { data: twitchCategories } = await shareCategoryRequest(
+              "twitch:all",
+              async () => ({
+                data: await twitchClient.getAllTopCategories(),
+              })
+            );
+            return {
+              success: true,
+              platform: "twitch",
+              data: twitchCategories,
+              providers: { twitch: "complete" },
+            };
           } catch (err) {
             logger.warn("IPC:Category", "Failed to fetch Twitch top categories", {
               error:
@@ -39,14 +101,43 @@ export function registerCategoryHandlers(): void {
                   ? { name: err.name, message: err.message, stack: err.stack }
                   : String(err),
             });
-            return { success: false, error: "Failed to fetch Twitch categories" };
+            return {
+              success: false,
+              error: "Failed to fetch Twitch categories",
+              providers: { twitch: "failed" },
+            };
           }
         }
 
         if (params.platform === "kick") {
           try {
-            const kickCategories = await kickClient.getAllCategories();
-            return { success: true, platform: "kick", data: kickCategories };
+            const { kickClient } = await loadKickClient();
+            if (params.limit !== undefined || params.cursor !== undefined) {
+              const result = await shareCategoryRequest(
+                `kick:${params.limit ?? "default"}:${params.cursor ?? "first"}`,
+                () =>
+                  kickClient.getTopCategories({
+                    limit: params.limit,
+                    cursor: params.cursor,
+                  })
+              );
+              return {
+                success: true,
+                platform: "kick",
+                data: result.data,
+                cursor: result.cursor,
+                providers: { kick: "complete" },
+              };
+            }
+            const { data: kickCategories } = await shareCategoryRequest("kick:all", async () => ({
+              data: await kickClient.getAllCategories(),
+            }));
+            return {
+              success: true,
+              platform: "kick",
+              data: kickCategories,
+              providers: { kick: "complete" },
+            };
           } catch (err) {
             logger.warn("IPC:Category", "Failed to fetch Kick top categories", {
               error:
@@ -54,42 +145,56 @@ export function registerCategoryHandlers(): void {
                   ? { name: err.name, message: err.message, stack: err.stack }
                   : String(err),
             });
-            return { success: false, error: "Failed to fetch Kick categories" };
+            return {
+              success: false,
+              error: "Failed to fetch Kick categories",
+              providers: { kick: "failed" },
+            };
           }
         }
 
         // Both platforms - fetch both and return combined
         // De-duplication happens in useCategories hook (Twitch priority, Slots exception)
-        let twitchCategories: UnifiedCategory[] = [];
-        let kickCategories: UnifiedCategory[] = [];
-
-        try {
-          // Fetch ALL Twitch categories
-          twitchCategories = await twitchClient.getAllTopCategories();
-        } catch (err) {
-          logger.warn("IPC:Category", "Failed to fetch Twitch top categories", {
-            error:
-              err instanceof Error
-                ? { name: err.name, message: err.message, stack: err.stack }
-                : String(err),
-          });
-        }
-
-        try {
-          // Fetch Kick categories (rate-limited sequential fetch)
-          kickCategories = await kickClient.getAllCategories();
-        } catch (err) {
-          logger.warn("IPC:Category", "Failed to fetch Kick top categories", {
-            error:
-              err instanceof Error
-                ? { name: err.name, message: err.message, stack: err.stack }
-                : String(err),
-          });
-        }
+        const [{ twitchClient }, { kickClient }] = await Promise.all([
+          loadTwitchClient(),
+          loadKickClient(),
+        ]);
+        const [twitchResult, kickResult] = await Promise.all([
+          shareCategoryRequest("twitch:all", async () => ({
+            data: await twitchClient.getAllTopCategories(),
+          }))
+            .then((result) => ({ data: result.data, status: "complete" as const }))
+            .catch((err) => {
+              logger.warn("IPC:Category", "Failed to fetch Twitch top categories", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
+              return { data: [] as UnifiedCategory[], status: "failed" as const };
+            }),
+          shareCategoryRequest("kick:all", async () => ({
+            data: await kickClient.getAllCategories(),
+          }))
+            .then((result) => ({ data: result.data, status: "complete" as const }))
+            .catch((err) => {
+              logger.warn("IPC:Category", "Failed to fetch Kick top categories", {
+                error:
+                  err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : String(err),
+              });
+              return { data: [] as UnifiedCategory[], status: "failed" as const };
+            }),
+        ]);
 
         // Return combined - frontend handles de-dup and Slots image swap
-        const allCategories = [...twitchCategories, ...kickCategories];
-        return { success: true, data: allCategories };
+        const allCategories = [...twitchResult.data, ...kickResult.data];
+        return {
+          success: true,
+          data: allCategories,
+          providers: { twitch: twitchResult.status, kick: kickResult.status },
+        };
       } catch (error) {
         logger.error("IPC:Category", "Failed to get top categories", {
           error:
@@ -100,6 +205,9 @@ export function registerCategoryHandlers(): void {
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch categories",
+          providers: params.platform
+            ? { [params.platform]: "failed" }
+            : { twitch: "failed", kick: "failed" },
         };
       }
     }
@@ -166,9 +274,8 @@ export function registerCategoryHandlers(): void {
     ) => {
       try {
         if (params.platform === "twitch") {
-          const { gqlGetGameMetadata } = await import(
-            "../../api/platforms/twitch/twitch-gql-client"
-          );
+          const { gqlGetGameMetadata } =
+            await import("../../api/platforms/twitch/twitch-gql-client");
           const meta = await gqlGetGameMetadata(params.categoryId);
           return { success: true, data: { tags: meta?.tags ?? [] } };
         }

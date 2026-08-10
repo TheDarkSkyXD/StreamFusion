@@ -36,6 +36,7 @@ vi.mock("@/backend/auth/kick-auth", () => ({
 describe("kickClient.fetchImageBytes — network-down gate", () => {
   // Guards: fetchImageBytes must reach its network boundary even when isPlatformHealthy() is false; one-shot image fetches that short-circuit leave the caller latched on the error fallback until remount (regression: this PR).
 
+  // Guards: a transient first-attempt timeout must retry the same real Kick image URL before the protocol reports the thumbnail unavailable.
   let kickClient: typeof import("@/backend/api/platforms/kick/kick-client").kickClient;
 
   beforeEach(async () => {
@@ -77,5 +78,21 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
     expect(result).not.toBeNull();
     expect(result?.buffer.equals(Buffer.from([1, 2, 3, 4]))).toBe(true);
     expect(result?.contentType).toBe("image/webp");
+  });
+
+  it("retries a transient image timeout with a longer bounded timeout", async () => {
+    const fakeBytes = { buffer: Buffer.from([5, 6, 7, 8]), contentType: "image/webp" };
+    const spy = vi
+      // biome-ignore lint/suspicious/noExplicitAny: private-method test seam
+      .spyOn(kickClient as any, "electronRequestBinary")
+      .mockRejectedValueOnce(new Error("The operation was aborted due to timeout"))
+      .mockResolvedValueOnce({ ...fakeBytes, statusCode: 200 });
+
+    const url = "https://images.kick.com/video_thumbnails/channel/video/720.webp";
+    const result = await kickClient.fetchImageBytes(url);
+
+    expect(spy).toHaveBeenNthCalledWith(1, url, expect.any(Object), 3000);
+    expect(spy).toHaveBeenNthCalledWith(2, url, expect.any(Object), 8000);
+    expect(result?.buffer.equals(fakeBytes.buffer)).toBe(true);
   });
 });

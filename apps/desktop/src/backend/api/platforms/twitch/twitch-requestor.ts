@@ -14,7 +14,7 @@ export class TwitchRequestor {
     if (!this.config.clientId) {
       logger.error(
         "Twitch:Requestor",
-        "TWITCH_CLIENT_ID is missing! Twitch API requests will fail. Check .env or build configuration."
+        "Twitch public client ID is missing; Twitch API requests will fail."
       );
     }
   }

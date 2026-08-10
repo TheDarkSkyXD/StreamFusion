@@ -2,7 +2,6 @@ import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import type {
-  UnifiedCategory,
   UnifiedChannel,
   UnifiedStream,
 } from "@/backend/api/unified/platform-types";
@@ -13,7 +12,13 @@ import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { hydratePersistedChatHistory } from "@/store/persisted-chat-history";
 import { getPersistedChannelEntries, hydratePersistedChannelLru } from "./persisted-channel-lru";
+import { sanitizePersistedCategoryCatalog } from "./persisted-category-catalog";
 import { getPersistedSearchEntries, hydratePersistedSearchLru } from "./persisted-search-lru";
+import {
+  getPersistedSearchResultEntries,
+  hydratePersistedSearchResultsLru,
+  sanitizePersistedSearchResult,
+} from "./persisted-search-results-lru";
 import { loadPersistedSnapshot } from "./persisted-snapshot";
 import { CATEGORY_KEYS } from "./useCategories";
 import { CHANNEL_KEYS } from "./useChannels";
@@ -60,6 +65,14 @@ function isFresh(snapshot: StoredSnapshot<unknown> | null, maxAgeMs: number): bo
     snapshot?.version === 1 &&
     Number.isFinite(snapshot.savedAt) &&
     Date.now() - snapshot.savedAt <= maxAgeMs
+  );
+}
+
+function isValidPastSnapshot(snapshot: StoredSnapshot<unknown> | null): boolean {
+  return (
+    snapshot?.version === 1 &&
+    Number.isFinite(snapshot.savedAt) &&
+    snapshot.savedAt <= Date.now()
   );
 }
 
@@ -137,6 +150,7 @@ export async function hydratePersistedFollowingSnapshots(
 
 export async function hydratePersistedBrowseSnapshots(client: QueryClient): Promise<void> {
   const searchLruHydration = hydratePersistedSearchLru();
+  const searchResultsLruHydration = hydratePersistedSearchResultsLru();
   const channelLruHydration = hydratePersistedChannelLru();
   const chatHistoryHydration = hydratePersistedChatHistory();
   const platforms: Array<Platform | undefined> = [undefined, "twitch", "kick"];
@@ -159,19 +173,13 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
           );
           void prewarmViewportImages(streamImages(snapshot.data));
         }),
-        readSlot<UnifiedCategory[]>(`categories:${suffix}`).then((snapshot) => {
+        readSlot<unknown>(`categories:${suffix}`).then((snapshot) => {
           const identity = decodeIdentity(snapshot?.identity ?? "");
-          if (!isFresh(snapshot, ONE_DAY) || !snapshot?.data.length || identity !== suffix) return;
-          setIfAbsent(client, CATEGORY_KEYS.top(platform), snapshot.data, snapshot.savedAt);
-          for (const category of snapshot.data) {
-            setIfAbsent(
-              client,
-              CATEGORY_KEYS.byId(category.id, category.platform),
-              category,
-              snapshot.savedAt
-            );
-          }
-          void prewarmViewportImages(snapshot.data.map((category) => category.boxArtUrl));
+          if (!isValidPastSnapshot(snapshot) || identity !== suffix) return;
+          const categories = sanitizePersistedCategoryCatalog(snapshot?.data, platform);
+          if (!categories || !snapshot) return;
+          setIfAbsent(client, CATEGORY_KEYS.top(platform), categories, 0);
+          void prewarmViewportImages(categories.map((category) => category.boxArtUrl));
         }),
         readSlot<InfiniteData<StreamPage, unknown>>(`category-streams:${suffix}`).then(
           (snapshot) => {
@@ -215,23 +223,17 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
         platform?: string;
         limit?: number;
       } | null;
-      const count = snapshot
-        ? snapshot.data.channels.length +
-          snapshot.data.categories.length +
-          snapshot.data.streams.length +
-          snapshot.data.videos.length +
-          snapshot.data.clips.length
-        : 0;
-      if (!isFresh(snapshot, ONE_HOUR) || count === 0) return;
+      const data = sanitizePersistedSearchResult(snapshot?.data);
+      if (!isFresh(snapshot, ONE_HOUR) || !data) return;
       if (identity?.platform !== platform || !identity.query || !Number.isFinite(identity.limit))
         return;
       setIfAbsent(
         client,
         SEARCH_KEYS.everything(identity.query, platform, identity.limit),
-        snapshot?.data,
+        data,
         snapshot?.savedAt
       );
-      if (snapshot) void prewarmViewportImages(searchImages(snapshot.data));
+      void prewarmViewportImages(searchImages(data));
     })
   );
 
@@ -244,6 +246,17 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
     // Seed as stale so the exact cached first page paints immediately while
     // TanStack starts the live platform refresh in the background on use.
     setIfAbsent(client, key, entry.data, 0);
+  }
+
+  await searchResultsLruHydration;
+  for (const entry of getPersistedSearchResultEntries()) {
+    setIfAbsent(
+      client,
+      SEARCH_KEYS.everything(entry.query, entry.platform, entry.limit),
+      entry.data,
+      0
+    );
+    void prewarmViewportImages(searchImages(entry.data));
   }
 
   await channelLruHydration;

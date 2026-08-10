@@ -36,7 +36,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-// Guards: useFollowedChannels swallows error responses and returns [] so a Helix auth failure doesn't break the followed sidebar into a query-error boundary
+// Guards: followed-channel IPC failures remain query errors so Following can distinguish retryable errors from a genuine zero-result response.
 // Guards: useFollowedChannels stays idle when enabled=false — guest state must not fan out IPC on first render
 // Guards: useChannelByUsername threads (username, platform) verbatim through IPC so a Kick lookup never accidentally hits Twitch
 // Guards: fresh canonical channel lookups self-heal stale followed usernames through the follow-store boundary.
@@ -87,14 +87,14 @@ describe("useFollowedChannels", () => {
     });
   });
 
-  it("returns empty array on error instead of throwing", async () => {
+  it("returns an error when the followed-channel IPC request fails", async () => {
     api.channels.getFollowed = vi.fn(async () => ({ data: null, error: "auth" }));
     const { result } = renderHook(
       () => useFollowedChannels("kick", { enabled: true }),
       { wrapper: makeWrapper() }
     );
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 2_500 });
+    expect(result.current.error).toEqual(new Error("auth"));
   });
 
   it("does not fetch when enabled=false", async () => {

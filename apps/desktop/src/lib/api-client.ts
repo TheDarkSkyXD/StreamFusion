@@ -25,7 +25,7 @@ const apiClient = ky.create({
       },
     ],
     afterResponse: [
-      (request, _options, response) => {
+      ({ request, response }) => {
         if (response.ok) return;
         // Any non-2xx is logged at error so it surfaces in the Logs viewer's
         // Error filter — matches what DevTools shows (red text for every

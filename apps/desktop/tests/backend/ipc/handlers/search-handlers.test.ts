@@ -54,7 +54,30 @@ import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { getFollowerCounts } from "@/backend/api/platforms/twitch/endpoints/user-endpoints";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { registerSearchHandlers } from "@/backend/ipc/handlers/search-handlers";
+import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { storageService } from "@/backend/services/storage-service";
+import type { SearchResultCollection } from "@/search/search-result-validation";
+import type { DiscoveryResult } from "@/shared/discovery-types";
+
+type SearchAllResult = DiscoveryResult<SearchResultCollection>;
+type SearchAllSuccess = Extract<SearchAllResult, { success: true }>;
+
+function channel(
+  id: string,
+  platform: "twitch" | "kick",
+  username: string
+): UnifiedChannel {
+  return {
+    id,
+    platform,
+    username,
+    displayName: username,
+    avatarUrl: "",
+    isLive: true,
+    isVerified: false,
+    isPartner: false,
+  };
+}
 
 type Handler = (event: unknown, params: unknown) => Promise<unknown>;
 
@@ -87,12 +110,16 @@ beforeEach(() => {
 
 // Guards: search IPC keeps platform failures isolated and returns partial results instead of blocking the UI.
 // Guards: full search starts Twitch and Kick work in parallel so the search results page waits for the slower platform, not both in sequence.
+// Guards: broad hydration reuses completed quick-search results, including empty providers, instead of repeating platform channel discovery.
+// Guards: cancelling a stale broad request aborts its remaining backend fan-out.
 // Guards: the live-only constraint reaches Kick search, where its fallback policy can preserve stream-picker correctness.
+// Guards: broad result collections never place channel-shaped records in the streams field.
 describe("registerSearchHandlers", () => {
   it("registers both search channels", () => {
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(channels).toContain(IPC_CHANNELS.SEARCH_CHANNELS);
     expect(channels).toContain(IPC_CHANNELS.SEARCH_ALL);
+    expect(channels).toContain(IPC_CHANNELS.SEARCH_CANCEL);
   });
 });
 
@@ -674,6 +701,105 @@ describe("SEARCH_CHANNELS", () => {
 });
 
 describe("SEARCH_ALL", () => {
+  it("aborts remaining broad work when the renderer cancels a stale request", async () => {
+    const pendingKick = deferred<Awaited<ReturnType<typeof kickClient.search>>>();
+    let requestSignal: AbortSignal | undefined;
+    vi.mocked(kickClient.search).mockImplementation(
+      (_query, options: Parameters<typeof kickClient.search>[1]) => {
+      requestSignal = options?.signal;
+      return pendingKick.promise;
+      }
+    );
+
+    const searchHandler = getHandler(IPC_CHANNELS.SEARCH_ALL);
+    const cancelHandler = getHandler(IPC_CHANNELS.SEARCH_CANCEL);
+    const pending = searchHandler({}, { query: "old", platform: "kick", requestId: "search-old" });
+
+    await vi.waitFor(() => expect(requestSignal).toBeDefined());
+    await cancelHandler({}, { requestId: "search-old" });
+
+    expect(requestSignal?.aborted).toBe(true);
+    pendingKick.resolve({ channels: [], categories: [], streams: [], videos: [], clips: [] });
+    await pending;
+  });
+
+  it("reuses quick-search channel seeds without repeating platform channel discovery", async () => {
+    const twitchSeed = channel("t-xqc", "twitch", "xqc");
+    const kickSeed = channel("k-xqc", "kick", "xqc");
+    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
+    vi.mocked(kickClient.search).mockResolvedValue({
+      channels: [kickSeed],
+      streams: [],
+      categories: [],
+      videos: [],
+      clips: [],
+    });
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
+    const result = (await handler(
+      {},
+      { query: "xqc", channelSeeds: [twitchSeed, kickSeed] }
+    )) as SearchAllSuccess;
+
+    expect(twitchClient.searchChannels).not.toHaveBeenCalled();
+    expect(kickClient.search).toHaveBeenCalledWith(
+      "xqc",
+      expect.objectContaining({ channelSeeds: [kickSeed], signal: expect.any(AbortSignal) })
+    );
+    expect(result.data.channels).toEqual(expect.arrayContaining([twitchSeed, kickSeed]));
+  });
+
+  it("keeps a live Twitch channel seed in channels without synthesizing an invalid stream", async () => {
+    const twitchSeed = channel("t-live-xqc", "twitch", "xqc");
+    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
+    const result = (await handler(
+      {},
+      { query: "xqc", platform: "twitch", channelSeeds: [twitchSeed] }
+    )) as SearchAllSuccess;
+
+    expect(result.data.channels).toEqual([twitchSeed]);
+    expect(result.data.streams).toEqual([]);
+  });
+
+  it("does not repeat channel discovery when completed quick searches were empty", async () => {
+    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
+    vi.mocked(kickClient.search).mockResolvedValue({
+      channels: [],
+      streams: [],
+      categories: [],
+      videos: [],
+      clips: [],
+    });
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
+    await handler(
+      {},
+      { query: "missing", channelSeeds: [], channelSeedPlatforms: ["twitch", "kick"] }
+    );
+
+    expect(twitchClient.searchChannels).not.toHaveBeenCalled();
+    expect(kickClient.search).toHaveBeenCalledWith(
+      "missing",
+      expect.objectContaining({ channelSeeds: [], signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it("reuses Kick channel seeds for one-letter channel-first hydration", async () => {
+    const kickSeed = channel("k-x", "kick", "xqc");
+
+    const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
+    const result = (await handler(
+      {},
+      { query: "x", platform: "kick", channelSeeds: [kickSeed] }
+    )) as SearchAllSuccess;
+
+    expect(kickClient.searchChannels).not.toHaveBeenCalled();
+    expect(result.data.channels).toEqual([kickSeed]);
+    expect(result.data.streams).toEqual([]);
+  });
+
   it("returns structured results with channels, categories, streams, videos, clips", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [{ id: "1", username: "chan", displayName: "Chan", isLive: true }],
@@ -792,7 +918,7 @@ describe("SEARCH_ALL", () => {
     expect(result.data.channels).toEqual([]);
   });
 
-  it("adds live Twitch channels to streams array", async () => {
+  it("does not misclassify a live Twitch channel as a stream", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [{ id: "1", username: "live", displayName: "Live", isLive: true }],
       cursor: undefined,
@@ -807,8 +933,8 @@ describe("SEARCH_ALL", () => {
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
     const result = (await handler({}, { query: "live" })) as any;
 
-    expect(result.data.streams).toHaveLength(1);
-    expect(result.data.streams[0].platform).toBe("twitch");
+    expect(result.data.channels).toHaveLength(1);
+    expect(result.data.streams).toEqual([]);
   });
 
   it("searches only Twitch when platform=twitch", async () => {
@@ -937,11 +1063,12 @@ describe("SEARCH_ALL", () => {
 
     expect(result.success).toBe(true);
     expect(result.data.channels.length).toBe(1);
+    expect(result.providers).toEqual({ twitch: "failed", kick: "complete" });
   });
 
   it("starts Kick full search before Twitch full search resolves", async () => {
-    const twitchChannels = deferred<any>();
-    const twitchCategories = deferred<any>();
+    const twitchChannels = deferred<Awaited<ReturnType<typeof twitchClient.searchChannels>>>();
+    const twitchCategories = deferred<Awaited<ReturnType<typeof twitchClient.searchCategories>>>();
     vi.mocked(twitchClient.searchChannels).mockReturnValue(twitchChannels.promise);
     vi.mocked(twitchClient.searchCategories).mockReturnValue(twitchCategories.promise);
     vi.mocked(kickClient.search).mockResolvedValue({
@@ -953,11 +1080,16 @@ describe("SEARCH_ALL", () => {
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
     const pending = handler({}, { query: "test" });
 
-    await vi.waitFor(() => expect(kickClient.search).toHaveBeenCalledWith("test"));
+    await vi.waitFor(() =>
+      expect(kickClient.search).toHaveBeenCalledWith(
+        "test",
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+    );
 
     twitchChannels.resolve({ data: [], cursor: undefined });
     twitchCategories.resolve({ data: [] });
-    const result = (await pending) as any;
+    const result = (await pending) as SearchAllSuccess;
 
     expect(result.success).toBe(true);
     expect(result.data.channels).toHaveLength(1);
@@ -977,7 +1109,7 @@ describe("SEARCH_ALL", () => {
 
     expect(result.success).toBe(true);
     expect(result.data.channels).toHaveLength(2);
-    expect(result.data.streams).toHaveLength(1);
+    expect(result.data.streams).toEqual([]);
     expect(result.data.categories).toEqual([]);
     expect(twitchClient.searchCategories).not.toHaveBeenCalled();
     expect(kickClient.search).not.toHaveBeenCalled();

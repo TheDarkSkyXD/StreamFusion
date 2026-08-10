@@ -5,6 +5,9 @@ vi.mock("electron", () => ({
   BrowserWindow: vi.fn(),
   session: {
     defaultSession: {
+      cookies: {
+        get: vi.fn(() => Promise.resolve([{ name: "session_token" }])),
+      },
       webRequest: { onBeforeSendHeaders: vi.fn() },
     },
   },
@@ -39,6 +42,15 @@ import {
   timeoutKickChatUser,
   type KickSendResult,
 } from "@/backend/api/platforms/kick/kick-send-window";
+
+beforeEach(async () => {
+  const { session } = await import("electron");
+  vi.mocked(session.defaultSession.cookies.get)
+    .mockReset()
+    .mockResolvedValue([
+      { name: "session_token", value: "present", sameSite: "unspecified" },
+    ]);
+});
 
 afterEach(() => {
   clearBearerForTest();
@@ -272,6 +284,22 @@ describe("installBearerInterceptor", () => {
     expect(cb).toHaveBeenCalledWith({ requestHeaders: { Authorization: "Bearer 1|abc" } });
   });
 
+  it("captures a Sanctum bearer when Chromium lowercases the header name", () => {
+    const fake = makeFakeSession();
+    installBearerInterceptor(fake.session);
+    const cb = vi.fn();
+
+    fake.listener!(
+      {
+        requestHeaders: { authorization: "Bearer 1|lowercase" },
+        url: "https://kick.com/api/v2/anything",
+      },
+      cb
+    );
+
+    expect(getBearerForTest()).toBe("Bearer 1|lowercase");
+  });
+
   it("ignores non-Sanctum Authorization values", () => {
     setBearerForTest("Bearer 1|previous");
     const fake = makeFakeSession();
@@ -328,7 +356,20 @@ describe("isSanctumBearer", () => {
 // (per U20.c speed-fix); WARMUP_TIMEOUT_MS is 10s in the source and the polling uses sleep()
 // (setTimeout) inside _pollPredicate so vi.advanceTimersByTimeAsync drains the loop without
 // burning real wall-clock.
+// Guards: a missing default-session cookie fails before constructing or retrying a hidden window.
 describe("ensureSendWindowReady", () => {
+  it("fails fast without creating a hidden window when the session cookie is absent", async () => {
+    const { BrowserWindow, session } = await import("electron");
+    vi.mocked(session.defaultSession.cookies.get).mockResolvedValue([]);
+
+    await expect(ensureSendWindowReady()).rejects.toThrow(
+      /Kick web session is not ready; reconnect Kick in Settings/
+    );
+
+    expect(session.defaultSession.cookies.get).toHaveBeenCalledTimes(1);
+    expect(BrowserWindow).not.toHaveBeenCalled();
+  });
+
   it("two concurrent calls share one warmup promise", async () => {
     const acquired: number[] = [];
     const fakeWin = {
@@ -365,6 +406,43 @@ describe("ensureSendWindowReady", () => {
     expect(await isKickWebApiReady()).toBe(false);
   });
 
+  it("recreates a window destroyed during warmup", async () => {
+    const destroyedWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript: vi.fn(() => Promise.resolve(false)),
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => true),
+    };
+    const readyWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|recovered");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript: vi.fn(() => Promise.resolve(true)),
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    let constructionCount = 0;
+    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      constructionCount += 1;
+      return constructionCount === 1 ? destroyedWin : readyWin;
+    });
+
+    await expect(ensureSendWindowReady()).resolves.toBeUndefined();
+
+    expect(constructionCount).toBe(2);
+    expect(getBearerForTest()).toBe("Bearer 1|recovered");
+  });
+
   // Warmup-timeout tests share fake timers — production WARMUP_TIMEOUT_MS is 10s
   // with 200ms polling via sleep() (setTimeout). vi.advanceTimersByTimeAsync drains
   // the entire poll loop in ~ms instead of the real 10s wait. Previously these two
@@ -378,7 +456,42 @@ describe("ensureSendWindowReady", () => {
       vi.useRealTimers();
     });
 
-    it("rejects with send-window-warmup-timeout when predicate never resolves", async () => {
+    it("accepts an HttpOnly session cookie from the Electron session", async () => {
+      const fakeWin = {
+        loadURL: vi.fn(() => {
+          setBearerForTest("Bearer 1|captured");
+          return Promise.resolve();
+        }),
+        webContents: {
+          executeJavaScript: vi.fn(() => Promise.resolve(false)),
+          on: vi.fn(),
+          session: {
+            cookies: {
+              get: vi.fn(() => Promise.resolve([{ name: "session_token" }])),
+            },
+            webRequest: { onBeforeSendHeaders: vi.fn() },
+          },
+        },
+        destroy: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+      };
+      const { BrowserWindow } = await import("electron");
+      (BrowserWindow as any).mockImplementation(function (this: unknown) {
+        return fakeWin;
+      });
+
+      const readiness = ensureSendWindowReady();
+      readiness.catch(() => {});
+      await vi.advanceTimersByTimeAsync(10_100);
+
+      await expect(readiness).resolves.toBeUndefined();
+      expect(fakeWin.webContents.session.cookies.get).toHaveBeenCalledWith({
+        url: "https://kick.com/",
+        name: "session_token",
+      });
+    });
+
+    it("retries once, then reports the secret-free readiness reason", async () => {
       const fakeWin = {
         loadURL: vi.fn(() => Promise.resolve()),
         webContents: {
@@ -393,7 +506,9 @@ describe("ensureSendWindowReady", () => {
         isDestroyed: vi.fn(() => false),
       };
       const { BrowserWindow } = await import("electron");
+      let constructionCount = 0;
       (BrowserWindow as any).mockImplementation(function (this: unknown) {
+        constructionCount += 1;
         return fakeWin;
       });
       // Bearer cache stays null so even a cookie-true predicate wouldn't pass.
@@ -405,8 +520,43 @@ describe("ensureSendWindowReady", () => {
       // Drain the 10s timeout's polling loop. Advance past the WARMUP_TIMEOUT_MS
       // deadline (10s) — the loop checks `Date.now() < deadline` each iteration
       // after a 200ms sleep, so once fake time is past 10s the loop throws.
-      await vi.advanceTimersByTimeAsync(10_100);
-      await expect(promise).rejects.toThrow(/send-window-warmup-timeout/);
+      await vi.advanceTimersByTimeAsync(20_100);
+      await expect(promise).rejects.toThrow(
+        /send-window-warmup-timeout: timeout;.*attempt=2\/2 cookiePresent=false bearerCaptured=false windowDestroyed=false elapsedMs=10000/
+      );
+      expect(constructionCount).toBe(2);
+    });
+
+    it("returns an actionable auth error when required send readiness is exhausted", async () => {
+      const fakeWin = {
+        loadURL: vi.fn(() => Promise.resolve()),
+        webContents: {
+          executeJavaScript: vi.fn(() => Promise.resolve(false)),
+          on: vi.fn(),
+          session: {
+            cookies: {
+              get: vi.fn(() => Promise.resolve([{ name: "session_token" }])),
+            },
+            webRequest: { onBeforeSendHeaders: vi.fn() },
+          },
+        },
+        destroy: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+      };
+      const { BrowserWindow } = await import("electron");
+      (BrowserWindow as any).mockImplementation(function (this: unknown) {
+        return fakeWin;
+      });
+
+      const send = sendKickChatMessage(1, "hello");
+      send.catch(() => {});
+      await vi.advanceTimersByTimeAsync(20_100);
+
+      await expect(send).resolves.toEqual({
+        ok: false,
+        kind: "auth-expired",
+        message: "Kick web session is not ready; reconnect Kick in Settings.",
+      });
     });
 
     it("destroys the leaked window on warmup failure (timeout)", async () => {
@@ -432,11 +582,11 @@ describe("ensureSendWindowReady", () => {
 
       const promise = ensureSendWindowReady();
       promise.catch(() => {});
-      await vi.advanceTimersByTimeAsync(10_100);
+      await vi.advanceTimersByTimeAsync(20_100);
       await expect(promise).rejects.toThrow(/send-window-warmup-timeout/);
       // The window MUST have been destroyed during cleanup so it doesn't
       // leak and shadow a successor window's state.
-      expect(destroyCalls.length).toBe(1);
+      expect(destroyCalls.length).toBe(2);
       expect(getBearerForTest()).toBeNull();
     });
   });
@@ -634,6 +784,7 @@ describe("fetchKickWebApiGet", () => {
 
 describe("getKickChannelViewerRole", () => {
   // Guards: guessed or recursively nested Kick role aliases never grant moderator authority.
+  // Guards: unverifiable viewer-role lookups do not initialize the hidden Kick web window.
   it("fails closed for nested moderator aliases without a captured response contract", () => {
     expect(
       parseKickChannelViewerRoleBody(
@@ -652,8 +803,20 @@ describe("getKickChannelViewerRole", () => {
     expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { following: true } }))).toBeNull();
   });
 
-  it("returns the parsed load-time viewer role", async () => {
-    const executeJavaScript = vi.fn();
+  it("fails closed without warming the hidden window when authority is unverifiable", async () => {
+    const executeJavaScript = vi.fn((src: string) => {
+      if (src.includes("document.cookie")) return Promise.resolve(true);
+      if (src.includes("/api/v2/channels/xqc/me")) {
+        return Promise.resolve(
+          JSON.stringify({
+            ok: true,
+            status: 200,
+            body: JSON.stringify({ data: { is_moderator: true } }),
+          })
+        );
+      }
+      return Promise.resolve(true);
+    });
     const fakeWin = {
       loadURL: vi.fn(() => {
         setBearerForTest("Bearer 1|abc");
@@ -670,31 +833,64 @@ describe("getKickChannelViewerRole", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
     (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
       function (this: unknown) {
         return fakeWin;
       } as unknown as () => unknown
     );
 
-    executeJavaScript.mockImplementation((src: string) => {
+    await expect(getKickChannelViewerRole("XQC")).resolves.toEqual({
+      ok: true,
+      isModerator: null,
+      status: 0,
+    });
+    expect(BrowserWindow).not.toHaveBeenCalled();
+  });
+
+  it("does not compete with or dispose a concurrent required send warmup", async () => {
+    const executeJavaScript = vi.fn((src: string) => {
       if (src.includes("document.cookie")) return Promise.resolve(true);
-      if (src.includes("/api/v2/channels/xqc/me")) {
+      if (src.includes("/api/v2/messages/send/1")) {
         return Promise.resolve(
           JSON.stringify({
             ok: true,
             status: 200,
-            body: JSON.stringify({ data: { is_moderator: true } }),
+            body: JSON.stringify({ data: { id: "sent" } }),
+            retryAfter: null,
           })
         );
       }
       return Promise.resolve(true);
     });
-
-    await expect(getKickChannelViewerRole("XQC")).resolves.toEqual({
-      ok: true,
-      isModerator: null,
-      status: 200,
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|captured");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
+    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      return fakeWin;
     });
+
+    const [role, send] = await Promise.all([
+      getKickChannelViewerRole("xqc"),
+      sendKickChatMessage(1, "hello"),
+    ]);
+
+    expect(role).toEqual({ ok: true, isModerator: null, status: 0 });
+    expect(send).toEqual({ ok: true, messageId: "sent" });
+    expect(BrowserWindow).toHaveBeenCalledTimes(1);
+    expect(fakeWin.destroy).not.toHaveBeenCalled();
   });
 });
 

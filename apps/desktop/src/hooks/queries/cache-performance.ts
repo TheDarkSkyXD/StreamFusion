@@ -1,5 +1,5 @@
 import { type QueryKey, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 export const CACHE_PERFORMANCE_BUDGET_MS = 50;
 
@@ -119,13 +119,15 @@ export function useQueryCachePerformance({
   const recordedCacheHitPaintRef = useRef(false);
   const recordedRefreshStartRef = useRef(false);
 
-  if (traceKeyRef.current !== traceKey) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: traceKey is the canonical serialized dependency; query-key object identity may change every render.
+  useLayoutEffect(() => {
     traceKeyRef.current = traceKey;
     openedAtRef.current = now();
     hadCachedDataAtOpenRef.current = queryClient.getQueryData(queryKey) !== undefined;
     recordedCacheHitPaintRef.current = false;
     recordedRefreshStartRef.current = false;
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- traceKey is the canonical serialized dependency.
+  }, [queryClient, traceKey]);
 
   useEffect(() => {
     if (

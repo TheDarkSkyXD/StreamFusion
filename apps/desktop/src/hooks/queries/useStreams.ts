@@ -119,11 +119,10 @@ export function useFollowedStreams(
   options: { enabled?: boolean; snapshotIdentity?: FollowedStreamSnapshotIdentity } = {}
 ) {
   const queryKey = STREAM_KEYS.followed(platform);
+  const isEnabled = options.enabled !== false;
   const snapshotIdentityKey = options.snapshotIdentity
     ? JSON.stringify(options.snapshotIdentity)
     : undefined;
-  const currentIdentityKeyRef = useRef(snapshotIdentityKey);
-  currentIdentityKeyRef.current = snapshotIdentityKey;
   const successfulResultRef = useRef<
     | {
         data: UnifiedStream[];
@@ -135,16 +134,15 @@ export function useFollowedStreams(
   const cacheOptions = getQueryCacheOptions("followedStreamStatus");
   const query = useQuery({
     queryKey,
-    queryFn: async () => {
-      const sourceIdentityKey = currentIdentityKeyRef.current;
+    queryFn: async ({ signal }) => {
+      const sourceIdentityKey = snapshotIdentityKey;
       const response = await window.electronAPI.streams.getFollowed({ platform, limit });
+      signal.throwIfAborted();
       if (response.error) {
-        // If it fails (e.g. auth error, network), we just return empty list so UI doesn't break
-        // But logging it is good
         logger.warn("Hook:Queries:Streams", "failed to fetch followed streams", {
           error: response.error,
         });
-        return [];
+        throw new Error(response.error);
       }
       const streams = dedupeStreamsByChannelIdentity(response.data as UnifiedStream[]);
       successfulResultRef.current = {
@@ -153,7 +151,7 @@ export function useFollowedStreams(
       };
       return streams;
     },
-    enabled: options.enabled,
+    enabled: isEnabled,
     ...cacheOptions,
     refetchInterval:
       platform === "kick" ? KICK_FOLLOWED_STATUS_REFETCH_INTERVAL_MS : cacheOptions.refetchInterval,
@@ -186,18 +184,26 @@ export function useFollowedStreams(
   }, [options.snapshotIdentity, platform, query.dataUpdatedAt, snapshotIdentityKey]);
 
   const lastSettledIdentityKeyRef = useRef<string | undefined>(undefined);
+  const pendingIdentityRefreshRef = useRef(false);
   useEffect(() => {
     if (!snapshotIdentityKey) return;
     const previousIdentityKey = lastSettledIdentityKeyRef.current;
     lastSettledIdentityKeyRef.current = snapshotIdentityKey;
-    if (previousIdentityKey && previousIdentityKey !== snapshotIdentityKey) {
-      void refetch();
+    const identityChanged =
+      previousIdentityKey !== undefined && previousIdentityKey !== snapshotIdentityKey;
+    if (!isEnabled) {
+      pendingIdentityRefreshRef.current ||= identityChanged;
+      return;
     }
-  }, [refetch, snapshotIdentityKey]);
+    if (!identityChanged && !pendingIdentityRefreshRef.current) return;
+
+    pendingIdentityRefreshRef.current = false;
+    void refetch();
+  }, [isEnabled, refetch, snapshotIdentityKey]);
 
   useQueryCachePerformance({
     data: query.data,
-    enabled: options.enabled,
+    enabled: isEnabled,
     fetchStatus: query.fetchStatus,
     queryKey,
     surface: "following",

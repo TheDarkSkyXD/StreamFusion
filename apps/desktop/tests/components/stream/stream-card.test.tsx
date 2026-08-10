@@ -26,6 +26,7 @@ import { StreamCard } from "@/components/stream/stream-card";
 // Note: image-onError fallback path is delegated to ProxiedImage (the leaf with the actual onError handler). ProxiedImage is mocked here to keep the test fast; its fallback contract is covered in proxied-image's own tests.
 // Guards: verified streams render the platform-specific verified badge beside the channel username.
 // Guards: watched-state cards render a distinct selected state so a live followed stream remains visibly selected while playback continues in the mini player.
+// Guards: duplicate stream tags render once in first-seen order so feed cards cannot emit duplicate React keys or repeat pills.
 describe("StreamCard", () => {
   beforeEach(() => {
     installElectronAPIMock();
@@ -47,6 +48,22 @@ describe("StreamCard", () => {
   it("renders viewer count", () => {
     renderWithProviders(<StreamCard stream={fixtures.stream({ viewerCount: 1234 })} />);
     expect(screen.getByText(/1\.2K/i)).toBeInTheDocument();
+  });
+
+  it("renders duplicate tag labels once while preserving first-seen order", () => {
+    renderWithProviders(
+      <StreamCard
+        stream={fixtures.stream({
+          language: undefined,
+          tags: ["Tactical", "Tactical", "RTS", "RTS"],
+        })}
+      />
+    );
+
+    expect(screen.getAllByText(/^(Tactical|RTS)$/).map((tag) => tag.textContent)).toEqual([
+      "Tactical",
+      "RTS",
+    ]);
   });
 
   it("renders the Twitch verified badge beside a verified Twitch stream username", () => {

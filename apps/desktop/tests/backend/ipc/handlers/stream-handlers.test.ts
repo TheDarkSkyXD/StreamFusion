@@ -265,6 +265,9 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
     const result = (await handler({}, { platform: "kick", username: "kickuser" })) as any;
 
     expect(result).toEqual({ success: true, data: stream });
+    expect(kickClient.getStreamBySlug).toHaveBeenCalledWith("kickuser", {
+      freshStatus: true,
+    });
   });
 
   it("returns error envelope on failure", async () => {

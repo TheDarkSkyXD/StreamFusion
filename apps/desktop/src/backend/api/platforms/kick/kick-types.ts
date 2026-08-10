@@ -452,6 +452,7 @@ export interface PaginationOptions {
   cursor?: string;
   sort?: "date" | "views"; // Sort option: 'date' (most recent) or 'views'
   timeRange?: "day" | "week" | "month" | "all"; // Time range for views sort
+  signal?: AbortSignal;
 }
 
 export interface PaginatedResult<T> {

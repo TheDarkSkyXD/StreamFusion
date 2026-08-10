@@ -10,7 +10,7 @@ import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInterval } from "@/hooks/useInterval";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
-import { cn, formatLanguageLabel, formatViewerCount } from "@/lib/utils";
+import { cn, formatLanguageLabel, formatViewerCount, uniqueTagLabels } from "@/lib/utils";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAppStore } from "@/store/app-store";
 import { useVolumeStore } from "@/store/volume-store";
@@ -78,8 +78,8 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
     activeStream.categoryName,
     formatLanguageLabel(activeStream.language),
     ...activeStream.tags,
-  ].filter(Boolean);
-  const showTags = tags.slice(0, 2);
+  ].filter((tag): tag is string => Boolean(tag));
+  const showTags = uniqueTagLabels(tags).slice(0, 2);
 
   const goToPrevious = () => {
     setActiveIndex((current) =>

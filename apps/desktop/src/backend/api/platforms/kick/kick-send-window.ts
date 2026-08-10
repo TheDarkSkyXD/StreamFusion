@@ -10,7 +10,7 @@
  */
 
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
-import { BrowserWindow } from "electron";
+import { BrowserWindow, session } from "electron";
 
 import { kickAuthService } from "@/backend/auth/kick-auth";
 import { logger } from "@/backend/logging/logger";
@@ -315,7 +315,9 @@ export function installBearerInterceptor(targetSession: Session): void {
   targetSession.webRequest.onBeforeSendHeaders(
     { urls: ["https://*.kick.com/*"] },
     (details: OnBeforeSendHeadersListenerDetails, callback) => {
-      const auth = details.requestHeaders?.Authorization;
+      const auth = Object.entries(details.requestHeaders ?? {}).find(
+        ([name]) => name.toLowerCase() === "authorization"
+      )?.[1];
       if (typeof auth === "string" && isSanctumBearer(auth)) {
         latestKickWebBearer = auth;
       }
@@ -326,36 +328,120 @@ export function installBearerInterceptor(targetSession: Session): void {
 
 const WARMUP_TIMEOUT_MS = 10_000;
 const PREDICATE_POLL_MS = 200;
+const WARMUP_ATTEMPTS = 2;
 const KICK_OFFICIAL_CHAT_URL = "https://api.kick.com/public/v1/chat";
 
 const COOKIE_PREDICATE_IIFE = `(() => document.cookie.indexOf("session_token=") >= 0)()`;
 
-export async function isKickWebApiReady(): Promise<boolean> {
-  const win = sendWindow;
-  if (!win || win.isDestroyed() || latestKickWebBearer === null) return false;
-
+async function readDefaultKickSessionToken(): Promise<boolean | null> {
   try {
-    return (await win.webContents.executeJavaScript(COOKIE_PREDICATE_IIFE)) === true;
+    const cookies = await session.defaultSession.cookies.get({
+      url: "https://kick.com/",
+      name: "session_token",
+    });
+    return cookies.length > 0;
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function _pollPredicate(win: BrowserWindow, deadline: number): Promise<void> {
+async function hasKickSessionToken(win: BrowserWindow): Promise<boolean> {
+  try {
+    const cookies = await win.webContents.session.cookies.get({
+      url: "https://kick.com/",
+      name: "session_token",
+    });
+    return cookies.length > 0;
+  } catch {
+    try {
+      return (await win.webContents.executeJavaScript(COOKIE_PREDICATE_IIFE)) === true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+export async function isKickWebApiReady(): Promise<boolean> {
+  const win = sendWindow;
+  if (!win || win.isDestroyed() || latestKickWebBearer === null) return false;
+  return hasKickSessionToken(win);
+}
+
+interface KickSendWindowReadinessDiagnostic {
+  attempt: number;
+  bearerCaptured: boolean;
+  cookiePresent: boolean;
+  elapsedMs: number;
+  windowDestroyed: boolean;
+}
+
+class KickSendWindowReadinessError extends Error {
+  constructor(
+    message: string,
+    readonly kind: "auth-expired" | "network",
+    readonly diagnostic: KickSendWindowReadinessDiagnostic,
+    readonly userMessage: string
+  ) {
+    super(message);
+    this.name = "KickSendWindowReadinessError";
+  }
+}
+
+function readinessError(
+  reason: "destroyed" | "missing-session-cookie" | "timeout",
+  diagnostic: KickSendWindowReadinessDiagnostic
+): KickSendWindowReadinessError {
+  const diagnosticText =
+    `attempt=${diagnostic.attempt}/${WARMUP_ATTEMPTS} ` +
+    `cookiePresent=${diagnostic.cookiePresent} ` +
+    `bearerCaptured=${diagnostic.bearerCaptured} ` +
+    `windowDestroyed=${diagnostic.windowDestroyed} ` +
+    `elapsedMs=${diagnostic.elapsedMs}`;
+  const missingAuth = !diagnostic.cookiePresent || !diagnostic.bearerCaptured;
+  const action = missingAuth
+    ? "Kick web session is not ready; reconnect Kick in Settings."
+    : "Kick send window did not become ready; try again.";
+  return new KickSendWindowReadinessError(
+    `send-window-warmup-timeout: ${reason}; ${action} ${diagnosticText}`,
+    missingAuth ? "auth-expired" : "network",
+    diagnostic,
+    action
+  );
+}
+
+async function _pollPredicate(
+  win: BrowserWindow,
+  deadline: number,
+  attempt: number
+): Promise<void> {
+  const startedAt = Date.now();
+  let cookiePresent = false;
   // Poll until both: session_token cookie is set AND latestKickWebBearer was
   // captured by the interceptor on some kick.com request.
   while (Date.now() < deadline) {
     if (win.isDestroyed()) {
-      throw new Error("send-window-warmup-timeout: window destroyed during warmup");
+      throw readinessError("destroyed", {
+        attempt,
+        bearerCaptured: latestKickWebBearer !== null,
+        cookiePresent,
+        elapsedMs: Date.now() - startedAt,
+        windowDestroyed: true,
+      });
     }
-    const cookieOk = (await win.webContents.executeJavaScript(COOKIE_PREDICATE_IIFE)) === true;
-    if (cookieOk && latestKickWebBearer !== null) return;
+    cookiePresent = await hasKickSessionToken(win);
+    if (cookiePresent && latestKickWebBearer !== null) return;
     await sleep(PREDICATE_POLL_MS);
   }
-  throw new Error("send-window-warmup-timeout: predicate did not resolve within 10s");
+  throw readinessError("timeout", {
+    attempt,
+    bearerCaptured: latestKickWebBearer !== null,
+    cookiePresent,
+    elapsedMs: Date.now() - startedAt,
+    windowDestroyed: win.isDestroyed(),
+  });
 }
 
-export async function ensureSendWindowReady(): Promise<void> {
+async function ensureSendWindowReadyOnce(attempt: number): Promise<void> {
   if (warmupPromise) return warmupPromise;
   if (sendWindow && !sendWindow.isDestroyed() && latestKickWebBearer !== null) {
     return;
@@ -378,12 +464,11 @@ export async function ensureSendWindowReady(): Promise<void> {
         if (sendWindow !== win) return;
         sendWindow = null;
         latestKickWebBearer = null;
-        warmupPromise = null;
       });
       sendWindow = win;
       try {
         await win.loadURL("https://kick.com/");
-        await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS);
+        await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS, attempt);
       } catch (err) {
         // Warmup failed (timeout, navigation error, etc.). Without this
         // cleanup the hidden window would stay resident and the next
@@ -412,6 +497,39 @@ export async function ensureSendWindowReady(): Promise<void> {
     warmupPromise = null;
   }
 }
+
+export async function ensureSendWindowReady(): Promise<void> {
+  if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
+    const cookiePresent = await readDefaultKickSessionToken();
+    if (cookiePresent === false) {
+      throw readinessError("missing-session-cookie", {
+        attempt: 1,
+        bearerCaptured: latestKickWebBearer !== null,
+        cookiePresent: false,
+        elapsedMs: 0,
+        windowDestroyed: false,
+      });
+    }
+  }
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= WARMUP_ATTEMPTS; attempt += 1) {
+    try {
+      await ensureSendWindowReadyOnce(attempt);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (error instanceof KickSendWindowReadinessError) {
+        logger.warn("Kick:SendWindow", "Kick send window readiness attempt failed", {
+          ...error.diagnostic,
+          kind: error.kind,
+        });
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function _reloadAndRecapture(win: BrowserWindow): Promise<void> {
   // Single-flight: if a reload is already in progress, share its promise.
   if (reloadPromise) return reloadPromise;
@@ -420,7 +538,7 @@ async function _reloadAndRecapture(win: BrowserWindow): Promise<void> {
   reloadPromise = (async () => {
     try {
       await win.loadURL("https://kick.com/");
-      await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS);
+      await _pollPredicate(win, Date.now() + WARMUP_TIMEOUT_MS, 1);
     } finally {
       reloadPromise = null;
     }
@@ -446,7 +564,18 @@ export async function sendKickChatMessage(
     }
   }
 
-  await ensureSendWindowReady();
+  try {
+    await ensureSendWindowReady();
+  } catch (error) {
+    if (error instanceof KickSendWindowReadinessError) {
+      return { ok: false, kind: error.kind, message: error.userMessage };
+    }
+    return {
+      ok: false,
+      kind: "network",
+      message: "Kick send window failed to initialize; try again.",
+    };
+  }
   if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
     return {
       ok: false,
@@ -618,24 +747,11 @@ export function parseKickChannelViewerRoleBody(_body: string): boolean | null {
 export async function getKickChannelViewerRole(
   channelSlug: string
 ): Promise<KickChannelViewerRoleResult> {
-  const slug = channelSlug.trim().toLowerCase();
-  if (!slug) return { ok: true, isModerator: null, status: 0 };
+  if (!channelSlug.trim()) return { ok: true, isModerator: null, status: 0 };
 
-  const result = await fetchKickWebApiGet(`/api/v2/channels/${encodeURIComponent(slug)}/me`);
-  if (!result.ok) {
-    return {
-      ok: false,
-      kind: result.kind,
-      status: result.status,
-      message: result.message,
-    };
-  }
-
-  return {
-    ok: true,
-    isModerator: parseKickChannelViewerRoleBody(result.body),
-    status: result.status,
-  };
+  // The legacy `/me` response contract is unverified, so it cannot establish
+  // authority and must not pay the hidden-window warmup cost.
+  return { ok: true, isModerator: null, status: 0 };
 }
 
 export function isAllowedKickWebApiMutation(

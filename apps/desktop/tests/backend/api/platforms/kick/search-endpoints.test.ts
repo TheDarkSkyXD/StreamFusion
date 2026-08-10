@@ -68,8 +68,17 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 // Guards: Kick channel search suggestions must not use the hidden BrowserWindow channel lookup path.
 // Guards: Kick full search should parallelize independent category/channel/stream work where possible.
+// Guards: stale full search cancellation stops queued live hydration and reaches category enumeration.
 // Guards: channel suggestions skip the live-directory crawl unless empty, continued, or live-only lacks a live candidate.
 // Guards: an explicit Kick search is_banned signal remains visible as a machine-readable suspended channel.
 // Guards: a positively resolved Kick search account is classified active independently from live/offline state.
@@ -701,6 +710,32 @@ describe("search-endpoints", () => {
   });
 
   describe("search", () => {
+    it("stops queued live hydration after cancellation and forwards the signal to categories", async () => {
+      const controller = new AbortController();
+      const firstStream = deferred<any>();
+      vi.mocked(getStreamBySlug).mockImplementationOnce(() => firstStream.promise);
+      const seeds = [
+        { id: "1", platform: "kick", username: "one", displayName: "One", isLive: true },
+        { id: "2", platform: "kick", username: "two", displayName: "Two", isLive: true },
+      ] as any;
+
+      const pending = search(createMockClient(), "live", {
+        channelSeeds: seeds,
+        signal: controller.signal,
+      });
+      await vi.waitFor(() => expect(getStreamBySlug).toHaveBeenCalledTimes(1));
+      controller.abort();
+      firstStream.resolve(null);
+      await pending;
+
+      expect(searchCategories).toHaveBeenCalledWith(
+        expect.anything(),
+        "live",
+        expect.objectContaining({ signal: controller.signal })
+      );
+      expect(getStreamBySlug).toHaveBeenCalledTimes(1);
+    });
+
     it("returns channels, categories, streams, videos, and clips", async () => {
       vi.mocked(searchCategories).mockResolvedValueOnce({
         data: [{ id: "1", platform: "kick", name: "Gaming", boxArtUrl: "" }],

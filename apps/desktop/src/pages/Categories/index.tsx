@@ -55,7 +55,7 @@ export function CategoriesPage() {
         <VirtualizedCategoryGrid
           categories={filteredCategories}
           isLoading={isLoading || !canRenderGrid}
-          skeletonCount={7}
+          skeletonCount={12}
           scrollKey="categories-page"
           emptyMessage={
             searchQuery ? `No categories matching "${searchQuery}"` : "No categories found"

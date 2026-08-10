@@ -292,9 +292,9 @@ class KickClient implements KickRequestor, IPlatformReader {
 
     // Image fetches deliberately bypass the platform health gate. The gate is
     // designed for retry loops (API, stream polls) that benefit from a brief
-    // back-off. Image fetches are one-shot: when they return null the renderer
-    // <img> goes to onError and the caller latches the error state until the
-    // component remounts, so a single 3-second unhealthy window — rolled
+    // back-off. Image reads have their own bounded retry below, and the
+    // renderer retries custom-protocol failures in place. Previously, a
+    // single 3-second unhealthy window — rolled
     // forward by concurrent net::ERR_FAILED bursts from other Kick callers —
     // can leave the whole discover grid stuck on broken avatars/thumbnails.
     // The semaphore in `acquireKickRequestSlot` caps concurrency at 4, so
@@ -304,12 +304,10 @@ class KickClient implements KickRequestor, IPlatformReader {
     // Accepted tradeoffs (see PR review): (1) image net::ERR_* failures now
     // feed `recordPlatformLocalNetError`, so a CDN-only outage can arm the
     // gate for other Kick callers; (2) during a sustained outage, image
-    // fetches occupy semaphore slots until they time out — the timeout below
-    // is intentionally short (3s) to bound the worst-case wall-clock for a
-    // discover-page grid (~13 batches × 3s = ~40s) and to free slots quickly
-    // for API traffic. The previous null-short-circuit was 0ms, but it left
-    // images permanently broken; the 3s timeout is the cheapest correctness
-    // restoration without re-introducing the latching bug.
+    // fetches occupy semaphore slots until each bounded attempt ends. The
+    // initial timeout is intentionally short (3s); only transient errors get
+    // the longer 8s recovery attempt, while permanent 4xx responses stop
+    // immediately.
     const inFlight = _imageInFlight.get(url);
     if (inFlight) {
       return inFlight;
@@ -338,8 +336,30 @@ class KickClient implements KickRequestor, IPlatformReader {
         // 3s timeout (vs the default 15s for API calls): image fetches are
         // best-effort and now contend for the same 4-slot semaphore as API
         // traffic during outages — see the bypass-justification block above.
-        const { buffer, contentType } = await this.electronRequestBinary(url, headers, 3000);
-        return { buffer, contentType };
+        // Keep the first attempt short for a fast healthy grid, then retry the
+        // same real provider URL once with a wider bounded budget. A one-off
+        // timeout must not become a permanently missing thumbnail in the
+        // renderer. Permanent 4xx responses still fail immediately and are
+        // negative-cached below.
+        const attemptTimeouts = [3000, 8000] as const;
+        let lastError: unknown;
+        for (const timeoutMs of attemptTimeouts) {
+          try {
+            const { buffer, contentType } = await this.electronRequestBinary(
+              url,
+              headers,
+              timeoutMs
+            );
+            return { buffer, contentType };
+          } catch (error) {
+            lastError = error;
+            const message = error instanceof Error ? error.message : String(error);
+            if (/^HTTP 4\d{2}$/.test(message)) {
+              throw error;
+            }
+          }
+        }
+        throw lastError;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const isPermanent = /^HTTP 4\d{2}$/.test(message);
@@ -677,8 +697,11 @@ class KickClient implements KickRequestor, IPlatformReader {
   /**
    * Get livestream by channel slug
    */
-  async getStreamBySlug(slug: string): Promise<UnifiedStream | null> {
-    return StreamEndpoints.getStreamBySlug(this, slug);
+  async getStreamBySlug(
+    slug: string,
+    options: { freshStatus?: boolean } = {}
+  ): Promise<UnifiedStream | null> {
+    return StreamEndpoints.getStreamBySlug(this, slug, options);
   }
 
   async getStreamsByBroadcasterIds(broadcasterUserIds: number[]): Promise<UnifiedStream[]> {
@@ -818,9 +841,10 @@ class KickClient implements KickRequestor, IPlatformReader {
    * Full search across channels, categories, channels, streams, videos, and clips
    */
   async search(
-    query: string
+    query: string,
+    options: { channelSeeds?: UnifiedChannel[]; signal?: AbortSignal } = {}
   ): Promise<{ channels: any[]; categories: any[]; streams: any[]; videos: any[]; clips: any[] }> {
-    return SearchEndpoints.search(this, query);
+    return SearchEndpoints.search(this, query, options);
   }
 
   // ========== Videos ==========

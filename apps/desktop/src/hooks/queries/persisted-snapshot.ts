@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
 
@@ -34,10 +34,13 @@ export async function loadPersistedSnapshot<T>({
   if (!enabled) return undefined;
   const identityKey = JSON.stringify(identity);
   const snapshot = await window.electronAPI.store.get<PersistedSnapshot<T>>(snapshotKey(slot));
+  const now = Date.now();
   const valid =
     snapshot?.version === 1 &&
     snapshot.identity === identityKey &&
-    Date.now() - snapshot.savedAt <= maxAgeMs &&
+    Number.isFinite(snapshot.savedAt) &&
+    snapshot.savedAt <= now &&
+    now - snapshot.savedAt <= maxAgeMs &&
     isUsable(snapshot.data);
   return valid ? snapshot.data : undefined;
 }
@@ -51,10 +54,8 @@ export function usePersistedSnapshot<T>({
   enabled = true,
 }: SnapshotOptions<T>): T | undefined {
   const identityKey = JSON.stringify(identity);
-  const validatorRef = useRef(isUsable);
-  validatorRef.current = isUsable;
-  const imageUrlsRef = useRef(getImageUrls);
-  imageUrlsRef.current = getImageUrls;
+  const validate = useEffectEvent((data: T) => isUsable(data));
+  const imageUrls = useEffectEvent((data: T) => getImageUrls?.(data));
   const [state, setState] = useState<{ identity: string; data?: T }>({ identity: identityKey });
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: identityKey is the canonical serialized dependency; object identity may change every render
@@ -62,11 +63,12 @@ export function usePersistedSnapshot<T>({
     let cancelled = false;
     if (!enabled) return;
 
-    void loadPersistedSnapshot({ slot, identity, maxAgeMs, isUsable: validatorRef.current })
+    void loadPersistedSnapshot({ slot, identity, maxAgeMs, isUsable: validate })
       .then((data) => {
         if (cancelled) return;
-        if (data && imageUrlsRef.current) {
-          void prewarmViewportImages(imageUrlsRef.current(data));
+        if (data) {
+          const urls = imageUrls(data);
+          if (urls) void prewarmViewportImages(urls);
         }
         setState({ identity: identityKey, data });
       })
@@ -77,6 +79,7 @@ export function usePersistedSnapshot<T>({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- identityKey is the canonical serialized dependency.
   }, [enabled, identityKey, maxAgeMs, slot]);
 
   return state.identity === identityKey ? state.data : undefined;

@@ -1,5 +1,5 @@
-import { type InfiniteData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { type InfiniteData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   UnifiedCategory,
@@ -17,6 +17,9 @@ import type {
 } from "../../shared/search-types";
 import { sleep } from "../../lib/sleep";
 import { normalizeSearchQuery } from "../../search/search-normalization";
+import { rankSearchChannels } from "../../search/channel-search-contract";
+import type { SearchResultCollection } from "../../search/search-result-validation";
+import { logger } from "../../renderer/logging/logger";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
@@ -26,6 +29,10 @@ import {
   type PersistedSearchKind,
   usePersistedSearchPage,
 } from "./persisted-search-lru";
+import {
+  savePersistedSearchResult,
+  usePersistedSearchResult,
+} from "./persisted-search-results-lru";
 
 export const SEARCH_KEYS = {
   all: ["search"] as const,
@@ -117,9 +124,9 @@ interface ProgressiveSearchOptions<T extends ProgressiveSearchItem> {
 
 let nextSearchSessionId = 0;
 
-function createSearchSessionId(): string {
+function createSearchSessionId(scope: string = ""): string {
   nextSearchSessionId += 1;
-  return `renderer-search-${Date.now()}-${nextSearchSessionId}`;
+  return `renderer-search-${Date.now()}-${nextSearchSessionId}-${scope.length}`;
 }
 
 function getProgressiveSearchBoundary(): ProgressiveSearchBoundary {
@@ -171,30 +178,36 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
   persistedData,
   persistKind,
 }: ProgressiveSearchOptions<T>) {
+  const queryClient = useQueryClient();
   const normalizedQuery = normalizeSearchQuery(query);
   const active = enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH;
   const intent = JSON.stringify([kind, normalizedQuery, platform ?? "all", limit, liveOnly]);
   const expectedPlatforms = platformsFor(platform);
-  const sessionIdRef = useRef<string | undefined>(undefined);
-  const activationIdRef = useRef(0);
-  const renderLifecycleRef = useRef({ active, intent });
-  const previousRender = renderLifecycleRef.current;
-  if (
-    active &&
-    (!sessionIdRef.current || !previousRender.active || previousRender.intent !== intent)
-  ) {
-    sessionIdRef.current = createSearchSessionId();
-    activationIdRef.current += 1;
-  }
-  renderLifecycleRef.current = { active, intent };
+  const sessionId = useMemo(
+    () => (active ? createSearchSessionId(intent) : undefined),
+    [active, intent]
+  );
+  const renderLifecycleRef = useRef({ active, intent, sessionId });
+  useEffect(() => {
+    renderLifecycleRef.current = { active, intent, sessionId };
+  }, [active, intent, sessionId]);
 
-  const publicQueryKey =
-    kind === "streams"
-      ? SEARCH_KEYS.streams(normalizedQuery, platform, limit, liveOnly)
-      : kind === "videos"
-        ? SEARCH_KEYS.videos(normalizedQuery, platform, limit)
-        : SEARCH_KEYS.clips(normalizedQuery, platform, limit);
-  const queryKey = [...publicQueryKey, activationIdRef.current] as const;
+  const publicQueryKey = useMemo(
+    () =>
+      kind === "streams"
+        ? SEARCH_KEYS.streams(normalizedQuery, platform, limit, liveOnly)
+        : kind === "videos"
+          ? SEARCH_KEYS.videos(normalizedQuery, platform, limit)
+          : SEARCH_KEYS.clips(normalizedQuery, platform, limit),
+    [kind, limit, liveOnly, normalizedQuery, platform]
+  );
+  const warmSnapshot = useQuery<T[]>({
+    queryKey: publicQueryKey,
+    enabled: false,
+    gcTime: getQueryCacheOptions("searchResults").gcTime,
+  });
+  const sameQueryWarmData = warmSnapshot.data ?? persistedData ?? [];
+  const queryKey = [...publicQueryKey, sessionId ?? "inactive"] as const;
 
   const initialData:
     InfiniteData<ProgressivePage<T>, ProgressivePageParam | undefined> | undefined =
@@ -216,7 +229,7 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,
     queryFn: async ({ pageParam, signal }): Promise<ProgressivePage<T>> => {
-      const sessionId = pageParam?.sessionId ?? sessionIdRef.current ?? createSearchSessionId();
+      const pageSessionId = pageParam?.sessionId ?? sessionId ?? createSearchSessionId();
       const cursors = pageParam?.cursors;
       const requestedPlatforms = cursors
         ? expectedPlatforms.filter((candidate) => cursors[candidate] !== undefined)
@@ -225,7 +238,7 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
       const responses = await Promise.all(
         requestedPlatforms.map(async (candidate) => {
           const response = await search({
-            sessionId,
+            sessionId: pageSessionId,
             query: normalizedQuery,
             platform: candidate,
             limit,
@@ -236,10 +249,10 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
         })
       );
       throwIfAborted(signal);
-      if (sessionIdRef.current !== sessionId) {
+      if (renderLifecycleRef.current.sessionId !== pageSessionId) {
         throw new DOMException("Superseded search session", "AbortError");
       }
-      return { sessionId, responses: Object.fromEntries(responses) };
+      return { sessionId: pageSessionId, responses: Object.fromEntries(responses) };
     },
     getNextPageParam: (lastPage): ProgressivePageParam | undefined => {
       const cursors: Partial<Record<Platform, string>> = {};
@@ -258,13 +271,12 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
   });
 
   useEffect(() => {
-    if (!active || !sessionIdRef.current) return;
-    const sessionId = sessionIdRef.current;
+    if (!active || !sessionId) return;
     return () => {
       const cancel = getProgressiveSearchBoundary().cancel;
       if (typeof cancel === "function") void cancel({ sessionId }).catch(() => undefined);
     };
-  }, [active, intent]);
+  }, [active, sessionId]);
 
   const [retryState, setRetryState] = useState<{
     intent: string;
@@ -293,45 +305,26 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
     latestResponses[candidate] = retryResponse;
   }
 
-  const reconciledDataRef = useRef<{
-    intent: string;
-    byPlatform: Partial<Record<Platform, T[]>>;
-  }>({
-    intent,
-    byPlatform: Object.fromEntries(
-      expectedPlatforms.map((candidate) => [
-        candidate,
-        (persistedData ?? []).filter((item) => item.platform === candidate),
-      ])
-    ),
-  });
-  if (reconciledDataRef.current.intent !== intent) {
-    reconciledDataRef.current = {
-      intent,
-      byPlatform: Object.fromEntries(
-        expectedPlatforms.map((candidate) => [
-          candidate,
-          (persistedData ?? []).filter((item) => item.platform === candidate),
-        ])
-      ),
-    };
-  }
+  const reconciledByPlatform: Partial<Record<Platform, T[]>> = Object.fromEntries(
+    expectedPlatforms.map((candidate) => [
+      candidate,
+      sameQueryWarmData.filter((item) => item.platform === candidate),
+    ])
+  );
   for (const candidate of expectedPlatforms) {
     const successfulPages = (pageResponses[candidate] ?? []).filter((response) => response.success);
     if (successfulPages.length > 0) {
-      reconciledDataRef.current.byPlatform[candidate] = deduplicateProgressiveItems(
+      reconciledByPlatform[candidate] = deduplicateProgressiveItems(
         successfulPages.flatMap((response) => response.data)
       );
     }
     const retryResponse = retryResponses[candidate];
     if (retryResponse?.success) {
-      reconciledDataRef.current.byPlatform[candidate] = deduplicateProgressiveItems(
-        retryResponse.data
-      );
+      reconciledByPlatform[candidate] = deduplicateProgressiveItems(retryResponse.data);
     }
   }
   const data = deduplicateProgressiveItems(
-    expectedPlatforms.flatMap((candidate) => reconciledDataRef.current.byPlatform[candidate] ?? [])
+    expectedPlatforms.flatMap((candidate) => reconciledByPlatform[candidate] ?? [])
   );
   const hasEveryPlatformResponse = expectedPlatforms.every(
     (candidate) => latestResponses[candidate] !== undefined
@@ -340,6 +333,13 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
     expectedPlatforms.some((candidate) =>
       (pageResponses[candidate] ?? []).some((response) => response.success)
     ) || expectedPlatforms.some((candidate) => retryResponses[candidate]?.success);
+
+  useEffect(() => {
+    if (!hasAuthoritativeResponse) return;
+    const cached = queryClient.getQueryData<T[]>(publicQueryKey);
+    if (cached && JSON.stringify(cached) === JSON.stringify(data)) return;
+    queryClient.setQueryData(publicQueryKey, data);
+  }, [data, hasAuthoritativeResponse, publicQueryKey, queryClient]);
 
   const platformStates: Partial<Record<Platform, ProgressivePlatformState<T>>> = {};
   for (const candidate of expectedPlatforms) {
@@ -360,15 +360,14 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
       retryable: response.retryable,
       retryAfterMs: response.retryAfterMs,
       error: response.error,
-      data: reconciledDataRef.current.byPlatform[candidate] ?? [],
+      data: reconciledByPlatform[candidate] ?? [],
     };
   }
 
   const retryPlatform = async (candidate: Platform): Promise<void> => {
     const previous = latestResponses[candidate];
-    if (!active || !previous?.retryable || !sessionIdRef.current) return;
+    if (!active || !previous?.retryable || !sessionId) return;
     const retryIntent = intent;
-    const sessionId = sessionIdRef.current;
     setRetryState((current) => ({
       intent: retryIntent,
       responses: {
@@ -390,7 +389,10 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
         limit,
         ...(kind === "streams" ? { liveOnly } : {}),
       });
-      if (renderLifecycleRef.current.intent === retryIntent && sessionIdRef.current === sessionId) {
+      if (
+        renderLifecycleRef.current.intent === retryIntent &&
+        renderLifecycleRef.current.sessionId === sessionId
+      ) {
         setRetryState((current) =>
           current.intent === retryIntent
             ? {
@@ -415,17 +417,17 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
   };
 
   const persistenceSignatureRef = useRef<{ intent: string; signature: string }>({
-    intent,
-    signature: JSON.stringify(persistedData ?? []),
+    intent: "",
+    signature: "",
   });
-  if (persistenceSignatureRef.current.intent !== intent) {
-    persistenceSignatureRef.current = {
-      intent,
-      signature: JSON.stringify(persistedData ?? []),
-    };
-  }
   useEffect(() => {
     if (!persistKind || !hasAuthoritativeResponse) return;
+    if (persistenceSignatureRef.current.intent !== intent) {
+      persistenceSignatureRef.current = {
+        intent,
+        signature: JSON.stringify(persistedData ?? []),
+      };
+    }
     const signature = JSON.stringify(data);
     if (persistenceSignatureRef.current.signature === signature) return;
     persistenceSignatureRef.current.signature = signature;
@@ -433,7 +435,16 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
       pages: [{ data: data as PersistedSearchItem[], cursor: null }],
       pageParams: [undefined],
     });
-  }, [data, hasAuthoritativeResponse, limit, normalizedQuery, persistKind, platform]);
+  }, [
+    data,
+    hasAuthoritativeResponse,
+    intent,
+    limit,
+    normalizedQuery,
+    persistKind,
+    persistedData,
+    platform,
+  ]);
 
   useQueryCachePerformance({
     data: persistedData,
@@ -617,12 +628,34 @@ export function useSearchCategories(
   return result;
 }
 
-export interface SearchAllResponse {
-  channels: UnifiedChannel[];
-  categories: UnifiedCategory[];
-  streams: UnifiedStream[];
-  videos: UnifiedVideo[];
-  clips: UnifiedClip[];
+export type SearchAllResponse = SearchResultCollection;
+
+let broadSearchRequestSequence = 0;
+
+interface SearchRequestTrace {
+  key: string;
+  requestId: number;
+  startedAt: number;
+  requestStartLogged: boolean;
+  cachePublicationLogged: boolean;
+  firstUsefulLogged: boolean;
+  fullHydrationLogged: boolean;
+  cancellationLogged: boolean;
+}
+
+function searchResultCount(data: SearchAllResponse | undefined): number {
+  return data
+    ? data.channels.length +
+        data.categories.length +
+        data.streams.length +
+        data.videos.length +
+        data.clips.length
+    : 0;
+}
+
+function searchElapsedMs(startedAt: number): number {
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return Math.round((now - startedAt) * 10) / 10;
 }
 
 export function useSearchAll(
@@ -631,26 +664,161 @@ export function useSearchAll(
   limit: number = 5,
   enabled: boolean = true
 ) {
-  const normalizedQuery = query.trim();
+  const normalizedQuery = normalizeSearchQuery(query);
+  const queryClient = useQueryClient();
   const queryKey = SEARCH_KEYS.everything(normalizedQuery, platform, limit);
+  const quickLimit = normalizedQuery.length === 1 ? 50 : 25;
+  const active = enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH;
+  const persistedData = usePersistedSearchResult(
+    normalizedQuery,
+    platform,
+    limit,
+    active
+  );
+  const traceKey = `${normalizedQuery}\u0000${platform ?? "all"}\u0000${limit}`;
+  const requestTrace = useMemo<SearchRequestTrace | undefined>(
+    () =>
+      active
+        ? {
+            key: traceKey,
+            requestId: ++broadSearchRequestSequence,
+            startedAt: typeof performance !== "undefined" ? performance.now() : Date.now(),
+            requestStartLogged: false,
+            cachePublicationLogged: false,
+            firstUsefulLogged: false,
+            fullHydrationLogged: false,
+            cancellationLogged: false,
+          }
+        : undefined,
+    [active, traceKey]
+  );
+  const twitchChannels = useSearchChannels(
+    platform === "kick" ? "" : normalizedQuery,
+    "twitch",
+    quickLimit,
+    false,
+    active && persistedData === undefined
+  );
+  const kickChannels = useSearchChannels(
+    platform === "twitch" ? "" : normalizedQuery,
+    "kick",
+    quickLimit,
+    false,
+    active && persistedData === undefined
+  );
+  const selectedQuickQueries =
+    platform === "twitch"
+      ? [{ platform: "twitch" as const, result: twitchChannels }]
+      : platform === "kick"
+        ? [{ platform: "kick" as const, result: kickChannels }]
+        : [
+            { platform: "twitch" as const, result: twitchChannels },
+            { platform: "kick" as const, result: kickChannels },
+          ];
+  const quickChannels = selectedQuickQueries.flatMap(
+    ({ result: queryResult }) => queryResult.data?.pages.flatMap((page) => page.data) ?? []
+  );
+  const quickSearchSettled = selectedQuickQueries.every(({ result }) => !result.isPending);
+  const successfulQuickPlatforms = selectedQuickQueries
+    .filter(({ result }) => result.isSuccess)
+    .map(({ platform: quickPlatform }) => quickPlatform);
 
   const result = useQuery({
     queryKey,
-    queryFn: async () => {
-      const response = await window.electronAPI.search.all({
-        query: normalizedQuery,
-        platform,
-        limit,
-      });
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
+    initialData: persistedData,
+    initialDataUpdatedAt: persistedData ? 0 : undefined,
+    queryFn: async ({ signal }) => {
+      const requestId = `search-${requestTrace?.requestId ?? ++broadSearchRequestSequence}`;
+      const cancel = () => {
+        if (requestTrace && !requestTrace.cancellationLogged) {
+          requestTrace.cancellationLogged = true;
+          logger.info("Hook:Queries:Search", "search request cancelled", {
+            requestId: requestTrace.requestId,
+            query: normalizedQuery,
+            platform: platform ?? "all",
+            stage: "cancelled",
+            elapsedMs: searchElapsedMs(requestTrace.startedAt),
+          });
+        }
+        void window.electronAPI.search.cancel({ requestId });
+      };
+      signal.addEventListener("abort", cancel, { once: true });
+
+      try {
+        // Persisted channels are for immediate publication, not evidence that
+        // either provider has been searched during this request. A warm broad
+        // refresh starts before quick search settles and must discover current
+        // channels itself instead of accepting stale rows as provider seeds.
+        const channelSeeds = quickSearchSettled ? quickChannels : [];
+        const response = await window.electronAPI.search.all({
+          query: normalizedQuery,
+          platform,
+          limit,
+          channelSeeds,
+          channelSeedPlatforms: quickSearchSettled ? successfulQuickPlatforms : [],
+          requestId,
+        });
+        signal.throwIfAborted();
+        if (response.success === false) {
+          throw new Error(response.error ?? "Search failed");
+        }
+        const fresh = response.data;
+        const completion = response.providers;
+        const refreshComplete = platform
+          ? completion?.[platform] === "complete"
+          : completion?.twitch === "complete" && completion.kick === "complete";
+        const usefulCount = searchResultCount(fresh);
+        if (!refreshComplete || usefulCount === 0) {
+          return queryClient.getQueryData<SearchAllResponse>(queryKey) ?? persistedData ?? fresh;
+        }
+        const persisted = await savePersistedSearchResult(
+          normalizedQuery,
+          platform,
+          limit,
+          fresh,
+          () => !signal.aborted
+        );
+        signal.throwIfAborted();
+        if (!persisted) return fresh;
+        if (requestTrace && !requestTrace.fullHydrationLogged) {
+          requestTrace.fullHydrationLogged = true;
+          logger.info("Hook:Queries:Search", "full search hydration ready", {
+            requestId: requestTrace.requestId,
+            query: normalizedQuery,
+            platform: platform ?? "all",
+            stage: "full-hydration",
+            count: usefulCount,
+            elapsedMs: searchElapsedMs(requestTrace.startedAt),
+          });
+        }
+        return fresh;
+      } finally {
+        signal.removeEventListener("abort", cancel);
       }
-      return response.data as SearchAllResponse;
     },
-    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: active && (quickSearchSettled || persistedData !== undefined),
     ...getQueryCacheOptions("searchResults"),
     placeholderData: undefined,
+    refetchOnMount: false,
   });
+  const { isStale: isSearchStale, refetch: refetchSearch } = result;
+  const warmRefreshStartedRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (
+      !active ||
+      !persistedData ||
+      !isSearchStale ||
+      warmRefreshStartedRef.current === traceKey
+    ) {
+      return;
+    }
+    // timer-allowlist: cancelable next-task scheduling collapses StrictMode effect replay into one warm refresh
+    const timer = setTimeout(() => {
+      warmRefreshStartedRef.current = traceKey;
+      void refetchSearch();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [active, isSearchStale, persistedData, refetchSearch, traceKey]);
   useQueryCachePerformance({
     data: result.data,
     enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
@@ -658,5 +826,95 @@ export function useSearchAll(
     queryKey,
     surface: "search",
   });
-  return result;
+
+  const progressiveChannels = persistedData ? [] : quickChannels;
+  const mergedChannels = rankSearchChannels(
+    [...progressiveChannels, ...(result.data?.channels ?? [])].filter(
+      (channel, index, channels) =>
+        channels.findIndex(
+          (candidate) =>
+            candidate.platform === channel.platform &&
+            (candidate.id === channel.id || candidate.username === channel.username)
+        ) === index
+    ),
+    normalizedQuery
+  );
+  const hasUsefulData = mergedChannels.length > 0 || result.data !== undefined;
+  const data = hasUsefulData
+    ? {
+        channels: mergedChannels,
+        categories: result.data?.categories ?? [],
+        streams: result.data?.streams ?? [],
+        videos: result.data?.videos ?? [],
+        clips: result.data?.clips ?? [],
+      }
+    : undefined;
+  const usefulResultCount = searchResultCount(data);
+
+  useEffect(() => {
+    const trace = requestTrace;
+    if (!active || !trace || trace.key !== traceKey || trace.requestStartLogged) return;
+    trace.requestStartLogged = true;
+    logger.info("Hook:Queries:Search", "search request started", {
+      requestId: trace.requestId,
+      query: normalizedQuery,
+      platform: platform ?? "all",
+      stage: "request-start",
+    });
+  }, [active, normalizedQuery, platform, requestTrace, traceKey]);
+
+  useEffect(() => {
+    const trace = requestTrace;
+    if (
+      !trace ||
+      trace.key !== traceKey ||
+      trace.cachePublicationLogged ||
+      !persistedData ||
+      !hasUsefulData
+    )
+      return;
+    trace.cachePublicationLogged = true;
+    logger.info("Hook:Queries:Search", "cached search result published", {
+      requestId: trace.requestId,
+      query: normalizedQuery,
+      platform: platform ?? "all",
+      stage: "cache-publication",
+      count: usefulResultCount,
+      elapsedMs: searchElapsedMs(trace.startedAt),
+    });
+  }, [hasUsefulData, normalizedQuery, persistedData, platform, requestTrace, traceKey, usefulResultCount]);
+
+  useEffect(() => {
+    const trace = requestTrace;
+    if (
+      !trace ||
+      trace.key !== traceKey ||
+      trace.firstUsefulLogged ||
+      persistedData ||
+      !hasUsefulData
+    )
+      return;
+    trace.firstUsefulLogged = true;
+    logger.info("Hook:Queries:Search", "first useful search batch ready", {
+      requestId: trace.requestId,
+      query: normalizedQuery,
+      platform: platform ?? "all",
+      stage: "first-useful",
+      count: usefulResultCount,
+      elapsedMs: searchElapsedMs(trace.startedAt),
+    });
+  }, [hasUsefulData, normalizedQuery, persistedData, platform, requestTrace, traceKey, usefulResultCount]);
+
+  return {
+    ...result,
+    data,
+    isLoading:
+      active &&
+      !hasUsefulData &&
+      (result.isLoading || twitchChannels.isLoading || kickChannels.isLoading),
+    isHydrating:
+      active &&
+      result.data === undefined &&
+      (!quickSearchSettled || result.fetchStatus === "fetching"),
+  };
 }

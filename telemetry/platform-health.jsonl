@@ -10282,3 +10282,17 @@
 {"ts":"2026-08-02T17:33:57.977Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":5,"failureRate":0,"source":"internal"}
 {"ts":"2026-08-02T18:06:44.021Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":99,"failureRate":0,"source":"internal"}
 {"ts":"2026-08-02T18:06:44.024Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":3,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-06T04:55:53.788Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":4,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-06T04:55:53.792Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":24,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-06T05:10:34.036Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":9,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-06T05:10:34.039Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":32,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-06T05:32:09.439Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":12,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-06T05:32:09.442Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":3,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-06T06:08:45.977Z","platform":"kick","fromState":"healthy","toState":"degraded","sampleSize":8,"failureRate":1,"source":"internal"}
+{"ts":"2026-08-06T06:09:29.460Z","platform":"kick","fromState":"degraded","toState":"healthy","sampleSize":98,"failureRate":0.07142857142857142,"source":"internal"}
+{"ts":"2026-08-07T05:15:56.283Z","platform":"kick","fromState":"healthy","toState":"degraded","sampleSize":13,"failureRate":0.6923076923076923,"source":"internal"}
+{"ts":"2026-08-07T05:16:45.621Z","platform":"kick","fromState":"degraded","toState":"healthy","sampleSize":48,"failureRate":0.3958333333333333,"source":"internal"}
+{"ts":"2026-08-10T14:12:33.786Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":22,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-10T14:13:16.189Z","platform":"kick","fromState":"down","toState":"down","sampleSize":22,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-10T14:13:58.725Z","platform":"kick","fromState":"down","toState":"degraded","sampleSize":8,"failureRate":1,"source":"internal"}
+{"ts":"2026-08-10T14:14:28.764Z","platform":"kick","fromState":"degraded","toState":"healthy","sampleSize":56,"failureRate":0.26785714285714285,"source":"internal"}

@@ -486,7 +486,9 @@ export function registerStreamHandlers(): void {
         if (params.platform === "twitch") {
           stream = await twitchClient.getStreamByLogin(params.username);
         } else if (params.platform === "kick") {
-          stream = await kickClient.getStreamBySlug(params.username);
+          stream = await kickClient.getStreamBySlug(params.username, {
+            freshStatus: true,
+          });
         }
 
         return { success: true, data: stream };

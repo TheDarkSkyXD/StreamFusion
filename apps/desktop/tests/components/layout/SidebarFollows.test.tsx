@@ -117,6 +117,7 @@ const prefetchStreamPlaybackMock = vi.mocked(prefetchStreamPlayback);
 // Guards: selecting an offline followed channel highlights it without changing its live-first, offline-alphabetical sidebar position
 // Guards: mini-player continuity - followed rows matching the active PiP stream keep the same selected state when the user navigates away from the stream page
 // Guards: one Kick broadcaster renders once when guest follows and live lookups use different internal ids for the same slug
+// Guards: passive sidebar lifecycle (mount, follow refresh, focus, and offline events) never resolves Kick playback URLs without user intent
 describe("SidebarFollows", () => {
   beforeEach(() => {
     useFollowedChannelsMock.mockReset();
@@ -287,7 +288,7 @@ describe("SidebarFollows", () => {
 
     expect(screen.getAllByText("KickCached").length).toBeGreaterThan(0);
     expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
-    expect(prefetchStreamPlaybackMock).toHaveBeenCalledWith("kick", "kickcached");
+    expect(prefetchStreamPlaybackMock).not.toHaveBeenCalledWith("kick", "kickcached");
   });
 
   it("signed-in Kick: hides local app-only Kick follows from the sidebar", () => {
@@ -341,7 +342,7 @@ describe("SidebarFollows", () => {
 
     expect(screen.getAllByText("KickAccountCached").length).toBeGreaterThan(0);
     expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
-    expect(prefetchStreamPlaybackMock).toHaveBeenCalledWith("kick", "kickaccountcached");
+    expect(prefetchStreamPlaybackMock).not.toHaveBeenCalledWith("kick", "kickaccountcached");
   });
 
   it("ignores stale cached live status and waits for followed-stream API truth", () => {
@@ -794,13 +795,19 @@ describe("SidebarFollows", () => {
     expect(screen.getByAltText("Kick verified")).toBeInTheDocument();
   });
 
-  it("prefetches visible live Kick follows without prefetching Twitch rows", () => {
+  it("does not prefetch playback while live follows mount, refresh, regain focus, or go offline", () => {
     storeState.localFollows = [
       fixtures.channel({
         id: "kick-live-channel",
         platform: "kick",
         username: "kicklive",
         displayName: "KickLive",
+      }),
+      fixtures.channel({
+        id: "kick-offline-channel",
+        platform: "kick",
+        username: "kickoffline",
+        displayName: "KickOffline",
       }),
       fixtures.channel({
         id: "twitch-live-channel",
@@ -812,20 +819,21 @@ describe("SidebarFollows", () => {
       data: [],
       isLoading: false,
     } as unknown as ReturnType<typeof useFollowedChannels>);
+    let kickStreams = [
+      fixtures.stream({
+        id: "kick-live",
+        platform: "kick",
+        channelId: "kick-live-channel",
+        channelName: "kicklive",
+        channelDisplayName: "KickLive",
+      }),
+    ];
     useFollowedStreamsMock.mockImplementation(
       (platform) =>
         ({
           data:
             platform === "kick"
-              ? [
-                  fixtures.stream({
-                    id: "kick-live",
-                    platform: "kick",
-                    channelId: "kick-live-channel",
-                    channelName: "kicklive",
-                    channelDisplayName: "KickLive",
-                  }),
-                ]
+              ? kickStreams
               : [
                   fixtures.stream({
                     id: "twitch-live",
@@ -838,10 +846,27 @@ describe("SidebarFollows", () => {
         }) as unknown as ReturnType<typeof useFollowedStreams>
     );
 
-    renderWithProviders(<SidebarFollows collapsed={false} />);
+    const { rerender } = renderWithProviders(<SidebarFollows collapsed={false} />);
 
-    expect(prefetchStreamPlaybackMock).toHaveBeenCalledWith("kick", "kicklive");
-    expect(prefetchStreamPlaybackMock).not.toHaveBeenCalledWith("twitch", "twitchlive");
+    expect(screen.getAllByText("KickLive").length).toBeGreaterThan(0);
+    expect(prefetchStreamPlaybackMock).not.toHaveBeenCalled();
+
+    kickStreams = [
+      fixtures.stream({
+        id: "kick-live",
+        platform: "kick",
+        channelId: "kick-live-channel",
+        channelName: "kicklive",
+        channelDisplayName: "KickLive",
+        viewerCount: 4321,
+      }),
+    ];
+    rerender(<SidebarFollows collapsed={false} />);
+    fireEvent.focus(window);
+    fireEvent(window, new Event("offline"));
+
+    expect(screen.getByText("4.3K")).toBeInTheDocument();
+    expect(prefetchStreamPlaybackMock).not.toHaveBeenCalled();
   });
 
   it("deduplicates a guest Kick follow and live stream by broadcaster slug", () => {

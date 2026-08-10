@@ -59,7 +59,7 @@ async function searchPublicCategoryList(
   try {
     const limit = options.limit ?? 100;
     const matches = sortCategories(
-      (await getPublicCategoryList()).filter((category) =>
+      (await getPublicCategoryList(options.signal)).filter((category) =>
         matchesCategoryQuery(category, normalizedQuery)
       )
     );
@@ -83,7 +83,8 @@ async function searchPublicCategoryList(
  * token and carries viewer counts. The official `/public/v2/categories` path is
  * the primary source for normal category reads below.
  */
-async function getPublicCategoryList(): Promise<UnifiedCategory[]> {
+async function getPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCategory[]> {
+  signal?.throwIfAborted();
   const now = Date.now();
   if (
     _publicCategoryListCache.data.length > 0 &&
@@ -99,6 +100,7 @@ async function getPublicCategoryList(): Promise<UnifiedCategory[]> {
   let reachedInactive = false;
 
   for (let page = 0; page < PUBLIC_CATEGORY_LIST_MAX_PAGES; page++) {
+    signal?.throwIfAborted();
     const url = `https://api.kick.com/private/v1/categories${
       cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""
     }`;
@@ -114,7 +116,9 @@ async function getPublicCategoryList(): Promise<UnifiedCategory[]> {
           Origin: "https://kick.com",
           "X-Requested-With": "XMLHttpRequest",
         },
-        signal: AbortSignal.timeout(5000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
+          : AbortSignal.timeout(5000),
       });
       data = res.ok ? await res.json() : null;
     } catch {
@@ -190,11 +194,18 @@ async function getPublicTopCategories(): Promise<PaginatedResult<UnifiedCategory
  */
 export async function getTopCategories(
   client: KickRequestor,
-  _options: PaginationOptions = {}
+  options: PaginationOptions = {}
 ): Promise<PaginatedResult<UnifiedCategory>> {
   try {
     const params = new URLSearchParams();
-    params.set("limit", OFFICIAL_CATEGORY_PAGE_LIMIT.toString());
+    params.set(
+      "limit",
+      Math.min(
+        Math.max(options.limit ?? OFFICIAL_CATEGORY_PAGE_LIMIT, 1),
+        OFFICIAL_CATEGORY_PAGE_LIMIT
+      ).toString()
+    );
+    if (options.cursor) params.set("cursor", options.cursor);
 
     const response = await client.request<KickApiCursorResponse<KickApiCategory[]>>(
       officialCategoriesEndpoint(params),

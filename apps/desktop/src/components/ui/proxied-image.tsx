@@ -20,11 +20,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  KICK_IMAGE_SCHEME,
-  resolveProxiedSrc,
-  TWITCH_IMAGE_SCHEME,
-} from "@/lib/proxied-image-url";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
+import { KICK_IMAGE_SCHEME, resolveProxiedSrc, TWITCH_IMAGE_SCHEME } from "@/lib/proxied-image-url";
 import { cn } from "@/lib/utils";
 
 // Session-level set of URLs that have already 403'd / errored. Used to skip
@@ -33,6 +30,7 @@ import { cn } from "@/lib/utils";
 // re-renders. In-memory only — forgotten on app restart, so if the asset
 // recovers we'll pick it up on the next launch.
 const brokenUrls = new Set<string>();
+const KICK_RETRY_DELAYS_MS = [1000, 3000, 10_000, 30_000] as const;
 
 /** Test-only escape hatch — production code should never need this. */
 export function _resetProxiedImageBrokenUrls(): void {
@@ -149,11 +147,25 @@ export function ProxiedImage({
   const imgRef = useRef<HTMLImageElement | null>(null);
   const seenSrcRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const isKickProxy = resolvedSrc?.startsWith(`${KICK_IMAGE_SCHEME}://`) ?? false;
+  const requestSrc = useMemo(() => {
+    if (!resolvedSrc || !isKickProxy || retryAttempt === 0) return resolvedSrc;
+    const separator = resolvedSrc.includes("?") ? "&" : "?";
+    return `${resolvedSrc}${separator}retry=${retryAttempt}`;
+  }, [isKickProxy, resolvedSrc, retryAttempt]);
   // Seed hasError from the session-level skip-list so a URL that 403'd earlier
   // in this session goes straight to the fallback path without re-issuing a
   // request the browser would log to the console.
   const [hasError, setHasError] = useState(
-    () => resolvedSrc !== null && brokenUrls.has(resolvedSrc)
+    () => resolvedSrc !== null && !isKickProxy && brokenUrls.has(resolvedSrc)
+  );
+  const kickRetryTimer = useManagedTimeout(
+    useCallback(() => {
+      setRetryAttempt((attempt) => attempt + 1);
+      setHasError(false);
+      setIsLoaded(false);
+    }, [])
   );
 
   // Reset load state when the underlying src actually changes. A bare
@@ -164,13 +176,39 @@ export function ProxiedImage({
   useEffect(() => {
     if (seenSrcRef.current !== null && seenSrcRef.current !== resolvedSrc) {
       setIsLoaded(false);
+      setRetryAttempt(0);
       // Re-seed against the skip-list on src change so a previously-broken
       // URL stays broken without a doomed retry, while a fresh URL starts
       // clean.
-      setHasError(resolvedSrc !== null && brokenUrls.has(resolvedSrc));
+      setHasError(resolvedSrc !== null && !isKickProxy && brokenUrls.has(resolvedSrc));
     }
     seenSrcRef.current = resolvedSrc;
-  }, [resolvedSrc]);
+  }, [isKickProxy, resolvedSrc]);
+
+  // Kick protocol failures can be transient (the dedicated Electron network
+  // session may time out while the same real CDN object remains healthy).
+  // Retry the mounted image in place with capped backoff rather than latching
+  // it as broken for the entire session. Permanent 4xx responses are already
+  // negative-cached in the main process, so these retries remain cheap.
+  useEffect(() => {
+    if (!hasError || !isKickProxy) {
+      kickRetryTimer.clear();
+      return;
+    }
+
+    const delay = KICK_RETRY_DELAYS_MS[Math.min(retryAttempt, KICK_RETRY_DELAYS_MS.length - 1)];
+    kickRetryTimer.start(delay);
+    return kickRetryTimer.clear;
+  }, [hasError, isKickProxy, kickRetryTimer, retryAttempt]);
+
+  const handleFailure = useCallback(() => {
+    // Only stable failures are session-latched. Kick failures retry because
+    // the custom protocol deliberately uses the same 1x1 failure response for
+    // both transient network timeouts and permanent upstream errors.
+    if (resolvedSrc && !isKickProxy) brokenUrls.add(resolvedSrc);
+    setHasError(true);
+    onProxyError?.();
+  }, [isKickProxy, onProxyError, resolvedSrc]);
 
   // Cache hits can fire <img>'s load event before React attaches the handler,
   // leaving isLoaded stuck at false. Detect via the ref callback (which runs
@@ -180,15 +218,13 @@ export function ProxiedImage({
       imgRef.current = el;
       if (el?.complete && el.naturalWidth > 0) {
         if (isProxyPlaceholder(el, resolvedSrc)) {
-          if (resolvedSrc) brokenUrls.add(resolvedSrc);
-          setHasError(true);
-          onProxyError?.();
+          handleFailure();
           return;
         }
         setIsLoaded(true);
       }
     },
-    [resolvedSrc, onProxyError]
+    [handleFailure, resolvedSrc]
   );
 
   if (!resolvedSrc || hasError) {
@@ -216,7 +252,7 @@ export function ProxiedImage({
   return (
     <img
       ref={setImgRef}
-      src={resolvedSrc}
+      src={requestSrc ?? undefined}
       alt={alt}
       className={cn(!isLoaded && "animate-pulse bg-[var(--color-background-elevated)]", className)}
       loading={loading}
@@ -226,17 +262,13 @@ export function ProxiedImage({
       {...(height !== undefined ? { height } : {})}
       onLoad={(e) => {
         if (isProxyPlaceholder(e.currentTarget, resolvedSrc)) {
-          if (resolvedSrc) brokenUrls.add(resolvedSrc);
-          setHasError(true);
-          onProxyError?.();
+          handleFailure();
           return;
         }
         setIsLoaded(true);
       }}
       onError={() => {
-        if (resolvedSrc) brokenUrls.add(resolvedSrc);
-        setHasError(true);
-        onProxyError?.();
+        handleFailure();
       }}
     />
   );

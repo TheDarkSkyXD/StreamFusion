@@ -11,7 +11,7 @@ import { getQueryCacheOptions } from "@/hooks/queries/cache-policy";
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
-import { cn, formatLanguageLabel, formatViewerCount } from "@/lib/utils";
+import { cn, formatLanguageLabel, formatViewerCount, uniqueTagLabels } from "@/lib/utils";
 import { StreamVerifiedBadge } from "./stream-verified-badge";
 
 interface StreamCardProps {
@@ -110,16 +110,17 @@ export const StreamCard = React.memo(
         }
       }
 
-      if (tags.length === 0) return null;
+      const uniqueTags = uniqueTagLabels(tags);
+      if (uniqueTags.length === 0) return null;
 
       let totalChars = 0;
-      const checkCount = Math.min(tags.length, 3);
+      const checkCount = Math.min(uniqueTags.length, 3);
       for (let i = 0; i < checkCount; i++) {
-        totalChars += tags[i].length;
+        totalChars += uniqueTags[i].length;
       }
 
       const maxTags = totalChars > 24 ? 3 : 4;
-      return tags.slice(0, maxTags);
+      return uniqueTags.slice(0, maxTags);
     }, [stream.language, stream.tags]);
 
     return (

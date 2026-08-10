@@ -14,12 +14,14 @@ vi.mock('@/components/discovery/virtualized-category-grid', () => ({
     categories,
     isLoading,
     emptyMessage,
+    skeletonCount,
   }: {
     categories: { id: string; name: string }[];
     isLoading?: boolean;
     emptyMessage?: string;
+    skeletonCount?: number;
   }) => (
-    <div data-testid="vcat-grid">
+    <div data-testid="vcat-grid" data-skeleton-count={skeletonCount}>
       {isLoading ? (
         <span>loading-grid</span>
       ) : categories.length === 0 ? (
@@ -44,13 +46,14 @@ describe('CategoriesPage', () => {
     useTopCategoriesMock.mockReset();
   });
 
-  it('loading: forwards isLoading=true to the grid so users see skeletons', () => {
+  it('loading: forwards isLoading=true and 12 placeholders to the grid', () => {
     useTopCategoriesMock.mockReturnValue({ data: undefined, isLoading: true } as ReturnType<
       typeof useTopCategories
     >);
     renderWithProviders(<CategoriesPage />);
     expect(screen.getByRole('heading', { name: /categories/i })).toBeInTheDocument();
     expect(screen.getByText('loading-grid')).toBeInTheDocument();
+    expect(screen.getByTestId('vcat-grid')).toHaveAttribute('data-skeleton-count', '12');
   });
 
   it('renders categories from query', () => {

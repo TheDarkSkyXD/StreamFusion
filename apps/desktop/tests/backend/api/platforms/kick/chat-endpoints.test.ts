@@ -31,6 +31,8 @@ vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
 import { getKickChannelHistory } from "@/backend/api/platforms/kick/endpoints/chat-endpoints";
 import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
 
+// Guards: Kick history must be fetched from a normal channel page with its cookie-bearing session because direct API navigation is rejected by Cloudflare.
+// Guards: a non-successful in-page history response must return unavailable instead of being mistaken for empty history.
 describe("chat-endpoints -- getKickChannelHistory", () => {
   beforeEach(() => {
     mockLoadURL.mockReset().mockResolvedValue(undefined);
@@ -43,6 +45,30 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("loads the channel page before fetching history from Kick's web API with credentials", async () => {
+    mockExecuteJavaScript.mockResolvedValueOnce(
+      JSON.stringify({ ok: true, body: { data: { messages: [] } } })
+    );
+
+    const result = await getKickChannelHistory("12345", "xqc");
+
+    expect(result).toEqual({ messages: [], pinnedMessage: null });
+    expect(mockLoadURL).toHaveBeenCalledWith("https://kick.com/xqc");
+    expect(mockExecuteJavaScript).toHaveBeenCalledWith(
+      expect.stringMatching(/fetch\([^]*\/api\/v2\/channels\/12345\/messages[^]*credentials:\s*["']include["']/)
+    );
+  });
+
+  it("returns null when the credentialed history request is not successful", async () => {
+    mockExecuteJavaScript.mockResolvedValueOnce(
+      JSON.stringify({ ok: false, status: 403, body: null })
+    );
+
+    const result = await getKickChannelHistory("12345", "xqc");
+
+    expect(result).toBeNull();
   });
 
   it("returns null for empty channelId", async () => {
@@ -183,15 +209,15 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
     expect(result).toBeNull();
   });
 
-  it("constructs URL with encoded channelId", async () => {
+  it("encodes the channel id in the web history path", async () => {
     mockExecuteJavaScript.mockResolvedValueOnce(
       JSON.stringify({ data: { messages: [] } })
     );
 
-    await getKickChannelHistory("123/456");
+    await getKickChannelHistory("123/456", "xqc");
 
-    expect(mockLoadURL).toHaveBeenCalledWith(
-      expect.stringContaining("123%2F456")
+    expect(mockExecuteJavaScript).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v2/channels/123%2F456/messages")
     );
   });
 });

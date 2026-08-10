@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import type { UnifiedStream } from "@/backend/api/unified/platform-types";
 import { getStreamElementKey } from "@/lib/id-utils";
@@ -31,7 +31,9 @@ export function StreamGrid({
   const animatedInitialRef = useRef(false);
   const hasStreams = !!streams && streams.length > 0;
   const shouldStagger = hasStreams && !animatedInitialRef.current;
-  if (hasStreams) animatedInitialRef.current = true;
+  useEffect(() => {
+    if (hasStreams) animatedInitialRef.current = true;
+  }, [hasStreams]);
 
   if (isLoading) {
     return (

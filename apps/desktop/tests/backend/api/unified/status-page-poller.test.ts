@@ -34,6 +34,7 @@ function defaultKickStatusResponse(url: string | URL | Request): Response {
 }
 
 // Guards: Kick status-page incidents tied only to Other/catch-all stay all-clear so the global outage banner only follows main system-status services.
+// Guards: a successful HTML response from Kick's JSON endpoint fails closed without warning spam or dependent requests, then backs off before retrying.
 describe("status-page-poller (slice 08)", () => {
   let originalFetch: typeof globalThis.fetch;
   let platformHealth: typeof import("@/backend/api/unified/platform-health");
@@ -55,9 +56,8 @@ describe("status-page-poller (slice 08)", () => {
     loggerMock.info.mockClear();
     loggerMock.warn.mockClear();
     loggerMock.error.mockClear();
-    const { __resetStatusPagePollerForTests, initStatusPagePoller } = await import(
-      "@/backend/api/unified/status-page-poller"
-    );
+    const { __resetStatusPagePollerForTests, initStatusPagePoller } =
+      await import("@/backend/api/unified/status-page-poller");
     __resetStatusPagePollerForTests();
     initStatusPagePoller();
     await vi.advanceTimersByTimeAsync(1);
@@ -397,6 +397,29 @@ describe("status-page-poller (slice 08)", () => {
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
+  });
+
+  it("Kick: HTML from the services endpoint fails closed and backs off without warning spam", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response("<!doctype html><html><body>Status page</body></html>", {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+
+    const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => String(url));
+    expect(urls).toEqual(["https://status.kick.com/api/services"]);
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
+    expect(platformHealth.recordStatusPageSignal).not.toHaveBeenCalledWith(
+      "kick",
+      "confirmed-outage",
+      expect.anything()
+    );
+    expect(loggerMock.warn).not.toHaveBeenCalled();
+    expect(loggerMock.error).not.toHaveBeenCalled();
   });
 
   it("Twitch status fetch rejection: logs warn with [poller-r9c2] tag and status URL in meta", async () => {

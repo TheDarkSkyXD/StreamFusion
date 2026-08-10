@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { MouseEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LuArrowLeft } from "react-icons/lu";
 
 import type { UnifiedCategory } from "@/backend/api/unified/platform-types";
@@ -338,7 +338,9 @@ export function CategoryDetailPage() {
   );
 
   const queriesRef = useRef({ primaryQuery, secondaryQuery, platformScope, currentPlatform });
-  queriesRef.current = { primaryQuery, secondaryQuery, platformScope, currentPlatform };
+  useLayoutEffect(() => {
+    queriesRef.current = { primaryQuery, secondaryQuery, platformScope, currentPlatform };
+  }, [currentPlatform, platformScope, primaryQuery, secondaryQuery]);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {

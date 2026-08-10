@@ -8,7 +8,7 @@ import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useCategoryMetadata } from "@/hooks/queries/useCategories";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
-import { formatViewerCount } from "@/lib/utils";
+import { formatViewerCount, uniqueTagLabels } from "@/lib/utils";
 
 interface CategoryCardProps {
   category: UnifiedCategory;
@@ -31,7 +31,8 @@ export const CategoryCard = React.memo(({
   // Lazy-fetch stream count + (Twitch-only) tags. The virtualized grid only
   // mounts cards that are visible, so we only pay for what the user can see.
   const { data: metadata } = useCategoryMetadata(category);
-  const tags = category.tags && category.tags.length > 0 ? category.tags : metadata?.tags;
+  const rawTags = category.tags && category.tags.length > 0 ? category.tags : metadata?.tags;
+  const tags = rawTags ? uniqueTagLabels(rawTags) : undefined;
 
   const prefetchTimer = useManagedTimeout(
     useCallback(() => {
