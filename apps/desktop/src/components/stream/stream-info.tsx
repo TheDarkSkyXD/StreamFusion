@@ -158,7 +158,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
         {!isOffline && !isOwnerView && (
           <>
             {/* Prefer the current title, with channel metadata as a live-data fallback. */}
-            <p className="text-white font-bold truncate pr-4">{displayTitle}</p>
+            <p className="text-white font-bold whitespace-normal break-words pr-4">{displayTitle}</p>
             <div className="text-[var(--color-foreground-muted)] text-sm capitalize flex flex-wrap items-center gap-2 mt-1">
               {/* Prefer the current category, with the channel's last known category as fallback. */}
               {displayCategory &&

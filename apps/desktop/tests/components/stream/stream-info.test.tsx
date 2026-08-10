@@ -43,6 +43,7 @@ import { StreamInfo } from "@/components/stream/stream-info";
 // Guards: offline channel metadata turns a valid last-live timestamp into readable relative time.
 // Guards: offline channel metadata hides missing or malformed values instead of showing fabricated placeholders.
 // Guards: a non-live stream payload uses offline metadata, while a live payload retains title, category, and viewer stats.
+// Guards: long live stream titles wrap in the channel header instead of being clipped to one line.
 // Guards: the live recording action sits immediately before Follow in the Stream action row.
 describe("StreamInfo", () => {
   beforeEach(() => {
@@ -188,6 +189,22 @@ describe("StreamInfo", () => {
     expect(screen.getByText("1.2K")).toBeInTheDocument();
     expect(screen.queryByText("999 followers")).not.toBeInTheDocument();
     expect(screen.queryByText(/Last live/i)).not.toBeInTheDocument();
+  });
+
+  it("wraps long live stream titles in the channel header", () => {
+    const longTitle =
+      "A very long stream title that should remain completely readable even when it needs several lines";
+
+    renderWithProviders(
+      <StreamInfo
+        channel={fixtures.channel()}
+        stream={fixtures.stream({ isLive: true, title: longTitle })}
+        isLoading={false}
+      />
+    );
+
+    expect(screen.getByText(longTitle)).toHaveClass("whitespace-normal", "break-words");
+    expect(screen.getByText(longTitle)).not.toHaveClass("truncate");
   });
 
   it("places the recording action immediately left of Follow", () => {
