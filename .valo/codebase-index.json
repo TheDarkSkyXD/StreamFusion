@@ -1,8 +1,8 @@
 {
   "version": 2,
   "projectRoot": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion",
-  "indexedAt": "2026-08-10T23:05:00.339Z",
-  "lastCommitHash": "12d6e1b1494bd94c6de2b03f6f52459f42194481",
+  "indexedAt": "2026-08-10T23:27:17.800Z",
+  "lastCommitHash": "ed5a7a61a17b0b779dac52e7a6280fd39a8a37f8",
   "files": {
     "apps/desktop/docs/TWITCH-ADBLOCK-SYSTEM.md": {
       "summary": "Architecture and troubleshooting reference for StreamFusion’s layered Twitch ad-blocking system. Documents network URL blocking, Electron HLS manifest interception, renderer-side playlist processing, ULW backup token strategies, ad markers, segment stripping, configuration, and component relationships.",
@@ -15265,17 +15265,17 @@
       }
     },
     "apps/desktop/src/components/stream/stream-info.tsx": {
-      "summary": "Renders stream and channel metadata for Twitch and Kick pages, including avatars, verification, follower counts, titles, categories, language tags, live status, uptime, and recording actions. Handles loading skeletons, authenticated owner detection, cross-platform category links, and offline timing labels.",
+      "summary": "Renders the stream page channel header with platform avatar, verification status, live/offline metadata, follower counts, category links, stream tags, uptime, follow controls, and recording actions. Handles Twitch/Kick owner detection, loading skeletons, cross-platform category routing, and live title/viewer formatting.",
       "tags": [
         "streaming",
         "twitch",
         "kick",
-        "channel-metadata",
-        "responsive-ui"
+        "channel-header",
+        "cross-platform"
       ],
-      "hash": "1d918dc50ece802e",
-      "mtime": 1785711650040,
-      "size": 11557,
+      "hash": "b7e4b122306b6675",
+      "mtime": 1786403721923,
+      "size": 11578,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
@@ -15284,8 +15284,8 @@
           "streaming",
           "twitch",
           "kick",
-          "channel-metadata",
-          "responsive-ui"
+          "channel-header",
+          "cross-platform"
         ]
       }
     },
@@ -31292,27 +31292,27 @@
       }
     },
     "apps/desktop/tests/components/stream/stream-info.test.tsx": {
-      "summary": "Comprehensive StreamInfo component tests covering loading UI, channel identity, verification badges, live versus offline metadata, follower counts, relative last-live timestamps, recording/follow action order, and owner-specific profile behavior. Mocks authentication and platform UI components while exercising live stream presentation rules.",
+      "summary": "Vitest coverage for StreamInfo rendering and stream-state behavior, including loading skeletons, verified badges, offline follower and last-live metadata, live titles/categories/viewers, long-title wrapping, owner-specific controls, and recording action placement. Uses mocked authentication, router, UI components, and shared fixtures.",
       "tags": [
-        "stream-info",
-        "live-stream",
+        "testing",
+        "vitest",
+        "streaming",
         "offline-state",
-        "authentication",
-        "component-testing"
+        "authentication"
       ],
-      "hash": "74c5c607ece3a3a1",
-      "mtime": 1785711631394,
-      "size": 8469,
+      "hash": "10fda83ed06c2b99",
+      "mtime": 1786403721924,
+      "size": 9123,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "stream-info",
-          "live-stream",
+          "testing",
+          "vitest",
+          "streaming",
           "offline-state",
-          "authentication",
-          "component-testing"
+          "authentication"
         ]
       }
     },
